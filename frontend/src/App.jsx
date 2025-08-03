@@ -1,6 +1,7 @@
 // File: frontend/src/App.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import BotControl from './components/BotControl';
+import api from './api';
 
 const WS_URL = import.meta.env.VITE_API_WS_URL;
 
