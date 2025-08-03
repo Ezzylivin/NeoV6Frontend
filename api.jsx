@@ -1,0 +1,18 @@
+// File: frontend/src/api.js
+import axios from 'axios';
+import { getToken } from './utils/auth';
+
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL,
+});
+
+// Interceptor to add the authentication token to every request
+api.interceptors.request.use((config) => {
+  const token = getToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+export default api;
