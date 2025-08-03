@@ -52,45 +52,38 @@ function App() {
       return;
     }
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (res.ok && data.access_token) {
-        localStorage.setItem('access_token', data.access_token);
-        setAccessToken(data.access_token);
+      // Use the configured api instance
+      const res = await api.post('/auth/login', { email, password });
+      if (res.data && res.data.access_token) {
+        localStorage.setItem('access_token', res.data.access_token);
+        setAccessToken(res.data.access_token);
         setLogs([]);
       } else {
-        alert(data.message || 'Login failed');
+        alert('Login failed: No access token received.');
       }
     } catch (err) {
-      alert('Network error');
+      // Axios puts server error messages in err.response.data.message
+      alert(err.response?.data?.message || 'Login failed.');
     }
   };
 
-  const handleRegister = async () => {
+   const handleRegister = async () => {
     if (!email || !password) {
       alert('Please enter email and password');
       return;
     }
     try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (res.ok && data.access_token) {
-        localStorage.setItem('access_token', data.access_token);
-        setAccessToken(data.access_token);
+      // Use the configured api instance
+      const res = await api.post('/auth/register', { email, password });
+      if (res.data && res.data.access_token) {
+        localStorage.setItem('access_token', res.data.access_token);
+        setAccessToken(res.data.access_token);
         setLogs([]);
       } else {
-        alert(data.message || 'Registration failed');
+        alert('Registration failed: No access token received.');
       }
     } catch (err) {
-      alert('Network error');
+      alert(err.response?.data?.message || 'Registration failed.');
     }
   };
 
