@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import BotControl from './components/BotControl';
 
-const WS_URL = 'ws://localhost:8000'; // Change to your backend WS URL if needed
+const WS_URL = import.meta.env.VITE_API_WS_URL;
+
 
 function App() {
   const [accessToken, setAccessToken] = useState(localStorage.getItem('access_token') || '');
