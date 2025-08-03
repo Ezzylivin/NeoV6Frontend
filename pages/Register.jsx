@@ -1,10 +1,13 @@
-// File: frontend/src/pages/Register.jsx
+// ===============================
+// 3. Register.jsx
+// ===============================
+// Corrected name and UX improvement
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import { setToken } from '../utils/auth';
 
-const Login = () => {
+const Register = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -14,11 +17,13 @@ const Login = () => {
     e.preventDefault();
     try {
       const res = await api.post('/auth/register', { email, password });
-      setToken(res.data.access_token);
-      navigate('/');
-      window.location.reload(); // Force refresh to update app state
+      if (res.data.access_token) {
+        setToken(res.data.access_token);
+        navigate('/');
+        window.location.reload();
+      }
     } catch (err) {
-      setError('Invalid email or password.');
+      setError(err.response?.data?.message || 'Registration failed.');
     }
   };
 
@@ -28,7 +33,7 @@ const Login = () => {
       <form onSubmit={handleSubmit}>
         <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        <button type="submit">Login</button>
+        <button type="submit">Register</button>
       </form>
       {error && <p style={{ color: 'red' }}>{error}</p>}
     </div>
