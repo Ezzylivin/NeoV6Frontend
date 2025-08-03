@@ -2,9 +2,7 @@
 import axios from 'axios';
 import { getToken } from './utils/auth';
 
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
-});
+const api = axios.create({ baseURL: process.env.REACT_APP_API_URL });
 
 // Interceptor to add the authentication token to every request
 api.interceptors.request.use((config) => {
