@@ -1,123 +1,76 @@
-// src/components/BotControl.jsx
+// File: src/components/BotControl.jsx
 import React, { useState } from 'react';
+import { startBot, stopBot, getBotStatus } from '../api/bot';
 
 const BotControl = ({ accessToken }) => {
-  const [mode, setMode] = useState('standard');
-  const [symbol, setSymbol] = useState('BTC/USDT');
-  const [amount, setAmount] = useState(0.001);
-  const [timeframes, setTimeframes] = useState(['5m']);
-  const [status, setStatus] = useState('');
+  const [symbol, setSymbol] = useState('');
+  const [amount, setAmount] = useState('');
+  const [timeframes, setTimeframes] = useState('');
+  const [status, setStatus] = useState(null);
+  const [error, setError] = useState('');
 
-  const availableTimeframes = ['1m', '3m', '5m', '15m', '30m', '1h', '4h', '1d'];
+  // Optional: Load current bot status on mount
+  React.useEffect(() => {
+    async function fetchStatus() {
+      try {
+        const res = await getBotStatus();
+        setStatus(res.data);
+      } catch {
+        setStatus(null);
+      }
+    }
+    fetchStatus();
+  }, []);
 
-  const toggleTimeframe = (tf) => {
-    if (timeframes.includes(tf)) {
-      setTimeframes(timeframes.filter((t) => t !== tf));
-    } else {
-      setTimeframes([...timeframes, tf]);
+  const handleStart = async () => {
+    try {
+      await startBot(symbol, amount, timeframes);
+      setStatus('Running');
+      setError('');
+    } catch (err) {
+      setError('Failed to start bot');
     }
   };
 
-  const startBot = async () => {
-    if (!symbol || !amount || timeframes.length === 0) {
-      alert('Please fill in symbol, amount, and select at least one timeframe.');
-      return;
-    }
-
+  const handleStop = async () => {
     try {
-      const res = await fetch('/api/bot/start', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ mode, symbol, amount, timeframes }),
-      });
-      const data = await res.json();
-      setStatus(data.status || 'Started');
-    } catch (err) {
-      setStatus('Error starting bot: ' + err.message);
-    }
-  };
-
-  const stopBot = async () => {
-    try {
-      const res = await fetch('/api/bot/stop', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      const data = await res.json();
-      setStatus(data.status || 'Stopped');
-    } catch (err) {
-      setStatus('Error stopping bot: ' + err.message);
+      await stopBot();
+      setStatus('Stopped');
+      setError('');
+    } catch {
+      setError('Failed to stop bot');
     }
   };
 
   return (
     <div>
-      <label>
-        Mode:
-        <select value={mode} onChange={(e) => setMode(e.target.value)} style={{ marginLeft: 8 }}>
-          <option value="standard">Standard</option>
-          <option value="pro">Pro</option>
-        </select>
-      </label>
-
-      <br />
-
-      <label>
-        Symbol:
-        <input
-          type="text"
-          value={symbol}
-          onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-          placeholder="e.g. BTC/USDT"
-          style={{ marginLeft: 8 }}
-        />
-      </label>
-
-      <br />
-
-      <label>
-        Amount:
-        <input
-          type="number"
-          min="0"
-          step="any"
-          value={amount}
-          onChange={(e) => setAmount(parseFloat(e.target.value))}
-          placeholder="Trade amount"
-          style={{ marginLeft: 8 }}
-        />
-      </label>
-
-      <br />
-
-      <fieldset style={{ border: '1px solid #ccc', padding: '10px', marginTop: '10px' }}>
-        <legend>Select Timeframes (Polling):</legend>
-        {availableTimeframes.map((tf) => (
-          <label key={tf} style={{ marginRight: '10px' }}>
-            <input
-              type="checkbox"
-              checked={timeframes.includes(tf)}
-              onChange={() => toggleTimeframe(tf)}
-            />
-            {tf}
-          </label>
-        ))}
-      </fieldset>
-
-      <br />
-
-      <button onClick={startBot}>Start Bot</button>
-      <button onClick={stopBot} style={{ marginLeft: '10px' }}>
-        Stop Bot
-      </button>
-
-      <p>Status: {status}</p>
+      <h3>Bot Control</h3>
+      <input
+        type="text"
+        placeholder="Symbol"
+        value={symbol}
+        onChange={(e) => setSymbol(e.target.value)}
+      />
+      <input
+        type="number"
+        placeholder="Amount"
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+      />
+      <input
+        type="text"
+        placeholder="Timeframes (comma-separated)"
+        value={timeframes}
+        onChange={(e) => setTimeframes(e.target.value)}
+      />
+      <div>
+        <button onClick={handleStart}>Start Bot</button>
+        <button onClick={handleStop}>Stop Bot</button>
+      </div>
+      {status && <p>Status: {status}</p>}
+      {error && <p style={{ color: 'red' }}>{error}</p>}
     </div>
   );
 };
 
 export default BotControl;
-
