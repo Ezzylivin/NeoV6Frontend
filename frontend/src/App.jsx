@@ -10,7 +10,7 @@ import Register from './pages/Register';
 import ProtectedRoute from './components/ProtectedRoute';
 import BotControl from './components/BotControl';
 
-import { getToken, removeToken } from './utils/auth';
+import { getToken, removeToken } from './api/auth';
 
 function App() {
   const [logs, setLogs] = useState([]);
