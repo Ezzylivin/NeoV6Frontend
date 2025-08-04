@@ -1,19 +1,14 @@
+// File: frontend/src/App.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate,
-  NavLink,
-  useNavigate,
-} from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
 
 import Dashboard from './pages/Dashboard';
 import Backtest from './pages/Backtest';
-import BotControl from './components/BotControl';
+import BotTraining from './pages/BotTraining';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ProtectedRoute from './components/ProtectedRoute';
+import BotControl from './components/BotControl';
 
 import { getToken, removeToken } from './utils/auth';
 
@@ -42,7 +37,7 @@ function App() {
 
       ws.current.onclose = () => addLog('Disconnected from live logs.');
 
-      return () => ws.current.close();
+      return () => ws.current?.close();
     }
   }, [token]);
 
@@ -54,93 +49,77 @@ function App() {
     window.location.reload();
   };
 
-  if (!token) {
-    return (
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    );
-  }
-
   return (
-    <>
-      <header
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <h1>Trading Bot Dashboard</h1>
-        <button onClick={handleLogout} style={{ padding: '6px 12px' }}>
-          Logout
-        </button>
-      </header>
+    <div style={{ maxWidth: 800, margin: '20px auto', fontFamily: 'Arial, sans-serif' }}>
+      {token ? (
+        <>
+          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h1>Trading Bot Dashboard</h1>
+            <button onClick={handleLogout} style={{ padding: '6px 12px' }}>Logout</button>
+          </header>
 
-      <nav style={{ marginBottom: 20, display: 'flex', gap: 10 }}>
-        <NavLink
-          to="/"
-          end
-          style={({ isActive }) => ({
-            color: isActive ? 'darkblue' : 'blue',
-            textDecoration: 'none',
-          })}
-        >
-          Dashboard
-        </NavLink>
-        <NavLink
-          to="/backtest"
-          style={({ isActive }) => ({
-            color: isActive ? 'darkblue' : 'blue',
-            textDecoration: 'none',
-          })}
-        >
-          Backtest
-        </NavLink>
-        {/* Add more links here */}
-      </nav>
+          <nav style={{ marginBottom: 20, display: 'flex', gap: 10 }}>
+            <Link to="/" style={{ textDecoration: 'none', color: 'blue' }}>Dashboard</Link>
+            <Link to="/backtest" style={{ textDecoration: 'none', color: 'blue' }}>Backtest</Link>
+            <Link to="/bot-training" style={{ textDecoration: 'none', color: 'blue' }}>Bot Training</Link>
+          </nav>
 
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-              <BotControl accessToken={token} />
-              <div
-                style={{
-                  background: '#111',
-                  color: '#0f0',
-                  height: 300,
-                  overflowY: 'auto',
-                  padding: 10,
-                  fontFamily: 'monospace',
-                  fontSize: 12,
-                  borderRadius: 5,
-                  marginTop: 20,
-                }}
-              >
-                {logs.map((log, i) => (
-                  <div key={i}>{log}</div>
-                ))}
-              </div>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/backtest"
-          element={
-            <ProtectedRoute>
-              <Backtest />
-            </ProtectedRoute>
-          }
-        />
-        {/* Add more protected routes for other pages */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </>
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <>
+                    <Dashboard />
+                    <BotControl accessToken={token} />
+                    <div
+                      style={{
+                        background: '#111',
+                        color: '#0f0',
+                        height: 300,
+                        overflowY: 'auto',
+                        padding: 10,
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                        borderRadius: 5,
+                        marginTop: 20,
+                      }}
+                    >
+                      {logs.map((log, i) => (
+                        <div key={i}>{log}</div>
+                      ))}
+                    </div>
+                  </>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/backtest"
+              element={
+                <ProtectedRoute>
+                  <Backtest />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/bot-training"
+              element={
+                <ProtectedRoute>
+                  <BotTraining />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </>
+      ) : (
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      )}
+    </div>
   );
 }
 
