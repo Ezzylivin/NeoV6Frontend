@@ -1,0 +1,21 @@
+{
+  "name": "NeoV6 Trading Bot",
+  "short_name": "NeoV6Bot",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1e1e2f",
+  "theme_color": "#4f46e5",
+  "description": "A trading bot web app with backtesting and live logs",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/preview.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
