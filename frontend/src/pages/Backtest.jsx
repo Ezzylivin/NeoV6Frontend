@@ -1,20 +1,21 @@
-// src/pages/Backtest.jsx
+// File: src/pages/Backtest.jsx
 import React, { useState } from 'react';
-import api from '../api';
+import { runBacktest, getBacktestResults } from '../api/backtest';
 
 const Backtest = () => {
-  const [result, setResult] = useState(null);
+  const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const runBacktest = async () => {
+  const handleRunBacktest = async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await api.get('/bot/backtest'); // Adjust endpoint as needed
-      setResult(res.data);
-    } catch (err) {
-      setError(err.response?.data?.message || 'Backtest failed.');
+      await runBacktest();
+      const res = await getBacktestResults();
+      setResults(res.data);
+    } catch {
+      setError('Backtest failed or no results available.');
     }
     setLoading(false);
   };
@@ -22,19 +23,16 @@ const Backtest = () => {
   return (
     <div>
       <h2>Backtest</h2>
-      <button onClick={runBacktest} disabled={loading}>
+      <button onClick={handleRunBacktest} disabled={loading}>
         {loading ? 'Running...' : 'Run Backtest'}
       </button>
 
       {error && <p style={{ color: 'red' }}>{error}</p>}
 
-      {result && (
-        <div style={{ marginTop: 20 }}>
-          <p>Initial Balance: {result.initialBalance}</p>
-          <p>Final Balance: {result.finalBalance}</p>
-          <p>Total Trades: {result.totalTrades}</p>
-          <p>Profit: {result.profit}</p>
-          <p>Candles Tested: {result.candlesTested}</p>
+      {results && (
+        <div>
+          <h3>Backtest Results:</h3>
+          <pre>{JSON.stringify(results, null, 2)}</pre>
         </div>
       )}
     </div>
