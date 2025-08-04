@@ -1,7 +1,7 @@
-// src/pages/Register.jsx
+// File: src/pages/Register.jsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../api';
+import { register } from '../api/auth';
 import { setToken } from '../utils/auth';
 
 const Register = () => {
@@ -13,7 +13,7 @@ const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await api.post('/auth/register', { email, password });
+      const res = await register(email, password);
       if (res.data.access_token) {
         setToken(res.data.access_token);
         navigate('/');
@@ -28,8 +28,8 @@ const Register = () => {
     <div>
       <h2>Register</h2>
       <form onSubmit={handleSubmit}>
-        <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
+        <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required />
         <button type="submit">Register</button>
       </form>
       {error && <p style={{ color: 'red' }}>{error}</p>}
