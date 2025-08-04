@@ -1,5 +1,5 @@
-// File: frontend/src/App.jsx
-import React, { useState, useEffect, useRef } from 'react';
+// File: src/App.jsx
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
 
 import Dashboard from './pages/Dashboard';
@@ -11,36 +11,33 @@ import ProtectedRoute from './components/ProtectedRoute';
 import BotControl from './components/BotControl';
 
 import { getToken, removeToken } from './utils/auth';
+import { fetchLogs } from './api/logs'; // <-- We'll create this API call
 
 function App() {
   const [logs, setLogs] = useState([]);
-  const ws = useRef(null);
   const token = getToken();
   const navigate = useNavigate();
 
+  // Poll logs every 5 seconds using REST API
   useEffect(() => {
+    let intervalId;
+
+    const loadLogs = async () => {
+      try {
+        const res = await fetchLogs();
+        setLogs(res.data.slice(-100)); // Keep last 100 logs
+      } catch {
+        // Handle errors silently or log if you want
+      }
+    };
+
     if (token) {
-      // NOTE: Replace this WebSocket logic with REST-based log pulling if desired
-      ws.current = new WebSocket(`${import.meta.env.VITE_API_WS_URL}/?token=${token}`);
-
-      ws.current.onopen = () => addLog('Connected to live logs.');
-
-      ws.current.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.message) addLog(data.message);
-        } catch {
-          addLog('Received malformed message.');
-        }
-      };
-
-      ws.current.onclose = () => addLog('Disconnected from live logs.');
-
-      return () => ws.current?.close();
+      loadLogs(); // initial load
+      intervalId = setInterval(loadLogs, 5000);
     }
-  }, [token]);
 
-  const addLog = (msg) => setLogs((prev) => [...prev, msg].slice(-100));
+    return () => clearInterval(intervalId);
+  }, [token]);
 
   const handleLogout = () => {
     removeToken();
@@ -54,13 +51,21 @@ function App() {
         <>
           <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h1>Trading Bot Dashboard</h1>
-            <button onClick={handleLogout} style={{ padding: '6px 12px' }}>Logout</button>
+            <button onClick={handleLogout} style={{ padding: '6px 12px' }}>
+              Logout
+            </button>
           </header>
 
           <nav style={{ marginBottom: 20, display: 'flex', gap: 10 }}>
-            <Link to="/" style={{ textDecoration: 'none', color: 'blue' }}>Dashboard</Link>
-            <Link to="/backtest" style={{ textDecoration: 'none', color: 'blue' }}>Backtest</Link>
-            <Link to="/bot-training" style={{ textDecoration: 'none', color: 'blue' }}>Bot Training</Link>
+            <Link to="/" style={{ textDecoration: 'none', color: 'blue' }}>
+              Dashboard
+            </Link>
+            <Link to="/backtest" style={{ textDecoration: 'none', color: 'blue' }}>
+              Backtest
+            </Link>
+            <Link to="/bot-training" style={{ textDecoration: 'none', color: 'blue' }}>
+              Bot Training
+            </Link>
           </nav>
 
           <Routes>
