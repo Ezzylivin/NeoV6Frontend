@@ -23,8 +23,9 @@ const Navbar = () => {
     <nav style={{ background: '#333', padding: '10px', display: 'flex', gap: '15px' }}>
       <Link to="/" style={{ color: 'white' }}>Dashboard</Link>
       <Link to="/bot" style={{ color: 'white' }}>Bot Control</Link>
-      <Link to="/logs" style={{ color: 'white' }}>Live Logs</Link>
+      <Link to="/logs" style={{ color: 'white' }}>Logs</Link>
       <Link to="/backtest" style={{ color: 'white' }}>Backtest</Link>
+      <Link to="/bot-training" style={{ color: 'blue' }}>Bot Training</Link>
       <button onClick={handleLogout} style={{ marginLeft: 'auto' }}>Logout</button>
     </nav>
   );
