@@ -1,14 +1,12 @@
-// File: frontend/src/pages/BotTraining.jsx
+// File: src/pages/BotTraining.jsx
 import React from 'react';
 
 const BotTraining = () => {
+  // Placeholder for your bot training UI and logic
   return (
-    <div style={{ padding: 20 }}>
+    <div>
       <h2>Bot Training</h2>
-      <p>This is where you can train and manage your trading bots.</p>
-      <p>Features like backtesting, training models, or strategy tuning can go here.</p>
-      
-      {/* TODO: Add training UI, controls, and status here */}
+      <p>Here you can train your trading bot (feature to be implemented).</p>
     </div>
   );
 };
