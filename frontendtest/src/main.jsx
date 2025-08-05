@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard.jsx';
 import BotTraining from './pages/BotTraining.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
+import NotFound from './pages/NotFound.jsx';
 
 
 
