@@ -5,7 +5,7 @@ import { fetchLogs } from '../api/logs.jsx';
 import NavBar from '../components/NavBar.jsx';
 
 const Dashboard = () => {
-  const { token } = useContext(AuthContext);
+  const { token } = useContext(AuthProvider);
 
   const [botStatus, setBotStatus] = useState(null);
   const [symbol, setSymbol] = useState('BTC/USDT');
