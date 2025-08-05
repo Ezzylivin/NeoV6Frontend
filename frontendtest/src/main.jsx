@@ -11,7 +11,7 @@ import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 import NotFound from './pages/NotFound.jsx';
 
-
+import { jwtDecode } from 'jwt-decode';
 
 // Context / Auth
 import { AuthProvider } from './hooks/useAuth.jsx';
