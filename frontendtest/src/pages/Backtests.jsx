@@ -5,7 +5,7 @@ import NavBar from '../components/NavBar.jsx';
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 const Backtests = () => {
-  const { token } = useContext(AuthContext);
+  const { token } = useContext(AuthProvider);
   const [results, setResults] = useState([]);
   const [timeframeFilter, setTimeframeFilter] = useState('');
   const [loading, setLoading] = useState(false);
