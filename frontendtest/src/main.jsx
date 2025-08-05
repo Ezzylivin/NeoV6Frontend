@@ -13,7 +13,7 @@ import Register from './pages/Register.jsx';
 
 
 // Context / Auth
-import { AuthProvider } from './hooks/useAuth';
+import { AuthProvider } from '../hooks/useAuth.jsx';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
