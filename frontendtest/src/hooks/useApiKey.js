@@ -1,15 +1,18 @@
-// src/hooks/useApiKey.js
-import { useState } from 'react';
-import api from '../api';
+import axios from 'axios';
 
-export const useApiKey = () => {
-  const [saving, setSaving] = useState(false);
+const API = axios.create({
+  baseURL: import.meta.env.VITE_API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  }
+});
 
-  const saveKeys = async (apiKey, apiSecret) => {
-    setSaving(true);
-    await api.post('/user/keys', { apiKey, apiSecret });
-    setSaving(false);
-  };
-
-  return { saveKeys, saving };
+export const setAuthToken = token => {
+  if (token) {
+    API.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  } else {
+    delete API.defaults.headers.common['Authorization'];
+  }
 };
+
+export default API;
