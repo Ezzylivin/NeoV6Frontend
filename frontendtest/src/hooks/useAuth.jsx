@@ -1,25 +1,40 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import API, { setAuthToken } from './useApi';
+// File: src/context/AuthContext.js or src/hooks/useAuth.js
 
-const AuthContext = createContext();
+import React, { createContext, useState, useEffect } from 'react';
+import { jwtDecode } from 'jwt-decode'; // You need to import this!
+
+export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token'));
-  const [user, setUser] = useState(null); => localStorage.getItem('token'));
 
   useEffect(() => {
     if (token) {
-      setAuthToken(token);
-      API.get('/auth/me')
-        .then(res => setUser(res.data))
-        .catch(() => logout());
+      try {
+        const decodedToken = jwtDecode(token);
+        const currentTime = Date.now() / 1000;
+        if (decodedToken.exp < currentTime) {
+          logout();
+        } else {
+          setUser({
+            role: decodedToken.role,
+            _id: decodedToken._id,
+          });
+        }
+      } catch (error) {
+        console.error("Invalid token:", error);
+        logout();
+      }
+    } else {
+      setUser(null);
     }
   }, [token]);
 
-  const login = async (credentials) => {
-    const res = await API.post('/auth/login', credentials);
-    localStorage.setItem('token', res.data.token);
-    setToken(res.data.token);
+  // --- THIS FUNCTION WAS MISSING ---
+  const login = (newToken) => {
+    localStorage.setItem('token', newToken);
+    setToken(newToken);
   };
 
   const logout = () => {
@@ -29,10 +44,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ token, user, login, logout }}>
+    <AuthContext.Provider value={{ user, token, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
 };
-
-export const useAuth = () => useContext(AuthContext);
