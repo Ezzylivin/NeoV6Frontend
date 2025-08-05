@@ -1,38 +1,38 @@
-// src/hooks/useAuth.js
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import api from '../api';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import API, { setAuthToken } from './useApi';
 
-export const useAuth = () => {
-  const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
+const AuthContext = createContext();
 
-  const login = async (email, password) => {
-    try {
-      setLoading(true);
-      const { data } = await api.post('/auth/login', { email, password });
-      localStorage.setItem('token', data.access_token);
-      navigate('/dashboard');
-    } finally {
-      setLoading(false);
+export const AuthProvider = ({ children }) => {
+  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    if (token) {
+      setAuthToken(token);
+      API.get('/auth/me')
+        .then(res => setUser(res.data))
+        .catch(() => logout());
     }
-  };
+  }, [token]);
 
-  const register = async (email, password) => {
-    try {
-      setLoading(true);
-      const { data } = await api.post('/auth/register', { email, password });
-      localStorage.setItem('token', data.access_token);
-      navigate('/dashboard');
-    } finally {
-      setLoading(false);
-    }
+  const login = async (credentials) => {
+    const res = await API.post('/auth/login', credentials);
+    localStorage.setItem('token', res.data.token);
+    setToken(res.data.token);
   };
 
   const logout = () => {
     localStorage.removeItem('token');
-    navigate('/');
+    setToken(null);
+    setUser(null);
   };
 
-  return { login, register, logout, loading };
+  return (
+    <AuthContext.Provider value={{ token, user, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
+
+export const useAuth = () => useContext(AuthContext);
