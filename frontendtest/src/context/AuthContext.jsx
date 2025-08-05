@@ -5,6 +5,9 @@ import { jwtDecode } from 'jwt-decode';
 // This is the "intercom system" we'll use to broadcast auth state.
 const AuthContext = createContext();
 
+
+const { user, token, login, logout } = useAuth();
+
 // --- 2. Create the AuthProvider Component ---
 // This is the "security guard" who manages the auth state and uses the intercom.
 export const AuthProvider = ({ children }) => {
