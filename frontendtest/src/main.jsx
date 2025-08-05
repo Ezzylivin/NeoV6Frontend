@@ -8,7 +8,7 @@ import './index.css';
 import Dashboard from './pages/Dashboard.jsx';
 import BotTraining from './pages/BotTraining.jsx';
 import Login from './pages/Login.jsx';
-import NotFound from './pages/NotFound.jsx';
+
 
 // Context / Auth
 import { AuthProvider } from './hooks/useAuth';
