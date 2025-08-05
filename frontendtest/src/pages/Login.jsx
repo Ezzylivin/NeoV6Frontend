@@ -4,7 +4,7 @@ import { loginUser } from '../api/auth.js';
 import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
-  const { login } = useContext(Authprovider);
+  const { login } = useContext(AuthProvider);
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
