@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { AuthProvider } from '../hooks/useAuth.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import NavBar from '../components/NavBar.jsx';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
