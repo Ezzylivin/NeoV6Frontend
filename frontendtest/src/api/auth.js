@@ -1,51 +1,23 @@
-// File: src/context/AuthContext.js or src/hooks/useAuth.js
+// File: src/services/authService.js
 
-import React, { createContext, useState, useEffect } from 'react';
-import { jwtDecode } from 'jwt-decode'; // You need to import this!
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
-export const AuthContext = createContext();
+export const loginUser = async (email, password) => {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) throw new Error('Invalid credentials');
+  return await res.json(); // Should return something like { access_token: "..." }
+};
 
-export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token'));
-
-  useEffect(() => {
-    if (token) {
-      try {
-        const decodedToken = jwtDecode(token);
-        const currentTime = Date.now() / 1000;
-        if (decodedToken.exp < currentTime) {
-          logout();
-        } else {
-          setUser({
-            role: decodedToken.role,
-            _id: decodedToken._id,
-          });
-        }
-      } catch (error) {
-        console.error("Invalid token:", error);
-        logout();
-      }
-    } else {
-      setUser(null);
-    }
-  }, [token]);
-
-  // --- THIS FUNCTION WAS MISSING ---
-  const login = (newToken) => {
-    localStorage.setItem('token', newToken);
-    setToken(newToken);
-  };
-
-  const logout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
-    setUser(null);
-  };
-
-  return (
-    <AuthContext.Provider value={{ user, token, login, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
+export const registerUser = async (email, password) => {
+  const res = await fetch(`${API_BASE}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) throw new Error('Registration failed');
+  return await res.json();
 };
