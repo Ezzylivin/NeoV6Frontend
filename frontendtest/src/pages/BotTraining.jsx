@@ -4,7 +4,7 @@ import { AuthProvider } from '../hooks/useAuth.jsx';
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 const BotTraining = () => {
-  const { token } = useContext(AuthContext);
+  const { token } = useContext(AuthProvider);
   const [timeframe, setTimeframe] = useState('all');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
