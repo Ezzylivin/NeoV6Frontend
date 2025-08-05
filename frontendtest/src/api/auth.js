@@ -9,7 +9,10 @@ export const loginUser = async (email, password) => {
     body: JSON.stringify({ email, password }),
   });
   if (!res.ok) throw new Error('Invalid credentials');
-  return await res.json(); // Should return something like { access_token: "..." }
+  return await res.json() {
+    
+    throw new Error(data.message || 'Invalid credentials');
+  } // Should return something like { access_token: "..." }
 };
 
 export const registerUser = async (email, password) => {
