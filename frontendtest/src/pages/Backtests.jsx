@@ -1,11 +1,12 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import NavBar from '../components/NavBar.jsx';
+import { runBacktest, fetchBacktestResults } from '../api/backtest';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 const Backtests = () => {
-  const { token } = useContext(AuthProvider);
+  const { token } = useContext(AuthContext);
   const [results, setResults] = useState([]);
   const [timeframeFilter, setTimeframeFilter] = useState('');
   const [loading, setLoading] = useState(false);
