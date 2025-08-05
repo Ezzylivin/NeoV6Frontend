@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { AuthContext } from '../context/AuthContext.jsx';
+import { AuthContext } from '../hooks/useAuth';
 import { startBot, stopBot, getBotStatus } from '../api/bot.js';
 import { fetchLogs } from '../api/logs.js';
 import NavBar from '../components/NavBar.jsx';
