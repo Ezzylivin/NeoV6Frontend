@@ -8,6 +8,8 @@ import './index.css';
 import Dashboard from './pages/Dashboard.jsx';
 import BotTraining from './pages/BotTraining.jsx';
 import Login from './pages/Login.jsx';
+import Register from './pages/Register.jsx';
+import Dashboard from './pages/Dashboard.jsx';
 
 
 // Context / Auth
