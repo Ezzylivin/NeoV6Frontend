@@ -1,7 +1,6 @@
 import React, { useContext, useState } from 'react';
 import NavBar from '../components/NavBar.jsx';
-import { AuthContext } from '../context/AuthContext.jsx';
-
+import { AuthContext } from '../hooks/useAuth';
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 const BotTraining = () => {
