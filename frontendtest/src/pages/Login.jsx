@@ -16,7 +16,10 @@ const Login = () => {
     setError('');
     try {
       const data = await loginUser(email, password);
-      login(data.access_token);
+      login(data.access_token); 
+       const login = (newToken) => {
+    localStorage.setItem('token', newToken);
+    setToken(newToken);
       navigate('/dashboard');
     } catch {
       setError('Invalid credentials');
