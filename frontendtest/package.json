@@ -1,17 +1,9 @@
 {
-<<<<<<< HEAD
-  "devDependencies": {
-    "@vitejs/plugin-react": "^4.7.0",
-    "vite": "^7.0.6"
-  },
-  "dependencies": {
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1"
-=======
+
   "name": "neov6-frontend",
   "private": true,
   "version": "0.0.0",
-  "type": "module",
+  "type": "module"
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -32,6 +24,6 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20"
->>>>>>> 1e58777014f3c3067895f95f33ff8db37a4cf9b4
+
   }
 }
