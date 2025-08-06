@@ -17,24 +17,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Use a single function to fetch all necessary data.
-  const loadDashboardData = async () => {
-    if (!token) return;
-    try {
-      const statusData = await getBotStatus(token);
-      setBotStatus(statusData);
-      const logData = await fetchLogs(token);
-      setLogs(logData);
-    } catch (err) {
-      console.error('Failed to fetch dashboard data:', err);
-      setError('Could not load dashboard data.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadDashboardData();
+  
 
     const interval = setInterval(() => {
       fetchLogs(token).then(setLogs).catch(console.error);
