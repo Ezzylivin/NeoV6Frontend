@@ -8,9 +8,8 @@ import './index.css';
 import Dashboard from './pages/Dashboard.jsx';
 import BotTraining from './pages/BotTraining.jsx';
 import Login from './pages/Login.jsx';
-import Register from './pages/Register.jsx';
+import Register from './pages/Register.jsx'; // ✅ Already imported
 import NotFound from './pages/NotFound.jsx';
-
 
 // Context / Auth
 import { AuthProvider } from './context/AuthContext';
@@ -25,6 +24,7 @@ root.render(
           <Route path="/" element={<Dashboard />} />
           <Route path="/train" element={<BotTraining />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} /> {/* ✅ Missing route added */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Router>
