@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 // FIX 1: Import the useAuth hook to get user and token info correctly.
-import AuthContext from '../context/AuthContext.jsx';
+import Auth from '../context/AuthContext.jsx';
 // FIX 2: Import API functions from dedicated frontend service files.
 import { startBot, stopBot, getBotStatus } from '../services/botService.js';
 import NavBar from '../components/NavBar.jsx';
