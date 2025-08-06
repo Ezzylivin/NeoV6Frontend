@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import AuthContext from '../context/AuthProvider';
+import Auth from '../context/AuthProvider';
 import { startBot, stopBot, getBotStatus } from '../api/bot';
 
 export const useBot = () => {
