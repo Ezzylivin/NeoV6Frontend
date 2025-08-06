@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { loginUser, registerUser } from '../api/auth';
-import { setAuthToken } from '../api/apiClient';
+
 
 export const Auth = createContext();
 
@@ -11,14 +11,7 @@ export const AuthProvider = ({ children }) => {
     return stored ? JSON.parse(stored) : null;
   });
 
-  // 👇 This sets or removes the token in axios on every change
-  useEffect(() => {
-    if (token) {
-      setAuthToken(token);
-    } else {
-      setAuthToken(null);
-    }
-  }, [token]);
+  
 
   const login = async (email, password) => {
     const data = await loginUser(email, password);
