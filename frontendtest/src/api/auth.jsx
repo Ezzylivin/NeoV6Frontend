@@ -1,35 +1,22 @@
 // File: src/api/auth.js
+import api from './apiClient'; // Uses centralized axios instance
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
-
-
+// Register a new user
 export const registerUser = async (email, password) => {
-  const res = await fetch(`${API_BASE}/auth/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
-
- const data = await res.json(); {
- if (!res.ok) throw new Error('Registration failed');
- 
-}
-
-return data;
+  try {
+    const response = await api.post('/auth/register', { email, password });
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.message || 'Registration failed');
+  }
 };
 
-
-
+// Log in an existing user
 export const loginUser = async (email, password) => {
-  const res = await fetch(`${API_BASE}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
-   const data = await res.json(); {
-  if (!res.ok) throw new Error('login failed');
- 
-}
-
-return data;
+  try {
+    const response = await api.post('/auth/login', { email, password });
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.message || 'Login failed');
+  }
 };
