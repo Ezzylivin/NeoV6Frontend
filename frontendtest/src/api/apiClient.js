@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API = axios.create({
+const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
   headers: {
     'Content-Type': 'application/json',
@@ -9,10 +9,10 @@ const API = axios.create({
 
 export const setAuthToken = token => {
   if (token) {
-    API.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
   } else {
-    delete API.defaults.headers.common['Authorization'];
+    delete api.defaults.headers.common['Authorization'];
   }
 };
 
-export default API;
+export default api;
