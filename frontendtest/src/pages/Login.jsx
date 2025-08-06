@@ -2,10 +2,10 @@ import React, { useState, useContext } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { loginUser } from '../api/auth.js';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import AuthContext from '../context/AuthContext';
 
 const Login = () => {
-  const { login } = useContext(AuthProvider);
+  const { login } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
