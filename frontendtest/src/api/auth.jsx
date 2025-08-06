@@ -11,9 +11,7 @@ export const registerUser = async (email, password) => {
   });
 
  const data = await res.json(); {
-
-  
-  if (!res.ok) throw new Error('Registration failed');
+ if (!res.ok) throw new Error('Registration failed');
  
 }
 
@@ -29,8 +27,6 @@ export const loginUser = async (email, password) => {
     body: JSON.stringify({ email, password }),
   });
    const data = await res.json(); {
-
-  
   if (!res.ok) throw new Error('login failed');
  
 }
