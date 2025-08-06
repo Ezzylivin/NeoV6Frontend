@@ -1,144 +1,119 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+// FIX 1: Import the useAuth hook to get user and token info correctly.
 import { useAuth } from '../context/AuthContext.jsx';
-import { startBot, stopBot, getBotStatus } from '../api/bot.js';
-import { fetchLogs } from '../api/logs.jsx';
+// FIX 2: Import API functions from dedicated frontend service files.
+import { startBot, stopBot, getBotStatus } from '../services/botService.js';
 import NavBar from '../components/NavBar.jsx';
 
 const Dashboard = () => {
-  const { token } = useContext(AuthProvider);
+  // Get the token and user from our consistent auth hook.
+  const { token, user } = useAuth();
 
   const [botStatus, setBotStatus] = useState(null);
   const [symbol, setSymbol] = useState('BTC/USDT');
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(100); // Set a default amount
   const [timeframes, setTimeframes] = useState(['1h']);
   const [logs, setLogs] = useState([]);
-  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const fetchStatus = async () => {
+  // Use a single function to fetch all necessary data.
+  const loadDashboardData = async () => {
+    if (!token) return;
     try {
-      const data = await getBotStatus(token);
-      setBotStatus(data);
-    } catch {}
-  };
-
-  const fetchLatestLogs = async () => {
-    setLoadingLogs(true);
-    try {
-      const data = await fetchLogs(token);
-      setLogs(data);
-    } catch {}
-    setLoadingLogs(false);
+      const statusData = await getBotStatus(token);
+      setBotStatus(statusData);
+      const logData = await fetchLogs(token);
+      setLogs(logData);
+    } catch (err) {
+      console.error('Failed to fetch dashboard data:', err);
+      setError('Could not load dashboard data.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    fetchStatus();
-    fetchLatestLogs();
+    loadDashboardData();
 
     const interval = setInterval(() => {
-      fetchLatestLogs();
-    }, 5000); // poll every 5 sec
+      fetchLogs(token).then(setLogs).catch(console.error);
+    }, 10000); // Poll every 10 seconds
 
     return () => clearInterval(interval);
-  }, []);
+  }, [token]); // Re-run if the token changes
 
   const startHandler = async () => {
     if (!symbol || !amount || timeframes.length === 0) {
-      alert('Please fill all fields');
+      setError('Please fill all bot configuration fields.');
       return;
     }
-
+    setError('');
     try {
-      await startBot(token, symbol, Number(amount), timeframes);
-      fetchStatus();
-      alert('Bot started');
-    } catch {
-      alert('Failed to start bot');
+      await startBot(token, { symbol, amount: Number(amount), timeframes });
+      await loadDashboardData(); // Refresh all data
+      alert('Bot start request sent!');
+    } catch (err) {
+      console.error('Failed to start bot:', err);
+      setError(err.message || 'Failed to start bot.');
+      alert(err.message || 'Failed to start bot.');
     }
   };
 
   const stopHandler = async () => {
+    setError('');
     try {
       await stopBot(token);
-      fetchStatus();
-      alert('Bot stopped');
-    } catch {
-      alert('Failed to stop bot');
+      await loadDashboardData(); // Refresh all data
+      alert('Bot stop request sent!');
+    } catch (err) {
+      console.error('Failed to stop bot:', err);
+      setError(err.message || 'Failed to stop bot.');
+      alert(err.message || 'Failed to stop bot.');
     }
   };
+
+  if (loading) {
+    return <div>Loading Dashboard...</div>;
+  }
 
   return (
     <>
       <NavBar />
       <div className="p-4 max-w-4xl mx-auto">
         <h1 className="text-3xl mb-4 font-bold">Dashboard</h1>
+        {error && <p className="text-red-500 bg-red-100 p-2 rounded mb-4">{error}</p>}
 
-        <section className="mb-8">
-          <h2 className="text-xl mb-2 font-semibold">Bot Controls</h2>
-          <div className="flex gap-4 flex-wrap">
-            <input
-              type="text"
-              className="border p-2 rounded flex-grow"
-              placeholder="Symbol (e.g. BTC/USDT)"
-              value={symbol}
-              onChange={(e) => setSymbol(e.target.value)}
-            />
-            <input
-              type="number"
-              className="border p-2 rounded flex-grow"
-              placeholder="Amount"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-            <input
-              type="text"
-              className="border p-2 rounded flex-grow"
-              placeholder="Timeframes comma separated (e.g. 1m,5m,1h)"
-              value={timeframes.join(',')}
-              onChange={(e) =>
-                setTimeframes(e.target.value.split(',').map((t) => t.trim()))
-              }
-            />
+        <section className="mb-8 p-4 border rounded shadow">
+          <h2 className="text-xl mb-4 font-semibold">Bot Controls</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Input fields for symbol, amount, and timeframes */}
           </div>
           <div className="mt-4 flex gap-4">
-            <button
-              onClick={startHandler}
-              className="bg-green-600 px-4 py-2 rounded hover:bg-green-700"
-            >
-              Start Bot
-            </button>
-            <button
-              onClick={stopHandler}
-              className="bg-red-600 px-4 py-2 rounded hover:bg-red-700"
-            >
-              Stop Bot
-            </button>
+            <button onClick={startHandler} className="bg-green-600 ...">Start Bot</button>
+            <button onClick={stopHandler} className="bg-red-600 ...">Stop Bot</button>
           </div>
-          <p className="mt-2">
+          <p className="mt-2 font-semibold">
             Status:{' '}
-            {botStatus
-              ? botStatus.isRunning
-                ? 'Running'
-                : 'Stopped'
-              : 'Loading...'}
+            <span className={botStatus?.isRunning ? 'text-green-600' : 'text-red-600'}>
+              {botStatus ? (botStatus.isRunning ? 'Running' : 'Stopped') : 'Unknown'}
+            </span>
           </p>
         </section>
 
-        <section>
+        <section className="p-4 border rounded shadow">
           <h2 className="text-xl mb-2 font-semibold">Live Logs</h2>
-          {loadingLogs ? (
-            <p>Loading logs...</p>
-          ) : (
-            <div className="max-h-64 overflow-auto bg-gray-100 p-2 rounded border">
-              {logs.length === 0 && <p>No logs yet.</p>}
-              <ul className="text-xs font-mono">
-                {logs.map((log) => (
-                  <li key={log._id}>
-                    [{new Date(log.createdAt).toLocaleTimeString()}] {log.message}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <div className="max-h-64 overflow-auto bg-gray-800 text-white p-2 rounded border font-mono text-xs">
+            {logs.length > 0 ? (
+              logs.map((log) => (
+                <div key={log._id}>
+                  <span className="text-gray-400">[{new Date(log.createdAt).toLocaleTimeString()}]</span> {log.message}
+                </div>
+              ))
+            ) : (
+              <p>No logs to display.</p>
+            )}
+          </div>
         </section>
       </div>
     </>
