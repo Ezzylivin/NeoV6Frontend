@@ -1,28 +1,61 @@
-// src/hooks/useBot.js
-import { useState, useEffect } from 'react';
-import api from '../api';
+import { useState, useCallback } from 'react';
+import { useAuth } from '../context/AuthProvider';
+import { startBot, stopBot, getBotStatus } from '../api/bot';
 
 export const useBot = () => {
+  const { token } = useAuth();
   const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const getStatus = async () => {
-    const { data } = await api.get('/bot/status');
-    setStatus(data);
+  const handleStartBot = useCallback(async (symbol, amount, timeframes) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await startBot(token, symbol, amount, timeframes);
+      setStatus(result);
+      return result;
+    } catch (err) {
+      setError(err.message || 'Failed to start bot');
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  const handleStopBot = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await stopBot(token);
+      setStatus(result);
+      return result;
+    } catch (err) {
+      setError(err.message || 'Failed to stop bot');
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  const fetchBotStatus = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await getBotStatus(token);
+      setStatus(result);
+      return result;
+    } catch (err) {
+      setError(err.message || 'Failed to get bot status');
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  return {
+    startBot: handleStartBot,
+    stopBot: handleStopBot,
+    getBotStatus: fetchBotStatus,
+    status,
+    loading,
+    error,
   };
-
-  const startBot = async (symbol, amount, timeframes) => {
-    await api.post('/bot/start', { symbol, amount, timeframes });
-    await getStatus();
-  };
-
-  const stopBot = async () => {
-    await api.post('/bot/stop');
-    await getStatus();
-  };
-
-  useEffect(() => {
-    getStatus();
-  }, []);
-
-  return { status, startBot, stopBot };
 };
