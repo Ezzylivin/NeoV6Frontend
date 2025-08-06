@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import NavBar from '../components/NavBar.jsx';
-import { fetchBacktestResults, runBacktest } from '../api/backtest';
 
 const Backtests = () => {
   const { token } = useAuth();
@@ -9,19 +8,7 @@ const Backtests = () => {
   const [timeframeFilter, setTimeframeFilter] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Fetch backtest results (optionally filtered)
-  const fetchBacktests = async () => {
-    setLoading(true);
-    try {
-      const data = await fetchBacktestResults(token, timeframeFilter);
-      setResults(data);
-    } catch (error) {
-      console.error(error);
-      alert('Error fetching backtests');
-    }
-    setLoading(false);
-  };
-
+  
   // Run new backtest and update results
   const handleRunBacktest = async () => {
     setLoading(true);
