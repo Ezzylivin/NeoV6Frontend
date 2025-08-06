@@ -11,8 +11,7 @@ import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx'; // ✅ Already imported
 import NotFound from './pages/NotFound.jsx';
 
-// Context / Auth
-import { AuthProvider } from './context/AuthContext';
+
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
