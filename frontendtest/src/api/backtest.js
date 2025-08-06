@@ -1,24 +1,16 @@
-// src/api/backtest.js
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+// File: src/api/backtest.js
+import api from './apiClient'; // axios instance with baseURL + headers already set
 
-export const runBacktest = async (token) => {
-  const res = await fetch(`${API_BASE}/backtest/run`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  if (!res.ok) throw new Error('Failed to run backtest');
-  return await res.json();
+// Run a new backtest
+export const runBacktest = async (timeframe = '') => {
+  const response = await api.post('/backtest/run', timeframe ? { timeframe } : {});
+  return response.data; // Assumes backend returns { results: [...] }
 };
 
-export const fetchBacktestResults = async (token, timeframe = '') => {
-  const url = new URL(`${API_BASE}/backtest/results`);
-  if (timeframe) url.searchParams.append('timeframe', timeframe);
-
-  const res = await fetch(url.toString(), {
-    headers: { Authorization: `Bearer ${token}` },
+// Fetch all backtest results, optionally filtered by timeframe
+export const fetchBacktestResults = async (timeframe = '') => {
+  const response = await api.get('/backtest/results', {
+    params: timeframe ? { timeframe } : {},
   });
-  if (!res.ok) throw new Error('Failed to fetch backtest results');
-  return await res.json();
+  return response.data; // Should return an array of results
 };
