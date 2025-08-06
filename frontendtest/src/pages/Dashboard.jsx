@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 // FIX 1: Import the useAuth hook to get user and token info correctly.
-import { useAuth } from '../context/AuthContext.jsx';
+import { AuthContext } from '../context/AuthContext.jsx';
 // FIX 2: Import API functions from dedicated frontend service files.
 import { startBot, stopBot, getBotStatus } from '../services/botService.js';
 import NavBar from '../components/NavBar.jsx';
 
 const Dashboard = () => {
   // Get the token and user from our consistent auth hook.
-  const { token, user } = useAuth();
+  const { token, user } = useContext(AuthContext);
 
   const [botStatus, setBotStatus] = useState(null);
   const [symbol, setSymbol] = useState('BTC/USDT');
