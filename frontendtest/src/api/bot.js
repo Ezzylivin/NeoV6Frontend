@@ -1,31 +1,32 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+// File: src/api/bot.js
+import api from './apiClient'; // axios instance with baseURL & headers pre-configured
 
-export const startBot = async (token, symbol, amount, timeframes) => {
-  const res = await fetch(`${API_BASE}/bot/start`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`
-    },
-    body: JSON.stringify({ symbol, amount, timeframes }),
-  });
-  if (!res.ok) throw new Error('Failed to start bot');
-  return await res.json();
+// Start the trading bot
+export const startBot = async (symbol, amount, timeframes) => {
+  try {
+    const response = await api.post('/bot/start', { symbol, amount, timeframes });
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.message || 'Failed to start bot');
+  }
 };
 
-export const stopBot = async (token) => {
-  const res = await fetch(`${API_BASE}/bot/stop`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error('Failed to stop bot');
-  return await res.json();
+// Stop the trading bot
+export const stopBot = async () => {
+  try {
+    const response = await api.post('/bot/stop');
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.message || 'Failed to stop bot');
+  }
 };
 
-export const getBotStatus = async (token) => {
-  const res = await fetch(`${API_BASE}/bot/status`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error('Failed to get bot status');
-  return await res.json();
+// Get the current status of the trading bot
+export const getBotStatus = async () => {
+  try {
+    const response = await api.get('/bot/status');
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.message || 'Failed to get bot status');
+  }
 };
