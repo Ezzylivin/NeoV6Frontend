@@ -3,7 +3,7 @@ import { jwtDecode } from 'jwt-decode';
 
 // --- 1. Create the Context ---
 // This is the "intercom system" we'll use to broadcast auth state.
-const AuthContext = createContext();
+export const AuthContext = createContext();
 
 
 const { user, token, login, logout } = useAuth();
