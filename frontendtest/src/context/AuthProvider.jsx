@@ -31,14 +31,14 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     const data = await loginUser(email, password); // Calls your backend
     setToken(data.token);
-    setUser(data.User); // assuming backend returns { token, User }
+    setUser(data.user); // assuming backend returns { token, User }
   };
 
   // 6. Register function (also logs in)
   const register = async (username, email, password) => {
     const data = await registerUser(username, email, password);
     setToken(data.token);
-    setUser(data.User);
+    setUser(data.user);
   };
 
   // 7. Logout function
