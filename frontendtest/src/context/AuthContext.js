@@ -1,7 +1,7 @@
 // File: src/contexts/AuthContext.jsx
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { loginUser, registerUser } from '../api/auth';
+import { login, register } from '../api/auth';
 import { setAuthToken } from '../api/apiClient'; // <-- 1. IMPORT the crucial setAuthToken helper
 
 // Create the context
