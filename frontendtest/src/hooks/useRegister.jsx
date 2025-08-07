@@ -1,21 +1,23 @@
 // File: src/hooks/useRegister.js
 import { useState } from 'react';
-import { registerUser } from '../api/auth';
+import { useAuth } from '../context/AuthProvider';
 
 export const useRegister = () => {
+  const { register } = useAuth();
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const register = async (email, password) => {
+  const registerUser = async (email, password) => {
+    setError(null);
+    setLoading(true);
     try {
-      const data = await registerUser(email, password);
-      setSuccess(true);
-      return data; // You can optionally return token/user
+      await register(email, password);
     } catch (err) {
-      setError(err.message);
-      setSuccess(false);
+      setError(err.message || 'Registration failed');
+    } finally {
+      setLoading(false);
     }
   };
 
-  return { register, error, success };
+  return { registerUser, error, loading };
 };
