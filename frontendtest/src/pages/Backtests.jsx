@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-//import Auth from '../context/AuthContext.jsx';
+import AuthProvider from '../context/AuthContext.jsx';
 import NavBar from '../components/NavBar.jsx';
 
 const Backtests = () => {
@@ -24,7 +24,7 @@ const Backtests = () => {
 
   // Initial load
   useEffect(() => {
-    if (token) fetchBacktests();
+    if (token) fetchBacktestsResults();
   }, [token]);
 
   return (
