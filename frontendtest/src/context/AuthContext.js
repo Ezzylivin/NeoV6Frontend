@@ -21,28 +21,28 @@ export const AuthProvider = ({ children }) => {
     if (token) {
       setAuthToken(token); // Set the default auth header for all future API calls
       localStorage.setItem('token', token);
-      localStorage.setItem('User', JSON.stringify(user));
+      localStorage.setItem('User', JSON.stringify(User));
     } else {
       setAuthToken(null); // Clear the auth header
       localStorage.removeItem('token');
       localStorage.removeItem('User');
     }
-  }, [token, user]); // Dependency array ensures this runs when token or user changes
+  }, [token, User]); // Dependency array ensures this runs when token or user changes
 
   // Login function now only needs to update state. The useEffect handles the side effects.
-  const login = async (email, password) => {
-    const data = await loginUser(email, password);
+  const loginUser = async (email, password) => {
+    const data = await login(email, password);
     setToken(data.token);
-    setUser(data.user);
+    setUser(data.User);
     // Redirection will be handled automatically by the router in App.jsx
   };
 
   // Register function (assuming it takes username as well)
-  const register = async (username, email, password) => {
+  const registerUser = async (username, email, password) => {
     // 4. NOTE: This function now logs the user in immediately after registration.
-    const data = await registerUser(username, email, password);
+    const data = await register(username, email, password);
     setToken(data.token);
-    setUser(data.user);
+    setUser(data.User);
   };
 
   const logout = () => {
@@ -50,11 +50,11 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-const value = { token, user, login, register, logout, isAuthenticated: !!token }
+const value = { token, User, login, register, logout, isAuthenticated: !!token }
   
   return (
     // <-- 2. Using the consistent name here
-    <AuthContext.Provider value={{ token, user, login, register, logout }}>
+    <AuthContext.Provider value={{ token, User, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );
