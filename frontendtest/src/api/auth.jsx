@@ -2,7 +2,7 @@
 import api from './apiClient'; // Uses centralized axios instance
 
 // Register a new user
-export const register = async (email, password) => {
+export const registerUser = async (email, password) => {
   try {
     const response = await api.post('/auth/register', { email, password });
     return response.data;
@@ -12,7 +12,7 @@ export const register = async (email, password) => {
 };
 
 // Log in an existing user
-export const login = async (email, password) => {
+export const loginUser = async (email, password) => {
   try {
     const response = await api.post('/auth/login', { email, password });
     return response.data;
