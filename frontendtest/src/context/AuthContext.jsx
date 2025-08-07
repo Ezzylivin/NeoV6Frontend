@@ -11,7 +11,7 @@ export const AuthProvider = ({ children }) => {
   // Get initial token and user from localStorage for session persistence
   const [token, setToken] = useState(() => localStorage.getItem('token'));
   const [user, setUser] = useState(() => {
-    const stored = localStorage.getItem('user');
+    const stored = localStorage.getItem('User');
     return stored ? JSON.parse(stored) : null;
   });
 
@@ -21,11 +21,11 @@ export const AuthProvider = ({ children }) => {
     if (token) {
       setAuthToken(token); // Set the default auth header for all future API calls
       localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('User', JSON.stringify(user));
     } else {
       setAuthToken(null); // Clear the auth header
       localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      localStorage.removeItem('User');
     }
   }, [token, user]); // Dependency array ensures this runs when token or user changes
 
@@ -50,6 +50,8 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+const value = { token, user, login, register, logout, isAuthenticated: !!token }
+  
   return (
     // <-- 2. Using the consistent name here
     <AuthContext.Provider value={{ token, user, login, register, logout }}>
