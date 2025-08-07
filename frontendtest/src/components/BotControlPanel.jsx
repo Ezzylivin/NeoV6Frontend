@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { startBot, stopBot, getBotStatus } from '../api/bot';
-import Auth from '../context/AuthContext';
+
 
 const BotControlPanel = () => {
-  const { token } = useContext(AuthContext);
 
   const [status, setStatus] = useState(null);
   const [symbol, setSymbol] = useState('');
