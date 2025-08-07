@@ -3,7 +3,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 // 1. Corrected the file path and added useAuth to the import
-import { AuthProvider, useAuth } from './contexts/AuthProvider.jsx'; 
+import { useAuth } from './contexts/AuthProvider.jsx'; 
 
 // Import pages and components
 import AuthPage from './pages/AuthPage.jsx';
