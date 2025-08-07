@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import NavBar from '../components/NavBar.jsx';
 import { useAuth } from '../contexts/AuthProvider'; // useAuth, not AuthContext directly
-import { fetchBacktests, runBacktest } from '../api/backtests'; // your API functions
+import { fetchBacktestsResults, runBacktest } from '../api/backtests'; // your API functions
 
 const Backtests = () => {
   const { token } = useAuth(); // ✅ Correct way to get token from context
@@ -13,7 +13,7 @@ const Backtests = () => {
   const fetchBacktestsResults = async () => {
     setLoading(true);
     try {
-      const data = await fetchBacktests(token, timeframeFilter); // use filter if needed
+      const data = await fetchBacktestsResults(token, timeframeFilter); // use filter if needed
       setResults(data.results || []);
     } catch (error) {
       console.error(error);
