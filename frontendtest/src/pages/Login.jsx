@@ -1,54 +1,38 @@
 import React, { useState } from 'react';
-import { login } from '../api/auth.js';
+import { useLogin } from '../hooks/useLogin';
 import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
-  const navigate = useNavigate();
-
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const { loginUser, error, loading } = useLogin();
+  const navigate = useNavigate();
 
-  const onSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-
-    try {
-      const data = await login(email, password);
-      localStorage.setItem('token', data.token); // Adjust if backend uses a different key
-      navigate('/dashboard');
-    } catch (err) {
-      setError('Invalid credentials');
-    }
+    await loginUser(email, password);
+    navigate('/dashboard'); // or wherever
   };
 
   return (
-    <div className="max-w-md mx-auto mt-16 p-6 border rounded shadow">
-      <h1 className="text-2xl mb-4">Login</h1>
-      {error && <p className="text-red-600">{error}</p>}
-      <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        <input
-          type="email"
-          placeholder="Email"
-          className="p-2 border rounded"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          className="p-2 border rounded"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          required
-        />
-        <button className="bg-blue-600 text-white py-2 rounded hover:bg-blue-700">Login</button>
-      </form>
-      <p className="mt-4">
-        No account? <a href="/register" className="text-blue-500">Register here</a>
-      </p>
-    </div>
+    <form onSubmit={handleSubmit}>
+      <input
+        type="email"
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+      /><br />
+      <input
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        required
+      /><br />
+      <button type="submit" disabled={loading}>Login</button>
+      {error && <p>{error}</p>}
+    </form>
   );
 };
 
