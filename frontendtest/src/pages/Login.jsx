@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { loginUser } from '../api/auth.js';
 import { useNavigate } from 'react-router-dom';
-import Auth from '../context/AuthContext.js
+
 
 
 const Login = () => {
-  const { login } = useContext(AuthContext);
+  
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
