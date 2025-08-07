@@ -3,7 +3,7 @@ import { login, register } from '../api/auth';
 import { setAuthToken } from '../api/apiClient';
 
 // 1. Create the context
-export const AuthContext = createContext();
+const AuthContext = createContext();
 
 // 2. Create the provider component
 export const AuthProvider = ({ children }) => {
