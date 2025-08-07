@@ -1,11 +1,8 @@
 import React, { useState } from 'react';
-import { loginUser } from '../api/auth.js';
+import { login } from '../api/auth.js';
 import { useNavigate } from 'react-router-dom';
 
-
-
 const Login = () => {
-  
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
@@ -15,14 +12,12 @@ const Login = () => {
   const onSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
     try {
-      const data = await loginUser(email, password);
-      login(data.access_token); 
-       const login = (newToken) => {
-    localStorage.setItem('token', newToken);
-    setToken(newToken);
+      const data = await login(email, password);
+      localStorage.setItem('token', data.token); // Adjust if backend uses a different key
       navigate('/dashboard');
-    } catch {
+    } catch (err) {
       setError('Invalid credentials');
     }
   };
@@ -50,7 +45,9 @@ const Login = () => {
         />
         <button className="bg-blue-600 text-white py-2 rounded hover:bg-blue-700">Login</button>
       </form>
-      <p className="mt-4">No account? <a href="/register" className="text-blue-500">Register here</a></p>
+      <p className="mt-4">
+        No account? <a href="/register" className="text-blue-500">Register here</a>
+      </p>
     </div>
   );
 };
