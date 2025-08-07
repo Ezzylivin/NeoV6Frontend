@@ -1,7 +1,7 @@
 // File: src/pages/AuthPage.jsx
 
 import React, { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext'; // Using the context for login/register logic
+import { useAuth } from '../contexts/AuthProvider'; // Using the context for login/register logic
 import './AuthPage.css'; // Importing the final, complete styles
 
 const AuthPage = () => {
