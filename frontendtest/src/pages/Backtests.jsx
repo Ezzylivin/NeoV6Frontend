@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import AuthProvider from '../context/AuthContext.jsx';
 import NavBar from '../components/NavBar.jsx';
 
 const Backtests = () => {
-  //const { token } = useContext(AuthContext);
+  const { token } = useContext(AuthContext);
   const [results, setResults] = useState([]);
   const [timeframeFilter, setTimeframeFilter] = useState('');
   const [loading, setLoading] = useState(false);
