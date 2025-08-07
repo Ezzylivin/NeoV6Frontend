@@ -1,19 +1,35 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import NavBar from '../components/NavBar.jsx';
+import { useAuth } from '../contexts/AuthProvider'; // useAuth, not AuthContext directly
+import { fetchBacktests, runBacktest } from '../api/backtests'; // your API functions
 
 const Backtests = () => {
-  const { token } = useContext(AuthContext);
+  const { token } = useAuth(); // ✅ Correct way to get token from context
   const [results, setResults] = useState([]);
   const [timeframeFilter, setTimeframeFilter] = useState('');
   const [loading, setLoading] = useState(false);
 
-  
-  // Run new backtest and update results
+  // ✅ Fetch results (with optional filter)
+  const fetchBacktestsResults = async () => {
+    setLoading(true);
+    try {
+      const data = await fetchBacktests(token, timeframeFilter); // use filter if needed
+      setResults(data.results || []);
+    } catch (error) {
+      console.error(error);
+      alert('Error fetching backtest results');
+    }
+    setLoading(false);
+  };
+
+  // ✅ Run new backtest
   const handleRunBacktest = async () => {
     setLoading(true);
     try {
       const data = await runBacktest(token);
-      setResults(data.results);
+      if (data?.results) {
+        setResults((prev) => [data.results, ...prev]);
+      }
     } catch (error) {
       console.error(error);
       alert('Error running backtest');
@@ -21,7 +37,7 @@ const Backtests = () => {
     setLoading(false);
   };
 
-  // Initial load
+  // 🔁 Initial load
   useEffect(() => {
     if (token) fetchBacktestsResults();
   }, [token]);
@@ -41,61 +57,3 @@ const Backtests = () => {
             onChange={(e) => setTimeframeFilter(e.target.value)}
           />
           <button
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded"
-            onClick={fetchBacktests}
-          >
-            Apply
-          </button>
-          <button
-            disabled={loading}
-            className="px-4 py-2 bg-green-600 text-white rounded"
-            onClick={handleRunBacktest}
-          >
-            {loading ? 'Running...' : 'Run Backtest'}
-          </button>
-        </div>
-
-        {/* Results */}
-        {loading ? (
-          <p>Loading...</p>
-        ) : results.length === 0 ? (
-          <p>No backtest results found.</p>
-        ) : (
-          <table className="table-auto w-full text-sm">
-            <thead>
-              <tr className="bg-gray-200">
-                <th>Timeframe</th>
-                <th>Initial</th>
-                <th>Final</th>
-                <th>Profit</th>
-                <th>Trades</th>
-                <th>Candles Tested</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {results.map((b) => (
-                <tr key={b._id}>
-                  <td>{b.timeframe}</td>
-                  <td>${Number(b.initialBalance).toFixed(2)}</td>
-                  <td>${Number(b.finalBalance).toFixed(2)}</td>
-                  <td
-                    style={{ color: Number(b.profit) >= 0 ? 'green' : 'red' }}
-                  >
-                    ${Number(b.profit).toFixed(2)}
-                  </td>
-                  <td>{b.totalTrades}</td>
-                  <td>{b.candlesTested}</td>
-                  <td>{new Date(b.createdAt).toLocaleDateString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </>
-  );
-};
-
-export default Backtests;
