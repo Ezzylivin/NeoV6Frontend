@@ -28,15 +28,15 @@ export const AuthProvider = ({ children }) => {
   }, [token, user]);
 
   // 5. Login function
-  const loginUser = async (email, password) => {
-    const data = await login(email, password); // Calls your backend
+  const login = async (email, password) => {
+    const data = await loginUser(email, password); // Calls your backend
     setToken(data.token);
     setUser(data.User); // assuming backend returns { token, User }
   };
 
   // 6. Register function (also logs in)
-  const registerUser = async (username, email, password) => {
-    const data = await register(username, email, password);
+  const register = async (username, email, password) => {
+    const data = await registerUser(username, email, password);
     setToken(data.token);
     setUser(data.User);
   };
@@ -51,10 +51,10 @@ export const AuthProvider = ({ children }) => {
   const value = {
     token,
     user,
-    login: loginUser,
-    register: registerUser,
+    login,
+    register,
     logout,
-    isAuthenticated: !!token,
+    isAuthenticated
   };
 
   return (
