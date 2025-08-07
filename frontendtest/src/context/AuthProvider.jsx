@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { login, register } from '../api/auth';
+import { login, register } from '../api/auth.jsx';
 import { setAuthToken } from '../api/apiClient';
 
 // 1. Create the context
