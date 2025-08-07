@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext.jsx'; // Assuming AuthProvider and a useAuth hook exist
+import { AuthProvider } from './contexts/AuthContext.js'; // Assuming AuthProvider and a useAuth hook exist
 
 // Import the combined AuthPage, not individual Login/Register pages
 import AuthPage from './pages/AuthPage.jsx';
