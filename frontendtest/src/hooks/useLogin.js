@@ -1,19 +1,21 @@
 // File: src/hooks/useLogin.js
 import { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
 import { loginUser } from '../api/auth';
+import { useAuth } from '../context/AuthProvider';
 
-export default function useLogin() {
-  const { login } = useAuth();
+export const useLogin = () => {
+  const { setUser, setToken } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const handleLogin = async (email, password) => {
+  const login = async (email, password) => {
     setLoading(true);
     setError(null);
     try {
-      const { token, user } = await loginUser(email, password);
-      login(token, user); // Store in AuthContext
+      const data = await loginUser(email, password);
+      setUser(data.user);
+      setToken(data.token);
+      localStorage.setItem('token', data.token);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -21,5 +23,5 @@ export default function useLogin() {
     }
   };
 
-  return { handleLogin, loading, error };
-}
+  return { login, loading, error };
+};
