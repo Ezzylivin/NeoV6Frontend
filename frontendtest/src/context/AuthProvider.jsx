@@ -3,7 +3,7 @@ import { login, register } from '../api/auth';
 import { setAuthToken } from '../api/apiClient';
 
 // 1. Create the context
-const AuthContext = createContext();
+export const AuthContext = createContext();
 
 // 2. Create the provider component
 export const AuthProvider = ({ children }) => {
@@ -65,4 +65,4 @@ export const AuthProvider = ({ children }) => {
 };
 
 // 9. Custom hook for easy context access
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => useContext(AuthProvider);
