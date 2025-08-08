@@ -2,21 +2,21 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
-import AuthPage from './pages/AuthPage.jsx';       // Your login/register page
-import Dashboard from './pages/Dashboard.jsx';     // Your dashboard page
-import NotFound from './pages/NotFound.jsx';       // 404 page
+import AuthPage from './pages/AuthPage.jsx';
+import Dashboard from './pages/Dashboard.jsx';
+import NotFound from './pages/NotFound.jsx';
 
+// TODO: Replace this with your real auth state from context or hook
+const isAuthenticated = false;
 
 const App = () => {
-  
-
   return (
     <Routes>
       {/* Public route: login/register page */}
       <Route
         path="/"
         element={
-          token ? <Navigate to="/dashboard" replace /> : <AuthPage />
+          isAuthenticated ? <Navigate to="/dashboard" replace /> : <AuthPage />
         }
       />
 
@@ -24,7 +24,7 @@ const App = () => {
       <Route
         path="/dashboard"
         element={
-          token ? <Dashboard /> : <Navigate to="/" replace />
+          isAuthenticated ? <Dashboard /> : <Navigate to="/" replace />
         }
       />
 
