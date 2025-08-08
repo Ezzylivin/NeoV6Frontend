@@ -1,8 +1,8 @@
 // File: src/hooks/useLogin.js
 import { useState } from 'react';
-import { loginUser } from '../api/auth';
-import { AuthProvider } from '../context/AuthProvider';
-import { setAuthToken } from '../api/api'; // ✅ so token gets applied globally
+import { loginUser } from '../api/auth.jsx';
+import { AuthProvider } from '../context/AuthProvider.jsx';
+import { setAuthToken } from '../api/apiClient.jsx'; // ✅ so token gets applied globally
 
 export const useLogin = () => {
   const { setUser, setToken } = useAuth();
