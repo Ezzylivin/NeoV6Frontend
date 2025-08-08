@@ -1,5 +1,5 @@
 // File: src/api/backtest.js
-import api from './apiClient'; // your configured axios instance
+import api from './apiClient.jsx'; // your configured axios instance
 
 // Run a new backtest, optionally filtered by timeframe
 export const runBacktests = async (timeframe = '') => {
