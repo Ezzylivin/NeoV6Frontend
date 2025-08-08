@@ -6,10 +6,9 @@ import AuthPage from './pages/AuthPage.jsx';       // Your login/register page
 import Dashboard from './pages/Dashboard.jsx';     // Your dashboard page
 import NotFound from './pages/NotFound.jsx';       // 404 page
 
-import { useAuth } from './context/AuthContext.jsx';
 
 const App = () => {
-  const { token } = useAuth();
+  
 
   return (
     <Routes>
