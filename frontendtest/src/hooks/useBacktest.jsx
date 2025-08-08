@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { runBacktest, GetBacktestResults } from '../api/backtests';
+import { runBacktest, backtestResults } from '../api/backtests';
 
 export const useBacktest = () => {
   const [results, setResults] = useState([]);
@@ -9,7 +9,7 @@ export const useBacktest = () => {
   const fetchResults = async () => {
     setLoading(true);
     try {
-      const data = await GetBacktestResults();
+      const data = await backtestResults();
       setResults(data);
     } finally {
       setLoading(false);
