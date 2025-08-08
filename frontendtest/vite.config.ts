@@ -5,21 +5,22 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   
-  // Generate source maps during build for easier debugging in production
   build: {
     sourcemap: true,
   },
 
-  // You can add dev server config here later if needed, e.g.:
   server: {
-     port: 3000,
-     open: true,
-     proxy: {
-       '/api': {
-         target: 'http://localhost:8000',
-         changeOrigin: true,
-         secure: false,
-       },
-     },
-   },
+    port: 3000,
+    open: true, // Automatically open browser on start
+    proxy: {
+      // Proxy API requests to backend
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+        // Optional rewrite if your backend routes don't have /api prefix
+        // rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
+  },
 });
