@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect } from 'react';
+import axios from 'axios';
 import { setAuthToken } from '../api/apiClient.jsx.js';
 
 // Create the AuthContext
@@ -9,27 +10,28 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(() => localStorage.getItem('token') || null);
   const [user, setUser] = useState(() => JSON.parse(localStorage.getItem('user')) || null);
 
-  // Save token & user to localStorage whenever they change
+  // Apply token to axios whenever it changes
   useEffect(() => {
     if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       localStorage.setItem('token', token);
     } else {
+      delete axios.defaults.headers.common['Authorization'];
       localStorage.removeItem('token');
     }
+  }, [token]);
 
-    if (user) {
-      localStorage.setItem('user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('user');
-    }
-  }, [token, user]);
+  // Login function
+  const login = (userData, jwtToken) => {
+    setUser(userData);
+    setToken(jwtToken);
+  };
 
   // Logout function
   const logout = () => {
-    setToken(null);
     setUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    setToken(null);
+  };
   };
 
   return (
