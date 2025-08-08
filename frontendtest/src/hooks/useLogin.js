@@ -9,7 +9,7 @@ export const useLogin = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const loginUserHandler = async (email, password) => {
+  const loginUser = async (email, password) => {
     setLoading(true);
     setError(null);
 
