@@ -5,30 +5,25 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import AuthPage from './pages/AuthPage.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import NotFound from './pages/NotFound.jsx';
-
-// TODO: Replace this with your real auth state from context or hook
-const isAuthenticated = false;
+import ProtectedRoute from './components/ProtectedRoute.jsx';
 
 const App = () => {
   return (
     <Routes>
-      {/* Public route: login/register page */}
-      <Route
-        path="/"
-        element={
-          isAuthenticated ? <Navigate to="/dashboard" replace /> : <AuthPage />
-        }
-      />
+      {/* Public route */}
+      <Route path="/" element={<AuthPage />} />
 
-      {/* Protected route: dashboard */}
+      {/* Protected route */}
       <Route
         path="/dashboard"
         element={
-          isAuthenticated ? <Dashboard /> : <Navigate to="/" replace />
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
         }
       />
 
-      {/* Catch-all route for unknown paths */}
+      {/* Catch all */}
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
