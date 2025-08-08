@@ -1,18 +1,18 @@
-// File: src/components/PrivateRoute.jsx (Corrected)
-
+// File: src/components/ProtectedRoute.jsx
 import React from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
-// 3. Import the useAuth hook to get authentication state
-import { useAuth } from '../contexts/AuthProvider.jsx';
+import { Navigate } from 'react-router-dom';
+import { useAuth } from './useAuth';
 
-// The 'children' prop is now handled by the <Outlet /> component from react-router-dom
-// This is the modern way to handle nested routes.
-const PrivateRoute = () => {
-  const { isAuthenticated } = useAuth(); // Call the hook to check if the user is logged in
+const ProtectedRoute = ({ children }) => {
+  const { user } = useAuth();
 
-  // If the user is authenticated, render the nested child routes (e.g., the DashboardLayout).
-  // If not, redirect them to the /auth page.
-  return isAuthenticated ? <Outlet /> : <Navigate to="/auth" replace />;
+  if (!user) {
+    // Not logged in, redirect to login page
+    return <Navigate to="/" replace />;
+  }
+
+  // Logged in, render the child component(s)
+  return children;
 };
 
-export default PrivateRoute;
+export default ProtectedRoute;
