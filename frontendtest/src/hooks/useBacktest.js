@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { runBacktest, GetBacktestResults } from '../api/backtest';
+import { runBacktest, GetBacktestResults } from '../api/backtests';
 
 export const useBacktest = () => {
   const [results, setResults] = useState([]);
