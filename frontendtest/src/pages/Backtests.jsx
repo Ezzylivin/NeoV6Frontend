@@ -1,20 +1,20 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import NavBar from '../components/NavBar.jsx';
-import { useAuth } from '../contexts/AuthProvider'; // useAuth, not AuthContext directly
-import { fetchBacktestsResults, runBacktest } from '../api/backtests'; // your API functions
+ // Correct hook import
+import { fetchBacktestsResults, runBacktest } from '../api/backtests'; // Your API functions
 
 const Backtests = () => {
-  const { token } = useAuth(); // ✅ Correct way to get token from context
+  //const { token } = useAuth();
   const [results, setResults] = useState([]);
   const [timeframeFilter, setTimeframeFilter] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // ✅ Fetch results (with optional filter)
-  const fetchBacktestsResults = async () => {
+  // Rename local function to avoid conflict
+  const loadBacktestResults = async () => {
     setLoading(true);
     try {
-      const data = await fetchBacktestsResults(token, timeframeFilter); // use filter if needed
-      setResults(data.results || []);
+      const data = await fetchBacktestsResults(token, timeframeFilter);
+      setResults(data.results || []); // Adjust if API returns differently
     } catch (error) {
       console.error(error);
       alert('Error fetching backtest results');
@@ -22,13 +22,12 @@ const Backtests = () => {
     setLoading(false);
   };
 
-  // ✅ Run new backtest
   const handleRunBacktest = async () => {
     setLoading(true);
     try {
       const data = await runBacktest(token);
       if (data?.results) {
-        setResults((prev) => [data.results, ...prev]);
+        setResults((prev) => [...data.results, ...prev]); // Spread array of results
       }
     } catch (error) {
       console.error(error);
@@ -37,9 +36,8 @@ const Backtests = () => {
     setLoading(false);
   };
 
-  // 🔁 Initial load
   useEffect(() => {
-    if (token) fetchBacktestsResults();
+    if (token) loadBacktestResults();
   }, [token]);
 
   return (
@@ -57,3 +55,38 @@ const Backtests = () => {
             onChange={(e) => setTimeframeFilter(e.target.value)}
           />
           <button
+            className="bg-blue-500 text-white px-4 py-2 rounded"
+            onClick={handleRunBacktest}
+            disabled={loading}
+          >
+            {loading ? 'Running Backtest...' : 'Run Backtest'}
+          </button>
+          <button
+            className="bg-gray-300 px-4 py-2 rounded"
+            onClick={loadBacktestResults}
+            disabled={loading}
+          >
+            Refresh
+          </button>
+        </div>
+
+        {/* Results List */}
+        {loading && results.length === 0 ? (
+          <p>Loading results...</p>
+        ) : (
+          <ul>
+            {results.map((bt) => (
+              <li key={bt._id} className="border-b py-2">
+                <strong>Timeframe:</strong> {bt.timeframe} |{' '}
+                <strong>Profit:</strong> ${bt.profit} |{' '}
+                <strong>Trades:</strong> {bt.totalTrades}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </>
+  );
+};
+
+export default Backtests;
