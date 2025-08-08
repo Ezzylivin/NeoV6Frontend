@@ -1,6 +1,6 @@
 // src/hooks/useLogs.js
 import { useState, useEffect } from 'react';
-import api from '../api';
+import api from '../api/logs';
 
 export const useLogs = () => {
   const [logs, setLogs] = useState([]);
