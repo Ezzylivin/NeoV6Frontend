@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect } from 'react';
+import { setAuthToken } from '../api/apiClient.jsx.js';
 
 // Create the AuthContext
 export const AuthContext = createContext();
