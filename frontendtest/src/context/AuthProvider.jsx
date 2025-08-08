@@ -3,7 +3,7 @@ import axios from 'axios';
 import { setAuthToken } from '../api/apiClient.jsx';
 
 // Create the AuthContext
-export const AuthCon = createContext();
+export const myAuthContext = createContext();
 
 // AuthProvider Component
 export const AuthProvider = ({ children }) => {
@@ -49,8 +49,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthCon.Provider value={{ token, setToken, user, setUser, login, logout }}>
+    <myAuthContext.Provider value={{ token, setToken, user, setUser, login, logout }}>
       {children}
-    </AuthCon.Provider>
+    </myAuthContext.Provider>
   );
 };
