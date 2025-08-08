@@ -20,7 +20,7 @@ export const useBot = () => {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
   const handleStopBot = useCallback(async () => {
     try {
@@ -34,7 +34,7 @@ export const useBot = () => {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
   const fetchBotStatus = useCallback(async () => {
     try {
@@ -48,7 +48,7 @@ export const useBot = () => {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
   return {
     startBot: handleStartBot,
