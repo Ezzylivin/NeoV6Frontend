@@ -1,29 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { useLogin } from '../hooks/useLogin';
 import { useRegister } from '../hooks/useRegister';
 import { useNavigate } from 'react-router-dom';
+import { AuthContext } from '../context/AuthProvider.jsx'; // NEW
 
 export default function AuthPage() {
   const [isRegister, setIsRegister] = useState(false);
 
-  // Login hook
+  // Hooks
   const { loginUser, loading: loginLoading, error: loginError } = useLogin();
-  // Register hook
   const { registerUser, loading: registerLoading, error: registerError } = useRegister();
 
   const navigate = useNavigate();
+  const { login } = useContext(AuthContext); // NEW: global auth function
 
   // Shared form state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  // Extra username field for register only
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState(''); // Only for register
 
   // Handle login submit
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     try {
-      await loginUser(email, password);
+      const { user, token } = await loginUser(email, password); // Expect both
+      login(user, token); // Save globally + axios header
       navigate('/dashboard');
     } catch {
       // Error handled in hook error state
@@ -34,7 +35,8 @@ export default function AuthPage() {
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
     try {
-      await registerUser(username, email, password);
+      const { user, token } = await registerUser(username, email, password); // Expect both
+      login(user, token); // Save globally + axios header
       navigate('/dashboard');
     } catch {
       // Error handled in hook error state
@@ -43,7 +45,9 @@ export default function AuthPage() {
 
   return (
     <div className="max-w-md mx-auto mt-20 p-6 border rounded shadow">
-      <h1 className="text-2xl mb-6 text-center">{isRegister ? 'Register' : 'Login'}</h1>
+      <h1 className="text-2xl mb-6 text-center">
+        {isRegister ? 'Register' : 'Login'}
+      </h1>
 
       {isRegister ? (
         <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-4">
