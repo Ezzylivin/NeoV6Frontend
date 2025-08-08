@@ -1,7 +1,8 @@
 // File: src/hooks/useLogin.js
 import { useState } from 'react';
 import { loginUser } from '../api/auth';
-import { useAuth } from '../context/AuthProvider';
+import { AuthProvider } from '../context/AuthProvider';
+import { setAuthToken } from '../api/api'; // ✅ so token gets applied globally
 
 export const useLogin = () => {
   const { setUser, setToken } = useAuth();
@@ -11,13 +12,22 @@ export const useLogin = () => {
   const login = async (email, password) => {
     setLoading(true);
     setError(null);
+
     try {
-      const data = await loginUser(email, password);
-      setUser(data.user);
-      setToken(data.token);
-      localStorage.setItem('token', data.token);
+      const { user, token } = await loginUser(email, password);
+
+      // ✅ Update Auth Context
+      setUser(user);
+      setToken(token);
+
+      // ✅ Persist in localStorage
+      localStorage.setItem('token', token);
+
+      // ✅ Apply token globally to axios instance
+      setAuthToken(token);
+
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.message || err.message || 'Login failed');
     } finally {
       setLoading(false);
     }
