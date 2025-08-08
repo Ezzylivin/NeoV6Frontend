@@ -1,45 +1,38 @@
 // File: src/App.jsx
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthProvider.jsx'; 
+import { Routes, Route, Navigate } from 'react-router-dom';
 
-// Components
-import PrivateRoute from './components/PrivateRoute.jsx';
+import AuthPage from './pages/AuthPage.jsx';       // Your login/register page
+import Dashboard from './pages/Dashboard.jsx';     // Your dashboard page
+import NotFound from './pages/NotFound.jsx';       // 404 page
 
-// Redirect component for root path
-function RootRedirect() {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/auth" replace />;
-}
+import { useAuth } from './context/AuthContext.jsx';
 
-export default function App() {
+const App = () => {
+  const { token } = useAuth();
+
   return (
-    <AuthProvider>
-      <Router>
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/auth" element={<AuthPage />} />
-          <Route path="/" element={<RootRedirect />} />
+    <Routes>
+      {/* Public route: login/register page */}
+      <Route
+        path="/"
+        element={
+          token ? <Navigate to="/dashboard" replace /> : <AuthPage />
+        }
+      />
 
-          {/* Protected Routes */}
-          <Route
-            path="/"
-            element={
-              <PrivateRoute>
-                <DashboardLayout />
-              </PrivateRoute>
-            }
-          >
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="backtests" element={<Backtests />} />
-            <Route path="settings" element={<UserSettings roles={['trader', 'admin']} />} />
-            <Route path="bot-training" element={<BotTraining roles={['trader', 'admin']} />} />
-          </Route>
+      {/* Protected route: dashboard */}
+      <Route
+        path="/dashboard"
+        element={
+          token ? <Dashboard /> : <Navigate to="/" replace />
+        }
+      />
 
-          {/* 404 Page */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </Router>
-    </AuthProvider>
+      {/* Catch-all route for unknown paths */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
   );
-}
+};
+
+export default App;
