@@ -1,27 +1,36 @@
-// src/hooks/useBacktest.js
 import { useState, useEffect } from 'react';
-import api from '../api';
+import { runBacktest, GetBacktestResults } from '../api/backtest';
 
-export const useBacktest = (timeframe = null) => {
+export const useBacktest = () => {
   const [results, setResults] = useState([]);
-  const [running, setRunning] = useState(false);
+  const [loading, setLoading] = useState(false);
 
+  // Fetch existing backtest results from backend
   const fetchResults = async () => {
-    const query = timeframe ? `?timeframe=${timeframe}` : '';
-    const { data } = await api.get(`/backtest/results${query}`);
-    setResults(data);
+    setLoading(true);
+    try {
+      const data = await GetBacktestResults();
+      setResults(data);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const runBacktest = async () => {
-    setRunning(true);
-    await api.post('/backtest/run', timeframe ? { timeframe } : {});
-    await fetchResults();
-    setRunning(false);
+  // Run a new backtest and refresh results
+  const executeBacktest = async () => {
+    setLoading(true);
+    try {
+      await runBacktest();
+      await fetchResults();
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Fetch on initial mount
   useEffect(() => {
     fetchResults();
-  }, [timeframe]);
+  }, []);
 
-  return { results, runBacktest, running };
+  return { results, executeBacktest, loading };
 };
