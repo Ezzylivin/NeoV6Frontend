@@ -1,44 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import NavBar from '../components/NavBar.jsx';
- // Correct hook import
-import { useBacktest  } from '../hooks/useBacktest.jsx'; // Your API functions
+import { useBacktest } from '../hooks/useBacktest.jsx';
 
 const Backtests = () => {
-  //const { token } = useAuth();
-  const [results, setResults] = useState([]);
+  const { results, executeBacktest, loading } = useBacktest();
   const [timeframeFilter, setTimeframeFilter] = useState('');
-  const [loading, setLoading] = useState(false);
 
-  // Rename local function to avoid conflict
-  const loadBacktestResults = async () => {
-    setLoading(true);
-    try {
-      const data = await fetchBacktestsResults(token, timeframeFilter);
-      setResults(data.results || []); // Adjust if API returns differently
-    } catch (error) {
-      console.error(error);
-      alert('Error fetching backtest results');
-    }
-    setLoading(false);
-  };
-
-  const handleRunBacktest = async () => {
-    setLoading(true);
-    try {
-      const data = await runBacktest(token);
-      if (data?.results) {
-        setResults((prev) => [...data.results, ...prev]); // Spread array of results
-      }
-    } catch (error) {
-      console.error(error);
-      alert('Error running backtest');
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    if (token) loadBacktestResults();
-  }, [token]);
+  const filteredResults = results.filter(bt =>
+    timeframeFilter ? bt.timeframe === timeframeFilter : true
+  );
 
   return (
     <>
@@ -56,17 +26,10 @@ const Backtests = () => {
           />
           <button
             className="bg-blue-500 text-white px-4 py-2 rounded"
-            onClick={handleRunBacktest}
+            onClick={executeBacktest}
             disabled={loading}
           >
             {loading ? 'Running Backtest...' : 'Run Backtest'}
-          </button>
-          <button
-            className="bg-gray-300 px-4 py-2 rounded"
-            onClick={loadBacktestResults}
-            disabled={loading}
-          >
-            Refresh
           </button>
         </div>
 
@@ -75,7 +38,7 @@ const Backtests = () => {
           <p>Loading results...</p>
         ) : (
           <ul>
-            {results.map((bt) => (
+            {filteredResults.map((bt) => (
               <li key={bt._id} className="border-b py-2">
                 <strong>Timeframe:</strong> {bt.timeframe} |{' '}
                 <strong>Profit:</strong> ${bt.profit} |{' '}
