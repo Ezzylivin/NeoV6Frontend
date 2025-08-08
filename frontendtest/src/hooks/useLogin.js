@@ -1,11 +1,13 @@
 // File: src/hooks/useLogin.js
 import { useState } from 'react';
 import { loginUser } from '../api/auth.jsx';
-import { AuthProvider } from '../context/AuthProvider.jsx';
-import { setAuthToken } from '../api/apiClient.jsx'; // ✅ so token gets applied globally
+import { useAuth } from '../context/AuthProvider.jsx'; // Correct hook import
+import { setAuthToken } from '../api/apiClient.jsx'; // Apply token globally to axios
 
 export const useLogin = () => {
+  // Access Auth Context setters via useAuth hook
   const { setUser, setToken } = useAuth();
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -14,20 +16,24 @@ export const useLogin = () => {
     setError(null);
 
     try {
-      const { user, token } = await loginUser(email, password);
+      // Call your backend login API
+      const { user, access_token: token } = await loginUser(email, password);
 
-      // ✅ Update Auth Context
+      // Update Auth Context state
       setUser(user);
       setToken(token);
 
-      // ✅ Persist in localStorage
+      // Persist token (and optionally user) in localStorage
       localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
 
-      // ✅ Apply token globally to axios instance
+      // Set token globally on axios instance for future API calls
       setAuthToken(token);
 
     } catch (err) {
+      // Extract and set error message
       setError(err.response?.data?.message || err.message || 'Login failed');
+      throw err; // Allow caller to handle errors if needed
     } finally {
       setLoading(false);
     }
