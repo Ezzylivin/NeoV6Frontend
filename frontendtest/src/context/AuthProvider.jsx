@@ -48,6 +48,24 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
   };
 
+   // NEW: register function
+  const register = async (registrationData) => {
+    try {
+      const response = await axios.post('/api/auth/register', registrationData);
+      // Assuming response contains: { user: {...}, token: "..." }
+      const { user: userData, token: jwtToken } = response.data;
+
+      // Save user and token in context + localStorage
+      login(userData, jwtToken);
+
+      return { success: true };
+    } catch (error) {
+      // Return error message for UI to handle
+      return { success: false, message: error.response?.data?.message || error.message };
+    }
+  };
+
+
   return (
     <myAuthContext.Provider value={{ token, setToken, user, setUser, login, logout }}>
       {children}
