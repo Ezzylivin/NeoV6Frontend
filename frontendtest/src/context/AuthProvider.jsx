@@ -3,7 +3,7 @@ import axios from 'axios';
 import { setAuthToken } from '../api/apiClient.jsx';
 
 // Create the AuthContext
-export const AuthCon = createContext();
+export const AuthContext = createContext();
 
 // AuthProvider Component
 export const AuthProvider = ({ children }) => {
