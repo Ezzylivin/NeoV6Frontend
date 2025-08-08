@@ -4,7 +4,7 @@ import api from './apiClient'; // axios instance with baseURL & headers pre-conf
 // Start the trading bot
 export const startBot = async (symbol, amount, timeframes) => {
   try {
-    const response = await api.post('/bot/start', { symbol, amount, timeframes });
+    const response = await api.post('/bots/start', { symbol, amount, timeframes });
     return response.data;
   } catch (error) {
     throw new Error(error.response?.data?.message || 'Failed to start bot');
@@ -14,7 +14,7 @@ export const startBot = async (symbol, amount, timeframes) => {
 // Stop the trading bot
 export const stopBot = async () => {
   try {
-    const response = await api.post('/bot/stop');
+    const response = await api.post('/bots/stop');
     return response.data;
   } catch (error) {
     throw new Error(error.response?.data?.message || 'Failed to stop bot');
@@ -24,7 +24,7 @@ export const stopBot = async () => {
 // Get the current status of the trading bot
 export const getBotStatus = async () => {
   try {
-    const response = await api.get('/bot/status');
+    const response = await api.get('/bots/status');
     return response.data;
   } catch (error) {
     throw new Error(error.response?.data?.message || 'Failed to get bot status');
