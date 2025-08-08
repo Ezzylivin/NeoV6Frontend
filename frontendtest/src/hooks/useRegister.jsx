@@ -10,7 +10,7 @@ export const useRegister = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const register = async (username, email, password) => {
+  const registerUser = async (username, email, password) => {
     setLoading(true);
     setError(null);
 
