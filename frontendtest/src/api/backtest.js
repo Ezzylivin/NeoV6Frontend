@@ -9,7 +9,7 @@ export const runBacktests = async (timeframe = '') => {
 };
 
 // Fetch all backtest results, optionally filtered by timeframe
-export const fetchBacktestResults = async (timeframe = '') => {
+export const GetBacktestResults = async (timeframe = '') => {
   const params = timeframe ? { timeframe } : {};
   const response = await api.get('/api/backtests/results', { params });
   return response.data; // expects array of backtest results
