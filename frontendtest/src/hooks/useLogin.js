@@ -1,10 +1,12 @@
-// File: src/hooks/useLogin.js
+// File: src/hooks/useLogin.js (Corrected and Functional)
+
 import { useState } from 'react';
-import { useAuth } from '../context/AuthProvider.jsx'; // useAuth hook that consumes AuthContext
+// 1. Corrected the import path to point to AuthContext.jsx
+import { useAuth } from '../contexts/AuthContext.jsx'; 
 import apiClient from '../api/apiClient.jsx';
 
 export const useLogin = () => {
-  const { login } = useAuth(); // use the login(user, token) function from context
+  const { login } = useAuth(); // This login function from the context just updates state.
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -12,9 +14,14 @@ export const useLogin = () => {
     setLoading(true);
     setError(null);
 
-     const { data } = await apiClient.post("/login", email, password);
-      // data = { token, user }
-      login(data.user, data.token); // ✅ saves and applies globally
+    // 2. Added the required 'try' block to wrap the async operation.
+    try { 
+      // 3. Bundled 'email' and 'password' into a single data object for the POST request.
+      const { data } = await apiClient.post("/users/login", { email, password });
+      
+      // data from the API should be an object like { user, token }
+      // Now, call the login function from the context to update the global state.
+      login(data.user, data.token);
 
       return { success: true };
     } catch (err) {
@@ -26,4 +33,4 @@ export const useLogin = () => {
   };
 
   return { loginUser, loading, error };
-}; 
+};
