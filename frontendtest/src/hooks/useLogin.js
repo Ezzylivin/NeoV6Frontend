@@ -1,6 +1,6 @@
 // File: src/hooks/useLogin.js
 import { useState } from 'react';
-import { useAuth } from '../context/useAuth.jsx'; // useAuth hook that consumes AuthContext
+import { useAuth } from '../context/AuthProvider.jsx'; // useAuth hook that consumes AuthContext
 import apiClient from '../api/apiClient.jsx';
 
 export const useLogin = () => {
