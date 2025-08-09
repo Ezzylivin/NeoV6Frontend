@@ -8,7 +8,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './context/AuthContext.jsx'; 
 
 // --- Import all your pages and components ---
-import HomePage from './pages/HomePage.jsx';         // The public landing page
+        // The public landing page
 import AuthPage from './pages/AuthPage.jsx';         // The combined Login/Register page
 import DashboardPage from './pages/DashboardPage.jsx'; // The protected dashboard
 import PrivateRoute from './components/PrivateRoute.jsx';    // The security guard component
