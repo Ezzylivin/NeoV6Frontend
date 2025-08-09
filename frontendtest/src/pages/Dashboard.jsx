@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
-import { useDashboard } from '../hooks/useDashboard.js';
-import { useAuth } from '../context/AuthContext.js';
+import { useDashboard } from '../hooks/useDashboard.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 
 const Dashboard = () => {
   const { user } = useAuth(); // Get logged-in user
