@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react';
 import { useLogin } from '../hooks/useLogin';
 import { useRegister } from '../hooks/useRegister';
 import { useNavigate } from 'react-router-dom';
-import { AuthCon } from '../context/AuthProvider.jsx'; // NEW
+import { myAuthContext } from '../context/AuthProvider.jsx'; // NEW
 
 export default function AuthPage() {
   const [isRegister, setIsRegister] = useState(false);
@@ -12,7 +12,7 @@ export default function AuthPage() {
   const { registerUser, loading: registerLoading, error: registerError } = useRegister();
 
   const navigate = useNavigate();
-  const { login } = useContext(AuthContext); // NEW: global auth function
+  const { login } = useContext(myAuthContext); // NEW: global auth function
 
   // Shared form state
   const [email, setEmail] = useState('');
