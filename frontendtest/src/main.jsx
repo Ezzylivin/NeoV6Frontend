@@ -4,7 +4,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx'; // Use a default import (no curly braces)
 import './index.css';
-import './index.html';
+
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
