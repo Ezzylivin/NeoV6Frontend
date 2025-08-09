@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react';
 import { useLogin } from '../hooks/useLogin';
 import { useRegister } from '../hooks/useRegister';
 import { useNavigate } from 'react-router-dom';
-import { AuthContext } from '../context/AuthProvider';
+import { AuthContext } from '../context/AuthContext';
 
 export default function AuthPage() {
   const [isRegister, setIsRegister] = useState(false);
