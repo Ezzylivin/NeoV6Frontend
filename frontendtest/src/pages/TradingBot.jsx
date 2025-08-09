@@ -1,37 +1,18 @@
-import React, { useState } from 'react';
-import { startBot, stopBot, getBotStatus } from '../api/bot';
+import React from 'react';
+import { useBot } from '../hooks/useBot';
 
 export default function BotTraining() {
-  const [symbol, setSymbol] = useState('');
-  const [status, setStatus] = useState('');
-  const [logs, setLogs] = useState([]);
-
-  const handleStart = async () => {
-    try {
-      const res = await startBot(symbol);
-      setStatus(res.status || 'Bot started');
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleStop = async () => {
-    try {
-      const res = await stopBot(symbol);
-      setStatus(res.status || 'Bot stopped');
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleStatus = async () => {
-    try {
-      const res = await getBotStatus(symbol);
-      setStatus(res.status || 'Unknown');
-    } catch (error) {
-      console.error(error);
-    }
-  };
+  const {
+    symbol,
+    setSymbol,
+    status,
+    logs,
+    loading,
+    error,
+    handleStart,
+    handleStop,
+    handleStatus,
+  } = useBot();
 
   return (
     <div style={{ padding: '1rem' }}>
@@ -45,10 +26,22 @@ export default function BotTraining() {
       />
 
       <div style={{ marginTop: '1rem' }}>
-        <button onClick={handleStart}>Start Bot</button>
-        <button onClick={handleStop}>Stop Bot</button>
-        <button onClick={handleStatus}>Check Status</button>
+        <button onClick={handleStart} disabled={loading}>
+          {loading ? 'Starting...' : 'Start Bot'}
+        </button>
+        <button onClick={handleStop} disabled={loading}>
+          {loading ? 'Stopping...' : 'Stop Bot'}
+        </button>
+        <button onClick={handleStatus} disabled={loading}>
+          {loading ? 'Checking...' : 'Check Status'}
+        </button>
       </div>
+
+      {error && (
+        <div style={{ marginTop: '1rem', color: 'red' }}>
+          <strong>Error:</strong> {error}
+        </div>
+      )}
 
       {status && (
         <div style={{ marginTop: '1rem' }}>
