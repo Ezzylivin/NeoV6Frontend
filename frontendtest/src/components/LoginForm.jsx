@@ -1,6 +1,6 @@
 // File: src/components/LoginForm.jsx
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext.js'; // ✅ Use AuthContext for login
+import { useAuth } from '../context/AuthContext.jsx'; // ✅ Use AuthContext for login
 
 const LoginForm = () => {
   const { login, loading, error } = useAuth(); // ✅ pull from AuthContext
