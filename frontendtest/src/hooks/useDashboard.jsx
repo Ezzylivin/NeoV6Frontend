@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
-import { fetchBotStatus } from '../api/bot.jsx';
+import { getBotStatus } from '../api/bot.jsx';
 import { fetchLogs } from '../api/logs.jsx';
 
 export const useDashboard = () => {
