@@ -1,41 +1,32 @@
-import { useState } from 'react';
-import { registerUser as registerUserApi } from '../api/auth.jsx';
-import { useAuth } from '../context/AuthProvider.jsx';
-import { setAuthToken } from '../api/apiClient.jsx';
+// src/hooks/useRegister.js
+import { useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import apiClient from "../api/apiClient";
 
 export const useRegister = () => {
-  const { setUser, setToken } = useAuth();
+  const { login } = useAuth(); // same as in useLogin
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const register = async ({ username, email, password }) => {
-    setLoading(true);
-    setError(null);
-
+  const registerUser = async (formData) => {
     try {
-      // Call backend register API, expect { user, access_token }
-      const { user, token } = await registerUserApi(username, email, password);
+      setLoading(true);
+      setError(null);
 
-      // Update global auth context
-      setUser(user);
-      setToken(token);
+      const { data } = await apiClient.post("/auth/register", formData);
+      // data = { token, user }
 
-      // Persist data locally
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
-
-      // Apply token globally to axios
-      setAuthToken(token);
+      // ✅ Auto-login immediately after successful register
+      login(data.user, data.token);
 
       return { success: true };
     } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Registration failed';
-      setError(msg);
-      return { success: false, message: msg };
+      setError(err.response?.data?.message || "Registration failed");
+      return { success: false };
     } finally {
       setLoading(false);
     }
   };
 
-  return { register, loading, error };
+  return { registerUser, loading, error };
 };
