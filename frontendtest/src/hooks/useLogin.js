@@ -1,8 +1,7 @@
 // File: src/hooks/useLogin.js
 import { useState } from 'react';
-import { loginUser } from '../api/auth.jsx';
 import { useAuth } from '../context/useAuth.jsx'; // useAuth hook that consumes AuthContext
-import { setAuthToken } from '../api/apiClient.jsx';
+import apiClient from '../api/apiClient.jsx';
 
 export const useLogin = () => {
   const { login } = useAuth(); // use the login(user, token) function from context
@@ -13,21 +12,18 @@ export const useLogin = () => {
     setLoading(true);
     setError(null);
 
-    try {
-      const { user, token } = await loginUser(email, password);
+     const { data } = await apiClient.post("/auth/login", email, password);
+      // data = { token, user }
+      login(data.user, data.token); // ✅ saves and applies globally
 
-      // Use context's login method to update state and localStorage
-      login(user, token);
-
-      // Apply token globally to axios instance
-      setAuthToken(token);
-
+      return { success: true };
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Login failed');
+      setError(err.response?.data?.message || "Login failed");
+      return { success: false };
     } finally {
       setLoading(false);
     }
   };
 
-  return { loginUser: loginUserHandler, loading, error };
-};
+  return { loginUser, loading, error };
+}; 
