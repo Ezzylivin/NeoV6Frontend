@@ -12,7 +12,7 @@ export const useLogin = () => {
     setLoading(true);
     setError(null);
 
-     const { data } = await apiClient.post("/auth/login", email, password);
+     const { data } = await apiClient.post("/login", email, password);
       // data = { token, user }
       login(data.user, data.token); // ✅ saves and applies globally
 
