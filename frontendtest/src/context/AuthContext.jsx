@@ -6,8 +6,14 @@ const AuthContext = createContext(null);
 
 // AuthProvider Component
 export const AuthProvider = ({ children }) => {
-  const [token, setToken] = useState (localStorage.getItem('token') || null);
-  const [user, setUser] = useState (JSON.parse(localStorage.getItem('user') || null);
+  const [token, setToken] = useState(() => localStorage.getItem('token'));
+  
+  // This is the robust way to initialize the user state from localStorage
+  const [user, setUser] = useState(() => {
+    const storedUser = localStorage.getItem('user');
+    // Only try to parse if the storedUser is not null or undefined
+    return storedUser ? JSON.parse(storedUser) : null;
+  });
 
 
   // Apply token to axios and sync localStorage whenever token changes
