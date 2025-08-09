@@ -1,32 +1,20 @@
-// File: src/App.jsx
+// src/App.jsx
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
+import HomePage from './pages/HomePage.jsx';
+import LoginPage from './pages/LoginPage.jsx';
+import RegisterPage from './pages/RegisterPage.jsx';
+import DashboardPage from './pages/DashboardPage.jsx';
 
-
-import Dashboard from './pages/Dashboard.jsx';
-import NotFound from './pages/NotFound.jsx';
-import ProtectedRoute from './components/ProtectedRoute.jsx';
-
-const App = () => {
+function App() {
   return (
     <Routes>
-      {/* Public route */}
-      <Route path="/" element={<AuthPage />} />
-
-      {/* Protected route */}
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Catch all */}
-      <Route path="*" element={<NotFound />} />
+      <Route path="/" element={<HomePage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/dashboard" element={<DashboardPage />} />
     </Routes>
   );
-};
+}
 
 export default App;
