@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { setAuthToken } from '../api/apiClient.jsx';
 // You will need to import your raw API functions here
-import { loginUser as apiLogin, registerUser as apiRegister } from '../api/auth.js';
+import { loginUser as apiLogin, registerUser as apiRegister } from '../api/auth.jsx';
 import { useNavigate } from 'react-router-dom';
 
 // Create the AuthContext
