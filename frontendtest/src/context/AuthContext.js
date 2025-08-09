@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { setAuthToken } from '../api/apiClient.jsx';
 
 // Create the AuthContext
-const myAuthContext = createContext(null);
+const AuthContext = createContext(null);
 
 // AuthProvider Component
 export const AuthProvider = ({ children }) => {
@@ -46,11 +46,11 @@ export const AuthProvider = ({ children }) => {
 
 
   return (
-    <myAuthContext.Provider value={{ token, setToken, user, setUser, login, logout, register }}>
+    <AuthContext.Provider value={{ token, setToken, user, setUser, login, logout, register }}>
       {children}
-    </myAuthContext.Provider>
+    </AuthContext.Provider>
   );
 };
 
-export const useAuth = () => useContext(myAuthContext);
+export const useAuth = () => useContext(AuthContext);
 
