@@ -13,7 +13,7 @@ export const useRegister = () => {
       setLoading(true);
       setError(null);
 
-      const { data } = await apiClient.post("/auth/register", formData);
+      const { data } = await apiClient.post("/register", formData);
       // data = { token, user }
 
       // ✅ Auto-login immediately after successful register
