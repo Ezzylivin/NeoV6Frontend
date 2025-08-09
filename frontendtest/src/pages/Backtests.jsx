@@ -3,10 +3,14 @@ import NavBar from '../components/NavBar.jsx';
 import { useBacktest } from '../hooks/useBacktest.jsx';
 
 const Backtests = () => {
-  const { results, executeBacktest, loading } = useBacktest();
+  const { results, executeBacktest, loading, error } = useBacktest();
   const [timeframeFilter, setTimeframeFilter] = useState('');
 
-  const filteredResults = results.filter(bt =>
+  const handleRunBacktest = async () => {
+    await executeBacktest(); // hook takes care of setting loading and updating results
+  };
+
+    const filteredResults = results.filter((bt) =>
     timeframeFilter ? bt.timeframe === timeframeFilter : true
   );
 
@@ -43,13 +47,15 @@ const Backtests = () => {
                 <strong>Timeframe:</strong> {bt.timeframe} |{' '}
                 <strong>Profit:</strong> ${bt.profit} |{' '}
                 <strong>Trades:</strong> {bt.totalTrades}
-              </li>
+               </li>
             ))}
           </ul>
+        ) : (
+          <p>No backtest results found.</p>
         )}
       </div>
     </>
   );
 };
 
-export default Backtests;
+export default Backtests;s;
