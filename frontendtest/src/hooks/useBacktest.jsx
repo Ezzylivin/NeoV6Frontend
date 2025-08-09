@@ -1,36 +1,25 @@
-import { useState, useEffect } from 'react';
-import { runBacktest, backtestResults } from '../api/backtests';
+// src/hooks/useRunBacktest.js
+import { useState } from "react";
+import apiClient from "../api/apiClient";
 
-export const useBacktest = () => {
-  const [results, setResults] = useState([]);
+export function useRunBacktest() {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Fetch existing backtest results from backend
-  const fetchResults = async () => {
+  const runBacktest = async (params) => {
     setLoading(true);
+    setError(null);
+
     try {
-      const data = await backtestResults();
-      setResults(data);
+      const { data } = await apiClient.post("/backtest/run", params);
+      return { success: true, data };
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to run backtest");
+      return { success: false };
     } finally {
       setLoading(false);
     }
   };
 
-  // Run a new backtest and refresh results
-  const executeBacktest = async () => {
-    setLoading(true);
-    try {
-      await runBacktest();
-      await fetchResults();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fetch on initial mount
-  useEffect(() => {
-    fetchResults();
-  }, []);
-
-  return { results, executeBacktest, loading };
-};
+  return { runBacktest, loading, error };
+}
