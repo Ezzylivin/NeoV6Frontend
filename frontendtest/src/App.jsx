@@ -5,7 +5,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
 // 2. Import the AuthProvider and the useAuth hook for state management
-import { AuthProvider, useAuth } from './contexts/AuthContext.jsx'; 
+import { AuthProvider, useAuth } from './context/AuthContext.jsx'; 
 
 // --- Import all your pages and components ---
 import HomePage from './pages/HomePage.jsx';         // The public landing page
