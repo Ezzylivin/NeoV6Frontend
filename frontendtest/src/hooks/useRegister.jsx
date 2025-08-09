@@ -14,7 +14,7 @@ export const useRegister = () => {
 
     try {
       // Call backend register API, expect { user, access_token }
-      const { user, token: token } = await registerUserApi(username, email, password);
+      const { user, token } = await registerUserApi(username, email, password);
 
       // Update global auth context
       setUser(user);
