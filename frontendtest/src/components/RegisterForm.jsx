@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useRegister } from '../hooks/useRegister.js';
+import { useRegister } from '../hooks/useRegister.jsx';
 
 const RegisterForm = () => {
   const { register, loading, error } = useRegister();
