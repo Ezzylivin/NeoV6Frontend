@@ -3,7 +3,7 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 // 1. The import statement is a complete, clean line.
-import { useAuth } from '../contexts/AuthContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 
 // 2. The component definition starts on a new, clean line.
 //    It uses the modern 'Outlet' approach for nested routes.
