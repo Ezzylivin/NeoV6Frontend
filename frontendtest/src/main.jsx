@@ -1,16 +1,15 @@
-// src/main.jsx
+// File: src/main.jsx (Corrected and Final)
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { App } from './App.jsx';
-import { BrowserRouter } from 'react-router-dom';
-import { AuthProvider } from './context/AuthProvider.jsx';
+import App from './App.jsx'; // Use a default import (no curly braces)
+import './index.css';
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-<React.StrictMode>
-  <AuthProvider>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </AuthProvider>
-</React.StrictMode>
+const root = ReactDOM.createRoot(document.getElementById('root'));
+
+// This file's only job is to render the App component.
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
 );
