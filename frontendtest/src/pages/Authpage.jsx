@@ -1,7 +1,7 @@
 // File: src/pages/AuthPage.jsx (Corrected and Final Version)
 
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext.js'; 
+import { useAuth } from '../context/AuthContext.jsx'; 
 import { useNavigate } from 'react-router-dom';
 
 export default function AuthPage() {
