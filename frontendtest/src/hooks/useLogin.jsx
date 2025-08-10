@@ -17,7 +17,7 @@ export const useLogin = () => {
     // 2. Added the required 'try' block to wrap the async operation.
     try { 
       // 3. Bundled 'email' and 'password' into a single data object for the POST request.
-      const { data } = await apiClient.post("home/users/login", { username, password });
+      const { data } = await apiClient.post("/home/users/login", { username, password });
       
       // data from the API should be an object like { user, token }
       // Now, call the login function from the context to update the global state.
