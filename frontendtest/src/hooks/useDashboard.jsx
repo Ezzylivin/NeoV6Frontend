@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
-import { getBotStatus } from '../api/bot.jsx';
-import { getLogs } from '../api/logs.jsx';
+import { getBotStatus } from '../api/bot.js';
+import { getLogs } from '../api/logs.js';
 
 export const useDashboard = () => {
   const { token } = useAuth();
