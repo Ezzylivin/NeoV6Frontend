@@ -1,5 +1,5 @@
 // File: src/api/logs.js
-import api from './apiClient.jsx'; // your configured axios instance
+import api from './apiClient.js'; // your configured axios instance
 
 export const getLogs = async () => {
   try {
