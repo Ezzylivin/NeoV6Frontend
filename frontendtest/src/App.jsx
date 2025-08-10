@@ -5,13 +5,14 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
 // 2. Import the AuthProvider and the useAuth hook for state management
-import { AuthProvider, useAuth } from './context/AuthContext.jsx'; 
+import { AuthProvider } from './context/AuthContext.jsx'; 
 
 // --- Import all your pages and components ---
         // The public landing page
 import AuthPage from './pages/Authpage.jsx';         // The combined Login/Register page
 import Dashboard from './pages/Dashboard.jsx'; // The protected dashboard
-import PrivateRoute from './components/ProtectedRoute.jsx';    // The security guard component
+import PrivateRoute from './components/ProtectedRoute.jsx';
+import DashboardLayout from './layouts/DashboardLayout.jsx';// The security guard component
 
 /**
  * A helper component to handle what guests see vs. what logged-in users see
