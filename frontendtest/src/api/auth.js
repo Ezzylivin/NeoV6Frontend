@@ -4,7 +4,7 @@ import apiClient from './apiClient.js'; // Uses centralized axios instance
 // Register a new user
 export const registerUser = async (username,email, password) => {
   try {
-    const response = await apiClient.post('api/users/register', {username, email, password });
+    const response = await apiClient.post('/api/users/register', {username, email, password });
     return response.data;
   } catch (error) {
     throw new Error(error.response?.data?.message || 'Registration failed');
