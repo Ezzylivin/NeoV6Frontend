@@ -22,41 +22,44 @@ import DashboardLayout from './layouts/DashboardLayout.jsx';// The security guar
  * users away from the homepage automatically.
  */
 
+const GuestRoute = ({ children }) => {
+  const { isAuthenticated } = useAuth();
+  return isAuthenticated ? <Navigate to="/dashboard" replace /> : children;
+};
+
 // App is the main component and is a default export
 export default function App() {
   return (
     // 3. Wrap the entire application in AuthProvider to give all components
     //    access to the user's authentication state.
-    <AuthProvider>
-      {/* 4. Wrap everything in a Router to enable client-side navigation */}
+     <AuthProvider>
       <Router>
         <Routes>
-          {/* --- Public Routes --- */}
+          {/* --- GUEST-ONLY ROUTES --- */}
+          {/* These routes are for users who are NOT logged in. */}
+          <Route path="/auth" element={
+            <GuestRoute>
+              <AuthPage />
+            </GuestRoute>
+          } />
 
-          {/* The root path '/' now shows the public HomePage. Anyone can see this. */}
-            <Route path="/auth" element={<AuthPage />} />
-          
-         
-          <Route 
-            path="/dashboard" 
-            element={
-              <PrivateRoute>
-                <Dashboard />
-              </PrivateRoute>
-            } 
-          />
-          
-          {/* If you had other protected pages, you would add them here in the same way. */}
-          {/*
-          <Route 
-            path="/settings" 
-            element={
-              <PrivateRoute>
-                <SettingsPage />
-              </PrivateRoute>
-            } 
-          />
-          */}
+          {/* --- PROTECTED ROUTES --- */}
+          {/* This parent route protects all children and provides the main layout. */}
+          <Route path="/" element={
+            <PrivateRoute>
+              <DashboardLayout />
+            </PrivateRoute>
+          }>
+            {/* 
+              This is the INDEX ROUTE for the protected section.
+              A logged-in user visiting "/" will see the Dashboard.
+            */}
+            <Route index element={<Dashboard />} />
+
+            {/* Other protected routes */}
+            <Route path="dashboard" element={<Dashboard />} />
+            {/* <Route path="settings" element={<SettingsPage />} /> */}
+          </Route>
 
         </Routes>
       </Router>
