@@ -1,5 +1,5 @@
 // File: src/api/auth.js
-import api from './apiClient.js'; // Uses centralized axios instance
+import apiClient from './apiClient.js'; // Uses centralized axios instance
 
 // Register a new user
 export const registerUser = async (username,email, password) => {
