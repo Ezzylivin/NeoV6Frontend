@@ -1,6 +1,6 @@
 // src/hooks/useRegister.js
 import { useState } from "react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/AuthContext.jsx";
 import apiClient from "../api/apiClient";
 
 export const useRegister = () => {
