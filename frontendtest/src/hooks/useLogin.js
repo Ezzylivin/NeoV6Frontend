@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 // 1. Corrected the import path to point to AuthContext.jsx
-import { useAuth } from '../context/AuthContext.jsx'; 
+import { useAuth } from '../context/AuthContext.js'; 
 import apiClient from '../api/apiClient.js';
 
 export const useLogin = () => {
