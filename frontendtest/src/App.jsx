@@ -37,12 +37,12 @@ export default function App() {
         <Routes>
           {/* --- GUEST-ONLY ROUTES --- */}
           {/* These routes are for users who are NOT logged in. */}
-          <Route path="/auth" element={
+          <Route path="/home/auth" element={
             <GuestRoute>
               <AuthPage />
             </GuestRoute>
           } />
-
+                
           {/* --- PROTECTED ROUTES --- */}
           {/* This parent route protects all children and provides the main layout. */}
           <Route path="/" element={
