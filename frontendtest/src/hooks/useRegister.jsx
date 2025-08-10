@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import apiClient from "../api/apiClient";
 
-export const useRegister = () => {
+export const useRegister = (user._id) => {
   const { login } = useAuth(); // same as in useLogin
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
