@@ -54,43 +54,96 @@ export default function AuthPage() {
     setUsername('');
   }
 
-  // The JSX is unchanged and correct.
-  return (
-    <div className="auth-container max-w-md mx-auto mt-20 p-6 border rounded shadow">
-      <h1 className="text-2xl mb-6 text-center">{isRegister ? 'Register' : 'Login'}</h1>
+  // The JSX returned by your component:
+return (
+  // It's good practice to have a full-screen wrapper for centering
+  <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
+
+    {/* This is the main container for your form card */}
+    <div className="auth-container w-full max-w-md p-8 space-y-6 bg-gray-800 rounded-lg shadow-lg">
       
-      {error && <p className="text-red-600 mb-4">{error}</p>}
+      {/* 1. ADDED MAIN TITLE AND SUBTITLE */}
+      <div className="text-center">
+        <h1 className="text-4xl font-bold">NeoV6</h1>
+        <p className="text-gray-400">Smart Trading Bot Dashboard</p>
+      </div>
+      
+      {/* This is the dynamic title for the specific form (Login or Register) */}
+      <h2 className="text-2xl font-bold text-center">{isRegister ? 'Create an Account' : 'Login'}</h2>
+      
+      {/* Display a single error message at the top of the form */}
+      {error && <p className="text-red-500 text-center bg-red-900 bg-opacity-50 p-3 rounded">{error}</p>}
       
       {isRegister ? (
-        <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-4">
-          <input type="username" value={username} onChange={e => setUsername(e.target.value)} placeholder="Username" required className="p-2 border rounded" />
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" required className="p-2 border rounded" />
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" required className="p-2 border rounded" />
-          <button type="submit" disabled={loading} className="bg-green-600 text-white py-2 rounded hover:bg-green-700">
+        // --- REGISTER FORM ---
+        <form onSubmit={handleRegisterSubmit} className="space-y-6">
+          {/* 2. CORRECTED the 'type' attribute for the username input */}
+          <input 
+            type="text" 
+            value={username} 
+            onChange={e => setUsername(e.target.value)} 
+            placeholder="Username" 
+            required 
+            className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" 
+          />
+          <input 
+            type="email" 
+            value={email} 
+            onChange={e => setEmail(e.target.value)} 
+            placeholder="Email" 
+            required 
+            className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" 
+          />
+          <input 
+            type="password" 
+            value={password} 
+            onChange={e => setPassword(e.target.value)} 
+            placeholder="Password" 
+            required 
+            className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" 
+          />
+          <button type="submit" disabled={loading} className="w-full py-3 font-bold text-white bg-green-600 rounded hover:bg-green-700 disabled:bg-gray-500 transition-colors">
             {loading ? 'Registering...' : 'Register'}
           </button>
-          <p className="mt-4 text-center">
+          <p className="text-center text-gray-400">
             Already have an account?{' '}
-            <button type="button" onClick={toggleForm} className="text-blue-500 underline">
+            <button type="button" onClick={toggleForm} className="font-medium text-blue-400 hover:underline">
               Login here
             </button>
           </p>
         </form>
       ) : (
-        <form onSubmit={handleLoginSubmit} className="flex flex-col gap-4">
-          <input type="username" value={username} onChange={e => setUsername(e.target.value)} placeholder="Username" required className="p-2 border rounded" />
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" required className="p-2 border rounded" />
-          <button type="submit" disabled={loading} className="bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
+        // --- LOGIN FORM ---
+        <form onSubmit={handleLoginSubmit} className="space-y-6">
+          {/* 3. REMOVED the redundant username input from the login form */}
+          <input 
+            type="email" 
+            value={email} 
+            onChange={e => setEmail(e.target.value)} 
+            placeholder="Email" 
+            required 
+            className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" 
+          />
+          <input 
+            type="password" 
+            value={password} 
+            onChange={e => setPassword(e.target.value)} 
+            placeholder="Password" 
+            required 
+            className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" 
+          />
+          <button type="submit" disabled={loading} className="w-full py-3 font-bold text-white bg-blue-600 rounded hover:bg-blue-700 disabled:bg-gray-500 transition-colors">
             {loading ? 'Logging in...' : 'Login'}
           </button>
-          <p className="mt-4 text-center">
+          <p className="text-center text-gray-400">
             Don't have an account?{' '}
-            <button type="button" onClick={toggleForm} className="text-blue-500 underline">
+            <button type="button" onClick={toggleForm} className="font-medium text-blue-400 hover:underline">
               Register here
             </button>
           </p>
         </form>
       )}
     </div>
-  );
-}
+
+  </div>
+);
