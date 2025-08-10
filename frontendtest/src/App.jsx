@@ -40,7 +40,7 @@ export default function App() {
             path="/dashboard" 
             element={
               <PrivateRoute>
-                <DashboardPage />
+                <Dashboard />
               </PrivateRoute>
             } 
           />
