@@ -21,7 +21,7 @@ export default function AuthPage() {
     setLoading(true);
     setError('');
     try {
-      await login(email, password);
+      await login(username, password);
       navigate('/dashboard');
     } catch (err) {
       setError(err.message || "Login failed. Please check your credentials.");
@@ -63,7 +63,7 @@ export default function AuthPage() {
       
       {isRegister ? (
         <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-4">
-          <input value={username} onChange={e => setUsername(e.target.value)} placeholder="Username" required className="p-2 border rounded" />
+          <input type="username" value={username} onChange={e => setUsername(e.target.value)} placeholder="Username" required className="p-2 border rounded" />
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" required className="p-2 border rounded" />
           <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" required className="p-2 border rounded" />
           <button type="submit" disabled={loading} className="bg-green-600 text-white py-2 rounded hover:bg-green-700">
@@ -78,7 +78,7 @@ export default function AuthPage() {
         </form>
       ) : (
         <form onSubmit={handleLoginSubmit} className="flex flex-col gap-4">
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" required className="p-2 border rounded" />
+          <input type="username" value={username} onChange={e => setUsername(e.target.value)} placeholder="Username" required className="p-2 border rounded" />
           <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" required className="p-2 border rounded" />
           <button type="submit" disabled={loading} className="bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
             {loading ? 'Logging in...' : 'Login'}
