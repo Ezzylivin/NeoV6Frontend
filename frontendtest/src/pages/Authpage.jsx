@@ -33,7 +33,7 @@ export default function AuthPage() {
       // 5. After a successful login, navigate the user to the dashboard.
       navigate('/dashboard');
     } catch (err) {
-      setError(err.message || "Login failed. Please check your credentials.");
+      setError(err.message || "Login failed. Please check your credentials."); }
     } finally {
       setLoading(false);
     }
@@ -49,7 +49,7 @@ export default function AuthPage() {
       await register(username, email, password);
       // 6. After a successful registration, also navigate the user to the dashboard.
       navigate('/dashboard');
-    } catch (err)      setError(err.message || "Registration failed. This user may already exist.");
+    } catch (err)   {setError(err.message || "Registration failed. This user may already exist.");
     } finally {
       setLoading(false);
     }
