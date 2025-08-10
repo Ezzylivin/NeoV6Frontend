@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useDashboard } from '../hooks/useDashboard.js';
-import { useAuth } from '../context/AuthContext.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
