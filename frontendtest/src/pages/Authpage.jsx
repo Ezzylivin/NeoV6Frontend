@@ -1,24 +1,17 @@
 // File: src/pages/AuthPage.jsx (Corrected and Final Version)
 
 import React, { useState } from 'react';
-// 1. You ONLY need this one hook for authentication logic.
-import { useAuth } from '../contexts/AuthContext.jsx'; 
-// 2. Import useNavigate here to handle redirection.
+import { useAuth } from '../context/AuthContext.jsx'; 
 import { useNavigate } from 'react-router-dom';
 
 export default function AuthPage() {
-  // 3. Get the login and register functions from the context.
   const { login, register } = useAuth();
-  // 4. Get the navigate function from the router.
   const navigate = useNavigate();
 
-  // Local state for UI and forms
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
-  
-  // A single set of state for loading and errors
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -28,12 +21,11 @@ export default function AuthPage() {
     setLoading(true);
     setError('');
     try {
-      // Call the login function from the context. It only handles the API call and state.
       await login(email, password);
-      // 5. After a successful login, navigate the user to the dashboard.
       navigate('/dashboard');
     } catch (err) {
-      setError(err.message || "Login failed. Please check your credentials."); }
+      setError(err.message || "Login failed. Please check your credentials.");
+      // The extra brace was removed from here.
     } finally {
       setLoading(false);
     }
@@ -45,11 +37,10 @@ export default function AuthPage() {
     setLoading(true);
     setError('');
     try {
-      // Call the register function from the context.
       await register(username, email, password);
-      // 6. After a successful registration, also navigate the user to the dashboard.
       navigate('/dashboard');
-    } catch (err)   {setError(err.message || "Registration failed. This user may already exist.");
+    } catch (err) { // <-- The structure is now a clean try...catch...finally block
+      setError(err.message || "Registration failed. This user may already exist.");
     } finally {
       setLoading(false);
     }
@@ -63,7 +54,7 @@ export default function AuthPage() {
     setUsername('');
   }
 
-  // The JSX remains the same.
+  // The JSX is unchanged and correct.
   return (
     <div className="auth-container max-w-md mx-auto mt-20 p-6 border rounded shadow">
       <h1 className="text-2xl mb-6 text-center">{isRegister ? 'Register' : 'Login'}</h1>
