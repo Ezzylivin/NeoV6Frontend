@@ -12,7 +12,7 @@ export function useBot(botId = null, autoFetchStatus = true) {
     setError(null);
 
     try {
-      const { data } = await apiClient.post("/bots/start", botConfig);
+      const { data } = await apiClient.post("/home/bots/start", botConfig);
       setStatus(data);
       return { success: true, data };
     } catch (err) {
@@ -30,7 +30,7 @@ export function useBot(botId = null, autoFetchStatus = true) {
     setError(null);
 
     try {
-      const { data } = await apiClient.post("/bots/stop", { botId: id });
+      const { data } = await apiClient.post("/home/bots/stop", { botId: id });
       setStatus(null);
       return { success: true, data };
     } catch (err) {
@@ -48,7 +48,7 @@ export function useBot(botId = null, autoFetchStatus = true) {
     setError(null);
 
     try {
-      const { data } = await apiClient.get(`/bots/status/${id}`);
+      const { data } = await apiClient.get(`/home/bots/status/${id}`);
       setStatus(data);
       return { success: true, data };
     } catch (err) {
