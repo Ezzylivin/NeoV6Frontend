@@ -33,23 +33,9 @@ export default function App() {
           {/* --- Public Routes --- */}
 
           {/* The root path '/' now shows the public HomePage. Anyone can see this. */}
-          <Route path="/" element={<HomePage />} />
+            <Route path="/auth" element={<AuthPage />} /
           
-          {/* 
-            We now use a single '/auth' route instead of separate '/login' and '/register'.
-            This route renders the AuthPage component, which handles the toggling
-            between login and registration forms itself.
-          */}
-          <Route path="/auth" element={<AuthPage />} />
-
-          
-          {/* --- Protected Routes --- */}
-
-          {/* 
-            The '/dashboard' route is now protected.
-            - A guest trying to visit /dashboard will be redirected by PrivateRoute to /auth.
-            - A logged-in user will be allowed to see the DashboardPage.
-          */}
+         
           <Route 
             path="/dashboard" 
             element={
