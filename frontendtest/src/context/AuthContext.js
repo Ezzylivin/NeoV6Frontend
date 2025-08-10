@@ -1,9 +1,9 @@
 // File: src/contexts/AuthContext.jsx (Corrected - No Navigation)
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { setAuthToken } from '../api/apiClient.jsx';
+import { setAuthToken } from '../api/apiClient.js';
 // Corrected to use .js for API files
-import { loginUser as apiLogin, registerUser as apiRegister } from '../api/auth.jsx'; 
+import { loginUser as apiLogin, registerUser as apiRegister } from '../api/auth.js'; 
 // REMOVED: import { useNavigate } from 'react-router-dom';
 
 const AuthContext = createContext(null);
