@@ -23,10 +23,6 @@ import DashboardLayout from './layouts/DashboardLayout.jsx';// The security guar
  * users away from the homepage automatically.
  */
 
-const GuestRoute = ({ children }) => {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? <Navigate to="/dashboard" replace /> : children;
-};
 
 // App is the main component and is a default export
 export default function App() {
