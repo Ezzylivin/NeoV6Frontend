@@ -3,7 +3,7 @@
 import React from 'react';
 // Import Link for client-side navigation, useAuth for state, and useNavigate for redirection
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 
 const Header = () => {
   const { isAuthenticated, user, logout } = useAuth();
