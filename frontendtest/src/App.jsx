@@ -6,6 +6,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 
 // 2. Import the AuthProvider and the useAuth hook for state management
 import { AuthProvider, useAuth } from './context/AuthContext.jsx'; 
+import GuestRoute from ./components/GuestRoute.jsx';
 
 // --- Import all your pages and components ---
         // The public landing page
@@ -37,7 +38,7 @@ export default function App() {
         <Routes>
           {/* --- GUEST-ONLY ROUTES --- */}
           {/* These routes are for users who are NOT logged in. */}
-          <Route path="/auth" element={
+          <Route path="/home" element={
             <GuestRoute>
               <AuthPage />
             </GuestRoute>
