@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { setAuthToken } from '../api/apiClient.jsx';
 // Corrected to use .js for API files
-import { loginUser as apiLogin, registerUser as apiRegister } from '../api/auth.js'; 
+import { loginUser as apiLogin, registerUser as apiRegister } from '../api/auth.jsx'; 
 // REMOVED: import { useNavigate } from 'react-router-dom';
 
 const AuthContext = createContext(null);
