@@ -1,26 +1,18 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// https://vitejs.dev/config/
-export default defineConfig({
-  plugins: [react()],
-  
-  build: {
-    sourcemap: true,
-  },
+// Adjust base if deploying to a subpath, e.g. '/myapp/'
+// Set to '/' for root
+const basePath = '/';
 
+export default defineConfig({
+  base: basePath,  // Base public path, important if deploying under a subfolder
+  plugins: [react()],
+  build: {
+    sourcemap: true,  // Source maps for debugging production builds
+  },
   server: {
-    port: 3000,
-    open: true, // Automatically open browser on start
-    proxy: {
-      // Proxy API requests to backend
-      '/api': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-        secure: false,
-        // Optional rewrite if your backend routes don't have /api prefix
-        // rewrite: (path) => path.replace(/^\/api/, ''),
-      },
-    },
+    port: 5173,  // Dev server port (Vite default)
+    open: true,  // Opens browser automatically on dev server start
   },
 });

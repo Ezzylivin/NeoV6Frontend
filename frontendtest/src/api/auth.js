@@ -1,10 +1,10 @@
 // File: src/api/auth.js
-import api from './apiClient.jsx'; // Uses centralized axios instance
+import api from './apiClient.js'; // Uses centralized axios instance
 
 // Register a new user
-export const registerUser = async (email, password) => {
+export const registerUser = async (username,email, password) => {
   try {
-    const response = await api.post('/auth/register', { email, password });
+    const response = await apiClient.post('/users/register', {username, email, password });
     return response.data;
   } catch (error) {
     throw new Error(error.response?.data?.message || 'Registration failed');
@@ -14,7 +14,7 @@ export const registerUser = async (email, password) => {
 // Log in an existing user
 export const loginUser = async (email, password) => {
   try {
-    const response = await api.post('/auth/login', { email, password });
+    const response = await apiClient.post('/users/login', { email, password });
     return response.data;
   } catch (error) {
     throw new Error(error.response?.data?.message || 'Login failed');

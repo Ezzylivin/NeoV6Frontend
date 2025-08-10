@@ -1,9 +1,9 @@
 // src/hooks/useRegister.js
 import { useState } from "react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/AuthContext.jsx";
 import apiClient from "../api/apiClient";
 
-export const useRegister = () => {
+export const useRegister = (user._id) => {
   const { login } = useAuth(); // same as in useLogin
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -13,7 +13,7 @@ export const useRegister = () => {
       setLoading(true);
       setError(null);
 
-      const { data } = await apiClient.post("/auth/register", formData);
+      const { data } = await apiClient.post("/home/auth/register", formData);
       // data = { token, user }
 
       // ✅ Auto-login immediately after successful register

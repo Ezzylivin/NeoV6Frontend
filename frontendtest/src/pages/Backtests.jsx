@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import NavBar from '../components/NavBar.jsx';
-import { useBacktest } from '../hooks/useBacktest.jsx';
+import { useBacktest } from '../hooks/useBacktest.js';
 
 const Backtests = () => {
   const { results, executeBacktest, loading, error } = useBacktest();
