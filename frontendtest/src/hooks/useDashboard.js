@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAuth } from '../context/AuthContext.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import { getBotStatus } from '../api/bot.js';
 import { getLogs } from '../api/logs.js';
 
