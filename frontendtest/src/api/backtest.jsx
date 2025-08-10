@@ -1,16 +1,16 @@
 // File: src/api/backtest.js
-import api from './apiClient.jsx'; // your configured axios instance
+import api from './apiClient.js'; // your configured axios instance
 
 // Run a new backtest, optionally filtered by timeframe
 export const runBacktests = async (timeframe = '') => {
   const payload = timeframe ? { timeframe } : {};
-  const response = await api.post('/api/backtests', payload);
+  const response = await apiClient.post('/home/backtests/run', payload);
   return response.data; // expects { message, backtests: [...] }
 };
 
 // Fetch all backtest results, optionally filtered by timeframe
 export const backtestResults = async (timeframe = '') => {
   const params = timeframe ? { timeframe } : {};
-  const response = await api.get('/api/backtests/results', { params });
+  const response = await apiClient.get('/home/backtests/results', { params });
   return response.data; // expects array of backtest results
 };
