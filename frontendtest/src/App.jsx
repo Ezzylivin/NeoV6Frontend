@@ -10,7 +10,7 @@ import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 // --- Import all your pages and components ---
         // The public landing page
 import AuthPage from './pages/Authpage.jsx';         // The combined Login/Register page
-import DashboardPage from './pages/Dashboard.jsx'; // The protected dashboard
+import Dashboard from './pages/Dashboard.jsx'; // The protected dashboard
 import PrivateRoute from './components/ProtectedRoute.jsx';    // The security guard component
 
 /**
@@ -33,7 +33,7 @@ export default function App() {
           {/* --- Public Routes --- */}
 
           {/* The root path '/' now shows the public HomePage. Anyone can see this. */}
-            <Route path="/auth" element={<AuthPage />} /
+            <Route path="/auth" element={<AuthPage />} />
           
          
           <Route 
