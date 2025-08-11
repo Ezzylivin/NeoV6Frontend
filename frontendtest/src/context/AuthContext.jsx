@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { setAuthToken } from '../api/apiClient.js';
-import { loginUser as apiLogin, registerUser as apiRegister } from '../api/auth.js';
+import { loginUser as apiLogin, registerUser as apiRegister getMe as apiGetMe } from '../api/auth.js';
 // ^ Make sure verifyToken exists in your backend and frontend api/auth.js
 
 const AuthContext = createContext(null);
@@ -20,7 +20,7 @@ export const AuthProvider = ({ children }) => {
   // Hook #1: Initial Authentication and User Fetch
   // Runs ONLY ONCE on application startup.
   useEffect(() => {
-    const validateTokenAndFetchUser = async () => {
+    const getMe = async () => {
       const storedToken = localStorage.getItem('token');
       if (storedToken) {
         setAuthToken(storedToken); // Immediately set the header
