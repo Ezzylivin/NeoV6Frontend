@@ -23,7 +23,7 @@ export default function AuthPage() {
     setError('');
     try {
       await login(username, password);
-      navigate('/dashboard');
+      navigate('/Dashboard');
     } catch (err) {
       setError(err.message || "Login failed. Please check your credentials.");
       // The extra brace was removed from here.
@@ -39,7 +39,7 @@ export default function AuthPage() {
     setError('');
     try {
       await register(username, email, password);
-      navigate('/dashboard');
+      navigate('/Dashboard');
     } catch (err) { // <-- The structure is now a clean try...catch...finally block
       setError(err.message || "Registration failed. This user may already exist.");
     } finally {
