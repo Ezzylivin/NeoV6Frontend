@@ -12,9 +12,9 @@ export const registerUser = async (username,email, password) => {
 };
 
 // Log in an existing user
-export const loginUser = async (email, password) => {
+export const loginUser = async (username, password) => {
   try {
-    const response = await apiClient.post('/user/login', { email, password });
+    const response = await apiClient.post('/user/login', { username, password });
     return response.data;
   } catch (error) {
     throw new Error(error.response?.data?.message || 'Login failed');
