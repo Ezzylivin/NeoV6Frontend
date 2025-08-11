@@ -4,7 +4,7 @@ import apiClient from './apiClient.js'; // Uses centralized axios instance
 // Register a new user
 export const registerUser = async (username,email, password) => {
   try {
-    const response = await apiClient.post('/auth/user/register', {username, email, password });
+    const response = await apiClient.post('/api/auth/user/register', {username, email, password });
     return response.data;
   } catch (error) {
     throw new Error(error.response?.data?.message || 'Registration failed');
@@ -14,7 +14,7 @@ export const registerUser = async (username,email, password) => {
 // Log in an existing user
 export const loginUser = async (email, password) => {
   try {
-    const response = await apiClient.post('/auth/user/login', { email, password });
+    const response = await apiClient.post('/api/auth/user/login', { email, password });
     return response.data;
   } catch (error) {
     throw new Error(error.response?.data?.message || 'Login failed');
@@ -27,7 +27,7 @@ export const loginUser = async (email, password) => {
  */
 export const getMe = async () => {
   try {
-    const response = await apiClient.get('/user/me');
+    const response = await apiClient.get('/api/auth/user/me');
     return response.data;
   } catch (error) {
     throw new Error(error.response?.data?.message || 'Could not fetch user profile.');
