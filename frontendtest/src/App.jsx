@@ -34,7 +34,7 @@ export default function App() {
         <Routes>
           {/* --- GUEST-ONLY ROUTES --- */}
           {/* These routes are for users who are NOT logged in. */}
-          <Route path="/" element={
+          <Route path="/auth" element={
             <GuestRoute>
               <AuthPage />
             </GuestRoute>
