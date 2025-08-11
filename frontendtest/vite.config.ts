@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 
 // Adjust base if deploying to a subpath, e.g. '/myapp/'
 // Set to '/' for root
-const basePath = '/';
+const basePath = '/p';
 
 export default defineConfig({
   base: basePath,  // Base public path, important if deploying under a subfolder
