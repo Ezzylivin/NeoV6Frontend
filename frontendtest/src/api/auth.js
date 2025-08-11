@@ -27,7 +27,7 @@ export const loginUser = async (username, password) => {
  */
 export const getMe = async () => {
   try {
-    const response = await apiClient.get('/users/me');
+    const response = await apiClient.get('/home/users/me');
     return response.data;
   } catch (error) {
     throw new Error(error.response?.data?.message || 'Could not fetch user profile.');
