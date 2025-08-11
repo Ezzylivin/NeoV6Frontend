@@ -31,34 +31,29 @@ export default function App() {
     //    access to the user's authentication state.
      <AuthProvider>
       <Router>
-        <Routes>
-          {/* --- GUEST-ONLY ROUTES --- */}
-          {/* These routes are for users who are NOT logged in. */}
-          <Route path="/" element={
-            <GuestRoute>
-              <AuthPage />
-            </GuestRoute>
-          } />
-                
-          {/* --- PROTECTED ROUTES --- */}
-          {/* This parent route protects all children and provides the main layout. */}
-          <Route path="/Dashboard" element={
-            <PrivateRoute>
-              <DashboardLayout />
-            </PrivateRoute>
-          }>
-            {/* 
-              This is the INDEX ROUTE for the protected section.
-              A logged-in user visiting "/" will see the Dashboard.
-            */}
-            <Route index element={<Dashboard />} />
+       <Routes>
+  {/* Public route for guests */}
+  <Route path="/" element={
+    <GuestRoute>
+      <AuthPage />
+    </GuestRoute>
+  } />
 
-            {/* Other protected routes */}
-            <Route path="dashboard" element={<Dashboard />} />
-            {/* <Route path="settings" element={<SettingsPage />} /> */}
-          </Route>
+  {/* Protected dashboard route */}
+  <Route path="/dashboard" element={
+    <PrivateRoute>
+      <DashboardLayout />
+    </PrivateRoute>
+  }>
+    <Route index element={<Dashboard />} />
+    {/* Future nested routes */}
+    {/* <Route path="settings" element={<SettingsPage />} /> */}
+  </Route>
 
-        </Routes>
+  {/* Optional: Catch-all for 404 */}
+  <Route path="*" element={<div>404 Not Found</div>} />
+</Routes>
+
       </Router>
     </AuthProvider>
   );
