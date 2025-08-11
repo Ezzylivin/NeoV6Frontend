@@ -66,7 +66,7 @@ return (
       {/* 1. ADDED MAIN TITLE AND SUBTITLE */}
       <div className="text-center">
         <h1 className="text-4xl font-bold">NeoV6</h1>
-        <p className="text-gray-400">Smart Enter the Maxtrix</p>
+        <p className="text-gray-400">ARE YOU READY ?</p>
       </div>
       
       {/* This is the dynamic title for the specific form (Login or Register) */}
