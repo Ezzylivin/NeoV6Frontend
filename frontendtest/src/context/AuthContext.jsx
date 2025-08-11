@@ -38,7 +38,7 @@ export const AuthProvider = ({ children }) => {
       setLoading(false); // Initial auth check is complete
     };
 
-    getME();
+    getMe();
   }, []); // Empty array = run once
 
   // Hook #2: State Synchronization
