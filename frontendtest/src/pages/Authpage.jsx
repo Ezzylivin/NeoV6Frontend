@@ -38,7 +38,7 @@ export default function AuthPage() {
     setLoading(true);
     setError('');
     try {
-      await UseRegister(username, email, password);
+      await register(username, email, password);
       navigate('/dashboard');
     } catch (err) { // <-- The structure is now a clean try...catch...finally block
       setError(err.message || "Registration failed. This user may already exist.");
