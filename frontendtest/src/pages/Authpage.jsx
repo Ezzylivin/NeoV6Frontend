@@ -88,7 +88,7 @@ return (
             className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" 
           />
           <input 
-            type="email" 
+            type="text" 
             value={email} 
             onChange={e => setEmail(e.target.value)} 
             placeholder="Email" 
@@ -96,7 +96,7 @@ return (
             className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" 
           />
           <input 
-            type="password" 
+            type="text" 
             value={password} 
             onChange={e => setPassword(e.target.value)} 
             placeholder="Password" 
@@ -118,7 +118,7 @@ return (
         <form onSubmit={handleLoginSubmit} className="space-y-6">
           {/* 3. REMOVED the redundant username input from the login form */}
           <input 
-            type="username" 
+            type="text" 
             value={username} 
             onChange={e => setUsername(e.target.value)} 
             placeholder="username" 
@@ -126,7 +126,7 @@ return (
             className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" 
           />
           <input 
-            type="password" 
+            type="text" 
             value={password} 
             onChange={e => setPassword(e.target.value)} 
             placeholder="Password" 
