@@ -118,10 +118,10 @@ return (
         <form onSubmit={handleLoginSubmit} className="space-y-6">
           {/* 3. REMOVED the redundant username input from the login form */}
           <input 
-            type="email" 
-            value={email} 
-            onChange={e => setEmail(e.target.value)} 
-            placeholder="Email" 
+            type="username" 
+            value={username} 
+            onChange={e => setUsername(e.target.value)} 
+            placeholder="username" 
             required 
             className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" 
           />
