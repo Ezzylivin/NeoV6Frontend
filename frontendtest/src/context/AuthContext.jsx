@@ -15,45 +15,47 @@ export const AuthProvider = ({ children }) => {
   });
   const [loading, setLoading] = useState(true);
 
-  // Validate token on mount
+  // The Final, Corrected Hooks in AuthContext.jsx
+
+  // Hook #1: Initial Authentication and User Fetch
+  // Runs ONLY ONCE on application startup.
   useEffect(() => {
-    const checkAuth = async () => {
-      if (token) {
+    const validateTokenAndFetchUser = async () => {
+      const storedToken = localStorage.getItem('token');
+      if (storedToken) {
+        setAuthToken(storedToken); // Immediately set the header
         try {
-          setAuthToken(token);
-          const data = await apiVerifyToken(); // GET /auth/verify or similar
-          setUser(data.user);
-          localStorage.setItem('token', token);
-          localStorage.setItem('user', JSON.stringify(data.user));
+          const user = await apiGetMe(); // Use the getMe function
+          // If successful, update the state
+          setUser(user);
+          setToken(storedToken);
         } catch (error) {
-          console.warn("Token expired or invalid:", error);
-          setUser(null);
-          setToken(null);
+          // If the token is invalid, clear everything
           localStorage.removeItem('token');
           localStorage.removeItem('user');
         }
-      } else {
-        setAuthToken(null);
       }
-      setLoading(false);
+      setLoading(false); // Initial auth check is complete
     };
-    checkAuth();
-  }, []);
 
+    validateTokenAndFetchUser();
+  }, []); // Empty array = run once
+
+  // Hook #2: State Synchronization
+  // Runs ANY TIME the token state changes (login, logout).
   useEffect(() => {
-    if (token) {
-      setAuthToken(token);
+    if (token && user) {
+      // When a user logs in, save their details
       localStorage.setItem('token', token);
-      if (user) {
-        localStorage.setItem('user', JSON.stringify(user));
-      }
+      localStorage.setItem('user', JSON.stringify(user));
+      setAuthToken(token);
     } else {
-      setAuthToken(null);
+      // When a user logs out, clear everything
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      setAuthToken(null);
     }
-  }, [token, user]);
-
+  }, [token, user]); // Dependency on token and user
   const login = async (username, password) => {
     const data = await apiLogin(email, password);
     setUser(data.user);
