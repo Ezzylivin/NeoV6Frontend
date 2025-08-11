@@ -42,7 +42,7 @@ export default function App() {
                 
           {/* --- PROTECTED ROUTES --- */}
           {/* This parent route protects all children and provides the main layout. */}
-          <Route path="/auth" element={
+          <Route path="/user" element={
             <PrivateRoute>
               <DashboardLayout />
             </PrivateRoute>
@@ -54,7 +54,7 @@ export default function App() {
             <Route index element={<Dashboard />} />
 
             {/* Other protected routes */}
-            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             {/* <Route path="settings" element={<SettingsPage />} /> */}
           </Route>
 
