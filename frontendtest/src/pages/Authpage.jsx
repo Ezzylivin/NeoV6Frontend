@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx'; 
 import { useNavigate } from 'react-router-dom';
+import { useRegister } from '../hooks/useRegister.jsx';
 
 export default function AuthPage() {
   const { login, register } = useAuth();
