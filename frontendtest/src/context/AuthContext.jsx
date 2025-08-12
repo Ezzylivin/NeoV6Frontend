@@ -57,7 +57,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, [token, user]); // Dependency on token and user
   const login = async (username, password) => {
-    const data = await apiLogin(username, password);
+    const data = await apiLogin(loginIdentifier, password);
     setUser(data.user);
     setToken(data.token);
   };
