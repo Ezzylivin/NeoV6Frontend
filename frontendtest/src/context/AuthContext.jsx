@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { setAuthToken } from '../api/apiClient.js';
-import { loginUser as apiLogin, registerUser as apiRegister, getMe as apiGetMe } from '../api/auth.js';
+import { loginUser as apiLogin, registerUser as apiRegister, getMe as apiGetMe } from '../api/user.js';
 // ^ Make sure verifyToken exists in your backend and frontend api/auth.js
 
 const AuthContext = createContext(null);
