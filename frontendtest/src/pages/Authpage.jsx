@@ -24,7 +24,7 @@ export default function AuthPage() {
     try {
       // FIX: Pass the 'loginIdentifier' state variable to the context's login function.
       await login(loginIdentifier, password);
-      navigate('/dashboard');
+      navigate('/Dashboard');
     } catch (err) {
       setError(err.message || "Login failed. Please check your credentials.");
     } finally {
@@ -33,8 +33,20 @@ export default function AuthPage() {
   };
 
   // Handle register (This function does not need to change)
-  const handleRegisterSubmit = async (e) => { /* ... */ };
-
+  const handleRegisterSubmit = async (e) =>  {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      // FIX: Pass the 'loginIdentifier' state variable to the context's login function.
+      await register(username, email, password);
+      navigate('/Dashboard');
+    } catch (err) {
+      setError(err.message || "Registration failed. User already exists.");
+    } finally {
+      setLoading(false);
+    }
+  };
   const toggleForm = () => {
     setIsRegister(!isRegister);
     setError('');
@@ -60,29 +72,29 @@ return (
       
       {isRegister ? (
         <form onSubmit={handleRegisterSubmit} className="space-y-6">
-          <input type="text" value={username} onChange={e => setUsername(e.target.value)} placeholder="Username" required className="..."/>
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" required className="..."/>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" required className="..."/>
-          <button type="submit" disabled={loading} className="...">
+          <input type="text" value={username} onChange={e => setUsername(e.target.value)} placeholder="Username" required className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" required className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" required className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <button type="submit" disabled={loading} className="w-full py-3 font-bold text-white bg-green-600 rounded hover:bg-green-700 disabled:bg-gray-500 transition-colors">
             {loading ? 'Registering...' : 'Register'}
           </button>
           <p className="text-center text-gray-400">
             Already have an account?{' '}
-            <button type="button" onClick={toggleForm} className="...">
+            <button type="button" onClick={toggleForm} className="font-medium text-blue-400 hover:underline">
               Login here
             </button>
           </p>
         </form>
       ) : (
         <form onSubmit={handleLoginSubmit} className="space-y-6">
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" required className="..."/>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" required className="..."/>
-          <button type="submit" disabled={loading} className="...">
+          <input type="text" value={loginIdentifier} onChange={e => setLoginIdentifier(e.target.value)} placeholder="Username or Email" required className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" required className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+          <button type="submit" disabled={loading} className="w-full py-3 font-bold text-white bg-blue-600 rounded hover:bg-blue-700 disabled:bg-gray-500 transition-colors">
             {loading ? 'Logging in...' : 'Login'}
           </button>
           <p className="text-center text-gray-400">
             Don't have an account?{' '}
-            <button type="button" onClick={toggleForm} className="...">
+            <button type="button" onClick={toggleForm} className="font-medium text-blue-400 hover:underline">
               Register here
             </button>
           </p>
