@@ -33,7 +33,7 @@ export default function App() {
       <Router>
        <Routes>
   {/* Public route for guests */}
-  <Route path="/api" element={
+  <Route path="/" element={
     <GuestRoute>
       <AuthPage />
     </GuestRoute>
