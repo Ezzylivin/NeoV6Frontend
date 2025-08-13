@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getBotStatus } from '../api/bot.js'; // Assuming file is named botApi.js
-import { getLogs } from '../api/log.js';     // Assuming file is named logsApi.js
+import { getLogs } from '../api/logs.js';     // Assuming file is named logsApi.js
 
 export const useDashboard = () => {
   const { token } = useAuth(); // We get the token to know IF we should fetch.
