@@ -1,93 +1,100 @@
-// File: src/contexts/AuthContext.jsx
+// File: src/context/AuthContext.jsx
+import React, { createContext, useState, useEffect } from 'react';
+import axios from 'axios';
+import { setAuthToken } from '../api/apiClient.jsx';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { setAuthToken } from '../api/apiClient.js';
-import { loginUser as apiLogin, registerUser as apiRegister, getMe as apiGetMe } from '../api/user.js';
-// ^ Make sure verifyToken exists in your backend and frontend api/auth.js
-
-const AuthContext = createContext(null);
+export const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [token, setToken] = useState(() => localStorage.getItem('token'));
   const [user, setUser] = useState(() => {
-    const storedUser = localStorage.getItem('user');
-    return storedUser ? JSON.parse(storedUser) : null;
+    const savedUser = localStorage.getItem('user');
+    return savedUser ? JSON.parse(savedUser) : null;
   });
-  const [loading, setLoading] = useState(true);
 
-  // The Final, Corrected Hooks in AuthContext.jsx
+  const [token, setToken] = useState(() => {
+    return localStorage.getItem('token') || null;
+  });
 
-  // Hook #1: Initial Authentication and User Fetch
-  // Runs ONLY ONCE on application startup.
-  useEffect(() => {
-    const getMe = async () => {
-      const storedToken = localStorage.getItem('token');
-      if (storedToken) {
-        setAuthToken(storedToken); // Immediately set the header
-        try {
-          const user = await apiGetMe(); // Use the getMe function
-          // If successful, update the state
-          setUser(user);
-          setToken(storedToken);
-        } catch (error) {
-          // If the token is invalid, clear everything
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-        }
-      }
-      setLoading(false); // Initial auth check is complete
-    };
+  // ✅ Helper to store both in state & localStorage
+  const saveAuthData = (userData, tokenData) => {
+    setUser(userData);
+    setToken(tokenData);
 
-    getMe();
-  }, []); // Empty array = run once
+    localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem('token', tokenData);
 
-  // Hook #2: State Synchronization
-  // Runs ANY TIME the token state changes (login, logout).
-  useEffect(() => {
-    if (token && user) {
-      // When a user logs in, save their details
-      localStorage.getItem('token', token);
-      localStorage.getItem('user', JSON.stringify(user));
-      setAuthToken(token);
-    } else {
-      // When a user logs out, clear everything
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      setAuthToken(null);
-    }
-  }, [token, user]); // Dependency on token and user
-  const login = async (email, password) => {
-    const data = await apiLogin(email, password);
-    setUser(data.user);
-    setToken(data.token);
+    setAuthToken(tokenData); // set axios default Authorization header
   };
 
-  const register = async (username, email, password) => {
-    const data = await apiRegister(username, email, password);
-    setUser(data.user);
-    setToken(data.token);
+  // ✅ Login
+  const login = async (email, password) => {
+    try {
+      const res = await axios.post('/api/users/login', {
+        email,
+        password,
+      });
+
+      // backend must return { user: {...}, token: "..." }
+      saveAuthData(res.data.user, res.data.token);
+
+      return res.data;
+    } catch (err) {
+      console.error(err.response?.data || err.message);
+      throw err;
+    }
+  };
+
+  // ✅ Register
+  const register = async (name, email, password) => {
+    try {
+      const res = await axios.post('/api/users/register', {
+        name,
+        email,
+        password,
+      });
+
+      // if backend returns token immediately after register
+      if (res.data.token && res.data.user) {
+        saveAuthData(res.data.user, res.data.token);
+      }
+
+      return res.data;
+    } catch (err) {
+      console.error(err.response?.data || err.message);
+      throw err;
+    }
   };
 
   const logout = () => {
     setUser(null);
     setToken(null);
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    setAuthToken(null);
   };
 
-  const value = { 
-    token, 
-    user, 
-    isAuthenticated: !!token,
-    loading,
-    login, 
-    logout, 
-    register, 
-  };
+  // ✅ Always keep axios header updated when token changes
+  useEffect(() => {
+    if (token) {
+      setAuthToken(token);
+    } else {
+      setAuthToken(null);
+    }
+  }, [token]);
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        login,
+        register,
+        logout,
+        setUser,
+        setToken,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 };
-
-export const useAuth = () => useContext(AuthContext);
