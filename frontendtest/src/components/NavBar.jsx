@@ -1,9 +1,9 @@
 // File: src/hooks/useDashboard.js (Corrected and More Robust)
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext.jsx';
-import { getBotStatus } from '../api/botApi.js'; // Assuming file is named botApi.js
-import { getLogs } from '../api/logsApi.js';     // Assuming file is named logsApi.js
+import { useAuth } from '../context/AuthContext.jsx';
+import { getBotStatus } from '../api/bot.js'; // Assuming file is named botApi.js
+import { getLogs } from '../api/log.js';     // Assuming file is named logsApi.js
 
 export const useDashboard = () => {
   const { token } = useAuth(); // We get the token to know IF we should fetch.
