@@ -46,8 +46,8 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     if (token && user) {
       // When a user logs in, save their details
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.getItem('token', token);
+      localStorage.getItem('user', JSON.stringify(user));
       setAuthToken(token);
     } else {
       // When a user logs out, clear everything
