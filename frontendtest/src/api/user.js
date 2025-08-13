@@ -12,7 +12,7 @@ export const registerUser = async (username,email, password) => {
 };
 
 // Log in an existing user
-export const loginUser = async (loginIndentifier, password) => {
+export const loginUser = async (loginIdentifier, password) => {
   try {
     const response = await apiClient.post('/users/login', { loginIdentifier, password });
     return response.data;
