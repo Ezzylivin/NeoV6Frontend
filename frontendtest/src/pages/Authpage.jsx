@@ -8,9 +8,7 @@ export default function AuthPage() {
 
   // --- STATE ---
   const [isRegister, setIsRegister] = useState(false);
-  // We now only need ONE state for the login identifier.
-  const [loginIdentifier, setLoginIdentifier] = useState(''); 
-  const [email, setEmail] = useState(''); // Still needed for registration form
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,8 +21,8 @@ export default function AuthPage() {
     setError('');
     try {
       // FIX: Pass the 'loginIdentifier' state variable to the context's login function.
-      await login(loginIdentifier, password);
-      navigate('/Dashboard');
+      await login(email, password);
+      navigate('/dashboard');
     } catch (err) {
       setError(err.message || "Login failed. Please check your credentials.");
     } finally {
@@ -40,7 +38,7 @@ export default function AuthPage() {
     try {
       // FIX: Pass the 'loginIdentifier' state variable to the context's login function.
       await register(username, email, password);
-      navigate('/Dashboard');
+      navigate('/dashboard');
     } catch (err) {
       setError(err.message || "Registration failed. User already exists.");
     } finally {
@@ -87,7 +85,7 @@ return (
         </form>
       ) : (
         <form onSubmit={handleLoginSubmit} className="space-y-6">
-          <input type="text" value={loginIdentifier} onChange={e => setLoginIdentifier(e.target.value)} placeholder="Username or Email" required className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" required className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"/>
           <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" required className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"/>
           <button type="submit" disabled={loading} className="w-full py-3 font-bold text-white bg-blue-600 rounded hover:bg-blue-700 disabled:bg-gray-500 transition-colors">
             {loading ? 'Logging in...' : 'Login'}
