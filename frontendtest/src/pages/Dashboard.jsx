@@ -9,7 +9,17 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [fetchDashboardData]);
+
+ if (loading) {
+    return <div>Loading Dashboard Data...</div>;
+  }
+
+  // If there's an error, show a clear error message.
+  if (error) {
+    return <div style={{ color: 'red', padding: '2rem' }}>Error: {error}</div>;
+  }
+  
 
   return (
     <div style={{ padding: '2rem' }}>
