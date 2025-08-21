@@ -1,5 +1,6 @@
 // File: src/context/AuthContext.jsx
 import React, { createContext, useState, useEffect, useContext } from 'react';
+import apiClient from '../api/apiClient.js';
 import axios from 'axios';
 import { setAuthToken } from '../api/apiClient.js';
 
