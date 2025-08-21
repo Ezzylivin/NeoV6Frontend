@@ -1,5 +1,5 @@
 // File: src/context/AuthContext.jsx
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 import { setAuthToken } from '../api/apiClient.js';
 
@@ -15,6 +15,8 @@ export const AuthProvider = ({ children }) => {
     return localStorage.getItem('token') || null;
   });
 
+  const isAuthenticated = !!token; // ✅ Add this line
+
   // ✅ Helper to store both in state & localStorage
   const saveAuthData = (userData, tokenData) => {
     setUser(userData);
@@ -25,8 +27,6 @@ export const AuthProvider = ({ children }) => {
 
     setAuthToken(tokenData); // set axios default Authorization header
   };
-
-
 
   // ✅ Login
   const login = async (email, password) => {
@@ -89,6 +89,7 @@ export const AuthProvider = ({ children }) => {
       value={{
         user,
         token,
+        isAuthenticated, // ✅ Added here
         login,
         register,
         logout,
