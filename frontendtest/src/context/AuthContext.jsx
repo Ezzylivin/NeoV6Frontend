@@ -26,7 +26,7 @@ export const AuthProvider = ({ children }) => {
     setAuthToken(tokenData); // set axios default Authorization header
   };
 
-  export const useAuth = () => useContext(AuthContext);
+
 
   // ✅ Login
   const login = async (email, password) => {
@@ -100,3 +100,5 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
+
+export const useAuth = () => useContext(AuthContext);
