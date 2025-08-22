@@ -29,12 +29,17 @@ export const AuthProvider = ({ children }) => {
     setAuthToken(tokenData); // set axios default Authorization header
   };
 
-  // ✅ Login
+// ✅ Login
   const login = async (email, password) => {
     try {
-       const emailString = typeof email === 'string' ? email : String(email);
+      // Ensure email is a string before sending to the backend
+      if (typeof email !== 'string') {
+        console.error('Email must be a string.');
+        throw new Error('Invalid email format');
+      }
+
       const res = await apiClient.post('/users/login', {
-        email: emailString,
+        email,
         password,
       });
 
@@ -51,6 +56,12 @@ export const AuthProvider = ({ children }) => {
   // ✅ Register
   const register = async (name, email, password) => {
     try {
+      // Ensure email is a string before sending to the backend
+       if (typeof email !== 'string') {
+        console.error('Email must be a string.');
+        throw new Error('Invalid email format');
+      }
+
       const res = await apiClient.post('/users/register', {
         name,
         email,
