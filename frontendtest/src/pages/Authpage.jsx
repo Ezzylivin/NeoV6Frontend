@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx'; 
 import { useNavigate } from 'react-router-dom';
+import { useLogin } from '../hooks/useLogin';
+
+
 
 export default function AuthPage() {
   const { login, register } = useAuth();
@@ -15,18 +18,21 @@ export default function AuthPage() {
   const [error, setError] = useState('');
 
   // Handle login
+ const LoginPage = () => {
+  const { loginUser, loading, error } = useLogin();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
-    try {
-      // FIX: Pass the 'loginIdentifier' state variable to the context's login function.
-      await login(email, password);
-      navigate('/dashboard');
-    } catch (err) {
-      setError(err.message || "Login failed. Please check your credentials.");
-    } finally {
-      setLoading(false);
+
+    const result = await loginUser(email, password);
+    if (result.success) {
+      // 🔒 Redirect to dashboard or protected route
+      console.log("Logged in successfully");
+    } else {
+      // 🚫 Error is already handled in hook, optionally show message
+      console.error("Login failed");
     }
   };
 
