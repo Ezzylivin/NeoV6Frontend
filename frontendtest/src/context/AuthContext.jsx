@@ -32,7 +32,7 @@ export const AuthProvider = ({ children }) => {
   // ✅ Login
   const login = async (email, password) => {
     try {
-      const res = await apiClient.post('/api/users/login', {
+      const res = await apiClient.post('/users/login', {
         email,
         password,
       });
@@ -50,7 +50,7 @@ export const AuthProvider = ({ children }) => {
   // ✅ Register
   const register = async (name, email, password) => {
     try {
-      const res = await apiClient.post('/api/users/register', {
+      const res = await apiClient.post('/users/register', {
         name,
         email,
         password,
