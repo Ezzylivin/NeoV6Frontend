@@ -1,7 +1,5 @@
 // File: src/context/AuthContext.jsx
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import apiClient from '../api/apiClient.js';
-import axios from 'axios';
 import { setAuthToken } from '../api/apiClient.js';
 
 export const AuthContext = createContext(null);
@@ -16,9 +14,9 @@ export const AuthProvider = ({ children }) => {
     return localStorage.getItem('token') || null;
   });
 
-  const isAuthenticated = !!token; // ✅ Add this line
+  const isAuthenticated = !!token;
 
-  // ✅ Helper to store both in state & localStorage
+  // Save auth data (called by login/register logic elsewhere)
   const saveAuthData = (userData, tokenData) => {
     setUser(userData);
     setToken(tokenData);
@@ -29,57 +27,7 @@ export const AuthProvider = ({ children }) => {
     setAuthToken(tokenData); // set axios default Authorization header
   };
 
-// ✅ Login
-  const login = async (email, password) => {
-    try {
-      // Ensure email is a string before sending to the backend
-      if (typeof email !== 'string') {
-        console.error('Email must be a string.');
-        throw new Error('Invalid email format');
-      }
-
-      const res = await apiClient.post('/users/login', {
-        email,
-        password,
-      });
-
-      // backend must return { user: {...}, token: "..." }
-      saveAuthData(res.data.user, res.data.token);
-
-      return res.data;
-    } catch (err) {
-      console.error(err.response?.data || err.message);
-      throw err;
-    }
-  };
-
-  // ✅ Register
-  const register = async (name, email, password) => {
-    try {
-      // Ensure email is a string before sending to the backend
-       if (typeof email !== 'string') {
-        console.error('Email must be a string.');
-        throw new Error('Invalid email format');
-      }
-
-      const res = await apiClient.post('/users/register', {
-        name,
-        email,
-        password,
-      });
-
-      // if backend returns token immediately after register
-      if (res.data.token && res.data.user) {
-        saveAuthData(res.data.user, res.data.token);
-      }
-
-      return res.data;
-    } catch (err) {
-      console.error(err.response?.data || err.message);
-      throw err;
-    }
-  };
-
+  // Logout clears everything
   const logout = () => {
     setUser(null);
     setToken(null);
@@ -88,7 +36,7 @@ export const AuthProvider = ({ children }) => {
     setAuthToken(null);
   };
 
-  // ✅ Always keep axios header updated when token changes
+  // Keep axios headers in sync with token
   useEffect(() => {
     if (token) {
       setAuthToken(token);
@@ -102,10 +50,9 @@ export const AuthProvider = ({ children }) => {
       value={{
         user,
         token,
-        isAuthenticated, // ✅ Added here
-        login,
-        register,
+        isAuthenticated,
         logout,
+        saveAuthData, // allow other modules to call this
         setUser,
         setToken,
       }}
