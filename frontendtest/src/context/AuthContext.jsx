@@ -32,8 +32,9 @@ export const AuthProvider = ({ children }) => {
   // ✅ Login
   const login = async (email, password) => {
     try {
+       const emailString = typeof email === 'string' ? email : String(email);
       const res = await apiClient.post('/users/login', {
-        email,
+        email: emailString,
         password,
       });
 
