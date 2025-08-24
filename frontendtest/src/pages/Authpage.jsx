@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
+import { useRegister } from '../hooks/useRegister';
 import { useAuth } from '../context/AuthContext.jsx'; 
 import { useNavigate } from 'react-router-dom';
 import { useLogin } from '../hooks/useLogin';
 
 export default function AuthPage() {
-  const { register } = useAuth(); // Removed `login`, you're using useLogin()
+  const { registerUser, loading: registerLoading, error: registerError } = useRegister();
   const navigate = useNavigate();
 
   const { loginUser, loading, error } = useLogin(); // ✅ moved out of inner component
@@ -15,27 +16,17 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
 
-  const handleLoginSubmit = async (e) => {
-    e.preventDefault();
+ const handleLoginSubmit = async (e) => {
+  e.preventDefault();
+  const result = await loginUser(email, password);
+  if (result.success) navigate('/dashboard');
+};
 
-    const result = await loginUser(email, password);
-    if (result.success) {
-      navigate('/dashboard'); // ✅ Add redirect if successful
-    } else {
-      console.error("Login failed");
-    }
-  };
-
-  const handleRegisterSubmit = async (e) => {
-    e.preventDefault();
-
-    try {
-      await register(username, email, password);
-      navigate('/dashboard');
-    } catch (err) {
-      console.error(err.message || "Registration failed.");
-    }
-  };
+ const handleRegisterSubmit = async (e) => {
+  e.preventDefault();
+  const result = await registerUser({ username, email, password });
+  if (result.success) navigate('/dashboard');
+};
 
   const toggleForm = () => {
     setIsRegister(!isRegister);
