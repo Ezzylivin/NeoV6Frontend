@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useRegister } from '../hooks/useRegister';
-import { useAuth } from '../context/AuthContext.jsx'; 
 import { useNavigate } from 'react-router-dom';
 import { useLogin } from '../hooks/useLogin';
 
