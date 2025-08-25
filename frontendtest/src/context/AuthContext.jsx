@@ -5,6 +5,7 @@ import apiClient, { setAuthToken } from "../api/apiClient.js";
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
+  // --- State ---
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem("authUser");
     return savedUser ? JSON.parse(savedUser) : null;
@@ -16,11 +17,11 @@ export const AuthProvider = ({ children }) => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [initializing, setInitializing] = useState(true); // ✅ new: prevent flicker during startup
+  const [initializing, setInitializing] = useState(true);
 
   const isAuthenticated = !!token;
 
-  // Save auth globally
+  // --- Save auth data globally ---
   const saveAuthData = (userData, tokenData) => {
     setUser(userData);
     setToken(tokenData);
@@ -31,7 +32,7 @@ export const AuthProvider = ({ children }) => {
     setAuthToken(tokenData);
   };
 
-  // Clear auth globally
+  // --- Clear auth data globally ---
   const clearAuthData = () => {
     setUser(null);
     setToken(null);
@@ -40,7 +41,7 @@ export const AuthProvider = ({ children }) => {
     setAuthToken(null);
   };
 
-  // Keep axios Authorization header in sync
+  // --- Keep axios Authorization header in sync ---
   useEffect(() => {
     if (token) {
       setAuthToken(token);
@@ -49,7 +50,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, [token]);
 
-  // ✅ Validate token on startup
+  // --- Validate token on app startup ---
   useEffect(() => {
     const validateToken = async () => {
       if (!token) {
@@ -58,9 +59,9 @@ export const AuthProvider = ({ children }) => {
       }
 
       try {
-        setAuthToken(token); // set header before request
-        const { data } = await apiClient.get("/users/me"); // adjust endpoint to your backend
-        setUser(data.user || data); // backend may return { user } or full user object
+        setAuthToken(token);
+        const { data } = await apiClient.get("/users/me");
+        setUser(data); // backend returns the user object directly
       } catch (err) {
         console.warn("Invalid/expired token, logging out.");
         clearAuthData();
@@ -72,13 +73,16 @@ export const AuthProvider = ({ children }) => {
     validateToken();
   }, []);
 
-  // 🔑 Register function
+  // --- Register ---
   const registerUser = async (formData) => {
     setLoading(true);
     setError(null);
+
     try {
       const { data } = await apiClient.post("/users/register", formData);
-      saveAuthData(data.user, data.token);
+      // backend returns { _id, username, email, token }
+      const { token, ...userData } = data;
+      saveAuthData(userData, token);
       return { success: true };
     } catch (err) {
       setError(err.response?.data?.message || "Registration failed");
@@ -88,13 +92,15 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // 🔑 Login function
+  // --- Login ---
   const loginUser = async (formData) => {
     setLoading(true);
     setError(null);
+
     try {
       const { data } = await apiClient.post("/users/login", formData);
-      saveAuthData(data.user, data.token);
+      const { token, ...userData } = data;
+      saveAuthData(userData, token);
       return { success: true };
     } catch (err) {
       setError(err.response?.data?.message || "Login failed");
@@ -112,7 +118,7 @@ export const AuthProvider = ({ children }) => {
         isAuthenticated,
         loading,
         error,
-        initializing,   // ✅ can be used to show a splash screen until validation finishes
+        initializing,
         saveAuthData,
         clearAuthData,
         registerUser,
