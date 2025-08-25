@@ -16,8 +16,8 @@ export const useDashboard = () => {
 
     try {
       const [statusRes, logsRes] = await Promise.all([
-        fetchBotStatus(token),
-        fetchLogs(token)
+        getBotStatus(token),  // ✅ correct
+        getLogs(token)        // ✅ correct
       ]);
 
       setBotStatus(statusRes);
