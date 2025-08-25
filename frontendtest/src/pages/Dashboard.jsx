@@ -14,7 +14,7 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-900 text-white">
-      <Navbar /> {/* ✅ always visible */}
+      <NavBar /> {/* ✅ always visible */}
 
       <main className="flex-1 p-6">
         <h1 className="text-2xl font-bold mb-4">Welcome, {user?.username}</h1>
