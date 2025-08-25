@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useDashboard } from '../hooks/useDashboard.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
-import Navbar from '../components/Navbar.jsx'; // ✅ make sure you import your navbar
+import NavBar from '../components/NavBar.jsx'; // ✅ make sure you import your navbar
 
 const Dashboard = () => {
   const { user } = useAuth();
