@@ -87,4 +87,56 @@ export default function AuthPage() {
               className="w-full py-3 font-bold text-white bg-green-600 rounded hover:bg-green-700 disabled:bg-gray-500 transition-colors"
             >
               {loading ? 'Registering...' : 'Register'}
-            </butt
+            </button>
+            <p className="text-center text-gray-400">
+              Already have an account?{' '}
+              <button
+                type="button"
+                onClick={toggleForm}
+                className="font-medium text-blue-400 hover:underline"
+              >
+                Login here
+              </button>
+            </p>
+          </form>
+        ) : (
+          <form onSubmit={handleLoginSubmit} className="space-y-6">
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="Email"
+              required
+              className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Password"
+              required
+              className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 font-bold text-white bg-blue-600 rounded hover:bg-blue-700 disabled:bg-gray-500 transition-colors"
+            >
+              {loading ? 'Logging in...' : 'Login'}
+            </button>
+            <p className="text-center text-gray-400">
+              Don&apos;t have an account?{' '}
+              <button
+                type="button"
+                onClick={toggleForm}
+                className="font-medium text-blue-400 hover:underline"
+              >
+                Register here
+              </button>
+            </p>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
