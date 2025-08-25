@@ -1,5 +1,5 @@
 // File: src/api/bot.js
-import api from './apiClient.js'; // axios instance with baseURL & headers pre-configured
+import apiClient from './apiClient.js'; // axios instance with baseURL & headers pre-configured
 
 // Start the trading bot
 export const startBot = async (symbol, amount, timeframes) => {
