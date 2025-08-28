@@ -17,7 +17,7 @@ export default function Dashboard() {
 
   const handleLogout = () => {
     clearAuthData();
-    navigate("/auth"); // redirect to login/register
+    navigate("/"); // redirect to login/register
   };
 
   return (
@@ -39,7 +39,7 @@ export default function Dashboard() {
       {/* Main content */}
       <main className="flex-1 p-6">
         <h2 className="text-2xl font-semibold mb-4">
-          Welcome back, {user?.username || "User"}!
+          Welcome , {user?.username || "User"}!
         </h2>
 
         {/* Loading & error */}
