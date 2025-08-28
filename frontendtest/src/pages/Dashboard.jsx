@@ -11,33 +11,43 @@ export default function Dashboard() {
   }, [fetchDashboardData]);
 
   return (
-    <div>
-      <h2 className="text-2xl font-semibold mb-6">
-        Welcome, {user?.username || "User"}!
-      </h2>
+    <div className="flex justify-center min-h-screen bg-black text-white">
+      <div className="w-full max-w-5xl p-6 border border-gray-700 rounded-lg">
+        <h2 className="text-2xl font-semibold mb-4">
+          Welcome, {user?.username || "User"}!
+        </h2>
 
-      {loading && <p className="mb-4 text-blue-400">Loading dashboard data...</p>}
-      {error && <p className="mb-4 text-red-500">Error: {error}</p>}
-
-      <section className="mb-6">
-        <h3 className="text-xl font-semibold mb-2">Bot Status</h3>
-        <p>{botStatus?.status || "Unknown"}</p>
-      </section>
-
-      <section>
-        <h3 className="text-xl font-semibold mb-2">Recent Logs</h3>
-        {logs.length === 0 ? (
-          <p>No logs found.</p>
-        ) : (
-          <ul className="list-disc ml-6">
-            {logs.map((log, idx) => (
-              <li key={idx}>
-                [{new Date(log.timestamp).toLocaleString()}] {log.message}
-              </li>
-            ))}
-          </ul>
+        {loading && (
+          <p className="text-blue-400 bg-gray-800 p-3 rounded mb-4">
+            Loading dashboard data...
+          </p>
         )}
-      </section>
+        {error && (
+          <p className="text-red-400 bg-gray-800 p-3 rounded mb-4">
+            Error: {error}
+          </p>
+        )}
+
+        <section className="mb-6">
+          <h3 className="text-xl font-semibold">Bot Status</h3>
+          <p>Status: {botStatus?.status || "Unknown"}</p>
+        </section>
+
+        <section>
+          <h3 className="text-xl font-semibold">Recent Logs</h3>
+          {logs.length === 0 ? (
+            <p>No logs found.</p>
+          ) : (
+            <ul className="list-disc ml-6">
+              {logs.map((log, idx) => (
+                <li key={idx}>
+                  [{new Date(log.timestamp).toLocaleString()}] {log.message}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
