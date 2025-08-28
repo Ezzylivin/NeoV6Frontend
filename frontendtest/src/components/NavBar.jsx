@@ -1,13 +1,25 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 
 export default function NavBar() {
   const { user, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef(null);
 
   const baseClass = "transition hover:text-blue-400";
   const activeClass = "text-blue-400 font-semibold";
+
+  // Close mobile menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   if (!user) {
     return (
@@ -100,9 +112,14 @@ export default function NavBar() {
         </div>
       </div>
 
-      {/* Mobile Menu */}
-      {isOpen && (
-        <div className="md:hidden px-6 pb-4 flex flex-col gap-4 bg-gray-700">
+      {/* Mobile Menu with slide-down animation */}
+      <div
+        ref={menuRef}
+        className={`md:hidden overflow-hidden transition-max-height duration-300 ease-in-out bg-gray-700 ${
+          isOpen ? "max-h-96" : "max-h-0"
+        }`}
+      >
+        <div className="flex flex-col px-6 py-4 gap-4">
           <NavLink
             to="/dashboard"
             className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}
@@ -138,7 +155,7 @@ export default function NavBar() {
             Logout
           </button>
         </div>
-      )}
+      </div>
     </nav>
   );
 }
