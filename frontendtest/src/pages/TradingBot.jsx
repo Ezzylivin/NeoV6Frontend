@@ -1,7 +1,7 @@
 import React from 'react';
 import { useBot } from '../hooks/useBot';
 
-export default function TradingBotPage() {
+export default function TradingBot() {
   const {
     symbol,
     setSymbol,
