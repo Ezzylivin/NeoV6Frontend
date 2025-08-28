@@ -49,7 +49,7 @@ export default function NavBar() {
           </button>
         ) : (
           <NavLink
-            to="/auth"
+            to="/"
             className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}
           >
             Login
