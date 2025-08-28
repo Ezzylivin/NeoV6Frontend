@@ -12,7 +12,7 @@ export default function NavBar() {
   if (!user) {
     return (
       <nav className="bg-gray-800 text-white px-6 py-4 flex justify-between items-center shadow-md">
-        <h1 className="text-xl font-bold tracking-wide">NeoV6</h1>
+        <h1 className="text-xl font-bold tracking-wide">N.V6 SmartTradingBot</h1>
         <NavLink
           to="/"
           className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}
