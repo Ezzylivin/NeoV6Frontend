@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useBacktest } from '../hooks/useBacktest.js';
 
-const BacktestsPage = () => {
+export default function Backtests() {
   const { results, executeBacktest, loading } = useBacktest();
   const [timeframeFilter, setTimeframeFilter] = useState('');
 
@@ -10,13 +10,13 @@ const BacktestsPage = () => {
   );
 
   return (
-    <div className="p-4 max-w-4xl mx-auto">
+    <div className="p-6 max-w-4xl mx-auto text-white">
       <h1 className="text-2xl mb-4">Backtest Results</h1>
 
       {/* Filter & Actions */}
       <div className="mb-4 flex flex-wrap gap-2 items-center">
         <input
-          className="border p-2"
+          className="border p-2 rounded text-black"
           placeholder="Filter by timeframe (e.g. 1h)"
           value={timeframeFilter}
           onChange={(e) => setTimeframeFilter(e.target.value)}
@@ -48,6 +48,4 @@ const BacktestsPage = () => {
       )}
     </div>
   );
-};
-
-export default BacktestsPage;
+}
