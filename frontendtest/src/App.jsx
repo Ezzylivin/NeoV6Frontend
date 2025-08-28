@@ -26,15 +26,18 @@ export default function App() {
           />
 
           {/* Protected dashboard routes */}
-         <Route 
-  path="/dashboard" 
-  element={<DashboardLayout />}   // 🔴 skip PrivateRoute for now
->
-  <Route index element={<Dashboard />} />
-  <Route path="backtests" element={<Backtests />} />
-  <Route path="tradingbot" element={<TradingBot/>} />
-</Route>
-
+          <Route 
+            path="/dashboard" 
+            element={
+              <PrivateRoute>
+                <DashboardLayout />
+              </PrivateRoute>
+            }
+          >
+            <Route index element={<Dashboard />} />
+            <Route path="backtests" element={<Backtests />} />
+            <Route path="tradingbot" element={<TradingBot/>} />
+          </Route>
 
           {/* Catch-all 404 */}
           <Route path="*" element={<div>404 Not Found</div>} />
