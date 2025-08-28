@@ -2,7 +2,6 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import NavBar from '../components/NavBar.jsx';
-import Header from '../components/Header.jsx';
 
 const DashboardLayout = () => {
   return (
@@ -10,15 +9,10 @@ const DashboardLayout = () => {
       {/* NavBar at the top */}
       <NavBar />
 
-      <div className="dashboard-layout flex-1">
-        {/* Header */}
-        <Header />
-
-        {/* Main content */}
-        <main style={{ padding: '2rem' }}>
-          <Outlet />
-        </main>
-      </div>
+      {/* Main content */}
+      <main className="flex-1 p-6 bg-gray-100 text-gray-900">
+        <Outlet />
+      </main>
     </div>
   );
 };
