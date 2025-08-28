@@ -1,18 +1,20 @@
+// File: src/layouts/DashboardLayout.jsx
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import NavBar from '../components/NavBar.jsx';
 
 const DashboardLayout = () => {
   return (
-    <div className="min-h-screen flex flex-col bg-black text-white">
+    <div className="min-h-screen bg-black text-white flex flex-col">
+      {/* Top Navbar */}
       <NavBar />
 
-      <main className="flex-1 p-6 max-w-7xl mx-auto w-full">
-        {/* Card-like container for page content */}
-        <div className="bg-gray-900 rounded-xl shadow-lg p-6">
+      {/* Main content container */}
+      <div className="flex-1 flex justify-center items-start p-6">
+        <div className="w-full max-w-5xl border border-gray-700 rounded-lg p-6 bg-black shadow-md">
           <Outlet />
         </div>
-      </main>
+      </div>
     </div>
   );
 };
