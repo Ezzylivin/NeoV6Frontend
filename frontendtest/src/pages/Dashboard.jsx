@@ -1,3 +1,4 @@
+// File: src/pages/Dashboard.jsx
 import React, { useEffect } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useDashboard } from "../hooks/useDashboard.js";
@@ -11,12 +12,12 @@ export default function Dashboard() {
   }, [fetchDashboardData]);
 
   return (
-    <div>
+    <div className="p-6 max-w-4xl mx-auto text-white">
       <h2 className="text-2xl font-semibold mb-4">
         Welcome, {user?.username || "User"}!
       </h2>
 
-      {/* Loading & error */}
+      {/* Loading & Error */}
       {loading && (
         <p className="text-blue-400 bg-blue-900 bg-opacity-40 p-3 rounded mb-4">
           Loading dashboard data...
