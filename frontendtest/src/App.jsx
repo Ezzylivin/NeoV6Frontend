@@ -6,8 +6,8 @@ import PrivateRoute from './components/ProtectedRoute.jsx';
 
 import AuthPage from './pages/Authpage.jsx';
 import Dashboard from './pages/Dashboard.jsx';
-import BacktestsPage from './pages/BacktestsPage.jsx';
-import TradingBotPage from './pages/TradingBotPage.jsx';
+import BacktestsPage from './pages/Backtests.jsx';
+import TradingBotPage from './pages/TradingBot.jsx';
 import DashboardLayout from './layouts/DashboardLayout.jsx';
 
 export default function App() {
