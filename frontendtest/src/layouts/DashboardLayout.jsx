@@ -1,7 +1,7 @@
 // File: src/layouts/DashboardLayout.jsx
 import React from 'react';
 import { Outlet } from 'react-router-dom';
-import NavBar from '../components/NavBar';
+import NavBar from '../components/NavBar.jsx';
 import Header from '../components/Header.jsx';
 
 const DashboardLayout = () => {
