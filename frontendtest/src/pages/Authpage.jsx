@@ -5,26 +5,22 @@ import { useNavigate } from 'react-router-dom';
 
 export default function AuthPage() {
   const navigate = useNavigate();
-
-  // ✅ useAuth now gives us loginUser & registerUser directly
   const { loginUser, registerUser, loading, error } = useAuth();
 
-  // state
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
 
-  // handlers
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
-    const result = await loginUser({ email, password }); // ✅ pass object
+    const result = await loginUser({ email, password });
     if (result.success) navigate('/dashboard');
   };
 
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
-    const result = await registerUser({ username, email, password }); // ✅ pass object
+    const result = await registerUser({ username, email, password });
     if (result.success) navigate('/dashboard');
   };
 
@@ -35,14 +31,12 @@ export default function AuthPage() {
     setUsername('');
   };
 
-  // render
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
-      <div className="auth-container w-full max-w-md p-8 space-y-6 bg-gray-800 rounded-lg shadow-lg">
-
+    <div className="flex items-center justify-center min-h-screen bg-black text-white">
+      <div className="w-full max-w-md p-8 space-y-6 bg-gray-900 border border-gray-700 rounded-lg shadow-lg">
         <div className="text-center">
           <h1 className="text-4xl font-bold">NeoV6</h1>
-          <p className="text-gray-400">ARE YOU READY ?</p>
+          <p className="text-gray-400">ARE YOU READY?</p>
         </div>
 
         <h2 className="text-2xl font-bold text-center">
@@ -63,7 +57,7 @@ export default function AuthPage() {
               onChange={e => setUsername(e.target.value)}
               placeholder="Username"
               required
-              className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 bg-gray-800 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
             />
             <input
               type="email"
@@ -71,7 +65,7 @@ export default function AuthPage() {
               onChange={e => setEmail(e.target.value)}
               placeholder="Email"
               required
-              className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 bg-gray-800 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
             />
             <input
               type="password"
@@ -79,7 +73,7 @@ export default function AuthPage() {
               onChange={e => setPassword(e.target.value)}
               placeholder="Password"
               required
-              className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 bg-gray-800 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
             />
             <button
               type="submit"
@@ -107,7 +101,7 @@ export default function AuthPage() {
               onChange={e => setEmail(e.target.value)}
               placeholder="Email"
               required
-              className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 bg-gray-800 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
             />
             <input
               type="password"
@@ -115,7 +109,7 @@ export default function AuthPage() {
               onChange={e => setPassword(e.target.value)}
               placeholder="Password"
               required
-              className="w-full p-3 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 bg-gray-800 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
             />
             <button
               type="submit"
