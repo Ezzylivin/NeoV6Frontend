@@ -35,8 +35,8 @@ export default function App() {
             }
           >
             <Route index element={<Dashboard />} />
-            <Route path="backtests" element={<BacktestsPage />} />
-            <Route path="tradingbot" element={<TradingBotPage />} />
+            <Route path="backtests" element={<Backtests />} />
+            <Route path="tradingbot" element={<TradingBot/>} />
           </Route>
 
           {/* Catch-all 404 */}
