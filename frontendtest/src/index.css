@@ -1,40 +1,39 @@
 /* File: src/index.css */
 
 :root {
-  --bg-color: #000000; /* Changed to pure black */
+  --bg-color: #000000; /* Pure black background */
   --text-color: #ffffff;
   --accent-color: #3b82f6;
   --error-color: #ef4444;
-  --border-color: #374151; /* A dark gray for borders */
+  --input-border-color: #4a5568; /* A subtle border for inputs */
 }
 
-/* Ensure html and body take full height and have pure black background */
-html, body, #root { /* Added #root to ensure the main app div takes full height */
+/* Ensure html, body, and #root take full height and have a pure black background */
+html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
-  background-color: var(--bg-color); /* Apply pure black to html/body */
-  color: var(--text-color); /* Default text color */
+  background-color: var(--bg-color);
+  color: var(--text-color);
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  /* Removed border: none !important; as universal border is removed */
 }
 
 body {
-  /* No need to set background-color and color again here if set on html/body,
-     but keeping font-family for body for clarity. */
-  /* If you are using Tailwind, you might remove this and rely on Tailwind's base styles 
-     or set these on App.jsx */
+  /* You can still keep font-family here if you prefer body to control it,
+     or rely solely on html/body/root for base styles. */
 }
 
-/* Apply a border to all elements by default (with a few exceptions) */
+/* --- NO UNIVERSAL BORDERS --- */
+/* The '*' selector and its border rule are removed.
+   Borders will now only appear where explicitly defined (e.g., in your React component JSX
+   like border border-gray-700, or specific CSS rules below). */
+
+/* Basic box-sizing reset is still good practice */
 * {
-  box-sizing: border-box; /* Ensures padding and border are included in the element's total width and height */
-  border: 1px solid var(--border-color) !important; /* Apply border to everything */
+  box-sizing: border-box; 
 }
 
-/* Specific overrides for elements where border might look odd or be redundant */
-html, body, #root {
-  border: none !important; /* Remove border from html, body, #root themselves */
-}
 
 a {
   color: var(--accent-color);
@@ -44,7 +43,7 @@ a {
 button {
   background-color: var(--accent-color);
   color: #fff;
-  /* border: none; -- now overridden by the universal selector, but the explicit border will apply */
+  border: none; /* Reverted to no border by default for buttons */
   padding: 0.5rem 1rem;
   font-size: 1rem;
   border-radius: 5px;
@@ -58,38 +57,44 @@ button:hover {
 input, select, textarea {
   padding: 0.5rem;
   border-radius: 4px;
-  /* border: 1px solid #ccc; -- now overridden by the universal selector */
+  border: 1px solid var(--input-border-color); /* Applied a subtle border to inputs */
+  background-color: #1a202c; /* A slightly lighter dark background for input fields */
+  color: var(--text-color); /* Ensure text in inputs is white */
   font-size: 1rem;
   margin-bottom: 1rem;
-  width: 100%;
+  /* width: 100%; -- THIS IS THE KEY CHANGE FOR INPUTS */
+  /* Remove width: 100% here to allow inputs to be naturally sized or controlled by parent flex/grid */
+  /* If you want all inputs to be specific width, define it here: */
+  /* max-width: 300px; */ /* Example: set a max-width for ALL inputs */
 }
+
+/* Specific styling for inputs that you want to be "cut off" (i.e., not full width) */
+/* You will need to apply this class to your email/password inputs in the JSX */
+.auth-input {
+  width: 100%; /* Default to 100% inside its parent */
+  max-width: 300px; /* Limit max width for a "cut off" effect */
+  margin-left: auto; /* Center the input if its parent is flex/grid */
+  margin-right: auto; /* Center the input if its parent is flex/grid */
+  display: block; /* Ensure it behaves like a block element for margin auto to work */
+}
+
 
 .container {
   padding: 2rem;
   max-width: 1200px;
-  margin: auto; /* This centers horizontally */
-  display: flex; /* Use flexbox for vertical centering */
-  flex-direction: column; /* Stack content vertically */
-  justify-content: center; /* Center vertically if container has defined height */
-  align-items: center; /* Center horizontally for inline content/flex items */
-  min-height: calc(100vh - 4rem); /* Adjust min-height, considering total padding of html/body if any */
-  /* In your React components, you had `min-h-screen` on the outermost div.
-     This `min-height` on `.container` or a similar wrapper will help.
-     Consider if `.container` is the outermost wrapper for your page content. */
+  margin: auto; /* Centers horizontally */
+  /* Removed flex properties here if you want to apply them at the page component level for greater control */
 }
-
 
 /* For generic centering of page content, you would typically wrap your page components
    in a div with these styles, or apply them to the top-level div in App.jsx */
-/* If you want all your React page components (Dashboard, AuthPage, etc.)
-   to be centered, you'd apply this to a common wrapper or adjust their root divs */
 .page-wrapper {
   min-height: 100vh; /* Ensure it takes full viewport height */
   display: flex;
   justify-content: center; /* Center horizontally */
   align-items: center;   /* Center vertically */
   background-color: var(--bg-color); /* Ensure wrapper itself is pure black */
-  border: none !important; /* Don't want the wrapper itself to have a border */
+  /* Removed border here */
 }
 
 h1, h2, h3 {
@@ -114,5 +119,5 @@ h1, h2, h3 {
   border-radius: 10px;
   margin-bottom: 1rem;
   box-shadow: 0 0 10px rgba(0,0,0,0.2);
-  /* The universal border will apply here too */
+  border: 1px solid var(--input-border-color); /* Add a border to cards */
 }
