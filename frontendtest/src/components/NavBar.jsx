@@ -12,6 +12,8 @@ export default function NavBar() {
       {/* Navigation Links */}
       <div className="flex space-x-6">
         <Link to="/dashboard" className="hover:text-blue-400 transition">Dashboard</Link>
+        <Link to="/backtests" className="hover:text-blue-400 transition">Backtests</Link> {/* ✅ New */}
+        <Link to="/tradingbot" className="hover:text-blue-400 transition">Trading Bot</Link> {/* ✅ New */}
         <Link to="/settings" className="hover:text-blue-400 transition">Settings</Link>
 
         {user ? (
