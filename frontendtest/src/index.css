@@ -1,18 +1,39 @@
 /* File: src/index.css */
 
 :root {
-  --bg-color: #0f172a;
+  --bg-color: #000000; /* Changed to pure black */
   --text-color: #ffffff;
   --accent-color: #3b82f6;
   --error-color: #ef4444;
+  --border-color: #374151; /* A dark gray for borders */
+}
+
+/* Ensure html and body take full height and have pure black background */
+html, body, #root { /* Added #root to ensure the main app div takes full height */
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-color); /* Apply pure black to html/body */
+  color: var(--text-color); /* Default text color */
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 body {
-  margin: 0;
-  padding: 0;
-  background-color: var(--bg-color);
-  color: var(--text-color);
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  /* No need to set background-color and color again here if set on html/body,
+     but keeping font-family for body for clarity. */
+  /* If you are using Tailwind, you might remove this and rely on Tailwind's base styles 
+     or set these on App.jsx */
+}
+
+/* Apply a border to all elements by default (with a few exceptions) */
+* {
+  box-sizing: border-box; /* Ensures padding and border are included in the element's total width and height */
+  border: 1px solid var(--border-color) !important; /* Apply border to everything */
+}
+
+/* Specific overrides for elements where border might look odd or be redundant */
+html, body, #root {
+  border: none !important; /* Remove border from html, body, #root themselves */
 }
 
 a {
@@ -23,7 +44,7 @@ a {
 button {
   background-color: var(--accent-color);
   color: #fff;
-  border: none;
+  /* border: none; -- now overridden by the universal selector, but the explicit border will apply */
   padding: 0.5rem 1rem;
   font-size: 1rem;
   border-radius: 5px;
@@ -37,7 +58,7 @@ button:hover {
 input, select, textarea {
   padding: 0.5rem;
   border-radius: 4px;
-  border: 1px solid #ccc;
+  /* border: 1px solid #ccc; -- now overridden by the universal selector */
   font-size: 1rem;
   margin-bottom: 1rem;
   width: 100%;
@@ -46,7 +67,29 @@ input, select, textarea {
 .container {
   padding: 2rem;
   max-width: 1200px;
-  margin: auto;
+  margin: auto; /* This centers horizontally */
+  display: flex; /* Use flexbox for vertical centering */
+  flex-direction: column; /* Stack content vertically */
+  justify-content: center; /* Center vertically if container has defined height */
+  align-items: center; /* Center horizontally for inline content/flex items */
+  min-height: calc(100vh - 4rem); /* Adjust min-height, considering total padding of html/body if any */
+  /* In your React components, you had `min-h-screen` on the outermost div.
+     This `min-height` on `.container` or a similar wrapper will help.
+     Consider if `.container` is the outermost wrapper for your page content. */
+}
+
+
+/* For generic centering of page content, you would typically wrap your page components
+   in a div with these styles, or apply them to the top-level div in App.jsx */
+/* If you want all your React page components (Dashboard, AuthPage, etc.)
+   to be centered, you'd apply this to a common wrapper or adjust their root divs */
+.page-wrapper {
+  min-height: 100vh; /* Ensure it takes full viewport height */
+  display: flex;
+  justify-content: center; /* Center horizontally */
+  align-items: center;   /* Center vertically */
+  background-color: var(--bg-color); /* Ensure wrapper itself is pure black */
+  border: none !important; /* Don't want the wrapper itself to have a border */
 }
 
 h1, h2, h3 {
@@ -71,4 +114,5 @@ h1, h2, h3 {
   border-radius: 10px;
   margin-bottom: 1rem;
   box-shadow: 0 0 10px rgba(0,0,0,0.2);
+  /* The universal border will apply here too */
 }
