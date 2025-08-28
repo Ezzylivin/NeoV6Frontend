@@ -15,13 +15,13 @@ export default function TradingBot() {
   } = useBot();
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-6 max-w-3xl mx-auto text-white">
       <h1 className="text-2xl font-bold mb-4">Trading Bot</h1>
 
       {/* Symbol Input */}
       <input
         type="text"
-        className="border p-2 rounded w-full mb-4"
+        className="border p-2 rounded w-full mb-4 text-black"
         placeholder="Enter symbol (e.g., BTC/USDT)"
         value={symbol}
         onChange={(e) => setSymbol(e.target.value)}
