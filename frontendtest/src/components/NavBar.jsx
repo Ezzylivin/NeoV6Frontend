@@ -4,9 +4,24 @@ import { useAuth } from "../context/AuthContext.jsx";
 export default function NavBar() {
   const { user, logout } = useAuth();
 
-  // Tailwind classes for active vs inactive links
+  // Tailwind classes
   const baseClass = "transition hover:text-blue-400";
   const activeClass = "text-blue-400 font-semibold";
+
+  // Only show dashboard links if user is logged in
+  if (!user) {
+    return (
+      <nav className="bg-gray-800 text-white px-6 py-4 flex justify-between items-center shadow-md">
+        <h1 className="text-xl font-bold tracking-wide">NeoV6</h1>
+        <NavLink
+          to="/"
+          className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}
+        >
+          Login
+        </NavLink>
+      </nav>
+    );
+  }
 
   return (
     <nav className="bg-gray-800 text-white px-6 py-4 flex justify-between items-center shadow-md">
@@ -40,21 +55,12 @@ export default function NavBar() {
           Settings
         </NavLink>
 
-        {user ? (
-          <button
-            onClick={logout}
-            className="hover:text-red-400 transition"
-          >
-            Logout
-          </button>
-        ) : (
-          <NavLink
-            to="/"
-            className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}
-          >
-            Login
-          </NavLink>
-        )}
+        <button
+          onClick={logout}
+          className="hover:text-red-400 transition"
+        >
+          Logout
+        </button>
       </div>
     </nav>
   );
