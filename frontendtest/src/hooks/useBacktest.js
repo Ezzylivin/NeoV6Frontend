@@ -12,7 +12,7 @@ export function useBacktest(autoFetch = false, backtestId = null) {
     setError(null);
 
     try {
-      const { data } = await apiClient.post("/home/backtests/run", params);
+      const { data } = await apiClient.post("/backtests/run", params);
       setResults(data);
       return { success: true, data };
     } catch (err) {
@@ -30,7 +30,7 @@ export function useBacktest(autoFetch = false, backtestId = null) {
     setError(null);
 
     try {
-      const { data } = await apiClient.get(`/home/backtests/results/${id}`);
+      const { data } = await apiClient.get(`/backtests/results/${id}`);
       setResults(data);
       return { success: true, data };
     } catch (err) {
