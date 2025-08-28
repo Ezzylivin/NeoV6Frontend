@@ -1,4 +1,3 @@
-// File: src/pages/AuthPage.jsx
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
@@ -32,7 +31,7 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black flex justify-center items-center text-white p-4">
+    <div className="min-h-screen flex justify-center items-center bg-black text-white">
       <div className="w-full max-w-md p-8 bg-black border border-gray-700 rounded-lg shadow-md">
         <div className="text-center mb-6">
           <h1 className="text-4xl font-bold">NeoV6</h1>
@@ -57,7 +56,7 @@ export default function AuthPage() {
               onChange={e => setUsername(e.target.value)}
               placeholder="Username"
               required
-              className="w-full p-3 bg-gray-800 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
+              className="w-full p-3 bg-black border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <input
               type="email"
@@ -65,7 +64,7 @@ export default function AuthPage() {
               onChange={e => setEmail(e.target.value)}
               placeholder="Email"
               required
-              className="w-full p-3 bg-gray-800 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
+              className="w-full p-3 bg-black border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <input
               type="password"
@@ -73,7 +72,7 @@ export default function AuthPage() {
               onChange={e => setPassword(e.target.value)}
               placeholder="Password"
               required
-              className="w-full p-3 bg-gray-800 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
+              className="w-full p-3 bg-black border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button
               type="submit"
@@ -101,7 +100,7 @@ export default function AuthPage() {
               onChange={e => setEmail(e.target.value)}
               placeholder="Email"
               required
-              className="w-full p-3 bg-gray-800 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
+              className="w-full p-3 bg-black border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <input
               type="password"
@@ -109,7 +108,7 @@ export default function AuthPage() {
               onChange={e => setPassword(e.target.value)}
               placeholder="Password"
               required
-              className="w-full p-3 bg-gray-800 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
+              className="w-full p-3 bg-black border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button
               type="submit"
