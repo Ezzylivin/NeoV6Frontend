@@ -15,10 +15,9 @@ export default function TradingBot() {
   } = useBot();
 
   return (
-    <div className="p-6 max-w-3xl mx-auto text-white">
-      <h1 className="text-2xl font-bold mb-4">Trading Bot</h1>
+    <div>
+      <h1 className="text-2xl font-bold mb-6">Trading Bot</h1>
 
-      {/* Symbol Input */}
       <input
         type="text"
         className="border p-2 rounded w-full mb-4 text-black"
@@ -27,7 +26,6 @@ export default function TradingBot() {
         onChange={(e) => setSymbol(e.target.value)}
       />
 
-      {/* Actions */}
       <div className="flex gap-2 mb-4">
         <button
           className="bg-green-500 text-white px-4 py-2 rounded"
@@ -52,21 +50,9 @@ export default function TradingBot() {
         </button>
       </div>
 
-      {/* Error */}
-      {error && (
-        <div className="text-red-500 mb-4">
-          <strong>Error:</strong> {error}
-        </div>
-      )}
+      {error && <p className="text-red-500 mb-4">Error: {error}</p>}
+      {status && <p className="mb-4"><strong>Status:</strong> {status}</p>}
 
-      {/* Status */}
-      {status && (
-        <div className="mb-4">
-          <strong>Status:</strong> {status}
-        </div>
-      )}
-
-      {/* Logs */}
       {logs.length > 0 && (
         <div>
           <h3 className="text-lg font-semibold mb-2">Logs:</h3>
