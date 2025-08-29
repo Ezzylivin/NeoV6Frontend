@@ -11,8 +11,8 @@ export default function TradingBot() {
     setSymbol,
     amount,
     setAmount,
-    timeframes,
-    setTimeframes,
+    timeframe,
+    setTimeframe,
     status,
     logs,
     loading,
@@ -22,21 +22,12 @@ export default function TradingBot() {
     getStatus
   } = useBot();
 
-  const handleTimeframeChange = (e) => {
-    const options = e.target.options;
-    const selected = [];
-    for (let i = 0; i < options.length; i++) {
-      if (options[i].selected) selected.push(options[i].value);
-    }
-    setTimeframes(selected);
-  };
-
   return (
     <div className="flex justify-center min-h-screen bg-black text-white p-6">
       <div className="w-full max-w-3xl p-6 border border-gray-700 rounded-lg">
         <h1 className="text-2xl font-bold mb-4">Trading Bot</h1>
 
-        {/* Symbol */}
+        {/* Symbol Dropdown */}
         <label className="block mb-2">Symbol:</label>
         <select
           className="w-full p-2 mb-4 text-black rounded"
@@ -49,7 +40,7 @@ export default function TradingBot() {
           ))}
         </select>
 
-        {/* Amount */}
+        {/* Amount Input */}
         <label className="block mb-2">Amount ($):</label>
         <input
           type="number"
@@ -58,14 +49,14 @@ export default function TradingBot() {
           onChange={(e) => setAmount(Number(e.target.value))}
         />
 
-        {/* Timeframes */}
-        <label className="block mb-2">Timeframes:</label>
+        {/* Timeframe Dropdown */}
+        <label className="block mb-2">Timeframe:</label>
         <select
-          multiple
           className="w-full p-2 mb-4 text-black rounded"
-          value={timeframes}
-          onChange={handleTimeframeChange}
+          value={timeframe}
+          onChange={(e) => setTimeframe(e.target.value)}
         >
+          <option value="">Select a timeframe</option>
           {availableTimeframes.map(tf => (
             <option key={tf} value={tf}>{tf}</option>
           ))}
@@ -102,7 +93,7 @@ export default function TradingBot() {
         {/* Status */}
         {status && status.isRunning && (
           <div className="mb-4">
-            <strong>Status:</strong> Running {status.symbol} with ${status.amount} on {status.timeframes.join(', ')}
+            <strong>Status:</strong> Running {status.symbol} with ${status.amount} on {status.timeframe}
           </div>
         )}
 
