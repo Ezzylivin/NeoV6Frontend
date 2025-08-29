@@ -1,16 +1,13 @@
 // File: src/layouts/DashboardLayout.jsx
 import React from "react";
 import { Outlet } from "react-router-dom";
-import Header from "../components/Header.jsx"; // <-- Import Header instead of NavBar
+import Header from "../components/Header.jsx";
 
 export default function DashboardLayout() {
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col">
-      {/* Replace NavBar with Header */}
+    <div className="bg-black text-white min-h-screen flex flex-col">
       <Header />
-
-      {/* Main content wrapper, centered */}
-      <div className="flex-1 flex justify-center items-center p-6">
+      <div className="flex justify-center w-full p-6 flex-1">
         <div className="w-full max-w-4xl">
           <Outlet />
         </div>
