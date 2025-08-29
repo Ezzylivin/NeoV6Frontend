@@ -22,22 +22,7 @@ export default function NavBar() {
   }
 
   return (
-    <nav className="bg-black text-white px-6 py-4 flex justify-between items-center shadow-md border-b border-gray-700">
+    <nav className="bg-black text-white px-6 py-4 flex items-center shadow-md border-b border-gray-700">
       {/* Left: Brand */}
-      <h1 className="text-xl font-bold tracking-wide">NeoV6</h1>
-
-      {/* Center: Page Links */}
-      <div className="flex space-x-6 mx-auto">
-        <NavLink to="/dashboard" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>Dashboard</NavLink>
-        <NavLink to="/dashboard/backtests" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>Backtests</NavLink>
-        <NavLink to="/dashboard/tradingbot" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>Trading Bot</NavLink>
-        <NavLink to="/dashboard/settings" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>Settings</NavLink>
-      </div>
-
-      {/* Right: Logout */}
-      <button onClick={logout} className="px-4 py-2 hover:text-red-400 transition">
-        Logout
-      </button>
-    </nav>
-  );
-}
+      <div className="flex-shrink-0">
+        <h1 className="text-xl font-bold tracking-wide"
