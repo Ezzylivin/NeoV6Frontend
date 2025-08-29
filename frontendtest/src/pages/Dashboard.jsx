@@ -11,7 +11,7 @@ export default function Dashboard() {
   }, [fetchDashboardData]);
 
   return (
-    <div className="w-full bg-black border border-gray-700 rounded-lg p-6 shadow-md">
+    <div className="text-center">
       <h2 className="text-2xl font-semibold mb-4">
         Welcome, {user?.username || "User"}!
       </h2>
@@ -20,7 +20,7 @@ export default function Dashboard() {
       {error && <p className="text-red-500">Error: {error}</p>}
 
       <section className="mb-6">
-        <h3 className="text-xl font-semibold mb-2">Bot Status</h3>
+        <h3 className="text-xl font-semibold">Bot Status</h3>
         <p>{botStatus?.status || "Unknown"}</p>
       </section>
 
@@ -29,7 +29,7 @@ export default function Dashboard() {
         {logs.length === 0 ? (
           <p>No logs found.</p>
         ) : (
-          <ul className="list-disc ml-6">
+          <ul className="list-disc list-inside text-left inline-block">
             {logs.map((log, idx) => (
               <li key={idx}>
                 [{new Date(log.timestamp).toLocaleString()}] {log.message}
