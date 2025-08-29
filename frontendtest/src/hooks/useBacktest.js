@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import apiClient from "../api/apiClient";
 
 export function useBacktest(autoFetch = false, backtestId = null) {
-  const [results, setResults] = useState(null);
+  const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -13,7 +13,7 @@ export function useBacktest(autoFetch = false, backtestId = null) {
 
     try {
       const { data } = await apiClient.post("/backtests/run", params);
-      setResults(data);
+      setResults(data || []);
       return { success: true, data };
     } catch (err) {
       setError(err.response?.data?.message || "Failed to run backtest");
