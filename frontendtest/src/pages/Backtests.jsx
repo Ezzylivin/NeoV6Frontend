@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useBacktest } from '../hooks/useBacktest.js';
 
 export default function Backtests() {
-  const { results, executeBacktest, loading } = useBacktest();
+  const { results = [], runBacktest, loading } = useBacktest();
   const [timeframeFilter, setTimeframeFilter] = useState('');
 
   const filteredResults = results.filter(bt =>
@@ -11,19 +11,19 @@ export default function Backtests() {
 
   return (
     <div className="flex justify-center min-h-screen bg-black text-white">
-      <div className="w-full max-w-4xl p-6 border border-gray-700 rounded-lg">
-        <h1 className="text-2xl mb-4">Backtest Results</h1>
+      <div className="w-full max-w-5xl p-6 border border-gray-700 rounded-lg shadow-md">
+        <h1 className="text-2xl font-semibold mb-4">Backtest Results</h1>
 
         <div className="mb-4 flex flex-wrap gap-2 items-center">
           <input
-            className="border p-2 rounded text-black w-48"
+            className="border p-2 rounded w-48 text-black"
             placeholder="Filter by timeframe"
             value={timeframeFilter}
             onChange={(e) => setTimeframeFilter(e.target.value)}
           />
           <button
             className="bg-blue-500 text-white px-4 py-2 rounded"
-            onClick={executeBacktest}
+            onClick={runBacktest}
             disabled={loading}
           >
             {loading ? 'Running Backtest...' : 'Run Backtest'}
