@@ -1,7 +1,4 @@
-// File: src/components/Header.jsx
-
 import React from 'react';
-// Import Link for client-side navigation, useAuth for state, and useNavigate for redirection
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -10,46 +7,60 @@ const Header = () => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    logout(); // This clears the state from the context
-    navigate('/auth'); // This navigates the user to the auth page
+    logout();
+    navigate('/');
   };
 
-  // Basic inline styles for demonstration
   const headerStyle = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: '1rem 2rem',
-    background: '#1a202c',
+    background: '#000000',
     color: 'white',
     borderBottom: '1px solid #4a5568'
   };
 
   const navStyle = {
     display: 'flex',
-    gap: '1.5rem'
+    gap: '1.5rem',
+    alignItems: 'center'
+  };
+
+  const linkStyle = {
+    color: 'white',
+    textDecoration: 'none',
+    fontWeight: '500'
+  };
+
+  const buttonStyle = {
+    marginLeft: '1rem',
+    background: '#e53e3e',
+    color: 'white',
+    border: 'none',
+    padding: '0.5rem 1rem',
+    borderRadius: '5px',
+    cursor: 'pointer'
   };
 
   return (
     <header style={headerStyle}>
       <div className="logo">
-        <Link to="/dashboard" style={{ color: 'white', textDecoration: 'none', fontSize: '1.5rem' }}>
+        <Link to="/dashboard" style={{ color: 'white', textDecoration: 'none', fontSize: '1.5rem', fontWeight: 'bold' }}>
           NeoV6
         </Link>
       </div>
+
       <nav style={navStyle}>
-        {/* Only show these links if the user is authenticated */}
         {isAuthenticated && (
           <>
-            <Link to="/dashboard" style={{ color: 'white' }}>Dashboard</Link>
-            <Link to="/settings" style={{ color: 'white' }}>Settings</Link>
-            <Link to="/bot-training" style={{ color: 'white' }}>Training</Link>
-            <div>
-              <span>Welcome, {user?.username}!</span>
-              <button onClick={handleLogout} style={{ marginLeft: '1rem', background: '#e53e3e', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '5px', cursor: 'pointer' }}>
-                Logout
-              </button>
-            </div>
+            <Link to="/dashboard" style={linkStyle}>Dashboard</Link>
+            <Link to="/dashboard/backtests" style={linkStyle}>Training</Link>
+            <Link to="/dashboard/tradingbot" style={linkStyle}>Trading</Link>
+            <Link to="/dashboard/settings" style={linkStyle}>Settings</Link>
+
+            <span>Welcome, {user?.username}!</span>
+            <button onClick={handleLogout} style={buttonStyle}>Logout</button>
           </>
         )}
       </nav>
