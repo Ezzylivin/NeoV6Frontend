@@ -5,12 +5,9 @@ import { Outlet } from "react-router-dom";
 
 const DashboardLayout = () => {
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col">
-      {/* <NavBar /> */} {/* 🔹 commented out */}
-      <div className="flex-1 flex justify-center items-center">
-        <div className="w-full max-w-5xl">
-          <Outlet />
-        </div>
+    <div className="min-h-screen bg-black text-white flex justify-center items-center">
+      <div className="w-full max-w-4xl p-6 rounded-lg border border-gray-800 shadow-lg">
+        <Outlet />
       </div>
     </div>
   );
