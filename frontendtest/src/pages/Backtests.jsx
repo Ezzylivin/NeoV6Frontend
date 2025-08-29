@@ -1,69 +1,63 @@
-import React, { useEffect, useState } from 'react';
-import { useAuth } from '../context/AuthContext.jsx';
-import { useBacktests } from '../hooks/useBacktests.js';
+import React, { useEffect } from "react";
+import { useBacktest } from "../hooks/useBacktest.js";
 
 export default function Backtests() {
-  const { user } = useAuth();
-  const { backtests, loading, error, runBacktests, fetchBacktests } = useBacktests(user?.id);
-  const [timeframeFilter, setTimeframeFilter] = useState('');
+  const {
+    results,
+    loading,
+    error,
+    timeframe,
+    setTimeframe,
+    runBacktest,
+    fetchBacktests,
+  } = useBacktest(true);
 
-  // Fetch existing backtests on mount
+  // Fetch whenever timeframe changes
   useEffect(() => {
-    if (user?.id) {
-      fetchBacktests();
-    }
-  }, [user?.id]);
+    fetchBacktests(timeframe);
+  }, [timeframe]);
 
-  const filteredBacktests = backtests?.filter(bt =>
-    timeframeFilter ? bt.timeframe === timeframeFilter : true
-  );
+  const TIMEFRAMES = ['','1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d', '1w'];
 
   return (
-    <div className="flex justify-center min-h-screen bg-black text-white p-6">
-      <div className="w-full max-w-5xl border border-gray-700 rounded-lg p-6">
-        <h1 className="text-2xl font-bold mb-4">Backtest Results</h1>
+    <div className="flex justify-center min-h-screen bg-black text-white">
+      <div className="w-full max-w-4xl p-6 border border-gray-700 rounded-lg">
+        <h1 className="text-2xl mb-4">Backtest Results</h1>
 
-        <div className="flex flex-wrap gap-2 mb-4 items-center">
-          <input
-            className="border p-2 rounded text-black w-48"
-            placeholder="Filter by timeframe"
-            value={timeframeFilter}
-            onChange={(e) => setTimeframeFilter(e.target.value)}
-          />
+        <div className="mb-4 flex gap-2 items-center">
+          <select
+            className="border p-2 rounded text-black"
+            value={timeframe}
+            onChange={(e) => setTimeframe(e.target.value)}
+          >
+            {TIMEFRAMES.map((tf, idx) => (
+              <option key={idx} value={tf}>{tf || "All Timeframes"}</option>
+            ))}
+          </select>
+
           <button
             className="bg-blue-500 text-white px-4 py-2 rounded"
-            onClick={runBacktests}
+            onClick={runBacktest}
             disabled={loading}
           >
-            {loading ? 'Running Backtests...' : 'Run Backtests'}
+            {loading ? 'Running Backtest...' : 'Run Backtest'}
           </button>
         </div>
 
-        {error && <p className="text-red-500 mb-4">{error}</p>}
-
-        {loading && backtests.length === 0 ? (
+        {loading ? (
           <p>Loading results...</p>
-        ) : filteredBacktests?.length > 0 ? (
-          <table className="w-full table-auto border-collapse border border-gray-600">
-            <thead>
-              <tr className="border-b border-gray-600">
-                <th className="p-2 text-left">Timeframe</th>
-                <th className="p-2 text-left">Profit</th>
-                <th className="p-2 text-left">Trades</th>
-                <th className="p-2 text-left">Final Balance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredBacktests.map(bt => (
-                <tr key={bt._id} className="border-b border-gray-700">
-                  <td className="p-2">{bt.timeframe}</td>
-                  <td className="p-2">${bt.profit}</td>
-                  <td className="p-2">{bt.totalTrades}</td>
-                  <td className="p-2">${bt.finalBalance}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        ) : error ? (
+          <p className="text-red-500">{error}</p>
+        ) : results.length > 0 ? (
+          <ul>
+            {results.map((bt) => (
+              <li key={bt._id} className="border-b py-2">
+                <strong>Timeframe:</strong> {bt.timeframe} |{' '}
+                <strong>Profit:</strong> ${bt.profit} |{' '}
+                <strong>Trades:</strong> {bt.totalTrades}
+              </li>
+            ))}
+          </ul>
         ) : (
           <p>No backtest results found.</p>
         )}
