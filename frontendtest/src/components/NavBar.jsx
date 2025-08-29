@@ -38,15 +38,35 @@ export default function NavBar() {
         >
           Dashboard
         </NavLink>
+
         <NavLink
           to="/dashboard/backtests"
           className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}
         >
           Backtests
         </NavLink>
+
         <NavLink
           to="/dashboard/tradingbot"
           className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}
         >
           Trading Bot
         </NavLink>
+
+        <NavLink
+          to="/dashboard/settings"
+          className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}
+        >
+          Settings
+        </NavLink>
+
+        <button
+          onClick={logout}
+          className="px-4 py-2 hover:text-red-400 transition"
+        >
+          Logout
+        </button>
+      </div>
+    </nav>
+  );
+}
