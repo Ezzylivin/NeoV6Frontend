@@ -1,4 +1,3 @@
-// File: src/hooks/useBacktest.js
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 
@@ -8,26 +7,29 @@ export function useBacktest() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Run new backtests
-  const runBacktests = async (timeframe, initialBalance) => {
+  // Run a new backtest
+  const runBacktest = async ({ symbol, timeframe, initialBalance, strategy, risk }) => {
     try {
       setLoading(true);
       setError(null);
 
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/backtests/run`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: user.id, timeframe, initialBalance }),
-        }
-      );
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/backtests/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          symbol,
+          timeframe,
+          initialBalance,
+          strategy,
+          risk
+        })
+      });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to run backtests");
+      if (!res.ok) throw new Error(data.message || "Failed to run backtest");
 
-      // Backend returns { message, backtests }
-      setResults(Array.isArray(data.backtests) ? data.backtests : []);
+      setResults(prev => [data.backtest, ...prev]); // prepend latest
     } catch (err) {
       setError(err.message);
     } finally {
@@ -36,20 +38,20 @@ export function useBacktest() {
   };
 
   // Fetch saved backtests
-  const fetchBacktests = async (timeframe = null) => {
+  const fetchBacktests = async ({ symbol, timeframe } = {}) => {
     try {
       setLoading(true);
       setError(null);
 
-      const url = new URL(`${import.meta.env.VITE_API_URL}/backtests`);
+      const url = new URL(`${import.meta.env.VITE_API_URL}/backtests/results`);
       url.searchParams.set("userId", user.id);
+      if (symbol) url.searchParams.set("symbol", symbol);
       if (timeframe) url.searchParams.set("timeframe", timeframe);
 
       const res = await fetch(url.toString());
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to fetch backtests");
 
-      // Ensure results is an array
       setResults(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err.message);
@@ -59,5 +61,5 @@ export function useBacktest() {
     }
   };
 
-  return { results, loading, error, runBacktests, fetchBacktests };
+  return { results, loading, error, runBacktest, fetchBacktests };
 }
