@@ -1,58 +1,60 @@
 import { useState, useEffect } from "react";
-import apiClient from "../api/apiClient";
+import apiClient from "../api/apiClient.js";
+import { useAuth } from "../context/AuthContext.jsx";
 
-export function useBacktest(autoFetch = false, backtestId = null) {
+export function useBacktest(autoFetch = false, initialTimeframe = '') {
+  const { user } = useAuth();
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [timeframe, setTimeframe] = useState(initialTimeframe);
 
-  // Run backtest
-  const runBacktest = async (params) => {
+  // Run backtest (calls /run)
+  const runBacktest = async () => {
+    if (!user) return;
     setLoading(true);
     setError(null);
-
     try {
-      const { data } = await apiClient.post("/backtests/run", params);
-      setResults(data || []);
-      return { success: true, data };
+      const { data } = await apiClient.post("/backtests/run", { userId: user._id });
+      setResults(data.backtests);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to run backtest");
-      return { success: false };
     } finally {
       setLoading(false);
     }
   };
 
-  // Get backtest results by ID
-  const getBacktestResults = async (id = backtestId) => {
-    if (!id) return { success: false, message: "Backtest ID is required" };
+  // Fetch backtests with optional timeframe filter
+  const fetchBacktests = async (tf = timeframe) => {
+    if (!user) return;
     setLoading(true);
     setError(null);
-
     try {
-      const { data } = await apiClient.get(`/backtests/results/${id}`);
+      const query = new URLSearchParams({ userId: user._id });
+      if (tf) query.append("timeframe", tf);
+      const { data } = await apiClient.get(`/backtests/results?${query.toString()}`);
       setResults(data);
-      return { success: true, data };
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to fetch backtest results");
-      return { success: false };
+      setError(err.response?.data?.message || "Failed to fetch backtests");
     } finally {
       setLoading(false);
     }
   };
 
-  // Auto-fetch results if enabled
+  // Auto-fetch on mount or when user changes
   useEffect(() => {
-    if (autoFetch && backtestId) {
-      getBacktestResults(backtestId);
+    if (autoFetch && user) {
+      fetchBacktests();
     }
-  }, [autoFetch, backtestId]);
+  }, [autoFetch, user]);
 
   return {
     results,
     loading,
     error,
+    timeframe,
+    setTimeframe,
     runBacktest,
-    getBacktestResults,
+    fetchBacktests,
   };
 }
