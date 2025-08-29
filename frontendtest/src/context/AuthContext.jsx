@@ -21,16 +21,18 @@ export const AuthProvider = ({ children }) => {
 
   const isAuthenticated = !!token;
 
-  // --- Save auth data globally ---
-  const saveAuthData = (userData, tokenData) => {
-    setUser(userData);
-    setToken(tokenData);
+ // --- when saving auth data ---
+const saveAuthData = (userData, tokenData) => {
+  const normalizedUser = { ...userData, id: userData._id }; // add 'id'
+  setUser(normalizedUser);
+  setToken(tokenData);
 
-    localStorage.setItem("user", JSON.stringify(userData));
-    localStorage.setItem("token", tokenData);
+  localStorage.setItem("user", JSON.stringify(normalizedUser));
+  localStorage.setItem("token", tokenData);
 
-    setAuthToken(tokenData);
-  };
+  setAuthToken(tokenData);
+};
+
 
   // --- Clear auth data globally ---
   const clearAuthData = () => {
