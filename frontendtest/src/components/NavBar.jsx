@@ -7,7 +7,6 @@ export default function NavBar() {
   const baseClass = "transition hover:text-blue-400 px-4 py-2";
   const activeClass = "text-blue-400 font-semibold";
 
-  // Navbar for guests (login link only)
   if (!user) {
     return (
       <nav className="bg-black text-white px-6 py-4 flex justify-between items-center shadow-md border-b border-gray-700">
@@ -22,18 +21,42 @@ export default function NavBar() {
     );
   }
 
-  // Navbar for logged-in users
   return (
     <nav className="bg-black text-white px-6 py-4 flex justify-between items-center shadow-md border-b border-gray-700">
       <h1 className="text-xl font-bold tracking-wide">NeoV6</h1>
 
-      <div className="flex space-x-6">
-        <NavLink to="/dashboard" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>Dashboard</NavLink>
-        <NavLink to="/dashboard/backtests" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>Backtests</NavLink>
-        <NavLink to="/dashboard/tradingbot" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>Trading Bot</NavLink>
-        <NavLink to="/dashboard/settings" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>Settings</NavLink>
+      <div className="flex justify-end flex-1 space-x-6">
+        <NavLink
+          to="/dashboard"
+          className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}
+        >
+          Dashboard
+        </NavLink>
+        <NavLink
+          to="/dashboard/backtests"
+          className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}
+        >
+          Backtests
+        </NavLink>
+        <NavLink
+          to="/dashboard/tradingbot"
+          className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}
+        >
+          Trading Bot
+        </NavLink>
+        <NavLink
+          to="/dashboard/settings"
+          className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}
+        >
+          Settings
+        </NavLink>
 
-        <button onClick={logout} className="px-4 py-2 hover:text-red-400 transition">Logout</button>
+        <button
+          onClick={logout}
+          className="px-4 py-2 hover:text-red-400 transition"
+        >
+          Logout
+        </button>
       </div>
     </nav>
   );
