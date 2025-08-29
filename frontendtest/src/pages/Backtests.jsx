@@ -10,7 +10,7 @@ export default function Backtests() {
   );
 
   return (
-    <div className="w-full">
+    <div className="w-full bg-black text-white p-4 rounded-lg border border-gray-700">
       <h1 className="text-2xl mb-4">Backtest Results</h1>
 
       <div className="mb-4 flex flex-wrap gap-2 items-center">
