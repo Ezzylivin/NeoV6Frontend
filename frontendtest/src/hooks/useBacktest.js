@@ -1,60 +1,55 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import apiClient from "../api/apiClient.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
-export function useBacktest(autoFetch = false, initialTimeframe = '') {
+const TIMEFRAMES = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d', '1w'];
+const SYMBOLS = ['BTC/USDT','ETH/USDT','BNB/USDT','XRP/USDT'];
+const BALANCES = [1000, 5000, 10000, 50000];
+
+export const useBacktest = () => {
   const { user } = useAuth();
   const [results, setResults] = useState([]);
+  const [symbol, setSymbol] = useState(SYMBOLS[0]);
+  const [timeframe, setTimeframe] = useState(TIMEFRAMES[0]);
+  const [initialBalance, setInitialBalance] = useState(BALANCES[2]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [timeframe, setTimeframe] = useState(initialTimeframe);
+  const [error, setError] = useState("");
 
-  // Run backtest (calls /run)
-  const runBacktest = async () => {
-    if (!user) return;
+  const executeBacktest = async () => {
+    if (!user) return setError("User must be logged in.");
     setLoading(true);
-    setError(null);
+    setError("");
+
     try {
-      const { data } = await apiClient.post("/backtests/run", { userId: user._id });
+      const { data } = await apiClient.post("/backtests/run", {
+        userId: user._id,
+        symbol,
+        timeframes: [timeframe],
+        initialBalance
+      });
+
       setResults(data.backtests);
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to run backtest");
+      console.error(err);
+      setError(err.response?.data?.message || "Failed to run backtests");
     } finally {
       setLoading(false);
     }
   };
-
-  // Fetch backtests with optional timeframe filter
-  const fetchBacktests = async (tf = timeframe) => {
-    if (!user) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const query = new URLSearchParams({ userId: user._id });
-      if (tf) query.append("timeframe", tf);
-      const { data } = await apiClient.get(`/backtests/results?${query.toString()}`);
-      setResults(data);
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to fetch backtests");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Auto-fetch on mount or when user changes
-  useEffect(() => {
-    if (autoFetch && user) {
-      fetchBacktests();
-    }
-  }, [autoFetch, user]);
 
   return {
     results,
-    loading,
-    error,
+    symbol,
+    setSymbol,
     timeframe,
     setTimeframe,
-    runBacktest,
-    fetchBacktests,
+    initialBalance,
+    setInitialBalance,
+    SYMBOLS,
+    TIMEFRAMES,
+    BALANCES,
+    executeBacktest,
+    loading,
+    error
   };
-}
+};
