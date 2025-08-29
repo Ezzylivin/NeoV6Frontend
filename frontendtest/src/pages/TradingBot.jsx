@@ -9,19 +9,19 @@ export default function TradingBot() {
   } = useBot();
 
   return (
-    <div className="flex justify-center min-h-screen bg-black text-white">
-      <div className="w-full max-w-3xl p-6 border border-gray-700 rounded-lg">
+    <div className="flex justify-center min-h-screen bg-black text-white p-6">
+      <div className="w-full max-w-5xl border border-gray-700 rounded-lg p-6">
         <h1 className="text-2xl font-bold mb-4">Trading Bot</h1>
 
         <input
           type="text"
-          className="border p-2 rounded w-full mb-4 text-black"
+          className="border p-3 rounded w-full mb-4 text-black"
           placeholder="Enter symbol (e.g., BTC/USDT)"
           value={symbol}
           onChange={(e) => setSymbol(e.target.value)}
         />
 
-        <div className="flex gap-2 mb-4">
+        <div className="flex gap-4 mb-4">
           <button className="bg-green-500 text-white px-4 py-2 rounded" onClick={handleStart} disabled={loading}>
             {loading ? 'Starting...' : 'Start Bot'}
           </button>
@@ -39,7 +39,7 @@ export default function TradingBot() {
         {logs.length > 0 && (
           <div>
             <h3 className="text-lg font-semibold mb-2">Logs:</h3>
-            <ul className="list-disc list-inside">
+            <ul className="list-disc pl-6">
               {logs.map((log, idx) => <li key={idx}>{log}</li>)}
             </ul>
           </div>
