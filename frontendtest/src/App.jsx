@@ -4,7 +4,7 @@ import { AuthProvider } from './context/AuthContext.jsx';
 import GuestRoute from './components/GuestRoute.jsx';
 import PrivateRoute from './components/ProtectedRoute.jsx';
 
-import AuthPage from './pages/AuthPage.jsx';
+import AuthPage from './pages/Authpage.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Backtests from './pages/Backtests.jsx';
 import TradingBot from './pages/TradingBot.jsx';
