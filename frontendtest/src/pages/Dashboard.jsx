@@ -1,57 +1,24 @@
-// Dashboard.jsx
+// File: src/pages/Dashboard.jsx
 import { useEffect, useState } from "react";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 
 export default function Dashboard() {
   const [prices, setPrices] = useState({});
-  const [history, setHistory] = useState({});
 
-  // Fetch live prices
   useEffect(() => {
     const fetchPrices = async () => {
-      const res = await fetch(
-        "https://neov6backend.onrender.com/api/prices?symbols=BTCUSDT,ETHUSDT,BNBUSDT"
-      );
-      const data = await res.json();
-      if (data.success) setPrices(data.prices);
-    };
-
-    fetchPrices();
-    const interval = setInterval(fetchPrices, 5000); // refresh every 5s
-    return () => clearInterval(interval);
-  }, []);
-
-  // Fetch historical prices for each symbol
-  useEffect(() => {
-    const fetchHistory = async () => {
-      const symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"];
-      let histData = {};
-      for (const s of symbols) {
+      try {
         const res = await fetch(
-          `https://neov6backend.onrender.com/api/prices/history?symbol=${s}&limit=20`
+          "https://neov6backend.onrender.com/api/prices?symbols=BTCUSDT,ETHUSDT,BNBUSDT"
         );
         const data = await res.json();
-        if (data.success) {
-          histData[s] = data.history
-            .map((p) => ({
-              time: new Date(p.timestamp).toLocaleTimeString(),
-              price: p.price,
-            }))
-            .reverse(); // oldest first
-        }
+        if (data.success) setPrices(data.prices);
+      } catch (err) {
+        console.error("Failed to fetch prices:", err);
       }
-      setHistory(histData);
     };
 
-    fetchHistory();
-    const interval = setInterval(fetchHistory, 15000); // refresh every 15s
+    fetchPrices(); // initial fetch
+    const interval = setInterval(fetchPrices, 5000); // refresh every 5s
     return () => clearInterval(interval);
   }, []);
 
@@ -65,20 +32,9 @@ export default function Dashboard() {
             className="bg-white shadow rounded-2xl p-4 text-center"
           >
             <h3 className="font-bold text-lg">{symbol}</h3>
-            <p className="text-2xl font-mono mb-2">
-              ${price ? price.toFixed(2) : "..."}
+            <p className="text-2xl font-mono">
+              ${price !== null ? price.toFixed(2) : "..."}
             </p>
-
-            {history[symbol] && (
-              <ResponsiveContainer width="100%" height={120}>
-                <LineChart data={history[symbol]}>
-                  <XAxis dataKey="time" hide />
-                  <YAxis domain={["auto", "auto"]} hide />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="price" stroke="#2563eb" dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
           </div>
         ))}
       </div>
