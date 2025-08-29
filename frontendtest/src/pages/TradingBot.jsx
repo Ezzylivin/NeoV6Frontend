@@ -9,7 +9,7 @@ export default function TradingBot() {
   } = useBot();
 
   return (
-    <div className="w-full">
+    <div className="w-full bg-black text-white p-4 rounded-lg border border-gray-700">
       <h1 className="text-2xl font-bold mb-4">Trading Bot</h1>
 
       <input
