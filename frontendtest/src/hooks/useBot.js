@@ -1,4 +1,3 @@
-// src/hooks/useBot.js
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 
@@ -9,67 +8,74 @@ export function useBot() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const startBot = async ({ symbol, timeframes, amount }) => {
+  const API_URL = import.meta.env.VITE_API_URL;
+
+  // Start the bot
+  const startBot = async ({ symbol, timeframes, amount, strategy, risk }) => {
     try {
       setLoading(true);
       setError(null);
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/bots/start`, {
+      const res = await fetch(`${API_URL}/bots/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: user?.id,
+          userId: user.id,
           symbol,
           timeframes,
-          amount
+          amount,
+          strategy,
+          risk,
         }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to start bot");
 
-      setStatus(`Bot running: ${symbol}`);
-      setLogs((prev) => [...prev, `Started bot with ${symbol} for $${amount}`]);
+      setLogs((prev) => [...prev, `Bot started: ${symbol} (${timeframes.join(", ")})`]);
+      await getBotStatus();
     } catch (err) {
       setError(err.message);
-      setLogs((prev) => [...prev, `Error: ${err.message}`]);
     } finally {
       setLoading(false);
     }
   };
 
+  // Stop the bot
   const stopBot = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/bots/stop`, {
+      setError(null);
+
+      const res = await fetch(`${API_URL}/bots/stop`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user?.id }),
+        body: JSON.stringify({ userId: user.id }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to stop bot");
 
-      setStatus("Bot stopped");
-      setLogs((prev) => [...prev, "Bot stopped"]);
+      setLogs((prev) => [...prev, `Bot stopped`]);
+      await getBotStatus();
     } catch (err) {
       setError(err.message);
-      setLogs((prev) => [...prev, `Error: ${err.message}`]);
     } finally {
       setLoading(false);
     }
   };
 
+  // Fetch current bot status
   const getBotStatus = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/bots/status?userId=${user?.id}`);
+      const res = await fetch(`${API_URL}/bots/status?userId=${user.id}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to fetch status");
-
-      setStatus(data.status?.symbol ? `Bot running: ${data.status.symbol}` : "Bot not running");
+      if (!res.ok) throw new Error(data.error || "Failed to get bot status");
+      setStatus(data.status);
     } catch (err) {
       setError(err.message);
+      setStatus(null);
     } finally {
       setLoading(false);
     }
