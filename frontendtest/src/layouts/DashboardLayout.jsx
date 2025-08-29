@@ -1,16 +1,14 @@
 // File: src/layouts/DashboardLayout.jsx
 import React from "react";
 import { Outlet } from "react-router-dom";
-// import NavBar from "../components/NavBar.jsx"; // 🔹 commented out
 
-const DashboardLayout = () => {
+export default function DashboardLayout() {
   return (
-    <div className="min-h-screen bg-black text-white flex justify-center items-center">
-      <div className="w-full max-w-4xl p-6 rounded-lg border border-gray-800 shadow-lg">
+    <div className="flex justify-center items-center min-h-screen bg-black text-white">
+      {/* Main content wrapper */}
+      <div className="w-full max-w-4xl p-6">
         <Outlet />
       </div>
     </div>
   );
-};
-
-export default DashboardLayout;
+}
