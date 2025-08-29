@@ -1,19 +1,19 @@
-import React, { useState } from "react";
-import { useBacktest } from "../hooks/useBacktest.js";
+import React, { useState } from 'react';
+import { useBacktest } from '../hooks/useBacktest.js';
 
 export default function Backtests() {
-  const { results, executeBacktest, loading } = useBacktest();
-  const [timeframeFilter, setTimeframeFilter] = useState("");
+  const { results = [], executeBacktest, loading } = useBacktest();
+  const [timeframeFilter, setTimeframeFilter] = useState('');
 
-  const filteredResults = results ? results.filter((bt) =>
+  const filteredResults = results.filter(bt =>
     timeframeFilter ? bt.timeframe === timeframeFilter : true
-  ) : [];
+  );
 
   return (
-    <div> {/* Removed text-center */}
-      <h1 className="text-2xl font-bold mb-4">Backtest Results</h1>
+    <div className="w-full">
+      <h1 className="text-2xl mb-4">Backtest Results</h1>
 
-      <div className="mb-4 flex gap-2"> {/* Removed justify-center here for left alignment of filter/button */}
+      <div className="mb-4 flex flex-wrap gap-2 items-center">
         <input
           className="border p-2 rounded text-black w-48"
           placeholder="Filter by timeframe"
@@ -25,18 +25,18 @@ export default function Backtests() {
           onClick={executeBacktest}
           disabled={loading}
         >
-          {loading ? "Running Backtest..." : "Run Backtest"}
+          {loading ? 'Running Backtest...' : 'Run Backtest'}
         </button>
       </div>
 
-      {loading && filteredResults.length === 0 ? (
+      {loading && results.length === 0 ? (
         <p>Loading results...</p>
       ) : filteredResults.length > 0 ? (
-        <ul className="text-left"> {/* Removed inline-block */}
+        <ul>
           {filteredResults.map((bt) => (
             <li key={bt._id} className="border-b py-2">
-              <strong>Timeframe:</strong> {bt.timeframe} |{" "}
-              <strong>Profit:</strong> ${bt.profit} |{" "}
+              <strong>Timeframe:</strong> {bt.timeframe} |{' '}
+              <strong>Profit:</strong> ${bt.profit} |{' '}
               <strong>Trades:</strong> {bt.totalTrades}
             </li>
           ))}
