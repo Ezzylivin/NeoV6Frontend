@@ -7,6 +7,7 @@ export default function NavBar() {
   const baseClass = "transition hover:text-blue-400 px-4 py-2";
   const activeClass = "text-blue-400 font-semibold";
 
+  // Navbar for guests (login only)
   if (!user) {
     return (
       <nav className="bg-black text-white px-6 py-4 flex justify-between items-center shadow-md border-b border-gray-700">
@@ -21,8 +22,9 @@ export default function NavBar() {
     );
   }
 
+  // Navbar for logged-in users
   return (
-    <nav className="bg-black text-white px-6 py-4 flex items-center shadow-md border-b border-gray-700">
+    <nav className="bg-black text-white px-6 py-4 flex justify-between items-center shadow-md border-b border-gray-700">
       {/* Left: Brand */}
       <div className="flex-shrink-0">
-        <h1 className="text-xl font-bold tracking-wide"
+        <h1 className="text-xl font-bold tracki
