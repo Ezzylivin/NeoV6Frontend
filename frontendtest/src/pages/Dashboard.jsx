@@ -11,25 +11,25 @@ export default function Dashboard() {
   }, [fetchDashboardData]);
 
   return (
-    <div> {/* Removed text-center */}
-      <h2 className="text-2xl font-semibold mb-4">
+    <div className="w-full">
+      <h2 className="text-2xl font-semibold mb-2">
         Welcome, {user?.username || "User"}!
       </h2>
 
       {loading && <p>Loading dashboard data...</p>}
-      {error && <p className="text-red-500">Error: {error}</p>}
+      {error && <p>Error: {error}</p>}
 
-      <section className="mb-6">
+      <section className="mb-4">
         <h3 className="text-xl font-semibold">Bot Status</h3>
         <p>{botStatus?.status || "Unknown"}</p>
       </section>
 
       <section>
-        <h3 className="text-xl font-semibold mb-2">Recent Logs</h3>
+        <h3 className="text-xl font-semibold">Recent Logs</h3>
         {logs.length === 0 ? (
           <p>No logs found.</p>
         ) : (
-          <ul className="list-disc list-inside text-left"> {/* Removed inline-block */}
+          <ul className="list-disc ml-6">
             {logs.map((log, idx) => (
               <li key={idx}>
                 [{new Date(log.timestamp).toLocaleString()}] {log.message}
