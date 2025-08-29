@@ -8,7 +8,7 @@ export function useBacktest() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Run new backtests
+  // Run new backtests with all parameters
   const runBacktests = async ({ symbol, timeframe, initialBalance, strategy, risk }) => {
     try {
       setLoading(true);
@@ -23,13 +23,14 @@ export function useBacktest() {
           timeframe,
           initialBalance,
           strategy,
-          risk,
+          risk
         }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to run backtests");
 
+      // Backend should return an array of backtests
       setResults(Array.isArray(data.backtests) ? data.backtests : []);
     } catch (err) {
       setError(err.message);
@@ -38,13 +39,13 @@ export function useBacktest() {
     }
   };
 
-  // Fetch saved backtests
+  // Fetch saved backtests (optionally filtered by symbol/timeframe)
   const fetchBacktests = async ({ symbol = null, timeframe = null } = {}) => {
     try {
       setLoading(true);
       setError(null);
 
-      const url = new URL(`${import.meta.env.VITE_API_URL}/backtests/results`);
+      const url = new URL(`${import.meta.env.VITE_API_URL}/backtests`);
       url.searchParams.set("userId", user.id);
       if (symbol) url.searchParams.set("symbol", symbol);
       if (timeframe) url.searchParams.set("timeframe", timeframe);
