@@ -11,7 +11,7 @@ export default function Dashboard() {
   }, [fetchDashboardData]);
 
   return (
-    <div className="text-center">
+    <div> {/* Removed text-center */}
       <h2 className="text-2xl font-semibold mb-4">
         Welcome, {user?.username || "User"}!
       </h2>
@@ -29,7 +29,7 @@ export default function Dashboard() {
         {logs.length === 0 ? (
           <p>No logs found.</p>
         ) : (
-          <ul className="list-disc list-inside text-left inline-block">
+          <ul className="list-disc list-inside text-left"> {/* Removed inline-block */}
             {logs.map((log, idx) => (
               <li key={idx}>
                 [{new Date(log.timestamp).toLocaleString()}] {log.message}
