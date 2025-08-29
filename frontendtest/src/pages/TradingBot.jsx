@@ -1,8 +1,9 @@
 // File: src/pages/TradingBot.jsx
-import React, { useState } from "react";
-import { useBot } from "../hooks/useBot.js";
+import React, { useState } from 'react';
+import { useBot } from '../hooks/useBot.js';
 
-const AVAILABLE_SYMBOLS = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "ADA/USDT"];
+const availableSymbols = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT'];
+const availableTimeframes = ['1m', '5m', '15m', '1h', '4h', '1d'];
 
 export default function TradingBot() {
   const {
@@ -10,99 +11,107 @@ export default function TradingBot() {
     setSymbol,
     amount,
     setAmount,
+    timeframes,
+    setTimeframes,
     status,
     logs,
     loading,
     error,
     startBot,
     stopBot,
-    fetchStatus,
+    getStatus
   } = useBot();
 
-  const handleStart = async () => {
-    await startBot(["5m", "15m"]); // example timeframes
-  };
-
-  const handleStop = async () => {
-    await stopBot();
+  const handleTimeframeChange = (e) => {
+    const options = e.target.options;
+    const selected = [];
+    for (let i = 0; i < options.length; i++) {
+      if (options[i].selected) selected.push(options[i].value);
+    }
+    setTimeframes(selected);
   };
 
   return (
-    <div className="flex justify-center min-h-screen bg-black text-white p-4">
+    <div className="flex justify-center min-h-screen bg-black text-white p-6">
       <div className="w-full max-w-3xl p-6 border border-gray-700 rounded-lg">
         <h1 className="text-2xl font-bold mb-4">Trading Bot</h1>
 
-        {/* Symbol Dropdown */}
-        <div className="mb-4">
-          <label className="block mb-2">Select Symbol:</label>
-          <select
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value)}
-            className="w-full p-2 rounded bg-black border border-gray-600 text-white"
-          >
-            <option value="">-- Select Symbol --</option>
-            {AVAILABLE_SYMBOLS.map((sym) => (
-              <option key={sym} value={sym}>
-                {sym}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Symbol */}
+        <label className="block mb-2">Symbol:</label>
+        <select
+          className="w-full p-2 mb-4 text-black rounded"
+          value={symbol}
+          onChange={(e) => setSymbol(e.target.value)}
+        >
+          <option value="">Select a symbol</option>
+          {availableSymbols.map(sym => (
+            <option key={sym} value={sym}>{sym}</option>
+          ))}
+        </select>
 
-        {/* Amount Input */}
-        <div className="mb-4">
-          <label className="block mb-2">Amount ($):</label>
-          <input
-            type="number"
-            value={amount}
-            onChange={(e) => setAmount(Number(e.target.value))}
-            className="w-full p-2 rounded bg-black border border-gray-600 text-white"
-            placeholder="Enter amount"
-          />
-        </div>
+        {/* Amount */}
+        <label className="block mb-2">Amount ($):</label>
+        <input
+          type="number"
+          className="w-full p-2 mb-4 text-black rounded"
+          value={amount}
+          onChange={(e) => setAmount(Number(e.target.value))}
+        />
 
-        {/* Action Buttons */}
+        {/* Timeframes */}
+        <label className="block mb-2">Timeframes:</label>
+        <select
+          multiple
+          className="w-full p-2 mb-4 text-black rounded"
+          value={timeframes}
+          onChange={handleTimeframeChange}
+        >
+          {availableTimeframes.map(tf => (
+            <option key={tf} value={tf}>{tf}</option>
+          ))}
+        </select>
+
+        {/* Buttons */}
         <div className="flex gap-2 mb-4">
           <button
-            onClick={handleStart}
-            disabled={loading || !symbol || !amount}
-            className="bg-green-500 text-white px-4 py-2 rounded disabled:bg-gray-500"
+            className="bg-green-500 text-white px-4 py-2 rounded"
+            onClick={startBot}
+            disabled={loading}
           >
-            {loading ? "Starting..." : "Start Bot"}
+            {loading ? 'Starting...' : 'Start Bot'}
           </button>
           <button
-            onClick={handleStop}
+            className="bg-red-500 text-white px-4 py-2 rounded"
+            onClick={stopBot}
             disabled={loading}
-            className="bg-red-500 text-white px-4 py-2 rounded disabled:bg-gray-500"
           >
-            {loading ? "Stopping..." : "Stop Bot"}
+            {loading ? 'Stopping...' : 'Stop Bot'}
           </button>
           <button
-            onClick={fetchStatus}
+            className="bg-blue-500 text-white px-4 py-2 rounded"
+            onClick={getStatus}
             disabled={loading}
-            className="bg-blue-500 text-white px-4 py-2 rounded disabled:bg-gray-500"
           >
-            {loading ? "Checking..." : "Check Status"}
+            {loading ? 'Checking...' : 'Check Status'}
           </button>
         </div>
 
-        {/* Status & Error */}
-        {error && <div className="text-red-500 mb-2">{error}</div>}
-        {status && (
-          <div className="mb-2">
-            <strong>Status:</strong>{" "}
-            {status.isRunning ? `Running (${status.symbol})` : "Stopped"}
+        {/* Error */}
+        {error && <div className="text-red-500 mb-4">{error}</div>}
+
+        {/* Status */}
+        {status && status.isRunning && (
+          <div className="mb-4">
+            <strong>Status:</strong> Running {status.symbol} with ${status.amount} on {status.timeframes.join(', ')}
           </div>
         )}
 
         {/* Logs */}
         {logs.length > 0 && (
-          <div className="mt-4">
+          <div>
             <h3 className="text-lg font-semibold mb-2">Logs:</h3>
-            <ul className="list-disc list-inside max-h-60 overflow-y-auto">
-              {logs.map((log, idx) => (
-                <li key={idx}>{log}</li>
-              ))}
+            <ul className="list-disc list-inside">
+              {logs.map((log, idx) => <li key={idx}>{log}</li>)}
             </ul>
           </div>
         )}
