@@ -11,13 +11,13 @@ export default function Dashboard() {
   }, [fetchDashboardData]);
 
   return (
-    <div className="w-full">
+    <div className="w-full bg-black text-white p-4 rounded-lg border border-gray-700">
       <h2 className="text-2xl font-semibold mb-2">
         Welcome, {user?.username || "User"}!
       </h2>
 
-      {loading && <p>Loading dashboard data...</p>}
-      {error && <p>Error: {error}</p>}
+      {loading && <p className="text-blue-400">Loading dashboard data...</p>}
+      {error && <p className="text-red-400">Error: {error}</p>}
 
       <section className="mb-4">
         <h3 className="text-xl font-semibold">Bot Status</h3>
