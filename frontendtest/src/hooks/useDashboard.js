@@ -1,34 +1,40 @@
-import { useState } from 'react';
-import { useAuth } from '../context/AuthContext.jsx';
-import { getBotStatus } from '../api/bot.js';
-import { getLogs } from '../api/logs.js';
+// File: src/hooks/useDashboard.js
+import { useState, useCallback } from "react";
+import { useAuth } from "../context/AuthContext.jsx";
 
-export const useDashboard = () => {
-  const { token } = useAuth();
+export function useDashboard() {
+  const { user } = useAuth();
   const [botStatus, setBotStatus] = useState(null);
   const [logs, setLogs] = useState([]);
+  const [prices, setPrices] = useState({});
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
 
-  const fetchDashboardData = async () => {
-    setLoading(true);
-    setError('');
-
+  const fetchDashboardData = useCallback(async () => {
     try {
-      const [statusRes, logsRes] = await Promise.all([
-        getBotStatus(token),  // ✅ correct
-        getLogs(token)        // ✅ correct
+      setLoading(true);
+      setError(null);
+
+      // Fetch bot status
+      const botRes = await fetch(`${import.meta.env.VITE_API_URL}/bots/status?userId=${user.id}`);
+      const botData = await botRes.json();
+      setBotStatus(botData.status || null);
+      setLogs((prev) => [
+        ...prev,
+        `[${new Date().toLocaleTimeString()}] Bot status: ${botData.status?.isRunning ? "Running" : "Stopped"}`
       ]);
 
-      setBotStatus(statusRes);
-      setLogs(logsRes);
+      // Fetch live prices
+      const symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"];
+      const priceRes = await fetch(`${import.meta.env.VITE_API_URL}/prices?symbols=${symbols.join(",")}`);
+      const priceData = await priceRes.json();
+      if (priceData.success) setPrices(priceData.prices);
     } catch (err) {
-      console.error(err);
-      setError('Failed to load dashboard data');
+      setError(err.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user.id]);
 
-  return { botStatus, logs, loading, error, fetchDashboardData };
-};
+  return { botStatus, logs, prices, loading, error, fetchDashboardData };
+}
