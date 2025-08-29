@@ -2,12 +2,13 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.jsx'; 
 import GuestRoute from './components/GuestRoute.jsx';
-import PrivateRoute from './components/ProtectedRoute.jsx';
+import PrivateRoute from './components/PrivateRoute.jsx';
 
-import AuthPage from './pages/Authpage.jsx';
+import AuthPage from './pages/AuthPage.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Backtests from './pages/Backtests.jsx';
 import TradingBot from './pages/TradingBot.jsx';
+import Settings from './pages/Settings.jsx'; // new
 import DashboardLayout from './layouts/DashboardLayout.jsx';
 
 export default function App() {
@@ -15,7 +16,7 @@ export default function App() {
     <AuthProvider>
       <Router>
         <Routes>
-          {/* Public route for guests */}
+          {/* Public route */}
           <Route 
             path="/" 
             element={
@@ -36,11 +37,12 @@ export default function App() {
           >
             <Route index element={<Dashboard />} />
             <Route path="backtests" element={<Backtests />} />
-            <Route path="tradingbot" element={<TradingBot/>} />
+            <Route path="tradingbot" element={<TradingBot />} />
+            <Route path="settings" element={<Settings />} />
           </Route>
 
-          {/* Catch-all 404 */}
-          <Route path="*" element={<div>404 Not Found</div>} />
+          {/* 404 */}
+          <Route path="*" element={<div className="flex justify-center items-center min-h-screen text-white bg-black">404 Not Found</div>} />
         </Routes>
       </Router>
     </AuthProvider>
