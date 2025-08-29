@@ -2,7 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.jsx'; 
 import GuestRoute from './components/GuestRoute.jsx';
-import PrivateRoute from './components/PrivateRoute.jsx';
+import PrivateRoute from './components/ProtectedRoute.jsx';
 
 import AuthPage from './pages/AuthPage.jsx';
 import Dashboard from './pages/Dashboard.jsx';
