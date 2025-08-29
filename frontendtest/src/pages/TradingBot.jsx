@@ -61,16 +61,19 @@ export default function TradingBot() {
         </div>
       )}
 
-      {logs.length > 0 && (
-        <div className="text-left inline-block">
-          <h3 className="text-lg font-semibold mb-2">Logs:</h3>
-          <ul className="list-disc list-inside">
-            {logs.map((log, idx) => (
-              <li key={idx}>{log}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+     {Array.isArray(logs) && logs.length > 0 ? (
+  <div>
+    <h3 className="text-lg font-semibold mb-2">Logs:</h3>
+    <ul className="list-disc list-inside">
+      {logs.map((log, idx) => (
+        <li key={idx}>{log}</li>
+      ))}
+    </ul>
+  </div>
+) : (
+  <p>No logs yet.</p>
+)}
+
     </div>
   );
 }
