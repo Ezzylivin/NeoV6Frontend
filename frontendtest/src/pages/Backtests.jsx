@@ -5,15 +5,15 @@ export default function Backtests() {
   const { results, executeBacktest, loading } = useBacktest();
   const [timeframeFilter, setTimeframeFilter] = useState("");
 
-  const filteredResults = results.filter((bt) =>
+  const filteredResults = results ? results.filter((bt) =>
     timeframeFilter ? bt.timeframe === timeframeFilter : true
-  );
+  ) : [];
 
   return (
-    <div className="text-center">
+    <div> {/* Removed text-center */}
       <h1 className="text-2xl font-bold mb-4">Backtest Results</h1>
 
-      <div className="mb-4 flex justify-center gap-2">
+      <div className="mb-4 flex gap-2"> {/* Removed justify-center here for left alignment of filter/button */}
         <input
           className="border p-2 rounded text-black w-48"
           placeholder="Filter by timeframe"
@@ -29,10 +29,10 @@ export default function Backtests() {
         </button>
       </div>
 
-      {loading && results.length === 0 ? (
+      {loading && filteredResults.length === 0 ? (
         <p>Loading results...</p>
       ) : filteredResults.length > 0 ? (
-        <ul className="text-left inline-block">
+        <ul className="text-left"> {/* Removed inline-block */}
           {filteredResults.map((bt) => (
             <li key={bt._id} className="border-b py-2">
               <strong>Timeframe:</strong> {bt.timeframe} |{" "}
