@@ -1,143 +1,204 @@
+// File: src/pages/Backtests.jsx
 import React, { useEffect, useState } from "react";
-import { useAuth } from "../context/AuthContext";
-import { useBacktest } from "../hooks/useBacktest";
+import { useAuth } from "../context/AuthContext.jsx";
 
 export default function Backtests() {
   const { user } = useAuth();
-  const { results, fetchBacktests, runBacktests } = useBacktest();
+  const [options, setOptions] = useState({
+    symbols: [],
+    timeframes: [],
+    balances: [],
+    strategies: [],
+    risks: [],
+  });
+  const [form, setForm] = useState({
+    symbol: "",
+    timeframe: "",
+    initialBalance: "",
+    strategy: "",
+    risk: "",
+  });
+  const [backtests, setBacktests] = useState([]);
 
-  const [symbol, setSymbol] = useState("BTCUSDT");
-  const [timeframe, setTimeframe] = useState("1h");
-  const [initialBalance, setInitialBalance] = useState(1000);
-  const [strategy, setStrategy] = useState("SMA");
-  const [risk, setRisk] = useState("Low");
-
+  // ✅ Load dropdown options from backend
   useEffect(() => {
-    if (user?._id) {
-      fetchBacktests(user._id);
-    }
+    const fetchOptions = async () => {
+      try {
+        const res = await fetch("/api/backtests/options");
+        const data = await res.json();
+        if (data.success) {
+          setOptions(data.options);
+          setForm({
+            symbol: data.options.symbols[0],
+            timeframe: data.options.timeframes[0],
+            initialBalance: data.options.balances[0],
+            strategy: data.options.strategies[0],
+            risk: data.options.risks[0],
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching options:", err);
+      }
+    };
+    fetchOptions();
+  }, []);
+
+  // ✅ Load user backtests
+  useEffect(() => {
+    const fetchBacktests = async () => {
+      if (!user?._id) return;
+      try {
+        const res = await fetch(`/api/backtests?userId=${user._id}`);
+        const data = await res.json();
+        setBacktests(data);
+      } catch (err) {
+        console.error("Error fetching backtests:", err);
+      }
+    };
+    fetchBacktests();
   }, [user]);
 
-  const handleRun = async () => {
-    if (!user?._id) return;
-    await runBacktests({
-      userId: user._id,
-      symbol,
-      timeframe,
-      initialBalance,
-      strategy,
-      risk,
-    });
-    await fetchBacktests(user._id);
+  // ✅ Handle form change
+  const handleChange = (e) => {
+    setForm((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }));
+  };
+
+  // ✅ Run new backtest
+  const runBacktest = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch("/api/backtests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, userId: user._id }),
+      });
+      const data = await res.json();
+      if (data.backtests) {
+        setBacktests((prev) => [data.backtests[0], ...prev]);
+      }
+    } catch (err) {
+      console.error("Error running backtest:", err);
+    }
   };
 
   return (
     <div className="p-6">
-      <h1 className="text-xl font-bold mb-4">Backtesting</h1>
+      <h1 className="text-2xl font-bold mb-4">Backtests</h1>
 
-      {/* --- Backtest Form --- */}
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-
-        {/* Symbol */}
+      {/* Backtest Form */}
+      <form onSubmit={runBacktest} className="space-y-4 mb-6">
+        {/* Symbol Dropdown */}
         <div>
           <label className="block mb-1">Symbol</label>
           <select
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value)}
-            className="border px-3 py-2 rounded w-full"
+            name="symbol"
+            value={form.symbol}
+            onChange={handleChange}
+            className="p-2 border rounded w-full"
           >
-            <option value="BTCUSDT">BTC/USDT</option>
-            <option value="ETHUSDT">ETH/USDT</option>
-            <option value="BNBUSDT">BNB/USDT</option>
+            {options.symbols.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
           </select>
         </div>
 
-        {/* Timeframe */}
+        {/* Timeframe Dropdown */}
         <div>
           <label className="block mb-1">Timeframe</label>
           <select
-            value={timeframe}
-            onChange={(e) => setTimeframe(e.target.value)}
-            className="border px-3 py-2 rounded w-full"
+            name="timeframe"
+            value={form.timeframe}
+            onChange={handleChange}
+            className="p-2 border rounded w-full"
           >
-            <option value="1m">1 Minute</option>
-            <option value="5m">5 Minutes</option>
-            <option value="15m">15 Minutes</option>
-            <option value="1h">1 Hour</option>
-            <option value="4h">4 Hours</option>
-            <option value="1d">1 Day</option>
+            {options.timeframes.map((tf) => (
+              <option key={tf} value={tf}>
+                {tf}
+              </option>
+            ))}
           </select>
         </div>
 
-        {/* Initial Balance */}
+        {/* Balance Dropdown */}
         <div>
           <label className="block mb-1">Initial Balance</label>
           <select
-            value={initialBalance}
-            onChange={(e) => setInitialBalance(Number(e.target.value))}
-            className="border px-3 py-2 rounded w-full"
+            name="initialBalance"
+            value={form.initialBalance}
+            onChange={handleChange}
+            className="p-2 border rounded w-full"
           >
-            <option value={100}>$100</option>
-            <option value={500}>$500</option>
-            <option value={1000}>$1000</option>
-            <option value={5000}>$5000</option>
-            <option value={10000}>$10,000</option>
+            {options.balances.map((b) => (
+              <option key={b} value={b}>
+                ${b}
+              </option>
+            ))}
           </select>
         </div>
 
-        {/* Strategy */}
+        {/* Strategy Dropdown */}
         <div>
           <label className="block mb-1">Strategy</label>
           <select
-            value={strategy}
-            onChange={(e) => setStrategy(e.target.value)}
-            className="border px-3 py-2 rounded w-full"
+            name="strategy"
+            value={form.strategy}
+            onChange={handleChange}
+            className="p-2 border rounded w-full"
           >
-            <option value="SMA">SMA (Simple Moving Average)</option>
-            <option value="EMA">EMA (Exponential Moving Average)</option>
-            <option value="RSI">RSI (Relative Strength Index)</option>
-            <option value="MACD">MACD</option>
+            {options.strategies.map((st) => (
+              <option key={st} value={st}>
+                {st}
+              </option>
+            ))}
           </select>
         </div>
 
-        {/* Risk */}
+        {/* Risk Dropdown */}
         <div>
           <label className="block mb-1">Risk Level</label>
           <select
-            value={risk}
-            onChange={(e) => setRisk(e.target.value)}
-            className="border px-3 py-2 rounded w-full"
+            name="risk"
+            value={form.risk}
+            onChange={handleChange}
+            className="p-2 border rounded w-full"
           >
-            <option value="Low">Low</option>
-            <option value="Medium">Medium</option>
-            <option value="High">High</option>
+            {options.risks.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
           </select>
         </div>
-      </div>
 
-      <button
-        onClick={handleRun}
-        className="bg-blue-600 text-white px-4 py-2 rounded"
-      >
-        Run Backtest
-      </button>
+        <button
+          type="submit"
+          className="px-4 py-2 bg-blue-600 text-white rounded"
+        >
+          Run Backtest
+        </button>
+      </form>
 
-      {/* --- Backtest Results --- */}
-      <div className="mt-6">
-        <h2 className="text-lg font-semibold mb-2">Your Backtests</h2>
-        {results.length === 0 ? (
-          <p className="text-gray-500">No backtests found.</p>
-        ) : (
-          <ul>
-            {results.map((r, i) => (
-              <li key={i} className="border-b py-2">
-                <strong>{r.symbol}</strong> {r.timeframe} → Final Balance:{" "}
-                {r.finalBalance}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {/* Results */}
+      <h2 className="text-xl font-semibold mb-2">Previous Backtests</h2>
+      <ul className="space-y-2">
+        {backtests.map((bt) => (
+          <li key={bt._id} className="p-3 border rounded">
+            <p>
+              <strong>{bt.symbol}</strong> | {bt.timeframe} | Strategy:{" "}
+              {bt.strategy} | Risk: {bt.risk}
+            </p>
+            <p>
+              Initial: ${bt.initialBalance} → Final: ${bt.finalBalance} | Profit:{" "}
+              {bt.profit}
+            </p>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
