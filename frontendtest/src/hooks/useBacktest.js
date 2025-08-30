@@ -1,67 +1,47 @@
-// File: src/hooks/useBacktest.js
 import { useState } from "react";
-import { useAuth } from "../context/AuthContext.jsx";
+
+const API = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com/api";
 
 export function useBacktest() {
-  const { user } = useAuth();
   const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
 
-  // Run new backtests with all parameters
-  const runBacktests = async ({ symbol, timeframe, initialBalance, strategy, risk }) => {
+  // ✅ Fetch all backtests for this user
+  const fetchBacktests = async (userId) => {
+    if (!userId) return;
     try {
-      setLoading(true);
-      setError(null);
+      const res = await fetch(`${API}/backtests?userId=${userId}`);
+      const data = await res.json();
+      if (data.success !== false) {
+        setResults(data);
+      }
+    } catch (err) {
+      console.error("Error fetching backtests:", err);
+    }
+  };
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/backtests/run`, {
+  // ✅ Run a new backtest
+  const runBacktests = async ({ userId, symbol, timeframe, initialBalance, strategy, risk }) => {
+    try {
+      const res = await fetch(`${API}/backtests`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: user.id,
+          userId,
           symbol,
           timeframe,
           initialBalance,
           strategy,
-          risk
+          risk,
         }),
       });
-
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to run backtests");
-
-      // Backend should return an array of backtests
-      setResults(Array.isArray(data.backtests) ? data.backtests : []);
+      if (data.success !== false) {
+        setResults((prev) => [...prev, data]);
+      }
     } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+      console.error("Error running backtest:", err);
     }
   };
 
-  // Fetch saved backtests (optionally filtered by symbol/timeframe)
-  const fetchBacktests = async ({ symbol = null, timeframe = null } = {}) => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const url = new URL(`${import.meta.env.VITE_API_URL}/backtests`);
-      url.searchParams.set("userId", user.id);
-      if (symbol) url.searchParams.set("symbol", symbol);
-      if (timeframe) url.searchParams.set("timeframe", timeframe);
-
-      const res = await fetch(url.toString());
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to fetch backtests");
-
-      setResults(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setError(err.message);
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return { results, loading, error, runBacktests, fetchBacktests };
+  return { results, fetchBacktests, runBacktests };
 }
