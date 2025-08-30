@@ -8,7 +8,7 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
 const FALLBACK_OPTIONS = {
   symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
   timeframes: ["1m", "5m", "15m", "1h", "4h", "1d"],
-  balances: [100, 300, 500, 1000, 5000, 10000],
+  balances: [100, 500, 1000, 5000, 10000],
   strategies: ["SMA", "EMA", "RSI", "MACD"],
   risks: ["Low", "Medium", "High"],
 };
@@ -148,4 +148,21 @@ export default function Backtests() {
         </form>
 
         {/* Previous Backtests */}
-        <h2 className=
+        <h2 className="text-xl font-semibold mb-2">Previous Backtests</h2>
+        {backtests.length === 0 ? (
+          <p>No backtests yet.</p>
+        ) : (
+          <ul className="space-y-2">
+            {backtests.map((bt) => (
+              <li key={bt._id} className="bg-white p-4 rounded-2xl shadow">
+                <p className="font-bold">{bt.symbol} | {bt.timeframe}</p>
+                <p>Strategy: {bt.strategy} | Risk: {bt.risk}</p>
+                <p>Initial: ${bt.initialBalance} → Final: ${bt.finalBalance} | Profit: ${bt.profit}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
