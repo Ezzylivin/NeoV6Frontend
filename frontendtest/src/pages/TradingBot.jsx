@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useBot } from "../hooks/useBot.js";
 
-const SYMBOLS = ["BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT"];
+const SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"];
 const TIMEFRAMES = ["1m", "5m", "15m", "30m", "1h", "4h", "1d"];
 const BALANCES = [100, 300, 500, 1000, 5000, 10000, 50000];
 const STRATEGIES = ["default", "crossover", "momentum", "meanReversion"];
@@ -17,66 +17,38 @@ export default function TradingBot() {
   const [strategy, setStrategy] = useState(STRATEGIES[0]);
   const [risk, setRisk] = useState(RISKS[1]);
 
-  useEffect(() => {
-    getBotStatus();
-  }, []);
+  useEffect(() => { getBotStatus(); }, []);
 
   const handleStart = async () => {
     await startBot({ symbol, timeframes: [timeframe], amount: initialBalance, strategy, risk });
   };
-
-  const handleStop = async () => {
-    await stopBot();
-  };
-
-  const handleStatus = async () => {
-    await getBotStatus();
-  };
+  const handleStop = async () => { await stopBot(); };
+  const handleStatus = async () => { await getBotStatus(); };
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-black text-white">
       <div className="w-full max-w-3xl p-6 border border-gray-700 rounded-lg">
         <h1 className="text-2xl font-bold mb-4">Trading Bot</h1>
 
-        {/* Symbol */}
-        <div className="mb-4">
-          <label className="block mb-1">Symbol:</label>
-          <select value={symbol} onChange={(e) => setSymbol(e.target.value)} className="w-full p-2 rounded text-black">
-            {SYMBOLS.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-
-        {/* Timeframe */}
-        <div className="mb-4">
-          <label className="block mb-1">Timeframe:</label>
-          <select value={timeframe} onChange={(e) => setTimeframe(e.target.value)} className="w-full p-2 rounded text-black">
-            {TIMEFRAMES.map((tf) => <option key={tf} value={tf}>{tf}</option>)}
-          </select>
-        </div>
-
-        {/* Initial Balance */}
-        <div className="mb-4">
-          <label className="block mb-1">Initial Balance ($):</label>
-          <select value={initialBalance} onChange={(e) => setInitialBalance(Number(e.target.value))} className="w-full p-2 rounded text-black">
-            {BALANCES.map((b) => <option key={b} value={b}>{b}</option>)}
-          </select>
-        </div>
-
-        {/* Strategy */}
-        <div className="mb-4">
-          <label className="block mb-1">Strategy:</label>
-          <select value={strategy} onChange={(e) => setStrategy(e.target.value)} className="w-full p-2 rounded text-black">
-            {STRATEGIES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-
-        {/* Risk */}
-        <div className="mb-4">
-          <label className="block mb-1">Risk:</label>
-          <select value={risk} onChange={(e) => setRisk(e.target.value)} className="w-full p-2 rounded text-black">
-            {RISKS.map((r) => <option key={r} value={r}>{r}</option>)}
-          </select>
-        </div>
+        {/* Dropdowns */}
+        {[
+          { label: "Symbol", value: symbol, setter: setSymbol, options: SYMBOLS },
+          { label: "Timeframe", value: timeframe, setter: setTimeframe, options: TIMEFRAMES },
+          { label: "Initial Balance ($)", value: initialBalance, setter: setInitialBalance, options: BALANCES },
+          { label: "Strategy", value: strategy, setter: setStrategy, options: STRATEGIES },
+          { label: "Risk", value: risk, setter: setRisk, options: RISKS },
+        ].map(({ label, value, setter, options }) => (
+          <div key={label} className="mb-4">
+            <label className="block mb-1">{label}:</label>
+            <select
+              value={value}
+              onChange={(e) => setter(isNaN(e.target.value) ? e.target.value : Number(e.target.value))}
+              className="w-full p-2 rounded text-black"
+            >
+              {options.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+        ))}
 
         {/* Buttons */}
         <div className="flex gap-2 mb-4">
@@ -99,7 +71,6 @@ export default function TradingBot() {
             Symbol: {status.symbol || "-"}, Balance: ${status.amount || 0}, Strategy: {status.strategy || "-"}, Risk: {status.risk || "-"}
           </div>
         )}
-
         {logs.length > 0 && (
           <div>
             <h3 className="text-lg font-semibold mb-2">Logs:</h3>
