@@ -9,6 +9,7 @@ import {
   Legend,
   ResponsiveContainer,
   Brush,
+  ReferenceDot,
 } from "recharts";
 
 export default function Dashboard() {
@@ -16,14 +17,14 @@ export default function Dashboard() {
   const [history, setHistory] = useState({});
   const [zoomWindow, setZoomWindow] = useState({});
   const symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"];
-  const targetZoom = useRef({}); // target zoom window for animation
+  const targetZoom = useRef({});
 
   const roundToFiveMinutes = (date) => {
     const ms = 1000 * 60 * 5;
     return new Date(Math.floor(date.getTime() / ms) * ms);
   };
 
-  // Animate zoom towards target
+  // Animate zoom smoothly
   useEffect(() => {
     const anim = setInterval(() => {
       setZoomWindow((prev) => {
@@ -34,7 +35,7 @@ export default function Dashboard() {
           const { start: currStart, end: currEnd } = prev[symbol];
           const { start: targetStart, end: targetEnd } = targetZoom.current[symbol];
 
-          const step = Math.ceil((targetEnd - targetStart) / 10); // step size
+          const step = Math.ceil((targetEnd - targetStart) / 10);
           const newStart =
             currStart < targetStart ? Math.min(currStart + step, targetStart) :
             currStart > targetStart ? Math.max(currStart - step, targetStart) :
@@ -50,10 +51,11 @@ export default function Dashboard() {
         if (!changed) clearInterval(anim);
         return newZoom;
       });
-    }, 30); // update every 30ms
+    }, 30);
     return () => clearInterval(anim);
   }, []);
 
+  // Fetch historical 24h data on startup
   useEffect(() => {
     const fetchHistory = async () => {
       try {
@@ -68,6 +70,8 @@ export default function Dashboard() {
           const initialZoom = {};
           for (const symbol of symbols) {
             aggregated[symbol] = [];
+
+            // Aggregate into 5-minute buckets
             const bucket = {};
             for (const point of data.history[symbol]) {
               const time = roundToFiveMinutes(new Date(point.time)).toLocaleTimeString("en-US", {
@@ -88,10 +92,15 @@ export default function Dashboard() {
           targetZoom.current = initialZoom;
         }
       } catch (err) {
-        console.error(err);
+        console.error("Failed to fetch 24h history:", err);
       }
     };
 
+    fetchHistory();
+  }, []);
+
+  // Fetch live prices every minute
+  useEffect(() => {
     const fetchPrices = async () => {
       try {
         const res = await fetch(
@@ -104,6 +113,7 @@ export default function Dashboard() {
             const newHistory = { ...prevHistory };
             const now = roundToFiveMinutes(new Date());
             const timeLabel = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+
             for (const symbol of symbols) {
               if (!newHistory[symbol]) newHistory[symbol] = [];
               const lastPoint = newHistory[symbol][newHistory[symbol].length - 1];
@@ -112,19 +122,18 @@ export default function Dashboard() {
               } else {
                 newHistory[symbol].push({ time: timeLabel, price: data.prices[symbol] });
               }
-              if (newHistory[symbol].length > 288) newHistory[symbol].shift();
+              if (newHistory[symbol].length > 288) newHistory[symbol].shift(); // keep last 24h (~5-min interval)
             }
             return newHistory;
           });
         }
       } catch (err) {
-        console.error(err);
+        console.error("Failed to fetch live prices:", err);
       }
     };
 
-    fetchHistory();
     fetchPrices();
-    const interval = setInterval(fetchPrices, 60000);
+    const interval = setInterval(fetchPrices, 60000); // every minute
     return () => clearInterval(interval);
   }, []);
 
@@ -170,40 +179,39 @@ export default function Dashboard() {
         <h2 className="text-xl font-bold mb-4">📊 Price Charts (24h)</h2>
         {Object.entries(history).map(([symbol, symbolHistory]) => {
           const { start, end } = zoomWindow[symbol] || { start: 0, end: symbolHistory.length };
+          const latestPoint = symbolHistory[symbolHistory.length - 1];
           return (
             <div key={symbol} className="mb-6 bg-white p-4 rounded-2xl shadow">
               <h3 className="font-bold mb-2">{symbol}</h3>
+
               <div className="mb-2 flex gap-2">
-                <button
-                  className="px-2 py-1 bg-blue-500 text-white rounded"
-                  onClick={() => zoomIn(symbol)}
-                >
-                  Zoom In
-                </button>
-                <button
-                  className="px-2 py-1 bg-blue-500 text-white rounded"
-                  onClick={() => zoomOut(symbol)}
-                >
-                  Zoom Out
-                </button>
-                <button
-                  className="px-2 py-1 bg-gray-500 text-white rounded"
-                  onClick={() => resetZoom(symbol)}
-                >
-                  Reset
-                </button>
+                <button className="px-2 py-1 bg-blue-500 text-white rounded" onClick={() => zoomIn(symbol)}>Zoom In</button>
+                <button className="px-2 py-1 bg-blue-500 text-white rounded" onClick={() => zoomOut(symbol)}>Zoom Out</button>
+                <button className="px-2 py-1 bg-gray-500 text-white rounded" onClick={() => resetZoom(symbol)}>Reset</button>
               </div>
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={symbolHistory.slice(start, end)}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="time" />
-                  <YAxis domain={["auto", "auto"]} />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="price" stroke="#8884d8" dot={false} isAnimationActive={true} />
-                  <Brush dataKey="time" height={30} stroke="#8884d8" />
-                </LineChart>
-              </ResponsiveContainer>
+
+           <ResponsiveContainer width="100%" height={200}>
+  <LineChart data={symbolHistory.slice(start, end)}>
+    <CartesianGrid strokeDasharray="3 3" />
+    <XAxis
+      dataKey="time"
+      tickFormatter={(timeStr, index) => {
+        // Show label only on the hour
+        const [hour, minute] = timeStr.split(":");
+        if (minute === "00") return `${hour}:00`;
+        return ""; // hide other ticks
+      }}
+      interval={0} // render every tick
+    />
+    <YAxis domain={["auto", "auto"]} />
+    <Tooltip />
+    <Legend />
+    <Line type="monotone" dataKey="price" stroke="#8884d8" dot={false} isAnimationActive={true} />
+    {latestPoint && <ReferenceDot x={latestPoint.time} y={latestPoint.price} r={5} fill="red" stroke="none" />}
+    <Brush dataKey="time" height={30} stroke="#8884d8" />
+  </LineChart>
+</ResponsiveContainer>
+
             </div>
           );
         })}
