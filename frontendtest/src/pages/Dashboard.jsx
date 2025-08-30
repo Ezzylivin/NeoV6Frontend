@@ -8,40 +8,77 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  Brush,
 } from "recharts";
 
 export default function Dashboard() {
   const [prices, setPrices] = useState({});
-  const [history, setHistory] = useState({}); // Stores historical data for charts
+  const [history, setHistory] = useState({});
+  const symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"];
+
+  const roundToFiveMinutes = (date) => {
+    const ms = 1000 * 60 * 5;
+    return new Date(Math.floor(date.getTime() / ms) * ms);
+  };
 
   useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const res = await fetch(
+          `https://neov6backend.onrender.com/api/prices/history?symbols=${symbols.join(
+            ","
+          )}&period=24h`
+        );
+        const data = await res.json();
+        if (data.success) {
+          const aggregated = {};
+          for (const symbol of symbols) {
+            aggregated[symbol] = [];
+            const bucket = {};
+            for (const point of data.history[symbol]) {
+              const time = roundToFiveMinutes(new Date(point.time)).toLocaleTimeString("en-US", {
+                hour: "numeric",
+                minute: "2-digit",
+              });
+              if (!bucket[time]) bucket[time] = [];
+              bucket[time].push(point.price);
+            }
+            for (const time in bucket) {
+              const avg = bucket[time].reduce((a, b) => a + b, 0) / bucket[time].length;
+              aggregated[symbol].push({ time, price: avg });
+            }
+          }
+          setHistory(aggregated);
+        }
+      } catch (err) {
+        console.error("Failed to fetch 24h history:", err);
+      }
+    };
+
     const fetchPrices = async () => {
       try {
         const res = await fetch(
-          "https://neov6backend.onrender.com/api/prices?symbols=BTCUSDT,ETHUSDT,BNBUSDT"
+          `https://neov6backend.onrender.com/api/prices?symbols=${symbols.join(",")}`
         );
         const data = await res.json();
         if (data.success) {
           setPrices(data.prices);
 
-          // Update history with new prices
           setHistory((prevHistory) => {
             const newHistory = { ...prevHistory };
-            for (const symbol in data.prices) {
-              if (!newHistory[symbol]) {
-                newHistory[symbol] = [];
-              }
-              // Add new data point with a timestamp
-              newHistory[symbol].push({
-                time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }), // Format for hour and minute
-                price: data.prices[symbol],
-              });
+            const now = roundToFiveMinutes(new Date());
+            const timeLabel = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
-              // Optional: Limit the number of data points to keep the chart manageable
-              // If you're collecting hourly, you might want to keep more data points
-              if (newHistory[symbol].length > 24) { // e.g., keep 24 hours of data
-                newHistory[symbol].shift(); // Remove the oldest data point
+            for (const symbol of symbols) {
+              if (!newHistory[symbol]) newHistory[symbol] = [];
+              const lastPoint = newHistory[symbol][newHistory[symbol].length - 1];
+              if (lastPoint && lastPoint.time === timeLabel) {
+                lastPoint.price = (lastPoint.price + data.prices[symbol]) / 2;
+              } else {
+                newHistory[symbol].push({ time: timeLabel, price: data.prices[symbol] });
               }
+
+              if (newHistory[symbol].length > 288) newHistory[symbol].shift();
             }
             return newHistory;
           });
@@ -51,10 +88,9 @@ export default function Dashboard() {
       }
     };
 
-    // --- Changed interval here ---
-    // Fetch prices every hour (3600000 milliseconds)
-    fetchPrices(); // Initial fetch
-    const interval = setInterval(fetchPrices, 3600000); // 1 hour
+    fetchHistory();
+    fetchPrices();
+    const interval = setInterval(fetchPrices, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -64,10 +100,7 @@ export default function Dashboard() {
         <h2 className="text-xl font-bold mb-4">📈 Live Prices</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {Object.entries(prices).map(([symbol, price]) => (
-            <div
-              key={symbol}
-              className="bg-white shadow rounded-2xl p-4 text-center"
-            >
+            <div key={symbol} className="bg-white shadow rounded-2xl p-4 text-center">
               <h3 className="font-bold text-lg">{symbol}</h3>
               <p className="text-2xl font-mono">
                 ${price !== null ? price.toFixed(2) : "..."}
@@ -77,9 +110,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Charts on the right */}
       <div className="flex-1">
-        <h2 className="text-xl font-bold mb-4">📊 Price Charts</h2>
+        <h2 className="text-xl font-bold mb-4">📊 Price Charts (24h)</h2>
         {Object.entries(history).map(([symbol, symbolHistory]) => (
           <div key={symbol} className="mb-6 bg-white p-4 rounded-2xl shadow">
             <h3 className="font-bold mb-2">{symbol}</h3>
@@ -87,17 +119,11 @@ export default function Dashboard() {
               <LineChart data={symbolHistory}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="time" />
-                <YAxis
-                  domain={['auto', 'auto']}
-                />
+                <YAxis domain={["auto", "auto"]} />
                 <Tooltip />
                 <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="price"
-                  stroke="#8884d8"
-                  dot={false}
-                />
+                <Line type="monotone" dataKey="price" stroke="#8884d8" dot={false} />
+                <Brush dataKey="time" height={30} stroke="#8884d8" />
               </LineChart>
             </ResponsiveContainer>
           </div>
