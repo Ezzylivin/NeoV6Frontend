@@ -1,9 +1,18 @@
 import { useEffect, useState } from "react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
 export default function Dashboard() {
   const [prices, setPrices] = useState({});
-  const [history, setHistory] = useState({}); // optional if you want chart data over time
+  const [history, setHistory] = useState({}); // Stores historical data for charts
 
   useEffect(() => {
     const fetchPrices = async () => {
@@ -12,14 +21,37 @@ export default function Dashboard() {
           "https://neov6backend.onrender.com/api/prices?symbols=BTCUSDT,ETHUSDT,BNBUSDT"
         );
         const data = await res.json();
-        if (data.success) setPrices(data.prices);
+        if (data.success) {
+          setPrices(data.prices);
+
+          // Update history with new prices
+          setHistory((prevHistory) => {
+            const newHistory = { ...prevHistory };
+            for (const symbol in data.prices) {
+              if (!newHistory[symbol]) {
+                newHistory[symbol] = [];
+              }
+              // Add new data point with a timestamp
+              newHistory[symbol].push({
+                time: new Date().toLocaleTimeString(), // Or a more robust timestamp
+                price: data.prices[symbol],
+              });
+
+              // Optional: Limit the number of data points to keep the chart manageable
+              if (newHistory[symbol].length > 30) {
+                newHistory[symbol].shift(); // Remove the oldest data point
+              }
+            }
+            return newHistory;
+          });
+        }
       } catch (err) {
         console.error("Failed to fetch prices:", err);
       }
     };
 
-    fetchPrices(); 
-    const interval = setInterval(fetchPrices, 5000); 
+    fetchPrices();
+    const interval = setInterval(fetchPrices, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -45,17 +77,24 @@ export default function Dashboard() {
       {/* Charts on the right */}
       <div className="flex-1">
         <h2 className="text-xl font-bold mb-4">📊 Price Charts</h2>
-        {Object.entries(prices).map(([symbol, price]) => (
+        {Object.entries(history).map(([symbol, symbolHistory]) => (
           <div key={symbol} className="mb-6 bg-white p-4 rounded-2xl shadow">
             <h3 className="font-bold mb-2">{symbol}</h3>
             <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={[{ name: "Now", price }]}>
+              <LineChart data={symbolHistory}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
+                <XAxis dataKey="time" /> {/* Use 'time' for X-axis */}
+                <YAxis
+                  domain={['auto', 'auto']} // Let Recharts determine the Y-axis scale dynamically
+                />
                 <Tooltip />
                 <Legend />
-                <Line type="monotone" dataKey="price" stroke="#8884d8" />
+                <Line
+                  type="monotone"
+                  dataKey="price"
+                  stroke="#8884d8"
+                  dot={false} // Optional: remove dots for a cleaner line chart
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
