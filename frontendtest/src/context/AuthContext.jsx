@@ -1,50 +1,22 @@
-// src/context/AuthContext.tsx
-import React, { createContext, useState, useEffect, useContext, ReactNode } from "react";
-import apiClient, { setAuthToken } from "../api/apiClient";
+// src/context/AuthContext.jsx
+import React, { createContext, useState, useEffect, useContext } from "react";
+import apiClient, { setAuthToken } from "../api/apiClient.js";
 
-// --- Types ---
-export interface User {
-  _id: string;
-  username: string;
-  email: string;
-  id: string; // normalized from _id
-}
+const AuthContext = createContext();
 
-interface AuthContextType {
-  user: User | null;
-  token: string | null;
-  isAuthenticated: boolean;
-  loading: boolean;
-  error: string | null;
-  initializing: boolean;
-  saveAuthData: (user: User, token: string) => void;
-  clearAuthData: () => void;
-  registerUser: (formData: Record<string, any>) => Promise<{ success: boolean }>;
-  loginUser: (formData: Record<string, any>) => Promise<{ success: boolean }>;
-}
-
-interface AuthProviderProps {
-  children: ReactNode;
-}
-
-// --- Context ---
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// --- Provider ---
-export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const [user, setUser] = useState<User | null>(() => {
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem("user");
     return savedUser ? JSON.parse(savedUser) : null;
   });
-  const [token, setTokenState] = useState<string | null>(() => localStorage.getItem("token") || null);
+  const [token, setTokenState] = useState(() => localStorage.getItem("token") || null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(null);
   const [initializing, setInitializing] = useState(true);
 
   const isAuthenticated = !!token;
 
-  // Save auth data
-  const saveAuthData = (userData: User, tokenData: string) => {
+  const saveAuthData = (userData, tokenData) => {
     const normalizedUser = { ...userData, id: userData._id };
     setUser(normalizedUser);
     setTokenState(tokenData);
@@ -55,7 +27,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setAuthToken(tokenData);
   };
 
-  // Clear auth data
   const clearAuthData = () => {
     setUser(null);
     setTokenState(null);
@@ -64,22 +35,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setAuthToken(null);
   };
 
-  // Sync token with axios headers
   useEffect(() => {
     setAuthToken(token);
   }, [token]);
 
-  // Validate token on startup
   useEffect(() => {
     const validateToken = async () => {
       if (!token) return setInitializing(false);
-
       try {
         setAuthToken(token);
-        const { data } = await apiClient.get<User>("/users/me");
+        const { data } = await apiClient.get("/users/me");
         setUser(data);
-      } catch (err: any) {
-        console.warn("Token invalid/expired, logging out.");
+      } catch {
         clearAuthData();
       } finally {
         setInitializing(false);
@@ -88,34 +55,32 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     validateToken();
   }, [token]);
 
-  // Register user
-  const registerUser = async (formData: Record<string, any>) => {
+  const registerUser = async (formData) => {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await apiClient.post<User & { token: string }>("/users/register", formData);
+      const { data } = await apiClient.post("/users/register", formData);
       const { token, ...userData } = data;
       saveAuthData(userData, token);
       return { success: true };
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || "Registration failed");
+    } catch (err) {
+      setError(err.response?.data?.message || "Registration failed");
       return { success: false };
     } finally {
       setLoading(false);
     }
   };
 
-  // Login user
-  const loginUser = async (formData: Record<string, any>) => {
+  const loginUser = async (formData) => {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await apiClient.post<User & { token: string }>("/users/login", formData);
+      const { data } = await apiClient.post("/users/login", formData);
       const { token, ...userData } = data;
       saveAuthData(userData, token);
       return { success: true };
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || "Login failed");
+    } catch (err) {
+      setError(err.response?.data?.message || "Login failed");
       return { success: false };
     } finally {
       setLoading(false);
@@ -142,9 +107,4 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   );
 };
 
-// --- Hook ---
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within an AuthProvider");
-  return context;
-};
+export const useAuth = () => useContext(AuthContext);
