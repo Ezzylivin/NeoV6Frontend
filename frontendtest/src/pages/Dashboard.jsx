@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   LineChart,
   Line,
@@ -14,13 +14,45 @@ import {
 export default function Dashboard() {
   const [prices, setPrices] = useState({});
   const [history, setHistory] = useState({});
-  const [zoomWindow, setZoomWindow] = useState({}); // tracks zoom for each symbol
+  const [zoomWindow, setZoomWindow] = useState({});
   const symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"];
+  const targetZoom = useRef({}); // target zoom window for animation
 
   const roundToFiveMinutes = (date) => {
     const ms = 1000 * 60 * 5;
     return new Date(Math.floor(date.getTime() / ms) * ms);
   };
+
+  // Animate zoom towards target
+  useEffect(() => {
+    const anim = setInterval(() => {
+      setZoomWindow((prev) => {
+        const newZoom = { ...prev };
+        let changed = false;
+        for (const symbol of symbols) {
+          if (!prev[symbol] || !targetZoom.current[symbol]) continue;
+          const { start: currStart, end: currEnd } = prev[symbol];
+          const { start: targetStart, end: targetEnd } = targetZoom.current[symbol];
+
+          const step = Math.ceil((targetEnd - targetStart) / 10); // step size
+          const newStart =
+            currStart < targetStart ? Math.min(currStart + step, targetStart) :
+            currStart > targetStart ? Math.max(currStart - step, targetStart) :
+            currStart;
+          const newEnd =
+            currEnd < targetEnd ? Math.min(currEnd + step, targetEnd) :
+            currEnd > targetEnd ? Math.max(currEnd - step, targetEnd) :
+            currEnd;
+
+          if (newStart !== currStart || newEnd !== currEnd) changed = true;
+          newZoom[symbol] = { start: newStart, end: newEnd };
+        }
+        if (!changed) clearInterval(anim);
+        return newZoom;
+      });
+    }, 30); // update every 30ms
+    return () => clearInterval(anim);
+  }, []);
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -49,13 +81,14 @@ export default function Dashboard() {
               const avg = bucket[time].reduce((a, b) => a + b, 0) / bucket[time].length;
               aggregated[symbol].push({ time, price: avg });
             }
-            initialZoom[symbol] = { start: 0, end: aggregated[symbol].length }; // full zoom
+            initialZoom[symbol] = { start: 0, end: aggregated[symbol].length };
           }
           setHistory(aggregated);
           setZoomWindow(initialZoom);
+          targetZoom.current = initialZoom;
         }
       } catch (err) {
-        console.error("Failed to fetch 24h history:", err);
+        console.error(err);
       }
     };
 
@@ -67,12 +100,10 @@ export default function Dashboard() {
         const data = await res.json();
         if (data.success) {
           setPrices(data.prices);
-
           setHistory((prevHistory) => {
             const newHistory = { ...prevHistory };
             const now = roundToFiveMinutes(new Date());
             const timeLabel = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-
             for (const symbol of symbols) {
               if (!newHistory[symbol]) newHistory[symbol] = [];
               const lastPoint = newHistory[symbol][newHistory[symbol].length - 1];
@@ -87,7 +118,7 @@ export default function Dashboard() {
           });
         }
       } catch (err) {
-        console.error("Failed to fetch prices:", err);
+        console.error(err);
       }
     };
 
@@ -97,34 +128,26 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
+  const setTarget = (symbol, newStart, newEnd) => {
+    targetZoom.current[symbol] = { start: newStart, end: newEnd };
+  };
+
   const zoomIn = (symbol) => {
-    setZoomWindow((prev) => {
-      const { start, end } = prev[symbol];
-      const delta = Math.floor((end - start) / 4);
-      return { ...prev, [symbol]: { start: start + delta, end: end - delta } };
-    });
+    const { start, end } = zoomWindow[symbol];
+    const delta = Math.floor((end - start) / 4);
+    setTarget(symbol, start + delta, end - delta);
   };
 
   const zoomOut = (symbol) => {
-    setZoomWindow((prev) => {
-      const fullLength = history[symbol]?.length || 0;
-      const { start, end } = prev[symbol];
-      const delta = Math.floor((end - start) / 2);
-      return {
-        ...prev,
-        [symbol]: {
-          start: Math.max(0, start - delta),
-          end: Math.min(fullLength, end + delta),
-        },
-      };
-    });
+    const fullLength = history[symbol]?.length || 0;
+    const { start, end } = zoomWindow[symbol];
+    const delta = Math.floor((end - start) / 2);
+    setTarget(symbol, Math.max(0, start - delta), Math.min(fullLength, end + delta));
   };
 
   const resetZoom = (symbol) => {
-    setZoomWindow((prev) => ({
-      ...prev,
-      [symbol]: { start: 0, end: history[symbol]?.length || 0 },
-    }));
+    const fullLength = history[symbol]?.length || 0;
+    setTarget(symbol, 0, fullLength);
   };
 
   return (
@@ -150,7 +173,6 @@ export default function Dashboard() {
           return (
             <div key={symbol} className="mb-6 bg-white p-4 rounded-2xl shadow">
               <h3 className="font-bold mb-2">{symbol}</h3>
-              {/* Zoom controls */}
               <div className="mb-2 flex gap-2">
                 <button
                   className="px-2 py-1 bg-blue-500 text-white rounded"
@@ -178,7 +200,7 @@ export default function Dashboard() {
                   <YAxis domain={["auto", "auto"]} />
                   <Tooltip />
                   <Legend />
-                  <Line type="monotone" dataKey="price" stroke="#8884d8" dot={false} />
+                  <Line type="monotone" dataKey="price" stroke="#8884d8" dot={false} isAnimationActive={true} />
                   <Brush dataKey="time" height={30} stroke="#8884d8" />
                 </LineChart>
               </ResponsiveContainer>
