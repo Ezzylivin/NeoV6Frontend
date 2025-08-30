@@ -1,6 +1,8 @@
 // File: src/pages/Backtests.jsx
 import React, { useEffect, useState } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
+import { useAuth } from "../context/AuthContext";
+
 
 const SYMBOLS = ["BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT"];
 const TIMEFRAMES = ["1m", "5m", "15m", "30m", "1h", "4h", "1d"];
@@ -17,9 +19,15 @@ export default function Backtests() {
   const [strategy, setStrategy] = useState(STRATEGIES[0]);
   const [risk, setRisk] = useState(RISKS[1]);
 
-  useEffect(() => {
-    fetchBacktests();
-  }, []);
+  const { user } = useAuth();
+
+
+useEffect(() => {
+  if (user?._id) {
+    fetchBacktests(user._id);
+  }
+}, [user]);
+
 
   const handleRun = async () => {
     await runBacktests({ symbol, timeframe, initialBalance, strategy, risk });
