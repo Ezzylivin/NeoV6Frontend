@@ -1,220 +1,53 @@
-import { useEffect, useState, useRef } from "react";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  Brush,
-  ReferenceDot,
-} from "recharts";
+import React, { useEffect } from "react";
+import { useAuth } from "../context/AuthContext";
+import { useBacktest } from "../hooks/useBacktest";
 
 export default function Dashboard() {
-  const [prices, setPrices] = useState({});
-  const [history, setHistory] = useState({});
-  const [zoomWindow, setZoomWindow] = useState({});
-  const symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"];
-  const targetZoom = useRef({});
+  const { user } = useAuth();
+  const { results, fetchBacktests } = useBacktest();
 
-  const roundToFiveMinutes = (date) => {
-    const ms = 1000 * 60 * 5;
-    return new Date(Math.floor(date.getTime() / ms) * ms);
-  };
-
-  // Animate zoom smoothly
+  // ✅ Fetch backtests for this user on load
   useEffect(() => {
-    const anim = setInterval(() => {
-      setZoomWindow((prev) => {
-        const newZoom = { ...prev };
-        let changed = false;
-        for (const symbol of symbols) {
-          if (!prev[symbol] || !targetZoom.current[symbol]) continue;
-          const { start: currStart, end: currEnd } = prev[symbol];
-          const { start: targetStart, end: targetEnd } = targetZoom.current[symbol];
-
-          const step = Math.ceil((targetEnd - targetStart) / 10);
-          const newStart =
-            currStart < targetStart ? Math.min(currStart + step, targetStart) :
-            currStart > targetStart ? Math.max(currStart - step, targetStart) :
-            currStart;
-          const newEnd =
-            currEnd < targetEnd ? Math.min(currEnd + step, targetEnd) :
-            currEnd > targetEnd ? Math.max(currEnd - step, targetEnd) :
-            currEnd;
-
-          if (newStart !== currStart || newEnd !== currEnd) changed = true;
-          newZoom[symbol] = { start: newStart, end: newEnd };
-        }
-        if (!changed) clearInterval(anim);
-        return newZoom;
-      });
-    }, 30);
-    return () => clearInterval(anim);
-  }, []);
-
-  // Fetch historical 24h data on startup
-  useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        const res = await fetch(
-          `https://neov6backend.onrender.com/api/prices/history?symbols=${symbols.join(
-            ","
-          )}&period=24h`
-        );
-        const data = await res.json();
-        if (data.success) {
-          const aggregated = {};
-          const initialZoom = {};
-          for (const symbol of symbols) {
-            aggregated[symbol] = [];
-
-            // Aggregate into 5-minute buckets
-            const bucket = {};
-            for (const point of data.history[symbol]) {
-              const time = roundToFiveMinutes(new Date(point.time)).toLocaleTimeString("en-US", {
-                hour: "numeric",
-                minute: "2-digit",
-              });
-              if (!bucket[time]) bucket[time] = [];
-              bucket[time].push(point.price);
-            }
-            for (const time in bucket) {
-              const avg = bucket[time].reduce((a, b) => a + b, 0) / bucket[time].length;
-              aggregated[symbol].push({ time, price: avg });
-            }
-            initialZoom[symbol] = { start: 0, end: aggregated[symbol].length };
-          }
-          setHistory(aggregated);
-          setZoomWindow(initialZoom);
-          targetZoom.current = initialZoom;
-        }
-      } catch (err) {
-        console.error("Failed to fetch 24h history:", err);
-      }
-    };
-
-    fetchHistory();
-  }, []);
-
-  // Fetch live prices every minute
-  useEffect(() => {
-    const fetchPrices = async () => {
-      try {
-        const res = await fetch(
-          `https://neov6backend.onrender.com/api/prices?symbols=${symbols.join(",")}`
-        );
-        const data = await res.json();
-        if (data.success) {
-          setPrices(data.prices);
-          setHistory((prevHistory) => {
-            const newHistory = { ...prevHistory };
-            const now = roundToFiveMinutes(new Date());
-            const timeLabel = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-
-            for (const symbol of symbols) {
-              if (!newHistory[symbol]) newHistory[symbol] = [];
-              const lastPoint = newHistory[symbol][newHistory[symbol].length - 1];
-              if (lastPoint && lastPoint.time === timeLabel) {
-                lastPoint.price = (lastPoint.price + data.prices[symbol]) / 2;
-              } else {
-                newHistory[symbol].push({ time: timeLabel, price: data.prices[symbol] });
-              }
-              if (newHistory[symbol].length > 288) newHistory[symbol].shift(); // keep last 24h (~5-min interval)
-            }
-            return newHistory;
-          });
-        }
-      } catch (err) {
-        console.error("Failed to fetch live prices:", err);
-      }
-    };
-
-    fetchPrices();
-    const interval = setInterval(fetchPrices, 60000); // every minute
-    return () => clearInterval(interval);
-  }, []);
-
-  const setTarget = (symbol, newStart, newEnd) => {
-    targetZoom.current[symbol] = { start: newStart, end: newEnd };
-  };
-
-  const zoomIn = (symbol) => {
-    const { start, end } = zoomWindow[symbol];
-    const delta = Math.floor((end - start) / 4);
-    setTarget(symbol, start + delta, end - delta);
-  };
-
-  const zoomOut = (symbol) => {
-    const fullLength = history[symbol]?.length || 0;
-    const { start, end } = zoomWindow[symbol];
-    const delta = Math.floor((end - start) / 2);
-    setTarget(symbol, Math.max(0, start - delta), Math.min(fullLength, end + delta));
-  };
-
-  const resetZoom = (symbol) => {
-    const fullLength = history[symbol]?.length || 0;
-    setTarget(symbol, 0, fullLength);
-  };
+    if (user?._id) {
+      fetchBacktests(user._id);
+    }
+  }, [user]);
 
   return (
-    <div className="p-6 flex gap-4">
-      <div className="flex-1">
-        <h2 className="text-xl font-bold mb-4">📈 Live Prices</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Object.entries(prices).map(([symbol, price]) => (
-            <div key={symbol} className="bg-white shadow rounded-2xl p-4 text-center">
-              <h3 className="font-bold text-lg">{symbol}</h3>
-              <p className="text-2xl font-mono">
-                ${price !== null ? price.toFixed(2) : "..."}
-              </p>
-            </div>
-          ))}
-        </div>
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-4">Welcome, {user?.username}</h1>
+
+      {/* --- Backtests Preview --- */}
+      <div className="mb-6">
+        <h2 className="text-lg font-semibold mb-2">Recent Backtests</h2>
+        {results.length === 0 ? (
+          <p className="text-gray-500">No backtests found. Run one from the Backtests page.</p>
+        ) : (
+          <ul>
+            {results.slice(0, 5).map((r, i) => (
+              <li key={i} className="border-b py-2">
+                <strong>{r.symbol}</strong> {r.timeframe} → Final Balance:{" "}
+                {r.finalBalance}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
-      <div className="flex-1">
-        <h2 className="text-xl font-bold mb-4">📊 Price Charts (24h)</h2>
-        {Object.entries(history).map(([symbol, symbolHistory]) => {
-          const { start, end } = zoomWindow[symbol] || { start: 0, end: symbolHistory.length };
-          const latestPoint = symbolHistory[symbolHistory.length - 1];
-          return (
-            <div key={symbol} className="mb-6 bg-white p-4 rounded-2xl shadow">
-              <h3 className="font-bold mb-2">{symbol}</h3>
-
-              <div className="mb-2 flex gap-2">
-                <button className="px-2 py-1 bg-blue-500 text-white rounded" onClick={() => zoomIn(symbol)}>Zoom In</button>
-                <button className="px-2 py-1 bg-blue-500 text-white rounded" onClick={() => zoomOut(symbol)}>Zoom Out</button>
-                <button className="px-2 py-1 bg-gray-500 text-white rounded" onClick={() => resetZoom(symbol)}>Reset</button>
-              </div>
-
-           <ResponsiveContainer width="100%" height={200}>
-  <LineChart data={symbolHistory.slice(start, end)}>
-    <CartesianGrid strokeDasharray="3 3" />
-    <XAxis
-      dataKey="time"
-      tickFormatter={(timeStr, index) => {
-        // Show label only on the hour
-        const [hour, minute] = timeStr.split(":");
-        if (minute === "00") return `${hour}:00`;
-        return ""; // hide other ticks
-      }}
-      interval={0} // render every tick
-    />
-    <YAxis domain={["auto", "auto"]} />
-    <Tooltip />
-    <Legend />
-    <Line type="monotone" dataKey="price" stroke="#8884d8" dot={false} isAnimationActive={true} />
-    {latestPoint && <ReferenceDot x={latestPoint.time} y={latestPoint.price} r={5} fill="red" stroke="none" />}
-    <Brush dataKey="time" height={30} stroke="#8884d8" />
-  </LineChart>
-</ResponsiveContainer>
-
-            </div>
-          );
-        })}
+      {/* --- Quick Links --- */}
+      <div className="flex gap-4">
+        <a
+          href="/backtests"
+          className="bg-blue-600 text-white px-4 py-2 rounded shadow"
+        >
+          Go to Backtests
+        </a>
+        <a
+          href="/tradingbot"
+          className="bg-green-600 text-white px-4 py-2 rounded shadow"
+        >
+          Go to Trading Bot
+        </a>
       </div>
     </div>
   );
