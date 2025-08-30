@@ -33,12 +33,13 @@ export default function Dashboard() {
               }
               // Add new data point with a timestamp
               newHistory[symbol].push({
-                time: new Date().toLocaleTimeString(), // Or a more robust timestamp
+                time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }), // Format for hour and minute
                 price: data.prices[symbol],
               });
 
               // Optional: Limit the number of data points to keep the chart manageable
-              if (newHistory[symbol].length > 30) {
+              // If you're collecting hourly, you might want to keep more data points
+              if (newHistory[symbol].length > 24) { // e.g., keep 24 hours of data
                 newHistory[symbol].shift(); // Remove the oldest data point
               }
             }
@@ -50,8 +51,10 @@ export default function Dashboard() {
       }
     };
 
-    fetchPrices();
-    const interval = setInterval(fetchPrices, 5000);
+    // --- Changed interval here ---
+    // Fetch prices every hour (3600000 milliseconds)
+    fetchPrices(); // Initial fetch
+    const interval = setInterval(fetchPrices, 3600000); // 1 hour
     return () => clearInterval(interval);
   }, []);
 
@@ -83,9 +86,9 @@ export default function Dashboard() {
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={symbolHistory}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" /> {/* Use 'time' for X-axis */}
+                <XAxis dataKey="time" />
                 <YAxis
-                  domain={['auto', 'auto']} // Let Recharts determine the Y-axis scale dynamically
+                  domain={['auto', 'auto']}
                 />
                 <Tooltip />
                 <Legend />
@@ -93,7 +96,7 @@ export default function Dashboard() {
                   type="monotone"
                   dataKey="price"
                   stroke="#8884d8"
-                  dot={false} // Optional: remove dots for a cleaner line chart
+                  dot={false}
                 />
               </LineChart>
             </ResponsiveContainer>
