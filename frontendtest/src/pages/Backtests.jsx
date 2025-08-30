@@ -8,7 +8,7 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
 const FALLBACK_OPTIONS = {
   symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
   timeframes: ["1m", "5m", "15m", "1h", "4h", "1d"],
-  balances: [100, 500, 1000, 5000, 10000],
+  balances: [100, 300, 500, 1000, 5000, 10000],
   strategies: ["SMA", "EMA", "RSI", "MACD"],
   risks: ["Low", "Medium", "High"],
 };
