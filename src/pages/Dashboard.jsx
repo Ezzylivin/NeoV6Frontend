@@ -1,13 +1,6 @@
 // File: src/pages/Dashboard.jsx
 import React, { useState, useEffect, useRef } from "react";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-} from "recharts";
+import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { createChart } from "lightweight-charts";
 
 const allSymbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"];
@@ -17,21 +10,17 @@ export default function Dashboard() {
   const [prices, setPrices] = useState({});
   const [history, setHistory] = useState({});
   const [candles, setCandles] = useState({});
-  const [period, setPeriod] = useState(24); // hours
+  const [period, setPeriod] = useState(24);       // hours
   const [interval, setIntervalSec] = useState(60); // seconds
-
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
-  const seriesRef = useRef(null);
 
   // --- Fetch live prices ---
   useEffect(() => {
     const fetchLive = async () => {
       try {
         const API_URL = import.meta.env.VITE_API_URL;
-        const res = await fetch(
-          `${API_URL}/prices/live?symbols=${allSymbols.join(",")}`
-        );
+        const res = await fetch(`${API_URL}/prices/live?symbols=${allSymbols.join(",")}`);
         const data = await res.json();
         if (data.success) setPrices(data.prices);
       } catch (err) {
@@ -53,8 +42,7 @@ export default function Dashboard() {
           `${API_URL}/prices/history?symbols=${selectedSymbol}&period=${period}&interval=${interval}`
         );
         const data = await res.json();
-        if (data.success)
-          setHistory({ [selectedSymbol]: data.history[selectedSymbol] || [] });
+        if (data.success) setHistory({ [selectedSymbol]: data.history[selectedSymbol] || [] });
       } catch (err) {
         console.error("Failed to fetch history:", err);
       }
@@ -71,8 +59,7 @@ export default function Dashboard() {
           `${API_URL}/prices/candles?symbols=${selectedSymbol}&period=${period}&interval=${interval}`
         );
         const data = await res.json();
-        if (data.success)
-          setCandles({ [selectedSymbol]: data.candles[selectedSymbol] || [] });
+        if (data.success) setCandles({ [selectedSymbol]: data.candles[selectedSymbol] || [] });
       } catch (err) {
         console.error("Failed to fetch candles:", err);
       }
@@ -80,71 +67,33 @@ export default function Dashboard() {
     fetchCandles();
   }, [selectedSymbol, period, interval]);
 
-  // --- Setup candlestick chart ---
+  // --- Render candlestick chart ---
   useEffect(() => {
-    if (!chartContainerRef.current) return;
+    if (!chartContainerRef.current || !candles[selectedSymbol] || !candles[selectedSymbol].length) return;
 
-    // Clean up old chart before creating new one
+    // Clear old chart
     if (chartRef.current) {
       chartRef.current.remove();
-      chartRef.current = null;
-      seriesRef.current = null;
     }
 
     // Create chart
-    chartRef.current = createChart(chartContainerRef.current, {
-      width: chartContainerRef.current.clientWidth,
-      height: 300,
-      layout: {
-        background: { color: "#0f0f0f" },
-        textColor: "#fff",
-      },
-      grid: {
-        vertLines: { color: "#333" },
-        horzLines: { color: "#333" },
-      },
-    });
+    const chart = createChart(chartContainerRef.current, { width: 600, height: 300 });
+    const series = chart.addCandlestickSeries();
 
-    seriesRef.current = chartRef.current.addCandlestickSeries({
-      upColor: "#26a69a",
-      downColor: "#ef5350",
-      borderVisible: false,
-      wickUpColor: "#26a69a",
-      wickDownColor: "#ef5350",
-    });
-
-    const handleResize = () => {
-      chartRef.current.applyOptions({
-        width: chartContainerRef.current.clientWidth,
-      });
-    };
-    window.addEventListener("resize", handleResize);
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      if (chartRef.current) {
-        chartRef.current.remove();
-        chartRef.current = null;
-      }
-    };
-  }, [selectedSymbol]); // recreate when symbol changes
-
-  // --- Update candlestick data ---
-  useEffect(() => {
-    if (!seriesRef.current || !candles[selectedSymbol]) return;
-
-    const data = candles[selectedSymbol].map((c) => ({
-      time:
-        typeof c.time === "number"
-          ? c.time
-          : Math.floor(new Date(c.time).getTime() / 1000),
+    const data = candles[selectedSymbol].map(c => ({
+      time: typeof c.time === "number" ? c.time : Math.floor(new Date(c.time).getTime() / 1000),
       open: c.open,
       high: c.high,
       low: c.low,
-      close: c.close,
+      close: c.close
     }));
 
-    seriesRef.current.setData(data);
+    series.setData(data);
+    chartRef.current = chart;
+
+    return () => {
+      chart.remove();
+    };
   }, [candles, selectedSymbol]);
 
   return (
@@ -157,10 +106,10 @@ export default function Dashboard() {
           Symbol:
           <select
             value={selectedSymbol}
-            onChange={(e) => setSelectedSymbol(e.target.value)}
+            onChange={e => setSelectedSymbol(e.target.value)}
             style={{ marginLeft: 10 }}
           >
-            {allSymbols.map((s) => (
+            {allSymbols.map(s => (
               <option key={s} value={s}>
                 {s}
               </option>
@@ -172,10 +121,10 @@ export default function Dashboard() {
           Period (hours):
           <select
             value={period}
-            onChange={(e) => setPeriod(parseInt(e.target.value))}
+            onChange={e => setPeriod(parseInt(e.target.value))}
             style={{ marginLeft: 10 }}
           >
-            {[1, 6, 12, 24, 72].map((p) => (
+            {[1, 6, 12, 24, 72].map(p => (
               <option key={p} value={p}>
                 {p}h
               </option>
@@ -187,10 +136,10 @@ export default function Dashboard() {
           Interval (seconds):
           <select
             value={interval}
-            onChange={(e) => setIntervalSec(parseInt(e.target.value))}
+            onChange={e => setIntervalSec(parseInt(e.target.value))}
             style={{ marginLeft: 10 }}
           >
-            {[10, 30, 60, 300, 900, 3600].map((i) => (
+            {[10, 30, 60, 300, 900, 3600].map(i => (
               <option key={i} value={i}>
                 {i}s
               </option>
@@ -201,26 +150,22 @@ export default function Dashboard() {
 
       <h2>Live Price</h2>
       <div style={{ marginBottom: 30 }}>
-        <strong>{selectedSymbol}:</strong>{" "}
-        {prices[selectedSymbol] || "Loading..."}
+        <strong>{selectedSymbol}:</strong> {prices[selectedSymbol] || "Loading..."}
       </div>
 
       <h2>Price History</h2>
       <div style={{ marginBottom: 50 }}>
         <LineChart width={600} height={300} data={history[selectedSymbol] || []}>
           <CartesianGrid strokeDasharray="3 3" />
-          <XAxis
-            dataKey="time"
-            tickFormatter={(t) => new Date(t).toLocaleTimeString()}
-          />
+          <XAxis dataKey="time" tickFormatter={t => new Date(t).toLocaleTimeString()} />
           <YAxis />
-          <Tooltip labelFormatter={(t) => new Date(t).toLocaleString()} />
+          <Tooltip labelFormatter={t => new Date(t).toLocaleString()} />
           <Line type="monotone" dataKey="price" stroke="#8884d8" dot={false} />
         </LineChart>
       </div>
 
       <h2>Candlestick Chart</h2>
-      <div ref={chartContainerRef} style={{ width: "100%", height: 300 }} />
+      <div ref={chartContainerRef}></div>
     </div>
   );
 }
