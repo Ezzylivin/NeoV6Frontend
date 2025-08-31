@@ -1,21 +1,25 @@
 // src/pages/AuthPage.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
 
 export default function AuthPage() {
   const navigate = useNavigate();
-  const { loginUser, registerUser, loading, error } = useAuth();
+  const { loginUser, registerUser, loading, error, isAuthenticated, initializing } = useAuth();
 
   const [isRegister, setIsRegister] = useState(false);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!initializing && isAuthenticated) navigate('/dashboard');
+  }, [isAuthenticated, initializing, navigate]);
+
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
-    // Use identifier (username or email) for login
-    const identifier = username || email;
+    const identifier = username || email; // allow username or email login
     const result = await loginUser({ identifier, password });
     if (result.success) navigate('/dashboard');
   };
@@ -28,11 +32,19 @@ export default function AuthPage() {
 
   const toggleForm = () => {
     setIsRegister(!isRegister);
-    // Only clear fields when switching forms
     setUsername('');
     setEmail('');
     setPassword('');
   };
+
+  // Show spinner while validating token
+  if (initializing) {
+    return (
+      <div className="min-h-screen flex justify-center items-center bg-black text-white">
+        <p>Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex justify-center items-center bg-black text-white">
