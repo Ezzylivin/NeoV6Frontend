@@ -68,17 +68,17 @@ export default function Dashboard() {
     fetchCandles();
   }, [selectedSymbol, period, interval]);
 
-  // --- Render candlestick chart ---
+  // --- Render candlestick chart safely ---
   useEffect(() => {
-    if (!chartContainerRef.current || !candles[selectedSymbol] || !candles[selectedSymbol].length) return;
+    const candleData = candles[selectedSymbol];
+    if (!chartContainerRef.current || !candleData || !candleData.length) return;
 
-    // Clear old chart
+    // Remove previous chart if exists
     if (chartRef.current) {
       chartRef.current.remove();
       chartRef.current = null;
     }
 
-    // Create new chart
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
       height: 300,
@@ -86,18 +86,16 @@ export default function Dashboard() {
     chartRef.current = chart;
 
     const series = chart.addCandlestickSeries();
+    series.setData(
+      candleData.map(c => ({
+        time: typeof c.time === "number" ? c.time : Math.floor(new Date(c.time).getTime() / 1000),
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+      }))
+    );
 
-    const data = candles[selectedSymbol].map(c => ({
-      time: typeof c.time === "number" ? c.time : Math.floor(new Date(c.time).getTime() / 1000),
-      open: c.open,
-      high: c.high,
-      low: c.low,
-      close: c.close,
-    }));
-
-    series.setData(data);
-
-    // Resize handling
     const resizeObserver = new ResizeObserver(entries => {
       for (let entry of entries) {
         chart.applyOptions({ width: entry.contentRect.width });
@@ -113,75 +111,77 @@ export default function Dashboard() {
   }, [candles, selectedSymbol]);
 
   return (
-    <div>
-      <h1>Crypto Dashboard</h1>
+    <div className="p-6">
+      <h1 className="text-3xl font-bold mb-4">Crypto Dashboard</h1>
 
       {/* --- Dropdown selectors --- */}
-      <div style={{ marginBottom: 20 }}>
+      <div className="mb-6 flex flex-wrap gap-6">
         <label>
           Symbol:
           <select
             value={selectedSymbol}
             onChange={e => setSelectedSymbol(e.target.value)}
-            style={{ marginLeft: 10 }}
+            className="ml-2 p-1 bg-gray-800 text-white rounded"
           >
             {allSymbols.map(s => (
-              <option key={s} value={s}>
-                {s}
-              </option>
+              <option key={s} value={s}>{s}</option>
             ))}
           </select>
         </label>
 
-        <label style={{ marginLeft: 30 }}>
+        <label>
           Period (hours):
           <select
             value={period}
             onChange={e => setPeriod(parseInt(e.target.value))}
-            style={{ marginLeft: 10 }}
+            className="ml-2 p-1 bg-gray-800 text-white rounded"
           >
             {[1, 6, 12, 24, 72].map(p => (
-              <option key={p} value={p}>
-                {p}h
-              </option>
+              <option key={p} value={p}>{p}h</option>
             ))}
           </select>
         </label>
 
-        <label style={{ marginLeft: 30 }}>
+        <label>
           Interval (seconds):
           <select
             value={interval}
             onChange={e => setIntervalSec(parseInt(e.target.value))}
-            style={{ marginLeft: 10 }}
+            className="ml-2 p-1 bg-gray-800 text-white rounded"
           >
             {[10, 30, 60, 300, 900, 3600].map(i => (
-              <option key={i} value={i}>
-                {i}s
-              </option>
+              <option key={i} value={i}>{i}s</option>
             ))}
           </select>
         </label>
       </div>
 
-      <h2>Live Price</h2>
-      <div style={{ marginBottom: 30 }}>
-        <strong>{selectedSymbol}:</strong> {prices[selectedSymbol] || "Loading..."}
+      {/* --- Live Price --- */}
+      <div className="mb-6">
+        <strong>{selectedSymbol}:</strong> {prices[selectedSymbol] ?? "Loading..."}
       </div>
 
-      <h2>Price History</h2>
-      <div style={{ marginBottom: 50 }}>
-        <LineChart width={600} height={300} data={history[selectedSymbol] || []}>
+      {/* --- Price History --- */}
+      <h2 className="text-xl font-semibold mb-2">Price History</h2>
+      {history[selectedSymbol] && history[selectedSymbol].length > 0 ? (
+        <LineChart width={600} height={300} data={history[selectedSymbol]}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="time" tickFormatter={t => new Date(t).toLocaleTimeString()} />
           <YAxis />
           <Tooltip labelFormatter={t => new Date(t).toLocaleString()} />
           <Line type="monotone" dataKey="price" stroke="#8884d8" dot={false} />
         </LineChart>
-      </div>
+      ) : (
+        <p className="text-gray-400 italic">No price history available for {selectedSymbol}.</p>
+      )}
 
-      <h2>Candlestick Chart</h2>
-      <div ref={chartContainerRef} style={{ width: "100%", height: "300px" }}></div>
+      {/* --- Candlestick Chart --- */}
+      <h2 className="text-xl font-semibold mt-6 mb-2">Candlestick Chart</h2>
+      {candles[selectedSymbol] && candles[selectedSymbol].length > 0 ? (
+        <div ref={chartContainerRef} style={{ width: "100%", height: "300px" }}></div>
+      ) : (
+        <p className="text-gray-400 italic">No candlestick data available for {selectedSymbol}.</p>
+      )}
     </div>
   );
 }
