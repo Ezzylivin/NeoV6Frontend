@@ -55,11 +55,14 @@ export const AuthProvider = ({ children }) => {
     validateToken();
   }, [token]);
 
-  const registerUser = async (formData) => {
+  // --- REGISTER ---
+  const registerUser = async ({ username, email, password }) => {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await apiClient.post("/users/register", formData);
+      const payload = { username, email, password };
+      const { data } = await apiClient.post("/users/register", payload);
+      // Backend should return { token, username, email, walletBalance, _id }
       const { token, ...userData } = data;
       saveAuthData(userData, token);
       return { success: true };
@@ -71,11 +74,14 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const loginUser = async (formData) => {
+  // --- LOGIN ---
+  const loginUser = async ({ identifier, password }) => {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await apiClient.post("/users/login", formData);
+      const payload = { identifier, password };
+      const { data } = await apiClient.post("/users/login", payload);
+      // Backend should return { token, username, email, walletBalance, _id }
       const { token, ...userData } = data;
       saveAuthData(userData, token);
       return { success: true };
