@@ -68,33 +68,47 @@ export default function Dashboard() {
   }, [selectedSymbol, period, interval]);
 
   // --- Render candlestick chart ---
-  useEffect(() => {
-    if (!chartContainerRef.current || !candles[selectedSymbol] || !candles[selectedSymbol].length) return;
+ // --- Render candlestick chart ---
+useEffect(() => {
+  if (!chartContainerRef.current || !candles[selectedSymbol] || !candles[selectedSymbol].length) return;
 
-    // Clear old chart
-    if (chartRef.current) {
-      chartRef.current.remove();
+  // Clear old chart
+  if (chartRef.current) {
+    chartRef.current.remove();
+  }
+
+  // Create chart with container size
+  const chart = createChart(chartContainerRef.current, {
+    width: chartContainerRef.current.clientWidth,
+    height: 300,
+  });
+  const series = chart.addCandlestickSeries();
+
+  const data = candles[selectedSymbol].map(c => ({
+    time: typeof c.time === "number" ? c.time : Math.floor(new Date(c.time).getTime() / 1000),
+    open: c.open,
+    high: c.high,
+    low: c.low,
+    close: c.close
+  }));
+
+  series.setData(data);
+  chartRef.current = chart;
+
+  // --- Resize handling ---
+  const resizeObserver = new ResizeObserver(entries => {
+    for (let entry of entries) {
+      chart.applyOptions({ width: entry.contentRect.width });
     }
+  });
+  resizeObserver.observe(chartContainerRef.current);
 
-    // Create chart
-    const chart = createChart(chartContainerRef.current, { width: 600, height: 300 });
-    const series = chart.addCandlestickSeries();
+  return () => {
+    resizeObserver.disconnect();
+    chart.remove();
+  };
+}, [candles, selectedSymbol]);
 
-    const data = candles[selectedSymbol].map(c => ({
-      time: typeof c.time === "number" ? c.time : Math.floor(new Date(c.time).getTime() / 1000),
-      open: c.open,
-      high: c.high,
-      low: c.low,
-      close: c.close
-    }));
-
-    series.setData(data);
-    chartRef.current = chart;
-
-    return () => {
-      chart.remove();
-    };
-  }, [candles, selectedSymbol]);
 
   return (
     <div>
@@ -165,7 +179,8 @@ export default function Dashboard() {
       </div>
 
       <h2>Candlestick Chart</h2>
-      <div ref={chartContainerRef}></div>
+<div ref={chartContainerRef} style={{ width: "100%", height: "300px" }}></div>
+
     </div>
   );
 }
