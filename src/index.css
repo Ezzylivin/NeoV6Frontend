@@ -1,0 +1,123 @@
+/* File: src/index.css */
+
+:root {
+  --bg-color: #000000; /* Pure black background */
+  --text-color: #ffffff;
+  --accent-color: #3b82f6;
+  --error-color: #ef4444;
+  --input-border-color: #4a5568; /* A subtle border for inputs */
+}
+
+/* Ensure html, body, and #root take full height and have a pure black background */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  /* Removed border: none !important; as universal border is removed */
+}
+
+body {
+  /* You can still keep font-family here if you prefer body to control it,
+     or rely solely on html/body/root for base styles. */
+}
+
+/* --- NO UNIVERSAL BORDERS --- */
+/* The '*' selector and its border rule are removed.
+   Borders will now only appear where explicitly defined (e.g., in your React component JSX
+   like border border-gray-700, or specific CSS rules below). */
+
+/* Basic box-sizing reset is still good practice */
+* {
+  box-sizing: border-box; 
+}
+
+
+a {
+  color: var(--accent-color);
+  text-decoration: none;
+}
+
+button {
+  background-color: var(--accent-color);
+  color: #fff;
+  border: none; /* Reverted to no border by default for buttons */
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+input, select, textarea {
+  padding: 0.5rem;
+  border-radius: 4px;
+  border: 1px solid var(--input-border-color); /* Applied a subtle border to inputs */
+  background-color: #1a202c; /* A slightly lighter dark background for input fields */
+  color: var(--text-color); /* Ensure text in inputs is white */
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  /* width: 100%; -- THIS IS THE KEY CHANGE FOR INPUTS */
+  /* Remove width: 100% here to allow inputs to be naturally sized or controlled by parent flex/grid */
+  /* If you want all inputs to be specific width, define it here: */
+  /* max-width: 300px; */ /* Example: set a max-width for ALL inputs */
+}
+
+/* Specific styling for inputs that you want to be "cut off" (i.e., not full width) */
+/* You will need to apply this class to your email/password inputs in the JSX */
+.auth-input {
+  width: 100%; /* Default to 100% inside its parent */
+  max-width: 300px; /* Limit max width for a "cut off" effect */
+  margin-left: auto; /* Center the input if its parent is flex/grid */
+  margin-right: auto; /* Center the input if its parent is flex/grid */
+  display: block; /* Ensure it behaves like a block element for margin auto to work */
+}
+
+
+.container {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: auto; /* Centers horizontally */
+  /* Removed flex properties here if you want to apply them at the page component level for greater control */
+}
+
+/* For generic centering of page content, you would typically wrap your page components
+   in a div with these styles, or apply them to the top-level div in App.jsx */
+.page-wrapper {
+  min-height: 100vh; /* Ensure it takes full viewport height */
+  display: flex;
+  justify-content: center; /* Center horizontally */
+  align-items: center;   /* Center vertically */
+  background-color: var(--bg-color); /* Ensure wrapper itself is pure black */
+  /* Removed border here */
+}
+
+h1, h2, h3 {
+  margin-top: 0;
+}
+
+.loading {
+  text-align: center;
+  font-size: 1.2rem;
+  padding: 2rem;
+}
+
+.error {
+  color: var(--error-color);
+  font-weight: bold;
+  margin-top: 1rem;
+}
+
+.card {
+  background: #1e293b;
+  padding: 1rem;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  box-shadow: 0 0 10px rgba(0,0,0,0.2);
+  border: 1px solid var(--input-border-color); /* Add a border to cards */
+}
