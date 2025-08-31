@@ -45,7 +45,7 @@ export const AuthProvider = ({ children }) => {
       try {
         setAuthToken(token);
         const { data } = await apiClient.get("/users/me");
-        setUser(data);
+        setUser(data.user || data); // in case backend wraps user in 'user'
       } catch {
         clearAuthData();
       } finally {
@@ -60,10 +60,9 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     setError(null);
     try {
-      const payload = { username, email, password };
-      const { data } = await apiClient.post("/users/register", payload);
-      // Backend should return { token, username, email, walletBalance, _id }
-      const { token, ...userData } = data;
+      const { data } = await apiClient.post("/users/register", { username, email, password });
+      // Backend returns { success: true, user: { token, username, email, walletBalance, _id } }
+      const { token, ...userData } = data.user;
       saveAuthData(userData, token);
       return { success: true };
     } catch (err) {
@@ -79,10 +78,9 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     setError(null);
     try {
-      const payload = { identifier, password };
-      const { data } = await apiClient.post("/users/login", payload);
-      // Backend should return { token, username, email, walletBalance, _id }
-      const { token, ...userData } = data;
+      const { data } = await apiClient.post("/users/login", { identifier, password });
+      // Backend returns { success: true, user: { token, username, email, walletBalance, _id } }
+      const { token, ...userData } = data.user;
       saveAuthData(userData, token);
       return { success: true };
     } catch (err) {
