@@ -1,4 +1,3 @@
-// src/context/AuthContext.jsx
 import React, { createContext, useState, useEffect, useContext } from "react";
 import apiClient, { setAuthToken } from "../api/apiClient.js";
 
@@ -20,10 +19,8 @@ export const AuthProvider = ({ children }) => {
     const normalizedUser = { ...userData, id: userData._id };
     setUser(normalizedUser);
     setTokenState(tokenData);
-
     localStorage.setItem("user", JSON.stringify(normalizedUser));
     localStorage.setItem("token", tokenData);
-
     setAuthToken(tokenData);
   };
 
@@ -43,10 +40,10 @@ export const AuthProvider = ({ children }) => {
     const validateToken = async () => {
       if (!token) return setInitializing(false);
       try {
-        setAuthToken(token);
         const { data } = await apiClient.get("/users/me");
-        setUser(data.user || data); // in case backend wraps user in 'user'
-      } catch {
+        setUser(data.user || data);
+      } catch (err) {
+        console.error("Token validation failed:", err.response?.data || err.message);
         clearAuthData();
       } finally {
         setInitializing(false);
@@ -60,12 +57,13 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     setError(null);
     try {
+      console.log("Register payload:", { username, email, password });
       const { data } = await apiClient.post("/users/register", { username, email, password });
-      // Backend returns { success: true, user: { token, username, email, walletBalance, _id } }
-      const { token, ...userData } = data.user;
-      saveAuthData(userData, token);
+      console.log("Register response:", data);
+      saveAuthData(data, data.token);
       return { success: true };
     } catch (err) {
+      console.error("Register failed:", err.response?.data || err.message);
       setError(err.response?.data?.message || "Registration failed");
       return { success: false };
     } finally {
@@ -78,12 +76,13 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     setError(null);
     try {
+      console.log("Login payload:", { identifier, password });
       const { data } = await apiClient.post("/users/login", { identifier, password });
-      // Backend returns { success: true, user: { token, username, email, walletBalance, _id } }
-      const { token, ...userData } = data.user;
-      saveAuthData(userData, token);
+      console.log("Login response:", data);
+      saveAuthData(data, data.token);
       return { success: true };
     } catch (err) {
+      console.error("Login failed:", err.response?.data || err.message);
       setError(err.response?.data?.message || "Login failed");
       return { success: false };
     } finally {
