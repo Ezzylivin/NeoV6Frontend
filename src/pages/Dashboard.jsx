@@ -12,6 +12,7 @@ export default function Dashboard() {
   const [candles, setCandles] = useState({});
   const [period, setPeriod] = useState(24);       // hours
   const [interval, setIntervalSec] = useState(60); // seconds
+
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
 
@@ -68,47 +69,48 @@ export default function Dashboard() {
   }, [selectedSymbol, period, interval]);
 
   // --- Render candlestick chart ---
- // --- Render candlestick chart ---
-useEffect(() => {
-  if (!chartContainerRef.current || !candles[selectedSymbol] || !candles[selectedSymbol].length) return;
+  useEffect(() => {
+    if (!chartContainerRef.current || !candles[selectedSymbol] || !candles[selectedSymbol].length) return;
 
-  // Clear old chart
-  if (chartRef.current) {
-    chartRef.current.remove();
-  }
-
-  // Create chart with container size
-  const chart = createChart(chartContainerRef.current, {
-    width: chartContainerRef.current.clientWidth,
-    height: 300,
-  });
-  const series = chart.addCandlestickSeries();
-
-  const data = candles[selectedSymbol].map(c => ({
-    time: typeof c.time === "number" ? c.time : Math.floor(new Date(c.time).getTime() / 1000),
-    open: c.open,
-    high: c.high,
-    low: c.low,
-    close: c.close
-  }));
-
-  series.setData(data);
-  chartRef.current = chart;
-
-  // --- Resize handling ---
-  const resizeObserver = new ResizeObserver(entries => {
-    for (let entry of entries) {
-      chart.applyOptions({ width: entry.contentRect.width });
+    // Clear old chart
+    if (chartRef.current) {
+      chartRef.current.remove();
+      chartRef.current = null;
     }
-  });
-  resizeObserver.observe(chartContainerRef.current);
 
-  return () => {
-    resizeObserver.disconnect();
-    chart.remove();
-  };
-}, [candles, selectedSymbol]);
+    // Create new chart
+    const chart = createChart(chartContainerRef.current, {
+      width: chartContainerRef.current.clientWidth,
+      height: 300,
+    });
+    chartRef.current = chart;
 
+    const series = chart.addCandlestickSeries();
+
+    const data = candles[selectedSymbol].map(c => ({
+      time: typeof c.time === "number" ? c.time : Math.floor(new Date(c.time).getTime() / 1000),
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+    }));
+
+    series.setData(data);
+
+    // Resize handling
+    const resizeObserver = new ResizeObserver(entries => {
+      for (let entry of entries) {
+        chart.applyOptions({ width: entry.contentRect.width });
+      }
+    });
+    resizeObserver.observe(chartContainerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+      chart.remove();
+      chartRef.current = null;
+    };
+  }, [candles, selectedSymbol]);
 
   return (
     <div>
@@ -179,8 +181,7 @@ useEffect(() => {
       </div>
 
       <h2>Candlestick Chart</h2>
-<div ref={chartContainerRef} style={{ width: "100%", height: "300px" }}></div>
-
+      <div ref={chartContainerRef} style={{ width: "100%", height: "300px" }}></div>
     </div>
   );
 }
