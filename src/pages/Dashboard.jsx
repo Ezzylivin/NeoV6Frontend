@@ -13,13 +13,14 @@ export default function Dashboard() {
   const [symbols, setSymbols] = useState([]);
   const [symbol, setSymbol] = useState("");
 
-  // --- Initialize chart ---
+  // ---------------------------
+  // 1️⃣ Initialize chart
+  // ---------------------------
   useEffect(() => {
-    const container = chartContainerRef.current;
-    if (!container) return;
+    if (!chartContainerRef.current) return;
 
-    const chart = createChart(container, {
-      width: container.clientWidth,
+    const chart = createChart(chartContainerRef.current, {
+      width: chartContainerRef.current.clientWidth,
       height: 500,
       layout: { background: { color: "#111" }, textColor: "#DDD" },
       grid: { vertLines: { color: "#222" }, horzLines: { color: "#222" } },
@@ -30,20 +31,21 @@ export default function Dashboard() {
 
     chartRef.current = chart;
 
-    // Only line series now
     const lineSeries = chart.addLineSeries({
       color: "#26a69a",
       lineWidth: 2,
     });
+
     lineSeriesRef.current = lineSeries;
 
+    // Resize chart on container size change
     const resizeObserver = new ResizeObserver(() => {
       chart.applyOptions({
-        width: container.clientWidth,
-        height: container.clientHeight,
+        width: chartContainerRef.current.clientWidth,
+        height: chartContainerRef.current.clientHeight,
       });
     });
-    resizeObserver.observe(container);
+    resizeObserver.observe(chartContainerRef.current);
 
     return () => {
       resizeObserver.disconnect();
@@ -51,7 +53,9 @@ export default function Dashboard() {
     };
   }, []);
 
-  // --- Load exchanges from backend ---
+  // ---------------------------
+  // 2️⃣ Load exchanges from backend
+  // ---------------------------
   useEffect(() => {
     const fetchExchanges = async () => {
       try {
@@ -69,14 +73,18 @@ export default function Dashboard() {
     fetchExchanges();
   }, []);
 
-  // --- Update symbols when exchange changes ---
+  // ---------------------------
+  // 3️⃣ Update symbols when exchange changes
+  // ---------------------------
   useEffect(() => {
     if (!exchange) return;
     setSymbols(exchanges[exchange] || []);
     setSymbol(exchanges[exchange]?.[0] || "");
   }, [exchange, exchanges]);
 
-  // --- Fetch line chart data ---
+  // ---------------------------
+  // 4️⃣ Fetch line chart data
+  // ---------------------------
   useEffect(() => {
     if (!exchange || !symbol) return;
 
@@ -86,14 +94,15 @@ export default function Dashboard() {
           params: { exchange, symbol, timeframe: "1m" },
         });
 
+        // Convert data to lightweight-charts format
         const formatted = data.map((c) => ({
-          time: Math.floor(c.time),
+          time: Math.floor(c.time), // seconds
           value: c.close,
         }));
 
         if (lineSeriesRef.current) lineSeriesRef.current.setData(formatted);
 
-        chartRef.current.timeScale().scrollToRealTime();
+        if (chartRef.current) chartRef.current.timeScale().scrollToRealTime();
       } catch (err) {
         console.error("Error fetching data:", err);
       }
@@ -108,7 +117,7 @@ export default function Dashboard() {
     <div className="p-4">
       <h1 className="text-xl font-bold mb-4 text-white">Trading Dashboard</h1>
 
-      {/* Dropdowns */}
+      {/* Exchange + Symbol selectors */}
       <div className="flex gap-4 mb-4">
         <select
           value={exchange}
@@ -135,7 +144,7 @@ export default function Dashboard() {
         </select>
       </div>
 
-      {/* Chart */}
+      {/* Chart container */}
       <div
         ref={chartContainerRef}
         className="w-full h-[500px] rounded-xl shadow-lg bg-black"
