@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>NeoV6 API Test</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #111; color: #fff; padding: 20px; }
+    ul { list-style: none; padding: 0; }
+    li { margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Available US Exchanges</h1>
+  <ul id="exchangeList">Loading...</ul>
+
+  <script>
+    const API_URL = "https://neov6backend.onrender.com/api";
+
+    async function loadExchanges() {
+      try {
+        const res = await fetch(`${API_URL}/exchanges`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        const ul = document.getElementById("exchangeList");
+        ul.innerHTML = "";
+
+        for (const [ex, symbols] of Object.entries(data)) {
+          const li = document.createElement("li");
+          li.innerHTML = `<strong>${ex.toUpperCase()}</strong>: ${symbols.join(", ")}`;
+          ul.appendChild(li);
+        }
+      } catch (err) {
+        document.getElementById("exchangeList").textContent = "Error: " + err.message;
+        console.error(err);
+      }
+    }
+
+    loadExchanges();
+  </script>
+</body>
+</html>
