@@ -1,10 +1,18 @@
 // File: src/pages/Dashboard.jsx
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ResponsiveContainer,
+} from "recharts";
 
 export default function Dashboard() {
-  const [exchanges, setExchanges] = useState({});
+  const [exchanges, setExchanges] = useState([]);
   const [selectedExchange, setSelectedExchange] = useState("");
   const [symbols, setSymbols] = useState([]);
   const [selectedSymbol, setSelectedSymbol] = useState("");
@@ -15,8 +23,10 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchExchanges = async () => {
       try {
-        const res = await axios.get("https://neov6backend.onrender.com/api/exchanges");
-        setExchanges(res.data.exchanges || res.data); // depending on backend
+        const res = await axios.get(
+          "https://neov6backend.onrender.com/api/exchanges"
+        );
+        setExchanges(res.data.exchanges || []); // always array
       } catch (err) {
         console.error("Error fetching exchanges:", err);
       }
@@ -27,10 +37,10 @@ export default function Dashboard() {
   // Update symbols when exchange changes
   useEffect(() => {
     if (selectedExchange) {
-      const syms = exchanges[selectedExchange] || [];
-      setSymbols(syms);
-      setSelectedSymbol(""); // reset symbol selection
-      setCandles([]); // clear previous chart
+      const ex = exchanges.find((e) => e.name === selectedExchange);
+      setSymbols(ex?.symbols || []);
+      setSelectedSymbol("");
+      setCandles([]);
     }
   }, [selectedExchange, exchanges]);
 
@@ -42,7 +52,13 @@ export default function Dashboard() {
       const res = await axios.get(
         `https://neov6backend.onrender.com/api/candles?exchange=${selectedExchange}&symbol=${selectedSymbol}&timeframe=1h`
       );
-      setCandles(res.data.candles || []);
+
+      const data = res.data.map((c) => ({
+        timestamp: c.time * 1000, // backend sends seconds → JS needs ms
+        close: c.close,
+      }));
+
+      setCandles(data);
     } catch (err) {
       console.error("Error fetching candles:", err);
     } finally {
@@ -62,9 +78,9 @@ export default function Dashboard() {
           className="border p-2"
         >
           <option value="">Select Exchange</option>
-          {Object.keys(exchanges).map((ex) => (
-            <option key={ex} value={ex}>
-              {ex}
+          {exchanges.map((ex) => (
+            <option key={ex.name} value={ex.name}>
+              {ex.name}
             </option>
           ))}
         </select>
@@ -101,13 +117,18 @@ export default function Dashboard() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey="timestamp"
-                tickFormatter={(ts) => new Date(ts).toLocaleString()}
+                tickFormatter={(ts) => new Date(ts).toLocaleTimeString()}
               />
               <YAxis domain={["auto", "auto"]} />
               <Tooltip
                 labelFormatter={(ts) => new Date(ts).toLocaleString()}
               />
-              <Line type="monotone" dataKey="close" stroke="#8884d8" dot={false} />
+              <Line
+                type="monotone"
+                dataKey="close"
+                stroke="#8884d8"
+                dot={false}
+              />
             </LineChart>
           </ResponsiveContainer>
         ) : (
