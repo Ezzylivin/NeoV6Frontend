@@ -11,7 +11,6 @@ import {
 } from "recharts";
 import axios from "axios";
 
-// ✅ Use your production backend
 const API_URL = "https://neov6backend.onrender.com/api";
 
 export default function Dashboard() {
