@@ -36,22 +36,21 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, [symbol]);
 
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      const d = payload[0].payload;
-      return (
-        <div className="bg-white p-2 border shadow rounded">
-          <p><strong>{symbol}</strong></p>
-          <p>Time: {new Date(d.time * 1000).toLocaleString()}</p>
-          <p>Open: ${d.open}</p>
-          <p>High: ${d.high}</p>
-          <p>Low: ${d.low}</p>
-          <p>Close: ${d.close}</p>
+ // Custom tooltip (compact)
+const CustomTooltip = ({ active, payload }) => {
+  if (active && payload && payload.length) {
+    const d = payload[0].payload;
+    return (
+      <div className="bg-white px-2 py-1 border border-gray-300 shadow rounded text-xs">
+        <div className="font-semibold">{symbol}</div>
+        <div>
+          {new Date(d.time * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} | 
+          O:{d.open} H:{d.high} L:{d.low} C:{d.close}
         </div>
-      );
-    }
-    return null;
+      </div>
+    );
+  }
+  return null;
   };
 
   return (
