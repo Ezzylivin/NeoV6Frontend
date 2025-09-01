@@ -1,9 +1,29 @@
 // File: src/pages/Dashboard.jsx
 import React, { useState, useEffect, useRef } from "react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid
+} from "recharts";
 import { createChart } from "lightweight-charts";
 
 const allSymbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"];
+
+// Helper: fetch with retries
+const fetchWithRetry = async (url, retries = 2, delayMs = 1000) => {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      if (i < retries) {
+        console.warn(`Retrying fetch (${i + 1}) due to error: ${err.message}`);
+        await new Promise(r => setTimeout(r, delayMs));
+      } else {
+        throw err;
+      }
+    }
+  }
+};
 
 export default function Dashboard() {
   const [selectedSymbol, setSelectedSymbol] = useState("BTCUSDT");
@@ -12,23 +32,20 @@ export default function Dashboard() {
   const [candles, setCandles] = useState({});
   const [period, setPeriod] = useState(24);        // hours
   const [interval, setIntervalSec] = useState(60); // seconds
-
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
 
   const API_URL = import.meta.env.VITE_API_URL;
 
-  // --- Fetch live prices ---
+  // --- Fetch live prices with retries ---
   useEffect(() => {
     const fetchLive = async () => {
       try {
-        const res = await fetch(`${API_URL}/prices/live?symbols=${allSymbols.join(",")}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+        const data = await fetchWithRetry(`${API_URL}/prices/live?symbols=${allSymbols.join(",")}`);
         if (data.success) setPrices(data.prices);
       } catch (err) {
-        console.error("Failed to fetch live prices:", err);
+        console.error("Failed to fetch live prices after retries:", err);
       }
     };
     fetchLive();
@@ -40,14 +57,16 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const res = await fetch(`${API_URL}/prices/history?symbols=${selectedSymbol}&period=${period}&interval=${interval}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+        const data = await fetchWithRetry(`${API_URL}/prices/history?symbols=${selectedSymbol}&period=${period}&interval=${interval}`);
         if (data.success) {
-          const formatted = (data.history[selectedSymbol] || []).map(p => ({
-            time: p.time * 1000, // convert unix seconds to milliseconds
+          let formatted = (data.history[selectedSymbol] || []).map(p => ({
+            time: p.time * 1000,
             price: p.price
           }));
+          if (formatted.length > 1000) {
+            const step = Math.ceil(formatted.length / 1000);
+            formatted = formatted.filter((_, i) => i % step === 0);
+          }
           setHistory({ [selectedSymbol]: formatted });
         }
       } catch (err) {
@@ -61,9 +80,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchCandles = async () => {
       try {
-        const res = await fetch(`${API_URL}/prices/candles?symbols=${selectedSymbol}&period=${period}&interval=${interval}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+        const data = await fetchWithRetry(`${API_URL}/prices/candles?symbols=${selectedSymbol}&period=${period}&interval=${interval}`);
         if (data.success) {
           setCandles({ [selectedSymbol]: data.candles[selectedSymbol] || [] });
         }
@@ -77,22 +94,26 @@ export default function Dashboard() {
   // --- Render candlestick chart ---
   useEffect(() => {
     if (!chartContainerRef.current || !candles[selectedSymbol]?.length) return;
+    if (chartRef.current) chartRef.current.remove();
 
-    // Remove previous chart if exists
-    if (chartRef.current) {
-      chartRef.current.remove();
-      chartRef.current = null;
-    }
-
-    // Create chart
-    const chart = createChart(chartContainerRef.current, { width: chartContainerRef.current.clientWidth, height: 300 });
+    const chart = createChart(chartContainerRef.current, {
+      width: chartContainerRef.current.clientWidth,
+      height: 300,
+      layout: { backgroundColor: "#ffffff", textColor: "#333" },
+      grid: { vertLines: { color: "#eee" }, horzLines: { color: "#eee" } }
+    });
     chartRef.current = chart;
 
-    const candlestickSeries = chart.addCandlestickSeries();
+    const candlestickSeries = chart.addCandlestickSeries({
+      upColor: "#4caf50",
+      downColor: "#f44336",
+      borderVisible: false,
+      wickVisible: true
+    });
     seriesRef.current = candlestickSeries;
 
     const data = candles[selectedSymbol].map(c => ({
-      time: c.time, // unix seconds
+      time: c.time,
       open: c.open,
       high: c.high,
       low: c.low,
@@ -100,13 +121,18 @@ export default function Dashboard() {
     }));
 
     candlestickSeries.setData(data);
+
+    const handleResize = () => chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+
   }, [candles, selectedSymbol]);
 
   return (
     <div style={{ padding: "20px" }}>
       <h1>Crypto Dashboard</h1>
 
-      {/* --- Dropdown selectors --- */}
+      {/* Dropdown selectors */}
       <div style={{ marginBottom: 20 }}>
         <label>
           Symbol:
@@ -130,22 +156,25 @@ export default function Dashboard() {
         </label>
       </div>
 
-      {/* --- Live price --- */}
+      {/* Live price */}
       <h2>Live Price</h2>
       <div style={{ marginBottom: 30 }}>
         <strong>{selectedSymbol}:</strong> {prices[selectedSymbol] || "Loading..."}
       </div>
 
-      {/* --- Price history chart --- */}
+      {/* Price history chart */}
       <h2>Price History</h2>
       <div style={{ marginBottom: 50 }}>
         <LineChart width={800} height={400} data={history[selectedSymbol] || []}>
           <CartesianGrid strokeDasharray="3 3" />
-          <XAxis 
-            dataKey="time" 
-            tickFormatter={t => new Date(t).toLocaleTimeString()} 
-            type="number" 
-            domain={['dataMin', 'dataMax']} 
+          <XAxis
+            dataKey="time"
+            tickFormatter={t => {
+              const d = new Date(t);
+              return period <= 24 ? d.toLocaleTimeString() : d.toLocaleDateString();
+            }}
+            type="number"
+            domain={['dataMin', 'dataMax']}
             scale="time"
           />
           <YAxis />
@@ -154,7 +183,7 @@ export default function Dashboard() {
         </LineChart>
       </div>
 
-      {/* --- Candlestick chart --- */}
+      {/* Candlestick chart */}
       <h2>Candlestick Chart</h2>
       <div ref={chartContainerRef}></div>
     </div>
