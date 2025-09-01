@@ -8,41 +8,24 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchDefaultChart = async () => {
+    const fetchBTCChart = async () => {
       try {
-        // 1️⃣ Get exchanges
-        const exchangeRes = await axios.get("https://neov6backend.onrender.com/api/exchanges");
-        const exchanges = exchangeRes.data.exchanges || [];
+        const exchangeName = "coinbase"; // pick a default exchange (must exist in your backend)
+        const symbol = "BTC/USD";        // default asset
 
-        if (!exchanges.length) {
-          console.error("No exchanges found");
-          setLoading(false);
-          return;
-        }
-
-        // 2️⃣ Pick first exchange & first symbol
-        const defaultExchange = exchanges[0];
-        const defaultSymbol = defaultExchange.symbols?.[0];
-
-        if (!defaultSymbol) {
-          console.error("No symbols found for exchange", defaultExchange.name);
-          setLoading(false);
-          return;
-        }
-
-        // 3️⃣ Fetch candles
         const candleRes = await axios.get(
-          `https://neov6backend.onrender.com/api/candles?exchange=${defaultExchange.name}&symbol=${defaultSymbol}&timeframe=1h`
+          `https://neov6backend.onrender.com/api/candles?exchange=${exchangeName}&symbol=${symbol}&timeframe=1h`
         );
+
         setCandles(candleRes.data || []);
       } catch (err) {
-        console.error("Error fetching default chart:", err);
+        console.error("Error fetching BTC/USD chart:", err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchDefaultChart();
+    fetchBTCChart();
   }, []);
 
   return (
