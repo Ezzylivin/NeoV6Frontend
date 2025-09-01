@@ -2,17 +2,16 @@ import React, { useEffect, useRef, useState } from "react";
 import { createChart, CrosshairMode } from "lightweight-charts";
 import axios from "axios";
 
-const EXCHANGES = ["coinbase", "kraken", "gemini"];
-const SYMBOLS = ["BTC/USD", "ETH/USD", "LTC/USD"];
-
 export default function Dashboard() {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const candleSeriesRef = useRef(null);
   const lineSeriesRef = useRef(null);
 
-  const [exchange, setExchange] = useState("coinbase");
-  const [symbol, setSymbol] = useState("BTC/USD");
+  const [exchanges, setExchanges] = useState({});
+  const [exchange, setExchange] = useState("");
+  const [symbols, setSymbols] = useState([]);
+  const [symbol, setSymbol] = useState("");
 
   // --- Chart Initialization ---
   useEffect(() => {
@@ -60,24 +59,45 @@ export default function Dashboard() {
     };
   }, []);
 
-  // --- Data Fetch ---
+  // --- Load exchanges & symbols dynamically ---
+  useEffect(() => {
+    const fetchExchanges = async () => {
+      try {
+        const { data } = await axios.get("http://localhost:5000/api/exchanges");
+        setExchanges(data);
+
+        const defaultExchange = Object.keys(data)[0];
+        setExchange(defaultExchange);
+        setSymbols(data[defaultExchange]);
+        setSymbol(data[defaultExchange][0]);
+      } catch (err) {
+        console.error("Error fetching exchanges:", err);
+      }
+    };
+
+    fetchExchanges();
+  }, []);
+
+  // --- Update symbols when exchange changes ---
+  useEffect(() => {
+    if (!exchange) return;
+    setSymbols(exchanges[exchange] || []);
+    setSymbol(exchanges[exchange]?.[0] || "");
+  }, [exchange, exchanges]);
+
+  // --- Fetch candle data ---
   useEffect(() => {
     if (!exchange || !symbol) return;
 
     const fetchCandles = async () => {
       try {
         const { data } = await axios.get("http://localhost:5000/api/candles", {
-          params: { symbol, exchange, timeframe: "1m" },
+          params: { exchange, symbol, timeframe: "1m" },
         });
 
-        if (candleSeriesRef.current) {
-          candleSeriesRef.current.setData(data);
-        }
-        if (lineSeriesRef.current) {
-          lineSeriesRef.current.setData(
-            data.map((c) => ({ time: c.time, value: c.close }))
-          );
-        }
+        if (candleSeriesRef.current) candleSeriesRef.current.setData(data);
+        if (lineSeriesRef.current)
+          lineSeriesRef.current.setData(data.map((c) => ({ time: c.time, value: c.close })));
       } catch (err) {
         console.error("Error fetching candles:", err);
       }
@@ -92,14 +112,14 @@ export default function Dashboard() {
     <div className="p-4">
       <h1 className="text-xl font-bold mb-4 text-white">Trading Dashboard</h1>
 
-      {/* Dropdown Controls */}
+      {/* Dropdowns */}
       <div className="flex gap-4 mb-4">
         <select
           value={exchange}
           onChange={(e) => setExchange(e.target.value)}
           className="p-2 rounded-lg bg-gray-800 text-white"
         >
-          {EXCHANGES.map((ex) => (
+          {Object.keys(exchanges).map((ex) => (
             <option key={ex} value={ex}>
               {ex.toUpperCase()}
             </option>
@@ -111,7 +131,7 @@ export default function Dashboard() {
           onChange={(e) => setSymbol(e.target.value)}
           className="p-2 rounded-lg bg-gray-800 text-white"
         >
-          {SYMBOLS.map((s) => (
+          {symbols.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>
@@ -119,7 +139,7 @@ export default function Dashboard() {
         </select>
       </div>
 
-      {/* Chart Container */}
+      {/* Chart */}
       <div
         ref={chartContainerRef}
         className="w-full h-[500px] rounded-xl shadow-lg bg-black"
