@@ -36,22 +36,23 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, [symbol]);
 
- // Custom tooltip (compact)
+ // Custom tooltip (compact with date)
 const CustomTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     const d = payload[0].payload;
+    const date = new Date(d.time * 1000);
     return (
       <div className="bg-white px-2 py-1 border border-gray-300 shadow rounded text-xs">
         <div className="font-semibold">{symbol}</div>
         <div>
-          {new Date(d.time * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} | 
+          {date.toLocaleDateString()} {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} | 
           O:{d.open} H:{d.high} L:{d.low} C:{d.close}
         </div>
       </div>
     );
   }
   return null;
-  };
+};
 
   return (
     <div className="p-4">
