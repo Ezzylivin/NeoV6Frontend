@@ -6,7 +6,6 @@ import axios from "axios";
 export default function Dashboard() {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
-  const candleSeriesRef = useRef(null);
   const lineSeriesRef = useRef(null);
 
   const [exchanges, setExchanges] = useState({});
@@ -31,18 +30,9 @@ export default function Dashboard() {
 
     chartRef.current = chart;
 
-    const candleSeries = chart.addCandlestickSeries({
-      upColor: "#26a69a",
-      downColor: "#ef5350",
-      borderUpColor: "#26a69a",
-      borderDownColor: "#ef5350",
-      wickUpColor: "#26a69a",
-      wickDownColor: "#ef5350",
-    });
-    candleSeriesRef.current = candleSeries;
-
+    // Only line series now
     const lineSeries = chart.addLineSeries({
-      color: "#2962FF",
+      color: "#26a69a",
       lineWidth: 2,
     });
     lineSeriesRef.current = lineSeries;
@@ -86,39 +76,31 @@ export default function Dashboard() {
     setSymbol(exchanges[exchange]?.[0] || "");
   }, [exchange, exchanges]);
 
-  // --- Fetch candle data and update chart ---
+  // --- Fetch line chart data ---
   useEffect(() => {
     if (!exchange || !symbol) return;
 
-    const fetchCandles = async () => {
+    const fetchData = async () => {
       try {
         const { data } = await axios.get("http://localhost:5000/api/candles", {
           params: { exchange, symbol, timeframe: "1m" },
         });
 
-        // Ensure lightweight-charts expects `time` in seconds
         const formatted = data.map((c) => ({
           time: Math.floor(c.time),
-          open: c.open,
-          high: c.high,
-          low: c.low,
-          close: c.close,
+          value: c.close,
         }));
 
-        if (candleSeriesRef.current) candleSeriesRef.current.setData(formatted);
-        if (lineSeriesRef.current)
-          lineSeriesRef.current.setData(
-            formatted.map((c) => ({ time: c.time, value: c.close }))
-          );
+        if (lineSeriesRef.current) lineSeriesRef.current.setData(formatted);
 
         chartRef.current.timeScale().scrollToRealTime();
       } catch (err) {
-        console.error("Error fetching candles:", err);
+        console.error("Error fetching data:", err);
       }
     };
 
-    fetchCandles();
-    const interval = setInterval(fetchCandles, 5000);
+    fetchData();
+    const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
   }, [exchange, symbol]);
 
