@@ -4,130 +4,54 @@ import axios from "axios";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
 
 export default function Dashboard() {
-  const [exchanges, setExchanges] = useState([]);
-  const [selectedExchange, setSelectedExchange] = useState("");
-  const [symbols, setSymbols] = useState([]);
-  const [selectedSymbol, setSelectedSymbol] = useState("");
   const [candles, setCandles] = useState([]);
-  const [loadingExchanges, setLoadingExchanges] = useState(true);
-  const [loadingCandles, setLoadingCandles] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Fetch exchanges on mount
   useEffect(() => {
-    const fetchExchanges = async () => {
+    const fetchDefaultChart = async () => {
       try {
-        setLoadingExchanges(true);
-        const res = await axios.get("https://neov6backend.onrender.com/api/exchanges");
-        const exchangeList = res.data.exchanges || [];
-        setExchanges(exchangeList);
+        // 1️⃣ Get exchanges
+        const exchangeRes = await axios.get("https://neov6backend.onrender.com/api/exchanges");
+        const exchanges = exchangeRes.data.exchanges || [];
 
-        // Auto-select first exchange & symbol
-        if (exchangeList.length > 0) {
-          const firstEx = exchangeList[0];
-          setSelectedExchange(firstEx.name);
-          setSymbols(firstEx.symbols || []);
-          if (firstEx.symbols?.length > 0) {
-            setSelectedSymbol(firstEx.symbols[0]);
-          }
+        if (!exchanges.length) {
+          console.error("No exchanges found");
+          setLoading(false);
+          return;
         }
+
+        // 2️⃣ Pick first exchange & first symbol
+        const defaultExchange = exchanges[0];
+        const defaultSymbol = defaultExchange.symbols?.[0];
+
+        if (!defaultSymbol) {
+          console.error("No symbols found for exchange", defaultExchange.name);
+          setLoading(false);
+          return;
+        }
+
+        // 3️⃣ Fetch candles
+        const candleRes = await axios.get(
+          `https://neov6backend.onrender.com/api/candles?exchange=${defaultExchange.name}&symbol=${defaultSymbol}&timeframe=1h`
+        );
+        setCandles(candleRes.data || []);
       } catch (err) {
-        console.error("Error fetching exchanges:", err);
+        console.error("Error fetching default chart:", err);
       } finally {
-        setLoadingExchanges(false);
+        setLoading(false);
       }
     };
-    fetchExchanges();
+
+    fetchDefaultChart();
   }, []);
-
-  // Update symbols when exchange changes
-  useEffect(() => {
-    if (selectedExchange) {
-      const ex = exchanges.find((e) => e.name === selectedExchange);
-      setSymbols(ex?.symbols || []);
-      if (ex?.symbols?.length > 0) {
-        setSelectedSymbol(ex.symbols[0]);
-      }
-      setCandles([]);
-    }
-  }, [selectedExchange, exchanges]);
-
-  // Auto-fetch candles when selectedSymbol changes
-  useEffect(() => {
-    if (selectedExchange && selectedSymbol) {
-      fetchCandles();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSymbol]);
-
-  // Fetch candles for selected symbol
-  const fetchCandles = async () => {
-    if (!selectedExchange || !selectedSymbol) return;
-    setLoadingCandles(true);
-    try {
-      const res = await axios.get(
-        `https://neov6backend.onrender.com/api/candles?exchange=${selectedExchange}&symbol=${selectedSymbol}&timeframe=1h`
-      );
-      setCandles(res.data || []);
-    } catch (err) {
-      console.error("Error fetching candles:", err);
-    } finally {
-      setLoadingCandles(false);
-    }
-  };
 
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
 
-      <div className="mb-4 flex gap-4">
-        {loadingExchanges ? (
-          <p>Loading exchanges...</p>
-        ) : (
-          <>
-            {/* Exchange Selector */}
-            <select
-              value={selectedExchange}
-              onChange={(e) => setSelectedExchange(e.target.value)}
-              className="border p-2"
-            >
-              <option value="">Select Exchange</option>
-              {exchanges.map((ex) => (
-                <option key={ex.name} value={ex.name}>
-                  {ex.name}
-                </option>
-              ))}
-            </select>
-
-            {/* Symbol Selector */}
-            <select
-              value={selectedSymbol}
-              onChange={(e) => setSelectedSymbol(e.target.value)}
-              className="border p-2"
-              disabled={!selectedExchange || symbols.length === 0}
-            >
-              <option value="">Select Symbol</option>
-              {symbols.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-
-            <button
-              onClick={fetchCandles}
-              className="bg-blue-500 text-white px-4 py-2 rounded"
-              disabled={!selectedSymbol || loadingCandles}
-            >
-              {loadingCandles ? "Loading..." : "Fetch Chart"}
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* Chart */}
       <div style={{ width: "100%", height: 400 }}>
-        {loadingCandles ? (
-          <p>Loading chart data...</p>
+        {loading ? (
+          <p>Loading chart...</p>
         ) : candles.length ? (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={candles}>
@@ -144,7 +68,7 @@ export default function Dashboard() {
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          !loadingExchanges && <p>No chart data yet. Select exchange & symbol and click "Fetch Chart".</p>
+          <p>No chart data available.</p>
         )}
       </div>
     </div>
