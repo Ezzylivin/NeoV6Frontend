@@ -8,7 +8,8 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
-  ResponsiveContainer
+  ResponsiveContainer,
+  Dot
 } from "recharts";
 
 export default function Dashboard() {
@@ -28,6 +29,7 @@ export default function Dashboard() {
 
   const timeOptions = ["1m", "5m", "10m", "15m", "30m", "1h", "4h", "1d", "3d"];
 
+  // Fetch chart data and update candles & price
   const fetchChart = async (symbol, timeframe, setCandles, setPrice) => {
     try {
       const res = await axios.get(
@@ -37,13 +39,14 @@ export default function Dashboard() {
       setCandles(data);
 
       if (data.length) {
-        setPrice(data[data.length - 1].close); // latest close as current price
+        setPrice(data[data.length - 1].close);
       }
     } catch (err) {
       console.error(`Error fetching chart for ${symbol}:`, err);
     }
   };
 
+  // Charts update every minute
   useEffect(() => {
     setLoading(true);
     const loadCharts = async () => {
@@ -55,10 +58,31 @@ export default function Dashboard() {
     };
 
     loadCharts();
-    const interval = setInterval(loadCharts, 60000);
-    return () => clearInterval(interval);
+    const chartInterval = setInterval(loadCharts, 60000);
+    return () => clearInterval(chartInterval);
   }, [timeframe1, timeframe2]);
 
+  // Live prices update every 5 seconds
+  useEffect(() => {
+    const fetchPrices = async () => {
+      try {
+        const [res1, res2] = await Promise.all([
+          axios.get(`https://neov6backend.onrender.com/api/candles?exchange=${exchange}&symbol=${symbol1}&timeframe=1m&limit=1`),
+          axios.get(`https://neov6backend.onrender.com/api/candles?exchange=${exchange}&symbol=${symbol2}&timeframe=1m&limit=1`)
+        ]);
+        if (res1.data.length) setPrice1(res1.data[res1.data.length - 1].close);
+        if (res2.data.length) setPrice2(res2.data[res2.data.length - 1].close);
+      } catch (err) {
+        console.error("Error fetching live prices:", err);
+      }
+    };
+
+    fetchPrices();
+    const priceInterval = setInterval(fetchPrices, 5000);
+    return () => clearInterval(priceInterval);
+  }, []);
+
+  // Custom tooltip
   const CustomTooltip = ({ active, payload, symbol }) => {
     if (active && payload && payload.length) {
       const d = payload[0].payload;
@@ -76,9 +100,18 @@ export default function Dashboard() {
     return null;
   };
 
+  // Custom dot for up/down candles
+  const CustomDot = (props) => {
+    const { cx, cy, payload, dataKey, index } = props;
+    if (index === 0) return null; // skip first candle (no previous to compare)
+    const prev = props?.chartData?.[index - 1];
+    const color = payload.close >= prev.close ? "green" : "red";
+    return <circle cx={cx} cy={cy} r={3} fill={color} />;
+  };
+
   return (
     <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Neo V6 Dashboard</h1>
+      <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
       {loading && <p>Loading charts...</p>}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -109,7 +142,12 @@ export default function Dashboard() {
                   />
                   <YAxis domain={["auto", "auto"]} />
                   <Tooltip content={<CustomTooltip symbol={symbol1} />} />
-                  <Line type="monotone" dataKey="close" stroke="#8884d8" dot={false} />
+                  <Line
+                    type="monotone"
+                    dataKey="close"
+                    stroke="#8884d8"
+                    dot={(props) => <CustomDot {...props} chartData={candles1} />}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -145,7 +183,12 @@ export default function Dashboard() {
                   />
                   <YAxis domain={["auto", "auto"]} />
                   <Tooltip content={<CustomTooltip symbol={symbol2} />} />
-                  <Line type="monotone" dataKey="close" stroke="#82ca9d" dot={false} />
+                  <Line
+                    type="monotone"
+                    dataKey="close"
+                    stroke="#82ca9d"
+                    dot={(props) => <CustomDot {...props} chartData={candles2} />}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
