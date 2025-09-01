@@ -47,7 +47,7 @@ export default function TradingBot() {
     const fetchBotData = async () => {
       setChartLoading(true);
       try {
-        const res = await axios.get(`${API_URL}/tradingbots/history/${user._id}`);
+        const res = await axios.get(`${API_URL}/bots/history/${user._id}`);
         const data = res.data.history.map(point => ({
           time: new Date(point.timestamp).toLocaleString(),
           balance: point.balance,
