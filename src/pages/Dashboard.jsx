@@ -27,7 +27,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchExchanges = async () => {
       try {
-        const { data } = await axios.get(`${API_URL}/api/exchanges`);
+        const { data } = await axios.get(`${API_URL}/exchanges`);
         setExchanges(data);
 
         const defaultExchange = Object.keys(data)[0];
@@ -59,7 +59,7 @@ export default function Dashboard() {
 
     const fetchHistory = async () => {
       try {
-        const { data } = await axios.get(`${API_URL}/api/candles`, {
+        const { data } = await axios.get(`${API_URL}/candles`, {
           params: { exchange, symbol, timeframe: "1m" },
         });
 
