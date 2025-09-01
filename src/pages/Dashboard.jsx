@@ -16,7 +16,18 @@ export default function Dashboard() {
     const fetchExchanges = async () => {
       try {
         const res = await axios.get("https://neov6backend.onrender.com/api/exchanges");
-        setExchanges(res.data.exchanges || []);
+        const exchangeList = res.data.exchanges || [];
+        setExchanges(exchangeList);
+
+        // Auto-select first exchange & symbol
+        if (exchangeList.length > 0) {
+          const firstEx = exchangeList[0];
+          setSelectedExchange(firstEx.name);
+          setSymbols(firstEx.symbols || []);
+          if (firstEx.symbols?.length > 0) {
+            setSelectedSymbol(firstEx.symbols[0]);
+          }
+        }
       } catch (err) {
         console.error("Error fetching exchanges:", err);
       }
@@ -29,10 +40,20 @@ export default function Dashboard() {
     if (selectedExchange) {
       const ex = exchanges.find((e) => e.name === selectedExchange);
       setSymbols(ex?.symbols || []);
-      setSelectedSymbol("");
+      if (ex?.symbols?.length > 0) {
+        setSelectedSymbol(ex.symbols[0]);
+      }
       setCandles([]);
     }
   }, [selectedExchange, exchanges]);
+
+  // Auto-fetch candles when selectedSymbol changes
+  useEffect(() => {
+    if (selectedExchange && selectedSymbol) {
+      fetchCandles();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSymbol]);
 
   // Fetch candles for selected symbol
   const fetchCandles = async () => {
@@ -42,7 +63,7 @@ export default function Dashboard() {
       const res = await axios.get(
         `https://neov6backend.onrender.com/api/candles?exchange=${selectedExchange}&symbol=${selectedSymbol}&timeframe=1h`
       );
-      setCandles(res.data || []); // updated for backend return
+      setCandles(res.data || []);
     } catch (err) {
       console.error("Error fetching candles:", err);
     } finally {
@@ -74,7 +95,7 @@ export default function Dashboard() {
           value={selectedSymbol}
           onChange={(e) => setSelectedSymbol(e.target.value)}
           className="border p-2"
-          disabled={!selectedExchange}
+          disabled={!selectedExchange || symbols.length === 0}
         >
           <option value="">Select Symbol</option>
           {symbols.map((s) => (
