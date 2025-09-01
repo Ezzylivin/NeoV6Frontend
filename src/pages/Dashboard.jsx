@@ -6,31 +6,46 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContai
 export default function Dashboard() {
   const [candles, setCandles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [symbol, setSymbol] = useState("BTC/USD"); // current asset
+  const [latestPrice, setLatestPrice] = useState(null);
 
   useEffect(() => {
-    const fetchBTCChart = async () => {
+    const fetchChart = async () => {
       try {
-        const exchangeName = "coinbase"; // pick a default exchange (must exist in your backend)
-        const symbol = "BTC/USD";        // default asset
-
+        const exchangeName = "coinbase"; // default exchange
         const candleRes = await axios.get(
           `https://neov6backend.onrender.com/api/candles?exchange=${exchangeName}&symbol=${symbol}&timeframe=1h`
         );
 
-        setCandles(candleRes.data || []);
+        const candlesData = candleRes.data || [];
+        setCandles(candlesData);
+
+        if (candlesData.length) {
+          setLatestPrice(candlesData[candlesData.length - 1].close); // most recent close
+        }
       } catch (err) {
-        console.error("Error fetching BTC/USD chart:", err);
+        console.error("Error fetching chart:", err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchBTCChart();
-  }, []);
+    fetchChart();
+  }, [symbol]);
 
   return (
     <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
+      <h1 className="text-2xl font-bold mb-2">Dashboard</h1>
+
+      {/* Symbol & Latest Price */}
+      <div className="mb-4">
+        <span className="text-lg font-semibold">{symbol}</span>
+        {latestPrice !== null && (
+          <span className="ml-4 text-green-600 font-semibold">
+            ${latestPrice.toLocaleString()}
+          </span>
+        )}
+      </div>
 
       <div style={{ width: "100%", height: 400 }}>
         {loading ? (
