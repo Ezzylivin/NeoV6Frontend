@@ -2,37 +2,35 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>NeoV6 API Test</title>
-  <style>
-    body { font-family: Arial, sans-serif; background: #111; color: #fff; padding: 20px; }
-    ul { list-style: none; padding: 0; }
-    li { margin-bottom: 10px; }
-  </style>
+  <title>Test Exchanges</title>
 </head>
 <body>
   <h1>Available US Exchanges</h1>
-  <ul id="exchangeList">Loading...</ul>
+  <ul id="exchange-list"></ul>
 
   <script>
-    const API_URL = "https://neov6backend.onrender.com/api";
+    const API_URL = "https://neov6backend.onrender.com/api"; // ✅ production backend
 
     async function loadExchanges() {
       try {
-        const res = await fetch(`${API_URL}/exchanges`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+        const response = await fetch(`${API_URL}/exchanges`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
 
-        const ul = document.getElementById("exchangeList");
+        const ul = document.getElementById("exchange-list");
         ul.innerHTML = "";
 
-        for (const [ex, symbols] of Object.entries(data)) {
+        for (const [exchange, symbols] of Object.entries(data)) {
           const li = document.createElement("li");
-          li.innerHTML = `<strong>${ex.toUpperCase()}</strong>: ${symbols.join(", ")}`;
+          li.textContent = `${exchange.toUpperCase()}: ${symbols.join(", ")}`;
           ul.appendChild(li);
         }
       } catch (err) {
-        document.getElementById("exchangeList").textContent = "Error: " + err.message;
-        console.error(err);
+        console.error("Failed to load exchanges:", err);
+        const ul = document.getElementById("exchange-list");
+        ul.innerHTML = `<li style="color:red;">Error fetching exchanges: ${err.message}</li>`;
       }
     }
 
