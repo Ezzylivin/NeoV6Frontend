@@ -12,6 +12,8 @@ import {
 import axios from "axios";
 
 export default function Dashboard() {
+  const API_URL = import.meta.env.VITE_API_URL;
+
   const [exchanges, setExchanges] = useState({});
   const [exchange, setExchange] = useState("");
   const [symbols, setSymbols] = useState([]);
@@ -25,7 +27,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchExchanges = async () => {
       try {
-        const { data } = await axios.get("http://localhost:10000/api/exchanges");
+        const { data } = await axios.get(`${API_URL}/api/exchanges`);
         setExchanges(data);
 
         const defaultExchange = Object.keys(data)[0];
@@ -38,7 +40,7 @@ export default function Dashboard() {
     };
 
     fetchExchanges();
-  }, []);
+  }, [API_URL]);
 
   // ---------------------------
   // 2️⃣ Update symbols when exchange changes
@@ -50,18 +52,18 @@ export default function Dashboard() {
   }, [exchange, exchanges]);
 
   // ---------------------------
-  // 3️⃣ Fetch price history for chart
+  // 3️⃣ Fetch price history for chart & live price
   // ---------------------------
   useEffect(() => {
     if (!exchange || !symbol) return;
 
     const fetchHistory = async () => {
       try {
-        const { data } = await axios.get("http://localhost:10000/api/candles", {
+        const { data } = await axios.get(`${API_URL}/api/candles`, {
           params: { exchange, symbol, timeframe: "1m" },
         });
 
-        // Format for Recharts: { time: Date, price: number }
+        // Format for Recharts
         const formatted = data.map((c) => ({
           time: new Date(c.time * 1000).toLocaleTimeString(),
           price: c.close,
@@ -77,7 +79,7 @@ export default function Dashboard() {
     fetchHistory();
     const interval = setInterval(fetchHistory, 5000); // refresh every 5s
     return () => clearInterval(interval);
-  }, [exchange, symbol]);
+  }, [exchange, symbol, API_URL]);
 
   return (
     <div className="p-4">
