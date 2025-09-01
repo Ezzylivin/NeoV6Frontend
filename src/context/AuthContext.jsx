@@ -19,8 +19,10 @@ export const AuthProvider = ({ children }) => {
     const normalizedUser = { ...userData, id: userData._id };
     setUser(normalizedUser);
     setTokenState(tokenData);
+
     localStorage.setItem("user", JSON.stringify(normalizedUser));
     localStorage.setItem("token", tokenData);
+
     setAuthToken(tokenData);
   };
 
@@ -40,10 +42,10 @@ export const AuthProvider = ({ children }) => {
     const validateToken = async () => {
       if (!token) return setInitializing(false);
       try {
+        setAuthToken(token);
         const { data } = await apiClient.get("/users/me");
-        setUser(data.user || data);
-      } catch (err) {
-        console.error("Token validation failed:", err.response?.data || err.message);
+        setUser(data.user || data); // in case backend returns {user: ...}
+      } catch {
         clearAuthData();
       } finally {
         setInitializing(false);
@@ -52,18 +54,15 @@ export const AuthProvider = ({ children }) => {
     validateToken();
   }, [token]);
 
-  // --- REGISTER ---
   const registerUser = async ({ username, email, password }) => {
     setLoading(true);
     setError(null);
     try {
-      console.log("Register payload:", { username, email, password });
       const { data } = await apiClient.post("/users/register", { username, email, password });
-      console.log("Register response:", data);
-      saveAuthData(data, data.token);
+      const { token, ...userData } = data.user ? data.user : data; 
+      saveAuthData(userData, token);
       return { success: true };
     } catch (err) {
-      console.error("Register failed:", err.response?.data || err.message);
       setError(err.response?.data?.message || "Registration failed");
       return { success: false };
     } finally {
@@ -71,18 +70,15 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // --- LOGIN ---
   const loginUser = async ({ identifier, password }) => {
     setLoading(true);
     setError(null);
     try {
-      console.log("Login payload:", { identifier, password });
       const { data } = await apiClient.post("/users/login", { identifier, password });
-      console.log("Login response:", data);
-      saveAuthData(data, data.token);
+      const { token, ...userData } = data.user ? data.user : data; 
+      saveAuthData(userData, token);
       return { success: true };
     } catch (err) {
-      console.error("Login failed:", err.response?.data || err.message);
       setError(err.response?.data?.message || "Login failed");
       return { success: false };
     } finally {
@@ -92,18 +88,7 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider
-      value={{
-        user,
-        token,
-        isAuthenticated,
-        loading,
-        error,
-        initializing,
-        saveAuthData,
-        clearAuthData,
-        registerUser,
-        loginUser,
-      }}
+      value={{ user, token, isAuthenticated, loading, error, initializing, saveAuthData, clearAuthData, registerUser, loginUser }}
     >
       {children}
     </AuthContext.Provider>
