@@ -136,4 +136,84 @@ export default function Backtests() {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Line type="monotone" data
+              <Line type="monotone" dataKey="initialBalance" stroke="#F59E0B" strokeWidth={2} dot />
+              <Line type="monotone" dataKey="finalBalance" stroke="#3B82F6" strokeWidth={2} dot />
+              <Line type="monotone" dataKey="profit" stroke="#10B981" strokeWidth={2} dot />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+        {!chartLoading && chartData.length === 0 && <p className="text-gray-500">No chart data available.</p>}
+      </div>
+
+      {error && <p className="text-red-500">{error}</p>}
+
+      {/* Backtest List */}
+      {backtests.length === 0 ? (
+        <p className="text-gray-500">No backtests yet.</p>
+      ) : backtests.map(bt => (
+        <div key={bt._id} className="bg-white shadow rounded-2xl p-4 border border-gray-200">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-lg font-semibold">{bt.symbol} ({bt.timeframe})</h2>
+              <p className="text-sm text-gray-600">
+                Strategy: {bt.strategy?.name || bt.strategy} | Trades: {bt.totalTrades}
+              </p>
+              <p className="text-sm text-gray-600">
+                Initial: ${bt.initialBalance} → Final: ${bt.finalBalance}
+              </p>
+            </div>
+            <div className="flex flex-col items-end">
+              <p className={`font-bold ${bt.profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                P/L: ${bt.profit?.toFixed(2) ?? "0.00"}
+              </p>
+              <button onClick={() => toggleExpand(bt._id)} className="text-blue-500 hover:underline text-sm mt-1">
+                {expandedId === bt._id ? "Hide Trades ▲" : "Show Trades ▼"}
+              </button>
+            </div>
+          </div>
+
+          {expandedId === bt._id && (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full border text-sm text-left">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="p-2 border">Entry</th>
+                    <th className="p-2 border">Exit</th>
+                    <th className="p-2 border">Position</th>
+                    <th className="p-2 border">Entry Price</th>
+                    <th className="p-2 border">Exit Price</th>
+                    <th className="p-2 border">Profit</th>
+                    <th className="p-2 border">Result</th>
+                    <th className="p-2 border">Duration (min)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bt.tradeBreakdown?.length ? bt.tradeBreakdown.map((trade,i)=>(
+                    <tr key={i} className="hover:bg-gray-50">
+                      <td className="p-2 border">{trade.entryTime ? new Date(trade.entryTime).toLocaleString() : "-"}</td>
+                      <td className="p-2 border">{trade.exitTime ? new Date(trade.exitTime).toLocaleString() : "-"}</td>
+                      <td className="p-2 border capitalize">{trade.position || "-"}</td>
+                      <td className="p-2 border">{trade.entryPrice ?? "-"}</td>
+                      <td className="p-2 border">{trade.exitPrice ?? "-"}</td>
+                      <td className={`p-2 border ${(trade.profit ?? 0) >=0 ? "text-green-600" : "text-red-600"}`}>
+                        {trade.profit?.toFixed(2) ?? "0.00"}
+                      </td>
+                      <td className={`p-2 border capitalize ${trade.result==="win"?"text-green-600":trade.result==="loss"?"text-red-600":"text-gray-500"}`}>
+                        {trade.result || "-"}
+                      </td>
+                      <td className="p-2 border">{trade.duration ? `${trade.duration}m` : "-"}</td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td className="p-2 border text-center text-gray-500" colSpan="8">No trades recorded</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
