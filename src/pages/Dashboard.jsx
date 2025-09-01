@@ -39,7 +39,7 @@ export default function Dashboard() {
 
   const API_URL = import.meta.env.VITE_API_URL;
 
-  // --- Fetch live prices ---
+  // --- Live prices ---
   useEffect(() => {
     const fetchLive = async () => {
       try {
@@ -54,7 +54,7 @@ export default function Dashboard() {
     return () => clearInterval(intv);
   }, []);
 
-  // --- Fetch price history ---
+  // --- Price history ---
   useEffect(() => {
     const fetchHistory = async () => {
       try {
@@ -77,15 +77,14 @@ export default function Dashboard() {
     fetchHistory();
   }, [selectedSymbol, period, interval]);
 
-  // --- Fetch candlestick data ---
+  // --- Candlestick data ---
   useEffect(() => {
     const fetchCandles = async () => {
       try {
         const data = await fetchWithRetry(`${API_URL}/prices/candles?symbols=${selectedSymbol}&period=${period}&interval=${interval}`);
         if (data.success) {
-          // Store candles with UNIX seconds for lightweight-charts
           const formatted = (data.candles[selectedSymbol] || []).map(c => ({
-            time: Math.floor(c.time), // seconds
+            time: Math.floor(c.time), // seconds for lightweight-charts
             open: c.open,
             high: c.high,
             low: c.low,
@@ -100,39 +99,46 @@ export default function Dashboard() {
     fetchCandles();
   }, [selectedSymbol, period, interval]);
 
-  // --- Render candlestick chart ---
+  // --- Create chart once ---
+  useEffect(() => {
+    if (!chartContainerRef.current) return;
+
+    if (!chartRef.current) {
+      const chart = createChart(chartContainerRef.current, {
+        width: chartContainerRef.current.clientWidth,
+        height: 400,
+        layout: { backgroundColor: "#ffffff", textColor: "#333" },
+        grid: { vertLines: { color: "#eee" }, horzLines: { color: "#eee" } },
+        rightPriceScale: { borderVisible: false },
+        timeScale: { borderVisible: false }
+      });
+      chartRef.current = chart;
+
+      const candlestickSeries = chart.addCandlestickSeries({
+        upColor: "#4caf50",
+        downColor: "#f44336",
+        borderVisible: false,
+        wickVisible: true
+      });
+      seriesRef.current = candlestickSeries;
+
+      const handleResize = () => chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+      window.addEventListener("resize", handleResize);
+      return () => window.removeEventListener("resize", handleResize);
+    }
+  }, []);
+
+  // --- Update chart data live ---
   useEffect(() => {
     const candleData = candles[selectedSymbol];
-    if (!chartContainerRef.current || !candleData?.length) return;
+    if (!seriesRef.current || !candleData?.length) return;
 
-    // Remove previous chart
-    chartRef.current?.remove();
+    // Replace full data
+    seriesRef.current.setData(candleData);
 
-    // Create chart
-    const chart = createChart(chartContainerRef.current, {
-      width: chartContainerRef.current.clientWidth,
-      height: 400,
-      layout: { backgroundColor: "#ffffff", textColor: "#333" },
-      grid: { vertLines: { color: "#eee" }, horzLines: { color: "#eee" } },
-      rightPriceScale: { borderVisible: false },
-      timeScale: { borderVisible: false }
-    });
-    chartRef.current = chart;
-
-    const candlestickSeries = chart.addCandlestickSeries({
-      upColor: "#4caf50",
-      downColor: "#f44336",
-      borderVisible: false,
-      wickVisible: true
-    });
-    seriesRef.current = candlestickSeries;
-
-    candlestickSeries.setData(candleData);
-
-    const handleResize = () => chart.applyOptions({ width: chartContainerRef.current.clientWidth });
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-
+    // Optional: push only newest candle for incremental update
+    // const lastCandle = candleData[candleData.length - 1];
+    // seriesRef.current.update(lastCandle);
   }, [candles, selectedSymbol]);
 
   return (
