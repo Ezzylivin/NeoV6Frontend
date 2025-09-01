@@ -5,7 +5,6 @@ import { useBacktest } from "../hooks/useBacktest.js";
 import axios from "axios";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend } from "recharts";
 
-// Hardcoded dropdowns
 const SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"];
 const TIMEFRAMES = ["1m", "5m", "15m", "30m", "1h", "4h", "1d"];
 const BALANCES = [100, 300, 500, 1000, 5000, 10000, 50000];
@@ -13,7 +12,7 @@ const RISKS = ["low", "medium", "high"];
 
 export default function TradingBot() {
   const { user } = useAuth();
-  const { options, fetchOptions } = useBacktest(); // fetch strategies dynamically
+  const { options, fetchOptions } = useBacktest();
   const [strategies, setStrategies] = useState([]);
   const [symbol, setSymbol] = useState(SYMBOLS[0]);
   const [timeframe, setTimeframe] = useState(TIMEFRAMES[0]);
@@ -24,14 +23,12 @@ export default function TradingBot() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-
   const [chartData, setChartData] = useState([]);
   const [chartLoading, setChartLoading] = useState(true);
   const [chartError, setChartError] = useState(null);
 
   const API_URL = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com/api";
 
-  // Fetch backend options (strategies)
   useEffect(() => {
     fetchOptions();
   }, []);
@@ -39,18 +36,18 @@ export default function TradingBot() {
   useEffect(() => {
     if (options.strategies?.length) {
       setStrategies(options.strategies);
-      setStrategy(options.strategies[0]); // default
+      setStrategy(options.strategies[0]);
     }
   }, [options.strategies]);
 
-  // Fetch trading bot history for chart
+  // Fetch trading bot history
   useEffect(() => {
     if (!user?._id) return;
 
     const fetchBotData = async () => {
       setChartLoading(true);
       try {
-        const res = await axios.get(`${API_URL}/tradingbot/history/${user._id}`);
+        const res = await axios.get(`${API_URL}/tradingbots/history/${user._id}`);
         const data = res.data.history.map(point => ({
           time: new Date(point.timestamp).toLocaleString(),
           balance: point.balance,
@@ -72,7 +69,7 @@ export default function TradingBot() {
     setLoading(true);
     setError(null);
     try {
-      await new Promise(r => setTimeout(r, 500));
+      await axios.post(`${API_URL}/bots/start`, { userId: user._id, symbol, timeframe, initialBalance, strategy, risk });
       setStatus({ isRunning: true, symbol, amount: initialBalance, strategy, risk });
       setLogs(prev => [...prev, `Bot started with ${symbol} at ${timeframe}`]);
     } catch (err) {
@@ -85,9 +82,11 @@ export default function TradingBot() {
   const stopBot = async () => {
     setLoading(true);
     try {
-      await new Promise(r => setTimeout(r, 300));
+      await axios.post(`${API_URL}/bots/stop`, { userId: user._id });
       setStatus({ isRunning: false });
       setLogs(prev => [...prev, "Bot stopped"]);
+    } catch (err) {
+      setError("Failed to stop bot");
     } finally {
       setLoading(false);
     }
@@ -192,7 +191,6 @@ export default function TradingBot() {
           </div>
         )}
 
-        {/* Error */}
         {error && <div className="text-red-500 mt-4">{error}</div>}
       </div>
     </div>
