@@ -1,3 +1,4 @@
+// File: src/pages/Dashboard.jsx
 import React, { useEffect, useRef, useState } from "react";
 import { createChart, CrosshairMode } from "lightweight-charts";
 import axios from "axios";
@@ -15,10 +16,11 @@ export default function Dashboard() {
 
   // --- Chart Initialization ---
   useEffect(() => {
-    if (!chartContainerRef.current) return;
+    const container = chartContainerRef.current;
+    if (!container) return;
 
-    const chart = createChart(chartContainerRef.current, {
-      width: chartContainerRef.current.clientWidth,
+    const chart = createChart(container, {
+      width: container.clientWidth,
       height: 500,
       layout: { background: { color: "#111" }, textColor: "#DDD" },
       grid: { vertLines: { color: "#222" }, horzLines: { color: "#222" } },
@@ -47,11 +49,11 @@ export default function Dashboard() {
 
     const resizeObserver = new ResizeObserver(() => {
       chart.applyOptions({
-        width: chartContainerRef.current.clientWidth,
-        height: chartContainerRef.current.clientHeight,
+        width: container.clientWidth,
+        height: container.clientHeight,
       });
     });
-    resizeObserver.observe(chartContainerRef.current);
+    resizeObserver.observe(container);
 
     return () => {
       resizeObserver.disconnect();
@@ -59,7 +61,7 @@ export default function Dashboard() {
     };
   }, []);
 
-  // --- Load exchanges & symbols dynamically ---
+  // --- Load exchanges & symbols dynamically from backend ---
   useEffect(() => {
     const fetchExchanges = async () => {
       try {
@@ -85,7 +87,7 @@ export default function Dashboard() {
     setSymbol(exchanges[exchange]?.[0] || "");
   }, [exchange, exchanges]);
 
-  // --- Fetch candle data ---
+  // --- Fetch candle data and update chart ---
   useEffect(() => {
     if (!exchange || !symbol) return;
 
@@ -95,15 +97,32 @@ export default function Dashboard() {
           params: { exchange, symbol, timeframe: "1m" },
         });
 
-        if (candleSeriesRef.current) candleSeriesRef.current.setData(data);
+        // Ensure lightweight-charts expects `time` in **seconds**
+        const formatted = data.map((c) => ({
+          time: Math.floor(c.time),
+          open: c.open,
+          high: c.high,
+          low: c.low,
+          close: c.close,
+        }));
+
+        if (candleSeriesRef.current) candleSeriesRef.current.setData(formatted);
         if (lineSeriesRef.current)
-          lineSeriesRef.current.setData(data.map((c) => ({ time: c.time, value: c.close })));
+          lineSeriesRef.current.setData(
+            formatted.map((c) => ({ time: c.time, value: c.close }))
+          );
+
+        // Scroll to latest candle
+        chartRef.current.timeScale().scrollToRealTime();
       } catch (err) {
         console.error("Error fetching candles:", err);
       }
     };
 
+    // Initial fetch
     fetchCandles();
+
+    // Poll every 5 seconds
     const interval = setInterval(fetchCandles, 5000);
     return () => clearInterval(interval);
   }, [exchange, symbol]);
