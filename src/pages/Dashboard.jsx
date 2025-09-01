@@ -1,60 +1,26 @@
 // File: src/pages/Dashboard.jsx
-import React, { useEffect, useRef, useState } from "react";
-import { createChart, CrosshairMode } from "lightweight-charts";
+import React, { useState, useEffect } from "react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ResponsiveContainer,
+} from "recharts";
 import axios from "axios";
 
 export default function Dashboard() {
-  const chartContainerRef = useRef(null);
-  const chartRef = useRef(null);
-  const lineSeriesRef = useRef(null);
-
   const [exchanges, setExchanges] = useState({});
   const [exchange, setExchange] = useState("");
   const [symbols, setSymbols] = useState([]);
   const [symbol, setSymbol] = useState("");
+  const [history, setHistory] = useState([]);
+  const [price, setPrice] = useState(null);
 
   // ---------------------------
-  // 1️⃣ Initialize chart
-  // ---------------------------
-  useEffect(() => {
-    if (!chartContainerRef.current) return;
-
-    const chart = createChart(chartContainerRef.current, {
-      width: chartContainerRef.current.clientWidth,
-      height: 500,
-      layout: { background: { color: "#111" }, textColor: "#DDD" },
-      grid: { vertLines: { color: "#222" }, horzLines: { color: "#222" } },
-      crosshair: { mode: CrosshairMode.Normal },
-      rightPriceScale: { borderVisible: false },
-      timeScale: { borderVisible: false },
-    });
-
-    chartRef.current = chart;
-
-    const lineSeries = chart.addLineSeries({
-      color: "#26a69a",
-      lineWidth: 2,
-    });
-
-    lineSeriesRef.current = lineSeries;
-
-    // Resize chart on container size change
-    const resizeObserver = new ResizeObserver(() => {
-      chart.applyOptions({
-        width: chartContainerRef.current.clientWidth,
-        height: chartContainerRef.current.clientHeight,
-      });
-    });
-    resizeObserver.observe(chartContainerRef.current);
-
-    return () => {
-      resizeObserver.disconnect();
-      chart.remove();
-    };
-  }, []);
-
-  // ---------------------------
-  // 2️⃣ Load exchanges from backend
+  // 1️⃣ Load exchanges & symbols
   // ---------------------------
   useEffect(() => {
     const fetchExchanges = async () => {
@@ -70,11 +36,12 @@ export default function Dashboard() {
         console.error("Error fetching exchanges:", err);
       }
     };
+
     fetchExchanges();
   }, []);
 
   // ---------------------------
-  // 3️⃣ Update symbols when exchange changes
+  // 2️⃣ Update symbols when exchange changes
   // ---------------------------
   useEffect(() => {
     if (!exchange) return;
@@ -83,33 +50,32 @@ export default function Dashboard() {
   }, [exchange, exchanges]);
 
   // ---------------------------
-  // 4️⃣ Fetch line chart data
+  // 3️⃣ Fetch price history for chart
   // ---------------------------
   useEffect(() => {
     if (!exchange || !symbol) return;
 
-    const fetchData = async () => {
+    const fetchHistory = async () => {
       try {
         const { data } = await axios.get("http://localhost:5000/api/candles", {
           params: { exchange, symbol, timeframe: "1m" },
         });
 
-        // Convert data to lightweight-charts format
+        // Format for Recharts: { time: Date, price: number }
         const formatted = data.map((c) => ({
-          time: Math.floor(c.time), // seconds
-          value: c.close,
+          time: new Date(c.time * 1000).toLocaleTimeString(),
+          price: c.close,
         }));
 
-        if (lineSeriesRef.current) lineSeriesRef.current.setData(formatted);
-
-        if (chartRef.current) chartRef.current.timeScale().scrollToRealTime();
+        setHistory(formatted);
+        if (formatted.length > 0) setPrice(formatted[formatted.length - 1].price);
       } catch (err) {
-        console.error("Error fetching data:", err);
+        console.error("Error fetching price history:", err);
       }
     };
 
-    fetchData();
-    const interval = setInterval(fetchData, 5000);
+    fetchHistory();
+    const interval = setInterval(fetchHistory, 5000); // refresh every 5s
     return () => clearInterval(interval);
   }, [exchange, symbol]);
 
@@ -144,11 +110,23 @@ export default function Dashboard() {
         </select>
       </div>
 
-      {/* Chart container */}
-      <div
-        ref={chartContainerRef}
-        className="w-full h-[500px] rounded-xl shadow-lg bg-black"
-      />
+      {/* Live price */}
+      <div className="mb-4 text-white">
+        <strong>Live Price for {symbol}:</strong> {price !== null ? price : "Loading..."}
+      </div>
+
+      {/* Price history chart */}
+      <div style={{ width: "100%", height: 400 }}>
+        <ResponsiveContainer>
+          <LineChart data={history}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="time" />
+            <YAxis domain={["auto", "auto"]} />
+            <Tooltip />
+            <Line type="monotone" dataKey="price" stroke="#26a69a" dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
