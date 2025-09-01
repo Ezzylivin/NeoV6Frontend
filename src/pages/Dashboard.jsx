@@ -106,9 +106,11 @@ export default function Dashboard() {
     }
   }, []);
 
-  // --- Poll candle API and live-scroll chart ---
+  // --- Poll candle API and live-scroll chart (last 100 candles) ---
   useEffect(() => {
     if (!selectedSymbol) return;
+
+    const MAX_CANDLES = 100;
 
     const fetchAndScrollCandles = async () => {
       try {
@@ -116,13 +118,16 @@ export default function Dashboard() {
           `${API_URL}/prices/candles?symbols=${selectedSymbol}&period=${period}&interval=${interval}`
         );
         if (data.success) {
-          const formatted = (data.candles[selectedSymbol] || []).map(c => ({
+          let formatted = (data.candles[selectedSymbol] || []).map(c => ({
             time: Math.floor(c.time),
             open: c.open,
             high: c.high,
             low: c.low,
             close: c.close
           }));
+
+          // Keep only the last MAX_CANDLES
+          formatted = formatted.slice(-MAX_CANDLES);
 
           setCandles({ [selectedSymbol]: formatted });
 
