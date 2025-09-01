@@ -1,86 +1,105 @@
 // File: src/pages/Dashboard.jsx
 import React, { useState, useEffect, useRef } from "react";
+import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { createChart } from "lightweight-charts";
 
-const allSymbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"];
+const allSymbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"];
 
 export default function Dashboard() {
   const [selectedSymbol, setSelectedSymbol] = useState("BTCUSDT");
   const [prices, setPrices] = useState({});
-  const [candles, setCandles] = useState([]);
+  const [history, setHistory] = useState({});
+  const [candles, setCandles] = useState({});
   const [period, setPeriod] = useState(24);        // hours
   const [interval, setIntervalSec] = useState(60); // seconds
 
-  const chartRef = useRef(null);
   const chartContainerRef = useRef(null);
+  const chartRef = useRef(null);
   const seriesRef = useRef(null);
+
+  const API_URL = import.meta.env.VITE_API_URL;
 
   // --- Fetch live prices ---
   useEffect(() => {
     const fetchLive = async () => {
       try {
-        const API_URL = import.meta.env.VITE_API_URL;
         const res = await fetch(`${API_URL}/prices/live?symbols=${allSymbols.join(",")}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (data.success) setPrices(data.prices);
       } catch (err) {
         console.error("Failed to fetch live prices:", err);
       }
     };
-
     fetchLive();
     const intv = setInterval(fetchLive, 10000);
     return () => clearInterval(intv);
   }, []);
 
-  // --- Fetch OHLC / candlestick data ---
+  // --- Fetch price history ---
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const res = await fetch(`${API_URL}/prices/history?symbols=${selectedSymbol}&period=${period}&interval=${interval}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data.success) {
+          const formatted = (data.history[selectedSymbol] || []).map(p => ({
+            time: p.time * 1000, // convert unix seconds to milliseconds
+            price: p.price
+          }));
+          setHistory({ [selectedSymbol]: formatted });
+        }
+      } catch (err) {
+        console.error("Failed to fetch history:", err);
+      }
+    };
+    fetchHistory();
+  }, [selectedSymbol, period, interval]);
+
+  // --- Fetch candlestick data ---
   useEffect(() => {
     const fetchCandles = async () => {
       try {
-        const API_URL = import.meta.env.VITE_API_URL;
-        const res = await fetch(
-          `${API_URL}/prices/candles?symbols=${selectedSymbol}&period=${period}&interval=${interval}`
-        );
+        const res = await fetch(`${API_URL}/prices/candles?symbols=${selectedSymbol}&period=${period}&interval=${interval}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        if (data.success && data.candles[selectedSymbol]?.length) {
-          setCandles(data.candles[selectedSymbol]);
-        } else {
-          setCandles([]); // fallback if no data
+        if (data.success) {
+          setCandles({ [selectedSymbol]: data.candles[selectedSymbol] || [] });
         }
       } catch (err) {
         console.error("Failed to fetch candles:", err);
-        setCandles([]);
       }
     };
     fetchCandles();
   }, [selectedSymbol, period, interval]);
 
-  // --- Render / update chart ---
+  // --- Render candlestick chart ---
   useEffect(() => {
-    if (!chartContainerRef.current) return;
+    if (!chartContainerRef.current || !candles[selectedSymbol]?.length) return;
 
-    // Remove old chart
+    // Remove previous chart if exists
     if (chartRef.current) {
       chartRef.current.remove();
       chartRef.current = null;
     }
 
-    const chart = createChart(chartContainerRef.current, { width: chartContainerRef.current.clientWidth, height: 400 });
+    // Create chart
+    const chart = createChart(chartContainerRef.current, { width: chartContainerRef.current.clientWidth, height: 300 });
     chartRef.current = chart;
 
     const candlestickSeries = chart.addCandlestickSeries();
     seriesRef.current = candlestickSeries;
 
-    if (candles.length) {
-      const data = candles.map(c => ({
-        time: typeof c.time === "number" ? c.time : Math.floor(new Date(c.time).getTime() / 1000),
-        open: c.open,
-        high: c.high,
-        low: c.low,
-        close: c.close,
-      }));
-      candlestickSeries.setData(data);
-    }
+    const data = candles[selectedSymbol].map(c => ({
+      time: c.time, // unix seconds
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close
+    }));
+
+    candlestickSeries.setData(data);
   }, [candles, selectedSymbol]);
 
   return (
@@ -106,21 +125,38 @@ export default function Dashboard() {
         <label style={{ marginLeft: 30 }}>
           Interval (seconds):
           <select value={interval} onChange={e => setIntervalSec(parseInt(e.target.value))} style={{ marginLeft: 10 }}>
-            {[10, 30, 60, 300, 900, 3600, 14400, 86400].map(i => <option key={i} value={i}>{i}s</option>)}
+            {[10, 30, 60, 300, 900, 3600].map(i => <option key={i} value={i}>{i}s</option>)}
           </select>
         </label>
       </div>
 
-      {/* --- Live Price --- */}
+      {/* --- Live price --- */}
       <h2>Live Price</h2>
       <div style={{ marginBottom: 30 }}>
         <strong>{selectedSymbol}:</strong> {prices[selectedSymbol] || "Loading..."}
       </div>
 
-      {/* --- Candlestick Chart --- */}
+      {/* --- Price history chart --- */}
+      <h2>Price History</h2>
+      <div style={{ marginBottom: 50 }}>
+        <LineChart width={800} height={400} data={history[selectedSymbol] || []}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis 
+            dataKey="time" 
+            tickFormatter={t => new Date(t).toLocaleTimeString()} 
+            type="number" 
+            domain={['dataMin', 'dataMax']} 
+            scale="time"
+          />
+          <YAxis />
+          <Tooltip labelFormatter={t => new Date(t).toLocaleString()} />
+          <Line type="monotone" dataKey="price" stroke="#8884d8" dot={false} />
+        </LineChart>
+      </div>
+
+      {/* --- Candlestick chart --- */}
       <h2>Candlestick Chart</h2>
-      <div ref={chartContainerRef} style={{ border: "1px solid #ccc" }}></div>
-      {candles.length === 0 && <p>No candle data available for this period/interval.</p>}
+      <div ref={chartContainerRef}></div>
     </div>
   );
 }
