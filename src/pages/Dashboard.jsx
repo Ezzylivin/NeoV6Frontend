@@ -13,8 +13,9 @@ export default function Dashboard() {
   const [period, setPeriod] = useState(24);        // hours
   const [interval, setIntervalSec] = useState(60); // seconds
 
-  const chartRef = useRef(null);
-  const chartContainerRef = useRef(null);
+  const chartContainerRef = useRef(null); // DOM container
+  const chartRef = useRef(null);          // chart instance
+  const seriesRef = useRef(null);         // candlestick series
 
   // --- Fetch live prices ---
   useEffect(() => {
@@ -72,13 +73,25 @@ export default function Dashboard() {
     if (chartRef.current) {
       chartRef.current.remove();
       chartRef.current = null;
+      seriesRef.current = null;
     }
 
     // Create chart
-    const chart = createChart(chartContainerRef.current, { width: chartContainerRef.current.clientWidth, height: 300 });
+    const chart = createChart(chartContainerRef.current, {
+      width: chartContainerRef.current.clientWidth,
+      height: 300,
+      layout: { backgroundColor: "#000000", textColor: "#FFFFFF" },
+      grid: { vertLines: { color: "#444" }, horzLines: { color: "#444" } },
+    });
     chartRef.current = chart;
 
-    const series = chart.addCandlestickSeries();
+    const series = chart.addCandlestickSeries({
+      upColor: "#26a69a",
+      downColor: "#ef5350",
+      borderVisible: true,
+      wickVisible: true,
+    });
+    seriesRef.current = series;
 
     const data = candles[selectedSymbol].map(c => ({
       time: typeof c.time === "number" ? c.time : Math.floor(new Date(c.time).getTime() / 1000),
@@ -92,26 +105,26 @@ export default function Dashboard() {
   }, [candles, selectedSymbol]);
 
   return (
-    <div>
-      <h1>Crypto Dashboard</h1>
+    <div style={{ padding: 20 }}>
+      <h1 style={{ color: "#fff" }}>Crypto Dashboard</h1>
 
       {/* Dropdown selectors */}
       <div style={{ marginBottom: 20 }}>
-        <label>
+        <label style={{ color: "#fff" }}>
           Symbol:
           <select value={selectedSymbol} onChange={e => setSelectedSymbol(e.target.value)} style={{ marginLeft: 10 }}>
             {allSymbols.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
 
-        <label style={{ marginLeft: 30 }}>
+        <label style={{ marginLeft: 30, color: "#fff" }}>
           Period (hours):
           <select value={period} onChange={e => setPeriod(parseInt(e.target.value))} style={{ marginLeft: 10 }}>
             {[1, 6, 12, 24, 72].map(p => <option key={p} value={p}>{p}h</option>)}
           </select>
         </label>
 
-        <label style={{ marginLeft: 30 }}>
+        <label style={{ marginLeft: 30, color: "#fff" }}>
           Interval (seconds):
           <select value={interval} onChange={e => setIntervalSec(parseInt(e.target.value))} style={{ marginLeft: 10 }}>
             {[10, 30, 60, 300, 900, 3600].map(i => <option key={i} value={i}>{i}s</option>)}
@@ -120,13 +133,13 @@ export default function Dashboard() {
       </div>
 
       {/* Live price */}
-      <h2>Live Price</h2>
-      <div style={{ marginBottom: 30 }}>
+      <h2 style={{ color: "#fff" }}>Live Price</h2>
+      <div style={{ marginBottom: 30, color: "#fff" }}>
         <strong>{selectedSymbol}:</strong> {prices[selectedSymbol] || "Loading..."}
       </div>
 
       {/* Price history chart */}
-      <h2>Price History</h2>
+      <h2 style={{ color: "#fff" }}>Price History</h2>
       <div style={{ marginBottom: 50 }}>
         <LineChart width={600} height={300} data={history[selectedSymbol] || []}>
           <CartesianGrid strokeDasharray="3 3" />
@@ -138,7 +151,7 @@ export default function Dashboard() {
       </div>
 
       {/* Candlestick chart */}
-      <h2>Candlestick Chart</h2>
+      <h2 style={{ color: "#fff" }}>Candlestick Chart</h2>
       <div ref={chartContainerRef}></div>
     </div>
   );
