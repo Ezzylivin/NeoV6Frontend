@@ -1,4 +1,3 @@
-// File: src/pages/Dashboard.jsx
 import React, { useState, useEffect } from "react";
 import {
   LineChart,
@@ -11,9 +10,9 @@ import {
 } from "recharts";
 import axios from "axios";
 
-export default function Dashboard() {
-  const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = "https://neov6backend.onrender.com/api"; // ✅ production backend
 
+export default function Dashboard() {
   const [exchanges, setExchanges] = useState({});
   const [exchange, setExchange] = useState("");
   const [symbols, setSymbols] = useState([]);
@@ -21,9 +20,7 @@ export default function Dashboard() {
   const [history, setHistory] = useState([]);
   const [price, setPrice] = useState(null);
 
-  // ---------------------------
   // 1️⃣ Load exchanges & symbols
-  // ---------------------------
   useEffect(() => {
     const fetchExchanges = async () => {
       try {
@@ -40,20 +37,16 @@ export default function Dashboard() {
     };
 
     fetchExchanges();
-  }, [API_URL]);
+  }, []);
 
-  // ---------------------------
   // 2️⃣ Update symbols when exchange changes
-  // ---------------------------
   useEffect(() => {
     if (!exchange) return;
     setSymbols(exchanges[exchange] || []);
     setSymbol(exchanges[exchange]?.[0] || "");
   }, [exchange, exchanges]);
 
-  // ---------------------------
-  // 3️⃣ Fetch price history for chart & live price
-  // ---------------------------
+  // 3️⃣ Fetch price history for chart
   useEffect(() => {
     if (!exchange || !symbol) return;
 
@@ -63,7 +56,6 @@ export default function Dashboard() {
           params: { exchange, symbol, timeframe: "1m" },
         });
 
-        // Format for Recharts
         const formatted = data.map((c) => ({
           time: new Date(c.time * 1000).toLocaleTimeString(),
           price: c.close,
@@ -77,9 +69,9 @@ export default function Dashboard() {
     };
 
     fetchHistory();
-    const interval = setInterval(fetchHistory, 5000); // refresh every 5s
+    const interval = setInterval(fetchHistory, 5000);
     return () => clearInterval(interval);
-  }, [exchange, symbol, API_URL]);
+  }, [exchange, symbol]);
 
   return (
     <div className="p-4">
