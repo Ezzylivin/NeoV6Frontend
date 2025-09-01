@@ -6,10 +6,9 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContai
 export default function Dashboard() {
   const [candles, setCandles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [symbol, setSymbol] = useState("BTC/USD"); // current asset
+  const [symbol, setSymbol] = useState("BTC/USD");
   const [latestPrice, setLatestPrice] = useState(null);
 
-  // Function to fetch chart data
   const fetchChart = async () => {
     try {
       setLoading(true);
@@ -22,7 +21,7 @@ export default function Dashboard() {
       setCandles(data);
 
       if (data.length) {
-        setLatestPrice(data[data.length - 1].close); // latest price
+        setLatestPrice(data[data.length - 1].close);
       }
     } catch (err) {
       console.error("Error fetching chart:", err);
@@ -31,20 +30,34 @@ export default function Dashboard() {
     }
   };
 
-  // Fetch on mount and whenever symbol changes
   useEffect(() => {
     fetchChart();
-
-    // Set interval to refresh every 60 seconds
     const interval = setInterval(fetchChart, 60000);
-    return () => clearInterval(interval); // cleanup on unmount
+    return () => clearInterval(interval);
   }, [symbol]);
+
+  // Custom tooltip
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      const d = payload[0].payload;
+      return (
+        <div className="bg-white p-2 border shadow rounded">
+          <p><strong>{symbol}</strong></p>
+          <p>Time: {new Date(d.time * 1000).toLocaleString()}</p>
+          <p>Open: ${d.open}</p>
+          <p>High: ${d.high}</p>
+          <p>Low: ${d.low}</p>
+          <p>Close: ${d.close}</p>
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-2">Dashboard</h1>
 
-      {/* Symbol & Latest Price */}
       <div className="mb-4">
         <span className="text-lg font-semibold">{symbol}</span>
         {latestPrice !== null && (
@@ -63,12 +76,10 @@ export default function Dashboard() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey="time"
-                tickFormatter={(ts) => new Date(ts * 1000).toLocaleString()}
+                tickFormatter={(ts) => new Date(ts * 1000).toLocaleTimeString()}
               />
               <YAxis domain={["auto", "auto"]} />
-              <Tooltip
-                labelFormatter={(ts) => new Date(ts * 1000).toLocaleString()}
-              />
+              <Tooltip content={<CustomTooltip />} />
               <Line type="monotone" dataKey="close" stroke="#8884d8" dot={false} />
             </LineChart>
           </ResponsiveContainer>
