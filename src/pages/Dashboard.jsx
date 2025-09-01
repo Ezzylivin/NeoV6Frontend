@@ -19,14 +19,14 @@ export default function Dashboard() {
   const [candles, setCandles] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Fetch exchanges on mount
+  // --- Fetch exchanges on mount ---
   useEffect(() => {
     const fetchExchanges = async () => {
       try {
         const res = await axios.get(
           "https://neov6backend.onrender.com/api/exchanges"
         );
-        setExchanges(res.data.exchanges || []); // always array
+        setExchanges(res.data.exchanges || []);
       } catch (err) {
         console.error("Error fetching exchanges:", err);
       }
@@ -34,17 +34,17 @@ export default function Dashboard() {
     fetchExchanges();
   }, []);
 
-  // Update symbols when exchange changes
+  // --- Update symbols when exchange changes ---
   useEffect(() => {
     if (selectedExchange) {
-      const ex = exchanges.find((e) => e.name === selectedExchange);
+      const ex = exchanges.find((ex) => ex.name === selectedExchange);
       setSymbols(ex?.symbols || []);
       setSelectedSymbol("");
       setCandles([]);
     }
   }, [selectedExchange, exchanges]);
 
-  // Fetch candles for selected symbol
+  // --- Fetch candles for selected symbol ---
   const fetchCandles = async () => {
     if (!selectedExchange || !selectedSymbol) return;
     setLoading(true);
@@ -52,13 +52,7 @@ export default function Dashboard() {
       const res = await axios.get(
         `https://neov6backend.onrender.com/api/candles?exchange=${selectedExchange}&symbol=${selectedSymbol}&timeframe=1h`
       );
-
-      const data = res.data.map((c) => ({
-        timestamp: c.time * 1000, // backend sends seconds → JS needs ms
-        close: c.close,
-      }));
-
-      setCandles(data);
+      setCandles(res.data || []); // backend returns array of {time, open, high, low, close}
     } catch (err) {
       console.error("Error fetching candles:", err);
     } finally {
@@ -116,12 +110,14 @@ export default function Dashboard() {
             <LineChart data={candles}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
-                dataKey="timestamp"
-                tickFormatter={(ts) => new Date(ts).toLocaleTimeString()}
+                dataKey="time"
+                tickFormatter={(ts) =>
+                  new Date(ts * 1000).toLocaleString()
+                }
               />
               <YAxis domain={["auto", "auto"]} />
               <Tooltip
-                labelFormatter={(ts) => new Date(ts).toLocaleString()}
+                labelFormatter={(ts) => new Date(ts * 1000).toLocaleString()}
               />
               <Line
                 type="monotone"
@@ -132,7 +128,10 @@ export default function Dashboard() {
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <p>No chart data yet. Select exchange & symbol and click "Fetch Chart".</p>
+          <p>
+            No chart data yet. Select exchange & symbol and click "Fetch
+            Chart".
+          </p>
         )}
       </div>
     </div>
