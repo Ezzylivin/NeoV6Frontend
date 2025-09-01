@@ -14,7 +14,7 @@ export default function Dashboard() {
   const [symbols, setSymbols] = useState([]);
   const [symbol, setSymbol] = useState("");
 
-  // --- Chart Initialization ---
+  // --- Initialize chart ---
   useEffect(() => {
     const container = chartContainerRef.current;
     if (!container) return;
@@ -61,7 +61,7 @@ export default function Dashboard() {
     };
   }, []);
 
-  // --- Load exchanges & symbols dynamically from backend ---
+  // --- Load exchanges from backend ---
   useEffect(() => {
     const fetchExchanges = async () => {
       try {
@@ -76,7 +76,6 @@ export default function Dashboard() {
         console.error("Error fetching exchanges:", err);
       }
     };
-
     fetchExchanges();
   }, []);
 
@@ -97,7 +96,7 @@ export default function Dashboard() {
           params: { exchange, symbol, timeframe: "1m" },
         });
 
-        // Ensure lightweight-charts expects `time` in **seconds**
+        // Ensure lightweight-charts expects `time` in seconds
         const formatted = data.map((c) => ({
           time: Math.floor(c.time),
           open: c.open,
@@ -112,17 +111,13 @@ export default function Dashboard() {
             formatted.map((c) => ({ time: c.time, value: c.close }))
           );
 
-        // Scroll to latest candle
         chartRef.current.timeScale().scrollToRealTime();
       } catch (err) {
         console.error("Error fetching candles:", err);
       }
     };
 
-    // Initial fetch
     fetchCandles();
-
-    // Poll every 5 seconds
     const interval = setInterval(fetchCandles, 5000);
     return () => clearInterval(interval);
   }, [exchange, symbol]);
