@@ -32,20 +32,21 @@ export default function Dashboard() {
   const [candles, setCandles] = useState({});
   const [period, setPeriod] = useState(24);        // hours
   const [interval, setIntervalSec] = useState(60); // seconds
+
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
 
   const API_URL = import.meta.env.VITE_API_URL;
 
-  // --- Fetch live prices with retries ---
+  // --- Fetch live prices ---
   useEffect(() => {
     const fetchLive = async () => {
       try {
         const data = await fetchWithRetry(`${API_URL}/prices/live?symbols=${allSymbols.join(",")}`);
         if (data.success) setPrices(data.prices);
       } catch (err) {
-        console.error("Failed to fetch live prices after retries:", err);
+        console.error("Failed to fetch live prices:", err);
       }
     };
     fetchLive();
@@ -60,7 +61,7 @@ export default function Dashboard() {
         const data = await fetchWithRetry(`${API_URL}/prices/history?symbols=${selectedSymbol}&period=${period}&interval=${interval}`);
         if (data.success) {
           let formatted = (data.history[selectedSymbol] || []).map(p => ({
-            time: p.time * 1000,
+            time: p.time * 1000, // milliseconds for Recharts
             price: p.price
           }));
           if (formatted.length > 1000) {
@@ -82,7 +83,15 @@ export default function Dashboard() {
       try {
         const data = await fetchWithRetry(`${API_URL}/prices/candles?symbols=${selectedSymbol}&period=${period}&interval=${interval}`);
         if (data.success) {
-          setCandles({ [selectedSymbol]: data.candles[selectedSymbol] || [] });
+          // Store candles with UNIX seconds for lightweight-charts
+          const formatted = (data.candles[selectedSymbol] || []).map(c => ({
+            time: Math.floor(c.time), // seconds
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close
+          }));
+          setCandles({ [selectedSymbol]: formatted });
         }
       } catch (err) {
         console.error("Failed to fetch candles:", err);
@@ -93,14 +102,20 @@ export default function Dashboard() {
 
   // --- Render candlestick chart ---
   useEffect(() => {
-    if (!chartContainerRef.current || !candles[selectedSymbol]?.length) return;
-    if (chartRef.current) chartRef.current.remove();
+    const candleData = candles[selectedSymbol];
+    if (!chartContainerRef.current || !candleData?.length) return;
 
+    // Remove previous chart
+    chartRef.current?.remove();
+
+    // Create chart
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
-      height: 300,
+      height: 400,
       layout: { backgroundColor: "#ffffff", textColor: "#333" },
-      grid: { vertLines: { color: "#eee" }, horzLines: { color: "#eee" } }
+      grid: { vertLines: { color: "#eee" }, horzLines: { color: "#eee" } },
+      rightPriceScale: { borderVisible: false },
+      timeScale: { borderVisible: false }
     });
     chartRef.current = chart;
 
@@ -112,15 +127,7 @@ export default function Dashboard() {
     });
     seriesRef.current = candlestickSeries;
 
-    const data = candles[selectedSymbol].map(c => ({
-      time: c.time,
-      open: c.open,
-      high: c.high,
-      low: c.low,
-      close: c.close
-    }));
-
-    candlestickSeries.setData(data);
+    candlestickSeries.setData(candleData);
 
     const handleResize = () => chart.applyOptions({ width: chartContainerRef.current.clientWidth });
     window.addEventListener("resize", handleResize);
@@ -185,7 +192,7 @@ export default function Dashboard() {
 
       {/* Candlestick chart */}
       <h2>Candlestick Chart</h2>
-      <div ref={chartContainerRef}></div>
+      <div ref={chartContainerRef} style={{ width: "100%", height: 400 }}></div>
     </div>
   );
 }
