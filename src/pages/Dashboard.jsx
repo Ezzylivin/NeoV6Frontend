@@ -9,28 +9,35 @@ export default function Dashboard() {
   const [symbol, setSymbol] = useState("BTC/USD"); // current asset
   const [latestPrice, setLatestPrice] = useState(null);
 
-  useEffect(() => {
-    const fetchChart = async () => {
-      try {
-        const exchangeName = "coinbase"; // default exchange
-        const candleRes = await axios.get(
-          `https://neov6backend.onrender.com/api/candles?exchange=${exchangeName}&symbol=${symbol}&timeframe=1h`
-        );
+  // Function to fetch chart data
+  const fetchChart = async () => {
+    try {
+      setLoading(true);
+      const exchangeName = "coinbase"; // default exchange
+      const res = await axios.get(
+        `https://neov6backend.onrender.com/api/candles?exchange=${exchangeName}&symbol=${symbol}&timeframe=1h`
+      );
 
-        const candlesData = candleRes.data || [];
-        setCandles(candlesData);
+      const data = res.data || [];
+      setCandles(data);
 
-        if (candlesData.length) {
-          setLatestPrice(candlesData[candlesData.length - 1].close); // most recent close
-        }
-      } catch (err) {
-        console.error("Error fetching chart:", err);
-      } finally {
-        setLoading(false);
+      if (data.length) {
+        setLatestPrice(data[data.length - 1].close); // latest price
       }
-    };
+    } catch (err) {
+      console.error("Error fetching chart:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // Fetch on mount and whenever symbol changes
+  useEffect(() => {
     fetchChart();
+
+    // Set interval to refresh every 60 seconds
+    const interval = setInterval(fetchChart, 60000);
+    return () => clearInterval(interval); // cleanup on unmount
   }, [symbol]);
 
   return (
