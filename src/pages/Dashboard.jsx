@@ -23,7 +23,7 @@ export default function Dashboard() {
   const symbol2 = "ETH/USD";
   const exchange = "coinbase";
 
-  const timeOptions = ["1m", "5m", "15m", "1h", "4h", "1d", "3d"];
+  const timeOptions = ["1m", "5m", "10m", "15m", "30m", "1h", "4h", "1d", "3d"];
 
   const fetchChart = async (symbol, timeframe, setCandles) => {
     try {
