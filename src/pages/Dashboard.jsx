@@ -1,3 +1,4 @@
+// File: src/pages/Dashboard.jsx
 import React, { useState, useEffect } from "react";
 import {
   LineChart,
@@ -10,7 +11,8 @@ import {
 } from "recharts";
 import axios from "axios";
 
-const API_URL = "https://neov6backend.onrender.com/api"; // ✅ production backend
+// ✅ Use your production backend
+const API_URL = "https://neov6backend.onrender.com/api";
 
 export default function Dashboard() {
   const [exchanges, setExchanges] = useState({});
