@@ -104,3 +104,16 @@ export default function Dashboard() {
                 tickFormatter={(ts) => new Date(ts * 1000).toLocaleString()}
               />
               <YAxis domain={["auto", "auto"]} />
+              <Tooltip
+                labelFormatter={(ts) => new Date(ts * 1000).toLocaleString()}
+              />
+              <Line type="monotone" dataKey="close" stroke="#8884d8" dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <p>No chart data yet. Select exchange & symbol and click "Fetch Chart".</p>
+        )}
+      </div>
+    </div>
+  );
+}
