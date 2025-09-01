@@ -9,12 +9,14 @@ export default function Dashboard() {
   const [symbols, setSymbols] = useState([]);
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [candles, setCandles] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loadingExchanges, setLoadingExchanges] = useState(true);
+  const [loadingCandles, setLoadingCandles] = useState(false);
 
   // Fetch exchanges on mount
   useEffect(() => {
     const fetchExchanges = async () => {
       try {
+        setLoadingExchanges(true);
         const res = await axios.get("https://neov6backend.onrender.com/api/exchanges");
         const exchangeList = res.data.exchanges || [];
         setExchanges(exchangeList);
@@ -30,6 +32,8 @@ export default function Dashboard() {
         }
       } catch (err) {
         console.error("Error fetching exchanges:", err);
+      } finally {
+        setLoadingExchanges(false);
       }
     };
     fetchExchanges();
@@ -58,7 +62,7 @@ export default function Dashboard() {
   // Fetch candles for selected symbol
   const fetchCandles = async () => {
     if (!selectedExchange || !selectedSymbol) return;
-    setLoading(true);
+    setLoadingCandles(true);
     try {
       const res = await axios.get(
         `https://neov6backend.onrender.com/api/candles?exchange=${selectedExchange}&symbol=${selectedSymbol}&timeframe=1h`
@@ -67,7 +71,7 @@ export default function Dashboard() {
     } catch (err) {
       console.error("Error fetching candles:", err);
     } finally {
-      setLoading(false);
+      setLoadingCandles(false);
     }
   };
 
@@ -76,47 +80,55 @@ export default function Dashboard() {
       <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
 
       <div className="mb-4 flex gap-4">
-        {/* Exchange Selector */}
-        <select
-          value={selectedExchange}
-          onChange={(e) => setSelectedExchange(e.target.value)}
-          className="border p-2"
-        >
-          <option value="">Select Exchange</option>
-          {exchanges.map((ex) => (
-            <option key={ex.name} value={ex.name}>
-              {ex.name}
-            </option>
-          ))}
-        </select>
+        {loadingExchanges ? (
+          <p>Loading exchanges...</p>
+        ) : (
+          <>
+            {/* Exchange Selector */}
+            <select
+              value={selectedExchange}
+              onChange={(e) => setSelectedExchange(e.target.value)}
+              className="border p-2"
+            >
+              <option value="">Select Exchange</option>
+              {exchanges.map((ex) => (
+                <option key={ex.name} value={ex.name}>
+                  {ex.name}
+                </option>
+              ))}
+            </select>
 
-        {/* Symbol Selector */}
-        <select
-          value={selectedSymbol}
-          onChange={(e) => setSelectedSymbol(e.target.value)}
-          className="border p-2"
-          disabled={!selectedExchange || symbols.length === 0}
-        >
-          <option value="">Select Symbol</option>
-          {symbols.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+            {/* Symbol Selector */}
+            <select
+              value={selectedSymbol}
+              onChange={(e) => setSelectedSymbol(e.target.value)}
+              className="border p-2"
+              disabled={!selectedExchange || symbols.length === 0}
+            >
+              <option value="">Select Symbol</option>
+              {symbols.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
 
-        <button
-          onClick={fetchCandles}
-          className="bg-blue-500 text-white px-4 py-2 rounded"
-          disabled={!selectedSymbol || loading}
-        >
-          {loading ? "Loading..." : "Fetch Chart"}
-        </button>
+            <button
+              onClick={fetchCandles}
+              className="bg-blue-500 text-white px-4 py-2 rounded"
+              disabled={!selectedSymbol || loadingCandles}
+            >
+              {loadingCandles ? "Loading..." : "Fetch Chart"}
+            </button>
+          </>
+        )}
       </div>
 
       {/* Chart */}
       <div style={{ width: "100%", height: 400 }}>
-        {candles.length ? (
+        {loadingCandles ? (
+          <p>Loading chart data...</p>
+        ) : candles.length ? (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={candles}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -132,7 +144,7 @@ export default function Dashboard() {
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <p>No chart data yet. Select exchange & symbol and click "Fetch Chart".</p>
+          !loadingExchanges && <p>No chart data yet. Select exchange & symbol and click "Fetch Chart".</p>
         )}
       </div>
     </div>
