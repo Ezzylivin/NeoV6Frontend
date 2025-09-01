@@ -77,28 +77,6 @@ export default function Dashboard() {
     fetchHistory();
   }, [selectedSymbol, period, interval]);
 
-  // --- Candlestick data ---
-  useEffect(() => {
-    const fetchCandles = async () => {
-      try {
-        const data = await fetchWithRetry(`${API_URL}/prices/candles?symbols=${selectedSymbol}&period=${period}&interval=${interval}`);
-        if (data.success) {
-          const formatted = (data.candles[selectedSymbol] || []).map(c => ({
-            time: Math.floor(c.time), // seconds for lightweight-charts
-            open: c.open,
-            high: c.high,
-            low: c.low,
-            close: c.close
-          }));
-          setCandles({ [selectedSymbol]: formatted });
-        }
-      } catch (err) {
-        console.error("Failed to fetch candles:", err);
-      }
-    };
-    fetchCandles();
-  }, [selectedSymbol, period, interval]);
-
   // --- Create chart once ---
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -128,18 +106,47 @@ export default function Dashboard() {
     }
   }, []);
 
-  // --- Update chart data live ---
+  // --- Poll candle API and live-scroll chart ---
   useEffect(() => {
-    const candleData = candles[selectedSymbol];
-    if (!seriesRef.current || !candleData?.length) return;
+    if (!selectedSymbol) return;
 
-    // Replace full data
-    seriesRef.current.setData(candleData);
+    const fetchAndScrollCandles = async () => {
+      try {
+        const data = await fetchWithRetry(
+          `${API_URL}/prices/candles?symbols=${selectedSymbol}&period=${period}&interval=${interval}`
+        );
+        if (data.success) {
+          const formatted = (data.candles[selectedSymbol] || []).map(c => ({
+            time: Math.floor(c.time),
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close
+          }));
 
-    // Optional: push only newest candle for incremental update
-    // const lastCandle = candleData[candleData.length - 1];
-    // seriesRef.current.update(lastCandle);
-  }, [candles, selectedSymbol]);
+          setCandles({ [selectedSymbol]: formatted });
+
+          if (seriesRef.current && formatted.length) {
+            const lastCandle = formatted[formatted.length - 1];
+            seriesRef.current.update(lastCandle);
+
+            // Scroll chart so latest candle is visible
+            chartRef.current.timeScale().scrollToRealTime();
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch candles:", err);
+      }
+    };
+
+    // Initial fetch
+    fetchAndScrollCandles();
+
+    // Poll every 10 seconds
+    const pollInterval = setInterval(fetchAndScrollCandles, 10000);
+    return () => clearInterval(pollInterval);
+
+  }, [selectedSymbol, period, interval]);
 
   return (
     <div style={{ padding: "20px" }}>
