@@ -1,5 +1,4 @@
-// File: src/hooks/useBacktest.js
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import axios from "axios";
 
@@ -9,45 +8,39 @@ export function useBacktest() {
 
   const [results, setResults] = useState([]);
   const [best, setBest] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [options, setOptions] = useState({
     symbols: ["BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT"],
     timeframes: ["1m","5m","15m","30m","1h","4h","1d"],
     balances: [100,300,500,1000,5000,10000],
     strategies: ["SMA","EMA","RSI","MACD"],
-    risks: ["Low","Medium","High"]
+    risks: ["Low","Medium","High"],
+    stopLosses: [1,2,3,5],
+    takeProfits: [1,2,3,5,10],
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [historyChart, setHistoryChart] = useState([]);
 
   const API_URL = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com/api";
 
-  // Fetch dropdown options dynamically
   const fetchOptions = async () => {
     if (!userId) return;
     try {
       const { data } = await axios.get(`${API_URL}/backtests/options`);
       if (data.success) setOptions(data.options);
-    } catch (err) {
-      console.warn("Failed to fetch options, using defaults", err);
+    } catch(err) {
+      console.warn("Failed to fetch options, using fallback", err);
     }
   };
 
-  // Fetch saved backtests for current user
   const fetchBacktests = async () => {
     if (!userId) return;
     setLoading(true);
     setError(null);
     try {
       const { data } = await axios.get(`${API_URL}/backtests/user/${userId}`);
-      if (data.success) {
-        setResults(data.backtests || []);
-      } else {
-        setResults([]);
-        setError("No backtests found");
-      }
-    } catch (err) {
-      console.error("Fetch backtests error:", err);
+      if (data.success) setResults(data.backtests || []);
+    } catch(err) {
+      console.error(err);
       setError(err.response?.data?.message || "Failed to fetch backtests");
       setResults([]);
     } finally {
@@ -55,70 +48,37 @@ export function useBacktest() {
     }
   };
 
-  // Load history chart data for user
-  const loadHistoryChart = async () => {
-    if (!userId) return;
-    try {
-      const res = await axios.get(`${API_URL}/backtests/user/${userId}`);
-      const data = (res.data.backtests || []).map(bt => ({
-        time: new Date(bt.createdAt).toLocaleString(),
-        initialBalance: bt.initialBalance,
-        finalBalance: bt.finalBalance ?? (bt.initialBalance + (bt.results?.profit ?? 0)),
-        profit: bt.results?.profit ?? 0,
-      }));
-      setHistoryChart(data);
-    } catch (e) {
-      console.error("Load history chart error:", e);
-      setHistoryChart([]);
-    }
-  };
-
-  // Run a single backtest
   const runBacktest = async (form) => {
-    if (!userId) {
-      setError("User not logged in");
-      return;
-    }
-    setLoading(true);
-    setError(null);
+    if (!userId) return setError("User not logged in");
+    setLoading(true); setError(null);
+
     try {
-      const { data } = await axios.post(`${API_URL}/backtests/run`, {
-        userId,
-        ...form
-      });
-      if (data.success && data.backtest) {
-        setResults(prev => [data.backtest, ...prev]);
-        loadHistoryChart(); // update chart automatically
-      } else {
-        setError("Backtest run failed");
-      }
-    } catch (err) {
-      console.error("Run backtest error:", err);
+      const { data } = await axios.post(`${API_URL}/backtests/run`, { userId, ...form });
+      if (data.success && data.backtest) setResults(prev => [data.backtest, ...prev]);
+      else setError("Backtest run failed");
+    } catch(err) {
+      console.error(err);
       setError(err.response?.data?.message || "Failed to run backtest");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
-  // Automatically fetch options and backtests when user logs in
-  useEffect(() => {
-    if (userId) {
-      fetchOptions();
-      fetchBacktests();
-      loadHistoryChart();
-    }
-  }, [userId]);
+  const runBatchBacktests = async (paramCombos, exchange) => {
+    if (!userId || !paramCombos?.length) return;
+    setLoading(true); setError(null);
 
-  return {
-    results,
-    best,
-    options,
-    loading,
-    error,
-    historyChart,
-    fetchOptions,
-    fetchBacktests,
-    loadHistoryChart,
-    runBacktest
+    try {
+      const { data } = await axios.post(`${API_URL}/backtests/batch`, { userId, paramCombos, exchange });
+      if (data.success) {
+        setResults(prev => [...data.results.map(r => r.saved), ...prev]);
+        setBest(data.best);
+      } else {
+        setError("Batch backtests failed");
+      }
+    } catch(err) {
+      console.error(err);
+      setError(err.response?.data?.message || "Failed to run batch backtests");
+    } finally { setLoading(false); }
   };
+
+  return { results, best, options, loading, error, fetchOptions, fetchBacktests, runBacktest, runBatchBacktests };
 }
