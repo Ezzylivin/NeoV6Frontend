@@ -135,7 +135,7 @@ export default function Dashboard() {
 
   return (
     <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Dashboard (US Exchanges Only)</h1>
+      <h1 className="text-2xl font-bold mb-4">Neo-V6 Dashboard</h1>
       {loading && <p>Loading charts...</p>}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
