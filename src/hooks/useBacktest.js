@@ -34,7 +34,7 @@ export function useBacktest() {
     if (!user?._id) return;
     setLoading(true);
     try {
-      const { data } = await axios.get(`${API_URL}/backtests?userId=${user._id}`);
+      const { data } = await axios.get(`/api/backtests/user/${userId}`);
       if (data.success) setResults(data.backtests || []);
     } catch(err) {
       console.error(err);
