@@ -2,8 +2,17 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useBacktest } from "../hooks/useBacktest.js";
+import axios from "axios";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend, ReferenceDot
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ResponsiveContainer,
+  Legend,
+  ReferenceDot
 } from "recharts";
 
 export default function TradingBot() {
@@ -20,43 +29,74 @@ export default function TradingBot() {
     runBatchBacktests
   } = useBacktest();
 
+  const API_URL = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com/api";
+
+  // Default options fallback
+  const defaultOptions = {
+    symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"],
+    timeframes: ["1m", "5m", "15m", "1h", "4h", "1d"],
+    balances: [100, 300, 500, 1000, 5000, 10000],
+    strategies: ["SMA", "EMA", "RSI", "MACD"],
+    risks: ["Low", "Medium", "High"],
+    stopLosses: [0.5, 1, 2, 3, 5],
+    takeProfits: [1, 2, 3, 5, 10]
+  };
+
+  const mergedOptions = { ...defaultOptions, ...options };
+
+  // Form state for backtests
   const [form, setForm] = useState({
-    symbol: "",
-    timeframe: "",
-    initialBalance: 1000,
-    strategy: "",
-    risk: "Medium",
-    stopLoss: 1,
-    takeProfit: 2
+    symbol: mergedOptions.symbols[0],
+    timeframe: mergedOptions.timeframes[0],
+    initialBalance: mergedOptions.balances[2],
+    strategy: mergedOptions.strategies[0],
+    risk: mergedOptions.risks[1],
+    stopLoss: mergedOptions.stopLosses[0],
+    takeProfit: mergedOptions.takeProfits[0],
   });
 
+  // Batch optimization params
+  const [batchParams, setBatchParams] = useState({
+    stopLoss: mergedOptions.stopLosses,
+    takeProfit: mergedOptions.takeProfits,
+    interval: mergedOptions.timeframes
+  });
+
+  // Latest backtest result for equity curve display
   const [latest, setLatest] = useState(null);
+
+  // Historical bot chart
+  const [botChart, setBotChart] = useState([]);
+  const [chartLoading, setChartLoading] = useState(true);
+  const [chartError, setChartError] = useState(null);
+
+  // Bot status & logs
+  const [botStatus, setBotStatus] = useState(null);
   const [logs, setLogs] = useState([]);
 
-  // Initialize options & fetch backtests
+  // Fetch options & backtests
   useEffect(() => {
     if (user?._id) {
       fetchOptions();
       fetchBacktests();
+      loadHistoryChart();
+      fetchBotHistory();
     }
-  }, [user?._id]);
+  }, [user]);
 
-  // Set default form when options load
+  // Update form when options load
   useEffect(() => {
-    if (options.symbols?.length && options.strategies?.length) {
-      setForm({
-        symbol: options.symbols[0],
-        timeframe: options.timeframes?.[0] || "1h",
-        initialBalance: options.balances?.[2] || 1000,
-        strategy: options.strategies[0],
-        risk: options.risks?.[1] || "Medium",
-        stopLoss: options.stopLosses?.[0] || 1,
-        takeProfit: options.takeProfits?.[0] || 2
-      });
-    }
+    setForm({
+      symbol: mergedOptions.symbols[0],
+      timeframe: mergedOptions.timeframes[0],
+      initialBalance: mergedOptions.balances[2],
+      strategy: mergedOptions.strategies[0],
+      risk: mergedOptions.risks[1],
+      stopLoss: mergedOptions.stopLosses[0],
+      takeProfit: mergedOptions.takeProfits[0],
+    });
   }, [options]);
 
-  // Update form inputs
   const handleChange = e => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: ["initialBalance","stopLoss","takeProfit"].includes(name) ? Number(value) : value }));
@@ -64,26 +104,97 @@ export default function TradingBot() {
 
   // Run single backtest
   const handleRunSingle = async () => {
+    if (!form.symbol || !form.timeframe) return alert("Select symbol and timeframe!");
     try {
-      await runBacktest(form);
-      setLatest(backtests[0]); // pick latest backtest from hook results
-      setLogs(prev => [...prev, `Ran backtest: ${form.symbol} ${form.strategy}`]);
+      const res = await axios.post(`${API_URL}/backtests/run`, { userId: user._id, ...form });
+      if (res.data.success) {
+        setLatest({
+          metrics: res.data.metrics,
+          equityCurve: (res.data.equityCurve || []).map(p => ({
+            time: new Date(p.time).getTime(),
+            equity: p.equity
+          })),
+          trades: res.data.trades || []
+        });
+        fetchBacktests();
+        loadHistoryChart();
+      }
     } catch (err) {
       console.error(err);
-      alert("Backtest failed: " + err.message);
+      alert("Backtest failed: " + (err?.response?.data?.message || err.message));
     }
   };
 
   // Run batch backtests
   const handleRunBatch = () => {
-    const combos = options.symbols.flatMap(s =>
-      options.strategies.map(st => ({
-        ...form,
-        symbol: s,
-        strategy: st
-      }))
-    );
+    const combos = [];
+    for (const sl of batchParams.stopLoss) {
+      for (const tp of batchParams.takeProfit) {
+        for (const interval of batchParams.interval) {
+          combos.push({ ...form, stopLoss: sl, takeProfit: tp, timeframe: interval });
+        }
+      }
+    }
     runBatchBacktests(combos);
+  };
+
+  // Load historical backtests chart
+  async function loadHistoryChart() {
+    if (!user?._id) return;
+    try {
+      const res = await axios.get(`${API_URL}/backtests/recent/${user._id}`);
+      const data = (res.data.backtests || []).map(bt => ({
+        time: bt.createdAt ? new Date(bt.createdAt).toLocaleString() : "N/A",
+        initialBalance: bt.initialBalance,
+        finalBalance: bt.finalBalance ?? (bt.initialBalance + (bt.profit || 0)),
+        profit: bt.profit ?? 0
+      }));
+      setBotChart(data);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  // Fetch live bot history
+  const fetchBotHistory = async () => {
+    if (!user?._id) return;
+    setChartLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/bots/history/${user._id}`);
+      const data = res.data.history.map(p => ({
+        time: new Date(p.timestamp).toLocaleString(),
+        balance: p.balance,
+        profit: p.profit ?? 0
+      }));
+      setBotChart(data);
+    } catch (err) {
+      console.error(err);
+      setChartError("Failed to fetch bot history");
+    } finally {
+      setChartLoading(false);
+    }
+  };
+
+  const startBot = async () => {
+    try {
+      await axios.post(`${API_URL}/bots/start`, { userId: user._id, ...form });
+      setBotStatus({ isRunning: true, ...form });
+      setLogs(prev => [...prev, `Bot started with ${form.symbol} at ${form.timeframe}`]);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to start bot");
+    }
+  };
+
+  const stopBot = async () => {
+    try {
+      await axios.post(`${API_URL}/bots/stop`, { userId: user._id });
+      setBotStatus({ isRunning: false });
+      setLogs(prev => [...prev, "Bot stopped"]);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to stop bot");
+    }
   };
 
   const Stats = ({ m }) => {
@@ -96,20 +207,34 @@ export default function TradingBot() {
         </div>
         <div className="p-3 rounded bg-gray-100">
           <div className="text-xs text-gray-500">Net Profit</div>
-          <div className={`text-lg font-semibold ${m.profit >= 0 ? "text-green-600" : "text-red-600"}`}>
-            ${m.profit?.toLocaleString()}
+          <div className={`text-lg font-semibold ${m.netProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
+            ${m.netProfit?.toLocaleString()}
           </div>
+        </div>
+        <div className="p-3 rounded bg-gray-100">
+          <div className="text-xs text-gray-500">Win Rate</div>
+          <div className="text-lg font-semibold">{m.winRate}%</div>
+        </div>
+        <div className="p-3 rounded bg-gray-100">
+          <div className="text-xs text-gray-500">Max Drawdown</div>
+          <div className="text-lg font-semibold">{m.maxDrawdown}%</div>
         </div>
       </div>
     );
   };
 
   const TradeDots = ({ trades }) => {
-    if (!latest?.results?.equityCurve?.length) return null;
-    const eq = latest.results.equityCurve;
+    if (!latest?.equityCurve?.length) return null;
+    const firstTs = latest.equityCurve[0]?.time;
+    const lastTs = latest.equityCurve[latest.equityCurve.length - 1]?.time;
+
     return trades?.map((t, idx) => {
       if (!t.exitTime) return null;
-      const near = eq.reduce((a, b) => Math.abs(b.time - new Date(t.exitTime).getTime()) < Math.abs(a.time - new Date(t.exitTime).getTime()) ? b : a);
+      const when = new Date(t.exitTime).getTime();
+      if (when < firstTs || when > lastTs) return null;
+      const near = latest.equityCurve.reduce((a, b) =>
+        Math.abs(b.time - when) < Math.abs(a.time - when) ? b : a
+      );
       return <ReferenceDot key={idx} x={near.time} y={near.equity} r={4} stroke="none" fill={t.profit > 0 ? "#10B981" : "#EF4444"} />;
     });
   };
@@ -121,82 +246,73 @@ export default function TradingBot() {
       {/* Controls */}
       <div className="bg-gray-100 p-4 rounded-2xl flex flex-wrap gap-4 items-end">
         <select name="symbol" value={form.symbol} onChange={handleChange}>
-          {options.symbols?.map(s => <option key={s} value={s}>{s}</option>)}
+          {mergedOptions.symbols.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <select name="timeframe" value={form.timeframe} onChange={handleChange}>
-          {options.timeframes?.map(tf => <option key={tf} value={tf}>{tf}</option>)}
+          {mergedOptions.timeframes.map(tf => <option key={tf} value={tf}>{tf}</option>)}
         </select>
         <select name="strategy" value={form.strategy} onChange={handleChange}>
-          {options.strategies?.map(st => <option key={st} value={st}>{st}</option>)}
+          {mergedOptions.strategies.map(st => <option key={st} value={st}>{st}</option>)}
         </select>
         <select name="risk" value={form.risk} onChange={handleChange}>
-          {options.risks?.map(r => <option key={r} value={r}>{r}</option>)}
+          {mergedOptions.risks.map(r => <option key={r} value={r}>{r}</option>)}
         </select>
         <select name="initialBalance" value={form.initialBalance} onChange={handleChange}>
-          {options.balances?.map(b => <option key={b} value={b}>{b}</option>)}
+          {mergedOptions.balances.map(b => <option key={b} value={b}>{b}</option>)}
         </select>
         <button onClick={handleRunSingle} className="bg-blue-600 text-white px-4 py-2 rounded">{loading ? "Running..." : "Run Backtest"}</button>
         <button onClick={handleRunBatch} className="bg-green-600 text-white px-4 py-2 rounded">Run Batch Backtests</button>
+        <button onClick={startBot} className="bg-green-500 text-white px-4 py-2 rounded">Start Bot</button>
+        <button onClick={stopBot} className="bg-red-500 text-white px-4 py-2 rounded">Stop Bot</button>
       </div>
 
       {/* Latest Backtest */}
-      {latest && latest.results?.equityCurve?.length > 0 && (
+      {latest && (
         <div className="bg-white p-4 rounded-2xl shadow">
           <h2 className="text-xl font-semibold">Latest Backtest – Equity Curve</h2>
           <ResponsiveContainer width="100%" height={320}>
-            <LineChart data={latest.results.equityCurve}>
+            <LineChart data={latest.equityCurve}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="time" tickFormatter={ts => new Date(ts).toLocaleString()} />
               <YAxis />
-              <Tooltip labelFormatter={ts => new Date(ts).toLocaleString()} formatter={v => `$${v.toLocaleString()}`} />
+              <Tooltip labelFormatter={ts => new Date(ts).toLocaleString()} formatter={(v) => `$${v.toLocaleString()}`} />
               <Legend />
               <Line type="monotone" dataKey="equity" stroke="#3B82F6" dot={false} />
-              <TradeDots trades={latest.results.trades} />
+              <TradeDots trades={latest.trades} />
             </LineChart>
           </ResponsiveContainer>
-          <Stats m={{ finalBalance: latest.results.finalBalance, profit: latest.results.profit }} />
+          <Stats m={latest.metrics} />
         </div>
       )}
 
-      {/* Historical Backtests Table */}
+      {/* Historical Backtests */}
       <div className="bg-white p-4 rounded-2xl shadow">
         <h2 className="text-xl font-semibold mb-4">Backtests History</h2>
-        {backtests.length === 0 ? (
-          <p>No historical backtests found.</p>
-        ) : (
-          <table className="min-w-full border">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="px-4 py-2 border">Date</th>
-                <th className="px-4 py-2 border">Symbol</th>
-                <th className="px-4 py-2 border">Strategy</th>
-                <th className="px-4 py-2 border">Risk</th>
-                <th className="px-4 py-2 border">Initial</th>
-                <th className="px-4 py-2 border">Final</th>
-                <th className="px-4 py-2 border">Profit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {backtests.map(bt => (
-                <tr key={bt._id} className="text-center">
-                  <td>{bt.createdAt ? new Date(bt.createdAt).toLocaleString() : "N/A"}</td>
-                  <td>{bt.symbol}</td>
-                  <td>{bt.strategy?.name || bt.strategy}</td>
-                  <td>{bt.risk}</td>
-                  <td>{bt.initialBalance}</td>
-                  <td>{bt.results?.finalBalance ?? bt.initialBalance}</td>
-                  <td>{bt.results?.profit ?? 0}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        {botChart.length ? (
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={botChart}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="time" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Line type="monotone" dataKey="balance" stroke="#10B981" strokeWidth={2} dot />
+              <Line type="monotone" dataKey="profit" stroke="#F59E0B" strokeWidth={2} dot />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : <p className="text-gray-500">No chart data.</p>}
       </div>
 
-      {error && <p className="text-red-500">{error}</p>}
-      {best && best.results?.profit != null && (
-        <p className="text-green-600 mt-2">Best batch profit: ${best.results.profit.toFixed(2)}</p>
+      {/* Logs */}
+      {logs.length > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold mb-2">Logs:</h2>
+          <ul className="list-disc list-inside">{logs.map((log, idx) => <li key={idx}>{log}</li>)}</ul>
+        </div>
       )}
+
+      {error && <p className="text-red-500">{error}</p>}
+      {best && <p className="text-green-600">Best batch profit: ${best.results.profit.toFixed(2)}</p>}
     </div>
   );
 }
