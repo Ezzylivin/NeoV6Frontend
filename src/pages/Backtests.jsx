@@ -40,7 +40,7 @@ export default function Backtests() {
   const [historyChart, setHistoryChart] = useState([]);
   const [filters, setFilters] = useState({ symbol: "", strategy: "", risk: "" });
 
-  // Initialize form when options are loaded
+  // Initialize form when options load
   useEffect(() => {
     if (options.symbols?.length && options.strategies?.length) {
       setForm({
@@ -55,12 +55,8 @@ export default function Backtests() {
     }
   }, [options]);
 
-  // Load chart history from user backtests
+  // Update chart history when backtests change
   useEffect(() => {
-    loadHistoryChart();
-  }, [backtests]);
-
-  const loadHistoryChart = () => {
     const data = backtests.map((bt) => ({
       time: new Date(bt.createdAt).toLocaleString(),
       initialBalance: bt.initialBalance,
@@ -69,7 +65,7 @@ export default function Backtests() {
       profit: bt.results?.profit ?? 0,
     }));
     setHistoryChart(data);
-  };
+  }, [backtests]);
 
   const handleRun = async () => {
     if (!form.symbol || !form.timeframe) return alert("Select symbol and timeframe!");
@@ -80,12 +76,12 @@ export default function Backtests() {
     const paramCombos = options.symbols.flatMap((symbol) =>
       options.strategies.map((strategy) => ({
         symbol,
-        timeframe: form.timeframe,
+        timeframe: form.timeframe || options.timeframes[0],
         strategy: { name: strategy, parameters: {} },
         risk: form.risk,
-        stopLoss: form.stopLoss,
-        takeProfit: form.takeProfit,
-        initialBalance: form.initialBalance,
+        stopLoss: Number(form.stopLoss),
+        takeProfit: Number(form.takeProfit),
+        initialBalance: Number(form.initialBalance),
       }))
     );
     await runBatchBacktests(paramCombos, "coinbasepro");
@@ -131,9 +127,7 @@ export default function Backtests() {
         <input
           type="number"
           value={form.initialBalance}
-          onChange={(e) =>
-            setForm({ ...form, initialBalance: Number(e.target.value) })
-          }
+          onChange={(e) => setForm({ ...form, initialBalance: Number(e.target.value) })}
           className="border p-2"
         />
 
@@ -197,8 +191,10 @@ export default function Backtests() {
                 <td className="px-4 py-2 border">{bt.strategy?.name || bt.strategy}</td>
                 <td className="px-4 py-2 border">{bt.risk}</td>
                 <td className="px-4 py-2 border">{bt.initialBalance}</td>
-                <td className="px-4 py-2 border">{bt.results?.finalBalance}</td>
-                <td className="px-4 py-2 border">{bt.results?.profit}</td>
+                <td className="px-4 py-2 border">
+                  {bt.results?.finalBalance ?? bt.initialBalance + (bt.results?.profit ?? 0)}
+                </td>
+                <td className="px-4 py-2 border">{bt.results?.profit ?? 0}</td>
               </tr>
             ))}
           </tbody>
