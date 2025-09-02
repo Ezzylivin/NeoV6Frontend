@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
-import { useBacktest } from "../hooks/useBacktest.js";
+import { useBacktests } from "../hooks/useBacktest.js";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend
 } from "recharts";
 
 export default function Backtests() {
   const { user } = useAuth();
-  const { results: backtests, best, options, loading, error, fetchOptions, fetchBacktests, runBacktest, runBatchBacktests } = useBacktest();
+  const { results: backtests, best, options, loading, error, fetchOptions, fetchBacktests, runBacktest, runBatchBacktests } = useBacktest(user?._id);
 
   const [form, setForm] = useState({
     symbol: "",
