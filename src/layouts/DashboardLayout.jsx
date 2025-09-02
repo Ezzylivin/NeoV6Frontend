@@ -12,10 +12,10 @@ export default function DashboardLayout() {
       {/* Top header */}
       <Header />
 
-      {/* User info below header, aligned right */}
+      {/* User info below header, aligned left */}
       {isAuthenticated && (
-        <div className="flex justify-end pr-6 pt-2 pb-2 bg-gray-800 border-b border-gray-700">
-          <div className="text-right">
+        <div className="flex justify-start pl-6 pt-2 pb-2 bg-gray-800 border-b border-gray-700">
+          <div className="text-left">
             <p className="font-medium">{user.username}</p>
             <p className="text-gray-400 text-sm">{user.email}</p>
             <p className="text-green-400 font-semibold">Wallet: ${user.walletBalance?.toFixed(2)}</p>
