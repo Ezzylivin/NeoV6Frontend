@@ -52,21 +52,22 @@ export default function Backtests() {
     }
   }, [options]);
 
-  async function loadHistoryChart() {
-    if (!user?._id) return;
-    try {
-      const res = await axios.get(`${API_URL}/backtests`, { params: { userId: user._id } });
-      const data = (res.data.backtests || []).map(bt => ({
-        time: new Date(bt.createdAt).toLocaleString(),
-        initialBalance: bt.initialBalance,
-        finalBalance: (bt.finalBalance ?? ((bt.results?.profit ?? 0) + bt.initialBalance)) || 0,
-        profit: bt.results?.profit ?? 0,
-      }));
-      setHistoryChart(data);
-    } catch (e) {
-      console.error(e);
-    }
+ async function loadHistoryChart() {
+  if (!user?._id) return;
+  try {
+    const res = await axios.get(`${API_URL}/backtests/user/${user._id}`);
+    const data = (res.data.backtests || []).map(bt => ({
+      time: new Date(bt.createdAt).toLocaleString(),
+      initialBalance: bt.initialBalance,
+      finalBalance: (bt.finalBalance ?? ((bt.results?.profit ?? 0) + bt.initialBalance)) || 0,
+      profit: bt.results?.profit ?? 0,
+    }));
+    setHistoryChart(data);
+  } catch (e) {
+    console.error(e);
   }
+}
+
 
   async function handleRun() {
     if (!form.symbol || !form.timeframe) return alert("Select symbol and timeframe!");
