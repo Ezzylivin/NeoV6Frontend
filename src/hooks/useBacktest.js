@@ -7,7 +7,15 @@ const API_BASE = "https://neov6backend.onrender.com/api/backtests";
 
 export function useBacktest() {
   const { user, token } = useAuth();
-  const [options, setOptions] = useState({});
+  const [options, setOptions] = useState({
+    symbols: [],
+    timeframes: [],
+    balances: [],
+    strategies: [],
+    risks: [],
+    stopLosses: [],
+    takeProfits: [],
+  });
   const [results, setResults] = useState([]);
   const [best, setBest] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -25,7 +33,17 @@ export function useBacktest() {
     if (!user?.token) return;
     try {
       const { data } = await axios.get(`${API_BASE}/options`, authConfig);
-      if (data.success) setOptions(data.options);
+      if (data.success && data.options) {
+        setOptions({
+          symbols: data.options.symbols || [],
+          timeframes: data.options.timeframes || [],
+          balances: data.options.balances || [],
+          strategies: data.options.strategies || [],
+          risks: data.options.risks || [],
+          stopLosses: data.options.stopLosses || [],
+          takeProfits: data.options.takeProfits || [],
+        });
+      }
     } catch (err) {
       console.warn("Failed to fetch options, using fallback", err);
       setOptions({
@@ -45,9 +63,10 @@ export function useBacktest() {
     if (!user?._id) return;
     try {
       const { data } = await axios.get(`${API_BASE}/recent/${user._id}`, authConfig);
-      if (data.success) setResults(data.backtests);
+      if (data.success) setResults(data.backtests || []);
     } catch (err) {
       console.error("Failed to fetch user backtests", err);
+      setError(err.message);
     }
   };
 
@@ -55,9 +74,9 @@ export function useBacktest() {
   const runBacktest = async (params) => {
     setLoading(true);
     try {
-      const { data } = await axios.post(API_BASE + "/run", { userId: user._id, ...params }, authConfig);
+      const { data } = await axios.post(`${API_BASE}/run`, { userId: user._id, ...params }, authConfig);
       if (data.success) {
-        setResults((prev) => [data.backtests[0], ...prev]);
+        setResults((prev) => [data.backtests?.[0], ...prev].filter(Boolean));
       }
     } catch (err) {
       console.error("Run backtest failed", err);
@@ -67,25 +86,31 @@ export function useBacktest() {
     }
   };
 
-  // Run batch backtests
-  const runBatchBacktests = async (paramCombos, exchange = "coinbasepro") => {
+  // Run batch backtests (loops over runBacktest)
+  const runBatchBacktests = async (paramCombos) => {
+    if (!Array.isArray(paramCombos) || !paramCombos.length) return;
     setLoading(true);
-    try {
-      const { data } = await axios.post(
-        `${API_BASE}/batch`,
-        { userId: user._id, paramCombos, exchange },
-        authConfig
-      );
-      if (data.success) {
-        setResults((prev) => [...data.results.map((r) => r.saved), ...prev]);
-        setBest(data.best);
+    const batchResults = [];
+    let bestResult = null;
+
+    for (const params of paramCombos) {
+      try {
+        const { data } = await axios.post(`${API_BASE}/run`, { userId: user._id, ...params }, authConfig);
+        if (data.success && data.backtests?.[0]) {
+          const bt = data.backtests[0];
+          batchResults.push(bt);
+          if (!bestResult || (bt.results?.profit ?? 0) > (bestResult.results?.profit ?? -Infinity)) {
+            bestResult = bt;
+          }
+        }
+      } catch (err) {
+        console.error("One batch backtest failed", err);
       }
-    } catch (err) {
-      console.error("Run batch backtests failed", err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
     }
+
+    setResults((prev) => [...batchResults, ...prev].filter(Boolean));
+    setBest(bestResult);
+    setLoading(false);
   };
 
   useEffect(() => {
