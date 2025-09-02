@@ -31,7 +31,7 @@ const Header = () => {
     <header style={headerStyle}>
       <div className="logo">
         <Link to="/dashboard" style={{ color: 'white', textDecoration: 'none', fontSize: '1.5rem', fontWeight: 'bold' }}>
-          NeoV6
+          Neo-V6
         </Link>
       </div>
 
