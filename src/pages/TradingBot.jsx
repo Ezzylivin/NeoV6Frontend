@@ -1,74 +1,69 @@
 // File: src/pages/TradingBot.jsx
-import React, { useState, useEffect } from "react";
-import axios from "axios";
+import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useBacktest } from "../hooks/useBacktest.js";
 
 export default function TradingBot() {
-  const { user, token } = useAuth(); // include token if your API requires auth
-  const [backtests, setBacktests] = useState([]);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+  const { results: backtests, loading, error, fetchBacktests } = useBacktest();
+
+  const [filteredBacktests, setFilteredBacktests] = useState([]);
+
+  // Refresh backtests whenever user or results change
+  useEffect(() => {
+    if (user?._id) {
+      fetchBacktests();
+    }
+  }, [user?._id]);
 
   useEffect(() => {
-    if (!user?._id) return;
-
-    const fetchBacktests = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/backtests/user/${user._id}`,
-          {
-            headers: {
-              Authorization: token ? `Bearer ${token}` : undefined,
-            },
-          }
-        );
-
-        // Ensure proper response access
-        if (res.data?.success) {
-          setBacktests(res.data.backtests || []);
-        } else {
-          setBacktests([]);
-          setError(res.data?.message || "Failed to fetch backtests");
-        }
-      } catch (err) {
-        console.error("Failed to fetch backtests", err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchBacktests();
-  }, [user, token]);
-
-  if (loading) return <p className="p-6">Loading backtests...</p>;
+    setFilteredBacktests(backtests || []);
+  }, [backtests]);
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Trading Bot</h1>
+    <div className="p-6 space-y-4">
+      <h1 className="text-2xl font-bold">Trading Bot</h1>
 
-      {error && <p className="text-red-500 mb-2">Error: {error}</p>}
+      {loading && <p>Loading backtests...</p>}
+      {error && <p className="text-red-500">Error: {error}</p>}
 
-      <h2 className="text-xl mb-2">Your Backtests</h2>
-      {backtests.length === 0 ? (
+      {filteredBacktests.length === 0 && !loading ? (
         <p>No backtests found for your account.</p>
       ) : (
-        <ul className="space-y-2">
-          {backtests.map((bt) => (
-            <li
-              key={bt._id}
-              className="border p-3 rounded bg-gray-50 shadow-sm"
-            >
-              <p><strong>ID:</strong> {bt._id}</p>
-              <p><strong>Name:</strong> {bt.name || "Untitled"}</p>
-              <p><strong>Parameters:</strong> {JSON.stringify(bt.parameters || {})}</p>
-              <p><strong>Profit:</strong> {bt.result?.profit ?? "N/A"}</p>
-              <p><strong>Date:</strong> {bt.createdAt ? new Date(bt.createdAt).toLocaleString() : "Unknown"}</p>
-            </li>
-          ))}
-        </ul>
+        <div className="overflow-x-auto">
+          <table className="min-w-full border">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="px-4 py-2 border">Date</th>
+                <th className="px-4 py-2 border">Symbol</th>
+                <th className="px-4 py-2 border">Strategy</th>
+                <th className="px-4 py-2 border">Risk</th>
+                <th className="px-4 py-2 border">Initial</th>
+                <th className="px-4 py-2 border">Final</th>
+                <th className="px-4 py-2 border">Profit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredBacktests.map((bt) => (
+                <tr key={bt?._id || Math.random()} className="text-center">
+                  <td className="px-4 py-2 border">
+                    {bt?.createdAt ? new Date(bt.createdAt).toLocaleString() : "N/A"}
+                  </td>
+                  <td className="px-4 py-2 border">{bt?.symbol || "N/A"}</td>
+                  <td className="px-4 py-2 border">
+                    {bt?.strategy?.name || bt?.strategy || "N/A"}
+                  </td>
+                  <td className="px-4 py-2 border">{bt?.risk || "N/A"}</td>
+                  <td className="px-4 py-2 border">{bt?.initialBalance ?? "N/A"}</td>
+                  <td className="px-4 py-2 border">
+                    {bt?.results?.finalBalance ?? bt?.initialBalance ?? 0}
+                  </td>
+                  <td className="px-4 py-2 border">{bt?.results?.profit ?? 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
