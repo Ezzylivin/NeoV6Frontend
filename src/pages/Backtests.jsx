@@ -1,108 +1,190 @@
-import { useState, useEffect } from "react";
-import axios from "axios";
+// File: src/pages/Backtests.jsx
+import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useBacktest } from "../hooks/useBacktest.js";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
 
-const API_BASE = "https://neov6backend.onrender.com/api/backtests";
+export default function Backtests() {
+  const { user } = useAuth();
+  const {
+    results: backtests,
+    best,
+    options,
+    loading,
+    error,
+    fetchOptions,
+    fetchBacktests,
+    runBacktest,
+    runBatchBacktests,
+  } = useBacktest();
 
-export function useBacktest() {
-  const { user, token } = useAuth();
-  const [options, setOptions] = useState({});
-  const [results, setResults] = useState([]);
-  const [best, setBest] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [form, setForm] = useState({
+    symbol: "",
+    timeframe: "",
+    initialBalance: 1000,
+    strategy: "",
+    risk: "Medium",
+    stopLoss: 1,
+    takeProfit: 2,
+  });
 
-  const authConfig = {
-    headers: { Authorization: `Bearer ${token}` },
-  };
-
-  const fetchOptions = async () => {
-    if (!token) return;
-    try {
-      const { data } = await axios.get(`${API_BASE}/options`, authConfig);
-      if (data.success) setOptions(data.options);
-    } catch (err) {
-      console.warn("Failed to fetch options, using fallback", err);
-      setOptions({
-        symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"],
-        timeframes: ["1m", "5m", "15m", "1h", "4h", "1d"],
-        balances: [100, 300, 500, 1000, 5000, 10000],
-        strategies: ["SMA", "EMA", "RSI", "MACD"],
-        risks: ["Low", "Medium", "High"],
-        stopLosses: [0.5, 1, 2, 3, 5],
-        takeProfits: [1, 2, 3, 5, 10],
-      });
-    }
-  };
-
-  const fetchBacktests = async () => {
-    if (!user?._id) return;
-    try {
-      const { data } = await axios.get(`${API_BASE}/user/${user._id}`, authConfig);
-      if (data.success) setResults(data.backtests);
-    } catch (err) {
-      console.error("Failed to fetch user backtests", err);
-    }
-  };
-
-  const runBacktest = async (params) => {
-    if (!user?._id) return setError("User not authenticated");
-    setLoading(true);
-    setError(null);
-    try {
-      // normalize strategy object
-      if (typeof params.strategy === "string") params.strategy = { name: params.strategy, parameters: {} };
-      if (!params.strategy.parameters) params.strategy.parameters = {};
-
-      const { data } = await axios.post(
-        `${API_BASE}/run`,
-        { userId: user._id, ...params },
-        authConfig
-      );
-      if (data.success) setResults((prev) => [data.backtests[0], ...prev]);
-    } catch (err) {
-      console.error("Run backtest failed", err);
-      setError(err?.response?.data?.message || err.message || "Server Error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const runBatchBacktests = async (paramCombos, exchange = "coinbasepro") => {
-    if (!user?._id) return setError("User not authenticated");
-    setLoading(true);
-    setError(null);
-    try {
-      // normalize each combo
-      const normalized = paramCombos.map((p) => {
-        if (typeof p.strategy === "string") p.strategy = { name: p.strategy, parameters: {} };
-        if (!p.strategy.parameters) p.strategy.parameters = {};
-        return { ...p, initialBalance: Number(p.initialBalance), stopLoss: Number(p.stopLoss), takeProfit: Number(p.takeProfit) };
-      });
-
-      const { data } = await axios.post(
-        `${API_BASE}/batch`,
-        { userId: user._id, paramCombos: normalized, exchange },
-        authConfig
-      );
-      if (data.success) {
-        setResults((prev) => [...data.results.map((r) => r.saved), ...prev]);
-        setBest(data.best);
-      }
-    } catch (err) {
-      console.error("Run batch backtests failed", err);
-      setError(err?.response?.data?.message || err.message || "Server Error");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [historyChart, setHistoryChart] = useState([]);
 
   useEffect(() => {
-    if (user?._id) {
-      fetchOptions();
-      fetchBacktests();
-    }
+    fetchOptions();
+    if (user?._id) fetchBacktests();
   }, [user?._id]);
 
-  return { results, best, options, loading, error, fetchOptions, fetchBacktests, runBacktest, runBatchBacktests };
+  useEffect(() => {
+    if (options.symbols?.length && options.strategies?.length) {
+      setForm({
+        symbol: options.symbols[0],
+        timeframe: options.timeframes[0],
+        initialBalance: options.balances?.[2] || 1000,
+        strategy: options.strategies[0],
+        risk: options.risks?.[1] || "Medium",
+        stopLoss: options.stopLosses?.[0] || 1,
+        takeProfit: options.takeProfits?.[0] || 2,
+      });
+    }
+  }, [options]);
+
+  useEffect(() => {
+    const data = backtests.map((bt) => ({
+      time: new Date(bt.createdAt).toLocaleString(),
+      initialBalance: bt.initialBalance,
+      finalBalance:
+        bt.results?.finalBalance ?? bt.initialBalance + (bt.results?.profit ?? 0),
+      profit: bt.results?.profit ?? 0,
+    }));
+    setHistoryChart(data);
+  }, [backtests]);
+
+  const handleRun = async () => {
+    if (!form.symbol || !form.timeframe) return alert("Select symbol and timeframe!");
+    await runBacktest(form);
+  };
+
+  const handleBatchRun = async () => {
+    const paramCombos = options.symbols.flatMap((symbol) =>
+      options.strategies.map((strategy) => ({
+        symbol,
+        timeframe: form.timeframe || options.timeframes[0],
+        strategy: { name: strategy, parameters: {} },
+        risk: form.risk,
+        stopLoss: Number(form.stopLoss),
+        takeProfit: Number(form.takeProfit),
+        initialBalance: Number(form.initialBalance),
+      }))
+    );
+    await runBatchBacktests(paramCombos, "coinbasepro");
+  };
+
+  return (
+    <div className="p-6 space-y-6">
+      <h1 className="text-2xl font-bold">Backtests</h1>
+
+      {/* Form Controls */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <select
+          value={form.symbol}
+          onChange={(e) => setForm({ ...form, symbol: e.target.value })}
+          className="border p-2"
+        >
+          {options.symbols?.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+
+        <select
+          value={form.strategy}
+          onChange={(e) => setForm({ ...form, strategy: e.target.value })}
+          className="border p-2"
+        >
+          {options.strategies?.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+
+        <input
+          type="number"
+          value={form.initialBalance}
+          onChange={(e) => setForm({ ...form, initialBalance: Number(e.target.value) })}
+          className="border p-2"
+        />
+
+        <button
+          onClick={handleRun}
+          className="bg-blue-600 text-white px-4 py-2 rounded"
+          disabled={loading}
+        >
+          Run Backtest
+        </button>
+      </div>
+
+      <button
+        onClick={handleBatchRun}
+        className="bg-green-600 text-white px-4 py-2 rounded mt-2"
+        disabled={loading}
+      >
+        Run Batch Backtests
+      </button>
+
+      {error && <p className="text-red-500 mt-2">{error}</p>}
+
+      {/* History Chart */}
+      {historyChart.length > 0 && (
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={historyChart}>
+            <CartesianGrid stroke="#ccc" />
+            <XAxis dataKey="time" />
+            <YAxis />
+            <Tooltip />
+            <Legend />
+            <Line type="monotone" dataKey="finalBalance" stroke="#8884d8" />
+            <Line type="monotone" dataKey="initialBalance" stroke="#82ca9d" />
+          </LineChart>
+        </ResponsiveContainer>
+      )}
+
+      {/* Backtests Table */}
+      <div className="overflow-x-auto mt-4">
+        <table className="min-w-full border">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="px-4 py-2 border">Date</th>
+              <th className="px-4 py-2 border">Symbol</th>
+              <th className="px-4 py-2 border">Strategy</th>
+              <th className="px-4 py-2 border">Risk</th>
+              <th className="px-4 py-2 border">Initial</th>
+              <th className="px-4 py-2 border">Final</th>
+              <th className="px-4 py-2 border">Profit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {backtests.map((bt) => (
+              <tr key={bt._id} className="text-center">
+                <td className="px-4 py-2 border">{new Date(bt.createdAt).toLocaleString()}</td>
+                <td className="px-4 py-2 border">{bt.symbol}</td>
+                <td className="px-4 py-2 border">{bt.strategy?.name || bt.strategy}</td>
+                <td className="px-4 py-2 border">{bt.risk}</td>
+                <td className="px-4 py-2 border">{bt.initialBalance}</td>
+                <td className="px-4 py-2 border">{bt.results?.finalBalance ?? 0}</td>
+                <td className="px-4 py-2 border">{bt.results?.profit ?? 0}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
