@@ -1,4 +1,3 @@
-// File: src/hooks/useBacktest.js
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -13,14 +12,28 @@ export function useBacktest() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Axios config with token
-  const authConfig = {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+  const authConfig = { headers: { Authorization: `Bearer ${token}` } };
+
+  // ----------------- Helper: validate batch combos -----------------
+  const validateCombos = (combos) => {
+    const errors = [];
+    const validCombos = combos.filter((c, i) => {
+      if (!c.symbol) errors.push(`Combo #${i + 1} missing symbol`);
+      if (!c.strategy?.name) errors.push(`Combo #${i + 1} missing strategy`);
+      if (!c.timeframe) errors.push(`Combo #${i + 1} missing timeframe`);
+      if (c.initialBalance == null || isNaN(c.initialBalance))
+        errors.push(`Combo #${i + 1} invalid initialBalance`);
+      if (c.stopLoss == null || isNaN(c.stopLoss))
+        errors.push(`Combo #${i + 1} invalid stopLoss`);
+      if (c.takeProfit == null || isNaN(c.takeProfit))
+        errors.push(`Combo #${i + 1} invalid takeProfit`);
+      return !errors.length;
+    });
+
+    return { validCombos, errors };
   };
 
-  // Fetch backtest options
+  // ----------------- Fetch backtest options -----------------
   const fetchOptions = async () => {
     if (!token) return;
     try {
@@ -40,7 +53,7 @@ export function useBacktest() {
     }
   };
 
-  // Fetch user backtests
+  // ----------------- Fetch user backtests -----------------
   const fetchBacktests = async () => {
     if (!user?._id) return;
     try {
@@ -51,20 +64,33 @@ export function useBacktest() {
     }
   };
 
-  // Run a single backtest
+  // ----------------- Run single backtest -----------------
   const runBacktest = async (params) => {
     setLoading(true);
+    setError(null);
+
     try {
-      const payload = {
-        userId: user._id,
+      const normalized = {
         ...params,
         initialBalance: Number(params.initialBalance),
         stopLoss: Number(params.stopLoss),
         takeProfit: Number(params.takeProfit),
-        strategy: { name: params.strategy.name || params.strategy, parameters: {} },
+        strategy:
+          params.strategy?.name
+            ? { name: params.strategy.name, parameters: params.strategy.parameters || {} }
+            : { name: params.strategy || "SMA", parameters: {} },
+        timeframe: params.timeframe || "1h",
       };
-      const { data } = await axios.post(`${API_BASE}/run`, payload, authConfig);
-      if (data.success) setResults((prev) => [data.backtests[0], ...prev]);
+
+      const { data } = await axios.post(
+        `${API_BASE}/run`,
+        { userId: user._id, ...normalized },
+        authConfig
+      );
+
+      if (data.success) {
+        setResults((prev) => [data.backtests[0], ...prev]);
+      }
     } catch (err) {
       console.error("Run backtest failed", err);
       setError(err.message);
@@ -73,9 +99,11 @@ export function useBacktest() {
     }
   };
 
-  // Run batch backtests
+  // ----------------- Run batch backtests -----------------
   const runBatchBacktests = async (paramCombos, exchange = "coinbasepro") => {
     setLoading(true);
+    setError(null);
+
     try {
       // Normalize each combo
       const normalizedCombos = paramCombos.map((p) => ({
@@ -83,13 +111,24 @@ export function useBacktest() {
         initialBalance: Number(p.initialBalance),
         stopLoss: Number(p.stopLoss),
         takeProfit: Number(p.takeProfit),
-        strategy: { name: p.strategy.name || p.strategy, parameters: {} },
+        strategy:
+          p.strategy?.name
+            ? { name: p.strategy.name, parameters: p.strategy.parameters || {} }
+            : { name: p.strategy || "SMA", parameters: {} },
         timeframe: p.timeframe || "1h",
       }));
 
+      // Validate combos
+      const { validCombos, errors } = validateCombos(normalizedCombos);
+      if (errors.length) {
+        setError("Validation failed: " + errors.join("; "));
+        setLoading(false);
+        return;
+      }
+
       const { data } = await axios.post(
         `${API_BASE}/batch`,
-        { userId: user._id, paramCombos: normalizedCombos, exchange },
+        { userId: user._id, paramCombos: validCombos, exchange },
         authConfig
       );
 
