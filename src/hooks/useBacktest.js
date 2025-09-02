@@ -1,4 +1,3 @@
-// File: src/hooks/useBacktest.js
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -22,7 +21,7 @@ export function useBacktest() {
 
   // Fetch backtest options
   const fetchOptions = async () => {
-    if (!user?.token) return;
+    if (!token) return;
     try {
       const { data } = await axios.get(`${API_BASE}/options`, authConfig);
       if (data.success) setOptions(data.options);
@@ -55,7 +54,7 @@ export function useBacktest() {
   const runBacktest = async (params) => {
     setLoading(true);
     try {
-      const { data } = await axios.post(API_BASE + "/run", { userId: user._id, ...params }, authConfig);
+      const { data } = await axios.post(`${API_BASE}/run`, { userId: user._id, ...params }, authConfig);
       if (data.success) {
         setResults((prev) => [data.backtests[0], ...prev]);
       }
@@ -93,7 +92,7 @@ export function useBacktest() {
       fetchOptions();
       fetchBacktests();
     }
-  }, [user?.token]);
+  }, [user?._id]);
 
   return {
     results,
