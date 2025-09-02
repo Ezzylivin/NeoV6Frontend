@@ -1,3 +1,4 @@
+// File: src/hooks/useBacktest.js
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -18,16 +19,22 @@ export function useBacktest() {
   const validateCombos = (combos) => {
     const errors = [];
     const validCombos = combos.filter((c, i) => {
-      if (!c.symbol) errors.push(`Combo #${i + 1} missing symbol`);
-      if (!c.strategy?.name) errors.push(`Combo #${i + 1} missing strategy`);
-      if (!c.timeframe) errors.push(`Combo #${i + 1} missing timeframe`);
+      let comboErrors = [];
+      if (!c.symbol) comboErrors.push(`missing symbol`);
+      if (!c.strategy?.name) comboErrors.push(`missing strategy`);
+      if (!c.timeframe) comboErrors.push(`missing timeframe`);
       if (c.initialBalance == null || isNaN(c.initialBalance))
-        errors.push(`Combo #${i + 1} invalid initialBalance`);
+        comboErrors.push(`invalid initialBalance`);
       if (c.stopLoss == null || isNaN(c.stopLoss))
-        errors.push(`Combo #${i + 1} invalid stopLoss`);
+        comboErrors.push(`invalid stopLoss`);
       if (c.takeProfit == null || isNaN(c.takeProfit))
-        errors.push(`Combo #${i + 1} invalid takeProfit`);
-      return !errors.length;
+        comboErrors.push(`invalid takeProfit`);
+
+      if (comboErrors.length) {
+        errors.push(`Combo #${i + 1}: ${comboErrors.join(", ")}`);
+        return false;
+      }
+      return true;
     });
 
     return { validCombos, errors };
@@ -38,7 +45,9 @@ export function useBacktest() {
     if (!token) return;
     try {
       const { data } = await axios.get(`${API_BASE}/options`, authConfig);
-      if (data.success) setOptions(data.options);
+      if (data.success) {
+        setOptions(data.options || {});
+      }
     } catch (err) {
       console.warn("Failed to fetch options, using fallback", err);
       setOptions({
@@ -57,8 +66,18 @@ export function useBacktest() {
   const fetchBacktests = async () => {
     if (!user?._id) return;
     try {
-      const { data } = await axios.get(`${API_BASE}/user/${user._id}`, authConfig);
-      if (data.success) setResults(data.backtests);
+      const { data } = await axios.get(
+        `${API_BASE}/user/${user._id}`,
+        authConfig
+      );
+      if (data.success && Array.isArray(data.backtests)) {
+        // ensure createdAt exists
+        const normalized = data.backtests.map((b) => ({
+          ...b,
+          createdAt: b.createdAt || new Date().toISOString(),
+        }));
+        setResults(normalized);
+      }
     } catch (err) {
       console.error("Failed to fetch user backtests", err);
     }
@@ -75,10 +94,9 @@ export function useBacktest() {
         initialBalance: Number(params.initialBalance),
         stopLoss: Number(params.stopLoss),
         takeProfit: Number(params.takeProfit),
-        strategy:
-          params.strategy?.name
-            ? { name: params.strategy.name, parameters: params.strategy.parameters || {} }
-            : { name: params.strategy || "SMA", parameters: {} },
+        strategy: params.strategy?.name
+          ? { name: params.strategy.name, parameters: params.strategy.parameters || {} }
+          : { name: params.strategy || "SMA", parameters: {} },
         timeframe: params.timeframe || "1h",
       };
 
@@ -88,12 +106,16 @@ export function useBacktest() {
         authConfig
       );
 
-      if (data.success) {
-        setResults((prev) => [data.backtests[0], ...prev]);
+      if (data.success && Array.isArray(data.backtests)) {
+        const newBacktest = {
+          ...data.backtests[0],
+          createdAt: data.backtests[0]?.createdAt || new Date().toISOString(),
+        };
+        setResults((prev) => [newBacktest, ...prev]);
       }
     } catch (err) {
-      console.error("Run backtest failed", err);
-      setError(err.message);
+      console.error("Run backtest failed", err.response?.data || err.message);
+      setError(err.response?.data?.message || err.message);
     } finally {
       setLoading(false);
     }
@@ -111,10 +133,9 @@ export function useBacktest() {
         initialBalance: Number(p.initialBalance),
         stopLoss: Number(p.stopLoss),
         takeProfit: Number(p.takeProfit),
-        strategy:
-          p.strategy?.name
-            ? { name: p.strategy.name, parameters: p.strategy.parameters || {} }
-            : { name: p.strategy || "SMA", parameters: {} },
+        strategy: p.strategy?.name
+          ? { name: p.strategy.name, parameters: p.strategy.parameters || {} }
+          : { name: p.strategy || "SMA", parameters: {} },
         timeframe: p.timeframe || "1h",
       }));
 
@@ -132,13 +153,18 @@ export function useBacktest() {
         authConfig
       );
 
-      if (data.success) {
-        setResults((prev) => [...data.results.map((r) => r.saved), ...prev]);
-        setBest(data.best);
+      if (data.success && Array.isArray(data.results)) {
+        const normalizedResults = data.results.map((r) => ({
+          ...(r.saved || r),
+          createdAt: r.saved?.createdAt || new Date().toISOString(),
+        }));
+
+        setResults((prev) => [...normalizedResults, ...prev]);
+        if (data.best) setBest(data.best);
       }
     } catch (err) {
-      console.error("Run batch backtests failed", err);
-      setError(err.message);
+      console.error("Run batch backtests failed", err.response?.data || err.message);
+      setError(err.response?.data?.message || err.message);
     } finally {
       setLoading(false);
     }
