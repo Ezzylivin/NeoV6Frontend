@@ -1,17 +1,24 @@
-// src/pages/Backtests.jsx
+// File: src/pages/Backtests.jsx
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useBacktest } from "../hooks/useBacktest.js";
-import axios from "axios";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend, ReferenceDot,
+  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend, ReferenceDot
 } from "recharts";
 
 export default function Backtests() {
   const { user } = useAuth();
-  const { results: backtests, options, loading, error, fetchOptions, fetchBacktests } = useBacktest();
-
-  const API_URL = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com/api";
+  const {
+    results,
+    best,
+    options,
+    loading,
+    error,
+    fetchOptions,
+    fetchBacktests,
+    runBacktest,
+    runBatchBacktests
+  } = useBacktest();
 
   const [form, setForm] = useState({
     symbol: "",
@@ -21,9 +28,16 @@ export default function Backtests() {
     risk: "Medium",
   });
 
-  const [historyChart, setHistoryChart] = useState([]);
-  const [latest, setLatest] = useState(null); // {metrics, equityCurve, trades}
+  const [batchParams, setBatchParams] = useState({
+    stopLoss: [0.01, 0.02],
+    takeProfit: [0.03, 0.05],
+    interval: ["5m","15m"]
+  });
 
+  const [latest, setLatest] = useState(null);
+  const [historyChart, setHistoryChart] = useState([]);
+
+  // Initialize options and fetch backtests
   useEffect(() => {
     if (user?._id) {
       fetchOptions();
@@ -32,6 +46,7 @@ export default function Backtests() {
     }
   }, [user]);
 
+  // Set defaults when options load
   useEffect(() => {
     if (options.symbols?.length && options.strategies?.length) {
       setForm({
@@ -44,46 +59,43 @@ export default function Backtests() {
     }
   }, [options]);
 
+  const handleChange = e => {
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: name === "initialBalance" ? Number(value) : value }));
+  };
+
+  const handleRunSingle = async () => {
+    const res = await runBacktest(form);
+    if (res?.backtests?.[0]) {
+      setLatest(res);
+      loadHistoryChart();
+    }
+  };
+
+  const handleRunBatch = () => {
+    const combos = [];
+    for (const sl of batchParams.stopLoss) {
+      for (const tp of batchParams.takeProfit) {
+        for (const interval of batchParams.interval) {
+          combos.push({ ...form, stopLoss: sl, takeProfit: tp, interval });
+        }
+      }
+    }
+    runBatchBacktests(combos);
+  };
+
   async function loadHistoryChart() {
     if (!user?._id) return;
     try {
-      const res = await axios.get(`${API_URL}/backtests`, { params: { userId: user._id } });
-      const data = (res.data.backtests || []).map(bt => ({
+      const data = results.map(bt => ({
         time: new Date(bt.createdAt).toLocaleString(),
         initialBalance: bt.initialBalance,
         finalBalance: bt.finalBalance,
-        profit: bt.profit,
+        profit: bt.results?.profit || 0,
       }));
       setHistoryChart(data);
     } catch (e) {
       console.error(e);
-    }
-  }
-
-  async function handleRun() {
-    if (!form.symbol || !form.timeframe) return alert("Select symbol and timeframe!");
-    try {
-      const res = await axios.post(`${API_URL}/backtests/run`, {
-        userId: user._id,
-        ...form,
-      });
-      // latest detailed result for display
-      setLatest({
-        metrics: res.data.metrics,
-        equityCurve: (res.data.equityCurve || []).map(p => ({
-          // recharts prefers numbers for X if we want compact ticks; we’ll keep display as local time in tooltip
-          time: new Date(p.time).getTime(),
-          equity: p.equity,
-        })),
-        trades: res.data.trades || [],
-      });
-
-      // refresh history
-      fetchBacktests();
-      loadHistoryChart();
-    } catch (err) {
-      console.error(err);
-      alert("Backtest failed: " + (err?.response?.data?.message || err.message));
     }
   }
 
@@ -93,12 +105,12 @@ export default function Backtests() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
         <div className="p-3 rounded bg-gray-100">
           <div className="text-xs text-gray-500">Final Balance</div>
-          <div className="text-lg font-semibold">${m.finalBalance.toLocaleString()}</div>
+          <div className="text-lg font-semibold">${m.finalBalance?.toLocaleString()}</div>
         </div>
         <div className="p-3 rounded bg-gray-100">
           <div className="text-xs text-gray-500">Net Profit</div>
           <div className={`text-lg font-semibold ${m.netProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
-            ${m.netProfit.toLocaleString()}
+            ${m.netProfit?.toLocaleString()}
           </div>
         </div>
         <div className="p-3 rounded bg-gray-100">
@@ -130,7 +142,6 @@ export default function Backtests() {
   };
 
   const TradeDots = ({ trades }) => {
-    // show small green/red dots at trade exits on the equity curve
     if (!latest?.equityCurve?.length) return null;
     const firstTs = latest.equityCurve[0]?.time;
     const lastTs = latest.equityCurve[latest.equityCurve.length - 1]?.time;
@@ -159,59 +170,20 @@ export default function Backtests() {
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-bold">Backtests</h1>
 
-      {/* Controls */}
+      {/* Single Backtest */}
       <div className="bg-gray-100 p-4 rounded-2xl flex flex-wrap gap-4 items-end">
-        <div>
-          <label className="block text-sm font-medium">Symbol</label>
-          <select name="symbol" value={form.symbol}
-                  onChange={e => setForm(f => ({ ...f, symbol: e.target.value }))}
-                  className="border p-1 rounded">
-            {options.symbols?.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium">Timeframe</label>
-          <select name="timeframe" value={form.timeframe}
-                  onChange={e => setForm(f => ({ ...f, timeframe: e.target.value }))}
-                  className="border p-1 rounded">
-            {options.timeframes?.map(tf => <option key={tf} value={tf}>{tf}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium">Strategy</label>
-          <select name="strategy" value={form.strategy}
-                  onChange={e => setForm(f => ({ ...f, strategy: e.target.value }))}
-                  className="border p-1 rounded">
-            {options.strategies?.map(st => <option key={st} value={st}>{st}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium">Risk</label>
-          <select name="risk" value={form.risk}
-                  onChange={e => setForm(f => ({ ...f, risk: e.target.value }))}
-                  className="border p-1 rounded">
-            {options.risks?.map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium">Initial Balance</label>
-          <select name="initialBalance" value={form.initialBalance}
-                  onChange={e => setForm(f => ({ ...f, initialBalance: Number(e.target.value) }))}
-                  className="border p-1 rounded w-28">
-            {options.balances?.map(b => <option key={b} value={b}>{b}</option>)}
-          </select>
-        </div>
-
-        <button
-          onClick={handleRun}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-          disabled={loading}
-        >
-          {loading ? "Running..." : "Run Backtest"}
-        </button>
+        {["symbol","timeframe","strategy","risk","initialBalance"].map(field => (
+          <div key={field}>
+            <label className="block text-sm font-medium">{field}</label>
+            <select name={field} value={form[field]} onChange={handleChange} className="border p-1 rounded">
+              {(options[field+'s'] || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+          </div>
+        ))}
+        <button onClick={handleRunSingle} className="bg-blue-600 text-white px-4 py-2 rounded">{loading ? "Running..." : "Run Backtest"}</button>
       </div>
 
-      {/* Latest result (equity curve + stats) */}
+      {/* Latest Detailed */}
       {latest && (
         <div className="bg-white p-4 rounded-2xl shadow">
           <div className="flex items-center justify-between mb-2">
@@ -224,27 +196,33 @@ export default function Backtests() {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={latest.equityCurve}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="time"
-                  tickFormatter={(ts) => new Date(ts).toLocaleString()}
-                />
+                <XAxis dataKey="time" tickFormatter={ts => new Date(ts).toLocaleString()} />
                 <YAxis />
-                <Tooltip
-                  labelFormatter={(ts) => new Date(ts).toLocaleString()}
-                  formatter={(v, n) => (n === "equity" ? `$${v.toLocaleString()}` : v)}
-                />
+                <Tooltip labelFormatter={ts => new Date(ts).toLocaleString()} formatter={(v, n) => n==="equity" ? `$${v.toLocaleString()}` : v} />
                 <Legend />
                 <Line type="monotone" dataKey="equity" stroke="#3B82F6" dot={false} />
                 <TradeDots trades={latest.trades} />
               </LineChart>
             </ResponsiveContainer>
           </div>
-
           <Stats m={latest.metrics} />
         </div>
       )}
 
-      {/* Historical summary chart (existing) */}
+      {/* Batch Optimization */}
+      <div className="bg-gray-50 p-4 rounded-2xl mt-4">
+        <h2 className="font-semibold">Batch Optimization</h2>
+        <button onClick={handleRunBatch} className="bg-green-600 text-white px-4 py-2 rounded mt-2">
+          Run Batch Backtests
+        </button>
+        {best && (
+          <p className="mt-2">
+            Best Profit: ${best.results.profit.toFixed(2)} | Params: {JSON.stringify(best.params)}
+          </p>
+        )}
+      </div>
+
+      {/* Historical Summary */}
       <div className="bg-white p-4 rounded-2xl shadow">
         <h2 className="text-xl font-semibold mb-4">Backtests History</h2>
         {historyChart.length ? (
@@ -265,7 +243,15 @@ export default function Backtests() {
         )}
       </div>
 
-      {/* List existing backtests as before */}
+      {/* Existing Backtests */}
+      <div className="space-y-4 mt-4">
+        {results.map(bt => (
+          <div key={bt._id} className="bg-white p-4 rounded shadow">
+            <p>{bt.symbol} | {bt.timeframe} | Profit: ${bt.results?.profit?.toFixed(2) ?? "-"}</p>
+          </div>
+        ))}
+      </div>
+
       {error && <p className="text-red-500">{error}</p>}
     </div>
   );
