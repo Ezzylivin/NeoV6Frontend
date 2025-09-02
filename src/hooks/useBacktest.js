@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext.jsx";
 
-const API_BASE = `${import.meta.env.VITE_API_URL}/api/backtests`;
+const API_BASE = `${import.meta.env.VITE_API_URL}/backtests`;
 
 export function useBacktest() {
   const { user, token } = useAuth();
