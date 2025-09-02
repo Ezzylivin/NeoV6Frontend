@@ -1,4 +1,3 @@
-// File: src/hooks/useBacktest.js
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import axios from "axios";
@@ -6,6 +5,7 @@ import axios from "axios";
 export function useBacktest() {
   const { user } = useAuth();
   const [results, setResults] = useState([]);
+  const [best, setBest] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [options, setOptions] = useState({
@@ -45,7 +45,7 @@ export function useBacktest() {
     }
   };
 
-  // Run a new backtest
+  // Run a single backtest
   const runBacktest = async (form) => {
     if (!user?._id) {
       setError("User not logged in");
@@ -61,9 +61,8 @@ export function useBacktest() {
         ...form
       });
 
-      if (data.success && data.backtests?.length) {
-        // Prepend the new backtest to results
-        setResults(prev => [data.backtests[0], ...prev]);
+      if (data.success && data.backtest) {
+        setResults(prev => [data.backtest, ...prev]);
       } else {
         setError("Backtest run failed");
       }
@@ -75,13 +74,43 @@ export function useBacktest() {
     }
   };
 
+  // Run batch backtests (optimization)
+  const runBatchBacktests = async (paramCombos) => {
+    if (!user?._id || !Array.isArray(paramCombos) || paramCombos.length === 0) return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { data } = await axios.post(`${API_URL}/backtests/batch`, {
+        userId: user._id,
+        paramCombos
+      });
+
+      if (data.success) {
+        // Flatten saved backtests and prepend to results
+        const allBacktests = data.results.map(r => r.saved);
+        setResults(prev => [...allBacktests, ...prev]);
+        setBest(data.best.saved);
+      } else {
+        setError("Batch backtests failed");
+      }
+    } catch(err) {
+      console.error(err);
+      setError(err.response?.data?.message || "Failed to run batch backtests");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     results,
+    best,
     options,
     loading,
     error,
     fetchOptions,
     fetchBacktests,
-    runBacktest
+    runBacktest,
+    runBatchBacktests
   };
 }
