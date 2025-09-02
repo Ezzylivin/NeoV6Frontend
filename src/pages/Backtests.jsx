@@ -26,46 +26,59 @@ export default function Backtests() {
     runBatchBacktests,
   } = useBacktest();
 
+  // Set default fallback options
+  const defaultOptions = {
+    symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"],
+    timeframes: ["1m", "5m", "15m", "1h", "4h", "1d"],
+    balances: [100, 300, 500, 1000, 5000, 10000],
+    strategies: ["SMA", "EMA", "RSI", "MACD"],
+    risks: ["Low", "Medium", "High"],
+    stopLosses: [0.5, 1, 2, 3, 5],
+    takeProfits: [1, 2, 3, 5, 10],
+  };
+
+  const mergedOptions = { ...defaultOptions, ...options };
+
   const [form, setForm] = useState({
-    symbol: "",
-    timeframe: "",
-    initialBalance: 1000,
-    strategy: "",
-    risk: "Medium",
-    stopLoss: 1,
-    takeProfit: 2,
+    symbol: mergedOptions.symbols[0],
+    timeframe: mergedOptions.timeframes[0],
+    initialBalance: mergedOptions.balances[2],
+    strategy: mergedOptions.strategies[0],
+    risk: mergedOptions.risks[1],
+    stopLoss: mergedOptions.stopLosses[0],
+    takeProfit: mergedOptions.takeProfits[0],
   });
 
   const [historyChart, setHistoryChart] = useState([]);
   const [filters, setFilters] = useState({ symbol: "", strategy: "", risk: "" });
 
-  // Initialize form when options load
   useEffect(() => {
-    if (options.symbols?.length && options.strategies?.length) {
-      setForm({
-        symbol: options.symbols[0],
-        timeframe: options.timeframes?.[0] || "1h",
-        initialBalance: options.balances?.[2] || 1000,
-        strategy: options.strategies[0],
-        risk: options.risks?.[1] || "Medium",
-        stopLoss: options.stopLosses?.[0] || 1,
-        takeProfit: options.takeProfits?.[0] || 2,
-      });
+    if (user?._id) {
+      fetchOptions();
     }
+  }, [user]);
+
+  // Update form defaults when options load
+  useEffect(() => {
+    setForm({
+      symbol: mergedOptions.symbols[0],
+      timeframe: mergedOptions.timeframes[0],
+      initialBalance: mergedOptions.balances[2],
+      strategy: mergedOptions.strategies[0],
+      risk: mergedOptions.risks[1],
+      stopLoss: mergedOptions.stopLosses[0],
+      takeProfit: mergedOptions.takeProfits[0],
+    });
   }, [options]);
 
-  // Update chart history when backtests change
+  // Update chart history
   useEffect(() => {
-    const data = (backtests || [])
-      .filter((bt) => bt) // skip nulls
-      .map((bt) => ({
-        time: bt?.createdAt ? new Date(bt.createdAt).toLocaleString() : "N/A",
-        initialBalance: bt?.initialBalance ?? 0,
-        finalBalance:
-          bt?.results?.finalBalance ??
-          ((bt?.initialBalance ?? 0) + (bt?.results?.profit ?? 0)),
-        profit: bt?.results?.profit ?? 0,
-      }));
+    const data = (backtests || []).map((bt) => ({
+      time: bt?.createdAt ? new Date(bt.createdAt).toLocaleString() : "N/A",
+      initialBalance: bt?.initialBalance ?? 0,
+      finalBalance: bt?.results?.finalBalance ?? ((bt?.initialBalance ?? 0) + (bt?.results?.profit ?? 0)),
+      profit: bt?.results?.profit ?? 0,
+    }));
     setHistoryChart(data);
   }, [backtests]);
 
@@ -75,14 +88,10 @@ export default function Backtests() {
   };
 
   const handleBatchRun = async () => {
-    if (!options.symbols?.length || !options.strategies?.length) {
-      alert("Options not loaded yet!");
-      return;
-    }
-    const paramCombos = options.symbols.flatMap((symbol) =>
-      options.strategies.map((strategy) => ({
+    const paramCombos = mergedOptions.symbols.flatMap((symbol) =>
+      mergedOptions.strategies.map((strategy) => ({
         symbol,
-        timeframe: form.timeframe || options.timeframes?.[0] || "1h",
+        timeframe: form.timeframe || mergedOptions.timeframes[0],
         strategy: { name: strategy, parameters: {} },
         risk: form.risk,
         stopLoss: Number(form.stopLoss),
@@ -93,14 +102,12 @@ export default function Backtests() {
     await runBatchBacktests(paramCombos, "coinbasepro");
   };
 
-  const filteredBacktests = (backtests || [])
-    .filter((bt) => bt) // skip nulls
-    .filter(
-      (bt) =>
-        (!filters.symbol || bt.symbol === filters.symbol) &&
-        (!filters.strategy || (bt.strategy?.name || bt.strategy) === filters.strategy) &&
-        (!filters.risk || bt.risk === filters.risk)
-    );
+  const filteredBacktests = (backtests || []).filter(
+    (bt) =>
+      (!filters.symbol || bt.symbol === filters.symbol) &&
+      (!filters.strategy || (bt.strategy?.name || bt.strategy) === filters.strategy) &&
+      (!filters.risk || bt.risk === filters.risk)
+  );
 
   return (
     <div className="p-6 space-y-6">
@@ -108,51 +115,24 @@ export default function Backtests() {
 
       {/* Form Controls */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <select
-          value={form.symbol}
-          onChange={(e) => setForm({ ...form, symbol: e.target.value })}
-          className="border p-2"
-        >
-          {options.symbols?.map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
+        <select value={form.symbol} onChange={(e) => setForm({ ...form, symbol: e.target.value })} className="border p-2">
+          {mergedOptions.symbols.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
 
-        <select
-          value={form.strategy}
-          onChange={(e) => setForm({ ...form, strategy: e.target.value })}
-          className="border p-2"
-        >
-          {options.strategies?.map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
+        <select value={form.strategy} onChange={(e) => setForm({ ...form, strategy: e.target.value })} className="border p-2">
+          {mergedOptions.strategies.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
 
-        <input
-          type="number"
-          value={form.initialBalance}
-          onChange={(e) => setForm({ ...form, initialBalance: Number(e.target.value) })}
-          className="border p-2"
-        />
+        <input type="number" value={form.initialBalance} onChange={(e) => setForm({ ...form, initialBalance: Number(e.target.value) })} className="border p-2" />
 
-        <button
-          onClick={handleRun}
-          className="bg-blue-600 text-white px-4 py-2 rounded"
-          disabled={loading}
-        >
+        <button onClick={handleRun} className="bg-blue-600 text-white px-4 py-2 rounded" disabled={loading}>
           Run Backtest
         </button>
       </div>
 
-      <div>
-        <button
-          onClick={handleBatchRun}
-          className="bg-green-600 text-white px-4 py-2 rounded mt-2"
-          disabled={loading}
-        >
-          Run Batch Backtests
-        </button>
-      </div>
+      <button onClick={handleBatchRun} className="bg-green-600 text-white px-4 py-2 rounded mt-2" disabled={loading}>
+        Run Batch Backtests
+      </button>
 
       {error && <p className="text-red-500 mt-2">{error}</p>}
 
@@ -193,16 +173,12 @@ export default function Backtests() {
             )}
             {filteredBacktests.map((bt) => (
               <tr key={bt?._id || Math.random()} className="text-center">
-                <td className="px-4 py-2 border">
-                  {bt?.createdAt ? new Date(bt.createdAt).toLocaleString() : "N/A"}
-                </td>
+                <td className="px-4 py-2 border">{bt?.createdAt ? new Date(bt.createdAt).toLocaleString() : "N/A"}</td>
                 <td className="px-4 py-2 border">{bt?.symbol || "N/A"}</td>
                 <td className="px-4 py-2 border">{bt?.strategy?.name || bt?.strategy || "N/A"}</td>
                 <td className="px-4 py-2 border">{bt?.risk || "N/A"}</td>
                 <td className="px-4 py-2 border">{bt?.initialBalance ?? "N/A"}</td>
-                <td className="px-4 py-2 border">
-                  {bt?.results?.finalBalance ?? bt?.initialBalance ?? 0}
-                </td>
+                <td className="px-4 py-2 border">{bt?.results?.finalBalance ?? bt?.initialBalance ?? 0}</td>
                 <td className="px-4 py-2 border">{bt?.results?.profit ?? 0}</td>
               </tr>
             ))}
