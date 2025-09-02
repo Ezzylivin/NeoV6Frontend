@@ -7,17 +7,7 @@ import {
 
 export default function Backtests() {
   const { user } = useAuth();
-  const {
-    results: backtests,
-    best,
-    options,
-    loading,
-    error,
-    fetchOptions,
-    fetchBacktests,
-    runBacktest,
-    runBatchBacktests
-  } = useBacktest();
+  const { results: backtests, options, loading, error, runBacktest, runBatchBacktests } = useBacktest();
 
   const [form, setForm] = useState({
     symbol: "",
@@ -55,6 +45,7 @@ export default function Backtests() {
         initialBalance: bt.initialBalance,
         finalBalance: bt.results?.finalBalance ?? (bt.initialBalance + (bt.results?.profit ?? 0)),
         profit: bt.results?.profit ?? 0,
+        strategyName: bt.strategy?.name || bt.strategy // safe name for charts
       }));
       setHistoryChart(data);
     }
@@ -70,7 +61,7 @@ export default function Backtests() {
       options.strategies.map(strategy => ({
         symbol,
         timeframe: form.timeframe,
-        strategy: { name: strategy },
+        strategy: { name: strategy }, // ensure object
         risk: form.risk,
         stopLoss: form.stopLoss,
         takeProfit: form.takeProfit,
@@ -82,7 +73,7 @@ export default function Backtests() {
 
   const filteredBacktests = backtests.filter(bt =>
     (!filters.symbol || bt.symbol === filters.symbol) &&
-    (!filters.strategy || bt.strategy === filters.strategy) &&
+    (!filters.strategy || (bt.strategy?.name || bt.strategy) === filters.strategy) &&
     (!filters.risk || bt.risk === filters.risk)
   );
 
@@ -90,23 +81,24 @@ export default function Backtests() {
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-bold">Backtests</h1>
 
-      {/* Simple controls */}
       <div className="flex space-x-4">
         <select value={form.symbol} onChange={e => setForm({ ...form, symbol: e.target.value })}>
           {options.symbols?.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
+
         <select value={form.strategy} onChange={e => setForm({ ...form, strategy: e.target.value })}>
           {options.strategies?.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
+
         <button onClick={handleRun} disabled={loading} className="bg-blue-500 text-white px-3 rounded">
           Run Backtest
         </button>
+
         <button onClick={handleBatchRun} disabled={loading} className="bg-green-500 text-white px-3 rounded">
           Run Batch
         </button>
       </div>
 
-      {/* Chart */}
       {historyChart.length > 0 && (
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={historyChart}>
@@ -123,7 +115,6 @@ export default function Backtests() {
 
       {error && <p className="text-red-500 mt-2">{error}</p>}
 
-      {/* Table of backtests */}
       <table className="min-w-full table-auto border-collapse border border-gray-300">
         <thead>
           <tr>
@@ -138,7 +129,7 @@ export default function Backtests() {
           {filteredBacktests.map(bt => (
             <tr key={bt._id}>
               <td className="border px-2 py-1">{bt.symbol}</td>
-              <td className="border px-2 py-1">{bt.strategy}</td>
+              <td className="border px-2 py-1">{bt.strategy?.name || bt.strategy}</td>
               <td className="border px-2 py-1">{bt.initialBalance}</td>
               <td className="border px-2 py-1">{bt.results?.finalBalance ?? (bt.initialBalance + (bt.results?.profit ?? 0))}</td>
               <td className="border px-2 py-1">{bt.results?.profit ?? 0}</td>
