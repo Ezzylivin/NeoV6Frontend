@@ -1,3 +1,4 @@
+// File: src/pages/TradingBot.jsx
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -23,7 +24,7 @@ export default function TradingBot() {
 
   const [status, setStatus] = useState(null);
   const [logs, setLogs] = useState([]);
-  const [chartData, setChartData] = useState([]);
+  const [historyChart, setHistoryChart] = useState([]);
   const [chartLoading, setChartLoading] = useState(true);
   const [chartError, setChartError] = useState(null);
 
@@ -33,6 +34,7 @@ export default function TradingBot() {
     if (user?._id) {
       fetchOptions();
       fetchBacktests();
+      loadHistoryChart();
     }
   }, [user]);
 
@@ -68,7 +70,6 @@ export default function TradingBot() {
   };
 
   const handleUseBacktest = (bt) => {
-    // Pre-fill bot form with this backtest's strategy & params
     setForm({
       symbol: bt.symbol,
       timeframe: bt.timeframe,
@@ -77,6 +78,27 @@ export default function TradingBot() {
       initialBalance: bt.initialBalance,
     });
     setLogs(prev => [...prev, `Using strategy from backtest: ${bt.strategy}`]);
+  };
+
+  // --- Fetch backtest history chart ---
+  const loadHistoryChart = async () => {
+    if (!user?._id) return;
+    setChartLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/backtests`, { params: { userId: user._id } });
+      const data = (res.data.backtests || []).map(bt => ({
+        time: new Date(bt.createdAt).toLocaleString(),
+        initialBalance: bt.initialBalance,
+        finalBalance: (bt.finalBalance ?? ((bt.results?.profit ?? 0) + bt.initialBalance)),
+        profit: bt.results?.profit ?? 0,
+      }));
+      setHistoryChart(data);
+    } catch (err) {
+      console.error(err);
+      setChartError("Failed to fetch history chart");
+    } finally {
+      setChartLoading(false);
+    }
   };
 
   return (
@@ -121,7 +143,29 @@ export default function TradingBot() {
         </div>
       </div>
 
-      {/* Backtests History */}
+      {/* Backtests History Chart */}
+      <div className="bg-white p-4 rounded-2xl shadow mt-6">
+        <h2 className="text-xl font-semibold mb-4">Backtests History Chart</h2>
+        {chartLoading && <p>Loading chart...</p>}
+        {chartError && <p className="text-red-500">{chartError}</p>}
+        {!chartLoading && !chartError && historyChart.length > 0 && (
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={historyChart}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="time" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Line type="monotone" dataKey="initialBalance" stroke="#F59E0B" strokeWidth={2} dot />
+              <Line type="monotone" dataKey="finalBalance" stroke="#3B82F6" strokeWidth={2} dot />
+              <Line type="monotone" dataKey="profit" stroke="#10B981" strokeWidth={2} dot />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+        {!chartLoading && historyChart.length === 0 && <p className="text-gray-500">No chart data available.</p>}
+      </div>
+
+      {/* Backtests List */}
       <div className="mt-6">
         <h2 className="font-semibold text-xl mb-2">Backtest History</h2>
         {results.map(bt => (
