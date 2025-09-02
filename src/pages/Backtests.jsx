@@ -1,7 +1,6 @@
-// File: src/pages/Backtests.jsx
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
-import { useBacktest } from "../hooks/useBacktest.js"; // matches named export
+import { useBacktest } from "../hooks/useBacktest.js";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend
 } from "recharts";
@@ -33,14 +32,7 @@ export default function Backtests() {
   const [historyChart, setHistoryChart] = useState([]);
   const [filters, setFilters] = useState({ symbol: "", strategy: "", risk: "" });
 
-  useEffect(() => {
-    if (user?._id) {
-      fetchOptions();
-      fetchBacktests();
-      loadHistoryChart();
-    }
-  }, [user]);
-
+  // Initialize form when options load
   useEffect(() => {
     if (options.symbols?.length && options.strategies?.length) {
       setForm({
@@ -55,21 +47,22 @@ export default function Backtests() {
     }
   }, [options]);
 
-  async function loadHistoryChart() {
-    await fetchBacktests();
-    const data = backtests.map(bt => ({
-      time: new Date(bt.createdAt).toLocaleString(),
-      initialBalance: bt.initialBalance,
-      finalBalance: bt.finalBalance ?? ((bt.results?.profit ?? 0) + bt.initialBalance),
-      profit: bt.results?.profit ?? 0,
-    }));
-    setHistoryChart(data);
-  }
+  // Update chart whenever backtests change
+  useEffect(() => {
+    if (backtests.length) {
+      const data = backtests.map(bt => ({
+        time: new Date(bt.createdAt).toLocaleString(),
+        initialBalance: bt.initialBalance,
+        finalBalance: bt.results?.finalBalance ?? (bt.initialBalance + (bt.results?.profit ?? 0)),
+        profit: bt.results?.profit ?? 0,
+      }));
+      setHistoryChart(data);
+    }
+  }, [backtests]);
 
   async function handleRun() {
     if (!form.symbol || !form.timeframe) return alert("Select symbol and timeframe!");
     await runBacktest(form);
-    loadHistoryChart();
   }
 
   async function handleBatchRun() {
@@ -85,7 +78,6 @@ export default function Backtests() {
       }))
     );
     await runBatchBacktests(paramCombos, "coinbase");
-    loadHistoryChart();
   }
 
   const filteredBacktests = backtests.filter(bt =>
@@ -97,9 +89,63 @@ export default function Backtests() {
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-bold">Backtests</h1>
-      {/* Controls, Filters, Table, and Chart... */}
-      {/* (Keep the same JSX from your original Backtests.jsx) */}
+
+      {/* Simple controls */}
+      <div className="flex space-x-4">
+        <select value={form.symbol} onChange={e => setForm({ ...form, symbol: e.target.value })}>
+          {options.symbols?.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select value={form.strategy} onChange={e => setForm({ ...form, strategy: e.target.value })}>
+          {options.strategies?.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <button onClick={handleRun} disabled={loading} className="bg-blue-500 text-white px-3 rounded">
+          Run Backtest
+        </button>
+        <button onClick={handleBatchRun} disabled={loading} className="bg-green-500 text-white px-3 rounded">
+          Run Batch
+        </button>
+      </div>
+
+      {/* Chart */}
+      {historyChart.length > 0 && (
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={historyChart}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="time" />
+            <YAxis />
+            <Tooltip />
+            <Legend />
+            <Line type="monotone" dataKey="finalBalance" stroke="#8884d8" name="Final Balance" />
+            <Line type="monotone" dataKey="profit" stroke="#82ca9d" name="Profit" />
+          </LineChart>
+        </ResponsiveContainer>
+      )}
+
       {error && <p className="text-red-500 mt-2">{error}</p>}
+
+      {/* Table of backtests */}
+      <table className="min-w-full table-auto border-collapse border border-gray-300">
+        <thead>
+          <tr>
+            <th className="border px-2 py-1">Symbol</th>
+            <th className="border px-2 py-1">Strategy</th>
+            <th className="border px-2 py-1">Initial</th>
+            <th className="border px-2 py-1">Final</th>
+            <th className="border px-2 py-1">Profit</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredBacktests.map(bt => (
+            <tr key={bt._id}>
+              <td className="border px-2 py-1">{bt.symbol}</td>
+              <td className="border px-2 py-1">{bt.strategy}</td>
+              <td className="border px-2 py-1">{bt.initialBalance}</td>
+              <td className="border px-2 py-1">{bt.results?.finalBalance ?? (bt.initialBalance + (bt.results?.profit ?? 0))}</td>
+              <td className="border px-2 py-1">{bt.results?.profit ?? 0}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
