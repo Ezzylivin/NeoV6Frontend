@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useBacktest } from "../hooks/useBacktest.js";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend, ReferenceDot
+  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend
 } from "recharts";
 
 export default function Backtests() {
@@ -21,7 +21,7 @@ export default function Backtests() {
   });
 
   const [historyChart, setHistoryChart] = useState([]);
-  const [latest, setLatest] = useState(null);
+  const [filters, setFilters] = useState({ symbol: "", strategy: "", risk: "" });
 
   useEffect(() => {
     if (user?._id) {
@@ -46,19 +46,14 @@ export default function Backtests() {
   }, [options]);
 
   async function loadHistoryChart() {
-    if (!user?._id) return;
-    try {
-      const res = await fetchBacktests();
-      const data = backtests.map(bt => ({
-        time: new Date(bt.createdAt).toLocaleString(),
-        initialBalance: bt.initialBalance,
-        finalBalance: bt.finalBalance ?? ((bt.results?.profit ?? 0) + bt.initialBalance),
-        profit: bt.results?.profit ?? 0,
-      }));
-      setHistoryChart(data);
-    } catch (e) {
-      console.error(e);
-    }
+    await fetchBacktests();
+    const data = backtests.map(bt => ({
+      time: new Date(bt.createdAt).toLocaleString(),
+      initialBalance: bt.initialBalance,
+      finalBalance: bt.finalBalance ?? ((bt.results?.profit ?? 0) + bt.initialBalance),
+      profit: bt.results?.profit ?? 0,
+    }));
+    setHistoryChart(data);
   }
 
   async function handleRun() {
@@ -83,23 +78,11 @@ export default function Backtests() {
     loadHistoryChart();
   }
 
-  const Stats = ({ m }) => {
-    if (!m) return null;
-    return (
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-        <div className="p-3 rounded bg-gray-100">
-          <div className="text-xs text-gray-500">Final Balance</div>
-          <div className="text-lg font-semibold">${m.finalBalance.toLocaleString()}</div>
-        </div>
-        <div className="p-3 rounded bg-gray-100">
-          <div className="text-xs text-gray-500">Net Profit</div>
-          <div className={`text-lg font-semibold ${m.netProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
-            ${m.netProfit.toLocaleString()}
-          </div>
-        </div>
-      </div>
-    );
-  };
+  const filteredBacktests = backtests.filter(bt =>
+    (!filters.symbol || bt.symbol === filters.symbol) &&
+    (!filters.strategy || bt.strategy === filters.strategy) &&
+    (!filters.risk || bt.risk === filters.risk)
+  );
 
   return (
     <div className="p-6 space-y-6">
@@ -144,18 +127,64 @@ export default function Backtests() {
         </button>
       </div>
 
-      {/* Best result */}
-      {best && (
-        <div className="bg-yellow-100 p-4 rounded-2xl mt-4">
-          <h2 className="font-semibold">Best Backtest</h2>
-          <p>{best.symbol} • {best.strategy.name} • Profit: ${best.netProfit.toFixed(2)}</p>
+      {/* Filter table */}
+      <div className="mt-4">
+        <h2 className="text-lg font-semibold">Filter Backtests</h2>
+        <div className="flex gap-2 mt-2">
+          <select value={filters.symbol} onChange={e => setFilters(f => ({ ...f, symbol: e.target.value }))}>
+            <option value="">All Symbols</option>
+            {options.symbols?.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select value={filters.strategy} onChange={e => setFilters(f => ({ ...f, strategy: e.target.value }))}>
+            <option value="">All Strategies</option>
+            {options.strategies?.map(st => <option key={st} value={st}>{st}</option>)}
+          </select>
+          <select value={filters.risk} onChange={e => setFilters(f => ({ ...f, risk: e.target.value }))}>
+            <option value="">All Risks</option>
+            {options.risks?.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
         </div>
-      )}
+      </div>
 
-      {/* Backtest history chart */}
+      {/* Backtests Table */}
+      <div className="overflow-x-auto mt-4">
+        <table className="min-w-full bg-white rounded-lg overflow-hidden shadow">
+          <thead className="bg-gray-200">
+            <tr>
+              <th className="px-4 py-2">Symbol</th>
+              <th className="px-4 py-2">Strategy</th>
+              <th className="px-4 py-2">Risk</th>
+              <th className="px-4 py-2">Stop Loss %</th>
+              <th className="px-4 py-2">Take Profit %</th>
+              <th className="px-4 py-2">Initial Balance</th>
+              <th className="px-4 py-2">Profit</th>
+              <th className="px-4 py-2">Final Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredBacktests.map(bt => {
+              const isBest = best?._id === bt._id;
+              return (
+                <tr key={bt._id} className={isBest ? "bg-yellow-100 font-bold" : ""}>
+                  <td className="px-4 py-2">{bt.symbol}</td>
+                  <td className="px-4 py-2">{bt.strategy}</td>
+                  <td className="px-4 py-2">{bt.risk}</td>
+                  <td className="px-4 py-2">{bt.stopLoss}</td>
+                  <td className="px-4 py-2">{bt.takeProfit}</td>
+                  <td className="px-4 py-2">{bt.initialBalance}</td>
+                  <td className="px-4 py-2">{bt.results?.profit?.toFixed(2)}</td>
+                  <td className="px-4 py-2">{bt.finalBalance?.toFixed(2) ?? (bt.initialBalance + bt.results?.profit).toFixed(2)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* History Chart */}
       {historyChart.length > 0 && (
         <div className="bg-white p-4 rounded-2xl shadow mt-6">
-          <h2 className="font-semibold mb-2">Backtest History</h2>
+          <h2 className="font-semibold mb-2">Backtest History Chart</h2>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={historyChart}>
               <CartesianGrid strokeDasharray="3 3" />
