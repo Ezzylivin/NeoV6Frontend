@@ -4,7 +4,7 @@ import axios from "axios";
 
 const API_BASE = "/api/backtests";
 
-export function useBacktests(userId) {
+export function useBacktest(userId) {
   const [results, setResults] = useState([]); // backtest list
   const [best, setBest] = useState(null); // best backtest
   const [options, setOptions] = useState({});
