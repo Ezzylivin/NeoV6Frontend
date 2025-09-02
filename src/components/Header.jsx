@@ -4,13 +4,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
 const Header = () => {
-  // Make sure useAuth returns the right keys
-  const { isAuthenticated, user, logout } = useAuth(); 
+  const { isAuthenticated, user, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
     logout();
-    navigate('/login'); // send user back to login page
+    navigate('/login'); // redirect user to login page
   };
 
   const headerStyle = {
@@ -18,19 +17,40 @@ const Header = () => {
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: '1rem 2rem',
-    background: '#222',
+    background: '#000000', // true black
     color: 'white',
     borderBottom: '1px solid #444'
   };
 
-  const navStyle = { display: 'flex', gap: '1.5rem', alignItems: 'center' };
-  const linkStyle = { color: 'white', textDecoration: 'none', fontWeight: '500' };
-  const buttonStyle = { marginLeft: '1rem', background: '#e53e3e', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '5px', cursor: 'pointer' };
+  const navStyle = {
+    display: 'flex',
+    gap: '1.5rem',
+    alignItems: 'center'
+  };
+
+  const linkStyle = {
+    color: '#3b82f6', // blue links
+    textDecoration: 'none',
+    fontWeight: '500'
+  };
+
+  const buttonStyle = {
+    marginLeft: '1rem',
+    background: '#e53e3e',
+    color: 'white',
+    border: 'none',
+    padding: '0.5rem 1rem',
+    borderRadius: '5px',
+    cursor: 'pointer'
+  };
 
   return (
     <header style={headerStyle}>
       <div className="logo">
-        <Link to="/dashboard" style={{ color: 'white', textDecoration: 'none', fontSize: '1.5rem', fontWeight: 'bold' }}>
+        <Link
+          to="/dashboard"
+          style={{ color: '#3b82f6', textDecoration: 'none', fontSize: '1.5rem', fontWeight: 'bold' }}
+        >
           Neo-V6
         </Link>
       </div>
