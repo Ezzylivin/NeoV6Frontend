@@ -12,14 +12,8 @@ export function useBacktest() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Axios config with token
-  const authConfig = {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  };
+  const authConfig = { headers: { Authorization: `Bearer ${token}` } };
 
-  // Fetch backtest options
   const fetchOptions = async () => {
     if (!token) return;
     try {
@@ -39,7 +33,6 @@ export function useBacktest() {
     }
   };
 
-  // Fetch user backtests
   const fetchBacktests = async () => {
     if (!user?._id) return;
     try {
@@ -50,14 +43,19 @@ export function useBacktest() {
     }
   };
 
-  // Run a single backtest
+  const normalizeStrategy = (strategy) => {
+    if (!strategy) return { name: "SMA", parameters: {} };
+    if (typeof strategy === "string") return { name: strategy, parameters: {} };
+    if (!strategy.parameters) strategy.parameters = {};
+    return strategy;
+  };
+
   const runBacktest = async (params) => {
     setLoading(true);
     try {
-      const { data } = await axios.post(`${API_BASE}/run`, { userId: user._id, ...params }, authConfig);
-      if (data.success) {
-        setResults((prev) => [data.backtests[0], ...prev]);
-      }
+      const payload = { ...params, userId: user._id, strategy: normalizeStrategy(params.strategy) };
+      const { data } = await axios.post(`${API_BASE}/run`, payload, authConfig);
+      if (data.success) setResults((prev) => [data.backtests[0], ...prev]);
     } catch (err) {
       console.error("Run backtest failed", err);
       setError(err.message);
@@ -66,15 +64,26 @@ export function useBacktest() {
     }
   };
 
-  // Run batch backtests
   const runBatchBacktests = async (paramCombos, exchange = "coinbasepro") => {
     setLoading(true);
     try {
+      // normalize all strategies in batch
+      const normalizedCombos = paramCombos.map((p) => ({
+        ...p,
+        strategy: normalizeStrategy(p.strategy),
+        initialBalance: p.initialBalance || 1000,
+        stopLoss: p.stopLoss ?? 0,
+        takeProfit: p.takeProfit ?? 0,
+        risk: p.risk || "Medium",
+        timeframe: p.timeframe || "1h",
+      }));
+
       const { data } = await axios.post(
         `${API_BASE}/batch`,
-        { userId: user._id, paramCombos, exchange },
+        { userId: user._id, paramCombos: normalizedCombos, exchange },
         authConfig
       );
+
       if (data.success) {
         setResults((prev) => [...data.results.map((r) => r.saved), ...prev]);
         setBest(data.best);
