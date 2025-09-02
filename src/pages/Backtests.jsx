@@ -22,7 +22,6 @@ export default function Backtests() {
     loading,
     error,
     fetchOptions,
-    fetchBacktests,
     runBacktest,
     runBatchBacktests,
   } = useBacktest();
@@ -38,12 +37,9 @@ export default function Backtests() {
   });
 
   const [historyChart, setHistoryChart] = useState([]);
+  const [filters, setFilters] = useState({ symbol: "", strategy: "", risk: "" });
 
-  useEffect(() => {
-    fetchOptions();
-    if (user?._id) fetchBacktests();
-  }, [user?._id]);
-
+  // Initialize form when options load
   useEffect(() => {
     if (options.symbols?.length && options.strategies?.length) {
       setForm({
@@ -58,14 +54,17 @@ export default function Backtests() {
     }
   }, [options]);
 
+  // Update chart history when backtests change
   useEffect(() => {
-    const data = backtests.map((bt) => ({
-      time: new Date(bt.createdAt).toLocaleString(),
-      initialBalance: bt.initialBalance,
-      finalBalance:
-        bt.results?.finalBalance ?? bt.initialBalance + (bt.results?.profit ?? 0),
-      profit: bt.results?.profit ?? 0,
-    }));
+    const data = backtests
+      .filter(bt => bt) // skip null backtests
+      .map(bt => ({
+        time: bt?.createdAt ? new Date(bt.createdAt).toLocaleString() : "N/A",
+        initialBalance: bt?.initialBalance ?? 0,
+        finalBalance:
+          bt?.results?.finalBalance ?? (bt?.initialBalance ?? 0) + (bt?.results?.profit ?? 0),
+        profit: bt?.results?.profit ?? 0,
+      }));
     setHistoryChart(data);
   }, [backtests]);
 
@@ -88,6 +87,15 @@ export default function Backtests() {
     );
     await runBatchBacktests(paramCombos, "coinbasepro");
   };
+
+  const filteredBacktests = backtests
+    .filter(bt => bt) // skip null backtests
+    .filter(
+      (bt) =>
+        (!filters.symbol || bt.symbol === filters.symbol) &&
+        (!filters.strategy || (bt.strategy?.name || bt.strategy) === filters.strategy) &&
+        (!filters.risk || bt.risk === filters.risk)
+    );
 
   return (
     <div className="p-6 space-y-6">
@@ -131,13 +139,15 @@ export default function Backtests() {
         </button>
       </div>
 
-      <button
-        onClick={handleBatchRun}
-        className="bg-green-600 text-white px-4 py-2 rounded mt-2"
-        disabled={loading}
-      >
-        Run Batch Backtests
-      </button>
+      <div>
+        <button
+          onClick={handleBatchRun}
+          className="bg-green-600 text-white px-4 py-2 rounded mt-2"
+          disabled={loading}
+        >
+          Run Batch Backtests
+        </button>
+      </div>
 
       {error && <p className="text-red-500 mt-2">{error}</p>}
 
@@ -171,20 +181,43 @@ export default function Backtests() {
             </tr>
           </thead>
           <tbody>
-            {backtests.map((bt) => (
-              <tr key={bt._id} className="text-center">
-                <td className="px-4 py-2 border">{new Date(bt.createdAt).toLocaleString()}</td>
-                <td className="px-4 py-2 border">{bt.symbol}</td>
-                <td className="px-4 py-2 border">{bt.strategy?.name || bt.strategy}</td>
-                <td className="px-4 py-2 border">{bt.risk}</td>
-                <td className="px-4 py-2 border">{bt.initialBalance}</td>
-                <td className="px-4 py-2 border">{bt.results?.finalBalance ?? 0}</td>
-                <td className="px-4 py-2 border">{bt.results?.profit ?? 0}</td>
+            {filteredBacktests.map((bt) => (
+              <tr key={bt._id || Math.random()} className="text-center">
+                <td className="px-4 py-2 border">
+                  {bt?.createdAt ? new Date(bt.createdAt).toLocaleString() : "N/A"}
+                </td>
+                <td className="px-4 py-2 border">{bt?.symbol || "N/A"}</td>
+                <td className="px-4 py-2 border">{bt?.strategy?.name || bt?.strategy || "N/A"}</td>
+                <td className="px-4 py-2 border">{bt?.risk || "N/A"}</td>
+                <td className="px-4 py-2 border">{bt?.initialBalance ?? "N/A"}</td>
+                <td className="px-4 py-2 border">
+                  {bt?.results?.finalBalance ?? bt?.initialBalance ?? 0}
+                </td>
+                <td className="px-4 py-2 border">{bt?.results?.profit ?? 0}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* Best Equity Curve */}
+      {best && best.saved && best.saved.equityCurve?.length > 0 && (
+        <div className="mt-6">
+          <h2 className="text-xl font-bold">
+            Best Equity Curve: {best.saved.symbol} ({best.saved.strategy?.name})
+          </h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={best.saved.equityCurve}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="time" tickFormatter={(t) => new Date(t).toLocaleTimeString()} />
+              <YAxis />
+              <Tooltip labelFormatter={(t) => new Date(t).toLocaleString()} />
+              <Legend />
+              <Line type="monotone" dataKey="equity" stroke="#8884d8" dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }
