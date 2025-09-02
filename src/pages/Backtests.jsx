@@ -1,219 +1,139 @@
 // File: src/pages/Backtests.jsx
-import React, { useEffect, useState } from "react";
-import { useAuth } from "../context/AuthContext.jsx";
-import { useBacktest } from "../hooks/useBacktest.js";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend } from "recharts";
+import { useAuth } from "../context/AuthContext.jsx";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer
+} from "recharts";
+
+const SYMBOLS = ["BTC/USD", "ETH/USD", "BNB/USD", "SOL/USD"];
+const TIMEFRAMES = ["1m", "5m", "10m", "15m", "30m", "1h", "4h", "1d", "3d"];
 
 export default function Backtests() {
   const { user } = useAuth();
-  const { results: backtests, options, loading, error, fetchOptions, fetchBacktests, runBacktest } = useBacktest();
+  const [symbol, setSymbol] = useState(SYMBOLS[0]);
+  const [timeframe, setTimeframe] = useState(TIMEFRAMES[0]);
   const [chartData, setChartData] = useState([]);
-  const [chartLoading, setChartLoading] = useState(true);
-  const [chartError, setChartError] = useState(null);
-  const [form, setForm] = useState({
-    symbol: "",
-    timeframe: "",
-    initialBalance: 1000,
-    strategy: "",
-    risk: "Medium",
-  });
-  const [expandedId, setExpandedId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [latestPrice, setLatestPrice] = useState(null);
 
   const API_URL = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com/api";
 
+  // Fetch chart data for mini chart
   useEffect(() => {
-    if (user?._id) {
-      fetchOptions();
-      fetchBacktests();
-      fetchChartData();
-    }
-  }, [user]);
+    const fetchChart = async () => {
+      setLoading(true);
+      try {
+        const res = await axios.get(
+          `${API_URL}/candles?exchange=coinbase&symbol=${symbol}&timeframe=${timeframe}`
+        );
+        const data = res.data || [];
+        setChartData(data);
+        if (data.length) {
+          setLatestPrice(data[data.length - 1].close);
+        }
+      } catch (err) {
+        console.error("Error fetching chart data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  useEffect(() => {
-    if (options.symbols?.length && options.strategies?.length) {
-      setForm({
-        symbol: options.symbols[0],
-        timeframe: options.timeframes[0],
-        initialBalance: options.balances?.[2] || 1000,
-        strategy: options.strategies[0],
-        risk: options.risks?.[1] || "Medium",
-      });
-    }
-  }, [options]);
+    fetchChart();
+    const interval = setInterval(fetchChart, 60000); // auto-refresh every minute
+    return () => clearInterval(interval);
+  }, [symbol, timeframe]);
 
-  const fetchChartData = async () => {
-    if (!user?._id) return;
-    setChartLoading(true);
-    try {
-      const res = await axios.get(`${API_URL}/backtests`, { params: { userId: user._id } });
-      const data = res.data.backtests.map(bt => ({
-        time: new Date(bt.createdAt).toLocaleString(),
-        initialBalance: bt.initialBalance,
-        finalBalance: bt.finalBalance,
-        profit: bt.profit,
-      }));
-      setChartData(data);
-    } catch (err) {
-      console.error(err);
-      setChartError("Failed to fetch chart data");
-    } finally {
-      setChartLoading(false);
+  // Custom tooltip for compact OHLC
+  const CustomTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      const d = payload[0].payload;
+      return (
+        <div className="bg-white p-1 border shadow rounded text-xs text-black">
+          <p><strong>{symbol}</strong></p>
+          <p>{new Date(d.time * 1000).toLocaleString()}</p>
+          <p>O: ${d.open}</p>
+          <p>H: ${d.high}</p>
+          <p>L: ${d.low}</p>
+          <p>C: ${d.close}</p>
+        </div>
+      );
     }
-  };
-
-  const toggleExpand = (id) => setExpandedId(expandedId === id ? null : id);
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: name === "initialBalance" ? Number(value) : value }));
-  };
-  const handleRun = () => {
-    if (!form.symbol || !form.timeframe) return alert("Select symbol and timeframe!");
-    runBacktest(form);
+    return null;
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold">Backtests</h1>
+    <div className="p-4 bg-black min-h-screen text-white">
+      <h1 className="text-2xl font-bold mb-4">Backtests</h1>
 
-      {/* Form */}
-      <div className="bg-gray-100 p-4 rounded-2xl flex flex-wrap gap-4 items-end">
-        {/* Symbol */}
+      <div className="mb-4 flex flex-wrap items-center gap-4">
         <div>
-          <label className="block text-sm font-medium">Symbol</label>
-          <select name="symbol" value={form.symbol} onChange={handleChange} className="border p-1 rounded">
-            {options.symbols?.map(s => <option key={s} value={s}>{s}</option>)}
+          <label className="block mb-1">Symbol:</label>
+          <select
+            value={symbol}
+            onChange={(e) => setSymbol(e.target.value)}
+            className="p-2 rounded text-black"
+          >
+            {SYMBOLS.map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
           </select>
         </div>
 
-        {/* Timeframe */}
         <div>
-          <label className="block text-sm font-medium">Timeframe</label>
-          <select name="timeframe" value={form.timeframe} onChange={handleChange} className="border p-1 rounded">
-            {options.timeframes?.map(tf => <option key={tf} value={tf}>{tf}</option>)}
+          <label className="block mb-1">Timeframe:</label>
+          <select
+            value={timeframe}
+            onChange={(e) => setTimeframe(e.target.value)}
+            className="p-2 rounded text-black"
+          >
+            {TIMEFRAMES.map(tf => (
+              <option key={tf} value={tf}>{tf}</option>
+            ))}
           </select>
         </div>
 
-        {/* Strategy */}
-        <div>
-          <label className="block text-sm font-medium">Strategy</label>
-          <select name="strategy" value={form.strategy} onChange={handleChange} className="border p-1 rounded">
-            {options.strategies?.map(st => <option key={st} value={st}>{st}</option>)}
-          </select>
-        </div>
-
-        {/* Risk */}
-        <div>
-          <label className="block text-sm font-medium">Risk</label>
-          <select name="risk" value={form.risk} onChange={handleChange} className="border p-1 rounded">
-            {options.risks?.map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
-        </div>
-
-        {/* Initial Balance */}
-        <div>
-          <label className="block text-sm font-medium">Initial Balance</label>
-          <select name="initialBalance" value={form.initialBalance} onChange={handleChange} className="border p-1 rounded w-24">
-            {options.balances?.map(b => <option key={b} value={b}>{b}</option>)}
-          </select>
-        </div>
-
-        <button onClick={handleRun} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" disabled={loading}>
-          {loading ? "Running..." : "Run Backtest"}
-        </button>
+        {latestPrice !== null && (
+          <div className="ml-4 text-green-400 font-semibold text-lg">
+            ${latestPrice.toLocaleString()}
+          </div>
+        )}
       </div>
 
-      {/* Chart */}
-      <div className="bg-white p-4 rounded-2xl shadow mt-6">
-        <h2 className="text-xl font-semibold mb-4">Performance Chart</h2>
-        {chartLoading && <p>Loading chart...</p>}
-        {chartError && <p className="text-red-500">{chartError}</p>}
-        {!chartLoading && !chartError && chartData.length > 0 && (
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" tick={{ fontSize: 12 }} />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="initialBalance" stroke="#F59E0B" strokeWidth={2} dot />
-              <Line type="monotone" dataKey="finalBalance" stroke="#3B82F6" strokeWidth={2} dot />
-              <Line type="monotone" dataKey="profit" stroke="#10B981" strokeWidth={2} dot />
+      <div style={{ width: "100%", height: 200, marginBottom: "2rem" }}>
+        {loading ? (
+          <p>Loading chart...</p>
+        ) : chartData.length ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData}>
+              <XAxis dataKey="time" hide />
+              <YAxis domain={["auto", "auto"]} hide />
+              <Tooltip content={<CustomTooltip />} />
+              <Line
+                type="monotone"
+                dataKey="close"
+                stroke="#10B981"
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
+              />
             </LineChart>
           </ResponsiveContainer>
+        ) : (
+          <p className="text-gray-400">No chart data available.</p>
         )}
-        {!chartLoading && chartData.length === 0 && <p className="text-gray-500">No chart data available.</p>}
       </div>
 
-      {error && <p className="text-red-500">{error}</p>}
-
-      {/* Backtest List */}
-      {backtests.length === 0 ? (
-        <p className="text-gray-500">No backtests yet.</p>
-      ) : backtests.map(bt => (
-        <div key={bt._id} className="bg-white shadow rounded-2xl p-4 border border-gray-200">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-lg font-semibold">{bt.symbol} ({bt.timeframe})</h2>
-              <p className="text-sm text-gray-600">
-                Strategy: {bt.strategy?.name || bt.strategy} | Trades: {bt.totalTrades}
-              </p>
-              <p className="text-sm text-gray-600">
-                Initial: ${bt.initialBalance} → Final: ${bt.finalBalance}
-              </p>
-            </div>
-            <div className="flex flex-col items-end">
-              <p className={`font-bold ${bt.profit >= 0 ? "text-green-600" : "text-red-600"}`}>
-                P/L: ${bt.profit?.toFixed(2) ?? "0.00"}
-              </p>
-              <button onClick={() => toggleExpand(bt._id)} className="text-blue-500 hover:underline text-sm mt-1">
-                {expandedId === bt._id ? "Hide Trades ▲" : "Show Trades ▼"}
-              </button>
-            </div>
-          </div>
-
-          {expandedId === bt._id && (
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full border text-sm text-left">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="p-2 border">Entry</th>
-                    <th className="p-2 border">Exit</th>
-                    <th className="p-2 border">Position</th>
-                    <th className="p-2 border">Entry Price</th>
-                    <th className="p-2 border">Exit Price</th>
-                    <th className="p-2 border">Profit</th>
-                    <th className="p-2 border">Result</th>
-                    <th className="p-2 border">Duration (min)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bt.tradeBreakdown?.length ? bt.tradeBreakdown.map((trade,i)=>(
-                    <tr key={i} className="hover:bg-gray-50">
-                      <td className="p-2 border">{trade.entryTime ? new Date(trade.entryTime).toLocaleString() : "-"}</td>
-                      <td className="p-2 border">{trade.exitTime ? new Date(trade.exitTime).toLocaleString() : "-"}</td>
-                      <td className="p-2 border capitalize">{trade.position || "-"}</td>
-                      <td className="p-2 border">{trade.entryPrice ?? "-"}</td>
-                      <td className="p-2 border">{trade.exitPrice ?? "-"}</td>
-                      <td className={`p-2 border ${(trade.profit ?? 0) >=0 ? "text-green-600" : "text-red-600"}`}>
-                        {trade.profit?.toFixed(2) ?? "0.00"}
-                      </td>
-                      <td className={`p-2 border capitalize ${trade.result==="win"?"text-green-600":trade.result==="loss"?"text-red-600":"text-gray-500"}`}>
-                        {trade.result || "-"}
-                      </td>
-                      <td className="p-2 border">{trade.duration ? `${trade.duration}m` : "-"}</td>
-                    </tr>
-                  )) : (
-                    <tr>
-                      <td className="p-2 border text-center text-gray-500" colSpan="8">No trades recorded</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      ))}
+      {/* Placeholder for backtest results */}
+      <div className="bg-gray-900 p-4 rounded-lg">
+        <h2 className="text-xl font-semibold mb-2">Backtest Results</h2>
+        <p className="text-gray-400">Results will appear here after running a backtest.</p>
+      </div>
     </div>
   );
 }
