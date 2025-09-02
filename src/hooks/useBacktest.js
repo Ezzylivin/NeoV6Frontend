@@ -4,6 +4,8 @@ import axios from "axios";
 
 export function useBacktest() {
   const { user } = useAuth();
+  const userId = user?._id;
+
   const [results, setResults] = useState([]);
   const [best, setBest] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -20,7 +22,7 @@ export function useBacktest() {
 
   // Fetch dropdown options dynamically
   const fetchOptions = async () => {
-    if (!user?._id) return;
+    if (!userId) return;
     try {
       const { data } = await axios.get(`${API_URL}/backtests/options`);
       if (data.success) setOptions(data.options);
@@ -31,14 +33,15 @@ export function useBacktest() {
 
   // Fetch saved backtests for the current user
   const fetchBacktests = async () => {
-    if (!user?._id) return;
+    if (!userId) return;
     setLoading(true);
+    setError(null);
     try {
-      const { data } = await axios.get(`/api/backtests/user/${userId}`);
+      const { data } = await axios.get(`${API_URL}/backtests/user/${userId}`);
       if (data.success) setResults(data.backtests || []);
     } catch(err) {
       console.error(err);
-      setError("Failed to fetch backtests");
+      setError(err.response?.data?.message || "Failed to fetch backtests");
       setResults([]);
     } finally {
       setLoading(false);
@@ -47,20 +50,18 @@ export function useBacktest() {
 
   // Run a single backtest
   const runBacktest = async (form) => {
-    if (!user?._id) {
+    if (!userId) {
       setError("User not logged in");
       return;
     }
-
     setLoading(true);
     setError(null);
 
     try {
       const { data } = await axios.post(`${API_URL}/backtests/run`, {
-        userId: user._id,
+        userId,
         ...form
       });
-
       if (data.success && data.backtest) {
         setResults(prev => [data.backtest, ...prev]);
       } else {
@@ -74,34 +75,6 @@ export function useBacktest() {
     }
   };
 
-  // Run batch backtests (optimization)
-  const runBatchBacktests = async (paramCombos) => {
-    if (!user?._id || !Array.isArray(paramCombos) || paramCombos.length === 0) return;
-    setLoading(true);
-    setError(null);
-
-    try {
-      const { data } = await axios.post(`${API_URL}/backtests/batch`, {
-        userId: user._id,
-        paramCombos
-      });
-
-      if (data.success) {
-        // Flatten saved backtests and prepend to results
-        const allBacktests = data.results.map(r => r.saved);
-        setResults(prev => [...allBacktests, ...prev]);
-        setBest(data.best.saved);
-      } else {
-        setError("Batch backtests failed");
-      }
-    } catch(err) {
-      console.error(err);
-      setError(err.response?.data?.message || "Failed to run batch backtests");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return {
     results,
     best,
@@ -110,7 +83,6 @@ export function useBacktest() {
     error,
     fetchOptions,
     fetchBacktests,
-    runBacktest,
-    runBatchBacktests
+    runBacktest
   };
 }
