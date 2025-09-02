@@ -1,36 +1,38 @@
-// File: src/pages/Dashboard.jsx
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  ResponsiveContainer
+  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer
 } from "recharts";
 
 export default function Dashboard() {
   const [candles1, setCandles1] = useState([]);
   const [candles2, setCandles2] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [livePrices, setLivePrices] = useState({ BTC: 0, ETH: 0 });
 
   const [timeframe1, setTimeframe1] = useState("1h");
   const [timeframe2, setTimeframe2] = useState("1h");
 
   const symbol1 = "BTC/USD";
   const symbol2 = "ETH/USD";
-  const exchange = "coinbase"; // US-based
+  const exchange = "coinbase"; // US-only
 
   const timeOptions = ["1m","5m","10m","15m","30m","1h","4h","1d"];
 
+  // Fetch candles
   const fetchChart = async (symbol, timeframe, setCandles) => {
     try {
       const res = await axios.get(
         `https://neov6backend.onrender.com/api/candles?exchange=${exchange}&symbol=${symbol}&timeframe=${timeframe}`
       );
       setCandles(res.data || []);
+      // update live price
+      if (res.data?.length) {
+        setLivePrices(prev => ({
+          ...prev,
+          [symbol.split("/")[0]]: res.data[res.data.length - 1].close
+        }));
+      }
     } catch (err) {
       console.error(`Error fetching chart for ${symbol}:`, err);
       setCandles([]);
@@ -70,47 +72,66 @@ export default function Dashboard() {
     return null;
   };
 
-  const renderChart = (symbol, candles, timeframe, setTimeframe, color) => (
-    <div>
-      <div className="mb-2 flex items-center gap-2">
-        <span className="font-semibold">{symbol}</span>
-        <select
-          value={timeframe}
-          onChange={(e) => setTimeframe(e.target.value)}
-          className="border p-1 text-sm"
-        >
-          {timeOptions.map((t) => (
-            <option key={t} value={t}>{t}</option>
-          ))}
-        </select>
+  const renderChart = (symbol, candles, timeframe, setTimeframe, color) => {
+    const latest = candles.length ? candles[candles.length-1] : null;
+    const intervalUp = latest ? latest.close >= latest.open : true;
+
+    return (
+      <div>
+        <div className="mb-2 flex items-center gap-2">
+          <span className="font-semibold">
+            {symbol} - ${livePrices[symbol.split("/")[0]]?.toLocaleString() || "0"}
+            <span
+              style={{
+                display: "inline-block",
+                width: "10px",
+                height: "10px",
+                marginLeft: "6px",
+                borderRadius: "50%",
+                backgroundColor: intervalUp ? "green" : "red"
+              }}
+            ></span>
+          </span>
+
+          <select
+            value={timeframe}
+            onChange={(e) => setTimeframe(e.target.value)}
+            className="border p-1 text-sm"
+          >
+            {timeOptions.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ width: "100%", height: 300 }}>
+          {candles.length ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={candles}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="time" tickFormatter={ts => new Date(ts*1000).toLocaleTimeString()} />
+                <YAxis domain={["auto", "auto"]} />
+                <Tooltip content={<CustomTooltip symbol={symbol} />} />
+                <Line
+                  type="monotone"
+                  dataKey="close"
+                  stroke={color}
+                  dot={d => (
+                    <circle
+                      r={3}
+                      fill={d.payload.close >= d.payload.open ? "green" : "red"}
+                    />
+                  )}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <p>No data for {symbol}</p>
+          )}
+        </div>
       </div>
-      <div style={{ width: "100%", height: 300 }}>
-        {candles.length ? (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={candles}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" tickFormatter={(ts) => new Date(ts * 1000).toLocaleTimeString()} />
-              <YAxis domain={["auto", "auto"]} />
-              <Tooltip content={<CustomTooltip symbol={symbol} />} />
-              <Line
-                type="monotone"
-                dataKey="close"
-                stroke={color}
-                dot={(d) => (
-                  <circle
-                    r={3}
-                    fill={d.payload.close >= d.payload.open ? "green" : "red"}
-                  />
-                )}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        ) : (
-          <p>No data for {symbol}</p>
-        )}
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="p-4">
