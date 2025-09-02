@@ -44,7 +44,7 @@ export default function Backtests() {
     if (options.symbols?.length && options.strategies?.length) {
       setForm({
         symbol: options.symbols[0],
-        timeframe: options.timeframes[0],
+        timeframe: options.timeframes?.[0] || "1h",
         initialBalance: options.balances?.[2] || 1000,
         strategy: options.strategies[0],
         risk: options.risks?.[1] || "Medium",
@@ -56,13 +56,14 @@ export default function Backtests() {
 
   // Update chart history when backtests change
   useEffect(() => {
-    const data = backtests
-      .filter(bt => bt) // skip null backtests
-      .map(bt => ({
+    const data = (backtests || [])
+      .filter((bt) => bt) // skip nulls
+      .map((bt) => ({
         time: bt?.createdAt ? new Date(bt.createdAt).toLocaleString() : "N/A",
         initialBalance: bt?.initialBalance ?? 0,
         finalBalance:
-          bt?.results?.finalBalance ?? (bt?.initialBalance ?? 0) + (bt?.results?.profit ?? 0),
+          bt?.results?.finalBalance ??
+          ((bt?.initialBalance ?? 0) + (bt?.results?.profit ?? 0)),
         profit: bt?.results?.profit ?? 0,
       }));
     setHistoryChart(data);
@@ -74,10 +75,14 @@ export default function Backtests() {
   };
 
   const handleBatchRun = async () => {
+    if (!options.symbols?.length || !options.strategies?.length) {
+      alert("Options not loaded yet!");
+      return;
+    }
     const paramCombos = options.symbols.flatMap((symbol) =>
       options.strategies.map((strategy) => ({
         symbol,
-        timeframe: form.timeframe || options.timeframes[0],
+        timeframe: form.timeframe || options.timeframes?.[0] || "1h",
         strategy: { name: strategy, parameters: {} },
         risk: form.risk,
         stopLoss: Number(form.stopLoss),
@@ -88,8 +93,8 @@ export default function Backtests() {
     await runBatchBacktests(paramCombos, "coinbasepro");
   };
 
-  const filteredBacktests = backtests
-    .filter(bt => bt) // skip null backtests
+  const filteredBacktests = (backtests || [])
+    .filter((bt) => bt) // skip nulls
     .filter(
       (bt) =>
         (!filters.symbol || bt.symbol === filters.symbol) &&
@@ -181,8 +186,13 @@ export default function Backtests() {
             </tr>
           </thead>
           <tbody>
+            {filteredBacktests.length === 0 && (
+              <tr>
+                <td colSpan="7" className="text-center py-4">No backtests found</td>
+              </tr>
+            )}
             {filteredBacktests.map((bt) => (
-              <tr key={bt._id || Math.random()} className="text-center">
+              <tr key={bt?._id || Math.random()} className="text-center">
                 <td className="px-4 py-2 border">
                   {bt?.createdAt ? new Date(bt.createdAt).toLocaleString() : "N/A"}
                 </td>
@@ -201,10 +211,10 @@ export default function Backtests() {
       </div>
 
       {/* Best Equity Curve */}
-      {best && best.saved && best.saved.equityCurve?.length > 0 && (
+      {best?.saved?.equityCurve?.length > 0 && (
         <div className="mt-6">
           <h2 className="text-xl font-bold">
-            Best Equity Curve: {best.saved.symbol} ({best.saved.strategy?.name})
+            Best Equity Curve: {best.saved.symbol} ({best.saved.strategy?.name || "N/A"})
           </h2>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={best.saved.equityCurve}>
