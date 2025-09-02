@@ -1,205 +1,93 @@
-// File: src/pages/Backtests.jsx
-import React, { useEffect, useState } from "react";
-import { useAuth } from "../context/AuthContext.jsx";
-import { useBacktest } from "../hooks/useBacktest.js";
-import {
-  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend
-} from "recharts";
+// File: src/hooks/useBacktests.js
+import { useState, useEffect } from "react";
+import axios from "axios";
 
-export default function Backtests() {
-  const { user } = useAuth();
-  const { results: backtests, best, options, loading, error, fetchOptions, fetchBacktests, runBacktest, runBatchBacktests } = useBacktest();
+const API_BASE = "/api/backtests";
 
-  const [form, setForm] = useState({
-    symbol: "",
-    timeframe: "",
-    initialBalance: 1000,
-    strategy: "",
-    risk: "Medium",
-    stopLoss: 1,
-    takeProfit: 2
-  });
+export function useBacktests(userId) {
+  const [results, setResults] = useState([]); // backtest list
+  const [best, setBest] = useState(null); // best backtest
+  const [options, setOptions] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const [historyChart, setHistoryChart] = useState([]);
-  const [filters, setFilters] = useState({ symbol: "", strategy: "", risk: "" });
+  // Fetch backtests for user
+  const fetchBacktests = async () => {
+    if (!userId) return;
+    try {
+      const res = await axios.get(`${API_BASE}/${userId}`);
+      if (res.data.success) {
+        setResults(res.data.backtests);
+      }
+    } catch (err) {
+      setError("Failed to fetch backtests");
+    }
+  };
 
+  // Fetch selectable options
+  const fetchOptions = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/options/all`);
+      if (res.data.success) {
+        setOptions(res.data.options);
+      }
+    } catch (err) {
+      setError("Failed to fetch options");
+    }
+  };
+
+  // Run single backtest
+  const runBacktest = async (params) => {
+    setLoading(true);
+    try {
+      const res = await axios.post(API_BASE, params);
+      if (res.data.success) {
+        setResults((prev) => [res.data.backtest, ...prev]);
+      }
+    } catch (err) {
+      setError("Backtest failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Run batch backtests
+  const runBatchBacktests = async (paramCombos, exchange = "binance") => {
+    setLoading(true);
+    try {
+      const res = await axios.post(`${API_BASE}/batch`, {
+        userId,
+        paramCombos,
+        exchange,
+      });
+      if (res.data.success) {
+        setResults((prev) => [...res.data.results.map((r) => r.saved), ...prev]);
+        setBest(res.data.best);
+      }
+    } catch (err) {
+      setError("Batch backtests failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // auto-fetch when user changes
   useEffect(() => {
-    if (user?._id) {
+    if (userId) {
       fetchOptions();
       fetchBacktests();
-      loadHistoryChart();
     }
-  }, [user]);
+  }, [userId]);
 
-  useEffect(() => {
-    if (options.symbols?.length && options.strategies?.length) {
-      setForm({
-        symbol: options.symbols[0],
-        timeframe: options.timeframes[0],
-        initialBalance: options.balances?.[2] || 1000,
-        strategy: options.strategies[0],
-        risk: options.risks?.[1] || "Medium",
-        stopLoss: options.stopLosses?.[0] || 1,
-        takeProfit: options.takeProfits?.[0] || 2,
-      });
-    }
-  }, [options]);
-
-  async function loadHistoryChart() {
-    await fetchBacktests();
-    const data = backtests.map(bt => ({
-      time: new Date(bt.createdAt).toLocaleString(),
-      initialBalance: bt.initialBalance,
-      finalBalance: bt.finalBalance ?? ((bt.results?.profit ?? 0) + bt.initialBalance),
-      profit: bt.results?.profit ?? 0,
-    }));
-    setHistoryChart(data);
-  }
-
-  async function handleRun() {
-    if (!form.symbol || !form.timeframe) return alert("Select symbol and timeframe!");
-    await runBacktest(form);
-    loadHistoryChart();
-  }
-
-  async function handleBatchRun() {
-    const paramCombos = options.symbols.flatMap(symbol =>
-      options.strategies.map(strategy => ({
-        symbol,
-        timeframe: form.timeframe,
-        strategy: { name: strategy },
-        risk: form.risk,
-        stopLoss: form.stopLoss,
-        takeProfit: form.takeProfit,
-        initialBalance: form.initialBalance
-      }))
-    );
-    await runBatchBacktests(paramCombos, "coinbase");
-    loadHistoryChart();
-  }
-
-  const filteredBacktests = backtests.filter(bt =>
-    (!filters.symbol || bt.symbol === filters.symbol) &&
-    (!filters.strategy || bt.strategy === filters.strategy) &&
-    (!filters.risk || bt.risk === filters.risk)
-  );
-
-  return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold">Backtests</h1>
-
-      {/* Controls */}
-      <div className="bg-gray-100 p-4 rounded-2xl flex flex-wrap gap-4 items-end">
-        <select value={form.symbol} onChange={e => setForm(f => ({ ...f, symbol: e.target.value }))}>
-          {options.symbols?.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-
-        <select value={form.timeframe} onChange={e => setForm(f => ({ ...f, timeframe: e.target.value }))}>
-          {options.timeframes?.map(tf => <option key={tf} value={tf}>{tf}</option>)}
-        </select>
-
-        <select value={form.strategy} onChange={e => setForm(f => ({ ...f, strategy: e.target.value }))}>
-          {options.strategies?.map(st => <option key={st} value={st}>{st}</option>)}
-        </select>
-
-        <select value={form.risk} onChange={e => setForm(f => ({ ...f, risk: e.target.value }))}>
-          {options.risks?.map(r => <option key={r} value={r}>{r}</option>)}
-        </select>
-
-        <select value={form.stopLoss} onChange={e => setForm(f => ({ ...f, stopLoss: Number(e.target.value) }))}>
-          {options.stopLosses?.map(sl => <option key={sl} value={sl}>{sl}%</option>)}
-        </select>
-
-        <select value={form.takeProfit} onChange={e => setForm(f => ({ ...f, takeProfit: Number(e.target.value) }))}>
-          {options.takeProfits?.map(tp => <option key={tp} value={tp}>{tp}%</option>)}
-        </select>
-
-        <select value={form.initialBalance} onChange={e => setForm(f => ({ ...f, initialBalance: Number(e.target.value) }))}>
-          {options.balances?.map(b => <option key={b} value={b}>{b}</option>)}
-        </select>
-
-        <button onClick={handleRun} disabled={loading} className="bg-blue-600 text-white px-4 py-2 rounded">
-          {loading ? "Running..." : "Run Backtest"}
-        </button>
-
-        <button onClick={handleBatchRun} disabled={loading} className="bg-green-600 text-white px-4 py-2 rounded">
-          {loading ? "Running..." : "Run Batch Backtests"}
-        </button>
-      </div>
-
-      {/* Filter table */}
-      <div className="mt-4">
-        <h2 className="text-lg font-semibold">Filter Backtests</h2>
-        <div className="flex gap-2 mt-2">
-          <select value={filters.symbol} onChange={e => setFilters(f => ({ ...f, symbol: e.target.value }))}>
-            <option value="">All Symbols</option>
-            {options.symbols?.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select value={filters.strategy} onChange={e => setFilters(f => ({ ...f, strategy: e.target.value }))}>
-            <option value="">All Strategies</option>
-            {options.strategies?.map(st => <option key={st} value={st}>{st}</option>)}
-          </select>
-          <select value={filters.risk} onChange={e => setFilters(f => ({ ...f, risk: e.target.value }))}>
-            <option value="">All Risks</option>
-            {options.risks?.map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
-        </div>
-      </div>
-
-      {/* Backtests Table */}
-      <div className="overflow-x-auto mt-4">
-        <table className="min-w-full bg-white rounded-lg overflow-hidden shadow">
-          <thead className="bg-gray-200">
-            <tr>
-              <th className="px-4 py-2">Symbol</th>
-              <th className="px-4 py-2">Strategy</th>
-              <th className="px-4 py-2">Risk</th>
-              <th className="px-4 py-2">Stop Loss %</th>
-              <th className="px-4 py-2">Take Profit %</th>
-              <th className="px-4 py-2">Initial Balance</th>
-              <th className="px-4 py-2">Profit</th>
-              <th className="px-4 py-2">Final Balance</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredBacktests.map(bt => {
-              const isBest = best?._id === bt._id;
-              return (
-                <tr key={bt._id} className={isBest ? "bg-yellow-100 font-bold" : ""}>
-                  <td className="px-4 py-2">{bt.symbol}</td>
-                  <td className="px-4 py-2">{bt.strategy}</td>
-                  <td className="px-4 py-2">{bt.risk}</td>
-                  <td className="px-4 py-2">{bt.stopLoss}</td>
-                  <td className="px-4 py-2">{bt.takeProfit}</td>
-                  <td className="px-4 py-2">{bt.initialBalance}</td>
-                  <td className="px-4 py-2">{bt.results?.profit?.toFixed(2)}</td>
-                  <td className="px-4 py-2">{bt.finalBalance?.toFixed(2) ?? (bt.initialBalance + bt.results?.profit).toFixed(2)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* History Chart */}
-      {historyChart.length > 0 && (
-        <div className="bg-white p-4 rounded-2xl shadow mt-6">
-          <h2 className="font-semibold mb-2">Backtest History Chart</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={historyChart}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="finalBalance" stroke="#10B981" dot={false} />
-              <Line type="monotone" dataKey="profit" stroke="#F59E0B" dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {error && <p className="text-red-500 mt-2">{error}</p>}
-    </div>
-  );
+  return {
+    results,
+    best,
+    options,
+    loading,
+    error,
+    fetchOptions,
+    fetchBacktests,
+    runBacktest,
+    runBatchBacktests,
+  };
 }
