@@ -1,3 +1,4 @@
+// File: src/hooks/useBacktest.js
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import axios from "axios";
@@ -16,12 +17,13 @@ export function useBacktest() {
     balances: [100,300,500,1000,5000,10000],
     strategies: ["SMA","EMA","RSI","MACD"],
     risks: ["Low","Medium","High"],
-    stopLosses: [1,2,3,5],
-    takeProfits: [1,2,3,5,10],
+    stopLosses: [0.5, 1, 2, 3, 5],
+    takeProfits: [1, 2, 3, 5, 10],
   });
 
   const API_URL = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com/api";
 
+  // Fetch dropdown options dynamically
   const fetchOptions = async () => {
     if (!userId) return;
     try {
@@ -32,6 +34,7 @@ export function useBacktest() {
     }
   };
 
+  // Fetch saved backtests for the current user
   const fetchBacktests = async () => {
     if (!userId) return;
     setLoading(true);
@@ -48,28 +51,52 @@ export function useBacktest() {
     }
   };
 
+  // Run a single backtest
   const runBacktest = async (form) => {
-    if (!userId) return setError("User not logged in");
-    setLoading(true); setError(null);
+    if (!userId) {
+      setError("User not logged in");
+      return;
+    }
+    setLoading(true);
+    setError(null);
 
     try {
-      const { data } = await axios.post(`${API_URL}/backtests/run`, { userId, ...form });
-      if (data.success && data.backtest) setResults(prev => [data.backtest, ...prev]);
-      else setError("Backtest run failed");
+      const { data } = await axios.post(`${API_URL}/backtests/run`, {
+        userId,
+        ...form
+      });
+      if (data.success && data.backtest) {
+        setResults(prev => [data.backtest, ...prev]);
+      } else {
+        setError("Backtest run failed");
+      }
     } catch(err) {
       console.error(err);
       setError(err.response?.data?.message || "Failed to run backtest");
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Run batch backtests
   const runBatchBacktests = async (paramCombos, exchange) => {
-    if (!userId || !paramCombos?.length) return;
-    setLoading(true); setError(null);
+    if (!userId || !Array.isArray(paramCombos) || paramCombos.length === 0) return;
+    setLoading(true);
+    setError(null);
 
     try {
-      const { data } = await axios.post(`${API_URL}/backtests/batch`, { userId, paramCombos, exchange });
+      const { data } = await axios.post(`${API_URL}/backtests/batch`, {
+        userId,
+        paramCombos,
+        exchange
+      });
+
       if (data.success) {
-        setResults(prev => [...data.results.map(r => r.saved), ...prev]);
+        // Flatten all saved backtests and prepend to results
+        const allBacktests = data.results.map(r => r.saved);
+        setResults(prev => [...allBacktests, ...prev]);
+
+        // Set the best strategy backtest
         setBest(data.best);
       } else {
         setError("Batch backtests failed");
@@ -77,8 +104,20 @@ export function useBacktest() {
     } catch(err) {
       console.error(err);
       setError(err.response?.data?.message || "Failed to run batch backtests");
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  return { results, best, options, loading, error, fetchOptions, fetchBacktests, runBacktest, runBatchBacktests };
+  return {
+    results,
+    best,
+    options,
+    loading,
+    error,
+    fetchOptions,
+    fetchBacktests,
+    runBacktest,
+    runBatchBacktests,
+  };
 }
