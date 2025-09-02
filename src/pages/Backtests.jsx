@@ -1,4 +1,3 @@
-// File: src/pages/Backtests.jsx
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -37,7 +36,7 @@ export default function Backtests() {
         symbol: options.symbols[0],
         timeframe: options.timeframes[0],
         initialBalance: options.balances?.[2] || 1000,
-        strategy: options.strategies[0],
+        strategy: options.strategies[0]?.name || options.strategies[0], // handle object
         risk: options.risks?.[1] || "Medium",
         stopLoss: options.stopLosses?.[0] || 1,
         takeProfit: options.takeProfits?.[0] || 2,
@@ -67,7 +66,7 @@ export default function Backtests() {
       options.strategies.map(strategy => ({
         symbol,
         timeframe: form.timeframe,
-        strategy: { name: strategy },
+        strategy: typeof strategy === "string" ? { name: strategy } : strategy,
         risk: form.risk,
         stopLoss: form.stopLoss,
         takeProfit: form.takeProfit,
@@ -80,7 +79,7 @@ export default function Backtests() {
 
   const filteredBacktests = backtests.filter(bt =>
     (!filters.symbol || bt.symbol === filters.symbol) &&
-    (!filters.strategy || bt.strategy === filters.strategy) &&
+    (!filters.strategy || bt.strategy?.name === filters.strategy || bt.strategy === filters.strategy) &&
     (!filters.risk || bt.risk === filters.risk)
   );
 
@@ -99,7 +98,10 @@ export default function Backtests() {
         </select>
 
         <select value={form.strategy} onChange={e => setForm(f => ({ ...f, strategy: e.target.value }))}>
-          {options.strategies?.map(st => <option key={st} value={st}>{st}</option>)}
+          {options.strategies?.map(st => {
+            const name = typeof st === "string" ? st : st.name;
+            return <option key={name} value={name}>{name}</option>
+          })}
         </select>
 
         <select value={form.risk} onChange={e => setForm(f => ({ ...f, risk: e.target.value }))}>
@@ -127,26 +129,7 @@ export default function Backtests() {
         </button>
       </div>
 
-      {/* Filter table */}
-      <div className="mt-4">
-        <h2 className="text-lg font-semibold">Filter Backtests</h2>
-        <div className="flex gap-2 mt-2">
-          <select value={filters.symbol} onChange={e => setFilters(f => ({ ...f, symbol: e.target.value }))}>
-            <option value="">All Symbols</option>
-            {options.symbols?.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select value={filters.strategy} onChange={e => setFilters(f => ({ ...f, strategy: e.target.value }))}>
-            <option value="">All Strategies</option>
-            {options.strategies?.map(st => <option key={st} value={st}>{st}</option>)}
-          </select>
-          <select value={filters.risk} onChange={e => setFilters(f => ({ ...f, risk: e.target.value }))}>
-            <option value="">All Risks</option>
-            {options.risks?.map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
-        </div>
-      </div>
-
-      {/* Backtests Table */}
+      {/* Table of Backtests */}
       <div className="overflow-x-auto mt-4">
         <table className="min-w-full bg-white rounded-lg overflow-hidden shadow">
           <thead className="bg-gray-200">
@@ -164,10 +147,11 @@ export default function Backtests() {
           <tbody>
             {filteredBacktests.map(bt => {
               const isBest = best?._id === bt._id;
+              const strategyName = bt.strategy?.name || bt.strategy;
               return (
                 <tr key={bt._id} className={isBest ? "bg-yellow-100 font-bold" : ""}>
                   <td className="px-4 py-2">{bt.symbol}</td>
-                  <td className="px-4 py-2">{bt.strategy}</td>
+                  <td className="px-4 py-2">{strategyName}</td>
                   <td className="px-4 py-2">{bt.risk}</td>
                   <td className="px-4 py-2">{bt.stopLoss}</td>
                   <td className="px-4 py-2">{bt.takeProfit}</td>
