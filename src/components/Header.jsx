@@ -4,12 +4,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
 const Header = () => {
-  const { isAuthenticated, user, logout } = useAuth();
+  // Make sure useAuth returns the right keys
+  const { isAuthenticated, user, logout } = useAuth(); 
   const navigate = useNavigate();
 
   const handleLogout = () => {
     logout();
-    navigate('/');
+    navigate('/login'); // send user back to login page
   };
 
   const headerStyle = {
@@ -22,27 +23,9 @@ const Header = () => {
     borderBottom: '1px solid #444'
   };
 
-  const navStyle = {
-    display: 'flex',
-    gap: '1.5rem',
-    alignItems: 'center'
-  };
-
-  const linkStyle = {
-    color: 'white',
-    textDecoration: 'none',
-    fontWeight: '500'
-  };
-
-  const buttonStyle = {
-    marginLeft: '1rem',
-    background: '#e53e3e',
-    color: 'white',
-    border: 'none',
-    padding: '0.5rem 1rem',
-    borderRadius: '5px',
-    cursor: 'pointer'
-  };
+  const navStyle = { display: 'flex', gap: '1.5rem', alignItems: 'center' };
+  const linkStyle = { color: 'white', textDecoration: 'none', fontWeight: '500' };
+  const buttonStyle = { marginLeft: '1rem', background: '#e53e3e', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '5px', cursor: 'pointer' };
 
   return (
     <header style={headerStyle}>
