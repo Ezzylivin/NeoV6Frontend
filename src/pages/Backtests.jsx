@@ -1,13 +1,31 @@
+// File: src/pages/Backtests.jsx
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useBacktest } from "../hooks/useBacktest.js";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ResponsiveContainer,
+  Legend,
 } from "recharts";
 
 export default function Backtests() {
   const { user } = useAuth();
-  const { results: backtests, options, loading, error, runBacktest, runBatchBacktests } = useBacktest();
+  const {
+    results: backtests,
+    best,
+    options,
+    loading,
+    error,
+    fetchOptions,
+    fetchBacktests,
+    runBacktest,
+    runBatchBacktests,
+  } = useBacktest();
 
   const [form, setForm] = useState({
     symbol: "",
@@ -16,13 +34,13 @@ export default function Backtests() {
     strategy: "",
     risk: "Medium",
     stopLoss: 1,
-    takeProfit: 2
+    takeProfit: 2,
   });
 
   const [historyChart, setHistoryChart] = useState([]);
   const [filters, setFilters] = useState({ symbol: "", strategy: "", risk: "" });
 
-  // Initialize form when options load
+  // Initialize form when options are loaded
   useEffect(() => {
     if (options.symbols?.length && options.strategies?.length) {
       setForm({
@@ -37,106 +55,155 @@ export default function Backtests() {
     }
   }, [options]);
 
-  // Update chart whenever backtests change
+  // Load chart history from user backtests
   useEffect(() => {
-    if (backtests.length) {
-      const data = backtests.map(bt => ({
-        time: new Date(bt.createdAt).toLocaleString(),
-        initialBalance: bt.initialBalance,
-        finalBalance: bt.results?.finalBalance ?? (bt.initialBalance + (bt.results?.profit ?? 0)),
-        profit: bt.results?.profit ?? 0,
-        strategyName: bt.strategy?.name || bt.strategy // safe name for charts
-      }));
-      setHistoryChart(data);
-    }
+    loadHistoryChart();
   }, [backtests]);
 
-  async function handleRun() {
+  const loadHistoryChart = () => {
+    const data = backtests.map((bt) => ({
+      time: new Date(bt.createdAt).toLocaleString(),
+      initialBalance: bt.initialBalance,
+      finalBalance:
+        bt.results?.finalBalance ?? bt.initialBalance + (bt.results?.profit ?? 0),
+      profit: bt.results?.profit ?? 0,
+    }));
+    setHistoryChart(data);
+  };
+
+  const handleRun = async () => {
     if (!form.symbol || !form.timeframe) return alert("Select symbol and timeframe!");
     await runBacktest(form);
-  }
+  };
 
-  async function handleBatchRun() {
-    const paramCombos = options.symbols.flatMap(symbol =>
-      options.strategies.map(strategy => ({
+  const handleBatchRun = async () => {
+    const paramCombos = options.symbols.flatMap((symbol) =>
+      options.strategies.map((strategy) => ({
         symbol,
         timeframe: form.timeframe,
-        strategy: { name: strategy }, // ensure object
+        strategy: { name: strategy, parameters: {} },
         risk: form.risk,
         stopLoss: form.stopLoss,
         takeProfit: form.takeProfit,
-        initialBalance: form.initialBalance
+        initialBalance: form.initialBalance,
       }))
     );
-    await runBatchBacktests(paramCombos, "coinbase");
-  }
+    await runBatchBacktests(paramCombos, "coinbasepro");
+  };
 
-  const filteredBacktests = backtests.filter(bt =>
-    (!filters.symbol || bt.symbol === filters.symbol) &&
-    (!filters.strategy || (bt.strategy?.name || bt.strategy) === filters.strategy) &&
-    (!filters.risk || bt.risk === filters.risk)
+  const filteredBacktests = backtests.filter(
+    (bt) =>
+      (!filters.symbol || bt.symbol === filters.symbol) &&
+      (!filters.strategy || (bt.strategy?.name || bt.strategy) === filters.strategy) &&
+      (!filters.risk || bt.risk === filters.risk)
   );
 
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-bold">Backtests</h1>
 
-      <div className="flex space-x-4">
-        <select value={form.symbol} onChange={e => setForm({ ...form, symbol: e.target.value })}>
-          {options.symbols?.map(s => <option key={s} value={s}>{s}</option>)}
+      {/* Form Controls */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <select
+          value={form.symbol}
+          onChange={(e) => setForm({ ...form, symbol: e.target.value })}
+          className="border p-2"
+        >
+          {options.symbols?.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
         </select>
 
-        <select value={form.strategy} onChange={e => setForm({ ...form, strategy: e.target.value })}>
-          {options.strategies?.map(s => <option key={s} value={s}>{s}</option>)}
+        <select
+          value={form.strategy}
+          onChange={(e) => setForm({ ...form, strategy: e.target.value })}
+          className="border p-2"
+        >
+          {options.strategies?.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
         </select>
 
-        <button onClick={handleRun} disabled={loading} className="bg-blue-500 text-white px-3 rounded">
+        <input
+          type="number"
+          value={form.initialBalance}
+          onChange={(e) =>
+            setForm({ ...form, initialBalance: Number(e.target.value) })
+          }
+          className="border p-2"
+        />
+
+        <button
+          onClick={handleRun}
+          className="bg-blue-600 text-white px-4 py-2 rounded"
+          disabled={loading}
+        >
           Run Backtest
-        </button>
-
-        <button onClick={handleBatchRun} disabled={loading} className="bg-green-500 text-white px-3 rounded">
-          Run Batch
         </button>
       </div>
 
+      <div>
+        <button
+          onClick={handleBatchRun}
+          className="bg-green-600 text-white px-4 py-2 rounded mt-2"
+          disabled={loading}
+        >
+          Run Batch Backtests
+        </button>
+      </div>
+
+      {error && <p className="text-red-500 mt-2">{error}</p>}
+
+      {/* History Chart */}
       {historyChart.length > 0 && (
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={historyChart}>
-            <CartesianGrid strokeDasharray="3 3" />
+            <CartesianGrid stroke="#ccc" />
             <XAxis dataKey="time" />
             <YAxis />
             <Tooltip />
             <Legend />
-            <Line type="monotone" dataKey="finalBalance" stroke="#8884d8" name="Final Balance" />
-            <Line type="monotone" dataKey="profit" stroke="#82ca9d" name="Profit" />
+            <Line type="monotone" dataKey="finalBalance" stroke="#8884d8" />
+            <Line type="monotone" dataKey="initialBalance" stroke="#82ca9d" />
           </LineChart>
         </ResponsiveContainer>
       )}
 
-      {error && <p className="text-red-500 mt-2">{error}</p>}
-
-      <table className="min-w-full table-auto border-collapse border border-gray-300">
-        <thead>
-          <tr>
-            <th className="border px-2 py-1">Symbol</th>
-            <th className="border px-2 py-1">Strategy</th>
-            <th className="border px-2 py-1">Initial</th>
-            <th className="border px-2 py-1">Final</th>
-            <th className="border px-2 py-1">Profit</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredBacktests.map(bt => (
-            <tr key={bt._id}>
-              <td className="border px-2 py-1">{bt.symbol}</td>
-              <td className="border px-2 py-1">{bt.strategy?.name || bt.strategy}</td>
-              <td className="border px-2 py-1">{bt.initialBalance}</td>
-              <td className="border px-2 py-1">{bt.results?.finalBalance ?? (bt.initialBalance + (bt.results?.profit ?? 0))}</td>
-              <td className="border px-2 py-1">{bt.results?.profit ?? 0}</td>
+      {/* Backtests Table */}
+      <div className="overflow-x-auto mt-4">
+        <table className="min-w-full border">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="px-4 py-2 border">Date</th>
+              <th className="px-4 py-2 border">Symbol</th>
+              <th className="px-4 py-2 border">Strategy</th>
+              <th className="px-4 py-2 border">Risk</th>
+              <th className="px-4 py-2 border">Initial</th>
+              <th className="px-4 py-2 border">Final</th>
+              <th className="px-4 py-2 border">Profit</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {filteredBacktests.map((bt) => (
+              <tr key={bt._id} className="text-center">
+                <td className="px-4 py-2 border">
+                  {new Date(bt.createdAt).toLocaleString()}
+                </td>
+                <td className="px-4 py-2 border">{bt.symbol}</td>
+                <td className="px-4 py-2 border">{bt.strategy?.name || bt.strategy}</td>
+                <td className="px-4 py-2 border">{bt.risk}</td>
+                <td className="px-4 py-2 border">{bt.initialBalance}</td>
+                <td className="px-4 py-2 border">{bt.results?.finalBalance}</td>
+                <td className="px-4 py-2 border">{bt.results?.profit}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
