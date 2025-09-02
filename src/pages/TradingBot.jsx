@@ -13,11 +13,12 @@ export default function TradingBot() {
 
     const fetchBacktests = async () => {
       try {
-        // ✅ FIX: use the correct backend route
-        const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/backtests/user/${user._id}`
-        );
-        setBacktests(res.data);
+        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/backtests/${user._id}`);
+        if (res.data.success) {
+          setBacktests(res.data.backtests);
+        } else {
+          setBacktests([]);
+        }
       } catch (err) {
         console.error("Failed to fetch backtests", err);
         setError(err.message);
@@ -39,14 +40,13 @@ export default function TradingBot() {
       ) : (
         <ul className="space-y-2">
           {backtests.map((bt) => (
-            <li
-              key={bt._id}
-              className="border p-3 rounded bg-gray-50 shadow-sm"
-            >
+            <li key={bt._id} className="border p-3 rounded bg-gray-50 shadow-sm">
               <p><strong>ID:</strong> {bt._id}</p>
-              <p><strong>Name:</strong> {bt.name || "Untitled"}</p>
-              <p><strong>Parameters:</strong> {JSON.stringify(bt.parameters || {})}</p>
-              <p><strong>Profit:</strong> {bt.result?.profit ?? "N/A"}</p>
+              <p><strong>Symbol:</strong> {bt.symbol}</p>
+              <p><strong>Strategy:</strong> {bt.strategy?.name || bt.strategy}</p>
+              <p><strong>Risk:</strong> {bt.risk}</p>
+              <p><strong>Initial Balance:</strong> {bt.initialBalance}</p>
+              <p><strong>Profit:</strong> {bt.metrics?.profit ?? 0}</p>
               <p><strong>Date:</strong> {bt.createdAt ? new Date(bt.createdAt).toLocaleString() : "Unknown"}</p>
             </li>
           ))}
