@@ -1,57 +1,126 @@
-// File: src/pages/TradingBot.jsx
-import React, { useState, useEffect } from "react";
+// File: src/hooks/useBacktest.js
+import { useState, useEffect } from "react";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext.jsx";
 
-export default function TradingBot() {
-  const { user } = useAuth();
-  const [backtests, setBacktests] = useState([]);
+const API_BASE = "https://neov6backend.onrender.com/api/backtests";
+
+export function useBacktest() {
+  const { user, token } = useAuth();
+  const [options, setOptions] = useState({});
+  const [results, setResults] = useState([]);
+  const [best, setBest] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
+  const authConfig = {
+    headers: {
+      Authorization: token ? `Bearer ${token}` : undefined,
+    },
+  };
+
+  const fetchOptions = async () => {
     if (!user?._id) return;
-
-    const fetchBacktests = async () => {
-      try {
-        // ✅ FIX: use the correct backend route
-        const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/backtests/user/${user._id}`
-        );
-        setBacktests(res.data);
-      } catch (err) {
-        console.error("Failed to fetch backtests", err);
-        setError(err.message);
+    try {
+      const res = await axios.get(`${API_BASE}/options`, authConfig);
+      if (res.data?.success) {
+        setOptions(res.data.options);
+      } else {
+        // fallback options
+        setOptions({
+          symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"],
+          timeframes: ["1m", "5m", "15m", "1h", "4h", "1d"],
+          balances: [100, 300, 500, 1000, 5000, 10000],
+          strategies: ["SMA", "EMA", "RSI", "MACD"],
+          risks: ["Low", "Medium", "High"],
+          stopLosses: [0.5, 1, 2, 3, 5],
+          takeProfits: [1, 2, 3, 5, 10],
+        });
       }
-    };
+    } catch (err) {
+      console.warn("Failed to fetch options", err);
+    }
+  };
 
-    fetchBacktests();
-  }, [user]);
+  const fetchBacktests = async () => {
+    if (!user?._id) return;
+    try {
+      const res = await axios.get(`${API_BASE}/user/${user._id}`, authConfig);
+      if (res.data?.success) {
+        setResults(res.data.backtests || []);
+      } else {
+        setResults([]);
+        setError(res.data?.message || "Failed to fetch backtests");
+      }
+    } catch (err) {
+      console.error("Failed to fetch user backtests", err);
+      setError(err.message);
+    }
+  };
 
-  return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Trading Bot</h1>
+  const runBacktest = async (params) => {
+    if (!user?._id) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await axios.post(
+        `${API_BASE}/run`,
+        { userId: user._id, ...params },
+        authConfig
+      );
+      if (res.data?.success && res.data.backtests?.length) {
+        setResults((prev) => [res.data.backtests[0], ...prev]);
+      } else {
+        setError(res.data?.message || "Backtest failed");
+      }
+    } catch (err) {
+      console.error("Run backtest failed", err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      {error && <p className="text-red-500">Error: {error}</p>}
+  const runBatchBacktests = async (paramCombos, exchange = "coinbasepro") => {
+    if (!user?._id) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await axios.post(
+        `${API_BASE}/batch`,
+        { userId: user._id, paramCombos, exchange },
+        authConfig
+      );
+      if (res.data?.success) {
+        setResults((prev) => [...res.data.results.map((r) => r.saved), ...prev]);
+        setBest(res.data.best || null);
+      } else {
+        setError(res.data?.message || "Batch backtests failed");
+      }
+    } catch (err) {
+      console.error("Run batch backtests failed", err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      <h2 className="text-xl mb-2">Your Backtests</h2>
-      {backtests.length === 0 ? (
-        <p>No backtests found for your account.</p>
-      ) : (
-        <ul className="space-y-2">
-          {backtests.map((bt) => (
-            <li
-              key={bt._id}
-              className="border p-3 rounded bg-gray-50 shadow-sm"
-            >
-              <p><strong>ID:</strong> {bt._id}</p>
-              <p><strong>Name:</strong> {bt.name || "Untitled"}</p>
-              <p><strong>Parameters:</strong> {JSON.stringify(bt.parameters || {})}</p>
-              <p><strong>Profit:</strong> {bt.result?.profit ?? "N/A"}</p>
-              <p><strong>Date:</strong> {bt.createdAt ? new Date(bt.createdAt).toLocaleString() : "Unknown"}</p>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
+  useEffect(() => {
+    if (user?._id) {
+      fetchOptions();
+      fetchBacktests();
+    }
+  }, [user?._id]);
+
+  return {
+    results,
+    best,
+    options,
+    loading,
+    error,
+    fetchOptions,
+    fetchBacktests,
+    runBacktest,
+    runBatchBacktests,
+  };
 }
