@@ -50,6 +50,7 @@ export default function TradingBot() {
   const [chartLoading, setChartLoading] = useState(true);
   const [chartError, setChartError] = useState(null);
   const [logs, setLogs] = useState([]);
+  const [botStatus, setBotStatus] = useState(null);
 
   // Initialize options & fetch backtests
   useEffect(() => {
@@ -57,6 +58,7 @@ export default function TradingBot() {
       fetchOptions();
       fetchBacktests();
       loadHistoryChart();
+      fetchBotHistory();
     }
   }, [user]);
 
@@ -133,6 +135,27 @@ export default function TradingBot() {
     }
   }
 
+  // Fetch live bot history
+  const fetchBotHistory = async () => {
+    if (!user?._id) return;
+    setChartLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/bots/history/${user._id}`);
+      const data = res.data.history.map(p => ({
+        time: new Date(p.timestamp).toLocaleString(),
+        balance: p.balance,
+        profit: p.profit ?? 0
+      }));
+      setBotChart(data);
+    } catch (err) {
+      console.error(err);
+      setChartError("Failed to fetch bot history");
+    } finally {
+      setChartLoading(false);
+    }
+  };
+
+  // Stats component
   const Stats = ({ m }) => {
     if (!m) return null;
     return (
@@ -159,6 +182,7 @@ export default function TradingBot() {
     );
   };
 
+  // Trade dots for equity curve
   const TradeDots = ({ trades }) => {
     if (!latest?.equityCurve?.length) return null;
     const firstTs = latest.equityCurve[0]?.time;
@@ -237,27 +261,23 @@ export default function TradingBot() {
         ) : <p className="text-gray-500">No chart data.</p>}
       </div>
 
-{/* Logs */}
-{logs.length > 0 && (
-  <div className="bg-gray-50 p-4 rounded-2xl shadow max-h-64 overflow-y-auto">
-    <h2 className="text-lg font-semibold mb-2">Logs</h2>
-    <ul className="space-y-1">
-      {logs.map((log, idx) => {
-        // Determine log type and color
-        let colorClass = "text-gray-700"; // default
-        if (log.toLowerCase().includes("failed")) colorClass = "text-red-600";
-        else if (log.toLowerCase().includes("started")) colorClass = "text-green-600";
-        else if (log.toLowerCase().includes("running")) colorClass = "text-blue-600";
-
-        return (
-          <li key={idx} className="flex items-center gap-2">
-            <span
-              className={`inline-block w-2 h-2 rounded-full ${colorClass.replace("text-", "bg-")}`}
-            ></span>
-            <span className={`text-sm ${colorClass}`}>{log}</span>
-          </li>
-        );
-      })}
-    </ul>
-  </div>
-)};
+      {/* Logs Section */}
+      {logs.length > 0 && (
+        <div className="bg-gray-50 p-4 rounded-2xl shadow mt-6">
+          <h2 className="text-lg font-semibold mb-2 border-b border-gray-200 pb-1">Logs</h2>
+          <ul className="space-y-1 max-h-60 overflow-y-auto">
+            {logs.map((log, idx) => (
+              <li
+                key={idx}
+                className="text-sm text-gray-700 bg-gray-100 px-3 py-1 rounded flex items-center"
+              >
+                <span className="mr-2 text-gray-400">{idx + 1}.</span>
+                <span>{log}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
