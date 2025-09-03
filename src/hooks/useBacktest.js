@@ -1,36 +1,28 @@
 // File: src/hooks/useBacktest.js
 import { useState } from "react";
 import axios from "axios";
+import { useAuth } from "../context/AuthContext.jsx";
 
 export function useBacktest() {
+  const { user } = useAuth(); // ✅ get logged-in user
   const [options, setOptions] = useState({
-    symbols: ["BTCUSDT","ETHUSDT","BNBUSDT"],
-    timeframes: ["1m","5m","15m","30m","1h","4h","1d"],
-    balances: [100,500,1000,5000,10000],
-    strategies: ["SMA","EMA","RSI","MACD","BollingerBands","Stochastic","VWAP","ATR"],
-    risks: ["Low","Medium","High"],
-    takeProfits: [null,1,2,3,5,10],
-    stopLosses: [null,0.5,1,2,3,5]
+    symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
+    timeframes: ["1m", "5m", "15m", "30m", "1h", "4h", "1d"],
+    balances: [100, 500, 1000, 5000, 10000],
+    strategies: ["SMA", "EMA", "RSI", "MACD", "BollingerBands", "Stochastic", "VWAP", "ATR"],
+    risks: ["Low", "Medium", "High"],
+    takeProfits: [null, 1, 2, 3, 5, 10],
+    stopLosses: [null, 0.5, 1, 2, 3, 5],
   });
 
   const apiUrl = import.meta.env.VITE_API_URL || "";
-
-  // ✅ helper: get current userId from localStorage
-  const getUserId = () => {
-    try {
-      const user = JSON.parse(localStorage.getItem("user"));
-      return user?._id || user?.id || null;
-    } catch {
-      return null;
-    }
-  };
 
   // Fetch options from backend
   const fetchOptions = async () => {
     try {
       const resp = await axios.get(`${apiUrl}/backtests/options`);
       if (resp?.data?.success && resp.data.options) {
-        setOptions(prev => ({ ...prev, ...resp.data.options }));
+        setOptions((prev) => ({ ...prev, ...resp.data.options }));
       }
       return resp.data;
     } catch (err) {
@@ -42,14 +34,16 @@ export function useBacktest() {
   // Run single backtest
   const runBacktest = async (params) => {
     try {
-      const userId = getUserId();
-      if (!userId) throw new Error("Missing userId in localStorage");
+      const userId = user?.id || user?._id; // ✅ use real ID
+      if (!userId) throw new Error("User not authenticated");
 
-      console.log("[Run Backtest Payload]", { userId, ...params });
-      const resp = await axios.post(`${apiUrl}/backtests/run`, { userId, ...params });
+      const payload = { userId, ...params };
+      console.log("[Run Backtest Payload]", payload);
+
+      const resp = await axios.post(`${apiUrl}/backtests/run`, payload);
       return resp.data;
     } catch (err) {
-      console.error("[Run Backtest Error]", err.response?.data || err.message);
+      console.error("[Run Backtest Error]", err.response?.data || err);
       throw err;
     }
   };
@@ -57,13 +51,16 @@ export function useBacktest() {
   // Run batch backtests
   const runBatchBacktests = async (combos) => {
     try {
-      const userId = getUserId();
-      if (!userId) throw new Error("Missing userId in localStorage");
+      const userId = user?.id || user?._id;
+      if (!userId) throw new Error("User not authenticated");
 
-      const resp = await axios.post(`${apiUrl}/backtests/batch`, { userId, paramCombos: combos });
+      const resp = await axios.post(`${apiUrl}/backtests/batch`, {
+        userId,
+        paramCombos: combos,
+      });
       return resp.data;
     } catch (err) {
-      console.error("[Run Batch Backtests Error]", err.response?.data || err.message);
+      console.error("[Run Batch Backtests Error]", err.response?.data || err);
       throw err;
     }
   };
@@ -83,7 +80,7 @@ export function useBacktest() {
                   strategy: { name: strategy, parameters: {} },
                   risk,
                   takeProfit,
-                  stopLoss
+                  stopLoss,
                 });
               }
             }
@@ -108,6 +105,6 @@ export function useBacktest() {
     runBacktest,
     runBatchBacktests,
     runBatchFromSelectors,
-    generateParamCombos
+    generateParamCombos,
   };
 }
