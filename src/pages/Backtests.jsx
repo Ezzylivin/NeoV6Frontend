@@ -1,11 +1,10 @@
 // File: src/pages/Backtests.jsx
 import React, { useState, useEffect } from "react";
-import { runRealisticBacktest } from "../services/backtestService.js"; // optional if calling backend
 import useBacktest from "../hooks/useBacktest.js";
 
 export default function Backtests() {
   const [options, setOptions] = useState({
-    symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"], // fallback
+    symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
     timeframes: ["1m", "5m", "15m", "30m", "1h", "4h", "1d"],
     balances: [100, 500, 1000, 5000, 10000],
     strategies: ["SMA","EMA","RSI","MACD","BollingerBands","Stochastic","VWAP","ATR"],
@@ -17,8 +16,9 @@ export default function Backtests() {
   const [backtests, setBacktests] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const { fetchOptions } = useBacktest(); // your hook
+  const { fetchOptions } = useBacktest();
 
+  // Load options from backend
   useEffect(() => {
     async function loadOptions() {
       try {
@@ -40,19 +40,40 @@ export default function Backtests() {
     loadOptions();
   }, []);
 
+  // Run backtest via backend API
   const handleRunBacktest = async () => {
     if (!selectedSymbol) return;
     setLoading(true);
+
     try {
-      const { saved, metrics, equityCurve, trades } = await runRealisticBacktest({
-        userId: "currentUserId", // replace with actual user
-        symbol: selectedSymbol,
-        timeframe: selectedTimeframe,
-        initialBalance: 1000,
-        strategy: { name: "SMA", parameters: {} },
-        risk: "Medium",
+      const res = await fetch("/api/backtests/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: "currentUserId", // replace with actual user
+          symbol: selectedSymbol,
+          timeframe: selectedTimeframe,
+          initialBalance: 1000,
+          strategy: { name: "SMA", parameters: {} },
+          risk: "Medium",
+        }),
       });
-      setBacktests(prev => [...prev, { saved, metrics, equityCurve, trades }]);
+
+      const data = await res.json();
+
+      if (data.success && data.backtest) {
+        setBacktests(prev => [
+          ...prev,
+          {
+            saved: data.backtest,
+            metrics: data.metrics,
+            equityCurve: data.equityCurve,
+            trades: data.trades
+          }
+        ]);
+      } else {
+        console.error("Backtest API error:", data.message);
+      }
     } catch (err) {
       console.error("Backtest failed:", err);
     } finally {
@@ -88,7 +109,7 @@ export default function Backtests() {
         {loading ? "Running..." : "Run Backtest"}
       </button>
 
-      {/* Display backtest results safely */}
+      {/* Display backtest results */}
       {backtests.length > 0 && (
         <div>
           {backtests.map((bt, idx) => (
