@@ -4,7 +4,15 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { useBacktest } from "../hooks/useBacktest.js";
 import axios from "axios";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend, ReferenceDot
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ResponsiveContainer,
+  Legend,
+  ReferenceDot
 } from "recharts";
 
 export default function Backtests() {
@@ -23,7 +31,7 @@ export default function Backtests() {
 
   const API_URL = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com/api";
 
-  // Fallback/default options
+  // Fallback crypto options if API fails
   const fallbackOptions = {
     symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"],
     timeframes: ["1m", "5m", "15m", "1h", "4h", "1d"],
@@ -34,18 +42,17 @@ export default function Backtests() {
     takeProfits: [1, 2, 3, 5, 10],
   };
 
-  // Safe merged options
   const safeOptions = options?.symbols?.length ? options : fallbackOptions;
 
-  // Form state for backtests
+  // Form state
   const [form, setForm] = useState({
-    symbol: safeOptions.symbols[0],
-    timeframe: safeOptions.timeframes[0],
-    initialBalance: safeOptions.balances[2],
-    strategy: safeOptions.strategies[0],
-    risk: safeOptions.risks[1],
-    stopLoss: safeOptions.stopLosses[0],
-    takeProfit: safeOptions.takeProfits[0],
+    symbol: safeOptions.symbols[0] || "BTCUSDT",
+    timeframe: safeOptions.timeframes[0] || "1m",
+    initialBalance: safeOptions.balances[2] || 500,
+    strategy: safeOptions.strategies[0] || "SMA",
+    risk: safeOptions.risks[1] || "Medium",
+    stopLoss: safeOptions.stopLosses[0] || 0.5,
+    takeProfit: safeOptions.takeProfits[0] || 1,
   });
 
   const [latest, setLatest] = useState(null);
@@ -54,7 +61,7 @@ export default function Backtests() {
   const [chartError, setChartError] = useState(null);
   const [logs, setLogs] = useState([]);
 
-  // Initialize options & fetch backtests
+  // Fetch options & backtests
   useEffect(() => {
     if (user?._id) {
       fetchOptions();
@@ -63,20 +70,21 @@ export default function Backtests() {
     }
   }, [user]);
 
-  // Update form defaults when options load
+  // Update form when options change
   useEffect(() => {
     const opts = options?.symbols?.length ? options : fallbackOptions;
     setForm({
-      symbol: opts.symbols[0],
-      timeframe: opts.timeframes[0],
-      initialBalance: opts.balances[2],
-      strategy: opts.strategies[0],
-      risk: opts.risks[1],
-      stopLoss: opts.stopLosses[0],
-      takeProfit: opts.takeProfits[0],
+      symbol: opts.symbols[0] || "BTCUSDT",
+      timeframe: opts.timeframes[0] || "1m",
+      initialBalance: opts.balances[2] || 500,
+      strategy: opts.strategies[0] || "SMA",
+      risk: opts.risks[1] || "Medium",
+      stopLoss: opts.stopLosses[0] || 0.5,
+      takeProfit: opts.takeProfits[0] || 1,
     });
   }, [options]);
 
+  // Handle input changes
   const handleChange = e => {
     const { name, value } = e.target;
     setForm(prev => ({
@@ -85,6 +93,7 @@ export default function Backtests() {
     }));
   };
 
+  // Run single backtest
   const handleRunSingle = async () => {
     if (!form.symbol || !form.timeframe) return alert("Select symbol and timeframe!");
     try {
@@ -107,20 +116,23 @@ export default function Backtests() {
     }
   };
 
+  // Run batch backtests
   const handleRunBatch = () => {
     const combos = [];
     const opts = options?.symbols?.length ? options : fallbackOptions;
-    for (const sl of opts.stopLosses) {
-      for (const tp of opts.takeProfits) {
-        for (const interval of opts.timeframes) {
-          combos.push({ ...form, stopLoss: sl, takeProfit: tp, timeframe: interval });
+    for (const sl of opts.stopLosses || []) {
+      for (const tp of opts.takeProfits || []) {
+        for (const tf of opts.timeframes || []) {
+          combos.push({ ...form, stopLoss: sl, takeProfit: tp, timeframe: tf });
         }
       }
     }
     runBatchBacktests(combos);
   };
 
-  async function loadHistoryChart() {
+  // Load historical backtests chart
+  const loadHistoryChart = async () => {
+    if (!user?._id) return;
     try {
       const res = await axios.get(`${API_URL}/backtests`, { params: { userId: user._id } });
       const data = (res.data.backtests || []).map(bt => ({
@@ -133,8 +145,9 @@ export default function Backtests() {
     } catch (err) {
       console.error(err);
     }
-  }
+  };
 
+  // Stats component
   const Stats = ({ m }) => {
     if (!m) return null;
     return (
@@ -151,16 +164,17 @@ export default function Backtests() {
         </div>
         <div className="p-3 rounded bg-gray-100">
           <div className="text-xs text-gray-500">Win Rate</div>
-          <div className="text-lg font-semibold">{m.winRate}%</div>
+          <div className="text-lg font-semibold">{m.winRate ?? 0}%</div>
         </div>
         <div className="p-3 rounded bg-gray-100">
           <div className="text-xs text-gray-500">Max Drawdown</div>
-          <div className="text-lg font-semibold">{m.maxDrawdown}%</div>
+          <div className="text-lg font-semibold">{m.maxDrawdown ?? 0}%</div>
         </div>
       </div>
     );
   };
 
+  // Trade dots for equity curve
   const TradeDots = ({ trades }) => {
     if (!latest?.equityCurve?.length) return null;
     const firstTs = latest.equityCurve[0]?.time;
@@ -179,24 +193,24 @@ export default function Backtests() {
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold">Trading Bot + Backtests</h1>
+      <h1 className="text-2xl font-bold">Backtests + Trading Bot</h1>
 
       {/* Controls */}
       <div className="bg-gray-100 p-4 rounded-2xl flex flex-wrap gap-4 items-end">
         <select name="symbol" value={form.symbol} onChange={handleChange}>
-          {(safeOptions.symbols).map(s => <option key={s} value={s}>{s}</option>)}
+          {(safeOptions.symbols || []).map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <select name="timeframe" value={form.timeframe} onChange={handleChange}>
-          {(safeOptions.timeframes).map(tf => <option key={tf} value={tf}>{tf}</option>)}
+          {(safeOptions.timeframes || []).map(tf => <option key={tf} value={tf}>{tf}</option>)}
         </select>
         <select name="strategy" value={form.strategy} onChange={handleChange}>
-          {(safeOptions.strategies).map(st => <option key={st} value={st}>{st}</option>)}
+          {(safeOptions.strategies || []).map(st => <option key={st} value={st}>{st}</option>)}
         </select>
         <select name="risk" value={form.risk} onChange={handleChange}>
-          {(safeOptions.risks).map(r => <option key={r} value={r}>{r}</option>)}
+          {(safeOptions.risks || []).map(r => <option key={r} value={r}>{r}</option>)}
         </select>
         <select name="initialBalance" value={form.initialBalance} onChange={handleChange}>
-          {(safeOptions.balances).map(b => <option key={b} value={b}>{b}</option>)}
+          {(safeOptions.balances || []).map(b => <option key={b} value={b}>{b}</option>)}
         </select>
         <button onClick={handleRunSingle} className="bg-blue-600 text-white px-4 py-2 rounded">{loading ? "Running..." : "Run Backtest"}</button>
         <button onClick={handleRunBatch} className="bg-green-600 text-white px-4 py-2 rounded">Run Batch Backtests</button>
@@ -211,10 +225,10 @@ export default function Backtests() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="time" tickFormatter={ts => new Date(ts).toLocaleString()} />
               <YAxis />
-              <Tooltip labelFormatter={ts => new Date(ts).toLocaleString()} formatter={(v) => `$${v.toLocaleString()}`} />
+              <Tooltip labelFormatter={ts => new Date(ts).toLocaleString()} formatter={(v) => `$${v?.toLocaleString()}`} />
               <Legend />
               <Line type="monotone" dataKey="equity" stroke="#3B82F6" dot={false} />
-              <TradeDots trades={latest.trades} />
+              <TradeDots trades={latest.trades || []} />
             </LineChart>
           </ResponsiveContainer>
           <Stats m={latest.metrics} />
