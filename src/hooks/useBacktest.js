@@ -1,113 +1,85 @@
 // File: src/hooks/useBacktest.js
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import axios from "axios";
-import { useAuth } from "../context/AuthContext.jsx";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com/api";
-
-const fallbackOptions = {
-  symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"],
-  timeframes: ["1m", "5m", "15m", "1h", "4h", "1d"],
-  balances: [100, 300, 500, 1000, 5000],
-  strategies: ["SMA", "EMA", "RSI", "MACD"],
-  risks: ["Low", "Medium", "High"],
-  stopLosses: [0.5, 1, 2, 3, 5],
-  takeProfits: [1, 2, 3, 5, 10],
-};
+// Adjust to your backend URL
+const API_BASE = import.meta.env.VITE_API_BASE || "https://neov6backend.onrender.com/api";
 
 export function useBacktest() {
-  const { user, token } = useAuth();
-  const [options, setOptions] = useState(fallbackOptions);
-  const [results, setResults] = useState([]);
-  const [best, setBest] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const authConfig = {
-    headers: { Authorization: `Bearer ${token}` },
-  };
-
-  // Fetch options
+  // --- Get available backtest options ---
   const fetchOptions = async () => {
-    if (!user?.token) return;
     try {
-      const { data } = await axios.get(`${API_URL}/backtests/options`, authConfig);
-      if (data.success && data.options) setOptions(data.options);
-      else setOptions(fallbackOptions);
+      setLoading(true);
+      const { data } = await axios.get(`${API_BASE}/backtests/options`);
+      return data;
     } catch (err) {
-      console.warn("Failed to fetch options, using fallback", err);
-      setOptions(fallbackOptions);
-    }
-  };
-
-  // Fetch user backtests
-  const fetchBacktests = async () => {
-    if (!user?._id) return;
-    setLoading(true);
-    try {
-      const { data } = await axios.get(`${API_URL}/backtests/recent/${user._id}`, authConfig);
-      setResults(data.backtests || []);
-    } catch (err) {
-      console.error("Failed to fetch user backtests", err);
-      setError(err.message);
+      console.error("Fetch options failed", err);
+      setError(err);
+      throw err;
     } finally {
       setLoading(false);
     }
   };
 
-  // Run single backtest
-  const runBacktest = async (params) => {
-    if (!user?._id) return;
-    setLoading(true);
+  // --- Run a single backtest ---
+  const runBacktest = async (config) => {
     try {
-      const { data } = await axios.post(`${API_URL}/backtests/run`, { userId: user._id, ...params }, authConfig);
-      if (data.success) {
-        setResults((prev) => [data.backtests?.[0], ...prev]);
-        fetchBacktests();
-      }
+      setLoading(true);
+      const { data } = await axios.post(`${API_BASE}/backtests/run`, config);
+      return data;
     } catch (err) {
       console.error("Run backtest failed", err);
-      setError(err.message);
+      setError(err);
+      throw err;
     } finally {
       setLoading(false);
     }
   };
 
-  // Run batch backtests
-  const runBatchBacktests = async (paramCombos) => {
-    if (!user?._id || !paramCombos?.length) return;
-    setLoading(true);
+  // --- Run batch backtests ---
+  const runBatchBacktests = async (userId, configs) => {
     try {
-      const { data } = await axios.post(`${API_URL}/backtests/batch`, { userId: user._id, paramCombos }, authConfig);
-      if (data.success) {
-        setResults((prev) => [...(data.results?.map(r => r.saved) || []), ...prev]);
-        setBest(data.best || null);
-        fetchBacktests();
-      }
+      setLoading(true);
+      const { data } = await axios.post(`${API_BASE}/backtests/batch`, {
+        userId,   // required by backend
+        configs,  // must be an array of config objects
+      });
+      return data;
     } catch (err) {
       console.error("Run batch backtests failed", err);
-      setError(err.message);
+      setError(err);
+      throw err;
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (user?._id) {
-      fetchOptions();
-      fetchBacktests();
+  // --- Get all backtests for a user ---
+  const fetchUserBacktests = async (userId) => {
+    try {
+      setLoading(true);
+      const { data } = await axios.get(`${API_BASE}/backtests`, {
+        params: { userId },
+      });
+      return data;
+    } catch (err) {
+      console.error("Fetch user backtests failed", err);
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
     }
-  }, [user?.token]);
+  };
 
   return {
-    results,
-    best,
-    options,
     loading,
     error,
     fetchOptions,
-    fetchBacktests,
     runBacktest,
     runBatchBacktests,
+    fetchUserBacktests,
   };
 }
