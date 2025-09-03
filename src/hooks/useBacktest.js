@@ -41,7 +41,7 @@ export function useBacktest() {
       console.log("[Run Backtest Payload]", payload);
 
       const resp = await axios.post(`${apiUrl}/backtests/run`, payload);
-      return resp.data;
+      return resp.data; // contains { saved, metrics, equityCurve, trades }
     } catch (err) {
       console.error("[Run Backtest Error]", err.response?.data || err);
       throw err;
@@ -58,7 +58,7 @@ export function useBacktest() {
         userId,
         paramCombos: combos,
       });
-      return resp.data;
+      return resp.data; // contains { results, best }
     } catch (err) {
       console.error("[Run Batch Backtests Error]", err.response?.data || err);
       throw err;
