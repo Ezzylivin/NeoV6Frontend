@@ -25,8 +25,10 @@ export default function Backtests() {
   const [selectedSL, setSelectedSL] = useState(null);
 
   const [backtests, setBacktests] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loadingSingle, setLoadingSingle] = useState(false);
+  const [loadingBatch, setLoadingBatch] = useState(false);
 
+  // Fetch options from backend on mount
   useEffect(() => {
     async function loadOptions() {
       try {
@@ -42,9 +44,10 @@ export default function Backtests() {
     loadOptions();
   }, []);
 
-  const handleRunBacktest = async () => {
+  // Single backtest handler
+  const handleRunSingleBacktest = async () => {
     if (!selectedSymbol) return;
-    setLoading(true);
+    setLoadingSingle(true);
     try {
       const { saved, metrics, equityCurve, trades } = await runBacktest({
         userId: "currentUserId",
@@ -60,24 +63,29 @@ export default function Backtests() {
     } catch (err) {
       console.error("Backtest failed:", err);
     } finally {
-      setLoading(false);
+      setLoadingSingle(false);
     }
   };
 
-  const handleRunBatch = async () => {
-    setLoading(true);
+  // Batch backtest handler
+  const handleRunBatchBacktests = async () => {
+    setLoadingBatch(true);
     try {
-      const { results } = await runBatchFromSelectors("currentUserId");
-      setBacktests(prev => [...prev, ...results.map(r => ({ 
-        saved: r.saved, 
-        metrics: r.metrics, 
-        equityCurve: r.saved?.tradeBreakdown?.map(t => ({ time: t.exitTime || t.entryTime, equity: t.profit || 0 })) || [], 
-        trades: r.saved?.tradeBreakdown || [] 
-      }))]);
+      const { results, best } = await runBatchFromSelectors("currentUserId");
+      if (results?.length) {
+        // Append all results to backtests
+        setBacktests(prev => [...prev, ...results.map(r => ({ 
+          saved: r.saved, 
+          metrics: r.metrics, 
+          equityCurve: r.saved?.equityCurve || [], 
+          trades: r.saved?.tradeBreakdown || [] 
+        }))]);
+      }
+      console.log("Best batch result:", best);
     } catch (err) {
       console.error("Batch backtests failed:", err);
     } finally {
-      setLoading(false);
+      setLoadingBatch(false);
     }
   };
 
@@ -85,7 +93,7 @@ export default function Backtests() {
     <div>
       <h2>Backtests</h2>
 
-      {/* All Selectors */}
+      {/* Selectors */}
       <div style={{ display: "flex", gap: "15px", marginBottom: "15px", flexWrap: "wrap" }}>
         <div>
           <label>Symbol: </label>
@@ -137,14 +145,14 @@ export default function Backtests() {
         </div>
 
         <div>
-          <button onClick={handleRunBacktest} disabled={loading}>
-            {loading ? "Running..." : "Run Backtest"}
+          <button onClick={handleRunSingleBacktest} disabled={loadingSingle}>
+            {loadingSingle ? "Running..." : "Run Single Backtest"}
           </button>
         </div>
 
         <div>
-          <button onClick={handleRunBatch} disabled={loading}>
-            {loading ? "Running..." : "Run Batch Backtests"}
+          <button onClick={handleRunBatchBacktests} disabled={loadingBatch}>
+            {loadingBatch ? "Running..." : "Run Batch Backtests"}
           </button>
         </div>
       </div>
