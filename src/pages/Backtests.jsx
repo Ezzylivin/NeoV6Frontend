@@ -1,11 +1,10 @@
 // File: src/pages/Backtests.jsx
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
-import { useBacktest } from "../hooks/useBacktest.js"; // named import
+import { useBacktest } from "../hooks/useBacktest.js";
 import axios from "axios";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
-  ResponsiveContainer, Legend, ReferenceDot
+  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend, ReferenceDot
 } from "recharts";
 
 export default function Backtests() {
@@ -24,7 +23,7 @@ export default function Backtests() {
 
   const API_URL = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com/api";
 
-  // Fallback crypto-only options
+  // Fallback crypto options
   const fallbackOptions = {
     symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"],
     timeframes: ["1m", "5m", "15m", "1h", "4h", "1d"],
@@ -50,9 +49,8 @@ export default function Backtests() {
   const [chartLoading, setChartLoading] = useState(true);
   const [chartError, setChartError] = useState(null);
   const [logs, setLogs] = useState([]);
-  const [botStatus, setBotStatus] = useState(null);
 
-  // Initialize options & fetch backtests
+  // Fetch options and backtests
   useEffect(() => {
     if (user?._id) {
       fetchOptions();
@@ -62,7 +60,7 @@ export default function Backtests() {
     }
   }, [user]);
 
-  // Update form defaults when options load
+  // Update form defaults safely
   useEffect(() => {
     const opts = options?.symbols?.length ? options : fallbackOptions;
     setForm({
@@ -119,7 +117,7 @@ export default function Backtests() {
     runBatchBacktests(combos);
   };
 
-  const loadHistoryChart = async () => {
+  async function loadHistoryChart() {
     try {
       const res = await axios.get(`${API_URL}/backtests`, { params: { userId: user._id } });
       const data = (res.data.backtests || []).map(bt => ({
@@ -132,18 +130,18 @@ export default function Backtests() {
     } catch (err) {
       console.error(err);
     }
-  };
+  }
 
   const fetchBotHistory = async () => {
     if (!user?._id) return;
     setChartLoading(true);
     try {
       const res = await axios.get(`${API_URL}/bots/history/${user._id}`);
-      const data = res.data.history?.map(p => ({
+      const data = res.data.history.map(p => ({
         time: new Date(p.timestamp).toLocaleString(),
         balance: p.balance,
         profit: p.profit ?? 0
-      })) || [];
+      }));
       setBotChart(data);
     } catch (err) {
       console.error(err);
@@ -202,19 +200,19 @@ export default function Backtests() {
       {/* Controls */}
       <div className="bg-gray-100 p-4 rounded-2xl flex flex-wrap gap-4 items-end">
         <select name="symbol" value={form.symbol} onChange={handleChange}>
-          {(options?.symbols || fallbackOptions.symbols).map(s => <option key={s} value={s}>{s}</option>)}
+          {(options?.symbols?.length ? options.symbols : fallbackOptions.symbols).map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <select name="timeframe" value={form.timeframe} onChange={handleChange}>
-          {(options?.timeframes || fallbackOptions.timeframes).map(tf => <option key={tf} value={tf}>{tf}</option>)}
+          {(options?.timeframes?.length ? options.timeframes : fallbackOptions.timeframes).map(tf => <option key={tf} value={tf}>{tf}</option>)}
         </select>
         <select name="strategy" value={form.strategy} onChange={handleChange}>
-          {(options?.strategies || fallbackOptions.strategies).map(st => <option key={st} value={st}>{st}</option>)}
+          {(options?.strategies?.length ? options.strategies : fallbackOptions.strategies).map(st => <option key={st} value={st}>{st}</option>)}
         </select>
         <select name="risk" value={form.risk} onChange={handleChange}>
-          {(options?.risks || fallbackOptions.risks).map(r => <option key={r} value={r}>{r}</option>)}
+          {(options?.risks?.length ? options.risks : fallbackOptions.risks).map(r => <option key={r} value={r}>{r}</option>)}
         </select>
         <select name="initialBalance" value={form.initialBalance} onChange={handleChange}>
-          {(options?.balances || fallbackOptions.balances).map(b => <option key={b} value={b}>{b}</option>)}
+          {(options?.balances?.length ? options.balances : fallbackOptions.balances).map(b => <option key={b} value={b}>{b}</option>)}
         </select>
         <button onClick={handleRunSingle} className="bg-blue-600 text-white px-4 py-2 rounded">{loading ? "Running..." : "Run Backtest"}</button>
         <button onClick={handleRunBatch} className="bg-green-600 text-white px-4 py-2 rounded">Run Batch Backtests</button>
@@ -225,24 +223,24 @@ export default function Backtests() {
         <div className="bg-white p-4 rounded-2xl shadow">
           <h2 className="text-xl font-semibold">Latest Backtest – Equity Curve</h2>
           <ResponsiveContainer width="100%" height={320}>
-            <LineChart data={latest?.equityCurve || []}>
+            <LineChart data={latest.equityCurve}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="time" tickFormatter={ts => new Date(ts).toLocaleString()} />
               <YAxis />
-              <Tooltip labelFormatter={ts => new Date(ts).toLocaleString()} formatter={v => `$${v?.toLocaleString()}`} />
+              <Tooltip labelFormatter={ts => new Date(ts).toLocaleString()} formatter={(v) => `$${v.toLocaleString()}`} />
               <Legend />
               <Line type="monotone" dataKey="equity" stroke="#3B82F6" dot={false} />
-              <TradeDots trades={latest?.trades || []} />
+              <TradeDots trades={latest.trades} />
             </LineChart>
           </ResponsiveContainer>
-          <Stats m={latest?.metrics} />
+          <Stats m={latest.metrics} />
         </div>
       )}
 
       {/* Historical Backtests */}
       <div className="bg-white p-4 rounded-2xl shadow">
         <h2 className="text-xl font-semibold mb-4">Backtests History</h2>
-        {botChart?.length ? (
+        {botChart.length ? (
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={botChart}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -258,15 +256,12 @@ export default function Backtests() {
       </div>
 
       {/* Logs Section */}
-      {logs?.length > 0 && (
+      {logs.length > 0 && (
         <div className="bg-gray-50 p-4 rounded-2xl shadow mt-6">
           <h2 className="text-lg font-semibold mb-2 border-b border-gray-200 pb-1">Logs</h2>
           <ul className="space-y-1 max-h-60 overflow-y-auto">
             {logs.map((log, idx) => (
-              <li
-                key={idx}
-                className="text-sm text-gray-700 bg-gray-100 px-3 py-1 rounded flex items-center"
-              >
+              <li key={idx} className="text-sm text-gray-700 bg-gray-100 px-3 py-1 rounded flex items-center">
                 <span className="mr-2 text-gray-400">{idx + 1}.</span>
                 <span>{log}</span>
               </li>
