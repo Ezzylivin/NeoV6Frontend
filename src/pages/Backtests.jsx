@@ -1,20 +1,9 @@
-// File: src/pages/Backtests.jsx
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar } from "recharts";
 
 export default function Backtests() {
-  const { fetchOptions, runBacktest, runBatchBacktests } = useBacktest();
-
-  const [options, setOptions] = useState({
-    symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
-    timeframes: ["1m","5m","15m","30m","1h","4h","1d"],
-    balances: [100,500,1000,5000,10000],
-    strategies: ["SMA","EMA","RSI","MACD","BollingerBands","Stochastic","VWAP","ATR"],
-    risks: ["Low","Medium","High"],
-    takeProfits: [1, 2, 3, 5, 10],
-    stopLosses: [0.5, 1, 2, 3, 5]
-  });
+  const { fetchOptions, runBacktest, runBatchFromSelectors, options } = useBacktest();
 
   const [selectedSymbol, setSelectedSymbol] = useState("BTCUSDT");
   const [selectedTimeframe, setSelectedTimeframe] = useState("1h");
@@ -22,14 +11,12 @@ export default function Backtests() {
   const [selectedSL, setSelectedSL] = useState(1);
   const [backtests, setBacktests] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [batchLoading, setBatchLoading] = useState(false);
 
   useEffect(() => {
     async function loadOptions() {
       try {
         const resp = await fetchOptions();
         if (resp?.success && resp?.options) {
-          setOptions(prev => ({ ...prev, ...resp.options }));
           setSelectedSymbol(resp.options.symbols?.[0] || "BTCUSDT");
         }
       } catch (err) {
@@ -53,7 +40,6 @@ export default function Backtests() {
         takeProfit: selectedTP,
         stopLoss: selectedSL
       });
-
       setBacktests(prev => [...prev, { saved, metrics, equityCurve, trades }]);
     } catch (err) {
       console.error("Backtest failed:", err);
@@ -62,22 +48,15 @@ export default function Backtests() {
     }
   };
 
-  // --- NEW: Batch Backtest Handler ---
-  const handleRunBatchBacktests = async () => {
-    setBatchLoading(true);
+  const handleRunBatch = async () => {
+    setLoading(true);
     try {
-      const paramCombos = [
-        { symbol: selectedSymbol, timeframe: selectedTimeframe, initialBalance: 1000, strategy: { name: "SMA", parameters: {} }, risk: "Medium", takeProfit: selectedTP, stopLoss: selectedSL },
-        { symbol: selectedSymbol, timeframe: selectedTimeframe, initialBalance: 1000, strategy: { name: "EMA", parameters: {} }, risk: "Medium", takeProfit: selectedTP, stopLoss: selectedSL }
-      ]; // Example combos; adjust as needed
-
-      const { results } = await runBatchBacktests({ userId: "currentUserId", paramCombos });
-
-      setBacktests(prev => [...prev, ...results.map(r => ({ saved: r.saved, metrics: r.metrics, equityCurve: [], trades: [] }))]);
+      const { results, best } = await runBatchFromSelectors("currentUserId");
+      setBacktests(prev => [...prev, ...results]);
     } catch (err) {
-      console.error("Batch backtests failed:", err);
+      console.error("Batch backtest failed:", err);
     } finally {
-      setBatchLoading(false);
+      setLoading(false);
     }
   };
 
@@ -93,21 +72,18 @@ export default function Backtests() {
             {options.symbols?.map(sym => <option key={sym} value={sym}>{sym}</option>)}
           </select>
         </div>
-
         <div>
           <label>Timeframe: </label>
           <select value={selectedTimeframe} onChange={e => setSelectedTimeframe(e.target.value)}>
             {options.timeframes?.map(tf => <option key={tf} value={tf}>{tf}</option>)}
           </select>
         </div>
-
         <div>
           <label>Take Profit: </label>
           <select value={selectedTP} onChange={e => setSelectedTP(Number(e.target.value))}>
             {options.takeProfits?.map(tp => <option key={tp} value={tp}>{tp}%</option>)}
           </select>
         </div>
-
         <div>
           <label>Stop Loss: </label>
           <select value={selectedSL} onChange={e => setSelectedSL(Number(e.target.value))}>
@@ -119,12 +95,8 @@ export default function Backtests() {
           <button onClick={handleRunBacktest} disabled={loading}>
             {loading ? "Running..." : "Run Backtest"}
           </button>
-        </div>
-
-        {/* --- NEW: Batch Button --- */}
-        <div>
-          <button onClick={handleRunBatchBacktests} disabled={batchLoading}>
-            {batchLoading ? "Running Batch..." : "Run Batch Backtests"}
+          <button onClick={handleRunBatch} disabled={loading} style={{ marginLeft: "10px" }}>
+            {loading ? "Running Batch..." : "Run Batch Backtests"}
           </button>
         </div>
       </div>
