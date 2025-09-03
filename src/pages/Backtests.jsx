@@ -23,7 +23,7 @@ export default function Backtests() {
 
   const API_URL = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com/api";
 
-  // Fallback crypto options
+  // Fallback/default options
   const fallbackOptions = {
     symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"],
     timeframes: ["1m", "5m", "15m", "1h", "4h", "1d"],
@@ -34,14 +34,18 @@ export default function Backtests() {
     takeProfits: [1, 2, 3, 5, 10],
   };
 
+  // Safe merged options
+  const safeOptions = options?.symbols?.length ? options : fallbackOptions;
+
+  // Form state for backtests
   const [form, setForm] = useState({
-    symbol: fallbackOptions.symbols[0],
-    timeframe: fallbackOptions.timeframes[0],
-    initialBalance: fallbackOptions.balances[2],
-    strategy: fallbackOptions.strategies[0],
-    risk: fallbackOptions.risks[1],
-    stopLoss: fallbackOptions.stopLosses[0],
-    takeProfit: fallbackOptions.takeProfits[0],
+    symbol: safeOptions.symbols[0],
+    timeframe: safeOptions.timeframes[0],
+    initialBalance: safeOptions.balances[2],
+    strategy: safeOptions.strategies[0],
+    risk: safeOptions.risks[1],
+    stopLoss: safeOptions.stopLosses[0],
+    takeProfit: safeOptions.takeProfits[0],
   });
 
   const [latest, setLatest] = useState(null);
@@ -50,17 +54,16 @@ export default function Backtests() {
   const [chartError, setChartError] = useState(null);
   const [logs, setLogs] = useState([]);
 
-  // Fetch options and backtests
+  // Initialize options & fetch backtests
   useEffect(() => {
     if (user?._id) {
       fetchOptions();
       fetchBacktests();
       loadHistoryChart();
-      fetchBotHistory();
     }
   }, [user]);
 
-  // Update form defaults safely
+  // Update form defaults when options load
   useEffect(() => {
     const opts = options?.symbols?.length ? options : fallbackOptions;
     setForm({
@@ -132,25 +135,6 @@ export default function Backtests() {
     }
   }
 
-  const fetchBotHistory = async () => {
-    if (!user?._id) return;
-    setChartLoading(true);
-    try {
-      const res = await axios.get(`${API_URL}/bots/history/${user._id}`);
-      const data = res.data.history.map(p => ({
-        time: new Date(p.timestamp).toLocaleString(),
-        balance: p.balance,
-        profit: p.profit ?? 0
-      }));
-      setBotChart(data);
-    } catch (err) {
-      console.error(err);
-      setChartError("Failed to fetch bot history");
-    } finally {
-      setChartLoading(false);
-    }
-  };
-
   const Stats = ({ m }) => {
     if (!m) return null;
     return (
@@ -200,19 +184,19 @@ export default function Backtests() {
       {/* Controls */}
       <div className="bg-gray-100 p-4 rounded-2xl flex flex-wrap gap-4 items-end">
         <select name="symbol" value={form.symbol} onChange={handleChange}>
-          {(options?.symbols?.length ? options.symbols : fallbackOptions.symbols).map(s => <option key={s} value={s}>{s}</option>)}
+          {(safeOptions.symbols).map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <select name="timeframe" value={form.timeframe} onChange={handleChange}>
-          {(options?.timeframes?.length ? options.timeframes : fallbackOptions.timeframes).map(tf => <option key={tf} value={tf}>{tf}</option>)}
+          {(safeOptions.timeframes).map(tf => <option key={tf} value={tf}>{tf}</option>)}
         </select>
         <select name="strategy" value={form.strategy} onChange={handleChange}>
-          {(options?.strategies?.length ? options.strategies : fallbackOptions.strategies).map(st => <option key={st} value={st}>{st}</option>)}
+          {(safeOptions.strategies).map(st => <option key={st} value={st}>{st}</option>)}
         </select>
         <select name="risk" value={form.risk} onChange={handleChange}>
-          {(options?.risks?.length ? options.risks : fallbackOptions.risks).map(r => <option key={r} value={r}>{r}</option>)}
+          {(safeOptions.risks).map(r => <option key={r} value={r}>{r}</option>)}
         </select>
         <select name="initialBalance" value={form.initialBalance} onChange={handleChange}>
-          {(options?.balances?.length ? options.balances : fallbackOptions.balances).map(b => <option key={b} value={b}>{b}</option>)}
+          {(safeOptions.balances).map(b => <option key={b} value={b}>{b}</option>)}
         </select>
         <button onClick={handleRunSingle} className="bg-blue-600 text-white px-4 py-2 rounded">{loading ? "Running..." : "Run Backtest"}</button>
         <button onClick={handleRunBatch} className="bg-green-600 text-white px-4 py-2 rounded">Run Batch Backtests</button>
@@ -261,7 +245,10 @@ export default function Backtests() {
           <h2 className="text-lg font-semibold mb-2 border-b border-gray-200 pb-1">Logs</h2>
           <ul className="space-y-1 max-h-60 overflow-y-auto">
             {logs.map((log, idx) => (
-              <li key={idx} className="text-sm text-gray-700 bg-gray-100 px-3 py-1 rounded flex items-center">
+              <li
+                key={idx}
+                className="text-sm text-gray-700 bg-gray-100 px-3 py-1 rounded flex items-center"
+              >
                 <span className="mr-2 text-gray-400">{idx + 1}.</span>
                 <span>{log}</span>
               </li>
