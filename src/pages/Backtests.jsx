@@ -260,5 +260,4 @@ export default function TradingBot() {
       })}
     </ul>
   </div>
-);
-}
+)};
