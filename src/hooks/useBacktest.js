@@ -1,23 +1,24 @@
+// File: src/hooks/useBacktest.js
 import { useState } from "react";
 import axios from "axios";
 
-const API_BASE = import.meta.env.VITE_API; // Use VITE_API from .env
-
 export function useBacktest() {
+  const apiBase = import.meta.env.VITE_API_URL || "/api";
+
   const [options, setOptions] = useState({
     symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
     timeframes: ["1m", "5m", "15m", "30m", "1h", "4h", "1d"],
     balances: [100, 500, 1000, 5000, 10000],
     strategies: ["SMA","EMA","RSI","MACD","BollingerBands","Stochastic","VWAP","ATR"],
     risks: ["Low","Medium","High"],
-    takeProfits: [1, 2, 3, 5, 10],
-    stopLosses: [0.5, 1, 2, 3, 5]
+    takeProfits: [null, 1, 2, 3, 5, 10],
+    stopLosses: [null, 0.5, 1, 2, 3, 5]
   });
 
   // Fetch options from backend
   const fetchOptions = async () => {
     try {
-      const resp = await axios.get(`${API_BASE}/backtests/options`);
+      const resp = await axios.get(`${apiBase}/backtests/options`);
       if (resp?.data?.success && resp.data.options) {
         setOptions(prev => ({ ...prev, ...resp.data.options }));
       }
@@ -29,14 +30,10 @@ export function useBacktest() {
   };
 
   // Run single backtest
-  const runBacktest = async ({ userId, takeProfit = null, stopLoss = null, ...params }) => {
+  const runBacktest = async ({ userId, ...params }) => {
+    if (!userId) throw new Error("userId is required");
     try {
-      const resp = await axios.post(`${API_BASE}/backtests/run`, {
-        userId,
-        ...params,
-        takeProfit,
-        stopLoss
-      });
+      const resp = await axios.post(`${apiBase}/backtests/run`, { userId, ...params });
       return resp.data;
     } catch (err) {
       console.error("[Run Backtest Error]", err);
@@ -46,8 +43,10 @@ export function useBacktest() {
 
   // Run batch backtests
   const runBatchBacktests = async (userId, combos) => {
+    if (!userId) throw new Error("userId is required");
+    if (!Array.isArray(combos) || combos.length === 0) return { results: [], best: null };
     try {
-      const resp = await axios.post(`${API_BASE}/backtests/batch`, { userId, paramCombos: combos });
+      const resp = await axios.post(`${apiBase}/backtests/batch`, { userId, paramCombos: combos });
       return resp.data;
     } catch (err) {
       console.error("[Run Batch Backtests Error]", err);
@@ -62,8 +61,8 @@ export function useBacktest() {
       for (const timeframe of options.timeframes) {
         for (const strategy of options.strategies) {
           for (const risk of options.risks) {
-            for (const takeProfit of [null, ...options.takeProfits]) { // allow null TP
-              for (const stopLoss of [null, ...options.stopLosses]) { // allow null SL
+            for (const takeProfit of options.takeProfits) {
+              for (const stopLoss of options.stopLosses) {
                 combos.push({
                   symbol,
                   timeframe,
@@ -84,7 +83,6 @@ export function useBacktest() {
   // Run batch backtests from selectors
   const runBatchFromSelectors = async (userId) => {
     const combos = generateParamCombos();
-    if (!combos.length) return { results: [], best: null };
     return await runBatchBacktests(userId, combos);
   };
 
