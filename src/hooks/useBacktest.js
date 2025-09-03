@@ -2,9 +2,9 @@
 import { useState } from "react";
 import axios from "axios";
 
-export function useBacktest(currentUser) {
+export function useBacktest() {
   const [options, setOptions] = useState({
-    symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
+    symbols: ["BTCUSDT","ETHUSDT","BNBUSDT"],
     timeframes: ["1m","5m","15m","30m","1h","4h","1d"],
     balances: [100,500,1000,5000,10000],
     strategies: ["SMA","EMA","RSI","MACD","BollingerBands","Stochastic","VWAP","ATR"],
@@ -14,6 +14,16 @@ export function useBacktest(currentUser) {
   });
 
   const apiUrl = import.meta.env.VITE_API_URL || "";
+
+  // ✅ helper: get current userId from localStorage
+  const getUserId = () => {
+    try {
+      const user = JSON.parse(localStorage.getItem("user"));
+      return user?._id || user?.id || null;
+    } catch {
+      return null;
+    }
+  };
 
   // Fetch options from backend
   const fetchOptions = async () => {
@@ -32,24 +42,14 @@ export function useBacktest(currentUser) {
   // Run single backtest
   const runBacktest = async (params) => {
     try {
-      // Use real MongoDB ObjectId from currentUser
-      const payload = {
-        userId: currentUser?._id,
-        symbol: params.symbol,
-        timeframe: params.timeframe,
-        initialBalance: Number(params.initialBalance),
-        strategy: params.strategy,
-        risk: params.risk,
-        takeProfit: params.takeProfit != null ? Number(params.takeProfit) : null,
-        stopLoss: params.stopLoss != null ? Number(params.stopLoss) : null
-      };
+      const userId = getUserId();
+      if (!userId) throw new Error("Missing userId in localStorage");
 
-      console.log("[Run Backtest Payload]", payload);
-
-      const resp = await axios.post(`${apiUrl}/backtests/run`, payload);
+      console.log("[Run Backtest Payload]", { userId, ...params });
+      const resp = await axios.post(`${apiUrl}/backtests/run`, { userId, ...params });
       return resp.data;
     } catch (err) {
-      console.error("[Run Backtest Error]", err.response?.data || err);
+      console.error("[Run Backtest Error]", err.response?.data || err.message);
       throw err;
     }
   };
@@ -57,14 +57,13 @@ export function useBacktest(currentUser) {
   // Run batch backtests
   const runBatchBacktests = async (combos) => {
     try {
-      const payload = {
-        userId: currentUser?._id,
-        paramCombos: combos
-      };
-      const resp = await axios.post(`${apiUrl}/backtests/batch`, payload);
+      const userId = getUserId();
+      if (!userId) throw new Error("Missing userId in localStorage");
+
+      const resp = await axios.post(`${apiUrl}/backtests/batch`, { userId, paramCombos: combos });
       return resp.data;
     } catch (err) {
-      console.error("[Run Batch Backtests Error]", err.response?.data || err);
+      console.error("[Run Batch Backtests Error]", err.response?.data || err.message);
       throw err;
     }
   };
