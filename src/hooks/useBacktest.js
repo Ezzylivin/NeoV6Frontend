@@ -8,8 +8,8 @@ export function useBacktest() {
     balances: [100, 500, 1000, 5000, 10000],
     strategies: ["SMA","EMA","RSI","MACD","BollingerBands","Stochastic","VWAP","ATR"],
     risks: ["Low","Medium","High"],
-    takeProfits: [1, 2, 3, 5, 10],
-    stopLosses: [0.5, 1, 2, 3, 5]
+    takeProfits: [null, 1, 2, 3, 5, 10], // include 'null' for "None"
+    stopLosses: [null, 0.5, 1, 2, 3, 5]  // include 'null' for "None"
   });
 
   // Fetch options from backend
