@@ -1,6 +1,6 @@
 // File: src/pages/Backtests.jsx
 import React, { useState, useEffect } from "react";
-import useBacktest from "../hooks/useBacktest.js";
+import { useBacktest } from "../hooks/useBacktest.js";
 
 // Fallback crypto options if API doesn't respond yet
 const fallbackOptions = {
