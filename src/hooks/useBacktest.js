@@ -1,6 +1,8 @@
 import { useState } from "react";
 import axios from "axios";
 
+const API_BASE = import.meta.env.VITE_API; // Use VITE_API from .env
+
 export function useBacktest() {
   const [options, setOptions] = useState({
     symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
@@ -8,14 +10,14 @@ export function useBacktest() {
     balances: [100, 500, 1000, 5000, 10000],
     strategies: ["SMA","EMA","RSI","MACD","BollingerBands","Stochastic","VWAP","ATR"],
     risks: ["Low","Medium","High"],
-    takeProfits: [null, 1, 2, 3, 5, 10], // include 'null' for "None"
-    stopLosses: [null, 0.5, 1, 2, 3, 5]  // include 'null' for "None"
+    takeProfits: [1, 2, 3, 5, 10],
+    stopLosses: [0.5, 1, 2, 3, 5]
   });
 
   // Fetch options from backend
   const fetchOptions = async () => {
     try {
-      const resp = await axios.get("/api/backtests/options");
+      const resp = await axios.get(`${API_BASE}/backtests/options`);
       if (resp?.data?.success && resp.data.options) {
         setOptions(prev => ({ ...prev, ...resp.data.options }));
       }
@@ -27,9 +29,14 @@ export function useBacktest() {
   };
 
   // Run single backtest
-  const runBacktest = async ({ userId, ...params }) => {
+  const runBacktest = async ({ userId, takeProfit = null, stopLoss = null, ...params }) => {
     try {
-      const resp = await axios.post("/api/backtests/run", { userId, ...params });
+      const resp = await axios.post(`${API_BASE}/backtests/run`, {
+        userId,
+        ...params,
+        takeProfit,
+        stopLoss
+      });
       return resp.data;
     } catch (err) {
       console.error("[Run Backtest Error]", err);
@@ -40,7 +47,7 @@ export function useBacktest() {
   // Run batch backtests
   const runBatchBacktests = async (userId, combos) => {
     try {
-      const resp = await axios.post("/api/backtests/batch", { userId, paramCombos: combos });
+      const resp = await axios.post(`${API_BASE}/backtests/batch`, { userId, paramCombos: combos });
       return resp.data;
     } catch (err) {
       console.error("[Run Batch Backtests Error]", err);
@@ -55,8 +62,8 @@ export function useBacktest() {
       for (const timeframe of options.timeframes) {
         for (const strategy of options.strategies) {
           for (const risk of options.risks) {
-            for (const takeProfit of options.takeProfits) {
-              for (const stopLoss of options.stopLosses) {
+            for (const takeProfit of [null, ...options.takeProfits]) { // allow null TP
+              for (const stopLoss of [null, ...options.stopLosses]) { // allow null SL
                 combos.push({
                   symbol,
                   timeframe,
