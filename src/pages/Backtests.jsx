@@ -237,18 +237,28 @@ export default function TradingBot() {
         ) : <p className="text-gray-500">No chart data.</p>}
       </div>
 
- {/* Logs */}
+{/* Logs */}
 {logs.length > 0 && (
   <div className="bg-gray-50 p-4 rounded-2xl shadow max-h-64 overflow-y-auto">
     <h2 className="text-lg font-semibold mb-2">Logs</h2>
     <ul className="space-y-1">
-      {logs.map((log, idx) => (
-        <li key={idx} className="flex items-center gap-2">
-          {/* Colored bullet or icon */}
-          <span className="inline-block w-2 h-2 rounded-full bg-blue-500"></span>
-          <span className="text-gray-700 text-sm">{log}</span>
-        </li>
-      ))}
+      {logs.map((log, idx) => {
+        // Determine log type and color
+        let colorClass = "text-gray-700"; // default
+        if (log.toLowerCase().includes("failed")) colorClass = "text-red-600";
+        else if (log.toLowerCase().includes("started")) colorClass = "text-green-600";
+        else if (log.toLowerCase().includes("running")) colorClass = "text-blue-600";
+
+        return (
+          <li key={idx} className="flex items-center gap-2">
+            <span
+              className={`inline-block w-2 h-2 rounded-full ${colorClass.replace("text-", "bg-")}`}
+            ></span>
+            <span className={`text-sm ${colorClass}`}>{log}</span>
+          </li>
+        );
+      })}
     </ul>
   </div>
-)}
+);
+}
