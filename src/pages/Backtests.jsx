@@ -4,10 +4,19 @@ import { useBacktest } from "../hooks/useBacktest.js";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar } from "recharts";
 
 export default function Backtests() {
-  const { options, fetchOptions, runBacktest } = useBacktest();
+  const { fetchOptions, runBacktest, runBatchFromSelectors } = useBacktest();
 
-  // Selected parameters
-  const [selectedSymbol, setSelectedSymbol] = useState("");
+  const [options, setOptions] = useState({
+    symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
+    timeframes: ["1m","5m","15m","30m","1h","4h","1d"],
+    balances: [100,500,1000,5000,10000],
+    strategies: ["SMA","EMA","RSI","MACD","BollingerBands","Stochastic","VWAP","ATR"],
+    risks: ["Low","Medium","High"],
+    takeProfits: [null,1,2,3,5,10],
+    stopLosses: [null,0.5,1,2,3,5]
+  });
+
+  const [selectedSymbol, setSelectedSymbol] = useState("BTCUSDT");
   const [selectedTimeframe, setSelectedTimeframe] = useState("1h");
   const [selectedBalance, setSelectedBalance] = useState(1000);
   const [selectedStrategy, setSelectedStrategy] = useState({ name: "SMA", parameters: {} });
@@ -18,24 +27,21 @@ export default function Backtests() {
   const [backtests, setBacktests] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Load options from backend
   useEffect(() => {
     async function loadOptions() {
       try {
         const resp = await fetchOptions();
-        if (resp?.success && resp.options?.symbols?.length) {
-          setSelectedSymbol(resp.options.symbols[0]);
-        } else {
-          setSelectedSymbol("BTCUSDT");
+        if (resp?.success && resp?.options) {
+          setOptions(prev => ({ ...prev, ...resp.options }));
+          setSelectedSymbol(resp.options.symbols?.[0] || "BTCUSDT");
         }
       } catch (err) {
         console.error("Failed to fetch options:", err);
       }
     }
     loadOptions();
-  }, [fetchOptions]);
+  }, []);
 
-  // Run single backtest
   const handleRunBacktest = async () => {
     if (!selectedSymbol) return;
     setLoading(true);
@@ -50,10 +56,26 @@ export default function Backtests() {
         takeProfit: selectedTP,
         stopLoss: selectedSL
       });
-
       setBacktests(prev => [...prev, { saved, metrics, equityCurve, trades }]);
     } catch (err) {
       console.error("Backtest failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRunBatch = async () => {
+    setLoading(true);
+    try {
+      const { results } = await runBatchFromSelectors("currentUserId");
+      setBacktests(prev => [...prev, ...results.map(r => ({ 
+        saved: r.saved, 
+        metrics: r.metrics, 
+        equityCurve: r.saved?.tradeBreakdown?.map(t => ({ time: t.exitTime || t.entryTime, equity: t.profit || 0 })) || [], 
+        trades: r.saved?.tradeBreakdown || [] 
+      }))]);
+    } catch (err) {
+      console.error("Batch backtests failed:", err);
     } finally {
       setLoading(false);
     }
@@ -63,7 +85,7 @@ export default function Backtests() {
     <div>
       <h2>Backtests</h2>
 
-      {/* All selectors */}
+      {/* All Selectors */}
       <div style={{ display: "flex", gap: "15px", marginBottom: "15px", flexWrap: "wrap" }}>
         <div>
           <label>Symbol: </label>
@@ -103,24 +125,26 @@ export default function Backtests() {
         <div>
           <label>Take Profit: </label>
           <select value={selectedTP ?? ""} onChange={e => setSelectedTP(e.target.value === "" ? null : Number(e.target.value))}>
-            {options.takeProfits?.map(tp => (
-              <option key={tp ?? "none"} value={tp ?? ""}>{tp !== null ? tp + "%" : "None"}</option>
-            ))}
+            {options.takeProfits?.map(tp => <option key={tp ?? "none"} value={tp ?? ""}>{tp !== null ? tp+"%" : "None"}</option>)}
           </select>
         </div>
 
         <div>
           <label>Stop Loss: </label>
           <select value={selectedSL ?? ""} onChange={e => setSelectedSL(e.target.value === "" ? null : Number(e.target.value))}>
-            {options.stopLosses?.map(sl => (
-              <option key={sl ?? "none"} value={sl ?? ""}>{sl !== null ? sl + "%" : "None"}</option>
-            ))}
+            {options.stopLosses?.map(sl => <option key={sl ?? "none"} value={sl ?? ""}>{sl !== null ? sl+"%" : "None"}</option>)}
           </select>
         </div>
 
         <div>
           <button onClick={handleRunBacktest} disabled={loading}>
             {loading ? "Running..." : "Run Backtest"}
+          </button>
+        </div>
+
+        <div>
+          <button onClick={handleRunBatch} disabled={loading}>
+            {loading ? "Running..." : "Run Batch Backtests"}
           </button>
         </div>
       </div>
