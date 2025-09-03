@@ -3,14 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useBacktest } from "../hooks/useBacktest.js";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  ResponsiveContainer,
-  Legend,
+  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend,
 } from "recharts";
 
 export default function Backtests() {
@@ -26,8 +19,7 @@ export default function Backtests() {
     runBatchBacktests,
   } = useBacktest();
 
-  // Set default fallback options
-  const defaultOptions = {
+  const fallbackOptions = {
     symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"],
     timeframes: ["1m", "5m", "15m", "1h", "4h", "1d"],
     balances: [100, 300, 500, 1000, 5000, 10000],
@@ -37,43 +29,36 @@ export default function Backtests() {
     takeProfits: [1, 2, 3, 5, 10],
   };
 
-  const mergedOptions = { ...defaultOptions, ...options };
-
   const [form, setForm] = useState({
-    symbol: mergedOptions.symbols[0],
-    timeframe: mergedOptions.timeframes[0],
-    initialBalance: mergedOptions.balances[2],
-    strategy: mergedOptions.strategies[0],
-    risk: mergedOptions.risks[1],
-    stopLoss: mergedOptions.stopLosses[0],
-    takeProfit: mergedOptions.takeProfits[0],
+    symbol: fallbackOptions.symbols[0],
+    timeframe: fallbackOptions.timeframes[0],
+    initialBalance: fallbackOptions.balances[2],
+    strategy: fallbackOptions.strategies[0],
+    risk: fallbackOptions.risks[1],
+    stopLoss: fallbackOptions.stopLosses[0],
+    takeProfit: fallbackOptions.takeProfits[0],
   });
 
   const [historyChart, setHistoryChart] = useState([]);
   const [filters, setFilters] = useState({ symbol: "", strategy: "", risk: "" });
 
+  // Initialize form when options load (API or fallback)
   useEffect(() => {
-    if (user?._id) {
-      fetchOptions();
-    }
-  }, [user]);
-
-  // Update form defaults when options load
-  useEffect(() => {
+    const opts = options.symbols?.length ? options : fallbackOptions;
     setForm({
-      symbol: mergedOptions.symbols[0],
-      timeframe: mergedOptions.timeframes[0],
-      initialBalance: mergedOptions.balances[2],
-      strategy: mergedOptions.strategies[0],
-      risk: mergedOptions.risks[1],
-      stopLoss: mergedOptions.stopLosses[0],
-      takeProfit: mergedOptions.takeProfits[0],
+      symbol: opts.symbols[0],
+      timeframe: opts.timeframes[0],
+      initialBalance: opts.balances[2],
+      strategy: opts.strategies[0],
+      risk: opts.risks[1],
+      stopLoss: opts.stopLosses[0],
+      takeProfit: opts.takeProfits[0],
     });
   }, [options]);
 
-  // Update chart history
+  // Update chart history when backtests change
   useEffect(() => {
-    const data = (backtests || []).map((bt) => ({
+    const data = (backtests || []).filter(Boolean).map(bt => ({
       time: bt?.createdAt ? new Date(bt.createdAt).toLocaleString() : "N/A",
       initialBalance: bt?.initialBalance ?? 0,
       finalBalance: bt?.results?.finalBalance ?? ((bt?.initialBalance ?? 0) + (bt?.results?.profit ?? 0)),
@@ -88,10 +73,11 @@ export default function Backtests() {
   };
 
   const handleBatchRun = async () => {
-    const paramCombos = mergedOptions.symbols.flatMap((symbol) =>
-      mergedOptions.strategies.map((strategy) => ({
+    const opts = options.symbols?.length ? options : fallbackOptions;
+    const paramCombos = opts.symbols.flatMap(symbol =>
+      opts.strategies.map(strategy => ({
         symbol,
-        timeframe: form.timeframe || mergedOptions.timeframes[0],
+        timeframe: form.timeframe || opts.timeframes[0],
         strategy: { name: strategy, parameters: {} },
         risk: form.risk,
         stopLoss: Number(form.stopLoss),
@@ -102,11 +88,10 @@ export default function Backtests() {
     await runBatchBacktests(paramCombos, "coinbasepro");
   };
 
-  const filteredBacktests = (backtests || []).filter(
-    (bt) =>
-      (!filters.symbol || bt.symbol === filters.symbol) &&
-      (!filters.strategy || (bt.strategy?.name || bt.strategy) === filters.strategy) &&
-      (!filters.risk || bt.risk === filters.risk)
+  const filteredBacktests = (backtests || []).filter(bt =>
+    (!filters.symbol || bt.symbol === filters.symbol) &&
+    (!filters.strategy || (bt.strategy?.name || bt.strategy) === filters.strategy) &&
+    (!filters.risk || bt.risk === filters.risk)
   );
 
   return (
@@ -115,24 +100,26 @@ export default function Backtests() {
 
       {/* Form Controls */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <select value={form.symbol} onChange={(e) => setForm({ ...form, symbol: e.target.value })} className="border p-2">
-          {mergedOptions.symbols.map((s) => <option key={s} value={s}>{s}</option>)}
+        <select value={form.symbol} onChange={e => setForm({ ...form, symbol: e.target.value })} className="border p-2">
+          {(options.symbols || fallbackOptions.symbols).map(s => <option key={s} value={s}>{s}</option>)}
         </select>
 
-        <select value={form.strategy} onChange={(e) => setForm({ ...form, strategy: e.target.value })} className="border p-2">
-          {mergedOptions.strategies.map((s) => <option key={s} value={s}>{s}</option>)}
+        <select value={form.strategy} onChange={e => setForm({ ...form, strategy: e.target.value })} className="border p-2">
+          {(options.strategies || fallbackOptions.strategies).map(s => <option key={s} value={s}>{s}</option>)}
         </select>
 
-        <input type="number" value={form.initialBalance} onChange={(e) => setForm({ ...form, initialBalance: Number(e.target.value) })} className="border p-2" />
+        <input type="number" value={form.initialBalance} onChange={e => setForm({ ...form, initialBalance: Number(e.target.value) })} className="border p-2" />
 
         <button onClick={handleRun} className="bg-blue-600 text-white px-4 py-2 rounded" disabled={loading}>
           Run Backtest
         </button>
       </div>
 
-      <button onClick={handleBatchRun} className="bg-green-600 text-white px-4 py-2 rounded mt-2" disabled={loading}>
-        Run Batch Backtests
-      </button>
+      <div>
+        <button onClick={handleBatchRun} className="bg-green-600 text-white px-4 py-2 rounded mt-2" disabled={loading}>
+          Run Batch Backtests
+        </button>
+      </div>
 
       {error && <p className="text-red-500 mt-2">{error}</p>}
 
@@ -171,7 +158,7 @@ export default function Backtests() {
                 <td colSpan="7" className="text-center py-4">No backtests found</td>
               </tr>
             )}
-            {filteredBacktests.map((bt) => (
+            {filteredBacktests.map(bt => (
               <tr key={bt?._id || Math.random()} className="text-center">
                 <td className="px-4 py-2 border">{bt?.createdAt ? new Date(bt.createdAt).toLocaleString() : "N/A"}</td>
                 <td className="px-4 py-2 border">{bt?.symbol || "N/A"}</td>
@@ -195,9 +182,9 @@ export default function Backtests() {
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={best.saved.equityCurve}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" tickFormatter={(t) => new Date(t).toLocaleTimeString()} />
+              <XAxis dataKey="time" tickFormatter={t => new Date(t).toLocaleTimeString()} />
               <YAxis />
-              <Tooltip labelFormatter={(t) => new Date(t).toLocaleString()} />
+              <Tooltip labelFormatter={t => new Date(t).toLocaleString()} />
               <Legend />
               <Line type="monotone" dataKey="equity" stroke="#8884d8" dot={false} />
             </LineChart>
