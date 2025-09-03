@@ -18,8 +18,12 @@ export default function Backtests() {
 
   const [selectedSymbol, setSelectedSymbol] = useState("BTCUSDT");
   const [selectedTimeframe, setSelectedTimeframe] = useState("1h");
+  const [selectedBalance, setSelectedBalance] = useState(1000);
+  const [selectedStrategy, setSelectedStrategy] = useState({ name: "SMA", parameters: {} });
+  const [selectedRisk, setSelectedRisk] = useState("Medium");
   const [selectedTP, setSelectedTP] = useState(2);
   const [selectedSL, setSelectedSL] = useState(1);
+
   const [backtests, setBacktests] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -30,6 +34,7 @@ export default function Backtests() {
         if (resp?.success && resp?.options) {
           setOptions(prev => ({ ...prev, ...resp.options }));
           setSelectedSymbol(resp.options.symbols?.[0] || "BTCUSDT");
+          setSelectedStrategy({ name: resp.options.strategies?.[0] || "SMA", parameters: {} });
         }
       } catch (err) {
         console.error("Failed to fetch options:", err);
@@ -46,9 +51,9 @@ export default function Backtests() {
         userId: "currentUserId",
         symbol: selectedSymbol,
         timeframe: selectedTimeframe,
-        initialBalance: 1000,
-        strategy: { name: "SMA", parameters: {} },
-        risk: "Medium",
+        initialBalance: selectedBalance,
+        strategy: selectedStrategy,
+        risk: selectedRisk,
         takeProfit: selectedTP,
         stopLoss: selectedSL
       });
@@ -78,6 +83,27 @@ export default function Backtests() {
           <label>Timeframe: </label>
           <select value={selectedTimeframe} onChange={e => setSelectedTimeframe(e.target.value)}>
             {options.timeframes?.map(tf => <option key={tf} value={tf}>{tf}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label>Initial Balance: </label>
+          <select value={selectedBalance} onChange={e => setSelectedBalance(Number(e.target.value))}>
+            {options.balances?.map(b => <option key={b} value={b}>${b}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label>Strategy: </label>
+          <select value={selectedStrategy.name} onChange={e => setSelectedStrategy({ name: e.target.value, parameters: {} })}>
+            {options.strategies?.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label>Risk: </label>
+          <select value={selectedRisk} onChange={e => setSelectedRisk(e.target.value)}>
+            {options.risks?.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
         </div>
 
