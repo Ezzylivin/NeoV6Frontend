@@ -105,19 +105,19 @@ export default function TradingBot() {
     }
   };
 
-  // Run batch backtests
-  const handleRunBatch = () => {
-    const combos = [];
-    const opts = options.symbols?.length ? options : fallbackOptions;
-    for (const sl of opts.stopLosses) {
-      for (const tp of opts.takeProfits) {
-        for (const interval of opts.timeframes) {
-          combos.push({ ...form, stopLoss: sl, takeProfit: tp, timeframe: interval });
-        }
+// Run batch backtests
+const handleRunBatch = () => {
+  const combos = [];
+  const opts = options.symbols?.length ? options : fallbackOptions;
+  for (const sl of opts.stopLosses) {
+    for (const tp of opts.takeProfits) {
+      for (const interval of opts.timeframes) {
+        combos.push({ ...form, stopLoss: sl, takeProfit: tp, timeframe: interval });
       }
     }
-    runBatchBacktests(combos);
-  };
+  }
+  runBatchBacktests(user._id, combos);   // ✅ pass userId + configs
+};
 
   // Load historical backtests chart
   async function loadHistoryChart() {
