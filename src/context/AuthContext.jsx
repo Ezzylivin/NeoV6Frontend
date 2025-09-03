@@ -1,3 +1,4 @@
+// File: src/context/AuthContext.jsx
 import React, { createContext, useState, useEffect, useContext } from "react";
 import apiClient, { setAuthToken } from "../api/apiClient.js";
 
@@ -15,8 +16,18 @@ export const AuthProvider = ({ children }) => {
 
   const isAuthenticated = !!token;
 
+  /** 🔑 Normalize user object so it always has `id` */
+  const normalizeUser = (userData) => {
+    if (!userData) return null;
+    return {
+      ...userData,
+      id: userData._id || userData.id, // unify ID
+    };
+  };
+
+  /** Save user + token to state + storage */
   const saveAuthData = (userData, tokenData) => {
-    const normalizedUser = { ...userData, id: userData._id };
+    const normalizedUser = normalizeUser(userData);
     setUser(normalizedUser);
     setTokenState(tokenData);
 
@@ -26,6 +37,7 @@ export const AuthProvider = ({ children }) => {
     setAuthToken(tokenData);
   };
 
+  /** Clear everything */
   const clearAuthData = () => {
     setUser(null);
     setTokenState(null);
@@ -34,18 +46,24 @@ export const AuthProvider = ({ children }) => {
     setAuthToken(null);
   };
 
+  /** Keep apiClient in sync when token changes */
   useEffect(() => {
     setAuthToken(token);
   }, [token]);
 
+  /** Validate stored token on first load */
   useEffect(() => {
     const validateToken = async () => {
-      if (!token) return setInitializing(false);
+      if (!token) {
+        setInitializing(false);
+        return;
+      }
       try {
         setAuthToken(token);
         const { data } = await apiClient.get("/users/me");
-        setUser(data.user || data); // in case backend returns {user: ...}
-      } catch {
+        saveAuthData(data.user || data, token); // refresh user
+      } catch (err) {
+        console.error("[Auth] Token validation failed", err.response?.data || err.message);
         clearAuthData();
       } finally {
         setInitializing(false);
@@ -54,33 +72,52 @@ export const AuthProvider = ({ children }) => {
     validateToken();
   }, [token]);
 
+  /** Registration */
   const registerUser = async ({ username, email, password }) => {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await apiClient.post("/users/register", { username, email, password });
-      const { token, ...userData } = data.user ? data.user : data; 
-      saveAuthData(userData, token);
-      return { success: true };
+      const { data } = await apiClient.post("/users/register", {
+        username,
+        email,
+        password,
+      });
+
+      const tokenData = data.token || data.user?.token;
+      const userData = data.user || data;
+
+      if (!tokenData || !userData) throw new Error("Invalid register response");
+
+      saveAuthData(userData, tokenData);
+      return { success: true, user: normalizeUser(userData), token: tokenData };
     } catch (err) {
       setError(err.response?.data?.message || "Registration failed");
-      return { success: false };
+      return { success: false, error: err.response?.data?.message };
     } finally {
       setLoading(false);
     }
   };
 
+  /** Login */
   const loginUser = async ({ identifier, password }) => {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await apiClient.post("/users/login", { identifier, password });
-      const { token, ...userData } = data.user ? data.user : data; 
-      saveAuthData(userData, token);
-      return { success: true };
+      const { data } = await apiClient.post("/users/login", {
+        identifier,
+        password,
+      });
+
+      const tokenData = data.token || data.user?.token;
+      const userData = data.user || data;
+
+      if (!tokenData || !userData) throw new Error("Invalid login response");
+
+      saveAuthData(userData, tokenData);
+      return { success: true, user: normalizeUser(userData), token: tokenData };
     } catch (err) {
       setError(err.response?.data?.message || "Login failed");
-      return { success: false };
+      return { success: false, error: err.response?.data?.message };
     } finally {
       setLoading(false);
     }
@@ -88,7 +125,18 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider
-      value={{ user, token, isAuthenticated, loading, error, initializing, saveAuthData, clearAuthData, registerUser, loginUser }}
+      value={{
+        user,
+        token,
+        isAuthenticated,
+        loading,
+        error,
+        initializing,
+        saveAuthData,
+        clearAuthData,
+        registerUser,
+        loginUser,
+      }}
     >
       {children}
     </AuthContext.Provider>
