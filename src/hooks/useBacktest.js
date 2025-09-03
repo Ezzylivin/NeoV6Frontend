@@ -1,4 +1,3 @@
-// File: src/hooks/useBacktest.js
 import { useState } from "react";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -34,16 +33,33 @@ export function useBacktest() {
   // Run single backtest
   const runBacktest = async (params) => {
     try {
-      const userId = user?.id || user?._id; // ✅ use real ID
+      const userId = user?.id || user?._id;
       if (!userId) throw new Error("User not authenticated");
 
       const payload = { userId, ...params };
       console.log("[Run Backtest Payload]", payload);
 
       const resp = await axios.post(`${apiUrl}/backtests/run`, payload);
-      return resp.data; // contains { saved, metrics, equityCurve, trades }
+      return resp.data;
     } catch (err) {
       console.error("[Run Backtest Error]", err.response?.data || err);
+      throw err;
+    }
+  };
+
+  // Run realistic backtest using live OHLCV
+  const runRealisticBacktest = async (params) => {
+    try {
+      const userId = user?.id || user?._id;
+      if (!userId) throw new Error("User not authenticated");
+
+      const payload = { userId, ...params };
+      console.log("[Run Realistic Backtest Payload]", payload);
+
+      const resp = await axios.post(`${apiUrl}/backtests/run-realistic`, payload);
+      return resp.data;
+    } catch (err) {
+      console.error("[Run Realistic Backtest Error]", err.response?.data || err);
       throw err;
     }
   };
@@ -58,7 +74,7 @@ export function useBacktest() {
         userId,
         paramCombos: combos,
       });
-      return resp.data; // contains { results, best }
+      return resp.data;
     } catch (err) {
       console.error("[Run Batch Backtests Error]", err.response?.data || err);
       throw err;
@@ -103,6 +119,7 @@ export function useBacktest() {
     setOptions,
     fetchOptions,
     runBacktest,
+    runRealisticBacktest,
     runBatchBacktests,
     runBatchFromSelectors,
     generateParamCombos,
