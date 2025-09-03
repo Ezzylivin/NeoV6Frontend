@@ -1,273 +1,105 @@
 // File: src/pages/Backtests.jsx
-import React, { useEffect, useState } from "react";
-import { useAuth } from "../context/AuthContext.jsx";
-import { useBacktest } from "../hooks/useBacktest.js";
-import axios from "axios";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  ResponsiveContainer,
-  Legend,
-  ReferenceDot
-} from "recharts";
+import React, { useState, useEffect } from "react";
+import { runRealisticBacktest } from "../services/backtestService.js"; // optional if calling backend
+import useBacktest from "../hooks/useBacktest.js";
 
 export default function Backtests() {
-  const { user } = useAuth();
-  const {
-    results: backtests,
-    best,
-    options,
-    loading,
-    error,
-    fetchOptions,
-    fetchBacktests,
-    runBacktest,
-    runBatchBacktests
-  } = useBacktest();
-
-  const API_URL = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com/api";
-
-  // Fallback crypto options if API fails
-  const fallbackOptions = {
-    symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"],
-    timeframes: ["1m", "5m", "15m", "1h", "4h", "1d"],
-    balances: [100, 300, 500, 1000, 5000, 10000],
-    strategies: ["SMA", "EMA", "RSI", "MACD"],
+  const [options, setOptions] = useState({
+    symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"], // fallback
+    timeframes: ["1m", "5m", "15m", "30m", "1h", "4h", "1d"],
+    balances: [100, 500, 1000, 5000, 10000],
+    strategies: ["SMA","EMA","RSI","MACD","BollingerBands","Stochastic","VWAP","ATR"],
     risks: ["Low", "Medium", "High"],
-    stopLosses: [0.5, 1, 2, 3, 5],
-    takeProfits: [1, 2, 3, 5, 10],
-  };
-
-  const safeOptions = options?.symbols?.length ? options : fallbackOptions;
-
-  // Form state
-  const [form, setForm] = useState({
-    symbol: safeOptions.symbols[0] || "BTCUSDT",
-    timeframe: safeOptions.timeframes[0] || "1m",
-    initialBalance: safeOptions.balances[2] || 500,
-    strategy: safeOptions.strategies[0] || "SMA",
-    risk: safeOptions.risks[1] || "Medium",
-    stopLoss: safeOptions.stopLosses[0] || 0.5,
-    takeProfit: safeOptions.takeProfits[0] || 1,
   });
 
-  const [latest, setLatest] = useState(null);
-  const [botChart, setBotChart] = useState([]);
-  const [chartLoading, setChartLoading] = useState(true);
-  const [chartError, setChartError] = useState(null);
-  const [logs, setLogs] = useState([]);
+  const [selectedSymbol, setSelectedSymbol] = useState("BTCUSDT");
+  const [selectedTimeframe, setSelectedTimeframe] = useState("1h");
+  const [backtests, setBacktests] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // Fetch options & backtests
+  const { fetchOptions } = useBacktest(); // your hook
+
   useEffect(() => {
-    if (user?._id) {
-      fetchOptions();
-      fetchBacktests();
-      loadHistoryChart();
-    }
-  }, [user]);
-
-  // Update form when options change
-  useEffect(() => {
-    const opts = options?.symbols?.length ? options : fallbackOptions;
-    setForm({
-      symbol: opts.symbols[0] || "BTCUSDT",
-      timeframe: opts.timeframes[0] || "1m",
-      initialBalance: opts.balances[2] || 500,
-      strategy: opts.strategies[0] || "SMA",
-      risk: opts.risks[1] || "Medium",
-      stopLoss: opts.stopLosses[0] || 0.5,
-      takeProfit: opts.takeProfits[0] || 1,
-    });
-  }, [options]);
-
-  // Handle input changes
-  const handleChange = e => {
-    const { name, value } = e.target;
-    setForm(prev => ({
-      ...prev,
-      [name]: ["initialBalance", "stopLoss", "takeProfit"].includes(name) ? Number(value) : value
-    }));
-  };
-
-  // Run single backtest
-  const handleRunSingle = async () => {
-    if (!form.symbol || !form.timeframe) return alert("Select symbol and timeframe!");
-    try {
-      const res = await axios.post(`${API_URL}/backtests/run`, { userId: user._id, ...form });
-      if (res.data.success) {
-        setLatest({
-          metrics: res.data.metrics,
-          equityCurve: (res.data.equityCurve || []).map(p => ({
-            time: new Date(p.time).getTime(),
-            equity: p.equity
-          })),
-          trades: res.data.trades || []
-        });
-        fetchBacktests();
-        loadHistoryChart();
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Backtest failed: " + (err?.response?.data?.message || err.message));
-    }
-  };
-
-  // Run batch backtests
-  const handleRunBatch = () => {
-    const combos = [];
-    const opts = options?.symbols?.length ? options : fallbackOptions;
-    for (const sl of opts.stopLosses || []) {
-      for (const tp of opts.takeProfits || []) {
-        for (const tf of opts.timeframes || []) {
-          combos.push({ ...form, stopLoss: sl, takeProfit: tp, timeframe: tf });
+    async function loadOptions() {
+      try {
+        const resp = await fetchOptions();
+        if (resp?.success && resp?.options) {
+          setOptions({
+            symbols: resp.options.symbols?.length ? resp.options.symbols : ["BTCUSDT","ETHUSDT","BNBUSDT"],
+            timeframes: resp.options.timeframes || ["1m","5m","15m","30m","1h","4h","1d"],
+            balances: resp.options.balances || [100,500,1000,5000,10000],
+            strategies: resp.options.strategies || ["SMA","EMA","RSI","MACD","BollingerBands","Stochastic","VWAP","ATR"],
+            risks: resp.options.risks || ["Low","Medium","High"],
+          });
+          setSelectedSymbol(resp.options.symbols?.[0] || "BTCUSDT");
         }
+      } catch (err) {
+        console.error("Failed to fetch options:", err);
       }
     }
-    runBatchBacktests(combos);
-  };
+    loadOptions();
+  }, []);
 
-  // Load historical backtests chart
-  const loadHistoryChart = async () => {
-    if (!user?._id) return;
+  const handleRunBacktest = async () => {
+    if (!selectedSymbol) return;
+    setLoading(true);
     try {
-      const res = await axios.get(`${API_URL}/backtests`, { params: { userId: user._id } });
-      const data = (res.data.backtests || []).map(bt => ({
-        time: new Date(bt.createdAt).toLocaleString(),
-        initialBalance: bt.initialBalance,
-        finalBalance: bt.finalBalance,
-        profit: bt.profit
-      }));
-      setBotChart(data);
+      const { saved, metrics, equityCurve, trades } = await runRealisticBacktest({
+        userId: "currentUserId", // replace with actual user
+        symbol: selectedSymbol,
+        timeframe: selectedTimeframe,
+        initialBalance: 1000,
+        strategy: { name: "SMA", parameters: {} },
+        risk: "Medium",
+      });
+      setBacktests(prev => [...prev, { saved, metrics, equityCurve, trades }]);
     } catch (err) {
-      console.error(err);
+      console.error("Backtest failed:", err);
+    } finally {
+      setLoading(false);
     }
-  };
-
-  // Stats component
-  const Stats = ({ m }) => {
-    if (!m) return null;
-    return (
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-        <div className="p-3 rounded bg-gray-100">
-          <div className="text-xs text-gray-500">Final Balance</div>
-          <div className="text-lg font-semibold">${m.finalBalance?.toLocaleString()}</div>
-        </div>
-        <div className="p-3 rounded bg-gray-100">
-          <div className="text-xs text-gray-500">Net Profit</div>
-          <div className={`text-lg font-semibold ${m.netProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
-            ${m.netProfit?.toLocaleString()}
-          </div>
-        </div>
-        <div className="p-3 rounded bg-gray-100">
-          <div className="text-xs text-gray-500">Win Rate</div>
-          <div className="text-lg font-semibold">{m.winRate ?? 0}%</div>
-        </div>
-        <div className="p-3 rounded bg-gray-100">
-          <div className="text-xs text-gray-500">Max Drawdown</div>
-          <div className="text-lg font-semibold">{m.maxDrawdown ?? 0}%</div>
-        </div>
-      </div>
-    );
-  };
-
-  // Trade dots for equity curve
-  const TradeDots = ({ trades }) => {
-    if (!latest?.equityCurve?.length) return null;
-    const firstTs = latest.equityCurve[0]?.time;
-    const lastTs = latest.equityCurve[latest.equityCurve.length - 1]?.time;
-
-    return trades?.map((t, idx) => {
-      if (!t.exitTime) return null;
-      const when = new Date(t.exitTime).getTime();
-      if (when < firstTs || when > lastTs) return null;
-      const near = latest.equityCurve.reduce((a, b) =>
-        Math.abs(b.time - when) < Math.abs(a.time - when) ? b : a
-      );
-      return <ReferenceDot key={idx} x={near.time} y={near.equity} r={4} stroke="none" fill={t.profit > 0 ? "#10B981" : "#EF4444"} />;
-    });
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold">Backtests + Trading Bot</h1>
+    <div>
+      <h2>Backtests</h2>
 
-      {/* Controls */}
-      <div className="bg-gray-100 p-4 rounded-2xl flex flex-wrap gap-4 items-end">
-        <select name="symbol" value={form.symbol} onChange={handleChange}>
-          {(safeOptions.symbols || []).map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select name="timeframe" value={form.timeframe} onChange={handleChange}>
-          {(safeOptions.timeframes || []).map(tf => <option key={tf} value={tf}>{tf}</option>)}
-        </select>
-        <select name="strategy" value={form.strategy} onChange={handleChange}>
-          {(safeOptions.strategies || []).map(st => <option key={st} value={st}>{st}</option>)}
-        </select>
-        <select name="risk" value={form.risk} onChange={handleChange}>
-          {(safeOptions.risks || []).map(r => <option key={r} value={r}>{r}</option>)}
-        </select>
-        <select name="initialBalance" value={form.initialBalance} onChange={handleChange}>
-          {(safeOptions.balances || []).map(b => <option key={b} value={b}>{b}</option>)}
-        </select>
-        <button onClick={handleRunSingle} className="bg-blue-600 text-white px-4 py-2 rounded">{loading ? "Running..." : "Run Backtest"}</button>
-        <button onClick={handleRunBatch} className="bg-green-600 text-white px-4 py-2 rounded">Run Batch Backtests</button>
-      </div>
+      {/* Symbol selector */}
+      <select
+        value={selectedSymbol}
+        onChange={e => setSelectedSymbol(e.target.value)}
+      >
+        {options.symbols?.map(sym => (
+          <option key={sym} value={sym}>{sym}</option>
+        ))}
+      </select>
 
-      {/* Latest Backtest */}
-      {latest && (
-        <div className="bg-white p-4 rounded-2xl shadow">
-          <h2 className="text-xl font-semibold">Latest Backtest – Equity Curve</h2>
-          <ResponsiveContainer width="100%" height={320}>
-            <LineChart data={latest.equityCurve}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" tickFormatter={ts => new Date(ts).toLocaleString()} />
-              <YAxis />
-              <Tooltip labelFormatter={ts => new Date(ts).toLocaleString()} formatter={(v) => `$${v?.toLocaleString()}`} />
-              <Legend />
-              <Line type="monotone" dataKey="equity" stroke="#3B82F6" dot={false} />
-              <TradeDots trades={latest.trades || []} />
-            </LineChart>
-          </ResponsiveContainer>
-          <Stats m={latest.metrics} />
-        </div>
-      )}
+      {/* Timeframe selector */}
+      <select
+        value={selectedTimeframe}
+        onChange={e => setSelectedTimeframe(e.target.value)}
+      >
+        {options.timeframes?.map(tf => (
+          <option key={tf} value={tf}>{tf}</option>
+        ))}
+      </select>
 
-      {/* Historical Backtests */}
-      <div className="bg-white p-4 rounded-2xl shadow">
-        <h2 className="text-xl font-semibold mb-4">Backtests History</h2>
-        {botChart.length ? (
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={botChart}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="balance" stroke="#10B981" strokeWidth={2} dot />
-              <Line type="monotone" dataKey="profit" stroke="#F59E0B" strokeWidth={2} dot />
-            </LineChart>
-          </ResponsiveContainer>
-        ) : <p className="text-gray-500">No chart data.</p>}
-      </div>
+      <button onClick={handleRunBacktest} disabled={loading}>
+        {loading ? "Running..." : "Run Backtest"}
+      </button>
 
-      {/* Logs Section */}
-      {logs.length > 0 && (
-        <div className="bg-gray-50 p-4 rounded-2xl shadow mt-6">
-          <h2 className="text-lg font-semibold mb-2 border-b border-gray-200 pb-1">Logs</h2>
-          <ul className="space-y-1 max-h-60 overflow-y-auto">
-            {logs.map((log, idx) => (
-              <li
-                key={idx}
-                className="text-sm text-gray-700 bg-gray-100 px-3 py-1 rounded flex items-center"
-              >
-                <span className="mr-2 text-gray-400">{idx + 1}.</span>
-                <span>{log}</span>
-              </li>
-            ))}
-          </ul>
+      {/* Display backtest results safely */}
+      {backtests.length > 0 && (
+        <div>
+          {backtests.map((bt, idx) => (
+            <div key={idx}>
+              <h3>{bt.saved?.symbol || "N/A"} ({bt.saved?.strategy?.name || "SMA"})</h3>
+              <p>Net Profit: {bt.metrics?.netProfit ?? 0}</p>
+              <p>Win Rate: {bt.metrics?.winRate ?? 0}%</p>
+              <p>Max Drawdown: {bt.metrics?.maxDrawdown ?? 0}%</p>
+              <p>Trades: {bt.metrics?.tradesCount ?? 0}</p>
+            </div>
+          ))}
         </div>
       )}
     </div>
