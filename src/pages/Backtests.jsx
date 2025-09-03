@@ -1,4 +1,4 @@
-// File: src/pages/TradingBot.jsx
+// File: src/pages/backtest.jsx
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -50,7 +50,6 @@ export default function TradingBot() {
   const [chartLoading, setChartLoading] = useState(true);
   const [chartError, setChartError] = useState(null);
   const [logs, setLogs] = useState([]);
-  const [botStatus, setBotStatus] = useState(null);
 
   // Initialize options & fetch backtests
   useEffect(() => {
@@ -58,7 +57,6 @@ export default function TradingBot() {
       fetchOptions();
       fetchBacktests();
       loadHistoryChart();
-      fetchBotHistory();
     }
   }, [user]);
 
@@ -135,49 +133,6 @@ export default function TradingBot() {
     }
   }
 
-  // Fetch live bot history
-  const fetchBotHistory = async () => {
-    if (!user?._id) return;
-    setChartLoading(true);
-    try {
-      const res = await axios.get(`${API_URL}/bots/history/${user._id}`);
-      const data = res.data.history.map(p => ({
-        time: new Date(p.timestamp).toLocaleString(),
-        balance: p.balance,
-        profit: p.profit ?? 0
-      }));
-      setBotChart(data);
-    } catch (err) {
-      console.error(err);
-      setChartError("Failed to fetch bot history");
-    } finally {
-      setChartLoading(false);
-    }
-  };
-
-  // Start/Stop bot
-  const startBot = async () => {
-    try {
-      await axios.post(`${API_URL}/bots/start`, { userId: user._id, ...form });
-      setBotStatus({ isRunning: true, ...form });
-      setLogs(prev => [...prev, `Bot started with ${form.symbol} at ${form.timeframe}`]);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to start bot");
-    }
-  };
-
-  const stopBot = async () => {
-    try {
-      await axios.post(`${API_URL}/bots/stop`, { userId: user._id });
-      setBotStatus({ isRunning: false });
-      setLogs(prev => [...prev, "Bot stopped"]);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to stop bot");
-    }
-  };
-
   const Stats = ({ m }) => {
     if (!m) return null;
     return (
@@ -243,8 +198,6 @@ export default function TradingBot() {
         </select>
         <button onClick={handleRunSingle} className="bg-blue-600 text-white px-4 py-2 rounded">{loading ? "Running..." : "Run Backtest"}</button>
         <button onClick={handleRunBatch} className="bg-green-600 text-white px-4 py-2 rounded">Run Batch Backtests</button>
-        <button onClick={startBot} className="bg-green-500 text-white px-4 py-2 rounded">Start Bot</button>
-        <button onClick={stopBot} className="bg-red-500 text-white px-4 py-2 rounded">Stop Bot</button>
       </div>
 
       {/* Latest Backtest */}
@@ -284,16 +237,18 @@ export default function TradingBot() {
         ) : <p className="text-gray-500">No chart data.</p>}
       </div>
 
-      {/* Logs */}
-      {logs.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold mb-2">Logs:</h2>
-          <ul className="list-disc list-inside">{logs.map((log, idx) => <li key={idx}>{log}</li>)}</ul>
-        </div>
-      )}
-
-      {error && <p className="text-red-500">{error}</p>}
-      {best && <p className="text-green-600">Best batch profit: ${best.results.profit.toFixed(2)}</p>}
-    </div>
-  );
-}
+ {/* Logs */}
+{logs.length > 0 && (
+  <div className="bg-gray-50 p-4 rounded-2xl shadow max-h-64 overflow-y-auto">
+    <h2 className="text-lg font-semibold mb-2">Logs</h2>
+    <ul className="space-y-1">
+      {logs.map((log, idx) => (
+        <li key={idx} className="flex items-center gap-2">
+          {/* Colored bullet or icon */}
+          <span className="inline-block w-2 h-2 rounded-full bg-blue-500"></span>
+          <span className="text-gray-700 text-sm">{log}</span>
+        </li>
+      ))}
+    </ul>
+  </div>
+)}
