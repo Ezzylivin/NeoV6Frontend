@@ -12,17 +12,18 @@ export default function Backtests() {
     balances: [100,500,1000,5000,10000],
     strategies: ["SMA","EMA","RSI","MACD","BollingerBands","Stochastic","VWAP","ATR"],
     risks: ["Low","Medium","High"],
-    takeProfits: [null, 1, 2, 3, 5, 10], // null = "None"
-    stopLosses: [null, 0.5, 1, 2, 3, 5]
+    takeProfits: [null,1,2,3,5,10],
+    stopLosses: [null,0.5,1,2,3,5]
   });
 
   const [selectedSymbol, setSelectedSymbol] = useState("BTCUSDT");
   const [selectedTimeframe, setSelectedTimeframe] = useState("1h");
   const [selectedBalance, setSelectedBalance] = useState(1000);
-  const [selectedStrategy, setSelectedStrategy] = useState("SMA");
+  const [selectedStrategy, setSelectedStrategy] = useState({ name: "SMA", parameters: {} });
   const [selectedRisk, setSelectedRisk] = useState("Medium");
   const [selectedTP, setSelectedTP] = useState(null);
   const [selectedSL, setSelectedSL] = useState(null);
+
   const [backtests, setBacktests] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -50,7 +51,7 @@ export default function Backtests() {
         symbol: selectedSymbol,
         timeframe: selectedTimeframe,
         initialBalance: selectedBalance,
-        strategy: { name: selectedStrategy, parameters: {} },
+        strategy: selectedStrategy,
         risk: selectedRisk,
         takeProfit: selectedTP,
         stopLoss: selectedSL
@@ -68,7 +69,7 @@ export default function Backtests() {
     <div>
       <h2>Backtests</h2>
 
-      {/* All selectors */}
+      {/* All Selectors */}
       <div style={{ display: "flex", gap: "15px", marginBottom: "15px", flexWrap: "wrap" }}>
         <div>
           <label>Symbol: </label>
@@ -87,13 +88,13 @@ export default function Backtests() {
         <div>
           <label>Balance: </label>
           <select value={selectedBalance} onChange={e => setSelectedBalance(Number(e.target.value))}>
-            {options.balances?.map(b => <option key={b} value={b}>{b}</option>)}
+            {options.balances?.map(b => <option key={b} value={b}>${b}</option>)}
           </select>
         </div>
 
         <div>
           <label>Strategy: </label>
-          <select value={selectedStrategy} onChange={e => setSelectedStrategy(e.target.value)}>
+          <select value={selectedStrategy.name} onChange={e => setSelectedStrategy({ name: e.target.value, parameters: {} })}>
             {options.strategies?.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
@@ -108,14 +109,14 @@ export default function Backtests() {
         <div>
           <label>Take Profit: </label>
           <select value={selectedTP ?? ""} onChange={e => setSelectedTP(e.target.value === "" ? null : Number(e.target.value))}>
-            {options.takeProfits?.map(tp => <option key={tp ?? "none"} value={tp ?? ""}>{tp === null ? "None" : tp + "%"}</option>)}
+            {options.takeProfits?.map(tp => <option key={tp ?? "none"} value={tp ?? ""}>{tp !== null ? tp+"%" : "None"}</option>)}
           </select>
         </div>
 
         <div>
           <label>Stop Loss: </label>
           <select value={selectedSL ?? ""} onChange={e => setSelectedSL(e.target.value === "" ? null : Number(e.target.value))}>
-            {options.stopLosses?.map(sl => <option key={sl ?? "none"} value={sl ?? ""}>{sl === null ? "None" : sl + "%"}</option>)}
+            {options.stopLosses?.map(sl => <option key={sl ?? "none"} value={sl ?? ""}>{sl !== null ? sl+"%" : "None"}</option>)}
           </select>
         </div>
 
@@ -126,10 +127,10 @@ export default function Backtests() {
         </div>
       </div>
 
-      {/* Backtest results */}
+      {/* Backtest Results */}
       {backtests.length > 0 && backtests.map((bt, idx) => (
         <div key={idx} style={{ marginBottom: "40px", border: "1px solid #ccc", padding: "10px" }}>
-          <h3>{bt.saved?.symbol || "N/A"} ({bt.saved?.strategy?.name || "SMA"})</h3>
+          <h3>{bt.saved?.symbol || "N/A"} ({bt.saved?.strategy?.name || selectedStrategy.name})</h3>
           <p>Net Profit: {bt.metrics?.netProfit ?? 0}</p>
           <p>Win Rate: {bt.metrics?.winRate ?? 0}%</p>
           <p>Max Drawdown: {bt.metrics?.maxDrawdown ?? 0}%</p>
