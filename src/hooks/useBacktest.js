@@ -18,7 +18,7 @@ export function useBacktest() {
   // Fetch options from backend
   const fetchOptions = async () => {
     try {
-      const resp = await axios.get(`${apiUrl}/api/backtests/options`);
+      const resp = await axios.get(`${apiUrl}/backtests/options`);
       if (resp?.data?.success && resp.data.options) {
         setOptions(prev => ({ ...prev, ...resp.data.options }));
       }
@@ -33,7 +33,7 @@ export function useBacktest() {
   const runBacktest = async ({ userId, ...params }) => {
     try {
       console.log("[Run Backtest Payload]", { userId, ...params });
-      const resp = await axios.post(`${apiUrl}/api/backtests/run`, { userId, ...params });
+      const resp = await axios.post(`${apiUrl}/backtests/run`, { userId, ...params });
       return resp.data;
     } catch (err) {
       console.error("[Run Backtest Error]", err);
@@ -44,7 +44,7 @@ export function useBacktest() {
   // Run batch backtests
   const runBatchBacktests = async (userId, combos) => {
     try {
-      const resp = await axios.post(`${apiUrl}/api/backtests/batch`, { userId, paramCombos: combos });
+      const resp = await axios.post(`${apiUrl}/backtests/batch`, { userId, paramCombos: combos });
       return resp.data;
     } catch (err) {
       console.error("[Run Batch Backtests Error]", err);
