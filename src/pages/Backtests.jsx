@@ -1,6 +1,6 @@
 // File: src/pages/Backtests.jsx
 import React, { useState, useEffect } from "react";
-import useBacktest from "../hooks/useBacktest.js";
+import { useBacktest } from "../hooks/useBacktest.js";
 
 export default function Backtests() {
   const [options, setOptions] = useState({
