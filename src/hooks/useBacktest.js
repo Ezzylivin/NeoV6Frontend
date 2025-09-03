@@ -1,3 +1,4 @@
+// File: src/hooks/useBacktest.js
 import { useState } from "react";
 import axios from "axios";
 
@@ -12,60 +13,62 @@ export function useBacktest() {
     stopLosses: [null,0.5,1,2,3,5]
   });
 
+  const apiUrl = import.meta.env.VITE_API_URL || "";
+
+  // Fetch options from backend
   const fetchOptions = async () => {
     try {
-      const resp = await axios.get(`${import.meta.env.VITE_API_URL}/backtests/options`);
-      if(resp?.data?.success && resp.data.options){
-        setOptions(prev=>({...prev,...resp.data.options}));
+      const resp = await axios.get(`${apiUrl}/api/backtests/options`);
+      if (resp?.data?.success && resp.data.options) {
+        setOptions(prev => ({ ...prev, ...resp.data.options }));
       }
       return resp.data;
-    } catch(err){
+    } catch (err) {
       console.error("[Fetch Options Error]", err);
       throw err;
     }
   };
 
+  // Run single backtest
   const runBacktest = async ({ userId, ...params }) => {
     try {
-      const payload = {
-        userId,
-        symbol: params.symbol || "BTCUSDT",
-        timeframe: params.timeframe || "1h",
-        initialBalance: Number(params.initialBalance) || 1000,
-        strategy: params.strategy || { name: "SMA", parameters:{} },
-        risk: params.risk || "Medium",
-        takeProfit: params.takeProfit ?? null,
-        stopLoss: params.stopLoss ?? null
-      };
-      console.log("[Run Backtest Payload]", payload);
-
-      const resp = await axios.post(`${import.meta.env.VITE_API_URL}/backtests/run`, payload);
+      console.log("[Run Backtest Payload]", { userId, ...params });
+      const resp = await axios.post(`${apiUrl}/api/backtests/run`, { userId, ...params });
       return resp.data;
-    } catch(err){
+    } catch (err) {
       console.error("[Run Backtest Error]", err);
       throw err;
     }
   };
 
+  // Run batch backtests
   const runBatchBacktests = async (userId, combos) => {
     try {
-      const resp = await axios.post(`${import.meta.env.VITE_API_URL}/backtests/batch`, { userId, paramCombos: combos });
+      const resp = await axios.post(`${apiUrl}/api/backtests/batch`, { userId, paramCombos: combos });
       return resp.data;
-    } catch(err){
+    } catch (err) {
       console.error("[Run Batch Backtests Error]", err);
       throw err;
     }
   };
 
+  // Generate all param combos from current selectors
   const generateParamCombos = () => {
     const combos = [];
-    for(const symbol of options.symbols){
-      for(const timeframe of options.timeframes){
-        for(const strategy of options.strategies){
-          for(const risk of options.risks){
-            for(const takeProfit of options.takeProfits){
-              for(const stopLoss of options.stopLosses){
-                combos.push({ symbol, timeframe, strategy:{name:strategy,parameters:{}}, risk, takeProfit, stopLoss });
+    for (const symbol of options.symbols) {
+      for (const timeframe of options.timeframes) {
+        for (const strategy of options.strategies) {
+          for (const risk of options.risks) {
+            for (const takeProfit of options.takeProfits) {
+              for (const stopLoss of options.stopLosses) {
+                combos.push({
+                  symbol,
+                  timeframe,
+                  strategy: { name: strategy, parameters: {} },
+                  risk,
+                  takeProfit,
+                  stopLoss
+                });
               }
             }
           }
@@ -75,11 +78,20 @@ export function useBacktest() {
     return combos;
   };
 
+  // Run batch backtests from selectors
   const runBatchFromSelectors = async (userId) => {
     const combos = generateParamCombos();
-    if(!combos.length) return { results: [], best: null };
+    if (!combos.length) return { results: [], best: null };
     return await runBatchBacktests(userId, combos);
   };
 
-  return { options, setOptions, fetchOptions, runBacktest, runBatchBacktests, generateParamCombos, runBatchFromSelectors };
+  return {
+    options,
+    setOptions,
+    fetchOptions,
+    runBacktest,
+    runBatchBacktests,
+    runBatchFromSelectors,
+    generateParamCombos
+  };
 }
