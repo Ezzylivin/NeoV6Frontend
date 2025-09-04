@@ -7,7 +7,7 @@ import {
 } from "recharts";
 
 export default function Backtests() {
-  const { fetchOptions, runBacktest } = useBacktest();
+  const { fetchOptions, runBacktest, runBatchBacktests } = useBacktest();
 
   const [options, setOptions] = useState({
     symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
@@ -49,6 +49,13 @@ export default function Backtests() {
     loadOptions();
   }, [fetchOptions]);
 
+  // --- Normalize TP/SL values ---
+  const normalizeNumber = (val) => {
+    if (val === "" || val === null || val === undefined) return null;
+    const num = Number(val);
+    return isNaN(num) ? null : num;
+  };
+
   // --- Single backtest ---
   const handleRunSingleBacktest = async () => {
     if (!selectedSymbol) return;
@@ -62,10 +69,25 @@ export default function Backtests() {
         initialBalance: selectedBalance,
         strategy: selectedStrategy,
         risk: selectedRisk,
-        takeProfit: selectedTP,
-        stopLoss: selectedSL,
+        takeProfit: normalizeNumber(selectedTP),
+        stopLoss: normalizeNumber(selectedSL),
       });
-      setBacktests([{ saved, metrics, equityCurve, trades, label: "(New)" }]);
+      setBacktests([{
+        saved,
+        metrics,
+        equityCurve,
+        trades,
+        label: "(New)",
+        params: {
+          symbol: selectedSymbol,
+          timeframe: selectedTimeframe,
+          balance: selectedBalance,
+          strategy: selectedStrategy.name,
+          risk: selectedRisk,
+          takeProfit: selectedTP,
+          stopLoss: selectedSL
+        }
+      }]);
     } catch (err) {
       console.error("Backtest failed:", err);
       setError("Backtest failed");
@@ -74,58 +96,33 @@ export default function Backtests() {
     }
   };
 
-  // --- Generate 10 random parameter combos for the batch ---
-  const generateRandomBatch = () => {
-    const batch = [];
-    const { strategies, risks, takeProfits, stopLosses } = options;
+  // --- Batch backtests (10 at a time, random strategies/risk/TP/SL) ---
+  const handleRunBatchBacktests = async () => {
+    setLoadingBatch(true);
+    setError(null);
+    setBacktests([]); // collapse previous logs
 
-    const usedCombos = new Set();
-
-    while (batch.length < 10) {
-      const strategy = strategies[Math.floor(Math.random() * strategies.length)];
-      const risk = risks[Math.floor(Math.random() * risks.length)];
-      const takeProfit = takeProfits[Math.floor(Math.random() * takeProfits.length)];
-      const stopLoss = stopLosses[Math.floor(Math.random() * stopLosses.length)];
-
-      const key = `${strategy}-${risk}-${takeProfit}-${stopLoss}`;
-      if (usedCombos.has(key)) continue; // avoid duplicates
-      usedCombos.add(key);
-
-      batch.push({
+    try {
+      const { results, usedCombos } = await runBatchBacktests({
         symbol: selectedSymbol,
         timeframe: selectedTimeframe,
         initialBalance: selectedBalance,
-        strategy: { name: strategy, parameters: {} },
-        risk,
-        takeProfit,
-        stopLoss
       });
+
+      setBacktests(results.map((r, idx) => ({
+        saved: r.saved,
+        metrics: r.metrics,
+        equityCurve: r.saved?.equityCurve || [],
+        trades: r.saved?.tradeBreakdown || [],
+        label: `(Batch #${idx + 1})`,
+        params: usedCombos[idx] // show parameters from generation
+      })));
+    } catch (err) {
+      console.error("Batch run failed:", err);
+      setError("Batch backtests failed");
+    } finally {
+      setLoadingBatch(false);
     }
-
-    return batch;
-  };
-
-  // --- Batch backtest handler ---
-  const handleRunBatchBacktests = async () => {
-    if (!selectedSymbol) return;
-    setLoadingBatch(true);
-    setError(null);
-    setBacktests([]);
-
-    const batch = generateRandomBatch();
-    const results = [];
-
-    for (const testParams of batch) {
-      try {
-        const { saved, metrics, equityCurve, trades } = await runBacktest(testParams);
-        results.push({ saved, metrics, equityCurve, trades, label: "(Batch)" });
-      } catch (err) {
-        console.error("Batch test failed for params:", testParams, err);
-      }
-    }
-
-    setBacktests(results);
-    setLoadingBatch(false);
   };
 
   return (
@@ -172,14 +169,14 @@ export default function Backtests() {
 
         <div>
           <label>Take Profit: </label>
-          <select value={selectedTP ?? ""} onChange={e => setSelectedTP(e.target.value === "" ? null : Number(e.target.value))}>
+          <select value={selectedTP ?? ""} onChange={e => setSelectedTP(normalizeNumber(e.target.value))}>
             {options.takeProfits?.map(tp => <option key={tp ?? "none"} value={tp ?? ""}>{tp !== null ? tp+"%" : "None"}</option>)}
           </select>
         </div>
 
         <div>
           <label>Stop Loss: </label>
-          <select value={selectedSL ?? ""} onChange={e => setSelectedSL(e.target.value === "" ? null : Number(e.target.value))}>
+          <select value={selectedSL ?? ""} onChange={e => setSelectedSL(normalizeNumber(e.target.value))}>
             {options.stopLosses?.map(sl => <option key={sl ?? "none"} value={sl ?? ""}>{sl !== null ? sl+"%" : "None"}</option>)}
           </select>
         </div>
@@ -191,7 +188,7 @@ export default function Backtests() {
         </div>
         <div>
           <button onClick={handleRunBatchBacktests} disabled={loadingBatch}>
-            {loadingBatch ? "Running..." : "Run Batch Backtests (10)"}
+            {loadingBatch ? "Running..." : "Run Batch Backtests"}
           </button>
         </div>
       </div>
@@ -199,7 +196,8 @@ export default function Backtests() {
       {/* Backtest Results */}
       {backtests.length > 0 && backtests.map((bt, idx) => (
         <div key={idx} style={{ marginBottom: "40px", border: "1px solid #ccc", padding: "10px" }}>
-          <h3>{bt.saved?.symbol || "N/A"} ({bt.saved?.strategy?.name || selectedStrategy.name}) {bt.label}</h3>
+          <h3>{bt.saved?.symbol || "N/A"} ({bt.saved?.strategy?.name || bt.params?.strategy?.name}) {bt.label}</h3>
+          <p><b>Parameters:</b> Strategy={bt.params?.strategy?.name || bt.params?.strategy} | Risk={bt.params?.risk} | TP={bt.params?.takeProfit ?? "None"} | SL={bt.params?.stopLoss ?? "None"}</p>
           <p>Net Profit: {bt.metrics?.netProfit ?? 0}</p>
           <p>Win Rate: {bt.metrics?.winRate ?? 0}%</p>
           <p>Max Drawdown: {bt.metrics?.maxDrawdown ?? 0}%</p>
