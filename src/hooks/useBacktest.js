@@ -21,7 +21,7 @@ export function useBacktest() {
     try {
       const resp = await axios.get(`${apiUrl}/backtests/options`);
       if (resp?.data?.success && resp.data.options) {
-        setOptions(prev => ({ ...prev, ...resp.data.options }));
+        setOptions((prev) => ({ ...prev, ...resp.data.options }));
       }
       return resp.data;
     } catch (err) {
@@ -35,27 +35,16 @@ export function useBacktest() {
       const userId = user?.id || user?._id;
       if (!userId) throw new Error("User not authenticated");
 
-      const payload = { userId, ...params, startDate: params.startDate || null, endDate: params.endDate || null };
-      const resp = await axios.post(`${apiUrl}/backtests/run`, payload);
-
-      // Ensure defaults
-      const { metrics, equityCurve, trades } = resp.data || {};
-      return {
-        saved: {
-          equityCurve: equityCurve || [],
-          tradeBreakdown: trades || [],
-          symbol: params.symbol,
-          strategy: params.strategy,
-        },
-        metrics: {
-          netProfit: metrics?.netProfit ?? 0,
-          winRate: metrics?.winRate ?? 0,
-          maxDrawdown: metrics?.maxDrawdown ?? 0,
-          tradesCount: metrics?.tradesCount ?? 0,
-        },
-        equityCurve: equityCurve || [],
-        trades: trades || [],
+      const payload = {
+        userId,
+        ...params,
+        startDate: params.startDate || null,
+        endDate: params.endDate || null,
       };
+
+      console.log("[Single Backtest Request]", payload);
+      const resp = await axios.post(`${apiUrl}/backtests/run`, payload);
+      return resp.data;
     } catch (err) {
       console.error("[Run Backtest Error]", err.response?.data || err);
       throw err;
@@ -67,27 +56,16 @@ export function useBacktest() {
       const userId = user?.id || user?._id;
       if (!userId) throw new Error("User not authenticated");
 
-      const payload = { userId, ...params, startDate: params.startDate || null, endDate: params.endDate || null };
-      const resp = await axios.post(`${apiUrl}/backtests/run-realistic`, payload);
-
-      // Ensure defaults
-      const { metrics, equityCurve, trades } = resp.data || {};
-      return {
-        saved: {
-          equityCurve: equityCurve || [],
-          tradeBreakdown: trades || [],
-          symbol: params.symbol,
-          strategy: params.strategy,
-        },
-        metrics: {
-          netProfit: metrics?.netProfit ?? 0,
-          winRate: metrics?.winRate ?? 0,
-          maxDrawdown: metrics?.maxDrawdown ?? 0,
-          tradesCount: metrics?.tradesCount ?? 0,
-        },
-        equityCurve: equityCurve || [],
-        trades: trades || [],
+      const payload = {
+        userId,
+        ...params,
+        startDate: params.startDate || null,
+        endDate: params.endDate || null,
       };
+
+      console.log("[Realistic Backtest Request]", payload);
+      const resp = await axios.post(`${apiUrl}/backtests/run-realistic`, payload);
+      return resp.data;
     } catch (err) {
       console.error("[Run Realistic Backtest Error]", err.response?.data || err);
       throw err;
@@ -124,52 +102,63 @@ export function useBacktest() {
     return allCombos.slice(0, count);
   };
 
+  /**
+   * Run batch backtests with live progress updates
+   * @param {object} baseParams - base parameters for batch
+   * @param {function} onProgress - callback for live updates
+   */
   const runBatchBacktests = async (baseParams, onProgress) => {
     try {
       const userId = user?.id || user?._id;
       if (!userId) throw new Error("User not authenticated");
 
       const combos = generateUniqueCombos(baseParams, 10);
+      console.log("[Batch Backtest Combos]", combos);
+
       const results = [];
       let best = null;
 
       for (let idx = 0; idx < combos.length; idx++) {
         const combo = combos[idx];
         const resp = await axios.post(`${apiUrl}/backtests/run`, { userId, ...combo });
-        const { metrics, equityCurve, trades } = resp?.data || {};
 
-        const saved = {
-          equityCurve: equityCurve || [],
-          tradeBreakdown: trades || [],
-          symbol: combo.symbol,
-          strategy: combo.strategy,
-        };
+        if (resp?.data) {
+          const { metrics, equityCurve, trades } = resp.data;
 
-        const resultObj = {
-          saved,
-          metrics: {
-            netProfit: metrics?.netProfit ?? 0,
-            winRate: metrics?.winRate ?? 0,
-            maxDrawdown: metrics?.maxDrawdown ?? 0,
-            tradesCount: metrics?.tradesCount ?? 0,
-          },
-          equityCurve: equityCurve || [],
-          trades: trades || [],
-        };
+          const saved = {
+            equityCurve: equityCurve || [],
+            tradeBreakdown: trades || [],
+            symbol: combo.symbol,
+            strategy: combo.strategy,
+          };
 
-        results.push(resultObj);
+          const resultObj = {
+            saved,
+            metrics: {
+              netProfit: metrics?.netProfit ?? 0,
+              winRate: metrics?.winRate ?? 0,
+              maxDrawdown: metrics?.maxDrawdown ?? 0,
+              tradesCount: metrics?.tradesCount ?? 0,
+            },
+            equityCurve: saved.equityCurve,
+            trades: saved.tradeBreakdown,
+          };
 
-        if (!best || (metrics?.netProfit ?? -Infinity) > (best?.metrics?.netProfit ?? -Infinity)) {
-          best = resultObj;
-        }
+          results.push(resultObj);
 
-        if (typeof onProgress === "function") {
-          onProgress({
-            idx: idx + 1,
-            total: combos.length,
-            currentResult: resultObj,
-            resultsSoFar: [...results],
-          });
+          if (!best || (metrics?.netProfit ?? -Infinity) > (best?.metrics?.netProfit ?? -Infinity)) {
+            best = resultObj;
+          }
+
+          // 🔹 Live progress callback
+          if (typeof onProgress === "function") {
+            onProgress({
+              idx: idx + 1,
+              total: combos.length,
+              currentResult: resultObj,
+              resultsSoFar: [...results],
+            });
+          }
         }
       }
 
