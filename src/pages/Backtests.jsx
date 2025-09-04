@@ -76,7 +76,7 @@ export default function Backtests() {
       });
 
       setBacktests([{
-        saved,
+        saved: saved || { equityCurve: equityCurve||[], tradeBreakdown: trades||[], symbol: selectedSymbol, strategy: selectedStrategy },
         metrics: {
           netProfit: metrics?.netProfit ?? 0,
           winRate: metrics?.winRate ?? 0,
@@ -107,14 +107,10 @@ export default function Backtests() {
         initialBalance: selectedBalance
       });
 
+      // Map results so each has saved, equityCurve, trades like single backtest
       setBacktests(results.map((r, idx) => ({
-        saved: r.saved || {},
-        metrics: {
-          netProfit: r.metrics?.netProfit ?? 0,
-          winRate: r.metrics?.winRate ?? 0,
-          maxDrawdown: r.metrics?.maxDrawdown ?? 0,
-          tradesCount: r.metrics?.tradesCount ?? 0
-        },
+        saved: r.saved || { equityCurve: r.equityCurve || [], tradeBreakdown: r.trades || [], symbol: usedCombos[idx]?.symbol, strategy: usedCombos[idx]?.strategy },
+        metrics: r.metrics,
         equityCurve: r.equityCurve || r.saved?.equityCurve || [],
         trades: r.trades || r.saved?.tradeBreakdown || [],
         label: `(Batch #${idx + 1})`,
@@ -127,14 +123,6 @@ export default function Backtests() {
       setLoadingBatch(false);
     }
   };
-
-  // Combined batch equity chart data
-  const combinedBatchEquity = backtests.length > 1
-    ? backtests.map((bt, idx) => ({
-        name: `(Batch #${idx + 1})`,
-        data: bt.equityCurve.map(point => ({ time: point.time, equity: point.equity }))
-      }))
-    : [];
 
   return (
     <div>
@@ -154,33 +142,6 @@ export default function Backtests() {
         <div><button onClick={handleRunBatchBacktests} disabled={loadingBatch}>{loadingBatch?"Running...":"Run Batch Backtests"}</button></div>
         <div><button onClick={()=>setViewMode(viewMode==="chart"?"table":"chart")}>Switch to {viewMode==="chart"?"Table":"Charts"}</button></div>
       </div>
-
-      {/* Combined batch equity chart */}
-      {combinedBatchEquity.length > 0 && viewMode === "chart" && (
-        <>
-          <h4>Combined Batch Equity Curves</h4>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart>
-              <CartesianGrid strokeDasharray="3 3"/>
-              <XAxis dataKey="time" tickFormatter={formatTimestamp}/>
-              <YAxis/>
-              <Tooltip labelFormatter={formatTimestamp}/>
-              <Legend/>
-              {combinedBatchEquity.map((batch, i) => (
-                <Line
-                  key={i}
-                  type="monotone"
-                  data={batch.data}
-                  dataKey="equity"
-                  name={batch.name}
-                  stroke={`hsl(${(i*60)%360},70%,50%)`}
-                  dot={false}
-                />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        </>
-      )}
 
       {/* Backtest Results */}
       {backtests.map((bt, idx)=>( 
@@ -232,8 +193,13 @@ export default function Backtests() {
                   </ResponsiveContainer>
                 </>
               ) : (
-                <table style={{width:"100%",borderCollapse:"collapse"}}>
-                  <thead><tr><th>Exit Time</th><th>Profit</th></tr></thead>
+                <table style={{width:"100%",borderCollapse:"collapse", color:"#000"}}>
+                  <thead>
+                    <tr>
+                      <th>Exit Time</th>
+                      <th>Profit</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {bt.trades.map((t,i)=>(
                       <tr key={i} style={{background:t.profit>=0?"#e8f5e9":"#ffebee"}}>
