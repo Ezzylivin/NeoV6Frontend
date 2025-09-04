@@ -32,14 +32,13 @@ export default function Backtests() {
   const [loadingBatch, setLoadingBatch] = useState(false);
   const [error, setError] = useState(null);
 
-  // Fetch options from backend on mount
+  // Fetch options on mount
   useEffect(() => {
     async function loadOptions() {
       try {
         const resp = await fetchOptions();
         if (resp?.success && resp?.options) {
           setOptions(prev => ({ ...prev, ...resp.options }));
-          // Only set default if no symbol is currently selected
           if (!selectedSymbol) setSelectedSymbol(resp.options.symbols?.[0] || "BTCUSDT");
         }
       } catch (err) {
@@ -48,7 +47,7 @@ export default function Backtests() {
       }
     }
     loadOptions();
-  }, [fetchOptions]); // Removed selectedSymbol to avoid resets
+  }, [fetchOptions]);
 
   // --- Single backtest ---
   const handleRunSingleBacktest = async () => {
@@ -66,7 +65,7 @@ export default function Backtests() {
         takeProfit: selectedTP,
         stopLoss: selectedSL,
       });
-      setBacktests([{ saved, metrics, equityCurve, trades }]);
+      setBacktests([{ saved, metrics, equityCurve, trades, label: "(New)" }]);
     } catch (err) {
       console.error("Backtest failed:", err);
       setError("Backtest failed");
@@ -75,7 +74,7 @@ export default function Backtests() {
     }
   };
 
-  // --- Generate param combos (only for selected symbol) ---
+  // --- Generate param combos (deep copy to ensure unique objects) ---
   const generateParamCombos = () => {
     const combos = [];
     const symbols = selectedSymbol ? [selectedSymbol] : options.symbols;
@@ -88,10 +87,10 @@ export default function Backtests() {
                 combos.push({
                   symbol,
                   timeframe,
-                  strategy: { name: strategy, parameters: {} },
+                  strategy: { name: strategy, parameters: { ...selectedStrategy.parameters } },
                   risk,
                   takeProfit,
-                  stopLoss,
+                  stopLoss
                 });
               }
             }
@@ -102,7 +101,7 @@ export default function Backtests() {
     return combos;
   };
 
-  // --- Batch backtests with live updates (10 at a time) ---
+  // --- Batch backtests (10 at a time) ---
   const handleRunBatchBacktests = async () => {
     setLoadingBatch(true);
     setError(null);
@@ -118,20 +117,20 @@ export default function Backtests() {
     let best = null;
 
     for (let i = 0; i < combos.length; i += chunkSize) {
-      const chunk = combos.slice(i, i + chunkSize);
+      const chunk = combos.slice(i, i + chunkSize).map(c => ({ ...c })); // ensure fresh objects
       try {
         const { results, best: chunkBest } = await runBatchBacktests(chunk);
-        // Add chunk results to top
+        // prepend new results
         setBacktests(prev => [
           ...results.map(r => ({
             saved: r.saved,
             metrics: r.metrics,
             equityCurve: r.saved?.equityCurve || [],
             trades: r.saved?.tradeBreakdown || [],
+            label: "(New)"
           })),
           ...prev
         ]);
-
         if (!best || (chunkBest?.metrics?.netProfit ?? -Infinity) > (best?.metrics?.netProfit ?? -Infinity)) {
           best = chunkBest;
         }
@@ -215,7 +214,7 @@ export default function Backtests() {
       {/* Backtest Results */}
       {backtests.length > 0 && backtests.map((bt, idx) => (
         <div key={idx} style={{ marginBottom: "40px", border: "1px solid #ccc", padding: "10px" }}>
-          <h3>{bt.saved?.symbol || "N/A"} ({bt.saved?.strategy?.name || selectedStrategy.name})</h3>
+          <h3>{bt.saved?.symbol || "N/A"} ({bt.saved?.strategy?.name || selectedStrategy.name}) {bt.label}</h3>
           <p>Net Profit: {bt.metrics?.netProfit ?? 0}</p>
           <p>Win Rate: {bt.metrics?.winRate ?? 0}%</p>
           <p>Max Drawdown: {bt.metrics?.maxDrawdown ?? 0}%</p>
