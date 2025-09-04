@@ -32,7 +32,7 @@ export default function Backtests() {
   const [loadingBatch, setLoadingBatch] = useState(false);
   const [error, setError] = useState(null);
   const [collapsedLogs, setCollapsedLogs] = useState({});
-  const [viewMode, setViewMode] = useState("chart"); // "chart" or "table"
+  const [viewMode, setViewMode] = useState("chart");
 
   useEffect(() => {
     async function loadOptions() {
@@ -56,11 +56,9 @@ export default function Backtests() {
     return isNaN(num) ? null : num;
   };
 
-  const formatTimestamp = (ts) => ts ? new Date(ts).toLocaleString() : "";
+  const formatTimestamp = ts => ts ? new Date(ts).toLocaleString() : "";
 
-  const toggleLog = (idx) => {
-    setCollapsedLogs(prev => ({ ...prev, [idx]: !prev[idx] }));
-  };
+  const toggleLog = idx => setCollapsedLogs(prev => ({ ...prev, [idx]: !prev[idx] }));
 
   const handleRunSingleBacktest = async () => {
     if (!selectedSymbol) return;
@@ -121,7 +119,7 @@ export default function Backtests() {
         equityCurve: r.saved?.equityCurve || [],
         trades: r.saved?.tradeBreakdown || [],
         label: `(Batch #${idx + 1})`,
-        params: usedCombos[idx]
+        params: usedCombos[idx] || {},
       })));
     } catch (err) {
       console.error("Batch run failed:", err);
@@ -154,7 +152,9 @@ export default function Backtests() {
       {backtests.map((bt, idx)=>(
         <div key={idx} style={{marginBottom:"40px",border:"1px solid #ccc",padding:"10px"}}>
           <h3 style={{cursor:"pointer"}} onClick={()=>toggleLog(idx)}>
-            {bt.saved?.symbol || "N/A"} ({bt.saved?.strategy?.name || bt.params?.strategy?.name}) {bt.label} {collapsedLogs[idx] ? "[+]" : "[-]"}
+            {bt.saved?.symbol || bt.params?.symbol || "N/A"} 
+            ({bt.saved?.strategy?.name || bt.params?.strategy?.name || bt.params?.strategy}) 
+            {bt.label} {collapsedLogs[idx] ? "[+]" : "[-]"}
           </h3>
 
           {!collapsedLogs[idx] && (
