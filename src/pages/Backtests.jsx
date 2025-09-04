@@ -27,7 +27,6 @@ export default function Backtests() {
   const [selectedTP, setSelectedTP] = useState(null);
   const [selectedSL, setSelectedSL] = useState(null);
 
-  // NEW: date range
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
@@ -107,17 +106,28 @@ export default function Backtests() {
     setError(null);
     setBacktests([]);
     try {
-      await runBatchBacktests({
+      const { results, usedCombos } = await runBatchBacktests({
         symbol: selectedSymbol,
         timeframe: selectedTimeframe,
         initialBalance: selectedBalance,
         startDate: startDate || null,
         endDate: endDate || null
-      }, (progress) => {
-        // Live update for each combo
-        const { idx, total, currentResult, resultsSoFar } = progress;
-        setBacktests([...resultsSoFar]);
       });
+
+      const mapped = results.map((r, idx) => ({
+        saved: r.saved,
+        metrics: {
+          netProfit: r.metrics?.netProfit ?? 0,
+          winRate: r.metrics?.winRate ?? 0,
+          maxDrawdown: r.metrics?.maxDrawdown ?? 0,
+          tradesCount: r.metrics?.tradesCount ?? 0
+        },
+        equityCurve: r.equityCurve || r.saved?.equityCurve || [],
+        trades: r.trades || r.saved?.tradeBreakdown || [],
+        label: `(Batch #${idx + 1})`,
+        params: { ...usedCombos[idx], startDate, endDate }
+      }));
+      setBacktests(mapped);
     } catch (err) {
       console.error("Batch run failed:", err);
       setError("Batch backtests failed");
@@ -133,7 +143,17 @@ export default function Backtests() {
 
       {/* Controls */}
       <div style={{ display:"flex", gap:"15px", flexWrap:"wrap", marginBottom:"15px" }}>
-        {/* ... your existing controls ... */}
+        <div><label>Symbol: </label><select value={selectedSymbol} onChange={e=>setSelectedSymbol(e.target.value)}>{options.symbols?.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+        <div><label>Timeframe: </label><select value={selectedTimeframe} onChange={e=>setSelectedTimeframe(e.target.value)}>{options.timeframes?.map(t=><option key={t} value={t}>{t}</option>)}</select></div>
+        <div><label>Balance: </label><select value={selectedBalance} onChange={e=>setSelectedBalance(Number(e.target.value))}>{options.balances?.map(b=><option key={b} value={b}>${b}</option>)}</select></div>
+        <div><label>Strategy: </label><select value={selectedStrategy.name} onChange={e=>setSelectedStrategy({name:e.target.value, parameters:{}})}>{options.strategies?.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+        <div><label>Risk: </label><select value={selectedRisk} onChange={e=>setSelectedRisk(e.target.value)}>{options.risks?.map(r=><option key={r} value={r}>{r}</option>)}</select></div>
+        <div><label>Take Profit: </label><select value={selectedTP??""} onChange={e=>setSelectedTP(normalizeNumber(e.target.value))}>{options.takeProfits?.map(tp=><option key={tp??"none"} value={tp??""}>{tp!==null?tp+"%":"None"}</option>)}</select></div>
+        <div><label>Stop Loss: </label><select value={selectedSL??""} onChange={e=>setSelectedSL(normalizeNumber(e.target.value))}>{options.stopLosses?.map(sl=><option key={sl??"none"} value={sl??""}>{sl!==null?sl+"%":"None"}</option>)}</select></div>
+
+        <div><label>Start Date: </label><input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)}/></div>
+        <div><label>End Date: </label><input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)}/></div>
+
         <div><button onClick={handleRunSingleBacktest} disabled={loadingSingle}>{loadingSingle?"Running...":"Run Single Backtest"}</button></div>
         <div><button onClick={handleRunBatchBacktests} disabled={loadingBatch}>{loadingBatch?"Running...":"Run Batch Backtests"}</button></div>
         <div><button onClick={()=>setViewMode(viewMode==="chart"?"table":"chart")}>Switch to {viewMode==="chart"?"Table":"Charts"}</button></div>
@@ -150,7 +170,6 @@ export default function Backtests() {
 
           {!collapsedLogs[idx] && (
             <>
-              {/* Metrics */}
               <div style={{display:"flex",gap:"10px",flexWrap:"wrap",marginBottom:"10px"}}>
                 <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:bt.metrics.netProfit>=0?"#4caf50":"#f44336"}}><b>Net Profit:</b> {bt.metrics.netProfit}</div>
                 <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Win Rate:</b> {bt.metrics.winRate}%</div>
@@ -166,9 +185,9 @@ export default function Backtests() {
                   <ResponsiveContainer width="100%" height={250}>
                     <LineChart data={bt.equityCurve}>
                       <CartesianGrid strokeDasharray="3 3"/>
-                      <XAxis dataKey="time" tickFormatter={ts => ts ? new Date(ts).toLocaleTimeString() : ""}/>
+                      <XAxis dataKey="time" tickFormatter={formatTimestamp}/>
                       <YAxis/>
-                      <Tooltip labelFormatter={ts => ts ? new Date(ts).toLocaleString() : ""}/>
+                      <Tooltip labelFormatter={formatTimestamp}/>
                       <Legend/>
                       <Line type="monotone" dataKey="equity" stroke="#8884d8" dot={false}/>
                     </LineChart>
@@ -178,9 +197,9 @@ export default function Backtests() {
                   <ResponsiveContainer width="100%" height={250}>
                     <BarChart data={bt.trades}>
                       <CartesianGrid strokeDasharray="3 3"/>
-                      <XAxis dataKey="exitTime" tickFormatter={ts => ts ? new Date(ts).toLocaleTimeString() : ""}/>
+                      <XAxis dataKey="exitTime" tickFormatter={formatTimestamp}/>
                       <YAxis/>
-                      <Tooltip labelFormatter={ts => ts ? new Date(ts).toLocaleString() : ""}/>
+                      <Tooltip labelFormatter={formatTimestamp}/>
                       <Legend/>
                       <Bar dataKey="profit">
                         {bt.trades.map((t,i)=><Cell key={i} fill={t.profit>=0?"#4caf50":"#f44336"}/>)}
@@ -194,7 +213,7 @@ export default function Backtests() {
                   <tbody>
                     {bt.trades.map((t,i)=>(
                       <tr key={i} style={{background:t.profit>=0?"#e8f5e9":"#ffebee"}}>
-                        <td style={{border:"1px solid #ccc",padding:"5px",color:"#333"}}>{t.exitTime ? new Date(t.exitTime).toLocaleString() : ""}</td>
+                        <td style={{border:"1px solid #ccc",padding:"5px",color:"#333"}}>{formatTimestamp(t.exitTime)}</td>
                         <td style={{border:"1px solid #ccc",padding:"5px",color:t.profit>=0?"#4caf50":"#f44336"}}>{t.profit}</td>
                       </tr>
                     ))}
