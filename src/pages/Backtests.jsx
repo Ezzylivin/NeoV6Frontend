@@ -119,14 +119,18 @@ export default function Backtests() {
         },
         ({ idx, total, currentResult, resultsSoFar }) => {
           setBatchProgress({ current: idx, total });
-          setBacktests(resultsSoFar.map((r, i) => ({
-            saved: r.saved,
-            metrics: r.metrics,
-            equityCurve: r.equityCurve || [],
-            trades: r.trades || [],
-            label: `(Batch #${i+1})`,
-            params: { ...usedCombos[i], startDate, endDate }
-          })));
+
+          setBacktests(resultsSoFar.map((r, i) => {
+            const comboParams = usedCombos[i] || {};
+            return {
+              saved: r.saved,
+              metrics: r.metrics,
+              equityCurve: r.equityCurve || [],
+              trades: r.trades || [],
+              label: `(Batch #${i+1})`,
+              params: { ...comboParams, startDate, endDate }
+            };
+          }));
         }
       );
 
@@ -175,7 +179,7 @@ export default function Backtests() {
       )}
 
       {/* Backtest Results */}
-      {backtests.map((bt, idx)=>( 
+      {backtests.map((bt, idx)=>(
         <div key={idx} style={{marginBottom:"40px",border:"1px solid #ccc",padding:"10px"}}>
           <h3 style={{cursor:"pointer"}} onClick={()=>toggleLog(idx)}>
             {bt.saved?.symbol || bt.params?.symbol || "N/A"} 
@@ -199,7 +203,7 @@ export default function Backtests() {
                 <>
                   <h4>Equity Curve</h4>
                   <ResponsiveContainer width="100%" height={250}>
-                    <LineChart data={bt.equityCurve || []}>
+                    <LineChart data={bt.equityCurve}>
                       <CartesianGrid strokeDasharray="3 3"/>
                       <XAxis dataKey="time" tickFormatter={formatTimestamp}/>
                       <YAxis/>
@@ -211,14 +215,14 @@ export default function Backtests() {
 
                   <h4>Trades P/L</h4>
                   <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={bt.trades || []}>
+                    <BarChart data={bt.trades}>
                       <CartesianGrid strokeDasharray="3 3"/>
                       <XAxis dataKey="exitTime" tickFormatter={formatTimestamp}/>
                       <YAxis/>
                       <Tooltip labelFormatter={formatTimestamp}/>
                       <Legend/>
                       <Bar dataKey="profit">
-                        {(bt.trades || []).map((trade,i)=><Cell key={i} fill={trade.profit>=0?"#4caf50":"#f44336"}/>)}
+                        {bt.trades.map((t,i)=><Cell key={i} fill={t.profit>=0?"#4caf50":"#f44336"}/>)}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
@@ -227,12 +231,7 @@ export default function Backtests() {
                 <table style={{width:"100%",borderCollapse:"collapse"}}>
                   <thead><tr><th>Exit Time</th><th>Profit</th></tr></thead>
                   <tbody>
-                    {(bt.trades || []).map((trade,i)=>(
-                      <tr key={i} style={{background:(trade.profit>=0?"#e8f5e9":"#ffebee")}}>
-                        <td style={{border:"1px solid #ccc",padding:"5px",color:"#333"}}>{formatTimestamp(trade.exitTime)}</td>
-                        <td style={{border:"1px solid #ccc",padding:"5px",color:trade.profit>=0?"#4caf50":"#f44336"}}>{trade.profit ?? 0}</td>
-                      </tr>
-                    ))}
+                    {bt.trades.map((t,i)=>(<tr key={i} style={{background:t.profit>=0?"#e8f5e9":"#ffebee"}}><td style={{border:"1px solid #ccc",padding:"5px",color:"#333"}}>{formatTimestamp(t.exitTime)}</td><td style={{border:"1px solid #ccc",padding:"5px",color:t.profit>=0?"#4caf50":"#f44336"}}>{t.profit}</td></tr>))}
                   </tbody>
                 </table>
               )}
