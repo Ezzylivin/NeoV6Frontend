@@ -1,66 +1,217 @@
-// File: backend/dbStructure/backtest.js
-import mongoose from "mongoose";
-const { Schema, model } = mongoose;
+// File: src/pages/Backtests.jsx
+import React, { useState, useEffect } from "react";
+import { useBacktest } from "../hooks/useBacktest.js";
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  BarChart, Bar
+} from "recharts";
 
-const tradeResultSchema = new Schema(
-  {
-    entryTime: Date,
-    exitTime: Date,
-    entryPrice: Number,
-    exitPrice: Number,
-    position: { type: String, enum: ["long", "short"] },
-    profit: { type: Number, default: 0 },
-    duration: Number,
-    result: { type: String, enum: ["win", "loss", "breakeven"] },
-  },
-  { _id: false }
-);
+export default function Backtests() {
+  const { fetchOptions, runBacktest, runBatchBacktests } = useBacktest();
 
-const strategyConfigSchema = new Schema(
-  {
-    name: { type: String, required: true, default: "SMA" },
-    parameters: { type: Schema.Types.Mixed },
-  },
-  { _id: false }
-);
+  const [options, setOptions] = useState({
+    symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
+    timeframes: ["1m","5m","15m","30m","1h","4h","1d"],
+    balances: [100,500,1000,5000,10000],
+    strategies: ["SMA","EMA","RSI","MACD","BollingerBands","Stochastic","VWAP","ATR"],
+    risks: ["Low","Medium","High"],
+    takeProfits: [null,1,2,3,5,10],
+    stopLosses: [null,0.5,1,2,3,5]
+  });
 
-const backtestSchema = new Schema(
-  {
-    userId: { type: Schema.Types.ObjectId, ref: "user", required: true, index: true },
-    symbol: { type: String, required: true, trim: true },           // ✅ store symbol
-    timeframe: { type: String, required: true, trim: true, uppercase: true },
-    initialBalance: { type: Number, required: true, min: [0, "Initial balance must be positive"] },
-    finalBalance: { type: Number, min: [0, "Final balance must be positive"], default: 0 },
-    profit: { type: Number, default: 0 },
-    totalTrades: { type: Number, min: [0, "Total trades cannot be negative"], default: 0 },
-    candlesTested: { type: Number, required: true, min: [1, "At least one candle must be tested"] },
-    strategy: strategyConfigSchema,
-    tradeBreakdown: [tradeResultSchema],
-    metrics: { type: Schema.Types.Mixed }, // keep full metrics snapshot
+  const [selectedSymbol, setSelectedSymbol] = useState("");
+  const [selectedTimeframe, setSelectedTimeframe] = useState("1h");
+  const [selectedBalance, setSelectedBalance] = useState(1000);
+  const [selectedStrategy, setSelectedStrategy] = useState({ name: "SMA", parameters: {} });
+  const [selectedRisk, setSelectedRisk] = useState("Medium");
+  const [selectedTP, setSelectedTP] = useState(null);
+  const [selectedSL, setSelectedSL] = useState(null);
 
-    // ✅ Persisted risk/TP/SL so you can review later and ensure they were applied
-    risk: { type: String, enum: ["Low", "Medium", "High"], default: "Medium" },
-    takeProfit: { type: Number, default: null }, // percent (nullable)
-    stopLoss: { type: Number, default: null },   // percent (nullable)
-  },
-  { timestamps: true }
-);
+  const [backtests, setBacktests] = useState([]);
+  const [loadingSingle, setLoadingSingle] = useState(false);
+  const [loadingBatch, setLoadingBatch] = useState(false);
+  const [error, setError] = useState(null);
 
-backtestSchema.pre("save", function (next) {
-  if (Array.isArray(this.tradeBreakdown)) {
-    const totalProfit = this.tradeBreakdown.reduce((sum, trade) => sum + (trade.profit || 0), 0);
-    this.totalTrades = this.tradeBreakdown.length;
-    if (!isNaN(totalProfit)) {
-      this.profit = totalProfit;
-      this.finalBalance = this.initialBalance + totalProfit;
+  // Fetch options on mount
+  useEffect(() => {
+    async function loadOptions() {
+      try {
+        const resp = await fetchOptions();
+        if (resp?.success && resp?.options) {
+          setOptions(prev => ({ ...prev, ...resp.options }));
+          if (!selectedSymbol) setSelectedSymbol(resp.options.symbols?.[0] || "BTCUSDT");
+        }
+      } catch (err) {
+        console.error("Failed to fetch options:", err);
+        setError("Could not load backtest options");
+      }
     }
-  }
+    loadOptions();
+  }, [fetchOptions]);
 
-  // Sanitize NaNs
-  if (isNaN(this.profit)) this.profit = 0;
-  if (isNaN(this.finalBalance)) this.finalBalance = this.initialBalance;
+  // --- Single backtest ---
+  const handleRunSingleBacktest = async () => {
+    if (!selectedSymbol) return;
+    setLoadingSingle(true);
+    setError(null);
+    setBacktests([]);
+    try {
+      const { saved, metrics, equityCurve, trades } = await runBacktest({
+        symbol: selectedSymbol,
+        timeframe: selectedTimeframe,
+        initialBalance: selectedBalance,
+        strategy: selectedStrategy,
+        risk: selectedRisk,
+        takeProfit: selectedTP,
+        stopLoss: selectedSL,
+      });
+      setBacktests([{ saved, metrics, equityCurve, trades, label: "(New)" }]);
+    } catch (err) {
+      console.error("Backtest failed:", err);
+      setError("Backtest failed");
+    } finally {
+      setLoadingSingle(false);
+    }
+  };
 
-  next();
-});
+  // --- Generate param combos for batch backtests ---
+  const generateParamCombos = () => {
+    const combos = [];
+    const symbols = selectedSymbol ? [selectedSymbol] : options.symbols;
+    const strategies = [...options.strategies];
+    const risks = [...options.risks];
+    const takeProfits = [...options.takeProfits];
+    const stopLosses = [...options.stopLosses];
 
-export default model("backtest", backtestSchema);
+    for (const symbol of symbols) {
+      for (let i = 0; i < 10; i++) { // 10 backtests per batch
+        combos.push({
+          symbol,
+          timeframe: selectedTimeframe,
+          strategy: { name: strategies[i % strategies.length], parameters: { ...selectedStrategy.parameters } },
+          risk: risks[i % risks.length],
+          takeProfit: takeProfits[i % takeProfits.length],
+          stopLoss: stopLosses[i % stopLosses.length],
+          initialBalance: selectedBalance
+        });
+      }
+    }
+    return combos;
+  };
+
+  // --- Batch backtests (10 at a time) ---
+  const handleRunBatchBacktests = async () => {
+    setLoadingBatch(true);
+    setError(null);
+    setBacktests([]);
+
+    const combos = generateParamCombos();
+    if (!combos.length) {
+      setLoadingBatch(false);
+      return;
+    }
+
+    try {
+      const { results, best } = await runBatchBacktests(combos);
+      setBacktests(results.map(r => ({
+        saved: r.saved,
+        metrics: r.metrics,
+        equityCurve: r.saved?.equityCurve || [],
+        trades: r.saved?.tradeBreakdown || [],
+        label: "(Batch)"
+      })));
+      console.log("Best batch result:", best);
+    } catch (err) {
+      console.error("Batch backtest failed:", err);
+    } finally {
+      setLoadingBatch(false);
+    }
+  };
+
+  // --- Aggregate chart helper ---
+  const aggregateEquityCurves = (backtests) => {
+    const allTimestamps = new Set();
+    backtests.forEach(bt => bt.equityCurve.forEach(point => allTimestamps.add(point.time)));
+    const timestamps = Array.from(allTimestamps).sort((a,b) => new Date(a) - new Date(b));
+    return timestamps.map(ts => {
+      let totalEquity = 0;
+      let count = 0;
+      backtests.forEach(bt => {
+        const point = bt.equityCurve.find(p => p.time === ts);
+        if(point) {
+          totalEquity += point.equity;
+          count++;
+        }
+      });
+      return { time: ts, avgEquity: count ? totalEquity / count : 0 };
+    });
+  };
+
+  return (
+    <div>
+      <h2>Backtests</h2>
+      {error && <p style={{ color: "red" }}>{error}</p>}
+
+      {/* Selectors */}
+      <div style={{ display: "flex", gap: "15px", marginBottom: "15px", flexWrap: "wrap" }}>
+        {/* ... all selector code remains unchanged ... */}
+        <div>
+          <button onClick={handleRunSingleBacktest} disabled={loadingSingle}>
+            {loadingSingle ? "Running..." : "Run Single Backtest"}
+          </button>
+        </div>
+        <div>
+          <button onClick={handleRunBatchBacktests} disabled={loadingBatch}>
+            {loadingBatch ? "Running..." : "Run Batch Backtests"}
+          </button>
+        </div>
+      </div>
+
+      {/* --- Overall Performance Chart --- */}
+      {backtests.length > 1 && (
+        <div style={{ marginBottom: "50px", border: "2px solid #888", padding: "15px", borderRadius: "10px" }}>
+          <h3>Overall Performance (Average Equity)</h3>
+          <LineChart width={800} height={300} data={aggregateEquityCurves(backtests)}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="time" />
+            <YAxis />
+            <Tooltip />
+            <Legend />
+            <Line type="monotone" dataKey="avgEquity" stroke="#ff7300" dot={false} />
+          </LineChart>
+        </div>
+      )}
+
+      {/* Backtest Results */}
+      {backtests.length > 0 && backtests.map((bt, idx) => (
+        <div key={idx} style={{ marginBottom: "40px", border: "1px solid #ccc", padding: "10px" }}>
+          <h3>{bt.saved?.symbol || "N/A"} ({bt.saved?.strategy?.name || selectedStrategy.name}) {bt.label}</h3>
+          <p>Net Profit: {bt.metrics?.netProfit ?? 0}</p>
+          <p>Win Rate: {bt.metrics?.winRate ?? 0}%</p>
+          <p>Max Drawdown: {bt.metrics?.maxDrawdown ?? 0}%</p>
+          <p>Trades: {bt.metrics?.tradesCount ?? 0}</p>
+
+          <h4>Equity Curve</h4>
+          <LineChart width={700} height={250} data={bt.equityCurve}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="time" />
+            <YAxis />
+            <Tooltip />
+            <Legend />
+            <Line type="monotone" dataKey="equity" stroke="#8884d8" dot={false} />
+          </LineChart>
+
+          <h4>Trades P/L</h4>
+          <BarChart width={700} height={250} data={bt.trades}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="exitTime" />
+            <YAxis />
+            <Tooltip />
+            <Legend />
+            <Bar dataKey="profit" fill="#82ca9d" />
+          </BarChart>
+        </div>
+      ))}
+    </div>
+  );
+}
