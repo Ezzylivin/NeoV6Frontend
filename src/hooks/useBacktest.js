@@ -3,7 +3,7 @@ import axios from "axios";
 import { useAuth } from "../context/AuthContext.jsx";
 
 export function useBacktest() {
-  const { user } = useAuth(); // ✅ get logged-in user
+  const { user } = useAuth();
   const [options, setOptions] = useState({
     symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
     timeframes: ["1m", "5m", "15m", "30m", "1h", "4h", "1d"],
@@ -16,7 +16,6 @@ export function useBacktest() {
 
   const apiUrl = import.meta.env.VITE_API_URL || "";
 
-  // Fetch options from backend
   const fetchOptions = async () => {
     try {
       const resp = await axios.get(`${apiUrl}/backtests/options`);
@@ -30,15 +29,12 @@ export function useBacktest() {
     }
   };
 
-  // Run single backtest
   const runBacktest = async (params) => {
     try {
       const userId = user?.id || user?._id;
       if (!userId) throw new Error("User not authenticated");
 
       const payload = { userId, ...params };
-      console.log("[Run Backtest Payload]", payload);
-
       const resp = await axios.post(`${apiUrl}/backtests/run`, payload);
       return resp.data;
     } catch (err) {
@@ -47,15 +43,12 @@ export function useBacktest() {
     }
   };
 
-  // Run realistic backtest using live OHLCV
   const runRealisticBacktest = async (params) => {
     try {
       const userId = user?.id || user?._id;
       if (!userId) throw new Error("User not authenticated");
 
       const payload = { userId, ...params };
-      console.log("[Run Realistic Backtest Payload]", payload);
-
       const resp = await axios.post(`${apiUrl}/backtests/run-realistic`, payload);
       return resp.data;
     } catch (err) {
@@ -64,24 +57,34 @@ export function useBacktest() {
     }
   };
 
-  // Run batch backtests
-  const runBatchBacktests = async (combos) => {
+  // --- Chunked batch backtests ---
+  const runBatchBacktests = async (combos, chunkSize = 50) => {
     try {
       const userId = user?.id || user?._id;
       if (!userId) throw new Error("User not authenticated");
 
-      const resp = await axios.post(`${apiUrl}/backtests/batch`, {
-        userId,
-        paramCombos: combos,
-      });
-      return resp.data;
+      const results = [];
+      let best = null;
+
+      for (let i = 0; i < combos.length; i += chunkSize) {
+        const chunk = combos.slice(i, i + chunkSize);
+        const resp = await axios.post(`${apiUrl}/backtests/batch`, { userId, paramCombos: chunk });
+
+        if (resp?.data?.success && resp.data.results) {
+          results.push(...resp.data.results);
+          if (!best || (resp.data.best?.metrics?.netProfit ?? -Infinity) > (best?.metrics?.netProfit ?? -Infinity)) {
+            best = resp.data.best;
+          }
+        }
+      }
+
+      return { results, best };
     } catch (err) {
       console.error("[Run Batch Backtests Error]", err.response?.data || err);
       throw err;
     }
   };
 
-  // Generate all param combos from current selectors
   const generateParamCombos = () => {
     const combos = [];
     for (const symbol of options.symbols) {
@@ -107,7 +110,6 @@ export function useBacktest() {
     return combos;
   };
 
-  // Run batch backtests from selectors
   const runBatchFromSelectors = async () => {
     const combos = generateParamCombos();
     if (!combos.length) return { results: [], best: null };
