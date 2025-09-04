@@ -90,7 +90,7 @@ export function useBacktest() {
     return allCombos.slice(0, count); // take only 10 unique
   };
 
-  // Run one batch = 10 single backtests with different params
+  // Run batch = 10 single backtests with proper saved object
   const runBatchBacktests = async (baseParams) => {
     try {
       const userId = user?.id || user?._id;
@@ -105,9 +105,32 @@ export function useBacktest() {
       for (const combo of combos) {
         const resp = await axios.post(`${apiUrl}/backtests/run`, { userId, ...combo });
         if (resp?.data) {
-          results.push(resp.data);
-          if (!best || (resp.data?.metrics?.netProfit ?? -Infinity) > (best?.metrics?.netProfit ?? -Infinity)) {
-            best = resp.data;
+          const { metrics, equityCurve, trades } = resp.data;
+
+          // Ensure each batch result has a proper `saved` object like single backtest
+          const saved = {
+            equityCurve: equityCurve || [],
+            tradeBreakdown: trades || [],
+            symbol: combo.symbol,
+            strategy: combo.strategy,
+          };
+
+          const resultObj = {
+            saved,
+            metrics: {
+              netProfit: metrics?.netProfit ?? 0,
+              winRate: metrics?.winRate ?? 0,
+              maxDrawdown: metrics?.maxDrawdown ?? 0,
+              tradesCount: metrics?.tradesCount ?? 0,
+            },
+            equityCurve: saved.equityCurve,
+            trades: saved.tradeBreakdown,
+          };
+
+          results.push(resultObj);
+
+          if (!best || (metrics?.netProfit ?? -Infinity) > (best?.metrics?.netProfit ?? -Infinity)) {
+            best = resultObj;
           }
         }
       }
