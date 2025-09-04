@@ -21,7 +21,7 @@ export function useBacktest() {
     try {
       const resp = await axios.get(`${apiUrl}/backtests/options`);
       if (resp?.data?.success && resp.data.options) {
-        setOptions((prev) => ({ ...prev, ...resp.data.options }));
+        setOptions(prev => ({ ...prev, ...resp.data.options }));
       }
       return resp.data;
     } catch (err) {
