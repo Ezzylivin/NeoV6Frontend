@@ -49,12 +49,19 @@ export default function Backtests() {
     loadOptions();
   }, [fetchOptions]);
 
+  // --- Normalize TP/SL values ---
+  const normalizeNumber = (val) => {
+    if (val === "" || val === null || val === undefined) return null;
+    const num = Number(val);
+    return isNaN(num) ? null : num;
+  };
+
   // --- Single backtest ---
   const handleRunSingleBacktest = async () => {
     if (!selectedSymbol) return;
     setLoadingSingle(true);
     setError(null);
-    setBacktests([]);
+    setBacktests([]); // collapse previous logs
     try {
       const { saved, metrics, equityCurve, trades } = await runBacktest({
         symbol: selectedSymbol,
@@ -62,10 +69,25 @@ export default function Backtests() {
         initialBalance: selectedBalance,
         strategy: selectedStrategy,
         risk: selectedRisk,
-        takeProfit: selectedTP,
-        stopLoss: selectedSL,
+        takeProfit: normalizeNumber(selectedTP),
+        stopLoss: normalizeNumber(selectedSL),
       });
-      setBacktests([{ saved, metrics, equityCurve, trades, label: "(New)" }]);
+      setBacktests([{
+        saved,
+        metrics,
+        equityCurve,
+        trades,
+        label: "(New)",
+        params: {
+          symbol: selectedSymbol,
+          timeframe: selectedTimeframe,
+          balance: selectedBalance,
+          strategy: selectedStrategy.name,
+          risk: selectedRisk,
+          takeProfit: selectedTP,
+          stopLoss: selectedSL
+        }
+      }]);
     } catch (err) {
       console.error("Backtest failed:", err);
       setError("Backtest failed");
@@ -74,77 +96,33 @@ export default function Backtests() {
     }
   };
 
-  // --- Generate param combos for batch backtests ---
-  const generateParamCombos = () => {
-    const combos = [];
-    const symbols = selectedSymbol ? [selectedSymbol] : options.symbols;
-    const strategies = [...options.strategies];
-    const risks = [...options.risks];
-    const takeProfits = [...options.takeProfits];
-    const stopLosses = [...options.stopLosses];
-
-    for (const symbol of symbols) {
-      for (let i = 0; i < 10; i++) { // 10 backtests per batch
-        combos.push({
-          symbol,
-          timeframe: selectedTimeframe,
-          strategy: { name: strategies[i % strategies.length], parameters: { ...selectedStrategy.parameters } },
-          risk: risks[i % risks.length],
-          takeProfit: takeProfits[i % takeProfits.length],
-          stopLoss: stopLosses[i % stopLosses.length],
-          initialBalance: selectedBalance
-        });
-      }
-    }
-    return combos;
-  };
-
-  // --- Batch backtests (10 at a time) ---
+  // --- Batch backtests (10 at a time, random strategies/risk/TP/SL) ---
   const handleRunBatchBacktests = async () => {
     setLoadingBatch(true);
     setError(null);
-    setBacktests([]);
-
-    const combos = generateParamCombos();
-    if (!combos.length) {
-      setLoadingBatch(false);
-      return;
-    }
+    setBacktests([]); // collapse previous logs
 
     try {
-      const { results, best } = await runBatchBacktests(combos);
-      setBacktests(results.map(r => ({
+      const { results, usedCombos } = await runBatchBacktests({
+        symbol: selectedSymbol,
+        timeframe: selectedTimeframe,
+        initialBalance: selectedBalance,
+      });
+
+      setBacktests(results.map((r, idx) => ({
         saved: r.saved,
         metrics: r.metrics,
         equityCurve: r.saved?.equityCurve || [],
         trades: r.saved?.tradeBreakdown || [],
-        label: "(Batch)"
+        label: `(Batch #${idx + 1})`,
+        params: usedCombos[idx] // show parameters from generation
       })));
-      console.log("Best batch result:", best);
     } catch (err) {
-      console.error("Batch backtest failed:", err);
+      console.error("Batch run failed:", err);
+      setError("Batch backtests failed");
     } finally {
       setLoadingBatch(false);
     }
-  };
-
-  // --- Aggregate chart helper ---
-  const aggregateEquityCurves = (backtests) => {
-    const allTimestamps = new Set();
-    backtests.forEach(bt => bt.equityCurve.forEach(point => allTimestamps.add(point.time)));
-    const timestamps = Array.from(allTimestamps).sort((a,b) => new Date(a) - new Date(b));
-    return timestamps.map(ts => {
-      let totalEquity = 0;
-      let count = 0;
-      backtests.forEach(bt => {
-        const point = bt.equityCurve.find(p => p.time === ts);
-        if(point) {
-          totalEquity += point.equity;
-          count++;
-        }
-      });
-      return { time: ts, avgEquity: count ? totalEquity / count : 0 };
-    });
   };
 
   return (
@@ -154,7 +132,55 @@ export default function Backtests() {
 
       {/* Selectors */}
       <div style={{ display: "flex", gap: "15px", marginBottom: "15px", flexWrap: "wrap" }}>
-        {/* ... all selector code remains unchanged ... */}
+        <div>
+          <label>Symbol: </label>
+          <select value={selectedSymbol} onChange={e => setSelectedSymbol(e.target.value)}>
+            {options.symbols?.map(sym => <option key={sym} value={sym}>{sym}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label>Timeframe: </label>
+          <select value={selectedTimeframe} onChange={e => setSelectedTimeframe(e.target.value)}>
+            {options.timeframes?.map(tf => <option key={tf} value={tf}>{tf}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label>Balance: </label>
+          <select value={selectedBalance} onChange={e => setSelectedBalance(Number(e.target.value))}>
+            {options.balances?.map(b => <option key={b} value={b}>${b}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label>Strategy: </label>
+          <select value={selectedStrategy.name} onChange={e => setSelectedStrategy({ name: e.target.value, parameters: {} })}>
+            {options.strategies?.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label>Risk: </label>
+          <select value={selectedRisk} onChange={e => setSelectedRisk(e.target.value)}>
+            {options.risks?.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label>Take Profit: </label>
+          <select value={selectedTP ?? ""} onChange={e => setSelectedTP(normalizeNumber(e.target.value))}>
+            {options.takeProfits?.map(tp => <option key={tp ?? "none"} value={tp ?? ""}>{tp !== null ? tp+"%" : "None"}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label>Stop Loss: </label>
+          <select value={selectedSL ?? ""} onChange={e => setSelectedSL(normalizeNumber(e.target.value))}>
+            {options.stopLosses?.map(sl => <option key={sl ?? "none"} value={sl ?? ""}>{sl !== null ? sl+"%" : "None"}</option>)}
+          </select>
+        </div>
+
         <div>
           <button onClick={handleRunSingleBacktest} disabled={loadingSingle}>
             {loadingSingle ? "Running..." : "Run Single Backtest"}
@@ -167,25 +193,11 @@ export default function Backtests() {
         </div>
       </div>
 
-      {/* --- Overall Performance Chart --- */}
-      {backtests.length > 1 && (
-        <div style={{ marginBottom: "50px", border: "2px solid #888", padding: "15px", borderRadius: "10px" }}>
-          <h3>Overall Performance (Average Equity)</h3>
-          <LineChart width={800} height={300} data={aggregateEquityCurves(backtests)}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="time" />
-            <YAxis />
-            <Tooltip />
-            <Legend />
-            <Line type="monotone" dataKey="avgEquity" stroke="#ff7300" dot={false} />
-          </LineChart>
-        </div>
-      )}
-
       {/* Backtest Results */}
       {backtests.length > 0 && backtests.map((bt, idx) => (
         <div key={idx} style={{ marginBottom: "40px", border: "1px solid #ccc", padding: "10px" }}>
-          <h3>{bt.saved?.symbol || "N/A"} ({bt.saved?.strategy?.name || selectedStrategy.name}) {bt.label}</h3>
+          <h3>{bt.saved?.symbol || "N/A"} ({bt.saved?.strategy?.name || bt.params?.strategy?.name}) {bt.label}</h3>
+          <p><b>Parameters:</b> Strategy={bt.params?.strategy?.name || bt.params?.strategy} | Risk={bt.params?.risk} | TP={bt.params?.takeProfit ?? "None"} | SL={bt.params?.stopLoss ?? "None"}</p>
           <p>Net Profit: {bt.metrics?.netProfit ?? 0}</p>
           <p>Win Rate: {bt.metrics?.winRate ?? 0}%</p>
           <p>Max Drawdown: {bt.metrics?.maxDrawdown ?? 0}%</p>
