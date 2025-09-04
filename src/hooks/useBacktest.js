@@ -60,31 +60,43 @@ export function useBacktest() {
     }
   };
 
-  // Generate 10 unique random combos (fixed symbol + timeframe)
-  const generateRandomCombos = (baseParams, count = 10) => {
-    const combos = [];
-    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-
-    for (let i = 0; i < count; i++) {
-      combos.push({
-        symbol: baseParams.symbol,
-        timeframe: baseParams.timeframe,
-        strategy: { name: pick(options.strategies), parameters: {} },
-        risk: pick(options.risks),
-        takeProfit: pick(options.takeProfits),
-        stopLoss: pick(options.stopLosses),
-      });
+  // Helper: create all possible param combos (symbol + timeframe are fixed)
+  const generateUniqueCombos = (baseParams, count = 10) => {
+    const allCombos = [];
+    for (const strategy of options.strategies) {
+      for (const risk of options.risks) {
+        for (const takeProfit of options.takeProfits) {
+          for (const stopLoss of options.stopLosses) {
+            allCombos.push({
+              symbol: baseParams.symbol,
+              timeframe: baseParams.timeframe,
+              initialBalance: baseParams.initialBalance,
+              strategy: { name: strategy, parameters: {} },
+              risk,
+              takeProfit,
+              stopLoss,
+            });
+          }
+        }
+      }
     }
-    return combos;
+
+    // Shuffle for randomness
+    for (let i = allCombos.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allCombos[i], allCombos[j]] = [allCombos[j], allCombos[i]];
+    }
+
+    return allCombos.slice(0, count); // take only 10 unique
   };
 
-  // Run one "batch" = 10 single backtests with different params
+  // Run one batch = 10 single backtests with different params
   const runBatchBacktests = async (baseParams) => {
     try {
       const userId = user?.id || user?._id;
       if (!userId) throw new Error("User not authenticated");
 
-      const combos = generateRandomCombos(baseParams, 10);
+      const combos = generateUniqueCombos(baseParams, 10);
       console.log("[Batch Backtest Combos]", combos);
 
       const results = [];
@@ -100,7 +112,7 @@ export function useBacktest() {
         }
       }
 
-      return { results, best };
+      return { results, best, usedCombos: combos };
     } catch (err) {
       console.error("[Run Batch Backtests Error]", err.response?.data || err);
       throw err;
