@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  BarChart, Bar, ResponsiveContainer, Defs, LinearGradient, Stop
+  BarChart, Bar, ResponsiveContainer
 } from "recharts";
 
 export default function Backtests() {
@@ -189,13 +189,13 @@ export default function Backtests() {
 
           {/* Metrics cards */}
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "10px" }}>
-            <div style={{ padding: "10px", borderRadius: "8px", background: "#1e1e1e", color: "#fff" }}>
+            <div style={{ padding: "10px", borderRadius: "8px", background: "#1e1e1e", color: "#fff" }} title={`Max Gain: ${bt.metrics?.maxGain ?? 0}, Max Loss: ${bt.metrics?.maxLoss ?? 0}`}>
               <b>Net Profit:</b> <span style={{ color: (bt.metrics?.netProfit >= 0 ? "#4caf50" : "#f44336") }}>{bt.metrics?.netProfit ?? 0}</span>
             </div>
-            <div style={{ padding: "10px", borderRadius: "8px", background: "#1e1e1e", color: "#fff" }}>
+            <div style={{ padding: "10px", borderRadius: "8px", background: "#1e1e1e", color: "#fff" }} title={`Winning Trades: ${bt.metrics?.winningTrades ?? 0}, Losing Trades: ${bt.metrics?.losingTrades ?? 0}`}>
               <b>Win Rate:</b> {bt.metrics?.winRate ?? 0}%
             </div>
-            <div style={{ padding: "10px", borderRadius: "8px", background: "#1e1e1e", color: "#fff" }}>
+            <div style={{ padding: "10px", borderRadius: "8px", background: "#1e1e1e", color: "#fff" }} title={`Peak Drawdown Time: ${bt.metrics?.drawdownDuration ?? "N/A"}`}>
               <b>Max Drawdown:</b> {bt.metrics?.maxDrawdown ?? 0}%
             </div>
             <div style={{ padding: "10px", borderRadius: "8px", background: "#1e1e1e", color: "#fff" }}>
@@ -205,41 +205,27 @@ export default function Backtests() {
 
           <p><b>Parameters:</b> Strategy={bt.params?.strategy?.name || bt.params?.strategy} | Risk={bt.params?.risk} | TP={bt.params?.takeProfit ?? "None"} | SL={bt.params?.stopLoss ?? "None"}</p>
 
-          {/* Equity Curve with gradient */}
           <h4>Equity Curve</h4>
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={bt.equityCurve}>
-              <defs>
-                <linearGradient id={`equityGradient-${idx}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#4caf50" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#4caf50" stopOpacity={0.2}/>
-                </linearGradient>
-              </defs>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="time" />
               <YAxis />
               <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="equity" stroke="url(#equityGradient-${idx})" dot={false} />
+              <Line type="monotone" dataKey="equity" stroke="#8884d8" dot={false} />
             </LineChart>
           </ResponsiveContainer>
 
-          {/* Trades P/L with gradient */}
           <h4>Trades P/L</h4>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={bt.trades}>
-              <defs>
-                <linearGradient id={`profitGradient-${idx}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#82ca9d" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#82ca9d" stopOpacity={0.2}/>
-                </linearGradient>
-              </defs>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="exitTime" />
               <YAxis />
               <Tooltip />
               <Legend />
-              <Bar dataKey="profit" fill={`url(#profitGradient-${idx})`} />
+              <Bar dataKey="profit" fill="#82ca9d" />
             </BarChart>
           </ResponsiveContainer>
         </div>
