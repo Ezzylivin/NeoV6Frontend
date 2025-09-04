@@ -7,7 +7,7 @@ import {
 } from "recharts";
 
 export default function Backtests() {
-  const { fetchOptions, runBacktest, runBatchBacktests } = useBacktest();
+  const { fetchOptions, runBacktest } = useBacktest();
 
   const [options, setOptions] = useState({
     symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
@@ -28,7 +28,6 @@ export default function Backtests() {
   const [selectedSL, setSelectedSL] = useState(null);
 
   const [backtests, setBacktests] = useState([]);
-  const [pendingBacktests, setPendingBacktests] = useState([]); // store batch results temporarily
   const [loadingSingle, setLoadingSingle] = useState(false);
   const [loadingBatch, setLoadingBatch] = useState(false);
   const [error, setError] = useState(null);
@@ -55,31 +54,18 @@ export default function Backtests() {
     if (!selectedSymbol) return;
     setLoadingSingle(true);
     setError(null);
-    setBacktests([]); 
+    setBacktests([]); // collapse previous logs
     try {
-      const strategyToSend = { ...selectedStrategy };
-      const requestPayload = {
+      const { saved, metrics, equityCurve, trades } = await runBacktest({
         symbol: selectedSymbol,
         timeframe: selectedTimeframe,
         initialBalance: selectedBalance,
-        strategy: strategyToSend,
+        strategy: selectedStrategy,
         risk: selectedRisk,
         takeProfit: selectedTP,
         stopLoss: selectedSL,
-      };
-      
-      console.log("Single backtest request:", requestPayload);
-
-      const { saved, metrics, equityCurve, trades } = await runBacktest(requestPayload);
-
-      setBacktests([{
-        saved,
-        metrics,
-        equityCurve,
-        trades,
-        label: "(New)",
-        strategyName: strategyToSend.name
-      }]);
+      });
+      setBacktests([{ saved, metrics, equityCurve, trades, label: "(New)" }]);
     } catch (err) {
       console.error("Backtest failed:", err);
       setError("Backtest failed");
@@ -88,81 +74,58 @@ export default function Backtests() {
     }
   };
 
-  // --- Generate param combos ---
-  const generateParamCombos = () => {
-    const combos = [];
-    const symbols = selectedSymbol ? [selectedSymbol] : options.symbols;
-    for (const symbol of symbols) {
-      for (const timeframe of options.timeframes) {
-        for (const strategy of options.strategies) {
-          for (const risk of options.risks) {
-            for (const takeProfit of options.takeProfits) {
-              for (const stopLoss of options.stopLosses) {
-                combos.push({
-                  symbol,
-                  timeframe,
-                  strategy: { name: strategy, parameters: { ...selectedStrategy.parameters } },
-                  risk,
-                  takeProfit,
-                  stopLoss
-                });
-              }
-            }
-          }
-        }
-      }
+  // --- Generate 10 random parameter combos for the batch ---
+  const generateRandomBatch = () => {
+    const batch = [];
+    const { strategies, risks, takeProfits, stopLosses } = options;
+
+    const usedCombos = new Set();
+
+    while (batch.length < 10) {
+      const strategy = strategies[Math.floor(Math.random() * strategies.length)];
+      const risk = risks[Math.floor(Math.random() * risks.length)];
+      const takeProfit = takeProfits[Math.floor(Math.random() * takeProfits.length)];
+      const stopLoss = stopLosses[Math.floor(Math.random() * stopLosses.length)];
+
+      const key = `${strategy}-${risk}-${takeProfit}-${stopLoss}`;
+      if (usedCombos.has(key)) continue; // avoid duplicates
+      usedCombos.add(key);
+
+      batch.push({
+        symbol: selectedSymbol,
+        timeframe: selectedTimeframe,
+        initialBalance: selectedBalance,
+        strategy: { name: strategy, parameters: {} },
+        risk,
+        takeProfit,
+        stopLoss
+      });
     }
-    return combos;
+
+    return batch;
   };
 
-  // --- Batch backtests (store temporarily, log to console immediately) ---
+  // --- Batch backtest handler ---
   const handleRunBatchBacktests = async () => {
+    if (!selectedSymbol) return;
     setLoadingBatch(true);
     setError(null);
-    setPendingBacktests([]);
-    const combos = generateParamCombos();
-    if (!combos.length) {
-      setLoadingBatch(false);
-      return;
-    }
+    setBacktests([]);
 
-    const chunkSize = 10;
-    let best = null;
+    const batch = generateRandomBatch();
+    const results = [];
 
-    for (let i = 0; i < combos.length; i += chunkSize) {
-      const chunk = combos.slice(i, i + chunkSize).map(c => ({ ...c }));
-
-      console.log("Batch backtest request chunk:", chunk);
-
+    for (const testParams of batch) {
       try {
-        const { results, best: chunkBest } = await runBatchBacktests(chunk);
-
-        // store temporarily, don't auto-refresh UI
-        setPendingBacktests(prev => [...prev, ...results.map(r => ({
-          saved: r.saved,
-          metrics: r.metrics,
-          equityCurve: r.saved?.equityCurve || [],
-          trades: r.saved?.tradeBreakdown || [],
-          label: "(Pending)"
-        }))]);
-
-        if (!best || (chunkBest?.metrics?.netProfit ?? -Infinity) > (best?.metrics?.netProfit ?? -Infinity)) {
-          best = chunkBest;
-        }
-
+        const { saved, metrics, equityCurve, trades } = await runBacktest(testParams);
+        results.push({ saved, metrics, equityCurve, trades, label: "(Batch)" });
       } catch (err) {
-        console.error("Batch chunk failed:", err);
+        console.error("Batch test failed for params:", testParams, err);
       }
     }
 
-    console.log("Best batch result:", best);
+    setBacktests(results);
     setLoadingBatch(false);
-  };
-
-  // --- Refresh button to update UI from pendingBacktests ---
-  const handleRefreshLogs = () => {
-    setBacktests(prev => [...pendingBacktests, ...prev]);
-    setPendingBacktests([]);
   };
 
   return (
@@ -228,12 +191,7 @@ export default function Backtests() {
         </div>
         <div>
           <button onClick={handleRunBatchBacktests} disabled={loadingBatch}>
-            {loadingBatch ? "Running..." : "Run Batch Backtests"}
-          </button>
-        </div>
-        <div>
-          <button onClick={handleRefreshLogs} disabled={pendingBacktests.length === 0}>
-            Refresh Logs
+            {loadingBatch ? "Running..." : "Run Batch Backtests (10)"}
           </button>
         </div>
       </div>
@@ -241,7 +199,7 @@ export default function Backtests() {
       {/* Backtest Results */}
       {backtests.length > 0 && backtests.map((bt, idx) => (
         <div key={idx} style={{ marginBottom: "40px", border: "1px solid #ccc", padding: "10px" }}>
-          <h3>{bt.saved?.symbol || "N/A"} ({bt.strategyName || bt.saved?.strategy?.name || selectedStrategy.name}) {bt.label}</h3>
+          <h3>{bt.saved?.symbol || "N/A"} ({bt.saved?.strategy?.name || selectedStrategy.name}) {bt.label}</h3>
           <p>Net Profit: {bt.metrics?.netProfit ?? 0}</p>
           <p>Win Rate: {bt.metrics?.winRate ?? 0}%</p>
           <p>Max Drawdown: {bt.metrics?.maxDrawdown ?? 0}%</p>
