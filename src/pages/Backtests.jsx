@@ -31,10 +31,8 @@ export default function Backtests() {
   const [loadingSingle, setLoadingSingle] = useState(false);
   const [loadingBatch, setLoadingBatch] = useState(false);
   const [error, setError] = useState(null);
-
-  // collapsible log state
-  const [collapsedLogs, setCollapsedLogs] = useState({}); 
   const [viewMode, setViewMode] = useState("chart"); // "chart" or "table"
+  const [collapsed, setCollapsed] = useState({}); // store collapsed state per backtest
 
   useEffect(() => {
     async function loadOptions() {
@@ -56,6 +54,11 @@ export default function Backtests() {
     if (val === "" || val === null || val === undefined) return null;
     const num = Number(val);
     return isNaN(num) ? null : num;
+  };
+
+  const formatTimestamp = (ts) => {
+    const date = new Date(ts);
+    return date.toLocaleString(); // improves readability
   };
 
   const handleRunSingleBacktest = async () => {
@@ -101,12 +104,14 @@ export default function Backtests() {
     setLoadingBatch(true);
     setError(null);
     setBacktests([]);
+
     try {
       const { results, usedCombos } = await runBatchBacktests({
         symbol: selectedSymbol,
         timeframe: selectedTimeframe,
         initialBalance: selectedBalance,
       });
+
       setBacktests(results.map((r, idx) => ({
         saved: r.saved,
         metrics: r.metrics,
@@ -123,14 +128,8 @@ export default function Backtests() {
     }
   };
 
-  const toggleLog = (idx) => {
-    setCollapsedLogs(prev => ({ ...prev, [idx]: !prev[idx] }));
-  };
-
-  const formatTimestamp = (ts) => {
-    if (!ts) return "";
-    const date = new Date(ts);
-    return date.toLocaleString(); // readable timestamp
+  const toggleCollapse = (idx) => {
+    setCollapsed(prev => ({ ...prev, [idx]: !prev[idx] }));
   };
 
   return (
@@ -192,23 +191,24 @@ export default function Backtests() {
             {loadingBatch ? "Running..." : "Run Batch Backtests"}
           </button>
         </div>
-        <div>
-          <button onClick={() => setViewMode(viewMode === "chart" ? "table" : "chart")}>
-            Switch to {viewMode === "chart" ? "Table" : "Charts"}
-          </button>
-        </div>
+      </div>
+
+      {/* View Mode Toggle */}
+      <div style={{ marginBottom: "15px" }}>
+        <button onClick={() => setViewMode("chart")} disabled={viewMode==="chart"}>Charts</button>
+        <button onClick={() => setViewMode("table")} disabled={viewMode==="table"}>Table</button>
       </div>
 
       {/* Backtest Results */}
       {backtests.length > 0 && backtests.map((bt, idx) => (
         <div key={idx} style={{ marginBottom: "40px", border: "1px solid #ccc", padding: "10px" }}>
-          <h3 style={{ cursor: "pointer" }} onClick={() => toggleLog(idx)}>
-            {bt.saved?.symbol || "N/A"} ({bt.saved?.strategy?.name || bt.params?.strategy?.name}) {bt.label} {collapsedLogs[idx] ? "[+]" : "[-]"}
+          <h3 onClick={() => toggleCollapse(idx)} style={{ cursor: "pointer" }}>
+            {bt.saved?.symbol || "N/A"} ({bt.saved?.strategy?.name || bt.params?.strategy?.name}) {bt.label} {collapsed[idx] ? "[+]" : "[-]"}
           </h3>
 
-          {!collapsedLogs[idx] && (
+          {!collapsed[idx] && (
             <>
-              {/* Metrics */}
+              {/* Metrics cards */}
               <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "10px" }}>
                 <div style={{ padding: "10px", borderRadius: "8px", background: "#1e1e1e", color: "#fff" }}>
                   <b>Net Profit:</b> <span style={{ color: (bt.metrics?.netProfit >= 0 ? "#4caf50" : "#f44336") }}>{bt.metrics?.netProfit ?? 0}</span>
@@ -226,7 +226,7 @@ export default function Backtests() {
 
               <p><b>Parameters:</b> Strategy={bt.params?.strategy?.name || bt.params?.strategy} | Risk={bt.params?.risk} | TP={bt.params?.takeProfit ?? "None"} | SL={bt.params?.stopLoss ?? "None"}</p>
 
-              {viewMode === "chart" ? (
+              {viewMode === "chart" && (
                 <>
                   <h4>Equity Curve</h4>
                   <ResponsiveContainer width="100%" height={250}>
@@ -248,29 +248,30 @@ export default function Backtests() {
                       <YAxis />
                       <Tooltip labelFormatter={formatTimestamp} />
                       <Legend />
-                      <Bar dataKey="profit" fill="#82ca9d" >
-                        {bt.trades.map((t, i) => (
-                          <cell key={i} fill={t.profit >= 0 ? "#4caf50" : "#f44336"} />
-                        ))}
-                      </Bar>
+                      <Bar dataKey="profit" fill="#82ca9d" />
+                      <Bar dataKey="profit" fill="#f44336" />
                     </BarChart>
                   </ResponsiveContainer>
                 </>
-              ) : (
+              )}
+
+              {viewMode === "table" && (
                 <>
                   <h4>Trades Table</h4>
                   <table style={{ width: "100%", borderCollapse: "collapse" }}>
                     <thead>
                       <tr>
-                        <th style={{ border: "1px solid #ccc", padding: "5px" }}>Exit Time</th>
-                        <th style={{ border: "1px solid #ccc", padding: "5px" }}>Profit</th>
+                        <th style={{ border: "1px solid #ccc", padding: "5px", color: "#000" }}>Exit Time</th>
+                        <th style={{ border: "1px solid #ccc", padding: "5px", color: "#000" }}>Profit</th>
                       </tr>
                     </thead>
                     <tbody>
                       {bt.trades.map((t, i) => (
-                        <tr key={i} style={{ background: t.profit >= 0 ? "#e8f5e9" : "#ffebee" }}>
+                        <tr key={i} style={{ background: t.profit >= 0 ? "#e8f5e9" : "#ffebee", color: "#000" }}>
                           <td style={{ border: "1px solid #ccc", padding: "5px" }}>{formatTimestamp(t.exitTime)}</td>
-                          <td style={{ border: "1px solid #ccc", padding: "5px", color: t.profit >= 0 ? "#4caf50" : "#f44336" }}>{t.profit}</td>
+                          <td style={{ border: "1px solid #ccc", padding: "5px", color: t.profit >= 0 ? "#4caf50" : "#f44336" }}>
+                            {t.profit}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
