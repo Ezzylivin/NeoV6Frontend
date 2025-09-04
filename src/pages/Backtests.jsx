@@ -57,7 +57,6 @@ export default function Backtests() {
   };
 
   const formatTimestamp = ts => ts ? new Date(ts).toLocaleString() : "";
-
   const toggleLog = idx => setCollapsedLogs(prev => ({ ...prev, [idx]: !prev[idx] }));
 
   const handleRunSingleBacktest = async () => {
@@ -129,6 +128,14 @@ export default function Backtests() {
     }
   };
 
+  // Combined batch equity chart data
+  const combinedBatchEquity = backtests.length > 1
+    ? backtests.map((bt, idx) => ({
+        name: `(Batch #${idx + 1})`,
+        data: bt.equityCurve.map(point => ({ time: point.time, equity: point.equity }))
+      }))
+    : [];
+
   return (
     <div>
       <h2>Backtests</h2>
@@ -148,8 +155,35 @@ export default function Backtests() {
         <div><button onClick={()=>setViewMode(viewMode==="chart"?"table":"chart")}>Switch to {viewMode==="chart"?"Table":"Charts"}</button></div>
       </div>
 
+      {/* Combined batch equity chart */}
+      {combinedBatchEquity.length > 0 && viewMode === "chart" && (
+        <>
+          <h4>Combined Batch Equity Curves</h4>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart>
+              <CartesianGrid strokeDasharray="3 3"/>
+              <XAxis dataKey="time" tickFormatter={formatTimestamp}/>
+              <YAxis/>
+              <Tooltip labelFormatter={formatTimestamp}/>
+              <Legend/>
+              {combinedBatchEquity.map((batch, i) => (
+                <Line
+                  key={i}
+                  type="monotone"
+                  data={batch.data}
+                  dataKey="equity"
+                  name={batch.name}
+                  stroke={`hsl(${(i*60)%360},70%,50%)`}
+                  dot={false}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </>
+      )}
+
       {/* Backtest Results */}
-      {backtests.map((bt, idx)=>(
+      {backtests.map((bt, idx)=>( 
         <div key={idx} style={{marginBottom:"40px",border:"1px solid #ccc",padding:"10px"}}>
           <h3 style={{cursor:"pointer"}} onClick={()=>toggleLog(idx)}>
             {bt.saved?.symbol || bt.params?.symbol || "N/A"} 
@@ -201,7 +235,7 @@ export default function Backtests() {
                 <table style={{width:"100%",borderCollapse:"collapse"}}>
                   <thead><tr><th>Exit Time</th><th>Profit</th></tr></thead>
                   <tbody>
-                    {bt.trades.map((t,i)=>(
+                    {bt.trades.map((t,i)=>( 
                       <tr key={i} style={{background:t.profit>=0?"#e8f5e9":"#ffebee"}}>
                         <td style={{border:"1px solid #ccc",padding:"5px"}}>{formatTimestamp(t.exitTime)}</td>
                         <td style={{border:"1px solid #ccc",padding:"5px",color:t.profit>=0?"#4caf50":"#f44336"}}>{t.profit}</td>
