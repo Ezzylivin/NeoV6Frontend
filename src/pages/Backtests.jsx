@@ -31,8 +31,8 @@ export default function Backtests() {
   const [loadingSingle, setLoadingSingle] = useState(false);
   const [loadingBatch, setLoadingBatch] = useState(false);
   const [error, setError] = useState(null);
-  const [viewMode, setViewMode] = useState("chart"); // "chart" or "table"
-  const [collapsed, setCollapsed] = useState({}); // store collapsed state per backtest
+  const [expandedLogs, setExpandedLogs] = useState({});
+  const [viewType, setViewType] = useState("charts"); // charts or table
 
   useEffect(() => {
     async function loadOptions() {
@@ -56,10 +56,7 @@ export default function Backtests() {
     return isNaN(num) ? null : num;
   };
 
-  const formatTimestamp = (ts) => {
-    const date = new Date(ts);
-    return date.toLocaleString(); // improves readability
-  };
+  const toggleLog = (idx) => setExpandedLogs(prev => ({ ...prev, [idx]: !prev[idx] }));
 
   const handleRunSingleBacktest = async () => {
     if (!selectedSymbol) return;
@@ -101,16 +98,23 @@ export default function Backtests() {
   };
 
   const handleRunBatchBacktests = async () => {
+    if (!selectedSymbol) return;
     setLoadingBatch(true);
     setError(null);
     setBacktests([]);
 
     try {
-      const { results, usedCombos } = await runBatchBacktests({
+      // Generate a single combo from current selectors for demo
+      const combos = [{
         symbol: selectedSymbol,
         timeframe: selectedTimeframe,
-        initialBalance: selectedBalance,
-      });
+        strategy: { name: selectedStrategy.name, parameters: {} },
+        risk: selectedRisk,
+        takeProfit: normalizeNumber(selectedTP),
+        stopLoss: normalizeNumber(selectedSL),
+      }];
+
+      const { results } = await runBatchBacktests("dummyUserId", combos);
 
       setBacktests(results.map((r, idx) => ({
         saved: r.saved,
@@ -118,7 +122,7 @@ export default function Backtests() {
         equityCurve: r.saved?.equityCurve || [],
         trades: r.saved?.tradeBreakdown || [],
         label: `(Batch #${idx + 1})`,
-        params: usedCombos[idx]
+        params: combos[idx]
       })));
     } catch (err) {
       console.error("Batch run failed:", err);
@@ -126,10 +130,6 @@ export default function Backtests() {
     } finally {
       setLoadingBatch(false);
     }
-  };
-
-  const toggleCollapse = (idx) => {
-    setCollapsed(prev => ({ ...prev, [idx]: !prev[idx] }));
   };
 
   return (
@@ -191,24 +191,24 @@ export default function Backtests() {
             {loadingBatch ? "Running..." : "Run Batch Backtests"}
           </button>
         </div>
-      </div>
-
-      {/* View Mode Toggle */}
-      <div style={{ marginBottom: "15px" }}>
-        <button onClick={() => setViewMode("chart")} disabled={viewMode==="chart"}>Charts</button>
-        <button onClick={() => setViewMode("table")} disabled={viewMode==="table"}>Table</button>
+        <div>
+          <label>View: </label>
+          <select value={viewType} onChange={e => setViewType(e.target.value)}>
+            <option value="charts">Charts</option>
+            <option value="table">Table</option>
+          </select>
+        </div>
       </div>
 
       {/* Backtest Results */}
       {backtests.length > 0 && backtests.map((bt, idx) => (
         <div key={idx} style={{ marginBottom: "40px", border: "1px solid #ccc", padding: "10px" }}>
-          <h3 onClick={() => toggleCollapse(idx)} style={{ cursor: "pointer" }}>
-            {bt.saved?.symbol || "N/A"} ({bt.saved?.strategy?.name || bt.params?.strategy?.name}) {bt.label} {collapsed[idx] ? "[+]" : "[-]"}
+          <h3 onClick={() => toggleLog(idx)} style={{ cursor: "pointer" }}>
+            {bt.saved?.symbol || "N/A"} ({bt.saved?.strategy?.name || bt.params?.strategy?.name}) {bt.label} {expandedLogs[idx] ? "▲" : "▼"}
           </h3>
 
-          {!collapsed[idx] && (
+          {expandedLogs[idx] && (
             <>
-              {/* Metrics cards */}
               <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "10px" }}>
                 <div style={{ padding: "10px", borderRadius: "8px", background: "#1e1e1e", color: "#fff" }}>
                   <b>Net Profit:</b> <span style={{ color: (bt.metrics?.netProfit >= 0 ? "#4caf50" : "#f44336") }}>{bt.metrics?.netProfit ?? 0}</span>
@@ -226,15 +226,15 @@ export default function Backtests() {
 
               <p><b>Parameters:</b> Strategy={bt.params?.strategy?.name || bt.params?.strategy} | Risk={bt.params?.risk} | TP={bt.params?.takeProfit ?? "None"} | SL={bt.params?.stopLoss ?? "None"}</p>
 
-              {viewMode === "chart" && (
+              {viewType === "charts" ? (
                 <>
                   <h4>Equity Curve</h4>
                   <ResponsiveContainer width="100%" height={250}>
                     <LineChart data={bt.equityCurve}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="time" tickFormatter={formatTimestamp} />
+                      <XAxis dataKey="time" tickFormatter={time => new Date(time).toLocaleString()} />
                       <YAxis />
-                      <Tooltip labelFormatter={formatTimestamp} />
+                      <Tooltip labelFormatter={time => new Date(time).toLocaleString()} />
                       <Legend />
                       <Line type="monotone" dataKey="equity" stroke="#8884d8" dot={false} />
                     </LineChart>
@@ -244,39 +244,31 @@ export default function Backtests() {
                   <ResponsiveContainer width="100%" height={250}>
                     <BarChart data={bt.trades}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="exitTime" tickFormatter={formatTimestamp} />
+                      <XAxis dataKey="exitTime" tickFormatter={time => new Date(time).toLocaleString()} />
                       <YAxis />
-                      <Tooltip labelFormatter={formatTimestamp} />
+                      <Tooltip labelFormatter={time => new Date(time).toLocaleString()} />
                       <Legend />
-                      <Bar dataKey="profit" fill="#82ca9d" />
-                      <Bar dataKey="profit" fill="#f44336" />
+                      <Bar dataKey="profit" fill={entry => entry.profit >= 0 ? "#82ca9d" : "#f44336"} />
                     </BarChart>
                   </ResponsiveContainer>
                 </>
-              )}
-
-              {viewMode === "table" && (
-                <>
-                  <h4>Trades Table</h4>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead>
-                      <tr>
-                        <th style={{ border: "1px solid #ccc", padding: "5px", color: "#000" }}>Exit Time</th>
-                        <th style={{ border: "1px solid #ccc", padding: "5px", color: "#000" }}>Profit</th>
+              ) : (
+                <table style={{ width: "100%", color: "#000", marginTop: "10px", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ background: "#ccc" }}>
+                      <th style={{ border: "1px solid #999" }}>Exit Time</th>
+                      <th style={{ border: "1px solid #999" }}>Profit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bt.trades.map((trade, tIdx) => (
+                      <tr key={tIdx}>
+                        <td style={{ border: "1px solid #999" }}>{new Date(trade.exitTime).toLocaleString()}</td>
+                        <td style={{ border: "1px solid #999", color: trade.profit >= 0 ? "#4caf50" : "#f44336" }}>{trade.profit}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {bt.trades.map((t, i) => (
-                        <tr key={i} style={{ background: t.profit >= 0 ? "#e8f5e9" : "#ffebee", color: "#000" }}>
-                          <td style={{ border: "1px solid #ccc", padding: "5px" }}>{formatTimestamp(t.exitTime)}</td>
-                          <td style={{ border: "1px solid #ccc", padding: "5px", color: t.profit >= 0 ? "#4caf50" : "#f44336" }}>
-                            {t.profit}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </>
+                    ))}
+                  </tbody>
+                </table>
               )}
             </>
           )}
