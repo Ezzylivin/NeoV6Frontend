@@ -74,10 +74,12 @@ export default function Backtests() {
     }
   };
 
-  // --- Generate param combos (deep copy to ensure unique objects) ---
-  const generateParamCombos = () => {
+  // --- Generate a limited number of unique param combos (max 10) ---
+  const generateLimitedParamCombos = (limit = 10) => {
     const combos = [];
     const symbols = selectedSymbol ? [selectedSymbol] : options.symbols;
+
+    outer:
     for (const symbol of symbols) {
       for (const timeframe of options.timeframes) {
         for (const strategy of options.strategies) {
@@ -92,6 +94,7 @@ export default function Backtests() {
                   takeProfit,
                   stopLoss
                 });
+                if (combos.length >= limit) break outer;
               }
             }
           }
@@ -101,46 +104,34 @@ export default function Backtests() {
     return combos;
   };
 
-  // --- Batch backtests (10 at a time) ---
+  // --- Batch backtests (10 unique tests per batch) ---
   const handleRunBatchBacktests = async () => {
     setLoadingBatch(true);
     setError(null);
     setBacktests([]); // collapse previous logs
 
-    const combos = generateParamCombos();
+    const combos = generateLimitedParamCombos(10); // limit to 10
     if (!combos.length) {
       setLoadingBatch(false);
       return;
     }
 
-    const chunkSize = 10;
-    let best = null;
-
-    for (let i = 0; i < combos.length; i += chunkSize) {
-      const chunk = combos.slice(i, i + chunkSize).map(c => ({ ...c })); // ensure fresh objects
-      try {
-        const { results, best: chunkBest } = await runBatchBacktests(chunk);
-        // prepend new results
-        setBacktests(prev => [
-          ...results.map(r => ({
-            saved: r.saved,
-            metrics: r.metrics,
-            equityCurve: r.saved?.equityCurve || [],
-            trades: r.saved?.tradeBreakdown || [],
-            label: "(New)"
-          })),
-          ...prev
-        ]);
-        if (!best || (chunkBest?.metrics?.netProfit ?? -Infinity) > (best?.metrics?.netProfit ?? -Infinity)) {
-          best = chunkBest;
-        }
-      } catch (err) {
-        console.error("Batch chunk failed:", err);
-      }
+    try {
+      const { results, best } = await runBatchBacktests(combos);
+      setBacktests(results.map(r => ({
+        saved: r.saved,
+        metrics: r.metrics,
+        equityCurve: r.saved?.equityCurve || [],
+        trades: r.saved?.tradeBreakdown || [],
+        label: "(New)"
+      })));
+      console.log("Best batch result:", best);
+    } catch (err) {
+      console.error("Batch backtests failed:", err);
+      setError("Batch backtests failed");
+    } finally {
+      setLoadingBatch(false);
     }
-
-    console.log("Best batch result:", best);
-    setLoadingBatch(false);
   };
 
   return (
