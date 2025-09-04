@@ -30,12 +30,10 @@ export function useBacktest() {
   };
 
   const runBacktest = async (params) => {
+    const userId = user?.id || user?._id;
+    if (!userId) throw new Error("User not authenticated");
     try {
-      const userId = user?.id || user?._id;
-      if (!userId) throw new Error("User not authenticated");
-
-      const payload = { userId, ...params };
-      const resp = await axios.post(`${apiUrl}/backtests/run`, payload);
+      const resp = await axios.post(`${apiUrl}/backtests/run`, { userId, ...params });
       return resp.data;
     } catch (err) {
       console.error("[Run Backtest Error]", err.response?.data || err);
@@ -44,12 +42,10 @@ export function useBacktest() {
   };
 
   const runRealisticBacktest = async (params) => {
+    const userId = user?.id || user?._id;
+    if (!userId) throw new Error("User not authenticated");
     try {
-      const userId = user?.id || user?._id;
-      if (!userId) throw new Error("User not authenticated");
-
-      const payload = { userId, ...params };
-      const resp = await axios.post(`${apiUrl}/backtests/run-realistic`, payload);
+      const resp = await axios.post(`${apiUrl}/backtests/run-realistic`, { userId, ...params });
       return resp.data;
     } catch (err) {
       console.error("[Run Realistic Backtest Error]", err.response?.data || err);
@@ -57,32 +53,31 @@ export function useBacktest() {
     }
   };
 
-  // --- Chunked batch backtests ---
-  const runBatchBacktests = async (combos, chunkSize = 50) => {
-    try {
-      const userId = user?.id || user?._id;
-      if (!userId) throw new Error("User not authenticated");
+  // --- Run batch backtests in chunks of 10 ---
+  const runBatchBacktests = async (combos, chunkSize = 10) => {
+    const userId = user?.id || user?._id;
+    if (!userId) throw new Error("User not authenticated");
 
-      const results = [];
-      let best = null;
+    const results = [];
+    let best = null;
 
-      for (let i = 0; i < combos.length; i += chunkSize) {
-        const chunk = combos.slice(i, i + chunkSize);
+    for (let i = 0; i < combos.length; i += chunkSize) {
+      const chunk = combos.slice(i, i + chunkSize);
+      try {
         const resp = await axios.post(`${apiUrl}/backtests/batch`, { userId, paramCombos: chunk });
-
         if (resp?.data?.success && resp.data.results) {
           results.push(...resp.data.results);
           if (!best || (resp.data.best?.metrics?.netProfit ?? -Infinity) > (best?.metrics?.netProfit ?? -Infinity)) {
             best = resp.data.best;
           }
         }
+      } catch (err) {
+        console.error("[Chunk Backtests Error]", err.response?.data || err);
+        // continue to next chunk even if one fails
       }
-
-      return { results, best };
-    } catch (err) {
-      console.error("[Run Batch Backtests Error]", err.response?.data || err);
-      throw err;
     }
+
+    return { results, best };
   };
 
   const generateParamCombos = () => {
