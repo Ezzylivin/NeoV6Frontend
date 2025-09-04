@@ -108,15 +108,15 @@ export default function Backtests() {
       });
 
       setBacktests(results.map((r, idx) => ({
-        saved: r.saved,
+        saved: r.saved || {},
         metrics: {
           netProfit: r.metrics?.netProfit ?? 0,
           winRate: r.metrics?.winRate ?? 0,
           maxDrawdown: r.metrics?.maxDrawdown ?? 0,
           tradesCount: r.metrics?.tradesCount ?? 0
         },
-        equityCurve: r.saved?.equityCurve || [],
-        trades: r.saved?.tradeBreakdown || [],
+        equityCurve: r.equityCurve || r.saved?.equityCurve || [],
+        trades: r.trades || r.saved?.tradeBreakdown || [],
         label: `(Batch #${idx + 1})`,
         params: usedCombos[idx] || {},
       })));
@@ -235,7 +235,7 @@ export default function Backtests() {
                 <table style={{width:"100%",borderCollapse:"collapse"}}>
                   <thead><tr><th>Exit Time</th><th>Profit</th></tr></thead>
                   <tbody>
-                    {bt.trades.map((t,i)=>( 
+                    {bt.trades.map((t,i)=>(
                       <tr key={i} style={{background:t.profit>=0?"#e8f5e9":"#ffebee"}}>
                         <td style={{border:"1px solid #ccc",padding:"5px"}}>{formatTimestamp(t.exitTime)}</td>
                         <td style={{border:"1px solid #ccc",padding:"5px",color:t.profit>=0?"#4caf50":"#f44336"}}>{t.profit}</td>
