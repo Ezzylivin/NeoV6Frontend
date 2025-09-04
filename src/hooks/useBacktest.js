@@ -1,219 +1,153 @@
-// File: src/pages/Backtests.jsx
-import React, { useState, useEffect } from "react";
-import { useBacktest } from "../hooks/useBacktest.js";
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  BarChart, Bar, Cell, ResponsiveContainer
-} from "recharts";
+// File: src/hooks/useBacktest.js
+import { useState } from "react";
+import axios from "axios";
+import { useAuth } from "../context/AuthContext.jsx";
 
-export default function Backtests() {
-  const { fetchOptions, runBacktest, runBatchBacktests } = useBacktest();
-
+export function useBacktest() {
+  const { user } = useAuth();
   const [options, setOptions] = useState({
     symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
-    timeframes: ["1m","5m","15m","30m","1h","4h","1d"],
-    balances: [100,500,1000,5000,10000],
-    strategies: ["SMA","EMA","RSI","MACD","BollingerBands","Stochastic","VWAP","ATR"],
-    risks: ["Low","Medium","High"],
-    takeProfits: [null,1,2,3,5,10],
-    stopLosses: [null,0.5,1,2,3,5]
+    timeframes: ["1m", "5m", "15m", "30m", "1h", "4h", "1d"],
+    balances: [100, 500, 1000, 5000, 10000],
+    strategies: ["SMA", "EMA", "RSI", "MACD", "BollingerBands", "Stochastic", "VWAP", "ATR"],
+    risks: ["Low", "Medium", "High"],
+    takeProfits: [null, 1, 2, 3, 5, 10],
+    stopLosses: [null, 0.5, 1, 2, 3, 5],
   });
 
-  const [selectedSymbol, setSelectedSymbol] = useState("");
-  const [selectedTimeframe, setSelectedTimeframe] = useState("1h");
-  const [selectedBalance, setSelectedBalance] = useState(1000);
-  const [selectedStrategy, setSelectedStrategy] = useState({ name: "SMA", parameters: {} });
-  const [selectedRisk, setSelectedRisk] = useState("Medium");
-  const [selectedTP, setSelectedTP] = useState(null);
-  const [selectedSL, setSelectedSL] = useState(null);
+  const apiUrl = import.meta.env.VITE_API_URL || "";
 
-  const [backtests, setBacktests] = useState([]);
-  const [loadingSingle, setLoadingSingle] = useState(false);
-  const [loadingBatch, setLoadingBatch] = useState(false);
-  const [error, setError] = useState(null);
-  const [collapsedLogs, setCollapsedLogs] = useState({});
-  const [viewMode, setViewMode] = useState("chart");
+  const fetchOptions = async () => {
+    try {
+      const resp = await axios.get(`${apiUrl}/backtests/options`);
+      if (resp?.data?.success && resp.data.options) {
+        setOptions((prev) => ({ ...prev, ...resp.data.options }));
+      }
+      return resp.data;
+    } catch (err) {
+      console.error("[Fetch Options Error]", err);
+      throw err;
+    }
+  };
 
-  useEffect(() => {
-    async function loadOptions() {
-      try {
-        const resp = await fetchOptions();
-        if (resp?.success && resp?.options) {
-          setOptions(prev => ({ ...prev, ...resp.options }));
-          if (!selectedSymbol) setSelectedSymbol(resp.options.symbols?.[0] || "BTCUSDT");
+  const runBacktest = async (params) => {
+    try {
+      const userId = user?.id || user?._id;
+      if (!userId) throw new Error("User not authenticated");
+
+      const payload = { userId, ...params };
+      console.log("[Single Backtest Request]", payload);
+      const resp = await axios.post(`${apiUrl}/backtests/run`, payload);
+      return resp.data;
+    } catch (err) {
+      console.error("[Run Backtest Error]", err.response?.data || err);
+      throw err;
+    }
+  };
+
+  const runRealisticBacktest = async (params) => {
+    try {
+      const userId = user?.id || user?._id;
+      if (!userId) throw new Error("User not authenticated");
+
+      const payload = { userId, ...params };
+      console.log("[Realistic Backtest Request]", payload);
+      const resp = await axios.post(`${apiUrl}/backtests/run-realistic`, payload);
+      return resp.data;
+    } catch (err) {
+      console.error("[Run Realistic Backtest Error]", err.response?.data || err);
+      throw err;
+    }
+  };
+
+  // Helper: create all possible param combos (symbol + timeframe are fixed)
+  const generateUniqueCombos = (baseParams, count = 10) => {
+    const allCombos = [];
+    for (const strategy of options.strategies) {
+      for (const risk of options.risks) {
+        for (const takeProfit of options.takeProfits) {
+          for (const stopLoss of options.stopLosses) {
+            allCombos.push({
+              symbol: baseParams.symbol,
+              timeframe: baseParams.timeframe,
+              initialBalance: baseParams.initialBalance,
+              strategy: { name: strategy, parameters: {} },
+              risk,
+              takeProfit,
+              stopLoss,
+            });
+          }
         }
-      } catch (err) {
-        console.error("Failed to fetch options:", err);
-        setError("Could not load backtest options");
       }
     }
-    loadOptions();
-  }, [fetchOptions]);
 
-  const normalizeNumber = (val) => {
-    if (val === "" || val === null || val === undefined) return null;
-    const num = Number(val);
-    return isNaN(num) ? null : num;
+    // Shuffle for randomness
+    for (let i = allCombos.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allCombos[i], allCombos[j]] = [allCombos[j], allCombos[i]];
+    }
+
+    return allCombos.slice(0, count); // take only 10 unique
   };
 
-  const formatTimestamp = ts => ts ? new Date(ts).toLocaleString() : "";
-  const toggleLog = idx => setCollapsedLogs(prev => ({ ...prev, [idx]: !prev[idx] }));
-
-  const handleRunSingleBacktest = async () => {
-    if (!selectedSymbol) return;
-    setLoadingSingle(true);
-    setError(null);
-    setBacktests([]);
+  // Run batch = 10 single backtests with proper saved object
+  const runBatchBacktests = async (baseParams) => {
     try {
-      const { saved, metrics, equityCurve, trades } = await runBacktest({
-        symbol: selectedSymbol,
-        timeframe: selectedTimeframe,
-        initialBalance: selectedBalance,
-        strategy: selectedStrategy,
-        risk: selectedRisk,
-        takeProfit: normalizeNumber(selectedTP),
-        stopLoss: normalizeNumber(selectedSL),
-      });
+      const userId = user?.id || user?._id;
+      if (!userId) throw new Error("User not authenticated");
 
-      setBacktests([{
-        saved: saved || { equityCurve: equityCurve||[], tradeBreakdown: trades||[], symbol: selectedSymbol, strategy: selectedStrategy },
-        metrics: {
-          netProfit: metrics?.netProfit ?? 0,
-          winRate: metrics?.winRate ?? 0,
-          maxDrawdown: metrics?.maxDrawdown ?? 0,
-          tradesCount: metrics?.tradesCount ?? 0
-        },
-        equityCurve: equityCurve || [],
-        trades: trades || [],
-        label: "(New)",
-        params: { symbol: selectedSymbol, timeframe: selectedTimeframe, balance: selectedBalance, strategy: selectedStrategy.name, risk: selectedRisk, takeProfit: selectedTP, stopLoss: selectedSL }
-      }]);
+      const combos = generateUniqueCombos(baseParams, 10);
+      console.log("[Batch Backtest Combos]", combos);
+
+      const results = [];
+      let best = null;
+
+      for (const combo of combos) {
+        const resp = await axios.post(`${apiUrl}/backtests/run`, { userId, ...combo });
+        if (resp?.data) {
+          const { metrics, equityCurve, trades } = resp.data;
+
+          // Ensure each batch result has a proper `saved` object like single backtest
+          const saved = {
+            equityCurve: equityCurve || [],
+            tradeBreakdown: trades || [],
+            symbol: combo.symbol,
+            strategy: combo.strategy,
+          };
+
+          const resultObj = {
+            saved,
+            metrics: {
+              netProfit: metrics?.netProfit ?? 0,
+              winRate: metrics?.winRate ?? 0,
+              maxDrawdown: metrics?.maxDrawdown ?? 0,
+              tradesCount: metrics?.tradesCount ?? 0,
+            },
+            equityCurve: saved.equityCurve,
+            trades: saved.tradeBreakdown,
+          };
+
+          results.push(resultObj);
+
+          if (!best || (metrics?.netProfit ?? -Infinity) > (best?.metrics?.netProfit ?? -Infinity)) {
+            best = resultObj;
+          }
+        }
+      }
+
+      return { results, best, usedCombos: combos };
     } catch (err) {
-      console.error("Backtest failed:", err);
-      setError("Backtest failed");
-    } finally {
-      setLoadingSingle(false);
+      console.error("[Run Batch Backtests Error]", err.response?.data || err);
+      throw err;
     }
   };
 
-  const handleRunBatchBacktests = async () => {
-    setLoadingBatch(true);
-    setError(null);
-    setBacktests([]);
-    try {
-      const { results, usedCombos } = await runBatchBacktests({
-        symbol: selectedSymbol,
-        timeframe: selectedTimeframe,
-        initialBalance: selectedBalance
-      });
-
-      // Map results so each has saved, equityCurve, trades like single backtest
-      setBacktests(results.map((r, idx) => ({
-        saved: r.saved || { equityCurve: r.equityCurve || [], tradeBreakdown: r.trades || [], symbol: usedCombos[idx]?.symbol, strategy: usedCombos[idx]?.strategy },
-        metrics: r.metrics,
-        equityCurve: r.equityCurve || r.saved?.equityCurve || [],
-        trades: r.trades || r.saved?.tradeBreakdown || [],
-        label: `(Batch #${idx + 1})`,
-        params: usedCombos[idx] || {},
-      })));
-    } catch (err) {
-      console.error("Batch run failed:", err);
-      setError("Batch backtests failed");
-    } finally {
-      setLoadingBatch(false);
-    }
+  return {
+    options,
+    setOptions,
+    fetchOptions,
+    runBacktest,
+    runRealisticBacktest,
+    runBatchBacktests,
   };
-
-  return (
-    <div>
-      <h2>Backtests</h2>
-      {error && <p style={{ color: "red" }}>{error}</p>}
-
-      {/* Controls */}
-      <div style={{ display:"flex", gap:"15px", flexWrap:"wrap", marginBottom:"15px" }}>
-        <div><label>Symbol: </label><select value={selectedSymbol} onChange={e=>setSelectedSymbol(e.target.value)}>{options.symbols?.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
-        <div><label>Timeframe: </label><select value={selectedTimeframe} onChange={e=>setSelectedTimeframe(e.target.value)}>{options.timeframes?.map(t=><option key={t} value={t}>{t}</option>)}</select></div>
-        <div><label>Balance: </label><select value={selectedBalance} onChange={e=>setSelectedBalance(Number(e.target.value))}>{options.balances?.map(b=><option key={b} value={b}>${b}</option>)}</select></div>
-        <div><label>Strategy: </label><select value={selectedStrategy.name} onChange={e=>setSelectedStrategy({name:e.target.value, parameters:{}})}>{options.strategies?.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
-        <div><label>Risk: </label><select value={selectedRisk} onChange={e=>setSelectedRisk(e.target.value)}>{options.risks?.map(r=><option key={r} value={r}>{r}</option>)}</select></div>
-        <div><label>Take Profit: </label><select value={selectedTP??""} onChange={e=>setSelectedTP(normalizeNumber(e.target.value))}>{options.takeProfits?.map(tp=><option key={tp??"none"} value={tp??""}>{tp!==null?tp+"%":"None"}</option>)}</select></div>
-        <div><label>Stop Loss: </label><select value={selectedSL??""} onChange={e=>setSelectedSL(normalizeNumber(e.target.value))}>{options.stopLosses?.map(sl=><option key={sl??"none"} value={sl??""}>{sl!==null?sl+"%":"None"}</option>)}</select></div>
-        <div><button onClick={handleRunSingleBacktest} disabled={loadingSingle}>{loadingSingle?"Running...":"Run Single Backtest"}</button></div>
-        <div><button onClick={handleRunBatchBacktests} disabled={loadingBatch}>{loadingBatch?"Running...":"Run Batch Backtests"}</button></div>
-        <div><button onClick={()=>setViewMode(viewMode==="chart"?"table":"chart")}>Switch to {viewMode==="chart"?"Table":"Charts"}</button></div>
-      </div>
-
-      {/* Backtest Results */}
-      {backtests.map((bt, idx)=>( 
-        <div key={idx} style={{marginBottom:"40px",border:"1px solid #ccc",padding:"10px"}}>
-          <h3 style={{cursor:"pointer"}} onClick={()=>toggleLog(idx)}>
-            {bt.saved?.symbol || bt.params?.symbol || "N/A"} 
-            ({bt.saved?.strategy?.name || bt.params?.strategy?.name || bt.params?.strategy}) 
-            {bt.label} {collapsedLogs[idx] ? "[+]" : "[-]"}
-          </h3>
-
-          {!collapsedLogs[idx] && (
-            <>
-              {/* Metrics */}
-              <div style={{display:"flex",gap:"10px",flexWrap:"wrap",marginBottom:"10px"}}>
-                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:bt.metrics.netProfit>=0?"#4caf50":"#f44336"}}><b>Net Profit:</b> {bt.metrics.netProfit}</div>
-                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#fff"}}><b>Win Rate:</b> {bt.metrics.winRate}%</div>
-                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#fff"}}><b>Max Drawdown:</b> {bt.metrics.maxDrawdown}%</div>
-                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#fff"}}><b>Trades:</b> {bt.metrics.tradesCount}</div>
-              </div>
-
-              <p><b>Parameters:</b> Strategy={bt.params.strategy?.name||bt.params.strategy} | Risk={bt.params.risk} | TP={bt.params.takeProfit??"None"} | SL={bt.params.stopLoss??"None"}</p>
-
-              {viewMode==="chart" ? (
-                <>
-                  <h4>Equity Curve</h4>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <LineChart data={bt.equityCurve}>
-                      <CartesianGrid strokeDasharray="3 3"/>
-                      <XAxis dataKey="time" tickFormatter={formatTimestamp}/>
-                      <YAxis/>
-                      <Tooltip labelFormatter={formatTimestamp}/>
-                      <Legend/>
-                      <Line type="monotone" dataKey="equity" stroke="#8884d8" dot={false}/>
-                    </LineChart>
-                  </ResponsiveContainer>
-
-                  <h4>Trades P/L</h4>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={bt.trades}>
-                      <CartesianGrid strokeDasharray="3 3"/>
-                      <XAxis dataKey="exitTime" tickFormatter={formatTimestamp}/>
-                      <YAxis/>
-                      <Tooltip labelFormatter={formatTimestamp}/>
-                      <Legend/>
-                      <Bar dataKey="profit">
-                        {bt.trades.map((t,i)=><Cell key={i} fill={t.profit>=0?"#4caf50":"#f44336"}/>)}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </>
-              ) : (
-                <table style={{width:"100%",borderCollapse:"collapse", color:"#000"}}>
-                  <thead>
-                    <tr>
-                      <th>Exit Time</th>
-                      <th>Profit</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bt.trades.map((t,i)=>(
-                      <tr key={i} style={{background:t.profit>=0?"#e8f5e9":"#ffebee"}}>
-                        <td style={{border:"1px solid #ccc",padding:"5px"}}>{formatTimestamp(t.exitTime)}</td>
-                        <td style={{border:"1px solid #ccc",padding:"5px",color:t.profit>=0?"#4caf50":"#f44336"}}>{t.profit}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </>
-          )}
-        </div>
-      ))}
-    </div>
-  );
 }
