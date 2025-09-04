@@ -32,6 +32,10 @@ export default function Backtests() {
   const [loadingBatch, setLoadingBatch] = useState(false);
   const [error, setError] = useState(null);
 
+  // collapsible log state
+  const [collapsedLogs, setCollapsedLogs] = useState({}); 
+  const [viewMode, setViewMode] = useState("chart"); // "chart" or "table"
+
   useEffect(() => {
     async function loadOptions() {
       try {
@@ -97,14 +101,12 @@ export default function Backtests() {
     setLoadingBatch(true);
     setError(null);
     setBacktests([]);
-
     try {
       const { results, usedCombos } = await runBatchBacktests({
         symbol: selectedSymbol,
         timeframe: selectedTimeframe,
         initialBalance: selectedBalance,
       });
-
       setBacktests(results.map((r, idx) => ({
         saved: r.saved,
         metrics: r.metrics,
@@ -119,6 +121,16 @@ export default function Backtests() {
     } finally {
       setLoadingBatch(false);
     }
+  };
+
+  const toggleLog = (idx) => {
+    setCollapsedLogs(prev => ({ ...prev, [idx]: !prev[idx] }));
+  };
+
+  const formatTimestamp = (ts) => {
+    if (!ts) return "";
+    const date = new Date(ts);
+    return date.toLocaleString(); // readable timestamp
   };
 
   return (
@@ -180,54 +192,93 @@ export default function Backtests() {
             {loadingBatch ? "Running..." : "Run Batch Backtests"}
           </button>
         </div>
+        <div>
+          <button onClick={() => setViewMode(viewMode === "chart" ? "table" : "chart")}>
+            Switch to {viewMode === "chart" ? "Table" : "Charts"}
+          </button>
+        </div>
       </div>
 
       {/* Backtest Results */}
       {backtests.length > 0 && backtests.map((bt, idx) => (
         <div key={idx} style={{ marginBottom: "40px", border: "1px solid #ccc", padding: "10px" }}>
-          <h3>{bt.saved?.symbol || "N/A"} ({bt.saved?.strategy?.name || bt.params?.strategy?.name}) {bt.label}</h3>
+          <h3 style={{ cursor: "pointer" }} onClick={() => toggleLog(idx)}>
+            {bt.saved?.symbol || "N/A"} ({bt.saved?.strategy?.name || bt.params?.strategy?.name}) {bt.label} {collapsedLogs[idx] ? "[+]" : "[-]"}
+          </h3>
 
-          {/* Metrics cards */}
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "10px" }}>
-            <div style={{ padding: "10px", borderRadius: "8px", background: "#1e1e1e", color: "#fff" }} title={`Max Gain: ${bt.metrics?.maxGain ?? 0}, Max Loss: ${bt.metrics?.maxLoss ?? 0}`}>
-              <b>Net Profit:</b> <span style={{ color: (bt.metrics?.netProfit >= 0 ? "#4caf50" : "#f44336") }}>{bt.metrics?.netProfit ?? 0}</span>
-            </div>
-            <div style={{ padding: "10px", borderRadius: "8px", background: "#1e1e1e", color: "#fff" }} title={`Winning Trades: ${bt.metrics?.winningTrades ?? 0}, Losing Trades: ${bt.metrics?.losingTrades ?? 0}`}>
-              <b>Win Rate:</b> {bt.metrics?.winRate ?? 0}%
-            </div>
-            <div style={{ padding: "10px", borderRadius: "8px", background: "#1e1e1e", color: "#fff" }} title={`Peak Drawdown Time: ${bt.metrics?.drawdownDuration ?? "N/A"}`}>
-              <b>Max Drawdown:</b> {bt.metrics?.maxDrawdown ?? 0}%
-            </div>
-            <div style={{ padding: "10px", borderRadius: "8px", background: "#1e1e1e", color: "#fff" }}>
-              <b>Trades:</b> {bt.metrics?.tradesCount ?? 0}
-            </div>
-          </div>
+          {!collapsedLogs[idx] && (
+            <>
+              {/* Metrics */}
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "10px" }}>
+                <div style={{ padding: "10px", borderRadius: "8px", background: "#1e1e1e", color: "#fff" }}>
+                  <b>Net Profit:</b> <span style={{ color: (bt.metrics?.netProfit >= 0 ? "#4caf50" : "#f44336") }}>{bt.metrics?.netProfit ?? 0}</span>
+                </div>
+                <div style={{ padding: "10px", borderRadius: "8px", background: "#1e1e1e", color: "#fff" }}>
+                  <b>Win Rate:</b> {bt.metrics?.winRate ?? 0}%
+                </div>
+                <div style={{ padding: "10px", borderRadius: "8px", background: "#1e1e1e", color: "#fff" }}>
+                  <b>Max Drawdown:</b> {bt.metrics?.maxDrawdown ?? 0}%
+                </div>
+                <div style={{ padding: "10px", borderRadius: "8px", background: "#1e1e1e", color: "#fff" }}>
+                  <b>Trades:</b> {bt.metrics?.tradesCount ?? 0}
+                </div>
+              </div>
 
-          <p><b>Parameters:</b> Strategy={bt.params?.strategy?.name || bt.params?.strategy} | Risk={bt.params?.risk} | TP={bt.params?.takeProfit ?? "None"} | SL={bt.params?.stopLoss ?? "None"}</p>
+              <p><b>Parameters:</b> Strategy={bt.params?.strategy?.name || bt.params?.strategy} | Risk={bt.params?.risk} | TP={bt.params?.takeProfit ?? "None"} | SL={bt.params?.stopLoss ?? "None"}</p>
 
-          <h4>Equity Curve</h4>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={bt.equityCurve}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="equity" stroke="#8884d8" dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
+              {viewMode === "chart" ? (
+                <>
+                  <h4>Equity Curve</h4>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <LineChart data={bt.equityCurve}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="time" tickFormatter={formatTimestamp} />
+                      <YAxis />
+                      <Tooltip labelFormatter={formatTimestamp} />
+                      <Legend />
+                      <Line type="monotone" dataKey="equity" stroke="#8884d8" dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
 
-          <h4>Trades P/L</h4>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={bt.trades}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="exitTime" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="profit" fill="#82ca9d" />
-            </BarChart>
-          </ResponsiveContainer>
+                  <h4>Trades P/L</h4>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={bt.trades}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="exitTime" tickFormatter={formatTimestamp} />
+                      <YAxis />
+                      <Tooltip labelFormatter={formatTimestamp} />
+                      <Legend />
+                      <Bar dataKey="profit" fill="#82ca9d" >
+                        {bt.trades.map((t, i) => (
+                          <cell key={i} fill={t.profit >= 0 ? "#4caf50" : "#f44336"} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </>
+              ) : (
+                <>
+                  <h4>Trades Table</h4>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr>
+                        <th style={{ border: "1px solid #ccc", padding: "5px" }}>Exit Time</th>
+                        <th style={{ border: "1px solid #ccc", padding: "5px" }}>Profit</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bt.trades.map((t, i) => (
+                        <tr key={i} style={{ background: t.profit >= 0 ? "#e8f5e9" : "#ffebee" }}>
+                          <td style={{ border: "1px solid #ccc", padding: "5px" }}>{formatTimestamp(t.exitTime)}</td>
+                          <td style={{ border: "1px solid #ccc", padding: "5px", color: t.profit >= 0 ? "#4caf50" : "#f44336" }}>{t.profit}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
+            </>
+          )}
         </div>
       ))}
     </div>
