@@ -1,4 +1,3 @@
-// File: src/pages/Backtests.jsx
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import {
@@ -7,7 +6,7 @@ import {
 } from "recharts";
 
 export default function Backtests() {
-  const { fetchOptions, runBacktest, runBatchFromSelectors } = useBacktest();
+  const { fetchOptions, runBacktest, runBatchBacktests, generateParamCombos } = useBacktest();
 
   const [options, setOptions] = useState({
     symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
@@ -19,7 +18,7 @@ export default function Backtests() {
     stopLosses: [null,0.5,1,2,3,5]
   });
 
-  const [selectedSymbol, setSelectedSymbol] = useState("BTCUSDT");
+  const [selectedSymbol, setSelectedSymbol] = useState("");
   const [selectedTimeframe, setSelectedTimeframe] = useState("1h");
   const [selectedBalance, setSelectedBalance] = useState(1000);
   const [selectedStrategy, setSelectedStrategy] = useState({ name: "SMA", parameters: {} });
@@ -39,7 +38,8 @@ export default function Backtests() {
         const resp = await fetchOptions();
         if (resp?.success && resp?.options) {
           setOptions(prev => ({ ...prev, ...resp.options }));
-          setSelectedSymbol(resp.options.symbols?.[0] || "BTCUSDT");
+          // Only set default if no symbol is currently selected
+          if (!selectedSymbol) setSelectedSymbol(resp.options.symbols?.[0] || "BTCUSDT");
         }
       } catch (err) {
         console.error("Failed to fetch options:", err);
@@ -47,13 +47,14 @@ export default function Backtests() {
       }
     }
     loadOptions();
-  }, [fetchOptions]);
+  }, [fetchOptions, selectedSymbol]);
 
-  // Single backtest handler
+  // --- Single backtest ---
   const handleRunSingleBacktest = async () => {
     if (!selectedSymbol) return;
     setLoadingSingle(true);
     setError(null);
+    setBacktests([]); // collapse previous logs
     try {
       const { saved, metrics, equityCurve, trades } = await runBacktest({
         symbol: selectedSymbol,
@@ -64,7 +65,7 @@ export default function Backtests() {
         takeProfit: selectedTP,
         stopLoss: selectedSL,
       });
-      setBacktests(prev => [...prev, { saved, metrics, equityCurve, trades }]);
+      setBacktests([{ saved, metrics, equityCurve, trades }]);
     } catch (err) {
       console.error("Backtest failed:", err);
       setError("Backtest failed");
@@ -73,30 +74,46 @@ export default function Backtests() {
     }
   };
 
-  // Batch backtest handler
+  // --- Batch backtests with live updates (10 at a time) ---
   const handleRunBatchBacktests = async () => {
     setLoadingBatch(true);
     setError(null);
-    try {
-      const { results, best } = await runBatchFromSelectors();
-      if (results?.length) {
+    setBacktests([]); // collapse previous logs
+
+    const combos = generateParamCombos();
+    if (!combos.length) {
+      setLoadingBatch(false);
+      return;
+    }
+
+    const chunkSize = 10;
+    let best = null;
+
+    for (let i = 0; i < combos.length; i += chunkSize) {
+      const chunk = combos.slice(i, i + chunkSize);
+      try {
+        const { results, best: chunkBest } = await runBatchBacktests(chunk, chunkSize);
+        // Add chunk results to top
         setBacktests(prev => [
-          ...prev,
           ...results.map(r => ({
             saved: r.saved,
             metrics: r.metrics,
             equityCurve: r.saved?.equityCurve || [],
             trades: r.saved?.tradeBreakdown || [],
-          }))
+          })),
+          ...prev
         ]);
+
+        if (!best || (chunkBest?.metrics?.netProfit ?? -Infinity) > (best?.metrics?.netProfit ?? -Infinity)) {
+          best = chunkBest;
+        }
+      } catch (err) {
+        console.error("Batch chunk failed:", err);
       }
-      console.log("Best batch result:", best);
-    } catch (err) {
-      console.error("Batch backtests failed:", err);
-      setError("Batch backtests failed");
-    } finally {
-      setLoadingBatch(false);
     }
+
+    console.log("Best batch result:", best);
+    setLoadingBatch(false);
   };
 
   return (
@@ -106,6 +123,7 @@ export default function Backtests() {
 
       {/* Selectors */}
       <div style={{ display: "flex", gap: "15px", marginBottom: "15px", flexWrap: "wrap" }}>
+        {/* Symbol */}
         <div>
           <label>Symbol: </label>
           <select value={selectedSymbol} onChange={e => setSelectedSymbol(e.target.value)}>
@@ -113,6 +131,7 @@ export default function Backtests() {
           </select>
         </div>
 
+        {/* Timeframe */}
         <div>
           <label>Timeframe: </label>
           <select value={selectedTimeframe} onChange={e => setSelectedTimeframe(e.target.value)}>
@@ -120,6 +139,7 @@ export default function Backtests() {
           </select>
         </div>
 
+        {/* Balance */}
         <div>
           <label>Balance: </label>
           <select value={selectedBalance} onChange={e => setSelectedBalance(Number(e.target.value))}>
@@ -127,6 +147,7 @@ export default function Backtests() {
           </select>
         </div>
 
+        {/* Strategy */}
         <div>
           <label>Strategy: </label>
           <select value={selectedStrategy.name} onChange={e => setSelectedStrategy({ name: e.target.value, parameters: {} })}>
@@ -134,6 +155,7 @@ export default function Backtests() {
           </select>
         </div>
 
+        {/* Risk */}
         <div>
           <label>Risk: </label>
           <select value={selectedRisk} onChange={e => setSelectedRisk(e.target.value)}>
@@ -141,6 +163,7 @@ export default function Backtests() {
           </select>
         </div>
 
+        {/* Take Profit */}
         <div>
           <label>Take Profit: </label>
           <select value={selectedTP ?? ""} onChange={e => setSelectedTP(e.target.value === "" ? null : Number(e.target.value))}>
@@ -148,6 +171,7 @@ export default function Backtests() {
           </select>
         </div>
 
+        {/* Stop Loss */}
         <div>
           <label>Stop Loss: </label>
           <select value={selectedSL ?? ""} onChange={e => setSelectedSL(e.target.value === "" ? null : Number(e.target.value))}>
@@ -155,12 +179,12 @@ export default function Backtests() {
           </select>
         </div>
 
+        {/* Buttons */}
         <div>
           <button onClick={handleRunSingleBacktest} disabled={loadingSingle}>
             {loadingSingle ? "Running..." : "Run Single Backtest"}
           </button>
         </div>
-
         <div>
           <button onClick={handleRunBatchBacktests} disabled={loadingBatch}>
             {loadingBatch ? "Running..." : "Run Batch Backtests"}
