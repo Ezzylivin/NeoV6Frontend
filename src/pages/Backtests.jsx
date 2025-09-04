@@ -75,28 +75,44 @@ export default function Backtests() {
   };
 
   // Batch backtest handler
-  const handleRunBatchBacktests = async () => {
-    setLoadingBatch(true);
-    setError(null);
-    setBacktests([]); // Collapse previous logs
-    try {
-      const { results, best } = await runBatchFromSelectors();
-      if (results?.length) {
-        setBacktests(results.map(r => ({
-          saved: r.saved,
-          metrics: r.metrics,
-          equityCurve: r.saved?.equityCurve || [],
-          trades: r.saved?.tradeBreakdown || [],
-        })).reverse()); // New ones at top
+const handleRunBatchBacktests = async () => {
+  setLoadingBatch(true);
+  setError(null);
+  setBacktests([]); // Collapse previous logs
+  try {
+    const combos = await runBatchFromSelectors(); // generate all combos
+    const CHUNK_SIZE = 10; // run 10 at a time
+    const results = [];
+    let best = null;
+
+    for (let i = 0; i < combos.length; i += CHUNK_SIZE) {
+      const chunk = combos.slice(i, i + CHUNK_SIZE);
+      const resp = await runBatchBacktests(chunk); // call hook function for chunk
+      if (resp?.results?.length) {
+        results.push(...resp.results);
+        if (!best || (resp.best?.metrics?.netProfit ?? -Infinity) > (best?.metrics?.netProfit ?? -Infinity)) {
+          best = resp.best;
+        }
       }
-      console.log("Best batch result:", best);
-    } catch (err) {
-      console.error("Batch backtests failed:", err);
-      setError("Batch backtests failed");
-    } finally {
-      setLoadingBatch(false);
     }
-  };
+
+    if (results.length) {
+      setBacktests(results.map(r => ({
+        saved: r.saved,
+        metrics: r.metrics,
+        equityCurve: r.saved?.equityCurve || [],
+        trades: r.saved?.tradeBreakdown || [],
+      })).reverse()); // newest at top
+    }
+
+    console.log("Best batch result:", best);
+  } catch (err) {
+    console.error("Batch backtests failed:", err);
+    setError("Batch backtests failed");
+  } finally {
+    setLoadingBatch(false);
+  }
+};
 
   return (
     <div>
