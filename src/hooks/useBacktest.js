@@ -35,7 +35,6 @@ export function useBacktest() {
       const userId = user?.id || user?._id;
       if (!userId) throw new Error("User not authenticated");
 
-      // NEW: allow startDate and endDate in payload
       const payload = {
         userId,
         ...params,
@@ -57,7 +56,6 @@ export function useBacktest() {
       const userId = user?.id || user?._id;
       if (!userId) throw new Error("User not authenticated");
 
-      // NEW: allow startDate and endDate in payload
       const payload = {
         userId,
         ...params,
@@ -74,7 +72,6 @@ export function useBacktest() {
     }
   };
 
-  // Helper: create all possible param combos (symbol + timeframe are fixed)
   const generateUniqueCombos = (baseParams, count = 10) => {
     const allCombos = [];
     for (const strategy of options.strategies) {
@@ -89,25 +86,28 @@ export function useBacktest() {
               risk,
               takeProfit,
               stopLoss,
-              startDate: baseParams.startDate || null, // NEW
-              endDate: baseParams.endDate || null,     // NEW
+              startDate: baseParams.startDate || null,
+              endDate: baseParams.endDate || null,
             });
           }
         }
       }
     }
 
-    // Shuffle for randomness
     for (let i = allCombos.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [allCombos[i], allCombos[j]] = [allCombos[j], allCombos[i]];
     }
 
-    return allCombos.slice(0, count); // take only 10 unique
+    return allCombos.slice(0, count);
   };
 
-  // Run batch = 10 single backtests with proper saved object
-  const runBatchBacktests = async (baseParams) => {
+  /**
+   * Run batch backtests with live progress updates
+   * @param {object} baseParams - base parameters for batch
+   * @param {function} onProgress - callback for live updates
+   */
+  const runBatchBacktests = async (baseParams, onProgress) => {
     try {
       const userId = user?.id || user?._id;
       if (!userId) throw new Error("User not authenticated");
@@ -118,12 +118,13 @@ export function useBacktest() {
       const results = [];
       let best = null;
 
-      for (const combo of combos) {
+      for (let idx = 0; idx < combos.length; idx++) {
+        const combo = combos[idx];
         const resp = await axios.post(`${apiUrl}/backtests/run`, { userId, ...combo });
+
         if (resp?.data) {
           const { metrics, equityCurve, trades } = resp.data;
 
-          // Ensure each batch result has a proper `saved` object like single backtest
           const saved = {
             equityCurve: equityCurve || [],
             tradeBreakdown: trades || [],
@@ -147,6 +148,16 @@ export function useBacktest() {
 
           if (!best || (metrics?.netProfit ?? -Infinity) > (best?.metrics?.netProfit ?? -Infinity)) {
             best = resultObj;
+          }
+
+          // 🔹 Live progress callback
+          if (typeof onProgress === "function") {
+            onProgress({
+              idx: idx + 1,
+              total: combos.length,
+              currentResult: resultObj,
+              resultsSoFar: [...results],
+            });
           }
         }
       }
