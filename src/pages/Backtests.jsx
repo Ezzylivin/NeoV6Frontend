@@ -27,13 +27,9 @@ export default function Backtests() {
   const [selectedTP, setSelectedTP] = useState(null);
   const [selectedSL, setSelectedSL] = useState(null);
 
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-
   const [backtests, setBacktests] = useState([]);
   const [loadingSingle, setLoadingSingle] = useState(false);
   const [loadingBatch, setLoadingBatch] = useState(false);
-  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
   const [error, setError] = useState(null);
   const [collapsedLogs, setCollapsedLogs] = useState({});
   const [viewMode, setViewMode] = useState("chart");
@@ -77,8 +73,6 @@ export default function Backtests() {
         risk: selectedRisk,
         takeProfit: normalizeNumber(selectedTP),
         stopLoss: normalizeNumber(selectedSL),
-        startDate: startDate || null,
-        endDate: endDate || null
       });
 
       setBacktests([{
@@ -92,7 +86,7 @@ export default function Backtests() {
         equityCurve: equityCurve || [],
         trades: trades || [],
         label: "(New)",
-        params: { symbol: selectedSymbol, timeframe: selectedTimeframe, balance: selectedBalance, strategy: selectedStrategy.name, risk: selectedRisk, takeProfit: selectedTP, stopLoss: selectedSL, startDate, endDate }
+        params: { symbol: selectedSymbol, timeframe: selectedTimeframe, balance: selectedBalance, strategy: selectedStrategy.name, risk: selectedRisk, takeProfit: selectedTP, stopLoss: selectedSL }
       }]);
     } catch (err) {
       console.error("Backtest failed:", err);
@@ -104,46 +98,43 @@ export default function Backtests() {
 
   const handleRunBatchBacktests = async () => {
     setLoadingBatch(true);
-    setBatchProgress({ current: 0, total: 0 });
     setError(null);
     setBacktests([]);
-
     try {
-      const { results, usedCombos } = await runBatchBacktests(
-        {
-          symbol: selectedSymbol,
-          timeframe: selectedTimeframe,
-          initialBalance: selectedBalance,
-          startDate: startDate || null,
-          endDate: endDate || null
+      const { results, usedCombos } = await runBatchBacktests({
+        symbol: selectedSymbol,
+        timeframe: selectedTimeframe,
+        initialBalance: selectedBalance
+      });
+
+      setBacktests(results.map((r, idx) => ({
+        saved: r.saved || {},
+        metrics: {
+          netProfit: r.metrics?.netProfit ?? 0,
+          winRate: r.metrics?.winRate ?? 0,
+          maxDrawdown: r.metrics?.maxDrawdown ?? 0,
+          tradesCount: r.metrics?.tradesCount ?? 0
         },
-        ({ idx, total, currentResult, resultsSoFar }) => {
-          setBatchProgress({ current: idx, total });
-
-          setBacktests(resultsSoFar.map((r, i) => {
-            const comboParams = usedCombos[i] || {};
-            return {
-              saved: r.saved,
-              metrics: r.metrics,
-              equityCurve: r.equityCurve || [],
-              trades: r.trades || [],
-              label: `(Batch #${i+1})`,
-              params: { ...comboParams, startDate, endDate }
-            };
-          }));
-        }
-      );
-
+        equityCurve: r.equityCurve || r.saved?.equityCurve || [],
+        trades: r.trades || r.saved?.tradeBreakdown || [],
+        label: `(Batch #${idx + 1})`,
+        params: usedCombos[idx] || {},
+      })));
     } catch (err) {
       console.error("Batch run failed:", err);
       setError("Batch backtests failed");
     } finally {
       setLoadingBatch(false);
-      setBatchProgress({ current: 0, total: 0 });
     }
   };
 
-  const progressPercent = batchProgress.total > 0 ? Math.round((batchProgress.current / batchProgress.total) * 100) : 0;
+  // Combined batch equity chart data
+  const combinedBatchEquity = backtests.length > 1
+    ? backtests.map((bt, idx) => ({
+        name: `(Batch #${idx + 1})`,
+        data: bt.equityCurve.map(point => ({ time: point.time, equity: point.equity }))
+      }))
+    : [];
 
   return (
     <div>
@@ -159,27 +150,40 @@ export default function Backtests() {
         <div><label>Risk: </label><select value={selectedRisk} onChange={e=>setSelectedRisk(e.target.value)}>{options.risks?.map(r=><option key={r} value={r}>{r}</option>)}</select></div>
         <div><label>Take Profit: </label><select value={selectedTP??""} onChange={e=>setSelectedTP(normalizeNumber(e.target.value))}>{options.takeProfits?.map(tp=><option key={tp??"none"} value={tp??""}>{tp!==null?tp+"%":"None"}</option>)}</select></div>
         <div><label>Stop Loss: </label><select value={selectedSL??""} onChange={e=>setSelectedSL(normalizeNumber(e.target.value))}>{options.stopLosses?.map(sl=><option key={sl??"none"} value={sl??""}>{sl!==null?sl+"%":"None"}</option>)}</select></div>
-
-        <div><label>Start Date: </label><input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)}/></div>
-        <div><label>End Date: </label><input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)}/></div>
-
         <div><button onClick={handleRunSingleBacktest} disabled={loadingSingle}>{loadingSingle?"Running...":"Run Single Backtest"}</button></div>
         <div><button onClick={handleRunBatchBacktests} disabled={loadingBatch}>{loadingBatch?"Running...":"Run Batch Backtests"}</button></div>
         <div><button onClick={()=>setViewMode(viewMode==="chart"?"table":"chart")}>Switch to {viewMode==="chart"?"Table":"Charts"}</button></div>
       </div>
 
-      {/* 🔹 Batch Progress */}
-      {loadingBatch && batchProgress.total > 0 && (
-        <div style={{ marginBottom:"10px" }}>
-          <div style={{ background:"#ddd", width:"100%", height:"20px", borderRadius:"10px", overflow:"hidden" }}>
-            <div style={{ width:`${progressPercent}%`, height:"100%", background:"#4caf50", transition:"width 0.2s" }}></div>
-          </div>
-          <p>{`Running batch ${batchProgress.current} / ${batchProgress.total} (${progressPercent}%)`}</p>
-        </div>
+      {/* Combined batch equity chart */}
+      {combinedBatchEquity.length > 0 && viewMode === "chart" && (
+        <>
+          <h4>Combined Batch Equity Curves</h4>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart>
+              <CartesianGrid strokeDasharray="3 3"/>
+              <XAxis dataKey="time" tickFormatter={formatTimestamp}/>
+              <YAxis/>
+              <Tooltip labelFormatter={formatTimestamp}/>
+              <Legend/>
+              {combinedBatchEquity.map((batch, i) => (
+                <Line
+                  key={i}
+                  type="monotone"
+                  data={batch.data}
+                  dataKey="equity"
+                  name={batch.name}
+                  stroke={`hsl(${(i*60)%360},70%,50%)`}
+                  dot={false}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </>
       )}
 
       {/* Backtest Results */}
-      {backtests.map((bt, idx)=>(
+      {backtests.map((bt, idx)=>( 
         <div key={idx} style={{marginBottom:"40px",border:"1px solid #ccc",padding:"10px"}}>
           <h3 style={{cursor:"pointer"}} onClick={()=>toggleLog(idx)}>
             {bt.saved?.symbol || bt.params?.symbol || "N/A"} 
@@ -192,12 +196,12 @@ export default function Backtests() {
               {/* Metrics */}
               <div style={{display:"flex",gap:"10px",flexWrap:"wrap",marginBottom:"10px"}}>
                 <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:bt.metrics.netProfit>=0?"#4caf50":"#f44336"}}><b>Net Profit:</b> {bt.metrics.netProfit}</div>
-                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Win Rate:</b> {bt.metrics.winRate}%</div>
-                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Max Drawdown:</b> {bt.metrics.maxDrawdown}%</div>
-                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Trades:</b> {bt.metrics.tradesCount}</div>
+                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#fff"}}><b>Win Rate:</b> {bt.metrics.winRate}%</div>
+                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#fff"}}><b>Max Drawdown:</b> {bt.metrics.maxDrawdown}%</div>
+                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#fff"}}><b>Trades:</b> {bt.metrics.tradesCount}</div>
               </div>
 
-              <p><b>Parameters:</b> Strategy={bt.params.strategy?.name||bt.params.strategy} | Risk={bt.params.risk} | TP={bt.params.takeProfit??"None"} | SL={bt.params.stopLoss??"None"} | Start={bt.params.startDate||"All"} | End={bt.params.endDate||"All"}</p>
+              <p><b>Parameters:</b> Strategy={bt.params.strategy?.name||bt.params.strategy} | Risk={bt.params.risk} | TP={bt.params.takeProfit??"None"} | SL={bt.params.stopLoss??"None"}</p>
 
               {viewMode==="chart" ? (
                 <>
@@ -231,7 +235,12 @@ export default function Backtests() {
                 <table style={{width:"100%",borderCollapse:"collapse"}}>
                   <thead><tr><th>Exit Time</th><th>Profit</th></tr></thead>
                   <tbody>
-                    {bt.trades.map((t,i)=>(<tr key={i} style={{background:t.profit>=0?"#e8f5e9":"#ffebee"}}><td style={{border:"1px solid #ccc",padding:"5px",color:"#333"}}>{formatTimestamp(t.exitTime)}</td><td style={{border:"1px solid #ccc",padding:"5px",color:t.profit>=0?"#4caf50":"#f44336"}}>{t.profit}</td></tr>))}
+                    {bt.trades.map((t,i)=>(
+                      <tr key={i} style={{background:t.profit>=0?"#e8f5e9":"#ffebee"}}>
+                        <td style={{border:"1px solid #ccc",padding:"5px"}}>{formatTimestamp(t.exitTime)}</td>
+                        <td style={{border:"1px solid #ccc",padding:"5px",color:t.profit>=0?"#4caf50":"#f44336"}}>{t.profit}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               )}
