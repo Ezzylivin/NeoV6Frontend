@@ -35,14 +35,7 @@ export function useBacktest() {
       const userId = user?.id || user?._id;
       if (!userId) throw new Error("User not authenticated");
 
-      // NEW: allow startDate and endDate in payload
-      const payload = {
-        userId,
-        ...params,
-        startDate: params.startDate || null,
-        endDate: params.endDate || null,
-      };
-
+      const payload = { userId, ...params };
       console.log("[Single Backtest Request]", payload);
       const resp = await axios.post(`${apiUrl}/backtests/run`, payload);
       return resp.data;
@@ -57,14 +50,7 @@ export function useBacktest() {
       const userId = user?.id || user?._id;
       if (!userId) throw new Error("User not authenticated");
 
-      // NEW: allow startDate and endDate in payload
-      const payload = {
-        userId,
-        ...params,
-        startDate: params.startDate || null,
-        endDate: params.endDate || null,
-      };
-
+      const payload = { userId, ...params };
       console.log("[Realistic Backtest Request]", payload);
       const resp = await axios.post(`${apiUrl}/backtests/run-realistic`, payload);
       return resp.data;
@@ -89,8 +75,6 @@ export function useBacktest() {
               risk,
               takeProfit,
               stopLoss,
-              startDate: baseParams.startDate || null, // NEW
-              endDate: baseParams.endDate || null,     // NEW
             });
           }
         }
