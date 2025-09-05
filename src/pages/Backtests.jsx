@@ -129,3 +129,127 @@ export default function Backtests() {
       }));
 
       setBacktests(mapped);
+    } catch (err) {
+      console.error("Batch run failed:", err);
+      setError("Batch backtests failed");
+    } finally {
+      setLoadingBatch(false);
+    }
+  };
+
+  return (
+    <div>
+      <h2>Backtests</h2>
+      {error && <p style={{ color: "red" }}>{error}</p>}
+
+      {/* Controls */}
+      <div style={{ display:"flex", gap:"15px", flexWrap:"wrap", marginBottom:"15px" }}>
+        <div><label>Symbol: </label>
+          <select value={selectedSymbol} onChange={e=>setSelectedSymbol(e.target.value)}>
+            {options.symbols?.map(s=><option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div><label>Timeframe: </label>
+          <select value={selectedTimeframe} onChange={e=>setSelectedTimeframe(e.target.value)}>
+            {options.timeframes?.map(t=><option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <div><label>Balance: </label>
+          <select value={selectedBalance} onChange={e=>setSelectedBalance(Number(e.target.value))}>
+            {options.balances?.map(b=><option key={b} value={b}>${b}</option>)}
+          </select>
+        </div>
+        <div><label>Strategy: </label>
+          <select value={selectedStrategy.name} onChange={e=>setSelectedStrategy({name:e.target.value, parameters:{}})}>
+            {options.strategies?.map(s=><option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div><label>Risk: </label>
+          <select value={selectedRisk} onChange={e=>setSelectedRisk(e.target.value)}>
+            {options.risks?.map(r=><option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+        <div><label>Take Profit: </label>
+          <select value={selectedTP??""} onChange={e=>setSelectedTP(normalizeNumber(e.target.value))}>
+            {options.takeProfits?.map(tp=><option key={tp??"none"} value={tp??""}>{tp!==null?tp+"%":"None"}</option>)}
+          </select>
+        </div>
+        <div><label>Stop Loss: </label>
+          <select value={selectedSL??""} onChange={e=>setSelectedSL(normalizeNumber(e.target.value))}>
+            {options.stopLosses?.map(sl=><option key={sl??"none"} value={sl??""}>{sl!==null?sl+"%":"None"}</option>)}
+          </select>
+        </div>
+        <div><button onClick={handleRunSingleBacktest} disabled={loadingSingle}>{loadingSingle?"Running...":"Run Single Backtest"}</button></div>
+        <div><button onClick={handleRunBatchBacktests} disabled={loadingBatch}>{loadingBatch?"Running...":"Run Batch Backtests"}</button></div>
+        <div><button onClick={()=>setViewMode(viewMode==="chart"?"table":"chart")}>Switch to {viewMode==="chart"?"Table":"Charts"}</button></div>
+      </div>
+
+      {/* Backtest Results */}
+      {backtests.map((bt, idx)=>( 
+        <div key={idx} style={{marginBottom:"40px",border:"1px solid #ccc",padding:"10px"}}>
+          <h3 style={{cursor:"pointer"}} onClick={()=>toggleLog(idx)}>
+            {bt.saved?.symbol || bt.params?.symbol || "N/A"} 
+            ({bt.saved?.strategy?.name || bt.params?.strategy?.name || bt.params?.strategy}) 
+            {bt.label} {collapsedLogs[idx] ? "[+]" : "[-]"}
+          </h3>
+
+          {!collapsedLogs[idx] && (
+            <>
+              {/* Metrics */}
+              <div style={{display:"flex",gap:"10px",flexWrap:"wrap",marginBottom:"10px"}}>
+                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:bt.metrics.netProfit>=0?"#4caf50":"#f44336"}}><b>Net Profit:</b> {bt.metrics.netProfit}</div>
+                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Win Rate:</b> {bt.metrics.winRate}%</div>
+                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Max Drawdown:</b> {bt.metrics.maxDrawdown}%</div>
+                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Trades:</b> {bt.metrics.tradesCount}</div>
+              </div>
+
+              <p><b>Parameters:</b> Strategy={bt.params.strategy?.name||bt.params.strategy} | Risk={bt.params.risk} | TP={bt.params.takeProfit??"None"} | SL={bt.params.stopLoss??"None"}</p>
+
+              {viewMode==="chart" ? (
+                <>
+                  <h4>Equity Curve</h4>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <LineChart data={bt.equityCurve}>
+                      <CartesianGrid strokeDasharray="3 3"/>
+                      <XAxis dataKey="time" tickFormatter={formatTimestamp}/>
+                      <YAxis/>
+                      <Tooltip labelFormatter={formatTimestamp}/>
+                      <Legend/>
+                      <Line type="monotone" dataKey="equity" stroke="#8884d8" dot={false}/>
+                    </LineChart>
+                  </ResponsiveContainer>
+
+                  <h4>Trades P/L</h4>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={bt.trades}>
+                      <CartesianGrid strokeDasharray="3 3"/>
+                      <XAxis dataKey="exitTime" tickFormatter={formatTimestamp}/>
+                      <YAxis/>
+                      <Tooltip labelFormatter={formatTimestamp}/>
+                      <Legend/>
+                      <Bar dataKey="profit">
+                        {bt.trades.map((t,i)=><Cell key={i} fill={t.profit>=0?"#4caf50":"#f44336"}/>)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </>
+              ) : (
+                <table style={{width:"100%",borderCollapse:"collapse"}}>
+                  <thead><tr><th>Exit Time</th><th>Profit</th></tr></thead>
+                  <tbody>
+                    {bt.trades.map((t,i)=>(
+                      <tr key={i} style={{background:t.profit>=0?"#e8f5e9":"#ffebee"}}>
+                        <td style={{border:"1px solid #ccc",padding:"5px",color:"#333"}}>{formatTimestamp(t.exitTime)}</td>
+                        <td style={{border:"1px solid #ccc",padding:"5px",color:t.profit>=0?"#4caf50":"#f44336"}}>{t.profit}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
