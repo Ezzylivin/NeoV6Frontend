@@ -7,7 +7,7 @@ import {
 } from "recharts";
 
 export default function Backtests() {
-  const { fetchOptions, runBacktest, runBatchBacktests } = useBacktest();
+  const { fetchOptions, runBacktest, runBatchBacktests, runRealisticBacktest } = useBacktest();
 
   const [options, setOptions] = useState({
     symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
@@ -50,7 +50,7 @@ export default function Backtests() {
     loadOptions();
   }, [fetchOptions]);
 
-  const normalizeNumber = (val) => {
+  const normalizeNumber = val => {
     if (val === "" || val === null || val === undefined) return null;
     const num = Number(val);
     return isNaN(num) ? null : num;
@@ -60,13 +60,14 @@ export default function Backtests() {
   const toggleLog = idx => setCollapsedLogs(prev => ({ ...prev, [idx]: !prev[idx] }));
 
   // ✅ Single Backtest
-  const handleRunSingleBacktest = async () => {
+  const handleRunSingleBacktest = async (realistic = false) => {
     if (!selectedSymbol) return;
     setLoadingSingle(true);
     setError(null);
     setBacktests([]);
     try {
-      const { saved, metrics, equityCurve, trades } = await runBacktest({
+      const fn = realistic ? runRealisticBacktest : runBacktest;
+      const { saved = {}, metrics = {}, equityCurve = [], trades = [] } = await fn({
         symbol: selectedSymbol,
         timeframe: selectedTimeframe,
         initialBalance: selectedBalance,
@@ -79,14 +80,14 @@ export default function Backtests() {
       setBacktests([{
         saved,
         metrics: {
-          netProfit: metrics?.netProfit ?? 0,
-          winRate: metrics?.winRate ?? 0,
-          maxDrawdown: metrics?.maxDrawdown ?? 0,
-          tradesCount: metrics?.tradesCount ?? 0
+          netProfit: metrics.netProfit ?? 0,
+          winRate: metrics.winRate ?? 0,
+          maxDrawdown: metrics.maxDrawdown ?? 0,
+          tradesCount: metrics.tradesCount ?? 0
         },
-        equityCurve: equityCurve || [],
-        trades: trades || [],
-        label: "(New)",
+        equityCurve,
+        trades,
+        label: realistic ? "(Realistic)" : "(New)",
         params: { symbol: selectedSymbol, timeframe: selectedTimeframe, balance: selectedBalance, strategy: selectedStrategy.name, risk: selectedRisk, takeProfit: selectedTP, stopLoss: selectedSL }
       }]);
     } catch (err) {
@@ -109,19 +110,24 @@ export default function Backtests() {
         initialBalance: selectedBalance
       });
 
-      const mapped = results.map((r, idx) => ({
-        saved: r.saved,
-        metrics: {
-          netProfit: r.metrics?.netProfit ?? 0,
-          winRate: r.metrics?.winRate ?? 0,
-          maxDrawdown: r.metrics?.maxDrawdown ?? 0,
-          tradesCount: r.metrics?.tradesCount ?? 0
-        },
-        equityCurve: r.equityCurve || r.saved?.equityCurve || [],
-        trades: r.trades || r.saved?.tradeBreakdown || [],
-        label: `(Batch #${idx + 1})`,
-        params: usedCombos[idx] || {},
-      }));
+      const mapped = results.map((r, idx) => {
+        const saved = r.saved || {};
+        const metrics = r.metrics || {};
+        return {
+          saved,
+          metrics: {
+            netProfit: metrics.netProfit ?? 0,
+            winRate: metrics.winRate ?? 0,
+            maxDrawdown: metrics.maxDrawdown ?? 0,
+            tradesCount: metrics.tradesCount ?? 0
+          },
+          equityCurve: r.equityCurve || saved.equityCurve || [],
+          trades: r.trades || saved.tradeBreakdown || [],
+          label: `(Batch #${idx + 1})`,
+          params: usedCombos[idx] || {},
+        };
+      });
+
       setBacktests(mapped);
     } catch (err) {
       console.error("Batch run failed:", err);
@@ -145,7 +151,9 @@ export default function Backtests() {
         <div><label>Risk: </label><select value={selectedRisk} onChange={e=>setSelectedRisk(e.target.value)}>{options.risks?.map(r=><option key={r} value={r}>{r}</option>)}</select></div>
         <div><label>Take Profit: </label><select value={selectedTP??""} onChange={e=>setSelectedTP(normalizeNumber(e.target.value))}>{options.takeProfits?.map(tp=><option key={tp??"none"} value={tp??""}>{tp!==null?tp+"%":"None"}</option>)}</select></div>
         <div><label>Stop Loss: </label><select value={selectedSL??""} onChange={e=>setSelectedSL(normalizeNumber(e.target.value))}>{options.stopLosses?.map(sl=><option key={sl??"none"} value={sl??""}>{sl!==null?sl+"%":"None"}</option>)}</select></div>
-        <div><button onClick={handleRunSingleBacktest} disabled={loadingSingle}>{loadingSingle?"Running...":"Run Single Backtest"}</button></div>
+
+        <div><button onClick={()=>handleRunSingleBacktest(false)} disabled={loadingSingle}>{loadingSingle?"Running...":"Run Single Backtest"}</button></div>
+        <div><button onClick={()=>handleRunSingleBacktest(true)} disabled={loadingSingle}>{loadingSingle?"Running...":"Run Realistic Backtest"}</button></div>
         <div><button onClick={handleRunBatchBacktests} disabled={loadingBatch}>{loadingBatch?"Running...":"Run Batch Backtests"}</button></div>
         <div><button onClick={()=>setViewMode(viewMode==="chart"?"table":"chart")}>Switch to {viewMode==="chart"?"Table":"Charts"}</button></div>
       </div>
