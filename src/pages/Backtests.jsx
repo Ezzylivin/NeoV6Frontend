@@ -1,5 +1,5 @@
 // File: src/pages/Backtests.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -59,6 +59,7 @@ export default function Backtests() {
   const formatTimestamp = ts => ts ? new Date(ts).toLocaleString() : "";
   const toggleLog = idx => setCollapsedLogs(prev => ({ ...prev, [idx]: !prev[idx] }));
 
+  // ✅ Single Backtest
   const handleRunSingleBacktest = async () => {
     if (!selectedSymbol) return;
     setLoadingSingle(true);
@@ -76,15 +77,20 @@ export default function Backtests() {
       });
 
       setBacktests([{
-        saved,
+        saved: saved || {
+          equityCurve: equityCurve || [],
+          tradeBreakdown: trades || [],
+          symbol: selectedSymbol,
+          strategy: selectedStrategy,
+        },
         metrics: {
           netProfit: metrics?.netProfit ?? 0,
           winRate: metrics?.winRate ?? 0,
           maxDrawdown: metrics?.maxDrawdown ?? 0,
           tradesCount: metrics?.tradesCount ?? 0
         },
-        equityCurve: equityCurve || [],
-        trades: trades || [],
+        equityCurve: equityCurve || saved?.equityCurve || [],
+        trades: trades || saved?.tradeBreakdown || [],
         label: "(New)",
         params: { symbol: selectedSymbol, timeframe: selectedTimeframe, balance: selectedBalance, strategy: selectedStrategy.name, risk: selectedRisk, takeProfit: selectedTP, stopLoss: selectedSL }
       }]);
@@ -96,6 +102,7 @@ export default function Backtests() {
     }
   };
 
+  // ✅ Batch Backtests
   const handleRunBatchBacktests = async () => {
     setLoadingBatch(true);
     setError(null);
@@ -109,12 +116,7 @@ export default function Backtests() {
 
       const mapped = results.map((r, idx) => ({
         saved: r.saved,
-        metrics: {
-          netProfit: r.metrics?.netProfit ?? 0,
-          winRate: r.metrics?.winRate ?? 0,
-          maxDrawdown: r.metrics?.maxDrawdown ?? 0,
-          tradesCount: r.metrics?.tradesCount ?? 0
-        },
+        metrics: r.metrics,
         equityCurve: r.equityCurve || r.saved?.equityCurve || [],
         trades: r.trades || r.saved?.tradeBreakdown || [],
         label: `(Batch #${idx + 1})`,
@@ -128,6 +130,17 @@ export default function Backtests() {
       setLoadingBatch(false);
     }
   };
+
+  // ✅ Memoized combined batch equity chart
+  const combinedBatchEquity = useMemo(() => {
+    if (backtests.length > 1) {
+      return backtests.map((bt, idx) => ({
+        name: `(Batch #${idx + 1})`,
+        data: (bt.equityCurve || []).map(point => ({ time: point.time, equity: point.equity }))
+      }));
+    }
+    return [];
+  }, [backtests]);
 
   return (
     <div>
@@ -148,67 +161,95 @@ export default function Backtests() {
         <div><button onClick={()=>setViewMode(viewMode==="chart"?"table":"chart")}>Switch to {viewMode==="chart"?"Table":"Charts"}</button></div>
       </div>
 
+      {/* Combined batch equity chart */}
+      {combinedBatchEquity.length > 0 && viewMode === "chart" && (
+        <>
+          <h4>Combined Batch Equity Curves</h4>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart>
+              <CartesianGrid strokeDasharray="3 3"/>
+              <XAxis dataKey="time" tickFormatter={formatTimestamp}/>
+              <YAxis/>
+              <Tooltip labelFormatter={formatTimestamp}/>
+              <Legend/>
+              {combinedBatchEquity.map((batch, i) => (
+                <Line
+                  key={i}
+                  type="monotone"
+                  data={batch.data}
+                  dataKey="equity"
+                  name={batch.name}
+                  stroke={`hsl(${(i*60)%360},70%,50%)`}
+                  dot={false}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </>
+      )}
+
       {/* Backtest Results */}
-      {backtests.map((bt, idx)=>(
-        <div key={idx} style={{marginBottom:"40px",border:"1px solid #ccc",padding:"10px"}}>
-          <h3 style={{cursor:"pointer"}} onClick={()=>toggleLog(idx)}>
-            {bt.saved?.symbol || bt.params?.symbol || "N/A"} 
-            ({bt.saved?.strategy?.name || bt.params?.strategy?.name || bt.params?.strategy}) 
-            {bt.label} {collapsedLogs[idx] ? "[+]" : "[-]"}
-          </h3>
+      {backtests.map((bt, idx)=>(<div key={idx} style={{marginBottom:"40px",border:"1px solid #ccc",padding:"10px"}}>
+        <h3 style={{cursor:"pointer"}} onClick={()=>toggleLog(idx)}>
+          {bt.saved?.symbol || bt.params?.symbol || "N/A"} 
+          ({bt.saved?.strategy?.name || bt.params?.strategy?.name || bt.params?.strategy}) 
+          {bt.label} {collapsedLogs[idx] ? "[+]" : "[-]"}
+        </h3>
 
-          {!collapsedLogs[idx] && (
+        {!collapsedLogs[idx] && (<>
+          {/* Metrics */}
+          <div style={{display:"flex",gap:"10px",flexWrap:"wrap",marginBottom:"10px"}}>
+            <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:bt.metrics.netProfit>=0?"#4caf50":"#f44336"}}><b>Net Profit:</b> {bt.metrics.netProfit}</div>
+            <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Win Rate:</b> {bt.metrics.winRate}%</div>
+            <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Max Drawdown:</b> {bt.metrics.maxDrawdown}%</div>
+            <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Trades:</b> {bt.metrics.tradesCount}</div>
+          </div>
+
+          <p><b>Parameters:</b> Strategy={bt.params.strategy?.name||bt.params.strategy} | Risk={bt.params.risk} | TP={bt.params.takeProfit??"None"} | SL={bt.params.stopLoss??"None"}</p>
+
+          {viewMode==="chart" ? (
             <>
-              {/* Metrics */}
-              <div style={{display:"flex",gap:"10px",flexWrap:"wrap",marginBottom:"10px"}}>
-                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:bt.metrics.netProfit>=0?"#4caf50":"#f44336"}}><b>Net Profit:</b> {bt.metrics.netProfit}</div>
-                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Win Rate:</b> {bt.metrics.winRate}%</div>
-                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Max Drawdown:</b> {bt.metrics.maxDrawdown}%</div>
-                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Trades:</b> {bt.metrics.tradesCount}</div>
-              </div>
+              <h4>Equity Curve</h4>
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={bt.equityCurve}>
+                  <CartesianGrid strokeDasharray="3 3"/>
+                  <XAxis dataKey="time" tickFormatter={formatTimestamp}/>
+                  <YAxis/>
+                  <Tooltip labelFormatter={formatTimestamp}/>
+                  <Legend/>
+                  <Line type="monotone" dataKey="equity" stroke="#8884d8" dot={false}/>
+                </LineChart>
+              </ResponsiveContainer>
 
-              <p><b>Parameters:</b> Strategy={bt.params.strategy?.name||bt.params.strategy} | Risk={bt.params.risk} | TP={bt.params.takeProfit??"None"} | SL={bt.params.stopLoss??"None"}</p>
-
-              {viewMode==="chart" ? (
-                <>
-                  <h4>Equity Curve</h4>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <LineChart data={bt.equityCurve}>
-                      <CartesianGrid strokeDasharray="3 3"/>
-                      <XAxis dataKey="time" tickFormatter={formatTimestamp}/>
-                      <YAxis/>
-                      <Tooltip labelFormatter={formatTimestamp}/>
-                      <Legend/>
-                      <Line type="monotone" dataKey="equity" stroke="#8884d8" dot={false}/>
-                    </LineChart>
-                  </ResponsiveContainer>
-
-                  <h4>Trades P/L</h4>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={bt.trades}>
-                      <CartesianGrid strokeDasharray="3 3"/>
-                      <XAxis dataKey="exitTime" tickFormatter={formatTimestamp}/>
-                      <YAxis/>
-                      <Tooltip labelFormatter={formatTimestamp}/>
-                      <Legend/>
-                      <Bar dataKey="profit">
-                        {bt.trades.map((t,i)=><Cell key={i} fill={t.profit>=0?"#4caf50":"#f44336"}/>)}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </>
-              ) : (
-                <table style={{width:"100%",borderCollapse:"collapse"}}>
-                  <thead><tr><th>Exit Time</th><th>Profit</th></tr></thead>
-                  <tbody>
-                    {bt.trades.map((t,i)=>(<tr key={i} style={{background:t.profit>=0?"#e8f5e9":"#ffebee"}}><td style={{border:"1px solid #ccc",padding:"5px",color:"#333"}}>{formatTimestamp(t.exitTime)}</td><td style={{border:"1px solid #ccc",padding:"5px",color:t.profit>=0?"#4caf50":"#f44336"}}>{t.profit}</td></tr>))}
-                  </tbody>
-                </table>
-              )}
+              <h4>Trades P/L</h4>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={bt.trades}>
+                  <CartesianGrid strokeDasharray="3 3"/>
+                  <XAxis dataKey="exitTime" tickFormatter={formatTimestamp}/>
+                  <YAxis/>
+                  <Tooltip labelFormatter={formatTimestamp}/>
+                  <Legend/>
+                  <Bar dataKey="profit">
+                    {bt.trades.map((t,i)=><Cell key={i} fill={t.profit>=0?"#4caf50":"#f44336"}/>)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </>
+          ) : (
+            <table style={{width:"100%",borderCollapse:"collapse"}}>
+              <thead><tr><th>Exit Time</th><th>Profit</th></tr></thead>
+              <tbody>
+                {bt.trades.map((t,i)=>(
+                  <tr key={i} style={{background:t.profit>=0?"#e8f5e9":"#ffebee"}}>
+                    <td style={{border:"1px solid #ccc",padding:"5px",color:"#333"}}>{formatTimestamp(t.exitTime)}</td>
+                    <td style={{border:"1px solid #ccc",padding:"5px",color:t.profit>=0?"#4caf50":"#f44336"}}>{t.profit}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
-        </div>
-      ))}
+        </>)}
+      </div>))}
     </div>
   );
 }
