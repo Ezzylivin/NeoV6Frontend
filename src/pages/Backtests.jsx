@@ -60,17 +60,18 @@ export default function Backtests() {
 
   const formatTimestamp = ts => ts ? new Date(ts).toLocaleString() : "";
   const toggleLog = idx => setCollapsedLogs(prev => ({ ...prev, [idx]: !prev[idx] }));
-
   const filterByDate = (data, key) => {
     return data.filter(item => {
       const time = new Date(item[key]).getTime();
       const start = startDate ? new Date(startDate).getTime() : -Infinity;
-      const end = endDate ? new Date(endDate).getTime() + 86399999 : Infinity; // include full end day
+      const end = endDate ? new Date(endDate).getTime() + 86399999 : Infinity;
       return time >= start && time <= end;
     });
   };
 
+  // -------------------------------
   // Single Backtest
+  // -------------------------------
   const handleRunSingleBacktest = async () => {
     if (!selectedSymbol) return;
     setLoadingSingle(true);
@@ -85,26 +86,26 @@ export default function Backtests() {
         risk: selectedRisk,
         takeProfit: normalizeNumber(selectedTP),
         stopLoss: normalizeNumber(selectedSL),
-        startDate: startDate || undefined,
-        endDate: endDate || undefined
-      });
+        startDate: startDate || null,
+        endDate: endDate || null
+      }) || {};
 
       setBacktests([{
-        saved,
+        saved: saved || {},
         metrics: {
-          netProfit: metrics.netProfit ?? 0,
-          winRate: metrics.winRate ?? 0,
-          maxDrawdown: metrics.maxDrawdown ?? 0,
-          tradesCount: metrics.tradesCount ?? 0
+          netProfit: metrics?.netProfit ?? 0,
+          winRate: metrics?.winRate ?? 0,
+          maxDrawdown: metrics?.maxDrawdown ?? 0,
+          tradesCount: metrics?.tradesCount ?? 0
         },
-        equityCurve,
-        trades,
+        equityCurve: equityCurve || saved?.equityCurve || [],
+        trades: trades || saved?.tradeBreakdown || [],
         label: "(New)",
         params: { 
           symbol: selectedSymbol, 
           timeframe: selectedTimeframe, 
           balance: selectedBalance, 
-          strategy: selectedStrategy.name, 
+          strategy: selectedStrategy, 
           risk: selectedRisk, 
           takeProfit: selectedTP, 
           stopLoss: selectedSL,
@@ -119,35 +120,38 @@ export default function Backtests() {
     }
   };
 
+  // -------------------------------
   // Batch Backtests
+  // -------------------------------
   const handleRunBatchBacktests = async () => {
     setLoadingBatch(true);
     setError(null);
     setBacktests([]);
     try {
-      const { results, usedCombos } = await runBatchBacktests({
+      const { results = [], usedCombos = [] } = await runBatchBacktests({
         symbol: selectedSymbol,
         timeframe: selectedTimeframe,
         initialBalance: selectedBalance,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined
-      });
+        startDate: startDate || null,
+        endDate: endDate || null
+      }) || {};
 
       const mapped = results.map((r, idx) => {
         const saved = r.saved || {};
         const metrics = r.metrics || {};
+        const combo = usedCombos[idx] || {};
         return {
           saved,
           metrics: {
-            netProfit: metrics.netProfit ?? 0,
-            winRate: metrics.winRate ?? 0,
-            maxDrawdown: metrics.maxDrawdown ?? 0,
-            tradesCount: metrics.tradesCount ?? 0
+            netProfit: metrics?.netProfit ?? 0,
+            winRate: metrics?.winRate ?? 0,
+            maxDrawdown: metrics?.maxDrawdown ?? 0,
+            tradesCount: metrics?.tradesCount ?? 0
           },
-          equityCurve: r.equityCurve || saved.equityCurve || [],
-          trades: r.trades || saved.tradeBreakdown || [],
+          equityCurve: r.equityCurve || saved?.equityCurve || [],
+          trades: r.trades || saved?.tradeBreakdown || [],
           label: `(Batch #${idx + 1})`,
-          params: { ...usedCombos[idx], startDate, endDate } || {},
+          params: { ...combo, startDate, endDate }
         };
       });
 
@@ -160,6 +164,9 @@ export default function Backtests() {
     }
   };
 
+  // -------------------------------
+  // Render
+  // -------------------------------
   return (
     <div>
       <h2>Backtests</h2>
@@ -167,16 +174,44 @@ export default function Backtests() {
 
       {/* Controls */}
       <div style={{ display:"flex", gap:"15px", flexWrap:"wrap", marginBottom:"15px" }}>
-        <div><label>Symbol: </label><select value={selectedSymbol} onChange={e=>setSelectedSymbol(e.target.value)}>{options.symbols?.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
-        <div><label>Timeframe: </label><select value={selectedTimeframe} onChange={e=>setSelectedTimeframe(e.target.value)}>{options.timeframes?.map(t=><option key={t} value={t}>{t}</option>)}</select></div>
-        <div><label>Balance: </label><select value={selectedBalance} onChange={e=>setSelectedBalance(Number(e.target.value))}>{options.balances?.map(b=><option key={b} value={b}>${b}</option>)}</select></div>
-        <div><label>Strategy: </label><select value={selectedStrategy.name} onChange={e=>setSelectedStrategy({name:e.target.value, parameters:{}})}>{options.strategies?.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
-        <div><label>Risk: </label><select value={selectedRisk} onChange={e=>setSelectedRisk(e.target.value)}>{options.risks?.map(r=><option key={r} value={r}>{r}</option>)}</select></div>
-        <div><label>Take Profit: </label><select value={selectedTP??""} onChange={e=>setSelectedTP(normalizeNumber(e.target.value))}>{options.takeProfits?.map(tp=><option key={tp??"none"} value={tp??""}>{tp!==null?tp+"%":"None"}</option>)}</select></div>
-        <div><label>Stop Loss: </label><select value={selectedSL??""} onChange={e=>setSelectedSL(normalizeNumber(e.target.value))}>{options.stopLosses?.map(sl=><option key={sl??"none"} value={sl??""}>{sl!==null?sl+"%":"None"}</option>)}</select></div>
+        <div><label>Symbol: </label>
+          <select value={selectedSymbol} onChange={e=>setSelectedSymbol(e.target.value)}>
+            {options.symbols?.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div><label>Timeframe: </label>
+          <select value={selectedTimeframe} onChange={e=>setSelectedTimeframe(e.target.value)}>
+            {options.timeframes?.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <div><label>Balance: </label>
+          <select value={selectedBalance} onChange={e=>setSelectedBalance(Number(e.target.value))}>
+            {options.balances?.map(b => <option key={b} value={b}>${b}</option>)}
+          </select>
+        </div>
+        <div><label>Strategy: </label>
+          <select value={selectedStrategy.name} onChange={e=>setSelectedStrategy({name:e.target.value, parameters:{}})}>
+            {options.strategies?.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div><label>Risk: </label>
+          <select value={selectedRisk} onChange={e=>setSelectedRisk(e.target.value)}>
+            {options.risks?.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+        <div><label>Take Profit: </label>
+          <select value={selectedTP??""} onChange={e=>setSelectedTP(normalizeNumber(e.target.value))}>
+            {options.takeProfits?.map(tp => <option key={tp??"none"} value={tp??""}>{tp!==null?tp+"%":"None"}</option>)}
+          </select>
+        </div>
+        <div><label>Stop Loss: </label>
+          <select value={selectedSL??""} onChange={e=>setSelectedSL(normalizeNumber(e.target.value))}>
+            {options.stopLosses?.map(sl => <option key={sl??"none"} value={sl??""}>{sl!==null?sl+"%":"None"}</option>)}
+          </select>
+        </div>
 
-        <div><label>Start Date: </label><input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
-        <div><label>End Date: </label><input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} /></div>
+        <div><label>Start Date: </label><input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} /></div>
+        <div><label>End Date: </label><input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)} /></div>
 
         <div><button onClick={handleRunSingleBacktest} disabled={loadingSingle}>{loadingSingle?"Running...":"Run Single Backtest"}</button></div>
         <div><button onClick={handleRunBatchBacktests} disabled={loadingBatch}>{loadingBatch?"Running...":"Run Batch Backtests"}</button></div>
@@ -188,7 +223,7 @@ export default function Backtests() {
         <div key={idx} style={{marginBottom:"40px",border:"1px solid #ccc",padding:"10px"}}>
           <h3 style={{cursor:"pointer"}} onClick={()=>toggleLog(idx)}>
             {bt.saved?.symbol || bt.params?.symbol || "N/A"} 
-            ({bt.saved?.strategy?.name || bt.params?.strategy?.name || bt.params?.strategy}) 
+            ({bt.saved?.strategy?.name || bt.params?.strategy?.name || bt.params?.strategy?.name || bt.params?.strategy}) 
             {bt.label} {collapsedLogs[idx] ? "[+]" : "[-]"}
           </h3>
 
@@ -196,13 +231,13 @@ export default function Backtests() {
             <>
               {/* Metrics */}
               <div style={{display:"flex",gap:"10px",flexWrap:"wrap",marginBottom:"10px"}}>
-                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:bt.metrics.netProfit>=0?"#4caf50":"#f44336"}}><b>Net Profit:</b> {bt.metrics.netProfit}</div>
-                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Win Rate:</b> {bt.metrics.winRate}%</div>
-                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Max Drawdown:</b> {bt.metrics.maxDrawdown}%</div>
-                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Trades:</b> {bt.metrics.tradesCount}</div>
+                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:(bt.metrics?.netProfit ?? 0)>=0?"#4caf50":"#f44336"}}><b>Net Profit:</b> {bt.metrics?.netProfit ?? 0}</div>
+                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Win Rate:</b> {bt.metrics?.winRate ?? 0}%</div>
+                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Max Drawdown:</b> {bt.metrics?.maxDrawdown ?? 0}%</div>
+                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Trades:</b> {bt.metrics?.tradesCount ?? 0}</div>
               </div>
 
-              <p><b>Parameters:</b> Strategy={bt.params.strategy?.name||bt.params.strategy} | Risk={bt.params.risk} | TP={bt.params.takeProfit??"None"} | SL={bt.params.stopLoss??"None"} | Start={bt.params.startDate||"N/A"} | End={bt.params.endDate||"N/A"}</p>
+              <p><b>Parameters:</b> Strategy={bt.params?.strategy?.name||bt.params?.strategy} | Risk={bt.params?.risk} | TP={bt.params?.takeProfit??"None"} | SL={bt.params?.stopLoss??"None"} | Start={bt.params?.startDate||"N/A"} | End={bt.params?.endDate||"N/A"}</p>
 
               {viewMode==="chart" ? (
                 <>
@@ -237,9 +272,9 @@ export default function Backtests() {
                   <thead><tr><th>Exit Time</th><th>Profit</th></tr></thead>
                   <tbody>
                     {filterByDate(bt.trades, "exitTime").map((t,i)=>(
-                      <tr key={i} style={{background:t.profit>=0?"#e8f5e9":"#ffebee"}}>
+                      <tr key={i} style={{background:(t.profit ?? 0)>=0?"#e8f5e9":"#ffebee"}}>
                         <td style={{border:"1px solid #ccc",padding:"5px",color:"#333"}}>{formatTimestamp(t.exitTime)}</td>
-                        <td style={{border:"1px solid #ccc",padding:"5px",color:t.profit>=0?"#4caf50":"#f44336"}}>{t.profit}</td>
+                        <td style={{border:"1px solid #ccc",padding:"5px",color:(t.profit ?? 0)>=0?"#4caf50":"#f44336"}}>{t.profit ?? 0}</td>
                       </tr>
                     ))}
                   </tbody>
