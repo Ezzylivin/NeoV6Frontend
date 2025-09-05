@@ -7,7 +7,7 @@ import {
 } from "recharts";
 
 export default function Backtests() {
-  const { fetchOptions, runBacktest, runBatchBacktests, runRealisticBacktest } = useBacktest();
+  const { fetchOptions, runBacktest, runBatchBacktests } = useBacktest();
 
   const [options, setOptions] = useState({
     symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
@@ -26,8 +26,6 @@ export default function Backtests() {
   const [selectedRisk, setSelectedRisk] = useState("Medium");
   const [selectedTP, setSelectedTP] = useState(null);
   const [selectedSL, setSelectedSL] = useState(null);
-
-  // ✅ New date states
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
@@ -63,15 +61,23 @@ export default function Backtests() {
   const formatTimestamp = ts => ts ? new Date(ts).toLocaleString() : "";
   const toggleLog = idx => setCollapsedLogs(prev => ({ ...prev, [idx]: !prev[idx] }));
 
-  // ✅ Single Backtest
-  const handleRunSingleBacktest = async (realistic = false) => {
+  const filterByDate = (data, key) => {
+    return data.filter(item => {
+      const time = new Date(item[key]).getTime();
+      const start = startDate ? new Date(startDate).getTime() : -Infinity;
+      const end = endDate ? new Date(endDate).getTime() + 86399999 : Infinity; // include full end day
+      return time >= start && time <= end;
+    });
+  };
+
+  // Single Backtest
+  const handleRunSingleBacktest = async () => {
     if (!selectedSymbol) return;
     setLoadingSingle(true);
     setError(null);
     setBacktests([]);
     try {
-      const fn = realistic ? runRealisticBacktest : runBacktest;
-      const { saved = {}, metrics = {}, equityCurve = [], trades = [] } = await fn({
+      const { saved = {}, metrics = {}, equityCurve = [], trades = [] } = await runBacktest({
         symbol: selectedSymbol,
         timeframe: selectedTimeframe,
         initialBalance: selectedBalance,
@@ -93,7 +99,7 @@ export default function Backtests() {
         },
         equityCurve,
         trades,
-        label: realistic ? "(Realistic)" : "(New)",
+        label: "(New)",
         params: { 
           symbol: selectedSymbol, 
           timeframe: selectedTimeframe, 
@@ -102,8 +108,7 @@ export default function Backtests() {
           risk: selectedRisk, 
           takeProfit: selectedTP, 
           stopLoss: selectedSL,
-          startDate: startDate,
-          endDate: endDate
+          startDate, endDate
         }
       }]);
     } catch (err) {
@@ -114,7 +119,7 @@ export default function Backtests() {
     }
   };
 
-  // ✅ Batch Backtests
+  // Batch Backtests
   const handleRunBatchBacktests = async () => {
     setLoadingBatch(true);
     setError(null);
@@ -170,18 +175,16 @@ export default function Backtests() {
         <div><label>Take Profit: </label><select value={selectedTP??""} onChange={e=>setSelectedTP(normalizeNumber(e.target.value))}>{options.takeProfits?.map(tp=><option key={tp??"none"} value={tp??""}>{tp!==null?tp+"%":"None"}</option>)}</select></div>
         <div><label>Stop Loss: </label><select value={selectedSL??""} onChange={e=>setSelectedSL(normalizeNumber(e.target.value))}>{options.stopLosses?.map(sl=><option key={sl??"none"} value={sl??""}>{sl!==null?sl+"%":"None"}</option>)}</select></div>
 
-        {/* ✅ New Date Selectors */}
         <div><label>Start Date: </label><input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
         <div><label>End Date: </label><input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} /></div>
 
-        <div><button onClick={()=>handleRunSingleBacktest(false)} disabled={loadingSingle}>{loadingSingle?"Running...":"Run Single Backtest"}</button></div>
-        <div><button onClick={()=>handleRunSingleBacktest(true)} disabled={loadingSingle}>{loadingSingle?"Running...":"Run Realistic Backtest"}</button></div>
+        <div><button onClick={handleRunSingleBacktest} disabled={loadingSingle}>{loadingSingle?"Running...":"Run Single Backtest"}</button></div>
         <div><button onClick={handleRunBatchBacktests} disabled={loadingBatch}>{loadingBatch?"Running...":"Run Batch Backtests"}</button></div>
         <div><button onClick={()=>setViewMode(viewMode==="chart"?"table":"chart")}>Switch to {viewMode==="chart"?"Table":"Charts"}</button></div>
       </div>
 
       {/* Backtest Results */}
-      {backtests.map((bt, idx)=>( 
+      {backtests.map((bt, idx)=>(
         <div key={idx} style={{marginBottom:"40px",border:"1px solid #ccc",padding:"10px"}}>
           <h3 style={{cursor:"pointer"}} onClick={()=>toggleLog(idx)}>
             {bt.saved?.symbol || bt.params?.symbol || "N/A"} 
@@ -205,7 +208,7 @@ export default function Backtests() {
                 <>
                   <h4>Equity Curve</h4>
                   <ResponsiveContainer width="100%" height={250}>
-                    <LineChart data={bt.equityCurve}>
+                    <LineChart data={filterByDate(bt.equityCurve, "time")}>
                       <CartesianGrid strokeDasharray="3 3"/>
                       <XAxis dataKey="time" tickFormatter={formatTimestamp}/>
                       <YAxis/>
@@ -217,14 +220,14 @@ export default function Backtests() {
 
                   <h4>Trades P/L</h4>
                   <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={bt.trades}>
+                    <BarChart data={filterByDate(bt.trades, "exitTime")}>
                       <CartesianGrid strokeDasharray="3 3"/>
                       <XAxis dataKey="exitTime" tickFormatter={formatTimestamp}/>
                       <YAxis/>
                       <Tooltip labelFormatter={formatTimestamp}/>
                       <Legend/>
                       <Bar dataKey="profit">
-                        {bt.trades.map((t,i)=><Cell key={i} fill={t.profit>=0?"#4caf50":"#f44336"}/>)}
+                        {filterByDate(bt.trades, "exitTime").map((t,i)=><Cell key={i} fill={t.profit>=0?"#4caf50":"#f44336"}/>)}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
@@ -233,7 +236,7 @@ export default function Backtests() {
                 <table style={{width:"100%",borderCollapse:"collapse"}}>
                   <thead><tr><th>Exit Time</th><th>Profit</th></tr></thead>
                   <tbody>
-                    {bt.trades.map((t,i)=>(
+                    {filterByDate(bt.trades, "exitTime").map((t,i)=>(
                       <tr key={i} style={{background:t.profit>=0?"#e8f5e9":"#ffebee"}}>
                         <td style={{border:"1px solid #ccc",padding:"5px",color:"#333"}}>{formatTimestamp(t.exitTime)}</td>
                         <td style={{border:"1px solid #ccc",padding:"5px",color:t.profit>=0?"#4caf50":"#f44336"}}>{t.profit}</td>
