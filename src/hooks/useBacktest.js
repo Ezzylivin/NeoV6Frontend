@@ -26,7 +26,7 @@ export function useBacktest() {
     try {
       const resp = await axios.get(`${apiUrl}/backtests/options`);
       if (resp?.data?.success && resp.data.options) {
-        setOptions((prev) => ({ ...prev, ...resp.data.options }));
+        setOptions(prev => ({ ...prev, ...resp.data.options }));
       }
       return resp.data;
     } catch (err) {
@@ -39,38 +39,24 @@ export function useBacktest() {
   // Single backtest
   // -------------------------------
   const runBacktest = async (params) => {
-    try {
-      const userId = user?.id || user?._id;
-      if (!userId) throw new Error("User not authenticated");
-
-      const payload = { userId, ...params };
-      console.log("[Single Backtest Request]", payload);
-
-      const resp = await axios.post(`${apiUrl}/backtests/run`, payload);
-      return resp.data;
-    } catch (err) {
-      console.error("[Run Backtest Error]", err.response?.data || err);
-      throw err;
-    }
+    const userId = user?.id || user?._id;
+    if (!userId) throw new Error("User not authenticated");
+    const payload = { userId, ...params };
+    console.log("[Single Backtest Request]", payload);
+    const resp = await axios.post(`${apiUrl}/backtests/single`, payload);
+    return resp.data;
   };
 
   // -------------------------------
-  // Realistic backtest (alias route)
+  // Realistic backtest
   // -------------------------------
   const runRealisticBacktest = async (params) => {
-    try {
-      const userId = user?.id || user?._id;
-      if (!userId) throw new Error("User not authenticated");
-
-      const payload = { userId, ...params };
-      console.log("[Realistic Backtest Request]", payload);
-
-      const resp = await axios.post(`${apiUrl}/backtests/realistic`, payload);
-      return resp.data;
-    } catch (err) {
-      console.error("[Run Realistic Backtest Error]", err.response?.data || err);
-      throw err;
-    }
+    const userId = user?.id || user?._id;
+    if (!userId) throw new Error("User not authenticated");
+    const payload = { userId, ...params };
+    console.log("[Realistic Backtest Request]", payload);
+    const resp = await axios.post(`${apiUrl}/backtests/realistic`, payload);
+    return resp.data;
   };
 
   // -------------------------------
@@ -103,61 +89,55 @@ export function useBacktest() {
       [allCombos[i], allCombos[j]] = [allCombos[j], allCombos[i]];
     }
 
-    return allCombos.slice(0, count); // return only `count` combos
+    return allCombos.slice(0, count);
   };
 
   // -------------------------------
   // Run batch backtests sequentially
   // -------------------------------
   const runBatchBacktests = async (baseParams) => {
-    try {
-      const userId = user?.id || user?._id;
-      if (!userId) throw new Error("User not authenticated");
+    const userId = user?.id || user?._id;
+    if (!userId) throw new Error("User not authenticated");
 
-      const combos = generateUniqueCombos(baseParams, 10);
-      console.log("[Batch Backtest Combos]", combos);
+    const combos = generateUniqueCombos(baseParams, 10);
+    console.log("[Batch Backtest Combos]", combos);
 
-      const results = [];
-      let best = null;
+    const results = [];
+    let best = null;
 
-      for (const combo of combos) {
-        const resp = await axios.post(`${apiUrl}/backtests/run`, { userId, ...combo });
-        if (resp?.data) {
-          const { metrics, equityCurve, trades, backtest } = resp.data;
+    for (const combo of combos) {
+      const resp = await axios.post(`${apiUrl}/backtests/single`, { userId, ...combo });
+      if (resp?.data) {
+        const { metrics, equityCurve, trades, saved: backtest } = resp.data;
 
-          // Keep saved object consistent with single backtest
-          const saved = backtest || {
-            equityCurve: equityCurve || [],
-            tradeBreakdown: trades || [],
-            symbol: combo.symbol,
-            strategy: combo.strategy,
-          };
+        const saved = backtest || {
+          equityCurve: equityCurve || [],
+          tradeBreakdown: trades || [],
+          symbol: combo.symbol,
+          strategy: combo.strategy,
+        };
 
-          const resultObj = {
-            saved,
-            metrics: {
-              netProfit: metrics?.netProfit ?? 0,
-              winRate: metrics?.winRate ?? 0,
-              maxDrawdown: metrics?.maxDrawdown ?? 0,
-              tradesCount: metrics?.tradesCount ?? 0,
-            },
-            equityCurve: saved.equityCurve,
-            trades: saved.tradeBreakdown,
-          };
+        const resultObj = {
+          saved,
+          metrics: {
+            netProfit: metrics?.netProfit ?? 0,
+            winRate: metrics?.winRate ?? 0,
+            maxDrawdown: metrics?.maxDrawdown ?? 0,
+            tradesCount: metrics?.tradesCount ?? 0,
+          },
+          equityCurve: saved.equityCurve,
+          trades: saved.tradeBreakdown,
+        };
 
-          results.push(resultObj);
+        results.push(resultObj);
 
-          if (!best || (metrics?.netProfit ?? -Infinity) > (best?.metrics?.netProfit ?? -Infinity)) {
-            best = resultObj;
-          }
+        if (!best || (metrics?.netProfit ?? -Infinity) > (best?.metrics?.netProfit ?? -Infinity)) {
+          best = resultObj;
         }
       }
-
-      return { results, best, usedCombos: combos };
-    } catch (err) {
-      console.error("[Run Batch Backtests Error]", err.response?.data || err);
-      throw err;
     }
+
+    return { results, best, usedCombos: combos };
   };
 
   return {
