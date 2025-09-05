@@ -5,6 +5,8 @@ import { useAuth } from "../context/AuthContext.jsx";
 
 export function useBacktest() {
   const { user } = useAuth();
+
+  // --- Default options ---
   const [options, setOptions] = useState({
     symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
     timeframes: ["1m", "5m", "15m", "30m", "1h", "4h", "1d"],
@@ -17,6 +19,9 @@ export function useBacktest() {
 
   const apiUrl = import.meta.env.VITE_API_URL || "";
 
+  // -------------------------------
+  // Fetch options from backend
+  // -------------------------------
   const fetchOptions = async () => {
     try {
       const resp = await axios.get(`${apiUrl}/backtests/options`);
@@ -30,6 +35,9 @@ export function useBacktest() {
     }
   };
 
+  // -------------------------------
+  // Single backtest
+  // -------------------------------
   const runBacktest = async (params) => {
     try {
       const userId = user?.id || user?._id;
@@ -37,6 +45,7 @@ export function useBacktest() {
 
       const payload = { userId, ...params };
       console.log("[Single Backtest Request]", payload);
+
       const resp = await axios.post(`${apiUrl}/backtests/run`, payload);
       return resp.data;
     } catch (err) {
@@ -45,6 +54,9 @@ export function useBacktest() {
     }
   };
 
+  // -------------------------------
+  // Realistic backtest (alias route)
+  // -------------------------------
   const runRealisticBacktest = async (params) => {
     try {
       const userId = user?.id || user?._id;
@@ -52,7 +64,8 @@ export function useBacktest() {
 
       const payload = { userId, ...params };
       console.log("[Realistic Backtest Request]", payload);
-      const resp = await axios.post(`${apiUrl}/backtests/run-realistic`, payload);
+
+      const resp = await axios.post(`${apiUrl}/backtests/realistic`, payload);
       return resp.data;
     } catch (err) {
       console.error("[Run Realistic Backtest Error]", err.response?.data || err);
@@ -60,9 +73,12 @@ export function useBacktest() {
     }
   };
 
-  // Helper: create all possible param combos (symbol + timeframe are fixed)
+  // -------------------------------
+  // Generate all unique param combinations
+  // -------------------------------
   const generateUniqueCombos = (baseParams, count = 10) => {
     const allCombos = [];
+
     for (const strategy of options.strategies) {
       for (const risk of options.risks) {
         for (const takeProfit of options.takeProfits) {
@@ -81,16 +97,18 @@ export function useBacktest() {
       }
     }
 
-    // Shuffle for randomness
+    // Shuffle array for randomness
     for (let i = allCombos.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [allCombos[i], allCombos[j]] = [allCombos[j], allCombos[i]];
     }
 
-    return allCombos.slice(0, count); // take only 10 unique
+    return allCombos.slice(0, count); // return only `count` combos
   };
 
-  // Run batch = 10 single backtests with proper saved object
+  // -------------------------------
+  // Run batch backtests sequentially
+  // -------------------------------
   const runBatchBacktests = async (baseParams) => {
     try {
       const userId = user?.id || user?._id;
@@ -105,10 +123,10 @@ export function useBacktest() {
       for (const combo of combos) {
         const resp = await axios.post(`${apiUrl}/backtests/run`, { userId, ...combo });
         if (resp?.data) {
-          const { metrics, equityCurve, trades } = resp.data;
+          const { metrics, equityCurve, trades, backtest } = resp.data;
 
-          // Ensure each batch result has a proper `saved` object like single backtest
-          const saved = {
+          // Keep saved object consistent with single backtest
+          const saved = backtest || {
             equityCurve: equityCurve || [],
             tradeBreakdown: trades || [],
             symbol: combo.symbol,
