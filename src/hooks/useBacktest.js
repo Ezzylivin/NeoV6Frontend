@@ -17,9 +17,6 @@ export function useBacktest() {
 
   const apiUrl = import.meta.env.VITE_API_URL || "";
 
-  // ---------------------
-  // Fetch available backtest options from API
-  // ---------------------
   const fetchOptions = async () => {
     try {
       const resp = await axios.get(`${apiUrl}/backtests/options`);
@@ -28,14 +25,11 @@ export function useBacktest() {
       }
       return resp.data;
     } catch (err) {
-      console.error("[Fetch Options Error]", err.response?.data || err);
+      console.error("[Fetch Options Error]", err);
       throw err;
     }
   };
 
-  // ---------------------
-  // Run a single backtest
-  // ---------------------
   const runBacktest = async (params) => {
     try {
       const userId = user?.id || user?._id;
@@ -43,7 +37,6 @@ export function useBacktest() {
 
       const payload = { userId, ...params };
       console.log("[Single Backtest Request]", payload);
-
       const resp = await axios.post(`${apiUrl}/backtests/run`, payload);
       return resp.data;
     } catch (err) {
@@ -52,9 +45,6 @@ export function useBacktest() {
     }
   };
 
-  // ---------------------
-  // Run a realistic backtest
-  // ---------------------
   const runRealisticBacktest = async (params) => {
     try {
       const userId = user?.id || user?._id;
@@ -62,8 +52,7 @@ export function useBacktest() {
 
       const payload = { userId, ...params };
       console.log("[Realistic Backtest Request]", payload);
-
-      const resp = await axios.post(`${apiUrl}/backtests/realistic`, payload);
+      const resp = await axios.post(`${apiUrl}/backtests/run-realistic`, payload);
       return resp.data;
     } catch (err) {
       console.error("[Run Realistic Backtest Error]", err.response?.data || err);
@@ -71,16 +60,14 @@ export function useBacktest() {
     }
   };
 
-  // ---------------------
-  // Generate all possible parameter combinations for batch backtests
-  // ---------------------
+  // Helper: create all possible param combos (symbol + timeframe are fixed)
   const generateUniqueCombos = (baseParams, count = 10) => {
-    const combos = [];
+    const allCombos = [];
     for (const strategy of options.strategies) {
       for (const risk of options.risks) {
         for (const takeProfit of options.takeProfits) {
           for (const stopLoss of options.stopLosses) {
-            combos.push({
+            allCombos.push({
               symbol: baseParams.symbol,
               timeframe: baseParams.timeframe,
               initialBalance: baseParams.initialBalance,
@@ -94,18 +81,16 @@ export function useBacktest() {
       }
     }
 
-    // Shuffle array for randomness
-    for (let i = combos.length - 1; i > 0; i--) {
+    // Shuffle for randomness
+    for (let i = allCombos.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [combos[i], combos[j]] = [combos[j], combos[i]];
+      [allCombos[i], allCombos[j]] = [allCombos[j], allCombos[i]];
     }
 
-    return combos.slice(0, count);
+    return allCombos.slice(0, count); // take only 10 unique
   };
 
-  // ---------------------
-  // Run batch backtests
-  // ---------------------
+  // Run batch = 10 single backtests with proper saved object
   const runBatchBacktests = async (baseParams) => {
     try {
       const userId = user?.id || user?._id;
@@ -114,37 +99,37 @@ export function useBacktest() {
       const combos = generateUniqueCombos(baseParams, 10);
       console.log("[Batch Backtest Combos]", combos);
 
-      // Attempt API batch endpoint first
-      try {
-        const resp = await axios.post(`${apiUrl}/backtests/batch`, { userId, paramCombos: combos });
-        if (resp?.data?.success) return resp.data;
-      } catch (err) {
-        console.warn("[Batch Endpoint Failed], falling back to single requests", err.response?.data || err);
-      }
-
-      // Fallback: sequential single backtests
       const results = [];
       let best = null;
+
       for (const combo of combos) {
         const resp = await axios.post(`${apiUrl}/backtests/run`, { userId, ...combo });
         if (resp?.data) {
-          const { saved, metrics, equityCurve, trades } = resp.data;
+          const { metrics, equityCurve, trades } = resp.data;
+
+          // Ensure each batch result has a proper `saved` object like single backtest
+          const saved = {
+            equityCurve: equityCurve || [],
+            tradeBreakdown: trades || [],
+            symbol: combo.symbol,
+            strategy: combo.strategy,
+          };
 
           const resultObj = {
-            saved: saved || { equityCurve: equityCurve || [], tradeBreakdown: trades || [], symbol: combo.symbol, strategy: combo.strategy },
+            saved,
             metrics: {
               netProfit: metrics?.netProfit ?? 0,
               winRate: metrics?.winRate ?? 0,
               maxDrawdown: metrics?.maxDrawdown ?? 0,
               tradesCount: metrics?.tradesCount ?? 0,
             },
-            equityCurve: equityCurve || [],
-            trades: trades || [],
+            equityCurve: saved.equityCurve,
+            trades: saved.tradeBreakdown,
           };
 
           results.push(resultObj);
 
-          if (!best || (resultObj.metrics.netProfit ?? -Infinity) > (best.metrics.netProfit ?? -Infinity)) {
+          if (!best || (metrics?.netProfit ?? -Infinity) > (best?.metrics?.netProfit ?? -Infinity)) {
             best = resultObj;
           }
         }
