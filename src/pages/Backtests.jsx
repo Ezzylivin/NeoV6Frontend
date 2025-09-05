@@ -1,5 +1,5 @@
 // File: src/pages/Backtests.jsx
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -97,7 +97,7 @@ export default function Backtests() {
     }
   };
 
-  // ✅ Batch Backtests (batched state update)
+  // ✅ Batch Backtests
   const handleRunBatchBacktests = async () => {
     setLoadingBatch(true);
     setError(null);
@@ -109,7 +109,6 @@ export default function Backtests() {
         initialBalance: selectedBalance
       });
 
-      // Batch state update once (avoids forced reflows)
       const mapped = results.map((r, idx) => ({
         saved: r.saved,
         metrics: {
@@ -132,17 +131,6 @@ export default function Backtests() {
     }
   };
 
-  // ✅ Memoized combined batch equity chart
-  const combinedBatchEquity = useMemo(() => {
-    if (backtests.length > 1) {
-      return backtests.map((bt, idx) => ({
-        name: `(Batch #${idx + 1})`,
-        data: (bt.equityCurve || []).map(point => ({ time: point.time, equity: point.equity }))
-      }));
-    }
-    return [];
-  }, [backtests]);
-
   return (
     <div>
       <h2>Backtests</h2>
@@ -162,35 +150,8 @@ export default function Backtests() {
         <div><button onClick={()=>setViewMode(viewMode==="chart"?"table":"chart")}>Switch to {viewMode==="chart"?"Table":"Charts"}</button></div>
       </div>
 
-      {/* Combined batch equity chart */}
-      {combinedBatchEquity.length > 0 && viewMode === "chart" && (
-        <>
-          <h4>Combined Batch Equity Curves</h4>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart>
-              <CartesianGrid strokeDasharray="3 3"/>
-              <XAxis dataKey="time" tickFormatter={formatTimestamp}/>
-              <YAxis/>
-              <Tooltip labelFormatter={formatTimestamp}/>
-              <Legend/>
-              {combinedBatchEquity.map((batch, i) => (
-                <Line
-                  key={i}
-                  type="monotone"
-                  data={batch.data}
-                  dataKey="equity"
-                  name={batch.name}
-                  stroke={`hsl(${(i*60)%360},70%,50%)`}
-                  dot={false}
-                />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        </>
-      )}
-
       {/* Backtest Results */}
-      {backtests.map((bt, idx)=>(
+      {backtests.map((bt, idx)=>( 
         <div key={idx} style={{marginBottom:"40px",border:"1px solid #ccc",padding:"10px"}}>
           <h3 style={{cursor:"pointer"}} onClick={()=>toggleLog(idx)}>
             {bt.saved?.symbol || bt.params?.symbol || "N/A"} 
