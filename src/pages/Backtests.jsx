@@ -7,7 +7,17 @@ import {
 } from "recharts";
 
 export default function Backtests() {
-  const { options, fetchOptions, runBacktest, runBatchBacktests } = useBacktest();
+  const { fetchOptions, runBacktest, runBatchBacktests } = useBacktest();
+
+  const [options, setOptions] = useState({
+    symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
+    timeframes: ["1m","5m","15m","30m","1h","4h","1d"],
+    balances: [100,500,1000,5000,10000],
+    strategies: ["SMA","EMA","RSI","MACD","BollingerBands","Stochastic","VWAP","ATR"],
+    risks: ["Low","Medium","High"],
+    takeProfits: [null,1,2,3,5,10],
+    stopLosses: [null,0.5,1,2,3,5]
+  });
 
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [selectedTimeframe, setSelectedTimeframe] = useState("1h");
@@ -29,6 +39,7 @@ export default function Backtests() {
       try {
         const resp = await fetchOptions();
         if (resp?.success && resp?.options) {
+          setOptions(prev => ({ ...prev, ...resp.options }));
           if (!selectedSymbol) setSelectedSymbol(resp.options.symbols?.[0] || "BTCUSDT");
         }
       } catch (err) {
@@ -37,7 +48,7 @@ export default function Backtests() {
       }
     }
     loadOptions();
-  }, [fetchOptions, selectedSymbol]);
+  }, [fetchOptions]);
 
   const normalizeNumber = (val) => {
     if (val === "" || val === null || val === undefined) return null;
@@ -48,7 +59,7 @@ export default function Backtests() {
   const formatTimestamp = ts => ts ? new Date(ts).toLocaleString() : "";
   const toggleLog = idx => setCollapsedLogs(prev => ({ ...prev, [idx]: !prev[idx] }));
 
-  // -------------------- Single Backtest --------------------
+  // ✅ Single Backtest
   const handleRunSingleBacktest = async () => {
     if (!selectedSymbol) return;
     setLoadingSingle(true);
@@ -65,16 +76,6 @@ export default function Backtests() {
         stopLoss: normalizeNumber(selectedSL),
       });
 
-      // Normalize data
-      const normalizedEquity = (equityCurve || []).map((val, idx) => ({
-        time: val.time || idx,
-        equity: val.equity ?? val
-      }));
-      const normalizedTrades = (trades || []).map(t => ({
-        exitTime: t.exitTime || t.time || t.exitIndex,
-        profit: t.pnl ?? t.profit ?? 0
-      }));
-
       setBacktests([{
         saved,
         metrics: {
@@ -83,8 +84,8 @@ export default function Backtests() {
           maxDrawdown: metrics?.maxDrawdown ?? 0,
           tradesCount: metrics?.tradesCount ?? 0
         },
-        equityCurve: normalizedEquity,
-        trades: normalizedTrades,
+        equityCurve: equityCurve || [],
+        trades: trades || [],
         label: "(New)",
         params: { symbol: selectedSymbol, timeframe: selectedTimeframe, balance: selectedBalance, strategy: selectedStrategy.name, risk: selectedRisk, takeProfit: selectedTP, stopLoss: selectedSL }
       }]);
@@ -96,7 +97,7 @@ export default function Backtests() {
     }
   };
 
-  // -------------------- Batch Backtests --------------------
+  // ✅ Batch Backtests
   const handleRunBatchBacktests = async () => {
     setLoadingBatch(true);
     setError(null);
@@ -116,18 +117,11 @@ export default function Backtests() {
           maxDrawdown: r.metrics?.maxDrawdown ?? 0,
           tradesCount: r.metrics?.tradesCount ?? 0
         },
-        equityCurve: (r.equityCurve || r.saved?.equityCurve || []).map((val, i) => ({
-          time: val.time || i,
-          equity: val.equity ?? val
-        })),
-        trades: (r.trades || r.saved?.tradeBreakdown || []).map(t => ({
-          exitTime: t.exitTime || t.time || t.exitIndex,
-          profit: t.pnl ?? t.profit ?? 0
-        })),
+        equityCurve: r.equityCurve || r.saved?.equityCurve || [],
+        trades: r.trades || r.saved?.tradeBreakdown || [],
         label: `(Batch #${idx + 1})`,
         params: usedCombos[idx] || {},
       }));
-
       setBacktests(mapped);
     } catch (err) {
       console.error("Batch run failed:", err);
@@ -144,41 +138,13 @@ export default function Backtests() {
 
       {/* Controls */}
       <div style={{ display:"flex", gap:"15px", flexWrap:"wrap", marginBottom:"15px" }}>
-        <div><label>Symbol: </label>
-          <select value={selectedSymbol} onChange={e=>setSelectedSymbol(e.target.value)}>
-            {options.symbols?.map(s=><option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-        <div><label>Timeframe: </label>
-          <select value={selectedTimeframe} onChange={e=>setSelectedTimeframe(e.target.value)}>
-            {options.timeframes?.map(t=><option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
-        <div><label>Balance: </label>
-          <select value={selectedBalance} onChange={e=>setSelectedBalance(Number(e.target.value))}>
-            {options.balances?.map(b=><option key={b} value={b}>${b}</option>)}
-          </select>
-        </div>
-        <div><label>Strategy: </label>
-          <select value={selectedStrategy.name} onChange={e=>setSelectedStrategy({name:e.target.value, parameters:{}})}>
-            {options.strategies?.map(s=><option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-        <div><label>Risk: </label>
-          <select value={selectedRisk} onChange={e=>setSelectedRisk(e.target.value)}>
-            {options.risks?.map(r=><option key={r} value={r}>{r}</option>)}
-          </select>
-        </div>
-        <div><label>Take Profit: </label>
-          <select value={selectedTP??""} onChange={e=>setSelectedTP(normalizeNumber(e.target.value))}>
-            {options.takeProfits?.map(tp=><option key={tp??"none"} value={tp??""}>{tp!==null?tp+"%":"None"}</option>)}
-          </select>
-        </div>
-        <div><label>Stop Loss: </label>
-          <select value={selectedSL??""} onChange={e=>setSelectedSL(normalizeNumber(e.target.value))}>
-            {options.stopLosses?.map(sl=><option key={sl??"none"} value={sl??""}>{sl!==null?sl+"%":"None"}</option>)}
-          </select>
-        </div>
+        <div><label>Symbol: </label><select value={selectedSymbol} onChange={e=>setSelectedSymbol(e.target.value)}>{options.symbols?.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+        <div><label>Timeframe: </label><select value={selectedTimeframe} onChange={e=>setSelectedTimeframe(e.target.value)}>{options.timeframes?.map(t=><option key={t} value={t}>{t}</option>)}</select></div>
+        <div><label>Balance: </label><select value={selectedBalance} onChange={e=>setSelectedBalance(Number(e.target.value))}>{options.balances?.map(b=><option key={b} value={b}>${b}</option>)}</select></div>
+        <div><label>Strategy: </label><select value={selectedStrategy.name} onChange={e=>setSelectedStrategy({name:e.target.value, parameters:{}})}>{options.strategies?.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+        <div><label>Risk: </label><select value={selectedRisk} onChange={e=>setSelectedRisk(e.target.value)}>{options.risks?.map(r=><option key={r} value={r}>{r}</option>)}</select></div>
+        <div><label>Take Profit: </label><select value={selectedTP??""} onChange={e=>setSelectedTP(normalizeNumber(e.target.value))}>{options.takeProfits?.map(tp=><option key={tp??"none"} value={tp??""}>{tp!==null?tp+"%":"None"}</option>)}</select></div>
+        <div><label>Stop Loss: </label><select value={selectedSL??""} onChange={e=>setSelectedSL(normalizeNumber(e.target.value))}>{options.stopLosses?.map(sl=><option key={sl??"none"} value={sl??""}>{sl!==null?sl+"%":"None"}</option>)}</select></div>
         <div><button onClick={handleRunSingleBacktest} disabled={loadingSingle}>{loadingSingle?"Running...":"Run Single Backtest"}</button></div>
         <div><button onClick={handleRunBatchBacktests} disabled={loadingBatch}>{loadingBatch?"Running...":"Run Batch Backtests"}</button></div>
         <div><button onClick={()=>setViewMode(viewMode==="chart"?"table":"chart")}>Switch to {viewMode==="chart"?"Table":"Charts"}</button></div>
