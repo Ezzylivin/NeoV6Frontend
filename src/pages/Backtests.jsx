@@ -27,10 +27,6 @@ export default function Backtests() {
   const [selectedTP, setSelectedTP] = useState(null);
   const [selectedSL, setSelectedSL] = useState(null);
 
-  // NEW: date range
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-
   const [backtests, setBacktests] = useState([]);
   const [loadingSingle, setLoadingSingle] = useState(false);
   const [loadingBatch, setLoadingBatch] = useState(false);
@@ -77,8 +73,6 @@ export default function Backtests() {
         risk: selectedRisk,
         takeProfit: normalizeNumber(selectedTP),
         stopLoss: normalizeNumber(selectedSL),
-        startDate: startDate || null,   // <-- NEW
-        endDate: endDate || null        // <-- NEW
       });
 
       setBacktests([{
@@ -92,7 +86,7 @@ export default function Backtests() {
         equityCurve: equityCurve || [],
         trades: trades || [],
         label: "(New)",
-        params: { symbol: selectedSymbol, timeframe: selectedTimeframe, balance: selectedBalance, strategy: selectedStrategy.name, risk: selectedRisk, takeProfit: selectedTP, stopLoss: selectedSL, startDate, endDate }
+        params: { symbol: selectedSymbol, timeframe: selectedTimeframe, balance: selectedBalance, strategy: selectedStrategy.name, risk: selectedRisk, takeProfit: selectedTP, stopLoss: selectedSL }
       }]);
     } catch (err) {
       console.error("Backtest failed:", err);
@@ -110,9 +104,7 @@ export default function Backtests() {
       const { results, usedCombos } = await runBatchBacktests({
         symbol: selectedSymbol,
         timeframe: selectedTimeframe,
-        initialBalance: selectedBalance,
-        startDate: startDate || null,   // <-- NEW
-        endDate: endDate || null        // <-- NEW
+        initialBalance: selectedBalance
       });
 
       const mapped = results.map((r, idx) => ({
@@ -126,7 +118,7 @@ export default function Backtests() {
         equityCurve: r.equityCurve || r.saved?.equityCurve || [],
         trades: r.trades || r.saved?.tradeBreakdown || [],
         label: `(Batch #${idx + 1})`,
-        params: { ...usedCombos[idx], startDate, endDate }
+        params: usedCombos[idx] || {},
       }));
       setBacktests(mapped);
     } catch (err) {
@@ -151,11 +143,6 @@ export default function Backtests() {
         <div><label>Risk: </label><select value={selectedRisk} onChange={e=>setSelectedRisk(e.target.value)}>{options.risks?.map(r=><option key={r} value={r}>{r}</option>)}</select></div>
         <div><label>Take Profit: </label><select value={selectedTP??""} onChange={e=>setSelectedTP(normalizeNumber(e.target.value))}>{options.takeProfits?.map(tp=><option key={tp??"none"} value={tp??""}>{tp!==null?tp+"%":"None"}</option>)}</select></div>
         <div><label>Stop Loss: </label><select value={selectedSL??""} onChange={e=>setSelectedSL(normalizeNumber(e.target.value))}>{options.stopLosses?.map(sl=><option key={sl??"none"} value={sl??""}>{sl!==null?sl+"%":"None"}</option>)}</select></div>
-        
-        {/* NEW date range controls */}
-        <div><label>Start Date: </label><input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)}/></div>
-        <div><label>End Date: </label><input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)}/></div>
-
         <div><button onClick={handleRunSingleBacktest} disabled={loadingSingle}>{loadingSingle?"Running...":"Run Single Backtest"}</button></div>
         <div><button onClick={handleRunBatchBacktests} disabled={loadingBatch}>{loadingBatch?"Running...":"Run Batch Backtests"}</button></div>
         <div><button onClick={()=>setViewMode(viewMode==="chart"?"table":"chart")}>Switch to {viewMode==="chart"?"Table":"Charts"}</button></div>
@@ -180,7 +167,7 @@ export default function Backtests() {
                 <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Trades:</b> {bt.metrics.tradesCount}</div>
               </div>
 
-              <p><b>Parameters:</b> Strategy={bt.params.strategy?.name||bt.params.strategy} | Risk={bt.params.risk} | TP={bt.params.takeProfit??"None"} | SL={bt.params.stopLoss??"None"} | Start={bt.params.startDate||"All"} | End={bt.params.endDate||"All"}</p>
+              <p><b>Parameters:</b> Strategy={bt.params.strategy?.name||bt.params.strategy} | Risk={bt.params.risk} | TP={bt.params.takeProfit??"None"} | SL={bt.params.stopLoss??"None"}</p>
 
               {viewMode==="chart" ? (
                 <>
