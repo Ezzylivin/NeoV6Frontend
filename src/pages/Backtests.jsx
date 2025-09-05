@@ -1,72 +1,273 @@
+// File: src/pages/Backtests.jsx
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  BarChart, Bar, Cell, ResponsiveContainer
+} from "recharts";
 
-export default function BacktestsPage({ userId }) {
-  const { options, fetchUserBacktests } = useBacktest();
+export default function Backtests() {
+  const { fetchOptions, runBacktest, runBatchBacktests, options: hookOptions } = useBacktest(); // ✅ Get options from hook
+
+  // ✅ Use hookOptions directly or merge, avoid duplicating the entire state
+  // Initializing with hookOptions is better.
+  const [options, setOptions] = useState(hookOptions); // Initialize with hook's options
+
+  const [selectedSymbol, setSelectedSymbol] = useState("");
+  const [selectedTimeframe, setSelectedTimeframe] = useState("1h");
+  const [selectedBalance, setSelectedBalance] = useState(1000);
+  const [selectedStrategy, setSelectedStrategy] = useState({ name: "SMA", parameters: {} });
+  const [selectedRisk, setSelectedRisk] = useState("Medium");
+  const [selectedTP, setSelectedTP] = useState(null);
+  const [selectedSL, setSelectedSL] = useState(null);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
   const [backtests, setBacktests] = useState([]);
-  const [selectedStrategy, setSelectedStrategy] = useState("");
-  const [viewMode, setViewMode] = useState("chart"); // chart | table
+  const [loadingSingle, setLoadingSingle] = useState(false);
+  const [loadingBatch, setLoadingBatch] = useState(false);
+  const [error, setError] = useState(null);
+  const [collapsedLogs, setCollapsedLogs] = useState({});
+  const [viewMode, setViewMode] = useState("chart");
 
   useEffect(() => {
-    fetchUserBacktests(userId).then(setBacktests);
-  }, [userId]);
+    async function loadOptions() {
+      try {
+        const resp = await fetchOptions();
+        if (resp?.success && resp?.options) {
+          // ✅ Update component's options state with fetched options
+          setOptions(prev => ({ ...prev, ...resp.options }));
+          if (!selectedSymbol) setSelectedSymbol(resp.options.symbols?.[0] || "BTCUSDT");
+        }
+      } catch (err) {
+        console.error("Failed to fetch options:", err);
+        setError("Could not load backtest options");
+      }
+    }
+    loadOptions();
+  }, [fetchOptions, selectedSymbol]); // Add selectedSymbol to dependency array if its initial setting depends on fetched options
 
-  const filteredBacktests = selectedStrategy
-    ? backtests.filter(bt => bt.strategy?.name?.toUpperCase() === selectedStrategy.toUpperCase())
-    : backtests;
+  // This function is still useful for normalizing input values before sending.
+  const normalizeNumber = val => {
+    if (val === "" || val === null || val === undefined) return null;
+    const num = Number(val);
+    return isNaN(num) ? null : num;
+  };
 
-  const equityCurveData = filteredBacktests.flatMap(bt =>
-    (bt.equityCurve || []).map(p => ({ ...p, backtestId: bt._id }))
-  );
+  const formatTimestamp = ts => ts ? new Date(ts).toLocaleString() : "";
+  const toggleLog = idx => setCollapsedLogs(prev => ({ ...prev, [idx]: !prev[idx] }));
+
+  // This `filterByDate` is for *displaying* chart/table data based on the selected date range in the UI.
+  // The actual backtest run is already filtered by the backend.
+  const filterByDate = (data, key) => {
+    if (!data || data.length === 0) return [];
+    const start = startDate ? new Date(startDate).getTime() : -Infinity;
+    // ✅ Adjust endDate filter to include the entire day
+    const end = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : Infinity;
+
+    return data.filter(item => {
+      const time = new Date(item[key]).getTime();
+      return time >= start && time <= end;
+    });
+  };
+
+  // Single Backtest
+  const handleRunSingleBacktest = async () => {
+    if (!selectedSymbol) return;
+    setLoadingSingle(true);
+    setError(null);
+    setBacktests([]);
+    try {
+      const { saved = {}, metrics = {}, equityCurve = [], trades = [] } = await runBacktest({
+        symbol: selectedSymbol,
+        timeframe: selectedTimeframe,
+        initialBalance: selectedBalance,
+        strategy: selectedStrategy,
+        risk: selectedRisk,
+        takeProfit: normalizeNumber(selectedTP),
+        stopLoss: normalizeNumber(selectedSL),
+        startDate: startDate || undefined, // ✅ Pass startDate as string (backend will parse)
+        endDate: endDate || undefined      // ✅ Pass endDate as string (backend will parse)
+      });
+
+      setBacktests([{
+        saved,
+        metrics: {
+          netProfit: metrics.netProfit ?? 0,
+          winRate: metrics.winRate ?? 0,
+          maxDrawdown: metrics.maxDrawdown ?? 0,
+          tradesCount: metrics.tradesCount ?? 0
+        },
+        equityCurve,
+        trades,
+        label: "(New)",
+        params: {
+          symbol: selectedSymbol,
+          timeframe: selectedTimeframe,
+          balance: selectedBalance,
+          strategy: selectedStrategy.name,
+          risk: selectedRisk,
+          takeProfit: selectedTP,
+          stopLoss: selectedSL,
+          startDate, // Keep original string for display in params
+          endDate
+        }
+      }]);
+    } catch (err) {
+      console.error("Backtest failed:", err);
+      setError(err.message || "Backtest failed"); // Display specific error message
+    } finally {
+      setLoadingSingle(false);
+    }
+  };
+
+  // Batch Backtests
+  const handleRunBatchBacktests = async () => {
+    setLoadingBatch(true);
+    setError(null);
+    setBacktests([]);
+    try {
+      const { results, usedCombos } = await runBatchBacktests({
+        symbol: selectedSymbol,
+        timeframe: selectedTimeframe,
+        initialBalance: selectedBalance,
+        startDate: startDate || undefined, // ✅ Pass startDate for batch baseParams
+        endDate: endDate || undefined      // ✅ Pass endDate for batch baseParams
+      });
+
+      const mapped = results.map((r, idx) => {
+        const saved = r.saved || {};
+        const metrics = r.metrics || {};
+        return {
+          saved,
+          metrics: {
+            netProfit: metrics.netProfit ?? 0,
+            winRate: metrics.winRate ?? 0,
+            maxDrawdown: metrics.maxDrawdown ?? 0,
+            tradesCount: metrics.tradesCount ?? 0
+          },
+          equityCurve: r.equityCurve || saved.equityCurve || [],
+          trades: r.trades || saved.tradeBreakdown || [],
+          label: `(Batch #${idx + 1})`,
+          // Ensure params reflect the specific combo, including dates
+          params: {
+            ...usedCombos[idx],
+            startDate: usedCombos[idx].startDate || startDate, // Fallback to current UI dates if combo didn't override
+            endDate: usedCombos[idx].endDate || endDate,
+          } || {},
+        };
+      });
+
+      setBacktests(mapped);
+    } catch (err) {
+      console.error("Batch run failed:", err);
+      setError(err.message || "Batch backtests failed"); // Display specific error message
+    } finally {
+      setLoadingBatch(false);
+    }
+  };
+
+  // ✅ Keep options in sync with the hook's options
+  useEffect(() => {
+    setOptions(hookOptions);
+    // Set initial symbol if not already set and hookOptions are available
+    if (!selectedSymbol && hookOptions.symbols?.length > 0) {
+      setSelectedSymbol(hookOptions.symbols[0]);
+    }
+  }, [hookOptions, selectedSymbol]);
+
 
   return (
-    <div className="p-4">
+    <div>
       <h2>Backtests</h2>
-      <select value={selectedStrategy} onChange={e => setSelectedStrategy(e.target.value)}>
-        <option value="">All Strategies</option>
-        {options.strategies.map(s => <option key={s} value={s}>{s}</option>)}
-      </select>
-      <button onClick={() => setViewMode(viewMode === "chart" ? "table" : "chart")}>
-        Toggle {viewMode === "chart" ? "Table" : "Chart"}
-      </button>
+      {error && <p style={{ color: "red" }}>{error}</p>}
 
-      {viewMode === "chart" ? (
-        <ResponsiveContainer width="100%" height={400}>
-          <LineChart data={equityCurveData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="time" tickFormatter={t => new Date(t).toLocaleDateString()} />
-            <YAxis />
-            <Tooltip labelFormatter={t => new Date(t).toLocaleString()} />
-            <Line type="monotone" dataKey="equity" stroke="#8884d8" dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      ) : (
-        <table className="mt-4 border-collapse border border-gray-400">
-          <thead>
-            <tr>
-              <th className="border border-gray-300 p-1">Symbol</th>
-              <th className="border border-gray-300 p-1">Strategy</th>
-              <th className="border border-gray-300 p-1">Trades</th>
-              <th className="border border-gray-300 p-1">Net Profit</th>
-              <th className="border border-gray-300 p-1">Win Rate</th>
-              <th className="border border-gray-300 p-1">Max Drawdown</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredBacktests.map(bt => (
-              <tr key={bt._id}>
-                <td className="border border-gray-300 p-1">{bt.symbol}</td>
-                <td className="border border-gray-300 p-1">{bt.strategy?.name}</td>
-                <td className="border border-gray-300 p-1">{bt.trades?.length || 0}</td>
-                <td className="border border-gray-300 p-1">{bt.metrics?.netProfit ?? 0}</td>
-                <td className="border border-gray-300 p-1">{bt.metrics?.winRate ?? 0}%</td>
-                <td className="border border-gray-300 p-1">{bt.metrics?.maxDrawdown ?? 0}%</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      {/* Controls */}
+      <div style={{ display:"flex", gap:"15px", flexWrap:"wrap", marginBottom:"15px" }}>
+        <div><label>Symbol: </label><select value={selectedSymbol} onChange={e=>setSelectedSymbol(e.target.value)}>{options.symbols?.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+        <div><label>Timeframe: </label><select value={selectedTimeframe} onChange={e=>setSelectedTimeframe(e.target.value)}>{options.timeframes?.map(t=><option key={t} value={t}>{t}</option>)}</select></div>
+        <div><label>Balance: </label><select value={selectedBalance} onChange={e=>setSelectedBalance(Number(e.target.value))}>{options.balances?.map(b=><option key={b} value={b}>${b}</option>)}</select></div>
+        <div><label>Strategy: </label><select value={selectedStrategy.name} onChange={e=>setSelectedStrategy({name:e.target.value, parameters:{}})}>{options.strategies?.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+        <div><label>Risk: </label><select value={selectedRisk} onChange={e=>setSelectedRisk(e.target.value)}>{options.risks?.map(r=><option key={r} value={r}>{r}</option>)}</select></div>
+        <div><label>Take Profit: </label><select value={selectedTP??""} onChange={e=>setSelectedTP(normalizeNumber(e.target.value))}>{options.takeProfits?.map(tp=><option key={tp??"none"} value={tp??""}>{tp!==null?tp+"%":"None"}</option>)}</select></div>
+        <div><label>Stop Loss: </label><select value={selectedSL??""} onChange={e=>setSelectedSL(normalizeNumber(e.target.value))}>{options.stopLosses?.map(sl=><option key={sl??"none"} value={sl??""}>{sl!==null?sl+"%":"None"}</option>)}</select></div>
+
+        <div><label>Start Date: </label><input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
+        <div><label>End Date: </label><input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} /></div>
+
+        <div><button onClick={handleRunSingleBacktest} disabled={loadingSingle}>{loadingSingle?"Running...":"Run Single Backtest"}</button></div>
+        <div><button onClick={handleRunBatchBacktests} disabled={loadingBatch}>{loadingBatch?"Running...":"Run Batch Backtests"}</button></div>
+        <div><button onClick={()=>setViewMode(viewMode==="chart"?"table":"chart")}>Switch to {viewMode==="chart"?"Table":"Charts"}</button></div>
+      </div>
+
+      {/* Backtest Results */}
+      {backtests.map((bt, idx)=>(
+        <div key={idx} style={{marginBottom:"40px",border:"1px solid #ccc",padding:"10px"}}>
+          <h3 style={{cursor:"pointer"}} onClick={()=>toggleLog(idx)}>
+            {bt.saved?.symbol || bt.params?.symbol || "N/A"}
+            ({bt.saved?.strategy?.name || bt.params?.strategy?.name || bt.params?.strategy})
+            {bt.label} {collapsedLogs[idx] ? "[+]" : "[-]"}
+          </h3>
+
+          {!collapsedLogs[idx] && (
+            <>
+              {/* Metrics */}
+              <div style={{display:"flex",gap:"10px",flexWrap:"wrap",marginBottom:"10px"}}>
+                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:bt.metrics.netProfit>=0?"#4caf50":"#f44336"}}><b>Net Profit:</b> {bt.metrics.netProfit}</div>
+                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Win Rate:</b> {bt.metrics.winRate}%</div>
+                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Max Drawdown:</b> {bt.metrics.maxDrawdown}%</div>
+                <div style={{padding:"10px",borderRadius:"8px",background:"#1e1e1e",color:"#ccc"}}><b>Trades:</b> {bt.metrics.tradesCount}</div>
+              </div>
+
+              <p><b>Parameters:</b> Strategy={bt.params.strategy?.name||bt.params.strategy} | Risk={bt.params.risk} | TP={bt.params.takeProfit??"None"} | SL={bt.params.stopLoss??"None"} | Start={bt.params.startDate||"N/A"} | End={bt.params.endDate||"N/A"}</p>
+
+              {viewMode==="chart" ? (
+                <>
+                  <h4>Equity Curve</h4>
+                  <ResponsiveContainer width="100%" height={250}>
+                    {/* Data filtered for display, backend already provides filtered data */}
+                    <LineChart data={filterByDate(bt.equityCurve, "time")}>
+                      <CartesianGrid strokeDasharray="3 3"/>
+                      <XAxis dataKey="time" tickFormatter={formatTimestamp}/>
+                      <YAxis/>
+                      <Tooltip labelFormatter={formatTimestamp}/>
+                      <Legend/>
+                      <Line type="monotone" dataKey="equity" stroke="#8884d8" dot={false}/>
+                    </LineChart>
+                  </ResponsiveContainer>
+
+                  <h4>Trades P/L</h4>
+                  <ResponsiveContainer width="100%" height={250}>
+                    {/* Data filtered for display, backend already provides filtered data */}
+                    <BarChart data={filterByDate(bt.trades, "exitTime")}>
+                      <CartesianGrid strokeDasharray="3 3"/>
+                      <XAxis dataKey="exitTime" tickFormatter={formatTimestamp}/>
+                      <YAxis/>
+                      <Tooltip labelFormatter={formatTimestamp}/>
+                      <Legend/>
+                      <Bar dataKey="profit">
+                        {filterByDate(bt.trades, "exitTime").map((t,i)=><Cell key={i} fill={t.profit>=0?"#4caf50":"#f44336"}/>)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </>
+              ) : (
+                <table style={{width:"100%",borderCollapse:"collapse"}}>
+                  <thead><tr><th>Exit Time</th><th>Profit</th></tr></thead>
+                  <tbody>
+                    {filterByDate(bt.trades, "exitTime").map((t,i)=>(
+                      <tr key={i} style={{background:t.profit>=0?"#e8f5e9":"#ffebee"}}>
+                        <td style={{border:"1px solid #ccc",padding:"5px",color:"#333"}}>{formatTimestamp(t.exitTime)}</td>
+                        <td style={{border:"1px solid #ccc",padding:"5px",color:t.profit>=0?"#4caf50":"#f44336"}}>{t.profit}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
