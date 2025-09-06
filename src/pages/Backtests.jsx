@@ -22,7 +22,7 @@ export default function Backtests() {
   const [selectedBacktest, setSelectedBacktest] = useState(null);
   const [showTradeLog, setShowTradeLog] = useState(true);
 
-  // Initialize defaults when options load
+  // Initialize default selectors when options load
   useEffect(() => {
     if (options.symbols?.length) setSelectedSymbol(options.symbols[0]);
     if (options.timeframes?.length) setSelectedTimeframe(options.timeframes[0]);
@@ -111,11 +111,58 @@ export default function Backtests() {
             <Tooltip />
             <Legend />
             <Line type="monotone" dataKey="equity" stroke="#8884d8" dot={false} />
-            {/* Wins/Losses Scatter */}
-            <Scatter data={selectedBacktest.trades?.filter(t => t.result === 'win').map(t => ({ time: t.exitTime, equity: t.exitPrice }))} fill="green" />
-            <Scatter data={selectedBacktest.trades?.filter(t => t.result === 'loss').map(t => ({ time: t.exitTime, equity: t.exitPrice }))} fill="red" />
+            {/* Scatter for wins/losses */}
+            <Scatter
+              data={selectedBacktest.tradeBreakdown?.filter(t => t.result === 'win')?.map(t => ({ time: t.exitTime, equity: t.profit })) || []}
+              fill="green"
+            />
+            <Scatter
+              data={selectedBacktest.tradeBreakdown?.filter(t => t.result === 'loss')?.map(t => ({ time: t.exitTime, equity: t.profit })) || []}
+              fill="red"
+            />
           </LineChart>
         </ResponsiveContainer>
+      )}
+
+      {/* === Toggle Trade Log === */}
+      {selectedBacktest?.tradeBreakdown && (
+        <button
+          onClick={() => setShowTradeLog(!showTradeLog)}
+          className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 mt-4"
+        >
+          {showTradeLog ? "Hide Trade Log" : "Show Trade Log"}
+        </button>
+      )}
+
+      {/* === Trade Log Table === */}
+      {showTradeLog && selectedBacktest?.tradeBreakdown && (
+        <div className="mt-6">
+          <h2 className="font-bold mb-2">Trade Log</h2>
+          <table className="w-full border-collapse border">
+            <thead>
+              <tr>
+                <th className="border p-2">Entry</th>
+                <th className="border p-2">Exit</th>
+                <th className="border p-2">Position</th>
+                <th className="border p-2">Profit</th>
+                <th className="border p-2">Duration</th>
+                <th className="border p-2">Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              {selectedBacktest.tradeBreakdown.map((t, idx) => (
+                <tr key={idx} className="hover:bg-gray-50">
+                  <td className="border p-2">{new Date(t.entryTime).toLocaleString()}</td>
+                  <td className="border p-2">{new Date(t.exitTime).toLocaleString()}</td>
+                  <td className="border p-2">{t.position}</td>
+                  <td className="border p-2">${t.profit}</td>
+                  <td className="border p-2">{t.duration}</td>
+                  <td className="border p-2">{t.result}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {/* === Past Backtests Table === */}
@@ -127,7 +174,7 @@ export default function Backtests() {
               <th className="border p-2">Symbol</th>
               <th className="border p-2">Timeframe</th>
               <th className="border p-2">Strategy</th>
-              <th className="border p-2">Profit</th>
+              <th className="border p-2">Net Profit</th>
               <th className="border p-2">Trades</th>
               <th className="border p-2">Date</th>
               <th className="border p-2">Actions</th>
@@ -139,52 +186,17 @@ export default function Backtests() {
                 <td className="border p-2">{bt.symbol}</td>
                 <td className="border p-2">{bt.timeframe}</td>
                 <td className="border p-2">{bt.strategy?.name}</td>
-                <td className="border p-2">${bt.profit}</td>
-                <td className="border p-2">{bt.totalTrades}</td>
+                <td className="border p-2">${bt.metrics?.netProfit}</td>
+                <td className="border p-2">{bt.metrics?.tradesCount}</td>
                 <td className="border p-2">{new Date(bt.createdAt).toLocaleString()}</td>
                 <td className="border p-2">
                   <button className="px-2 py-1 bg-gray-300 rounded" onClick={() => setSelectedBacktest(bt)}>View</button>
                 </td>
               </tr>
-            ))}
+            )) || null}
           </tbody>
         </table>
       </div>
-
-      {/* === Trade Log Toggle === */}
-      {selectedBacktest?.tradeBreakdown && (
-        <div className="mt-6">
-          <button onClick={() => setShowTradeLog(prev => !prev)} className="px-2 py-1 bg-gray-200 rounded mb-2">
-            {showTradeLog ? "Hide Trade Log" : "Show Trade Log"}
-          </button>
-          {showTradeLog && (
-            <table className="w-full border-collapse border">
-              <thead>
-                <tr>
-                  <th className="border p-2">Entry</th>
-                  <th className="border p-2">Exit</th>
-                  <th className="border p-2">Position</th>
-                  <th className="border p-2">Profit</th>
-                  <th className="border p-2">Duration</th>
-                  <th className="border p-2">Result</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedBacktest.tradeBreakdown?.map((t, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50">
-                    <td className="border p-2">{new Date(t.entryTime).toLocaleString()}</td>
-                    <td className="border p-2">{new Date(t.exitTime).toLocaleString()}</td>
-                    <td className="border p-2">{t.position}</td>
-                    <td className="border p-2">${t.profit}</td>
-                    <td className="border p-2">{t.duration}</td>
-                    <td className="border p-2">{t.result}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
     </div>
   );
 }
