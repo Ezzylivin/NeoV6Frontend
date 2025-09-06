@@ -1,35 +1,83 @@
 // File: src/pages/Backtests.jsx
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Scatter } from "recharts";
-import { Table } from 'react-table';
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, Scatter
+} from "recharts";
 
 export default function Backtests() {
   const {
     options,
-    selectedSymbol,
-    setSelectedSymbol,
-    selectedTimeframe,
-    setSelectedTimeframe,
-    selectedStrategy,
-    setSelectedStrategy,
-    selectedRisk,
-    setSelectedRisk,
-    takeProfit,
-    setTakeProfit,
-    stopLoss,
-    setStopLoss,
     backtests,
+    currentBacktest,
+    fetchUserBacktests,
     runBacktest,
-    loading
+    loading,
   } = useBacktest();
 
+  const [selectedSymbol, setSelectedSymbol] = useState("");
+  const [selectedTimeframe, setSelectedTimeframe] = useState("");
+  const [selectedStrategy, setSelectedStrategy] = useState("");
+  const [selectedRisk, setSelectedRisk] = useState("Medium");
+  const [takeProfit, setTakeProfit] = useState(null);
+  const [stopLoss, setStopLoss] = useState(null);
   const [selectedBacktest, setSelectedBacktest] = useState(null);
+  const [showColoredEquity, setShowColoredEquity] = useState(true);
+
+  // Initialize default selectors
+  useEffect(() => {
+    if (options.symbols.length) setSelectedSymbol(options.symbols[0]);
+    if (options.timeframes.length) setSelectedTimeframe(options.timeframes[0]);
+    if (options.strategies.length) setSelectedStrategy(options.strategies[0]?.name || "");
+    if (options.risks.length) setSelectedRisk(options.risks[0]);
+  }, [options]);
+
+  // Run backtest
+  const handleRunBacktest = async () => {
+    if (!selectedSymbol || !selectedTimeframe || !selectedStrategy) return;
+
+    const payload = {
+      symbol: selectedSymbol,
+      timeframe: selectedTimeframe,
+      strategy: { name: selectedStrategy },
+      risk: selectedRisk,
+      takeProfit: takeProfit ? Number(takeProfit) : null,
+      stopLoss: stopLoss ? Number(stopLoss) : null,
+    };
+
+    const result = await runBacktest(payload);
+    if (result?.saved) setSelectedBacktest(result.saved);
+  };
+
+  // Prepare colored equity data
+  const getColoredEquityData = () => {
+    if (!selectedBacktest?.equityCurve || !selectedBacktest?.tradeBreakdown) return [];
+
+    const trades = selectedBacktest.tradeBreakdown;
+    const data = selectedBacktest.equityCurve.map(point => ({
+      ...point,
+      color: "gray"
+    }));
+
+    trades.forEach(trade => {
+      const startIndex = data.findIndex(p => new Date(p.time).getTime() >= new Date(trade.entryTime).getTime());
+      const endIndex = data.findIndex(p => new Date(p.time).getTime() >= new Date(trade.exitTime).getTime());
+      const color = trade.result === "win" ? "green" : trade.result === "loss" ? "red" : "orange";
+      for (let i = startIndex; i <= endIndex && i < data.length; i++) {
+        data[i].color = color;
+      }
+    });
+
+    return data;
+  };
+
+  const coloredEquityData = getColoredEquityData();
 
   return (
     <div className="p-4 space-y-6">
       <h1 className="text-2xl font-bold">Backtests</h1>
-      
+
       {/* === Selectors === */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div>
@@ -58,20 +106,26 @@ export default function Backtests() {
         </div>
         <div>
           <label className="block font-medium">Take Profit (%)</label>
-          <input type="number" value={takeProfit} onChange={e => setTakeProfit(e.target.value)} className="w-full border p-2 rounded" />
+          <input type="number" value={takeProfit || ""} onChange={e => setTakeProfit(e.target.value)} className="w-full border p-2 rounded" />
         </div>
         <div>
           <label className="block font-medium">Stop Loss (%)</label>
-          <input type="number" value={stopLoss} onChange={e => setStopLoss(e.target.value)} className="w-full border p-2 rounded" />
+          <input type="number" value={stopLoss || ""} onChange={e => setStopLoss(e.target.value)} className="w-full border p-2 rounded" />
         </div>
       </div>
 
-      <button onClick={runBacktest} disabled={loading} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-        {loading ? 'Running...' : 'Run Backtest'}
-      </button>
+      {/* === Buttons === */}
+      <div className="flex gap-4 mt-2">
+        <button onClick={handleRunBacktest} disabled={loading} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+          {loading ? 'Running...' : 'Run Backtest'}
+        </button>
+        <button onClick={() => setShowColoredEquity(!showColoredEquity)} className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">
+          Toggle Equity View
+        </button>
+      </div>
 
-      {/* === Performance Summary Cards === */}
-      {selectedBacktest && (
+      {/* === Performance Summary === */}
+      {selectedBacktest?.metrics && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
           <div className="p-4 border rounded">Net Profit: ${selectedBacktest.metrics.netProfit}</div>
           <div className="p-4 border rounded">Win Rate: {selectedBacktest.metrics.winRate}%</div>
@@ -81,18 +135,34 @@ export default function Backtests() {
       )}
 
       {/* === Equity Curve Chart === */}
-      {selectedBacktest && (
+      {selectedBacktest?.equityCurve && (
         <ResponsiveContainer width="100%" height={300} className="mt-6">
-          <LineChart data={selectedBacktest.equityCurve} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+          <LineChart data={showColoredEquity ? coloredEquityData : selectedBacktest.equityCurve} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="time" />
             <YAxis />
             <Tooltip />
             <Legend />
-            <Line type="monotone" dataKey="equity" stroke="#8884d8" dot={false} />
-            {/* Optional: Scatter for wins/losses */}
-            <Scatter data={selectedBacktest.trades.filter(t => t.result === 'win').map(t => ({ time: t.exitTime, equity: t.exitPrice }))} fill="green" />
-            <Scatter data={selectedBacktest.trades.filter(t => t.result === 'loss').map(t => ({ time: t.exitTime, equity: t.exitPrice }))} fill="red" />
+            {showColoredEquity
+              ? ["green","red","orange","gray"].map(color => (
+                  <Line
+                    key={color}
+                    type="monotone"
+                    dataKey="equity"
+                    data={coloredEquityData.filter(d => d.color === color)}
+                    stroke={color}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                ))
+              : <Line type="monotone" dataKey="equity" stroke="#8884d8" dot={false} />}
+            {showColoredEquity && selectedBacktest.tradeBreakdown && (
+              <>
+                <Scatter data={selectedBacktest.tradeBreakdown.filter(t => t.result === 'win').map(t => ({ time: t.exitTime, equity: t.exitPrice }))} fill="green" />
+                <Scatter data={selectedBacktest.tradeBreakdown.filter(t => t.result === 'loss').map(t => ({ time: t.exitTime, equity: t.exitPrice }))} fill="red" />
+                <Scatter data={selectedBacktest.tradeBreakdown.filter(t => t.result === 'breakeven').map(t => ({ time: t.exitTime, equity: t.exitPrice }))} fill="orange" />
+              </>
+            )}
           </LineChart>
         </ResponsiveContainer>
       )}
@@ -114,13 +184,13 @@ export default function Backtests() {
           </thead>
           <tbody>
             {backtests.map(bt => (
-              <tr key={bt.saved._id} className="hover:bg-gray-100">
-                <td className="border p-2">{bt.saved.symbol}</td>
-                <td className="border p-2">{bt.saved.timeframe}</td>
-                <td className="border p-2">{bt.saved.strategy.name}</td>
-                <td className="border p-2">${bt.metrics.netProfit}</td>
-                <td className="border p-2">{bt.metrics.tradesCount}</td>
-                <td className="border p-2">{new Date(bt.saved.createdAt).toLocaleString()}</td>
+              <tr key={bt._id} className="hover:bg-gray-100">
+                <td className="border p-2">{bt.symbol}</td>
+                <td className="border p-2">{bt.timeframe}</td>
+                <td className="border p-2">{bt.strategy.name}</td>
+                <td className="border p-2">${bt.profit}</td>
+                <td className="border p-2">{bt.totalTrades}</td>
+                <td className="border p-2">{new Date(bt.createdAt).toLocaleString()}</td>
                 <td className="border p-2">
                   <button className="px-2 py-1 bg-gray-300 rounded" onClick={() => setSelectedBacktest(bt)}>View</button>
                 </td>
@@ -131,7 +201,7 @@ export default function Backtests() {
       </div>
 
       {/* === Trade Log Table === */}
-      {selectedBacktest && (
+      {selectedBacktest?.tradeBreakdown && (
         <div className="mt-6">
           <h2 className="font-bold mb-2">Trade Log</h2>
           <table className="w-full border-collapse border">
@@ -146,7 +216,7 @@ export default function Backtests() {
               </tr>
             </thead>
             <tbody>
-              {selectedBacktest.trades.map((t, idx) => (
+              {selectedBacktest.tradeBreakdown.map((t, idx) => (
                 <tr key={idx} className="hover:bg-gray-50">
                   <td className="border p-2">{new Date(t.entryTime).toLocaleString()}</td>
                   <td className="border p-2">{new Date(t.exitTime).toLocaleString()}</td>
