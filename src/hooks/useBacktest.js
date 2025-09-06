@@ -1,171 +1,132 @@
 // File: src/hooks/useBacktest.js
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import { useAuth } from "../context/AuthContext.jsx";
 
-export function useBacktest() {
-  const { user } = useAuth();
+export function useBacktest(baseUrl = "") {
+  const [options, setOptions] = useState({ risks: [], strategies: [] });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [backtests, setBacktests] = useState([]);
+  const [currentBacktest, setCurrentBacktest] = useState(null);
 
-  // --- Default options ---
-  const [options, setOptions] = useState({
-    symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
-    timeframes: ["1m", "5m", "15m", "30m", "1h", "4h", "1d"],
-    balances: [100, 500, 1000, 5000, 10000],
-    strategies: ["SMA", "EMA", "RSI", "MACD", "BollingerBands", "Stochastic", "VWAP", "ATR"],
-    risks: ["Low", "Medium", "High"],
-    takeProfits: [null, 1, 2, 3, 5, 10],
-    stopLosses: [null, 0.5, 1, 2, 3, 5],
-  });
-
-  const apiUrl = import.meta.env.VITE_API_URL || "";
-
-  // -------------------------------
-  // Fetch options from backend
-  // -------------------------------
-  const fetchOptions = async () => {
+  // Fetch available backtest options
+  const fetchOptions = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      const resp = await axios.get(`${apiUrl}/backtests/options`);
-      if (resp?.data?.success && resp.data.options) {
-        setOptions((prev) => ({ ...prev, ...resp.data.options }));
-      }
-      return resp.data;
+      const res = await axios.get(`${baseUrl}/api/backtests/options`);
+      setOptions(res.data);
     } catch (err) {
-      console.error("[Fetch Options Error]", err);
-      throw err;
+      console.error("[useBacktest] fetchOptions error:", err);
+      setError(err.response?.data?.error || err.message);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [baseUrl]);
 
-  // -------------------------------
-  // Single backtest
-  // -------------------------------
-  const runBacktest = async (params) => {
+  // Run a single backtest
+  const runBacktest = useCallback(async (payload) => {
+    setLoading(true);
+    setError(null);
     try {
-      const userId = user?.id || user?._id;
-      if (!userId) throw new Error("User not authenticated");
-
-      const payload = { userId, ...params };
-      console.log("[Single Backtest Request]", payload);
-
-      const resp = await axios.post(`${apiUrl}/backtests/run`, payload);
-      return resp.data;
+      const res = await axios.post(`${baseUrl}/api/backtests/run`, payload);
+      setCurrentBacktest(res.data);
+      return res.data;
     } catch (err) {
-      console.error("[Run Backtest Error]", err.response?.data || err);
-      throw err;
+      console.error("[useBacktest] runBacktest error:", err);
+      setError(err.response?.data?.error || err.message);
+      return null;
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [baseUrl]);
 
-  // -------------------------------
-  // Realistic backtest (alias route)
-  // -------------------------------
-  const runRealisticBacktest = async (params) => {
+  // Run batch backtests
+  const runBatchBacktests = useCallback(async (payload) => {
+    setLoading(true);
+    setError(null);
     try {
-      const userId = user?.id || user?._id;
-      if (!userId) throw new Error("User not authenticated");
-
-      const payload = { userId, ...params };
-      console.log("[Realistic Backtest Request]", payload);
-
-      const resp = await axios.post(`${apiUrl}/backtests/realistic`, payload);
-      return resp.data;
+      const res = await axios.post(`${baseUrl}/api/backtests/batch`, payload);
+      return res.data;
     } catch (err) {
-      console.error("[Run Realistic Backtest Error]", err.response?.data || err);
-      throw err;
+      console.error("[useBacktest] runBatchBacktests error:", err);
+      setError(err.response?.data?.error || err.message);
+      return null;
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [baseUrl]);
 
-  // -------------------------------
-  // Generate all unique param combinations
-  // -------------------------------
-  const generateUniqueCombos = (baseParams, count = 10) => {
-    const allCombos = [];
-
-    for (const strategy of options.strategies) {
-      for (const risk of options.risks) {
-        for (const takeProfit of options.takeProfits) {
-          for (const stopLoss of options.stopLosses) {
-            allCombos.push({
-              symbol: baseParams.symbol,
-              timeframe: baseParams.timeframe,
-              initialBalance: baseParams.initialBalance,
-              strategy: { name: strategy, parameters: {} },
-              risk,
-              takeProfit,
-              stopLoss,
-            });
-          }
-        }
-      }
-    }
-
-    // Shuffle array for randomness
-    for (let i = allCombos.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [allCombos[i], allCombos[j]] = [allCombos[j], allCombos[i]];
-    }
-
-    return allCombos.slice(0, count); // return only `count` combos
-  };
-
-  // -------------------------------
-  // Run batch backtests sequentially
-  // -------------------------------
-  const runBatchBacktests = async (baseParams) => {
+  // Fetch all backtests for a user
+  const fetchUserBacktests = useCallback(async (userId) => {
+    if (!userId) return;
+    setLoading(true);
+    setError(null);
     try {
-      const userId = user?.id || user?._id;
-      if (!userId) throw new Error("User not authenticated");
-
-      const combos = generateUniqueCombos(baseParams, 10);
-      console.log("[Batch Backtest Combos]", combos);
-
-      const results = [];
-      let best = null;
-
-      for (const combo of combos) {
-        const resp = await axios.post(`${apiUrl}/backtests/run`, { userId, ...combo });
-        if (resp?.data) {
-          const { metrics, equityCurve, trades, backtest } = resp.data;
-
-          // Keep saved object consistent with single backtest
-          const saved = backtest || {
-            equityCurve: equityCurve || [],
-            tradeBreakdown: trades || [],
-            symbol: combo.symbol,
-            strategy: combo.strategy,
-          };
-
-          const resultObj = {
-            saved,
-            metrics: {
-              netProfit: metrics?.netProfit ?? 0,
-              winRate: metrics?.winRate ?? 0,
-              maxDrawdown: metrics?.maxDrawdown ?? 0,
-              tradesCount: metrics?.tradesCount ?? 0,
-            },
-            equityCurve: saved.equityCurve,
-            trades: saved.tradeBreakdown,
-          };
-
-          results.push(resultObj);
-
-          if (!best || (metrics?.netProfit ?? -Infinity) > (best?.metrics?.netProfit ?? -Infinity)) {
-            best = resultObj;
-          }
-        }
-      }
-
-      return { results, best, usedCombos: combos };
+      const res = await axios.get(`${baseUrl}/api/backtests/user/${userId}`);
+      setBacktests(res.data.backtests);
+      return res.data.backtests;
     } catch (err) {
-      console.error("[Run Batch Backtests Error]", err.response?.data || err);
-      throw err;
+      console.error("[useBacktest] fetchUserBacktests error:", err);
+      setError(err.response?.data?.error || err.message);
+      return [];
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [baseUrl]);
+
+  // Fetch a single backtest by ID
+  const fetchBacktestById = useCallback(async (backtestId) => {
+    if (!backtestId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await axios.get(`${baseUrl}/api/backtests/${backtestId}`);
+      setCurrentBacktest(res.data.backtest);
+      return res.data.backtest;
+    } catch (err) {
+      console.error("[useBacktest] fetchBacktestById error:", err);
+      setError(err.response?.data?.error || err.message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [baseUrl]);
+
+  // Delete a backtest by ID
+  const deleteBacktest = useCallback(async (backtestId) => {
+    if (!backtestId) return false;
+    setLoading(true);
+    setError(null);
+    try {
+      await axios.delete(`${baseUrl}/api/backtests/${backtestId}`);
+      setBacktests(prev => prev.filter(b => b._id !== backtestId));
+      if (currentBacktest?._id === backtestId) setCurrentBacktest(null);
+      return true;
+    } catch (err) {
+      console.error("[useBacktest] deleteBacktest error:", err);
+      setError(err.response?.data?.error || err.message);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [baseUrl, currentBacktest]);
+
+  useEffect(() => {
+    fetchOptions();
+  }, [fetchOptions]);
 
   return {
     options,
-    setOptions,
+    loading,
+    error,
+    backtests,
+    currentBacktest,
     fetchOptions,
     runBacktest,
-    runRealisticBacktest,
     runBatchBacktests,
+    fetchUserBacktests,
+    fetchBacktestById,
+    deleteBacktest
   };
 }
