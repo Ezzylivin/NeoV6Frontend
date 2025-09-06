@@ -3,7 +3,12 @@ import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 
 export function useBacktest(baseUrl = "") {
-  const [options, setOptions] = useState({ risks: [], strategies: [] });
+  const [options, setOptions] = useState({
+    symbols: [],
+    timeframes: [],
+    strategies: [],
+    risks: [],
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [backtests, setBacktests] = useState([]);
@@ -30,7 +35,7 @@ export function useBacktest(baseUrl = "") {
     setError(null);
     try {
       const res = await axios.post(`${baseUrl}/api/backtests/run`, payload);
-      setCurrentBacktest(res.data);
+      setCurrentBacktest(res.data.saved);
       return res.data;
     } catch (err) {
       console.error("[useBacktest] runBacktest error:", err);
@@ -127,6 +132,6 @@ export function useBacktest(baseUrl = "") {
     runBatchBacktests,
     fetchUserBacktests,
     fetchBacktestById,
-    deleteBacktest
+    deleteBacktest,
   };
 }
