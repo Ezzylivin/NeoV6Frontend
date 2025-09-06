@@ -8,13 +8,17 @@ export function useBacktest(baseUrl = "") {
     timeframes: [],
     strategies: [],
     risks: [],
+    balances: [],
+    takeProfits: [],
+    stopLosses: [],
+    positions: [],
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [backtests, setBacktests] = useState([]);
   const [currentBacktest, setCurrentBacktest] = useState(null);
 
-  // Fetch available backtest options
+  /** --- Fetch options --- */
   const fetchOptions = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -29,14 +33,23 @@ export function useBacktest(baseUrl = "") {
     }
   }, [baseUrl]);
 
-  // Run a single backtest
+  /** --- Run single backtest --- */
   const runBacktest = useCallback(async (payload) => {
     setLoading(true);
     setError(null);
     try {
       const res = await axios.post(`${baseUrl}/api/backtests/run`, payload);
-      setCurrentBacktest(res.data.saved);
-      return res.data;
+
+      // Ensure consistent structure
+      const data = {
+        saved: res.data.saved || {},
+        metrics: res.data.metrics || {},
+        equityCurve: res.data.equityCurve || [],
+        trades: res.data.trades || []
+      };
+
+      setCurrentBacktest(data.saved);
+      return data;
     } catch (err) {
       console.error("[useBacktest] runBacktest error:", err);
       setError(err.response?.data?.error || err.message);
@@ -46,31 +59,40 @@ export function useBacktest(baseUrl = "") {
     }
   }, [baseUrl]);
 
-  // Run batch backtests
+  /** --- Run batch backtests --- */
   const runBatchBacktests = useCallback(async (payload) => {
     setLoading(true);
     setError(null);
     try {
       const res = await axios.post(`${baseUrl}/api/backtests/batch`, payload);
-      return res.data;
+
+      // Map results consistently
+      const results = (res.data.results || []).map((r) => ({
+        saved: r.saved || {},
+        metrics: r.metrics || {},
+        equityCurve: r.equityCurve || r.saved?.equityCurve || [],
+        trades: r.trades || r.saved?.tradeBreakdown || [],
+      }));
+
+      return { results, usedCombos: res.data.usedCombos || [] };
     } catch (err) {
       console.error("[useBacktest] runBatchBacktests error:", err);
       setError(err.response?.data?.error || err.message);
-      return null;
+      return { results: [], usedCombos: [] };
     } finally {
       setLoading(false);
     }
   }, [baseUrl]);
 
-  // Fetch all backtests for a user
+  /** --- Fetch all user backtests --- */
   const fetchUserBacktests = useCallback(async (userId) => {
-    if (!userId) return;
+    if (!userId) return [];
     setLoading(true);
     setError(null);
     try {
       const res = await axios.get(`${baseUrl}/api/backtests/user/${userId}`);
-      setBacktests(res.data.backtests);
-      return res.data.backtests;
+      setBacktests(res.data.backtests || []);
+      return res.data.backtests || [];
     } catch (err) {
       console.error("[useBacktest] fetchUserBacktests error:", err);
       setError(err.response?.data?.error || err.message);
@@ -80,15 +102,15 @@ export function useBacktest(baseUrl = "") {
     }
   }, [baseUrl]);
 
-  // Fetch a single backtest by ID
+  /** --- Fetch single backtest by ID --- */
   const fetchBacktestById = useCallback(async (backtestId) => {
-    if (!backtestId) return;
+    if (!backtestId) return null;
     setLoading(true);
     setError(null);
     try {
       const res = await axios.get(`${baseUrl}/api/backtests/${backtestId}`);
-      setCurrentBacktest(res.data.backtest);
-      return res.data.backtest;
+      setCurrentBacktest(res.data.backtest || null);
+      return res.data.backtest || null;
     } catch (err) {
       console.error("[useBacktest] fetchBacktestById error:", err);
       setError(err.response?.data?.error || err.message);
@@ -98,7 +120,7 @@ export function useBacktest(baseUrl = "") {
     }
   }, [baseUrl]);
 
-  // Delete a backtest by ID
+  /** --- Delete backtest --- */
   const deleteBacktest = useCallback(async (backtestId) => {
     if (!backtestId) return false;
     setLoading(true);
