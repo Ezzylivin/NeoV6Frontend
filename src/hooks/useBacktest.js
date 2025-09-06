@@ -65,7 +65,6 @@ export function useBacktest() {
       const payload = { userId, ...params };
       console.log("[Realistic Backtest Request]", payload);
 
-      // ✅ Use the new /backtests/realistic endpoint
       const resp = await axios.post(`${apiUrl}/backtests/realistic`, payload);
       return resp.data;
     } catch (err) {
@@ -92,9 +91,6 @@ export function useBacktest() {
               risk,
               takeProfit,
               stopLoss,
-              // ✅ Pass startDate and endDate to each combo
-              startDate: baseParams.startDate,
-              endDate: baseParams.endDate,
             });
           }
         }
@@ -118,7 +114,6 @@ export function useBacktest() {
       const userId = user?.id || user?._id;
       if (!userId) throw new Error("User not authenticated");
 
-      // Pass baseParams which now include startDate and endDate
       const combos = generateUniqueCombos(baseParams, 10);
       console.log("[Batch Backtest Combos]", combos);
 
@@ -167,7 +162,7 @@ export function useBacktest() {
 
   return {
     options,
-    setOptions, // You can keep this if you want to allow direct manipulation of options from component
+    setOptions,
     fetchOptions,
     runBacktest,
     runRealisticBacktest,
