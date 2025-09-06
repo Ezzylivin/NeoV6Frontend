@@ -7,11 +7,17 @@ import {
 } from "recharts";
 
 export default function Backtests() {
-  const { fetchOptions, runBacktest, runBatchBacktests, options: hookOptions } = useBacktest(); // ✅ Get options from hook
+  const { fetchOptions, runBacktest, runBatchBacktests } = useBacktest();
 
-  // ✅ Use hookOptions directly or merge, avoid duplicating the entire state
-  // Initializing with hookOptions is better.
-  const [options, setOptions] = useState(hookOptions); // Initialize with hook's options
+  const [options, setOptions] = useState({
+    symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
+    timeframes: ["1m","5m","15m","30m","1h","4h","1d"],
+    balances: [100,500,1000,5000,10000],
+    strategies: ["SMA","EMA","RSI","MACD","BollingerBands","Stochastic","VWAP","ATR"],
+    risks: ["Low","Medium","High"],
+    takeProfits: [null,1,2,3,5,10],
+    stopLosses: [null,0.5,1,2,3,5]
+  });
 
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [selectedTimeframe, setSelectedTimeframe] = useState("1h");
@@ -35,7 +41,6 @@ export default function Backtests() {
       try {
         const resp = await fetchOptions();
         if (resp?.success && resp?.options) {
-          // ✅ Update component's options state with fetched options
           setOptions(prev => ({ ...prev, ...resp.options }));
           if (!selectedSymbol) setSelectedSymbol(resp.options.symbols?.[0] || "BTCUSDT");
         }
@@ -45,9 +50,8 @@ export default function Backtests() {
       }
     }
     loadOptions();
-  }, [fetchOptions, selectedSymbol]); // Add selectedSymbol to dependency array if its initial setting depends on fetched options
+  }, [fetchOptions]);
 
-  // This function is still useful for normalizing input values before sending.
   const normalizeNumber = val => {
     if (val === "" || val === null || val === undefined) return null;
     const num = Number(val);
@@ -57,16 +61,11 @@ export default function Backtests() {
   const formatTimestamp = ts => ts ? new Date(ts).toLocaleString() : "";
   const toggleLog = idx => setCollapsedLogs(prev => ({ ...prev, [idx]: !prev[idx] }));
 
-  // This `filterByDate` is for *displaying* chart/table data based on the selected date range in the UI.
-  // The actual backtest run is already filtered by the backend.
   const filterByDate = (data, key) => {
-    if (!data || data.length === 0) return [];
-    const start = startDate ? new Date(startDate).getTime() : -Infinity;
-    // ✅ Adjust endDate filter to include the entire day
-    const end = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : Infinity;
-
     return data.filter(item => {
       const time = new Date(item[key]).getTime();
+      const start = startDate ? new Date(startDate).getTime() : -Infinity;
+      const end = endDate ? new Date(endDate).getTime() + 86399999 : Infinity; // include full end day
       return time >= start && time <= end;
     });
   };
@@ -86,8 +85,8 @@ export default function Backtests() {
         risk: selectedRisk,
         takeProfit: normalizeNumber(selectedTP),
         stopLoss: normalizeNumber(selectedSL),
-        startDate: startDate || undefined, // ✅ Pass startDate as string (backend will parse)
-        endDate: endDate || undefined      // ✅ Pass endDate as string (backend will parse)
+        startDate: startDate || undefined,
+        endDate: endDate || undefined
       });
 
       setBacktests([{
@@ -101,21 +100,20 @@ export default function Backtests() {
         equityCurve,
         trades,
         label: "(New)",
-        params: {
-          symbol: selectedSymbol,
-          timeframe: selectedTimeframe,
-          balance: selectedBalance,
-          strategy: selectedStrategy.name,
-          risk: selectedRisk,
-          takeProfit: selectedTP,
+        params: { 
+          symbol: selectedSymbol, 
+          timeframe: selectedTimeframe, 
+          balance: selectedBalance, 
+          strategy: selectedStrategy.name, 
+          risk: selectedRisk, 
+          takeProfit: selectedTP, 
           stopLoss: selectedSL,
-          startDate, // Keep original string for display in params
-          endDate
+          startDate, endDate
         }
       }]);
     } catch (err) {
       console.error("Backtest failed:", err);
-      setError(err.message || "Backtest failed"); // Display specific error message
+      setError("Backtest failed");
     } finally {
       setLoadingSingle(false);
     }
@@ -131,8 +129,8 @@ export default function Backtests() {
         symbol: selectedSymbol,
         timeframe: selectedTimeframe,
         initialBalance: selectedBalance,
-        startDate: startDate || undefined, // ✅ Pass startDate for batch baseParams
-        endDate: endDate || undefined      // ✅ Pass endDate for batch baseParams
+        startDate: startDate || undefined,
+        endDate: endDate || undefined
       });
 
       const mapped = results.map((r, idx) => {
@@ -149,33 +147,18 @@ export default function Backtests() {
           equityCurve: r.equityCurve || saved.equityCurve || [],
           trades: r.trades || saved.tradeBreakdown || [],
           label: `(Batch #${idx + 1})`,
-          // Ensure params reflect the specific combo, including dates
-          params: {
-            ...usedCombos[idx],
-            startDate: usedCombos[idx].startDate || startDate, // Fallback to current UI dates if combo didn't override
-            endDate: usedCombos[idx].endDate || endDate,
-          } || {},
+          params: { ...usedCombos[idx], startDate, endDate } || {},
         };
       });
 
       setBacktests(mapped);
     } catch (err) {
       console.error("Batch run failed:", err);
-      setError(err.message || "Batch backtests failed"); // Display specific error message
+      setError("Batch backtests failed");
     } finally {
       setLoadingBatch(false);
     }
   };
-
-  // ✅ Keep options in sync with the hook's options
-  useEffect(() => {
-    setOptions(hookOptions);
-    // Set initial symbol if not already set and hookOptions are available
-    if (!selectedSymbol && hookOptions.symbols?.length > 0) {
-      setSelectedSymbol(hookOptions.symbols[0]);
-    }
-  }, [hookOptions, selectedSymbol]);
-
 
   return (
     <div>
@@ -204,8 +187,8 @@ export default function Backtests() {
       {backtests.map((bt, idx)=>(
         <div key={idx} style={{marginBottom:"40px",border:"1px solid #ccc",padding:"10px"}}>
           <h3 style={{cursor:"pointer"}} onClick={()=>toggleLog(idx)}>
-            {bt.saved?.symbol || bt.params?.symbol || "N/A"}
-            ({bt.saved?.strategy?.name || bt.params?.strategy?.name || bt.params?.strategy})
+            {bt.saved?.symbol || bt.params?.symbol || "N/A"} 
+            ({bt.saved?.strategy?.name || bt.params?.strategy?.name || bt.params?.strategy}) 
             {bt.label} {collapsedLogs[idx] ? "[+]" : "[-]"}
           </h3>
 
@@ -225,7 +208,6 @@ export default function Backtests() {
                 <>
                   <h4>Equity Curve</h4>
                   <ResponsiveContainer width="100%" height={250}>
-                    {/* Data filtered for display, backend already provides filtered data */}
                     <LineChart data={filterByDate(bt.equityCurve, "time")}>
                       <CartesianGrid strokeDasharray="3 3"/>
                       <XAxis dataKey="time" tickFormatter={formatTimestamp}/>
@@ -238,7 +220,6 @@ export default function Backtests() {
 
                   <h4>Trades P/L</h4>
                   <ResponsiveContainer width="100%" height={250}>
-                    {/* Data filtered for display, backend already provides filtered data */}
                     <BarChart data={filterByDate(bt.trades, "exitTime")}>
                       <CartesianGrid strokeDasharray="3 3"/>
                       <XAxis dataKey="exitTime" tickFormatter={formatTimestamp}/>
