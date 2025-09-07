@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer
+  BarChart, Bar, ResponsiveContainer
 } from "recharts";
 
 export default function Backtests() {
@@ -40,6 +40,7 @@ export default function Backtests() {
   const [loadingSingle, setLoadingSingle] = useState(false);
   const [loadingBatch, setLoadingBatch] = useState(false);
   const [error, setError] = useState(null);
+  const [collapsedLogs, setCollapsedLogs] = useState({});
   const [viewMode, setViewMode] = useState("chart");
 
   // Load backend options
@@ -48,17 +49,20 @@ export default function Backtests() {
       try {
         const resp = await fetchOptions();
         if (resp) {
-          setOptions(prev => ({
-            ...prev,
-            symbols: resp.symbols ?? prev.symbols,
-            strategies: resp.strategies?.map(s => s.name) ?? prev.strategies,
-            risks: resp.risks ?? prev.risks,
-            balances: resp.balances ?? prev.balances
-          }));
-          if (!selectedSymbol) setSelectedSymbol(resp.symbols?.[0] ?? "");
-          if (!selectedStrategy.name && resp.strategies?.[0]) {
-            setSelectedStrategy({ name: resp.strategies[0].name, parameters: {} });
-          }
+          setOptions({
+            symbols: resp.symbols || [],
+            timeframes: resp.timeframes || ["1m", "5m", "15m", "30m", "1h", "4h", "1d"],
+            balances: resp.balances || [100, 500, 1000, 5000, 10000],
+            strategies: resp.strategies || [],
+            risks: resp.risks || ["Low", "Medium", "High"],
+            takeProfits: resp.takeProfits || [null, 1, 2, 3, 5, 10],
+            stopLosses: resp.stopLosses || [null, 0.5, 1, 2, 3, 5],
+            positions: resp.positions || ["Long", "Short", "Both"]
+          });
+
+          // Set defaults
+          if (!selectedSymbol && resp.symbols?.length) setSelectedSymbol(resp.symbols[0]);
+          if (!selectedStrategy.name && resp.strategies?.length) setSelectedStrategy(resp.strategies[0]);
         }
       } catch (err) {
         console.error("Failed to fetch options:", err);
@@ -75,21 +79,7 @@ export default function Backtests() {
   };
 
   const formatTimestamp = ts => ts ? new Date(ts).toLocaleString() : "";
-
-  // Prepare backtest data for charts/tables
-  const prepareBacktestData = (bt) => ({
-    ...bt,
-    equityCurve: (bt.equityCurve || []).map(p => ({
-      timestamp: p.time,
-      balance: p.equity
-    })),
-    trades: (bt.trades || []).map(t => ({
-      timestamp: t.exitTime || t.entryTime,
-      side: t.position,
-      price: t.exitPrice || t.entryPrice,
-      profit: t.profit
-    }))
-  });
+  const toggleLog = idx => setCollapsedLogs(prev => ({ ...prev, [idx]: !prev[idx] }));
 
   // Single backtest
   const handleRunSingleBacktest = async () => {
@@ -174,6 +164,12 @@ export default function Backtests() {
       const mapped = results.map((r, idx) => {
         const saved = r.saved || {};
         const metrics = r.metrics || {};
+        const combo = usedCombos[idx] || {};
+        // Merge strategy parameters from usedCombos if present
+        const strategyObj = { 
+          ...selectedStrategy, 
+          parameters: combo.strategy?.parameters || selectedStrategy.parameters 
+        };
         return {
           saved,
           metrics: {
@@ -184,8 +180,8 @@ export default function Backtests() {
           },
           equityCurve: r.equityCurve || saved.equityCurve || [],
           trades: r.trades || saved.tradeBreakdown || [],
-          label: usedCombos[idx] ? `Batch: ${JSON.stringify(usedCombos[idx])}` : `(Batch #${idx + 1})`,
-          params: usedCombos[idx] || {},
+          label: `(Batch #${idx + 1})`,
+          params: { ...combo, strategy: strategyObj },
         };
       });
 
@@ -217,8 +213,14 @@ export default function Backtests() {
           {options.balances.map(b => <option key={b} value={b}>{b}</option>)}
         </select>
 
-        <select value={selectedStrategy.name} onChange={e => setSelectedStrategy({ name: e.target.value, parameters: {} })}>
-          {options.strategies.map(s => <option key={s} value={s}>{s}</option>)}
+        <select
+          value={selectedStrategy.name}
+          onChange={e => {
+            const s = options.strategies.find(s => s.name === e.target.value);
+            setSelectedStrategy(s || { name: "", parameters: {} });
+          }}
+        >
+          {options.strategies.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
         </select>
 
         <select value={selectedRisk} onChange={e => setSelectedRisk(e.target.value)}>
@@ -259,54 +261,51 @@ export default function Backtests() {
       </div>
 
       {/* === Results === */}
-      {backtests.map((btRaw, idx) => {
-        const bt = prepareBacktestData(btRaw);
-        return (
-          <div key={idx} className="border rounded p-4">
-            <h3 className="font-bold">Backtest {bt.label}</h3>
-            <p>Symbol: {bt.params.symbol} | Strategy: {bt.params.strategy} | Risk: {bt.params.risk}</p>
+      {backtests.map((bt, idx) => (
+        <div key={idx} className="border rounded p-4">
+          <h3 className="font-bold">Backtest {bt.label}</h3>
+          <p>Symbol: {bt.params.symbol} | Strategy: {bt.params.strategy?.name} | Risk: {bt.params.risk}</p>
 
-            <p>Profit: {bt.metrics.netProfit}</p>
-            <p>Win Rate: {bt.metrics.winRate}%</p>
-            <p>Drawdown: {bt.metrics.maxDrawdown}%</p>
-            <p>Trades: {bt.metrics.tradesCount}</p>
+          <p>Profit: {bt.metrics.netProfit}</p>
+          <p>Win Rate: {bt.metrics.winRate}%</p>
+          <p>Drawdown: {bt.metrics.maxDrawdown}%</p>
+          <p>Trades: {bt.metrics.tradesCount}</p>
 
-            {viewMode === "chart" ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={bt.equityCurve}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="timestamp" tickFormatter={formatTimestamp} />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr>
-                    <th>Time</th>
-                    <th>Action</th>
-                    <th>Price</th>
-                    <th>Profit</th>
+          {viewMode === "chart" ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={bt.equityCurve}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="timestamp" tickFormatter={formatTimestamp} />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Action</th>
+                  <th>Price</th>
+                  <th>Profit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bt.trades.map((t, i) => (
+                  <tr key={i}>
+                    <td>{formatTimestamp(t.timestamp)}</td>
+                    <td>{t.side}</td>
+                    <td>{t.price}</td>
+                    <td>{t.profit}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {bt.trades.map((t, i) => (
-                    <tr key={i}>
-                      <td>{formatTimestamp(t.timestamp)}</td>
-                      <td>{t.side}</td>
-                      <td>{t.price}</td>
-                      <td>{t.profit}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        );
-      })}
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
