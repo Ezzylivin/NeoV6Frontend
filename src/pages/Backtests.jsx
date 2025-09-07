@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  BarChart, Bar, ResponsiveContainer
+  ResponsiveContainer
 } from "recharts";
 
 export default function Backtests() {
@@ -40,7 +40,6 @@ export default function Backtests() {
   const [loadingSingle, setLoadingSingle] = useState(false);
   const [loadingBatch, setLoadingBatch] = useState(false);
   const [error, setError] = useState(null);
-  const [collapsedLogs, setCollapsedLogs] = useState({});
   const [viewMode, setViewMode] = useState("chart");
 
   // Load backend options
@@ -76,7 +75,21 @@ export default function Backtests() {
   };
 
   const formatTimestamp = ts => ts ? new Date(ts).toLocaleString() : "";
-  const toggleLog = idx => setCollapsedLogs(prev => ({ ...prev, [idx]: !prev[idx] }));
+
+  // Prepare backtest data for charts/tables
+  const prepareBacktestData = (bt) => ({
+    ...bt,
+    equityCurve: (bt.equityCurve || []).map(p => ({
+      timestamp: p.time,
+      balance: p.equity
+    })),
+    trades: (bt.trades || []).map(t => ({
+      timestamp: t.exitTime || t.entryTime,
+      side: t.position,
+      price: t.exitPrice || t.entryPrice,
+      profit: t.profit
+    }))
+  });
 
   // Single backtest
   const handleRunSingleBacktest = async () => {
@@ -171,7 +184,7 @@ export default function Backtests() {
           },
           equityCurve: r.equityCurve || saved.equityCurve || [],
           trades: r.trades || saved.tradeBreakdown || [],
-          label: `(Batch #${idx + 1})`,
+          label: usedCombos[idx] ? `Batch: ${JSON.stringify(usedCombos[idx])}` : `(Batch #${idx + 1})`,
           params: usedCombos[idx] || {},
         };
       });
@@ -246,51 +259,54 @@ export default function Backtests() {
       </div>
 
       {/* === Results === */}
-      {backtests.map((bt, idx) => (
-        <div key={idx} className="border rounded p-4">
-          <h3 className="font-bold">Backtest {bt.label}</h3>
-          <p>Symbol: {bt.params.symbol} | Strategy: {bt.params.strategy} | Risk: {bt.params.risk}</p>
+      {backtests.map((btRaw, idx) => {
+        const bt = prepareBacktestData(btRaw);
+        return (
+          <div key={idx} className="border rounded p-4">
+            <h3 className="font-bold">Backtest {bt.label}</h3>
+            <p>Symbol: {bt.params.symbol} | Strategy: {bt.params.strategy} | Risk: {bt.params.risk}</p>
 
-          <p>Profit: {bt.metrics.netProfit}</p>
-          <p>Win Rate: {bt.metrics.winRate}%</p>
-          <p>Drawdown: {bt.metrics.maxDrawdown}%</p>
-          <p>Trades: {bt.metrics.tradesCount}</p>
+            <p>Profit: {bt.metrics.netProfit}</p>
+            <p>Win Rate: {bt.metrics.winRate}%</p>
+            <p>Drawdown: {bt.metrics.maxDrawdown}%</p>
+            <p>Trades: {bt.metrics.tradesCount}</p>
 
-          {viewMode === "chart" ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={bt.equityCurve}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="timestamp" tickFormatter={formatTimestamp} />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Action</th>
-                  <th>Price</th>
-                  <th>Profit</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bt.trades.map((t, i) => (
-                  <tr key={i}>
-                    <td>{formatTimestamp(t.timestamp)}</td>
-                    <td>{t.side}</td>
-                    <td>{t.price}</td>
-                    <td>{t.profit}</td>
+            {viewMode === "chart" ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={bt.equityCurve}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="timestamp" tickFormatter={formatTimestamp} />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Action</th>
+                    <th>Price</th>
+                    <th>Profit</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      ))}
+                </thead>
+                <tbody>
+                  {bt.trades.map((t, i) => (
+                    <tr key={i}>
+                      <td>{formatTimestamp(t.timestamp)}</td>
+                      <td>{t.side}</td>
+                      <td>{t.price}</td>
+                      <td>{t.profit}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
