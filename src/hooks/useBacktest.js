@@ -6,97 +6,89 @@ import {
   runBatchBacktests as apiRunBatchBacktests,
 } from "../api/backtest.js";
 
-export const useBacktest = () => {
-  const [options, setOptions] = useState({
-    symbols: [],
-    timeframes: [],
-    strategies: [],
-    balances: [],
-    risks: [],
-    positions: [],
-    takeProfits: [],
-    stopLosses: [],
-  });
+export function useBacktest() {
+  const [options, setOptions] = useState({});
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState("");
   const [currentBacktest, setCurrentBacktest] = useState(null);
   const [batchResults, setBatchResults] = useState([]);
   const [defaultRealism, setDefaultRealism] = useState({
-    slippage: true,
-    latency: true,
-    partialFills: true,
+    useSlippage: true,
+    useSpread: true,
+    useNews: true,
+    randomEventProb: 0.005,
     slippage_bps: 5,
   });
 
-  // Load backtest options from backend on mount
-  useEffect(() => {
-    const loadOptions = async () => {
-      try {
-        const data = await fetchBacktestOptions();
-        if (!data) return;
-
-        setOptions({
-          symbols: data.symbols || [],
-          timeframes: data.timeframes || [],
-          strategies: data.strategies || [],
-          balances: data.balances || [],
-          risks: data.risks || [],
-          positions: data.positions || [],
-          takeProfits: data.takeProfits || [],
-          stopLosses: data.stopLosses || [],
-        });
-
-        setDefaultRealism(data.defaultRealism || defaultRealism);
-      } catch (err) {
-        console.error("[useBacktest] fetchBacktestOptions failed", err);
-        setError("Failed to load backtest options");
-      }
-    };
-    loadOptions();
-  }, []);
-
-  // Normalize backtest result
-  const normalizeBacktest = (result) => ({
-    saved: result.saved || {},
-    metrics: result.metrics || {},
-    equityCurve: result.equityCurve || result.saved?.equityCurve || [],
-    trades: result.trades || result.saved?.tradeBreakdown || [],
+  const [dateRange, setDateRange] = useState({
+    startDate: "",
+    endDate: "",
   });
 
-  // Run a single backtest
+  // Fetch options on mount
+  useEffect(() => {
+    const fetchOptions = async () => {
+      try {
+        const data = await fetchBacktestOptions();
+        setOptions(data);
+      } catch (err) {
+        console.error("[Hook] fetchBacktestOptions failed:", err);
+        setError("Failed to load backtest options.");
+      }
+    };
+    fetchOptions();
+  }, []);
+
+  // Run single backtest
   const runBacktest = async (payload) => {
     setLoading(true);
-    setError(null);
+    setError("");
     try {
-      const result = await apiRunBacktest(payload);
-      const normalized = normalizeBacktest(result);
-      setCurrentBacktest(normalized);
-      setLoading(false);
-      return normalized;
+      const cleanPayload = {
+        ...payload,
+        startDate: payload.startDate || undefined,
+        endDate: payload.endDate || undefined,
+      };
+      const result = await apiRunBacktest(cleanPayload);
+      setCurrentBacktest(result);
+      return result;
     } catch (err) {
-      console.error("[useBacktest] runBacktest failed", err);
-      setError("Backtest failed");
-      setLoading(false);
+      console.error("[Hook] runBacktest failed:", err);
+      setError(err.message || "Backtest failed");
       return null;
+    } finally {
+      setLoading(false);
     }
   };
 
   // Run batch backtests
   const runBatchBacktests = async (payload) => {
     setLoading(true);
-    setError(null);
+    setError("");
     try {
-      const { results, usedCombos } = await apiRunBatchBacktests(payload);
-      const normalizedResults = (results || []).map(normalizeBacktest);
-      setBatchResults(normalizedResults);
-      setLoading(false);
-      return { results: normalizedResults, usedCombos };
+      const cleanPayload = {
+        ...payload,
+        startDate: payload.startDate || undefined,
+        endDate: payload.endDate || undefined,
+      };
+      const { results } = await apiRunBatchBacktests(cleanPayload);
+      setBatchResults(results);
+      return results;
     } catch (err) {
-      console.error("[useBacktest] runBatchBacktests failed", err);
-      setError("Batch backtests failed");
+      console.error("[Hook] runBatchBacktests failed:", err);
+      setError(err.message || "Batch backtests failed");
+      return [];
+    } finally {
       setLoading(false);
-      return { results: [], usedCombos: [] };
     }
+  };
+
+  // Optional: utility to update date range in state
+  const updateDateRange = (startDate, endDate) => {
+    setDateRange({
+      startDate: startDate || "",
+      endDate: endDate || "",
+    });
   };
 
   return {
@@ -106,7 +98,9 @@ export const useBacktest = () => {
     currentBacktest,
     batchResults,
     defaultRealism,
+    dateRange,
     runBacktest,
     runBatchBacktests,
+    updateDateRange,
   };
-};
+}
