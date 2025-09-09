@@ -1,7 +1,7 @@
 // File: src/pages/Backtests.jsx
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
-import { useAuth } from "../context/AuthContext.js"; // <-- make sure this exists
+import { useAuth } from "../context/AuthContext.jsx"; // <-- make sure this exists
 import {
   ResponsiveContainer,
   LineChart,
