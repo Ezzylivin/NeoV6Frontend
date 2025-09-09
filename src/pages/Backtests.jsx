@@ -61,9 +61,13 @@ export default function Backtests() {
           });
 
           // Set defaults
-          if (!selectedSymbol && resp.symbols?.length) setSelectedSymbol(resp.symbols[0]);
-          if (!selectedStrategy.name && resp.strategies?.length) setSelectedStrategy(resp.strategies[0]);
-        }
+          if (!selectedSymbol && resp.symbols?.length) {
+  setSelectedSymbol(resp.symbols[0]);
+}
+if (!selectedStrategy.name && resp.strategies?.length) {
+  setSelectedStrategy(resp.strategies[0]);
+}
+
       } catch (err) {
         console.error("Failed to fetch options:", err);
         setError("Could not load backtest options");
