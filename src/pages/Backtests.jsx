@@ -1,5 +1,6 @@
+// File: src/pages/Backtests.jsx
 import React, { useState, useEffect } from "react";
-import { fetchOptions, runBacktest, runBatchBacktests } from "../hooks/useBacktest.js";
+import { useBacktest } from "../hooks/useBacktest.js";
 import {
   ResponsiveContainer,
   LineChart,
@@ -15,20 +16,16 @@ import {
 
 export default function Backtests() {
   // -------------------------------
-  // Default options fallback
+  // Hook state & functions
   // -------------------------------
-  const defaultOptions = {
-    symbols: [],
-    timeframes: ["1m", "5m", "15m", "30m", "1h", "4h", "1d"],
-    balances: [100, 500, 1000, 5000, 10000],
-    strategies: [],
-    risks: ["Low", "Medium", "High"],
-    takeProfits: [null, 1, 2, 3, 5, 10],
-    stopLosses: [null, 0.5, 1, 2, 3, 5],
-    positions: ["Long", "Short", "Both"],
-  };
-
-  const [options, setOptions] = useState(defaultOptions);
+  const {
+    fetchOptions,
+    runBacktest,
+    runBatchBacktests,
+    options,
+    loading,
+    error,
+  } = useBacktest();
 
   // -------------------------------
   // Form selections
@@ -55,35 +52,16 @@ export default function Backtests() {
   // Results & UI states
   // -------------------------------
   const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [viewMode, setViewMode] = useState("chart"); // chart or table
   const [batchResults, setBatchResults] = useState([]);
   const [collapsedLogs, setCollapsedLogs] = useState({});
 
   // -------------------------------
-  // Load options from backend
+  // Load options from backend on mount
   // -------------------------------
   useEffect(() => {
-    async function loadOptions() {
-      try {
-        const resp = await fetchOptions();
-        setOptions((prev) => ({
-          symbols: resp.symbols?.length ? resp.symbols : prev.symbols,
-          timeframes: resp.timeframes?.length ? resp.timeframes : prev.timeframes,
-          balances: resp.balances?.length ? resp.balances : prev.balances,
-          strategies: resp.strategies?.length ? resp.strategies : prev.strategies,
-          risks: resp.risks?.length ? resp.risks : prev.risks,
-          takeProfits: resp.takeProfits?.length ? resp.takeProfits : prev.takeProfits,
-          stopLosses: resp.stopLosses?.length ? resp.stopLosses : prev.stopLosses,
-          positions: resp.positions?.length ? resp.positions : prev.positions,
-        }));
-      } catch (err) {
-        setError("Failed to fetch options.");
-      }
-    }
-    loadOptions();
-  }, []);
+    fetchOptions();
+  }, [fetchOptions]);
 
   // -------------------------------
   // Set initial symbol & strategy defaults
@@ -98,68 +76,49 @@ export default function Backtests() {
   }, [options, selectedSymbol, selectedStrategy]);
 
   // -------------------------------
-  // Run single backtest
+  // Handlers
   // -------------------------------
-  async function handleRunBacktest() {
-    setLoading(true);
-    setError(null);
-    try {
-      const resp = await runBacktest({
-        symbol: selectedSymbol,
-        timeframe: selectedTimeframe,
-        initial_balance: selectedBalance,
-        strategy: selectedStrategy,
-        risk: selectedRisk,
-        take_profit: selectedTP,
-        stop_loss: selectedSL,
-        position: selectedPosition,
-        realism: {
-          news: useNews,
-          slippage: useSlippage,
-          spreads: useSpreads,
-          random: useRandom,
-          slippage_bps: slippageBps,
-        },
-      });
-      setResults((prev) => [...prev, resp]);
-    } catch (err) {
-      setError("Backtest failed.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const handleRunBacktest = async () => {
+    const resp = await runBacktest({
+      symbol: selectedSymbol,
+      timeframe: selectedTimeframe,
+      initial_balance: selectedBalance,
+      strategy: selectedStrategy,
+      risk: selectedRisk,
+      take_profit: selectedTP,
+      stop_loss: selectedSL,
+      position: selectedPosition,
+      realism: {
+        news: useNews,
+        slippage: useSlippage,
+        spreads: useSpreads,
+        random: useRandom,
+        slippage_bps: slippageBps,
+      },
+    });
+    if (resp) setResults((prev) => [...prev, resp]);
+  };
 
-  // -------------------------------
-  // Run batch backtests
-  // -------------------------------
-  async function handleRunBatch() {
-    setLoading(true);
-    setError(null);
-    try {
-      const resp = await runBatchBacktests({
-        symbols: options.symbols,
-        timeframes: options.timeframes,
-        balances: options.balances,
-        strategies: options.strategies.map((s) => s.name),
-        risks: options.risks,
-        take_profits: options.takeProfits,
-        stop_losses: options.stopLosses,
-        positions: options.positions,
-        realism: {
-          news: useNews,
-          slippage: useSlippage,
-          spreads: useSpreads,
-          random: useRandom,
-          slippage_bps: slippageBps,
-        },
-      });
-      setBatchResults(resp);
-    } catch (err) {
-      setError("Batch backtest failed.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const handleRunBatch = async () => {
+    const resp = await runBatchBacktests({
+      symbols: options.symbols,
+      timeframes: options.timeframes,
+      balances: options.balances,
+      strategies: options.strategies.map((s) => s.name),
+      risks: options.risks,
+      take_profits: options.takeProfits,
+      stop_losses: options.stopLosses,
+      positions: options.positions,
+      realism: {
+        news: useNews,
+        slippage: useSlippage,
+        spreads: useSpreads,
+        random: useRandom,
+        slippage_bps: slippageBps,
+      },
+    });
+    if (resp) setBatchResults(resp.results);
+  };
 
   // -------------------------------
   // Render
@@ -388,7 +347,7 @@ export default function Backtests() {
                 <>
                   {viewMode === "chart" ? (
                     <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={res.equity_curve}>
+                      <LineChart data={res.equityCurve}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="time" />
                         <YAxis />
