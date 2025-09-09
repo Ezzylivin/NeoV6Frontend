@@ -1,165 +1,100 @@
-import { useState, useEffect, useCallback } from "react";
-import axios from "axios";
+// File: src/hooks/useBacktest.js
+import { useState, useEffect } from "react";
+import {
+  fetchBacktestOptions,
+  runBacktest as apiRunBacktest,
+  runBatchBacktests as apiRunBatchBacktests,
+} from "../api/backtest.js";
 
-export function useBacktest(baseUrl = "") {
+export const useBacktest = () => {
   const [options, setOptions] = useState({
     symbols: [],
     timeframes: [],
     strategies: [],
-    risks: [],
     balances: [],
+    risks: [],
+    positions: [],
     takeProfits: [],
     stopLosses: [],
-    positions: [],
   });
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [backtests, setBacktests] = useState([]);
   const [currentBacktest, setCurrentBacktest] = useState(null);
-
-  // Default realism settings
-  const defaultRealism = {
-    news: true,
+  const [batchResults, setBatchResults] = useState([]);
+  const [defaultRealism, setDefaultRealism] = useState({
     slippage: true,
-    spreads: true,
-    random: false,
+    latency: true,
+    partialFills: true,
     slippage_bps: 5,
+  });
+
+  // Load options from backend
+  useEffect(() => {
+    const loadOptions = async () => {
+      try {
+        const data = await fetchBacktestOptions();
+        setOptions(data || {});
+        setDefaultRealism(data.defaultRealism || defaultRealism);
+      } catch (err) {
+        console.error("[useBacktest] fetchBacktestOptions failed", err);
+        setError("Failed to load backtest options");
+      }
+    };
+    loadOptions();
+  }, []);
+
+  const runBacktest = async (payload) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await apiRunBacktest(payload);
+      const normalized = {
+        saved: result.saved || {},
+        metrics: result.metrics || {},
+        equityCurve: result.equityCurve || [],
+        trades: result.trades || [],
+      };
+      setCurrentBacktest(normalized);
+      setLoading(false);
+      return normalized;
+    } catch (err) {
+      console.error("[useBacktest] runBacktest failed", err);
+      setError("Backtest failed");
+      setLoading(false);
+      return null;
+    }
   };
 
-  /** --- Fetch options from backend --- */
-  const fetchOptions = useCallback(async () => {
+  const runBatchBacktests = async (payload) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.get(`${baseUrl}/api/backtests/options`);
-      setOptions(res.data);
-      return res.data;
-    } catch (err) {
-      console.error("[useBacktest] fetchOptions error:", err);
-      setError(err.response?.data?.error || err.message);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, [baseUrl]);
-
-  /** --- Run single backtest --- */
-  const runBacktest = useCallback(async (payload) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await axios.post(`${baseUrl}/api/backtests/run`, payload);
-      const data = {
-        saved: res.data.saved || {},
-        metrics: res.data.metrics || {},
-        equityCurve: res.data.equityCurve || res.data.saved?.equityCurve || [],
-        trades: res.data.trades || res.data.saved?.tradeBreakdown || [],
-      };
-      setCurrentBacktest(data.saved);
-      return data;
-    } catch (err) {
-      console.error("[useBacktest] runBacktest error:", err);
-      setError(err.response?.data?.error || err.message);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, [baseUrl]);
-
-  /** --- Run batch backtests --- */
-  const runBatchBacktests = useCallback(async (payload) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await axios.post(`${baseUrl}/api/backtests/batch`, payload);
-      const results = (res.data.results || []).map((r) => ({
+      const { results, usedCombos } = await apiRunBatchBacktests(payload);
+      const normalizedResults = (results || []).map((r) => ({
         saved: r.saved || {},
         metrics: r.metrics || {},
-        equityCurve: r.equityCurve || r.saved?.equityCurve || [],
-        trades: r.trades || r.saved?.tradeBreakdown || [],
+        equityCurve: r.equityCurve || [],
+        trades: r.trades || [],
       }));
-      return { results, usedCombos: res.data.usedCombos || [] };
+      setBatchResults(normalizedResults);
+      setLoading(false);
+      return { results: normalizedResults, usedCombos };
     } catch (err) {
-      console.error("[useBacktest] runBatchBacktests error:", err);
-      setError(err.response?.data?.error || err.message);
+      console.error("[useBacktest] runBatchBacktests failed", err);
+      setError("Batch backtests failed");
+      setLoading(false);
       return { results: [], usedCombos: [] };
-    } finally {
-      setLoading(false);
     }
-  }, [baseUrl]);
-
-  /** --- Fetch all user backtests --- */
-  const fetchUserBacktests = useCallback(async (userId) => {
-    if (!userId) return [];
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await axios.get(`${baseUrl}/api/backtests/user/${userId}`);
-      setBacktests(res.data.backtests || []);
-      return res.data.backtests || [];
-    } catch (err) {
-      console.error("[useBacktest] fetchUserBacktests error:", err);
-      setError(err.response?.data?.error || err.message);
-      return [];
-    } finally {
-      setLoading(false);
-    }
-  }, [baseUrl]);
-
-  /** --- Fetch single backtest by ID --- */
-  const fetchBacktestById = useCallback(async (backtestId) => {
-    if (!backtestId) return null;
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await axios.get(`${baseUrl}/api/backtests/${backtestId}`);
-      setCurrentBacktest(res.data.backtest || null);
-      return res.data.backtest || null;
-    } catch (err) {
-      console.error("[useBacktest] fetchBacktestById error:", err);
-      setError(err.response?.data?.error || err.message);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, [baseUrl]);
-
-  /** --- Delete backtest --- */
-  const deleteBacktest = useCallback(async (backtestId) => {
-    if (!backtestId) return false;
-    setLoading(true);
-    setError(null);
-    try {
-      await axios.delete(`${baseUrl}/api/backtests/${backtestId}`);
-      setBacktests((prev) => prev.filter((b) => b._id !== backtestId));
-      if (currentBacktest?._id === backtestId) setCurrentBacktest(null);
-      return true;
-    } catch (err) {
-      console.error("[useBacktest] deleteBacktest error:", err);
-      setError(err.response?.data?.error || err.message);
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  }, [baseUrl, currentBacktest]);
-
-  useEffect(() => {
-    fetchOptions();
-  }, [fetchOptions]);
+  };
 
   return {
     options,
     loading,
     error,
-    backtests,
     currentBacktest,
+    batchResults,
     defaultRealism,
-    fetchOptions,
     runBacktest,
     runBatchBacktests,
-    fetchUserBacktests,
-    fetchBacktestById,
-    deleteBacktest,
   };
-}
+};
