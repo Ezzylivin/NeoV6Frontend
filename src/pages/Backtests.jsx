@@ -19,32 +19,39 @@ export default function Backtests() {
     error,
     currentBacktest,
     runBacktest,
+    batchResults,
     runBatchBacktests,
     defaultRealism,
   } = useBacktest();
 
+  // Selection states
   const [selectedSymbol, setSelectedSymbol] = useState("");
-  const [selectedTimeframe, setSelectedTimeframe] = useState("1h");
-  const [selectedBalance, setSelectedBalance] = useState(1000);
   const [selectedStrategy, setSelectedStrategy] = useState("");
-  const [selectedRisk, setSelectedRisk] = useState("Medium");
+  const [selectedTimeframe, setSelectedTimeframe] = useState("");
+  const [selectedBalance, setSelectedBalance] = useState(0);
+  const [selectedRisk, setSelectedRisk] = useState("");
   const [selectedTP, setSelectedTP] = useState(null);
   const [selectedSL, setSelectedSL] = useState(null);
-  const [selectedPosition, setSelectedPosition] = useState("Both");
+  const [selectedPosition, setSelectedPosition] = useState("");
 
   const [realism, setRealism] = useState(defaultRealism);
-
-  const [batchResults, setBatchResults] = useState([]);
   const [collapsedLogs, setCollapsedLogs] = useState({});
 
-  // Set default selections when options load
+  // Auto-set defaults when options load
   useEffect(() => {
-    if (options.symbols?.length && !selectedSymbol) setSelectedSymbol(options.symbols[0]);
-    if (options.strategies?.length && !selectedStrategy) setSelectedStrategy(options.strategies[0]?.name || "");
+    if (!options.symbols?.length) return;
+
+    setSelectedSymbol((prev) => prev || options.symbols[0]);
+    setSelectedStrategy((prev) => prev || options.strategies?.[0]?.name || "");
+    setSelectedTimeframe((prev) => prev || options.timeframes?.[0] || "1h");
+    setSelectedBalance((prev) => prev || options.balances?.[0] || 1000);
+    setSelectedRisk((prev) => prev || options.risks?.[0] || "Medium");
+    setSelectedPosition((prev) => prev || options.positions?.[0] || "Both");
   }, [options]);
 
+  // Run single backtest
   const handleRunBacktest = async () => {
-    const resp = await runBacktest({
+    await runBacktest({
       symbol: selectedSymbol,
       timeframe: selectedTimeframe,
       initial_balance: selectedBalance,
@@ -55,11 +62,11 @@ export default function Backtests() {
       position: selectedPosition,
       realism,
     });
-    // Optionally add to a local results array if needed
   };
 
+  // Run batch backtests
   const handleRunBatch = async () => {
-    const resp = await runBatchBacktests({
+    await runBatchBacktests({
       symbols: options.symbols || [],
       timeframes: options.timeframes || [],
       balances: options.balances || [],
@@ -70,8 +77,47 @@ export default function Backtests() {
       positions: options.positions || [],
       realism,
     });
-    setBatchResults(resp.results || []);
   };
+
+  // Utility to render a chart
+  const renderChart = (data, color = "#8884d8") => (
+    data?.length > 0 ? (
+      <ResponsiveContainer width="100%" height={250}>
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="timestamp" />
+          <YAxis />
+          <Tooltip />
+          <Legend />
+          <Line type="monotone" dataKey="balance" stroke={color} />
+        </LineChart>
+      </ResponsiveContainer>
+    ) : <p>No equity data available.</p>
+  );
+
+  // Utility to render mini summary table
+  const renderSummary = (bt) => (
+    <table className="w-full mt-2 text-sm border-collapse border border-gray-300">
+      <tbody>
+        <tr>
+          <td className="border p-1 font-semibold">Total Trades</td>
+          <td className="border p-1">{bt.trades?.length || 0}</td>
+        </tr>
+        <tr>
+          <td className="border p-1 font-semibold">Final Balance</td>
+          <td className="border p-1">${bt.equityCurve?.slice(-1)[0]?.balance?.toFixed(2) || 0}</td>
+        </tr>
+        <tr>
+          <td className="border p-1 font-semibold">Max Drawdown</td>
+          <td className="border p-1">{bt.metrics?.maxDrawdown?.toFixed(2) || 0}%</td>
+        </tr>
+        <tr>
+          <td className="border p-1 font-semibold">Profit %</td>
+          <td className="border p-1">{bt.metrics?.profitPct?.toFixed(2) || 0}%</td>
+        </tr>
+      </tbody>
+    </table>
+  );
 
   return (
     <div className="p-6 space-y-6">
@@ -79,7 +125,6 @@ export default function Backtests() {
 
       {/* Controls */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg shadow">
-        {/* Symbol */}
         <label className="text-sm">
           Symbol
           <select
@@ -93,7 +138,6 @@ export default function Backtests() {
           </select>
         </label>
 
-        {/* Strategy */}
         <label className="text-sm">
           Strategy
           <select
@@ -107,7 +151,6 @@ export default function Backtests() {
           </select>
         </label>
 
-        {/* Timeframe */}
         <label className="text-sm">
           Timeframe
           <select
@@ -121,7 +164,6 @@ export default function Backtests() {
           </select>
         </label>
 
-        {/* Balance */}
         <label className="text-sm">
           Balance
           <select
@@ -138,7 +180,7 @@ export default function Backtests() {
 
       {/* Realism factors */}
       <div className="flex flex-wrap gap-4 items-center bg-gray-50 p-4 rounded-lg shadow">
-        {Object.keys(defaultRealism).map((key) => (
+        {Object.keys(defaultRealism).map((key) =>
           key !== "slippage_bps" ? (
             <label key={key} className="flex items-center gap-2">
               <input
@@ -161,7 +203,7 @@ export default function Backtests() {
               />
             </label>
           )
-        ))}
+        )}
       </div>
 
       {/* Action buttons */}
@@ -184,21 +226,16 @@ export default function Backtests() {
 
       {error && <p className="text-red-600 mt-2">{error}</p>}
 
-      {/* Single Backtest Chart */}
-      {currentBacktest?.equityCurve?.length > 0 && (
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={currentBacktest.equityCurve}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="timestamp" />
-            <YAxis />
-            <Tooltip />
-            <Legend />
-            <Line type="monotone" dataKey="balance" stroke="#8884d8" />
-          </LineChart>
-        </ResponsiveContainer>
+      {/* Single Backtest */}
+      {currentBacktest && (
+        <div className="mt-6 bg-gray-50 p-4 rounded-lg shadow space-y-4">
+          <h3 className="text-xl font-semibold">Single Backtest</h3>
+          {renderChart(currentBacktest.equityCurve)}
+          {renderSummary(currentBacktest)}
+        </div>
       )}
 
-      {/* Batch Results */}
+      {/* Batch Backtests */}
       {batchResults?.length > 0 && (
         <div className="space-y-6 mt-6">
           <h3 className="text-xl font-bold">Batch Backtests</h3>
@@ -217,46 +254,8 @@ export default function Backtests() {
                   {collapsedLogs[idx] ? "Expand Chart" : "Collapse Chart"}
                 </button>
               </div>
-
-              {/* Chart */}
-              {!collapsedLogs[idx] && bt.equityCurve?.length > 0 ? (
-                <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={bt.equityCurve}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="timestamp" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="balance" stroke="#82ca9d" />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                !collapsedLogs[idx] && <p>No equity data available.</p>
-              )}
-
-              {/* Mini Summary Table */}
-              {!collapsedLogs[idx] && (
-                <table className="w-full mt-2 text-sm border-collapse border border-gray-300">
-                  <tbody>
-                    <tr>
-                      <td className="border p-1 font-semibold">Total Trades</td>
-                      <td className="border p-1">{bt.trades?.length || 0}</td>
-                    </tr>
-                    <tr>
-                      <td className="border p-1 font-semibold">Final Balance</td>
-                      <td className="border p-1">${bt.equityCurve?.slice(-1)[0]?.balance?.toFixed(2) || 0}</td>
-                    </tr>
-                    <tr>
-                      <td className="border p-1 font-semibold">Max Drawdown</td>
-                      <td className="border p-1">{bt.metrics?.maxDrawdown?.toFixed(2) || 0}%</td>
-                    </tr>
-                    <tr>
-                      <td className="border p-1 font-semibold">Profit %</td>
-                      <td className="border p-1">{bt.metrics?.profitPct?.toFixed(2) || 0}%</td>
-                    </tr>
-                  </tbody>
-                </table>
-              )}
+              {!collapsedLogs[idx] && renderChart(bt.equityCurve, "#82ca9d")}
+              {!collapsedLogs[idx] && renderSummary(bt)}
             </div>
           ))}
         </div>
