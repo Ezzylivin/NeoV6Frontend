@@ -16,6 +16,7 @@ export default function Backtests() {
   const {
     options,
     loading,
+    error,
     currentBacktest,
     runBacktest,
     batchResults,
@@ -40,9 +41,6 @@ export default function Backtests() {
 
   // Realism factors
   const [realism, setRealism] = useState(defaultRealism);
-
-  // Collapsed batch states
-  const [collapsedLogs, setCollapsedLogs] = useState({});
 
   // --- AUTO-SET DEFAULTS WHEN OPTIONS LOAD ---
   useEffect(() => {
@@ -175,13 +173,16 @@ export default function Backtests() {
     </table>
   );
 
+  // --- TP/SL OPTIONS ---
+  const tpOptions = [1, 2, 3, 5, 10]; // percentages
+  const slOptions = [1, 2, 3, 5, 10]; // percentages
+
   return (
     <div className="p-6 space-y-6">
       <h2 className="text-2xl font-bold">Backtesting</h2>
 
       {/* Controls */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg shadow">
-        {/* Symbol */}
         <label className="text-sm">
           Symbol
           <select
@@ -195,7 +196,6 @@ export default function Backtests() {
           </select>
         </label>
 
-        {/* Strategy */}
         <label className="text-sm">
           Strategy
           <select
@@ -209,7 +209,6 @@ export default function Backtests() {
           </select>
         </label>
 
-        {/* Timeframe */}
         <label className="text-sm">
           Timeframe
           <select
@@ -223,7 +222,6 @@ export default function Backtests() {
           </select>
         </label>
 
-        {/* Balance */}
         <label className="text-sm">
           Balance
           <select
@@ -237,7 +235,6 @@ export default function Backtests() {
           </select>
         </label>
 
-        {/* Risk */}
         <label className="text-sm">
           Risk
           <select
@@ -251,29 +248,36 @@ export default function Backtests() {
           </select>
         </label>
 
-        {/* Take Profit % */}
+        {/* Take Profit dropdown */}
         <label className="text-sm">
           Take Profit %
-          <input
-            type="number"
+          <select
             value={selectedTP ?? ""}
             onChange={(e) => setSelectedTP(Number(e.target.value))}
-            className="border p-1 rounded w-full"
-          />
+            className="border p-2 rounded w-full bg-white"
+          >
+            <option value="">None</option>
+            {tpOptions.map((tp) => (
+              <option key={tp} value={tp}>{tp}%</option>
+            ))}
+          </select>
         </label>
 
-        {/* Stop Loss % */}
+        {/* Stop Loss dropdown */}
         <label className="text-sm">
           Stop Loss %
-          <input
-            type="number"
+          <select
             value={selectedSL ?? ""}
             onChange={(e) => setSelectedSL(Number(e.target.value))}
-            className="border p-1 rounded w-full"
-          />
+            className="border p-2 rounded w-full bg-white"
+          >
+            <option value="">None</option>
+            {slOptions.map((sl) => (
+              <option key={sl} value={sl}>{sl}%</option>
+            ))}
+          </select>
         </label>
 
-        {/* Position */}
         <label className="text-sm">
           Position
           <select
@@ -287,7 +291,6 @@ export default function Backtests() {
           </select>
         </label>
 
-        {/* Start Date */}
         <label className="text-sm">
           Start Date
           <input
@@ -298,7 +301,6 @@ export default function Backtests() {
           />
         </label>
 
-        {/* End Date */}
         <label className="text-sm">
           End Date
           <input
@@ -309,11 +311,10 @@ export default function Backtests() {
           />
         </label>
 
-        {/* Dynamic Strategy Parameters */}
         {renderStrategyParams()}
       </div>
 
-      {/* Realism Factors */}
+      {/* Realism factors */}
       <div className="flex flex-wrap gap-4 items-center bg-gray-50 p-4 rounded-lg shadow">
         {Object.keys(defaultRealism).map((key) =>
           key !== "slippage_bps" ? (
@@ -345,7 +346,7 @@ export default function Backtests() {
         )}
       </div>
 
-      {/* Action Buttons */}
+      {/* Action buttons */}
       <div className="flex gap-4 mt-4">
         <button
           onClick={handleRunBacktest}
@@ -372,29 +373,17 @@ export default function Backtests() {
         </div>
       )}
 
-      {/* Batch Backtests (collapsible) */}
+      {/* Batch Backtest Results */}
       {batchResults?.results?.length > 0 && (
-        <div className="mt-6 space-y-4">
+        <div className="mt-6 space-y-6">
           <h3 className="text-xl font-semibold">Batch Backtests</h3>
           {batchResults.results.map((bt, idx) => (
             <div key={idx} className="border p-4 rounded shadow bg-white">
-              <div
-                className="flex justify-between items-center cursor-pointer"
-                onClick={() =>
-                  setCollapsedLogs((prev) => ({ ...prev, [idx]: !prev[idx] }))
-                }
-              >
-                <h4 className="font-semibold">
-                  {bt.saved?.symbol || "Unknown"} | {bt.saved?.strategy?.name || ""}
-                </h4>
-                <span>{collapsedLogs[idx] ? "▼" : "▶"}</span>
-              </div>
-              {!collapsedLogs[idx] && (
-                <div className="mt-2">
-                  {renderChart(bt.equityCurve, "#82ca9d")}
-                  {renderSummary(bt)}
-                </div>
-              )}
+              <h4 className="font-semibold">
+                {bt.saved?.symbol || "Unknown"} | {bt.saved?.strategy?.name || ""}
+              </h4>
+              {renderChart(bt.equityCurve, "#82ca9d")}
+              {renderSummary(bt)}
             </div>
           ))}
         </div>
