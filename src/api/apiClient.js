@@ -3,7 +3,7 @@ import axios from "axios";
 // Base URL for API calls (dynamic via VITE_API_URL)
 const API_URL = import.meta.env.VITE_API_URL;
 
-const apiClient = axios.create({
+const api = axios.create({
   baseURL: API_URL,
   headers: {
     "Content-Type": "application/json",
@@ -13,10 +13,10 @@ const apiClient = axios.create({
 // Utility to set/remove auth token
 export const setAuthToken = (token) => {
   if (token) {
-    apiClient.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
   } else {
-    delete apiClient.defaults.headers.common["Authorization"];
+    delete api.defaults.headers.common["Authorization"];
   }
 };
 
-export default apiClient;
+export default api;
