@@ -41,6 +41,7 @@ export default function Backtests() {
 
   const [realism, setRealism] = useState(defaultRealism);
   const [collapsedLogs, setCollapsedLogs] = useState({});
+  const [dateError, setDateError] = useState("");
 
   // Auto-set defaults when options load
   useEffect(() => {
@@ -56,6 +57,17 @@ export default function Backtests() {
     // Set initial strategy params if available
     const strat = options.strategies?.find((s) => s.name === selectedStrategy);
     if (strat?.parameters) setStrategyParams(strat.parameters);
+
+    // Set default dates based on available candle data
+    if (options.candleData && options.candleData[selectedSymbol]?.[selectedTimeframe]) {
+      const candles = options.candleData[selectedSymbol][selectedTimeframe];
+      if (candles.length) {
+        const first = new Date(candles[0].time).toISOString().split("T")[0];
+        const last = new Date(candles[candles.length - 1].time).toISOString().split("T")[0];
+        setSelectedStartDate(first);
+        setSelectedEndDate(last);
+      }
+    }
   }, [options]);
 
   // Update strategy params when strategy changes
@@ -64,8 +76,22 @@ export default function Backtests() {
     setStrategyParams(strat?.parameters || {});
   }, [selectedStrategy, options.strategies]);
 
+  // Validate date range whenever it changes
+  useEffect(() => {
+    if (selectedStartDate && selectedEndDate) {
+      if (new Date(selectedStartDate) > new Date(selectedEndDate)) {
+        setDateError("Start date cannot be after end date.");
+      } else {
+        setDateError("");
+      }
+    } else {
+      setDateError("");
+    }
+  }, [selectedStartDate, selectedEndDate]);
+
   // Run single backtest
   const handleRunBacktest = async () => {
+    if (dateError) return;
     await runBacktest({
       symbol: selectedSymbol,
       timeframe: selectedTimeframe,
@@ -76,13 +102,14 @@ export default function Backtests() {
       stopLoss: selectedSL,
       position: selectedPosition,
       realism,
-      startDate: selectedStartDate || undefined,
-      endDate: selectedEndDate || undefined,
+      startDate: selectedStartDate ? new Date(selectedStartDate).toISOString() : undefined,
+      endDate: selectedEndDate ? new Date(selectedEndDate).toISOString() : undefined,
     });
   };
 
   // Run batch backtests
   const handleRunBatch = async () => {
+    if (dateError) return;
     await runBatchBacktests({
       symbols: options.symbols || [],
       timeframes: options.timeframes || [],
@@ -93,8 +120,8 @@ export default function Backtests() {
       stop_losses: options.stopLosses || [],
       positions: options.positions || [],
       realism,
-      startDate: selectedStartDate || undefined,
-      endDate: selectedEndDate || undefined,
+      startDate: selectedStartDate ? new Date(selectedStartDate).toISOString() : undefined,
+      endDate: selectedEndDate ? new Date(selectedEndDate).toISOString() : undefined,
     });
   };
 
@@ -114,7 +141,6 @@ export default function Backtests() {
       </label>
     ));
 
-  // Utility to render a chart
   const renderChart = (data, color = "#8884d8") =>
     data?.length > 0 ? (
       <ResponsiveContainer width="100%" height={250}>
@@ -131,7 +157,6 @@ export default function Backtests() {
       <p>No equity data available.</p>
     );
 
-  // Utility to render mini summary table
   const renderSummary = (bt) => (
     <table className="w-full mt-2 text-sm border-collapse border border-gray-300">
       <tbody>
@@ -163,6 +188,7 @@ export default function Backtests() {
 
       {/* Controls */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg shadow">
+        {/* Symbol */}
         <label className="text-sm">
           Symbol
           <select
@@ -178,6 +204,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Strategy */}
         <label className="text-sm">
           Strategy
           <select
@@ -193,6 +220,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Timeframe */}
         <label className="text-sm">
           Timeframe
           <select
@@ -208,6 +236,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Balance */}
         <label className="text-sm">
           Balance
           <select
@@ -223,6 +252,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Risk */}
         <label className="text-sm">
           Risk
           <select
@@ -238,6 +268,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Take Profit % */}
         <label className="text-sm">
           Take Profit %
           <input
@@ -249,6 +280,7 @@ export default function Backtests() {
           />
         </label>
 
+        {/* Stop Loss % */}
         <label className="text-sm">
           Stop Loss %
           <input
@@ -260,6 +292,7 @@ export default function Backtests() {
           />
         </label>
 
+        {/* Position */}
         <label className="text-sm">
           Position
           <select
@@ -275,6 +308,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Start Date */}
         <label className="text-sm">
           Start Date
           <input
@@ -285,6 +319,7 @@ export default function Backtests() {
           />
         </label>
 
+        {/* End Date */}
         <label className="text-sm">
           End Date
           <input
@@ -297,6 +332,11 @@ export default function Backtests() {
 
         {renderStrategyParams()}
       </div>
+
+      {/* Date error warning */}
+      {dateError && (
+        <p className="text-red-600 font-semibold">{dateError}</p>
+      )}
 
       {/* Realism factors */}
       <div className="flex flex-wrap gap-4 items-center bg-gray-50 p-4 rounded-lg shadow">
@@ -337,14 +377,14 @@ export default function Backtests() {
       <div className="flex gap-4 mt-4">
         <button
           onClick={handleRunBacktest}
-          disabled={loading}
+          disabled={loading || !!dateError}
           className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700"
         >
           Run Backtest
         </button>
         <button
           onClick={handleRunBatch}
-          disabled={loading}
+          disabled={loading || !!dateError}
           className="bg-green-600 text-white p-2 rounded hover:bg-green-700"
         >
           Run Batch Backtests
