@@ -49,6 +49,10 @@ export function useBacktest() {
         startDate: payload.startDate || undefined,
         endDate: payload.endDate || undefined,
       };
+      console.log(
+        "[Hook] runBacktest outgoing payload:",
+        JSON.stringify(cleanPayload, null, 2)
+      ); // 👈 log payload here
       const result = await apiRunBacktest(cleanPayload);
       setCurrentBacktest(result);
       return result;
@@ -71,6 +75,10 @@ export function useBacktest() {
         startDate: payload.startDate || undefined,
         endDate: payload.endDate || undefined,
       };
+      console.log(
+        "[Hook] runBatchBacktests outgoing payload:",
+        JSON.stringify(cleanPayload, null, 2)
+      ); // 👈 log payload here
       const { results } = await apiRunBatchBacktests(cleanPayload);
       setBatchResults(results);
       return results;
