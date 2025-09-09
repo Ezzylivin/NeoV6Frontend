@@ -1,6 +1,7 @@
 // File: src/pages/Backtests.jsx
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
+import { useAuth } from "../context/AuthContext.js"; // <-- make sure this exists
 import {
   ResponsiveContainer,
   LineChart,
@@ -13,6 +14,9 @@ import {
 } from "recharts";
 
 export default function Backtests() {
+  const { user } = useAuth(); // ✅ get logged-in user info
+  const userId = user?.id; // ✅ backend requires this
+
   const {
     options,
     loading,
@@ -39,8 +43,8 @@ export default function Backtests() {
   // Strategy parameters
   const [strategyParams, setStrategyParams] = useState({});
 
-  // Realism factors
   const [realism, setRealism] = useState(defaultRealism);
+  const [collapsedLogs, setCollapsedLogs] = useState({});
 
   // --- AUTO-SET DEFAULTS WHEN OPTIONS LOAD ---
   useEffect(() => {
@@ -82,7 +86,13 @@ export default function Backtests() {
 
   // --- RUN SINGLE BACKTEST ---
   const handleRunBacktest = async () => {
+    if (!userId) {
+      alert("You must be logged in to run backtests.");
+      return;
+    }
+
     await runBacktest({
+      userId, // ✅ required by backend
       symbol: selectedSymbol,
       timeframe: selectedTimeframe,
       initialBalance: selectedBalance,
@@ -99,14 +109,23 @@ export default function Backtests() {
 
   // --- RUN BATCH BACKTESTS ---
   const handleRunBatch = async () => {
+    if (!userId) {
+      alert("You must be logged in to run batch backtests.");
+      return;
+    }
+
     await runBatchBacktests({
+      userId, // ✅ required by backend
       symbols: options.symbols || [],
       timeframes: options.timeframes || [],
       balances: options.balances || [],
-      strategies: (options.strategies || []).map((s) => ({ name: s.name, parameters: s.parameters || {} })),
+      strategies: (options.strategies || []).map((s) => ({
+        name: s.name,
+        parameters: s.parameters || {},
+      })),
       risks: options.risks || [],
-      take_profits: options.takeProfits || [],
-      stop_losses: options.stopLosses || [],
+      takeProfits: options.takeProfits || [], // ✅ camelCase
+      stopLosses: options.stopLosses || [],   // ✅ camelCase
       positions: options.positions || [],
       realism,
       startDate: selectedStartDate || undefined,
@@ -173,144 +192,157 @@ export default function Backtests() {
     </table>
   );
 
-  // --- TP/SL OPTIONS ---
-  const tpOptions = [1, 2, 3, 5, 10]; // percentages
-  const slOptions = [1, 2, 3, 5, 10]; // percentages
-
   return (
     <div className="p-6 space-y-6">
       <h2 className="text-2xl font-bold">Backtesting</h2>
 
       {/* Controls */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg shadow">
-        <label className="text-sm">
+        <label className="flex flex-col text-sm">
           Symbol
           <select
             value={selectedSymbol}
             onChange={(e) => setSelectedSymbol(e.target.value)}
-            className="border p-2 rounded w-full bg-white"
+            className="border p-1 rounded"
           >
-            {(options.symbols || []).map((sym) => (
-              <option key={sym} value={sym}>{sym}</option>
+            {options.symbols?.map((sym) => (
+              <option key={sym} value={sym}>
+                {sym}
+              </option>
             ))}
           </select>
         </label>
 
-        <label className="text-sm">
+        <label className="flex flex-col text-sm">
           Strategy
           <select
             value={selectedStrategy}
             onChange={(e) => setSelectedStrategy(e.target.value)}
-            className="border p-2 rounded w-full bg-white"
+            className="border p-1 rounded"
           >
-            {(options.strategies || []).map((strat) => (
-              <option key={strat.name} value={strat.name}>{strat.name}</option>
+            {options.strategies?.map((s) => (
+              <option key={s.name} value={s.name}>
+                {s.name}
+              </option>
             ))}
           </select>
         </label>
 
-        <label className="text-sm">
+        <label className="flex flex-col text-sm">
           Timeframe
           <select
             value={selectedTimeframe}
             onChange={(e) => setSelectedTimeframe(e.target.value)}
-            className="border p-2 rounded w-full bg-white"
+            className="border p-1 rounded"
           >
-            {(options.timeframes || []).map((tf) => (
-              <option key={tf} value={tf}>{tf}</option>
+            {options.timeframes?.map((tf) => (
+              <option key={tf} value={tf}>
+                {tf}
+              </option>
             ))}
           </select>
         </label>
 
-        <label className="text-sm">
+        <label className="flex flex-col text-sm">
           Balance
           <select
             value={selectedBalance}
             onChange={(e) => setSelectedBalance(Number(e.target.value))}
-            className="border p-2 rounded w-full bg-white"
+            className="border p-1 rounded"
           >
-            {(options.balances || []).map((bal) => (
-              <option key={bal} value={bal}>${bal}</option>
+            {options.balances?.map((b) => (
+              <option key={b} value={b}>
+                {b}
+              </option>
             ))}
           </select>
         </label>
 
-        <label className="text-sm">
+        <label className="flex flex-col text-sm">
           Risk
           <select
             value={selectedRisk}
             onChange={(e) => setSelectedRisk(e.target.value)}
-            className="border p-2 rounded w-full bg-white"
+            className="border p-1 rounded"
           >
-            {(options.risks || []).map((r) => (
-              <option key={r} value={r}>{r}</option>
+            {options.risks?.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
             ))}
           </select>
         </label>
 
-        {/* Take Profit dropdown */}
-        <label className="text-sm">
-          Take Profit %
+        <label className="flex flex-col text-sm">
+          Take Profit
           <select
-            value={selectedTP ?? ""}
+            value={selectedTP || ""}
             onChange={(e) => setSelectedTP(Number(e.target.value))}
-            className="border p-2 rounded w-full bg-white"
+            className="border p-1 rounded"
           >
             <option value="">None</option>
-            {tpOptions.map((tp) => (
-              <option key={tp} value={tp}>{tp}%</option>
+            {options.takeProfits?.map((tp) => (
+              <option key={tp} value={tp}>
+                {tp}
+              </option>
             ))}
           </select>
         </label>
 
-        {/* Stop Loss dropdown */}
-        <label className="text-sm">
-          Stop Loss %
+        <label className="flex flex-col text-sm">
+          Stop Loss
           <select
-            value={selectedSL ?? ""}
+            value={selectedSL || ""}
             onChange={(e) => setSelectedSL(Number(e.target.value))}
-            className="border p-2 rounded w-full bg-white"
+            className="border p-1 rounded"
           >
             <option value="">None</option>
-            {slOptions.map((sl) => (
-              <option key={sl} value={sl}>{sl}%</option>
+            {options.stopLosses?.map((sl) => (
+              <option key={sl} value={sl}>
+                {sl}
+              </option>
             ))}
           </select>
         </label>
 
-        <label className="text-sm">
+        <label className="flex flex-col text-sm">
           Position
           <select
             value={selectedPosition}
             onChange={(e) => setSelectedPosition(e.target.value)}
-            className="border p-2 rounded w-full bg-white"
+            className="border p-1 rounded"
           >
-            {(options.positions || []).map((p) => (
-              <option key={p} value={p}>{p}</option>
+            {options.positions?.map((pos) => (
+              <option key={pos} value={pos}>
+                {pos}
+              </option>
             ))}
           </select>
         </label>
 
-        <label className="text-sm">
+        <label className="flex flex-col text-sm">
           Start Date
           <input
             type="date"
             value={selectedStartDate}
             onChange={(e) => setSelectedStartDate(e.target.value)}
-            className="border p-1 rounded w-full"
+            className="border p-1 rounded"
           />
         </label>
 
-        <label className="text-sm">
+        <label className="flex flex-col text-sm">
           End Date
           <input
             type="date"
             value={selectedEndDate}
             onChange={(e) => setSelectedEndDate(e.target.value)}
-            className="border p-1 rounded w-full"
+            className="border p-1 rounded"
           />
         </label>
+      </div>
 
+      {/* Strategy Params */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg shadow">
         {renderStrategyParams()}
       </div>
 
@@ -337,7 +369,10 @@ export default function Backtests() {
                 max="100"
                 value={realism.slippage_bps}
                 onChange={(e) =>
-                  setRealism((prev) => ({ ...prev, slippage_bps: Number(e.target.value) }))
+                  setRealism((prev) => ({
+                    ...prev,
+                    slippage_bps: Number(e.target.value),
+                  }))
                 }
                 className="border p-1 w-20 rounded"
               />
@@ -366,21 +401,21 @@ export default function Backtests() {
 
       {/* Current Backtest */}
       {currentBacktest && (
-        <div className="mt-6">
-          <h3 className="text-xl font-semibold">Current Backtest</h3>
+        <div className="bg-white p-4 shadow rounded-lg">
+          <h3 className="text-lg font-bold">Current Backtest</h3>
           {renderChart(currentBacktest.equityCurve)}
           {renderSummary(currentBacktest)}
         </div>
       )}
 
-      {/* Batch Backtest Results */}
+      {/* Batch Results */}
       {batchResults?.results?.length > 0 && (
-        <div className="mt-6 space-y-6">
-          <h3 className="text-xl font-semibold">Batch Backtests</h3>
-          {batchResults.results.map((bt, idx) => (
-            <div key={idx} className="border p-4 rounded shadow bg-white">
+        <div className="bg-white p-4 shadow rounded-lg">
+          <h3 className="text-lg font-bold">Batch Results</h3>
+          {batchResults.results.map((bt, i) => (
+            <div key={i} className="mb-6">
               <h4 className="font-semibold">
-                {bt.saved?.symbol || "Unknown"} | {bt.saved?.strategy?.name || ""}
+                {bt.saved?.symbol} - {bt.saved?.timeframe}
               </h4>
               {renderChart(bt.equityCurve, "#82ca9d")}
               {renderSummary(bt)}
