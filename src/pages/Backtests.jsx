@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { fetchOptions, runBacktest, runBatchBacktests } from "../api";
+import { fetchOptions, runBacktest, runBatchBacktests } from "../hooks/useBacktest.js";
 import {
   ResponsiveContainer,
   LineChart,
