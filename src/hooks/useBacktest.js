@@ -19,19 +19,21 @@ export function useBacktest(baseUrl = "") {
   const [currentBacktest, setCurrentBacktest] = useState(null);
 
   /** --- Fetch options --- */
-  const fetchOptions = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await axios.get(`${baseUrl}/api/backtests/options`);
-      setOptions(res.data);
-    } catch (err) {
-      console.error("[useBacktest] fetchOptions error:", err);
-      setError(err.response?.data?.error || err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [baseUrl]);
+ const fetchOptions = useCallback(async () => {
+  setLoading(true);
+  setError(null);
+  try {
+    const res = await axios.get(`${baseUrl}/api/backtests/options`);
+    setOptions(res.data);
+    return res.data; // <-- Add this line
+  } catch (err) {
+    console.error("[useBacktest] fetchOptions error:", err);
+    setError(err.response?.data?.error || err.message);
+    return null; // optional
+  } finally {
+    setLoading(false);
+  }
+}, [baseUrl]);
 
   /** --- Run single backtest --- */
   const runBacktest = useCallback(async (payload) => {
