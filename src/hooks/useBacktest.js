@@ -28,12 +28,24 @@ export const useBacktest = () => {
     slippage_bps: 5,
   });
 
-  // Load options from backend
+  // Load backtest options from backend on mount
   useEffect(() => {
     const loadOptions = async () => {
       try {
         const data = await fetchBacktestOptions();
-        setOptions(data || {});
+        if (!data) return;
+
+        setOptions({
+          symbols: data.symbols || [],
+          timeframes: data.timeframes || [],
+          strategies: data.strategies || [],
+          balances: data.balances || [],
+          risks: data.risks || [],
+          positions: data.positions || [],
+          takeProfits: data.takeProfits || [],
+          stopLosses: data.stopLosses || [],
+        });
+
         setDefaultRealism(data.defaultRealism || defaultRealism);
       } catch (err) {
         console.error("[useBacktest] fetchBacktestOptions failed", err);
@@ -43,17 +55,21 @@ export const useBacktest = () => {
     loadOptions();
   }, []);
 
+  // Normalize backtest result
+  const normalizeBacktest = (result) => ({
+    saved: result.saved || {},
+    metrics: result.metrics || {},
+    equityCurve: result.equityCurve || result.saved?.equityCurve || [],
+    trades: result.trades || result.saved?.tradeBreakdown || [],
+  });
+
+  // Run a single backtest
   const runBacktest = async (payload) => {
     setLoading(true);
     setError(null);
     try {
       const result = await apiRunBacktest(payload);
-      const normalized = {
-        saved: result.saved || {},
-        metrics: result.metrics || {},
-        equityCurve: result.equityCurve || [],
-        trades: result.trades || [],
-      };
+      const normalized = normalizeBacktest(result);
       setCurrentBacktest(normalized);
       setLoading(false);
       return normalized;
@@ -65,17 +81,13 @@ export const useBacktest = () => {
     }
   };
 
+  // Run batch backtests
   const runBatchBacktests = async (payload) => {
     setLoading(true);
     setError(null);
     try {
       const { results, usedCombos } = await apiRunBatchBacktests(payload);
-      const normalizedResults = (results || []).map((r) => ({
-        saved: r.saved || {},
-        metrics: r.metrics || {},
-        equityCurve: r.equityCurve || [],
-        trades: r.trades || [],
-      }));
+      const normalizedResults = (results || []).map(normalizeBacktest);
       setBatchResults(normalizedResults);
       setLoading(false);
       return { results: normalizedResults, usedCombos };
