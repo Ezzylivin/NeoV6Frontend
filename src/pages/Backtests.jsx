@@ -10,26 +10,19 @@ import {
   Tooltip,
   Legend,
   CartesianGrid,
-  BarChart,
-  Bar,
 } from "recharts";
 
 export default function Backtests() {
-  // -------------------------------
-  // Hook state & functions
-  // -------------------------------
   const {
-    fetchOptions,
-    runBacktest,
-    runBatchBacktests,
     options,
     loading,
     error,
+    currentBacktest,
+    runBacktest,
+    runBatchBacktests,
+    defaultRealism,
   } = useBacktest();
 
-  // -------------------------------
-  // Form selections
-  // -------------------------------
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [selectedTimeframe, setSelectedTimeframe] = useState("1h");
   const [selectedBalance, setSelectedBalance] = useState(1000);
@@ -39,45 +32,17 @@ export default function Backtests() {
   const [selectedSL, setSelectedSL] = useState(null);
   const [selectedPosition, setSelectedPosition] = useState("Both");
 
-  // -------------------------------
-  // Realism factors
-  // -------------------------------
-  const [useNews, setUseNews] = useState(true);
-  const [useSlippage, setUseSlippage] = useState(true);
-  const [useSpreads, setUseSpreads] = useState(true);
-  const [useRandom, setUseRandom] = useState(false);
-  const [slippageBps, setSlippageBps] = useState(5);
+  const [realism, setRealism] = useState(defaultRealism);
 
-  // -------------------------------
-  // Results & UI states
-  // -------------------------------
-  const [results, setResults] = useState([]);
-  const [viewMode, setViewMode] = useState("chart"); // chart or table
   const [batchResults, setBatchResults] = useState([]);
   const [collapsedLogs, setCollapsedLogs] = useState({});
 
-  // -------------------------------
-  // Load options from backend on mount
-  // -------------------------------
+  // Set default selections when options load
   useEffect(() => {
-    fetchOptions();
-  }, [fetchOptions]);
+    if (options.symbols?.length && !selectedSymbol) setSelectedSymbol(options.symbols[0]);
+    if (options.strategies?.length && !selectedStrategy) setSelectedStrategy(options.strategies[0]?.name || "");
+  }, [options]);
 
-  // -------------------------------
-  // Set initial symbol & strategy defaults
-  // -------------------------------
-  useEffect(() => {
-    if (!selectedSymbol && options.symbols.length > 0) {
-      setSelectedSymbol(options.symbols[0]);
-    }
-    if (!selectedStrategy && options.strategies.length > 0) {
-      setSelectedStrategy(options.strategies[0].name);
-    }
-  }, [options, selectedSymbol, selectedStrategy]);
-
-  // -------------------------------
-  // Handlers
-  // -------------------------------
   const handleRunBacktest = async () => {
     const resp = await runBacktest({
       symbol: selectedSymbol,
@@ -88,41 +53,26 @@ export default function Backtests() {
       take_profit: selectedTP,
       stop_loss: selectedSL,
       position: selectedPosition,
-      realism: {
-        news: useNews,
-        slippage: useSlippage,
-        spreads: useSpreads,
-        random: useRandom,
-        slippage_bps: slippageBps,
-      },
+      realism,
     });
-    if (resp) setResults((prev) => [...prev, resp]);
+    // Optionally add to a local results array if needed
   };
 
   const handleRunBatch = async () => {
     const resp = await runBatchBacktests({
-      symbols: options.symbols,
-      timeframes: options.timeframes,
-      balances: options.balances,
-      strategies: options.strategies.map((s) => s.name),
-      risks: options.risks,
-      take_profits: options.takeProfits,
-      stop_losses: options.stopLosses,
-      positions: options.positions,
-      realism: {
-        news: useNews,
-        slippage: useSlippage,
-        spreads: useSpreads,
-        random: useRandom,
-        slippage_bps: slippageBps,
-      },
+      symbols: options.symbols || [],
+      timeframes: options.timeframes || [],
+      balances: options.balances || [],
+      strategies: (options.strategies || []).map((s) => s.name),
+      risks: options.risks || [],
+      take_profits: options.takeProfits || [],
+      stop_losses: options.stopLosses || [],
+      positions: options.positions || [],
+      realism,
     });
-    if (resp) setBatchResults(resp.results);
+    setBatchResults(resp.results || []);
   };
 
-  // -------------------------------
-  // Render
-  // -------------------------------
   return (
     <div className="p-6 space-y-6">
       <h2 className="text-2xl font-bold">Backtesting</h2>
@@ -137,42 +87,8 @@ export default function Backtests() {
             onChange={(e) => setSelectedSymbol(e.target.value)}
             className="border p-2 rounded w-full bg-white"
           >
-            {options.symbols.map((sym) => (
-              <option key={sym} value={sym}>
-                {sym}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* Timeframe */}
-        <label className="text-sm">
-          Timeframe
-          <select
-            value={selectedTimeframe}
-            onChange={(e) => setSelectedTimeframe(e.target.value)}
-            className="border p-2 rounded w-full bg-white"
-          >
-            {options.timeframes.map((tf) => (
-              <option key={tf} value={tf}>
-                {tf}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* Balance */}
-        <label className="text-sm">
-          Balance
-          <select
-            value={selectedBalance}
-            onChange={(e) => setSelectedBalance(Number(e.target.value))}
-            className="border p-2 rounded w-full bg-white"
-          >
-            {options.balances.map((bal) => (
-              <option key={bal} value={bal}>
-                ${bal}
-              </option>
+            {(options.symbols || []).map((sym) => (
+              <option key={sym} value={sym}>{sym}</option>
             ))}
           </select>
         </label>
@@ -185,74 +101,36 @@ export default function Backtests() {
             onChange={(e) => setSelectedStrategy(e.target.value)}
             className="border p-2 rounded w-full bg-white"
           >
-            {options.strategies.map((strat) => (
-              <option key={strat.name} value={strat.name}>
-                {strat.name}
-              </option>
+            {(options.strategies || []).map((strat) => (
+              <option key={strat.name} value={strat.name}>{strat.name}</option>
             ))}
           </select>
         </label>
 
-        {/* Risk */}
+        {/* Timeframe */}
         <label className="text-sm">
-          Risk
+          Timeframe
           <select
-            value={selectedRisk}
-            onChange={(e) => setSelectedRisk(e.target.value)}
+            value={selectedTimeframe}
+            onChange={(e) => setSelectedTimeframe(e.target.value)}
             className="border p-2 rounded w-full bg-white"
           >
-            {options.risks.map((risk) => (
-              <option key={risk} value={risk}>
-                {risk}
-              </option>
+            {(options.timeframes || []).map((tf) => (
+              <option key={tf} value={tf}>{tf}</option>
             ))}
           </select>
         </label>
 
-        {/* Take Profit */}
+        {/* Balance */}
         <label className="text-sm">
-          Take Profit
+          Balance
           <select
-            value={selectedTP ?? ""}
-            onChange={(e) => setSelectedTP(e.target.value ? Number(e.target.value) : null)}
+            value={selectedBalance}
+            onChange={(e) => setSelectedBalance(Number(e.target.value))}
             className="border p-2 rounded w-full bg-white"
           >
-            {options.takeProfits.map((tp, idx) => (
-              <option key={idx} value={tp ?? ""}>
-                {tp ? `${tp}%` : "None"}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* Stop Loss */}
-        <label className="text-sm">
-          Stop Loss
-          <select
-            value={selectedSL ?? ""}
-            onChange={(e) => setSelectedSL(e.target.value ? Number(e.target.value) : null)}
-            className="border p-2 rounded w-full bg-white"
-          >
-            {options.stopLosses.map((sl, idx) => (
-              <option key={idx} value={sl ?? ""}>
-                {sl ? `${sl}%` : "None"}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* Position */}
-        <label className="text-sm">
-          Position
-          <select
-            value={selectedPosition}
-            onChange={(e) => setSelectedPosition(e.target.value)}
-            className="border p-2 rounded w-full bg-white"
-          >
-            {options.positions.map((pos) => (
-              <option key={pos} value={pos}>
-                {pos}
-              </option>
+            {(options.balances || []).map((bal) => (
+              <option key={bal} value={bal}>${bal}</option>
             ))}
           </select>
         </label>
@@ -260,33 +138,30 @@ export default function Backtests() {
 
       {/* Realism factors */}
       <div className="flex flex-wrap gap-4 items-center bg-gray-50 p-4 rounded-lg shadow">
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={useNews} onChange={() => setUseNews(!useNews)} />
-          News
-        </label>
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={useSlippage} onChange={() => setUseSlippage(!useSlippage)} />
-          Slippage
-        </label>
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={useSpreads} onChange={() => setUseSpreads(!useSpreads)} />
-          Spreads
-        </label>
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={useRandom} onChange={() => setUseRandom(!useRandom)} />
-          Random events
-        </label>
-        <label className="text-sm flex items-center gap-2">
-          Slippage Bps:
-          <input
-            type="number"
-            min="0"
-            max="100"
-            value={slippageBps}
-            onChange={(e) => setSlippageBps(Number(e.target.value))}
-            className="border p-1 w-20 rounded"
-          />
-        </label>
+        {Object.keys(defaultRealism).map((key) => (
+          key !== "slippage_bps" ? (
+            <label key={key} className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={realism[key]}
+                onChange={() => setRealism((prev) => ({ ...prev, [key]: !prev[key] }))}
+              />
+              {key.charAt(0).toUpperCase() + key.slice(1)}
+            </label>
+          ) : (
+            <label key={key} className="text-sm flex items-center gap-2">
+              Slippage Bps:
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={realism.slippage_bps}
+                onChange={(e) => setRealism((prev) => ({ ...prev, slippage_bps: Number(e.target.value) }))}
+                className="border p-1 w-20 rounded"
+              />
+            </label>
+          )
+        ))}
       </div>
 
       {/* Action buttons */}
@@ -294,121 +169,96 @@ export default function Backtests() {
         <button
           onClick={handleRunBacktest}
           disabled={loading}
-          className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 disabled:opacity-50"
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
         >
-          {loading ? "Running..." : "Run Backtest"}
+          Run Backtest
         </button>
         <button
           onClick={handleRunBatch}
           disabled={loading}
-          className="bg-purple-600 text-white px-4 py-2 rounded shadow hover:bg-purple-700 disabled:opacity-50"
+          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50"
         >
-          {loading ? "Running..." : "Run Batch"}
+          Run Batch
         </button>
       </div>
 
-      {/* Error */}
-      {error && <p className="text-red-600">{error}</p>}
+      {error && <p className="text-red-600 mt-2">{error}</p>}
 
-      {/* Results */}
-      {results.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex gap-4 items-center">
-            <h3 className="text-xl font-semibold">Results</h3>
-            <button
-              onClick={() => setViewMode(viewMode === "chart" ? "table" : "chart")}
-              className="bg-gray-200 px-3 py-1 rounded"
-            >
-              {viewMode === "chart" ? "Switch to Table" : "Switch to Chart"}
-            </button>
-          </div>
+      {/* Single Backtest Chart */}
+      {currentBacktest?.equityCurve?.length > 0 && (
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={currentBacktest.equityCurve}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="timestamp" />
+            <YAxis />
+            <Tooltip />
+            <Legend />
+            <Line type="monotone" dataKey="balance" stroke="#8884d8" />
+          </LineChart>
+        </ResponsiveContainer>
+      )}
 
-          {results.map((res, idx) => (
-            <div key={idx} className="border p-4 rounded shadow bg-white">
-              <h4 className="font-bold">
-                {res.strategy} on {res.symbol} ({res.timeframe})
-              </h4>
-              <div className="text-sm text-gray-700 mb-2">
-                Net Profit: {res.metrics.net_profit} | Win Rate: {res.metrics.win_rate}% | Max Drawdown:{" "}
-                {res.metrics.max_drawdown}
+      {/* Batch Results */}
+      {batchResults?.length > 0 && (
+        <div className="space-y-6 mt-6">
+          <h3 className="text-xl font-bold">Batch Backtests</h3>
+          {batchResults.map((bt, idx) => (
+            <div key={idx} className="bg-gray-50 p-4 rounded-lg shadow">
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-semibold">
+                  Result #{idx + 1} - {bt.saved?.strategy || "Unknown Strategy"}
+                </span>
+                <button
+                  className="text-blue-600 hover:underline"
+                  onClick={() =>
+                    setCollapsedLogs((prev) => ({ ...prev, [idx]: !prev[idx] }))
+                  }
+                >
+                  {collapsedLogs[idx] ? "Expand Chart" : "Collapse Chart"}
+                </button>
               </div>
 
-              {/* Toggle logs */}
-              <button
-                onClick={() =>
-                  setCollapsedLogs((prev) => ({ ...prev, [idx]: !prev[idx] }))
-                }
-                className="text-xs text-blue-600 underline"
-              >
-                {collapsedLogs[idx] ? "Show Details" : "Hide Details"}
-              </button>
+              {/* Chart */}
+              {!collapsedLogs[idx] && bt.equityCurve?.length > 0 ? (
+                <ResponsiveContainer width="100%" height={250}>
+                  <LineChart data={bt.equityCurve}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="timestamp" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Line type="monotone" dataKey="balance" stroke="#82ca9d" />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                !collapsedLogs[idx] && <p>No equity data available.</p>
+              )}
 
+              {/* Mini Summary Table */}
               {!collapsedLogs[idx] && (
-                <>
-                  {viewMode === "chart" ? (
-                    <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={res.equityCurve}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="time" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Line type="monotone" dataKey="equity" stroke="#2563eb" dot={false} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm border">
-                        <thead>
-                          <tr className="bg-gray-100">
-                            <th className="border px-2 py-1">Timestamp</th>
-                            <th className="border px-2 py-1">Side</th>
-                            <th className="border px-2 py-1">Price</th>
-                            <th className="border px-2 py-1">Profit</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {res.trades.map((t, i) => (
-                            <tr key={i}>
-                              <td className="border px-2 py-1">{t.timestamp}</td>
-                              <td className="border px-2 py-1">{t.side}</td>
-                              <td className="border px-2 py-1">{t.price}</td>
-                              <td
-                                className={`border px-2 py-1 ${
-                                  t.profit > 0 ? "text-green-600" : t.profit < 0 ? "text-red-600" : ""
-                                }`}
-                              >
-                                {t.profit}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </>
+                <table className="w-full mt-2 text-sm border-collapse border border-gray-300">
+                  <tbody>
+                    <tr>
+                      <td className="border p-1 font-semibold">Total Trades</td>
+                      <td className="border p-1">{bt.trades?.length || 0}</td>
+                    </tr>
+                    <tr>
+                      <td className="border p-1 font-semibold">Final Balance</td>
+                      <td className="border p-1">${bt.equityCurve?.slice(-1)[0]?.balance?.toFixed(2) || 0}</td>
+                    </tr>
+                    <tr>
+                      <td className="border p-1 font-semibold">Max Drawdown</td>
+                      <td className="border p-1">{bt.metrics?.maxDrawdown?.toFixed(2) || 0}%</td>
+                    </tr>
+                    <tr>
+                      <td className="border p-1 font-semibold">Profit %</td>
+                      <td className="border p-1">{bt.metrics?.profitPct?.toFixed(2) || 0}%</td>
+                    </tr>
+                  </tbody>
+                </table>
               )}
             </div>
           ))}
-        </div>
-      )}
-
-      {/* Batch results summary */}
-      {batchResults.length > 0 && (
-        <div className="space-y-4">
-          <h3 className="text-xl font-semibold">Batch Comparison</h3>
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={batchResults}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="strategy" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="metrics.net_profit" fill="#2563eb" name="Net Profit" />
-              <Bar dataKey="metrics.win_rate" fill="#16a34a" name="Win Rate" />
-              <Bar dataKey="metrics.max_drawdown" fill="#dc2626" name="Max Drawdown" />
-            </BarChart>
-          </ResponsiveContainer>
         </div>
       )}
     </div>
