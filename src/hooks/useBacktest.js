@@ -1,4 +1,3 @@
-// File: src/hooks/useBacktest.js
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 
@@ -13,27 +12,37 @@ export function useBacktest(baseUrl = "") {
     stopLosses: [],
     positions: [],
   });
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [backtests, setBacktests] = useState([]);
   const [currentBacktest, setCurrentBacktest] = useState(null);
 
-  /** --- Fetch options --- */
- const fetchOptions = useCallback(async () => {
-  setLoading(true);
-  setError(null);
-  try {
-    const res = await axios.get(`${baseUrl}/api/backtests/options`);
-    setOptions(res.data);
-    return res.data; // <-- Add this line
-  } catch (err) {
-    console.error("[useBacktest] fetchOptions error:", err);
-    setError(err.response?.data?.error || err.message);
-    return null; // optional
-  } finally {
-    setLoading(false);
-  }
-}, [baseUrl]);
+  // Default realism settings
+  const defaultRealism = {
+    news: true,
+    slippage: true,
+    spreads: true,
+    random: false,
+    slippage_bps: 5,
+  };
+
+  /** --- Fetch options from backend --- */
+  const fetchOptions = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await axios.get(`${baseUrl}/api/backtests/options`);
+      setOptions(res.data);
+      return res.data;
+    } catch (err) {
+      console.error("[useBacktest] fetchOptions error:", err);
+      setError(err.response?.data?.error || err.message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [baseUrl]);
 
   /** --- Run single backtest --- */
   const runBacktest = useCallback(async (payload) => {
@@ -41,15 +50,12 @@ export function useBacktest(baseUrl = "") {
     setError(null);
     try {
       const res = await axios.post(`${baseUrl}/api/backtests/run`, payload);
-
-      // Ensure consistent structure
       const data = {
         saved: res.data.saved || {},
         metrics: res.data.metrics || {},
-        equityCurve: res.data.equityCurve || [],
-        trades: res.data.trades || []
+        equityCurve: res.data.equityCurve || res.data.saved?.equityCurve || [],
+        trades: res.data.trades || res.data.saved?.tradeBreakdown || [],
       };
-
       setCurrentBacktest(data.saved);
       return data;
     } catch (err) {
@@ -67,15 +73,12 @@ export function useBacktest(baseUrl = "") {
     setError(null);
     try {
       const res = await axios.post(`${baseUrl}/api/backtests/batch`, payload);
-
-      // Map results consistently
       const results = (res.data.results || []).map((r) => ({
         saved: r.saved || {},
         metrics: r.metrics || {},
         equityCurve: r.equityCurve || r.saved?.equityCurve || [],
         trades: r.trades || r.saved?.tradeBreakdown || [],
       }));
-
       return { results, usedCombos: res.data.usedCombos || [] };
     } catch (err) {
       console.error("[useBacktest] runBatchBacktests error:", err);
@@ -129,7 +132,7 @@ export function useBacktest(baseUrl = "") {
     setError(null);
     try {
       await axios.delete(`${baseUrl}/api/backtests/${backtestId}`);
-      setBacktests(prev => prev.filter(b => b._id !== backtestId));
+      setBacktests((prev) => prev.filter((b) => b._id !== backtestId));
       if (currentBacktest?._id === backtestId) setCurrentBacktest(null);
       return true;
     } catch (err) {
@@ -151,6 +154,7 @@ export function useBacktest(baseUrl = "") {
     error,
     backtests,
     currentBacktest,
+    defaultRealism,
     fetchOptions,
     runBacktest,
     runBatchBacktests,
