@@ -1,16 +1,109 @@
 // File: src/api/backtest.js
-import api from './apiClient.js'; // your configured axios instance
+import api from './apiClient.js'; // your configured Axios instance
 
-// Run a new backtest, optionally filtered by timeframe
-export const runBacktests = async (timeframe = '') => {
-  const payload = timeframe ? { timeframe } : {};
-  const response = await apiClient.post('/backtests/run', payload);
-  return response.data; // expects { message, backtests: [...] }
+/**
+ * Fetch available backtest options from the backend.
+ */
+export const fetchBacktestOptions = async () => {
+  try {
+    const response = await api.get('/api/backtests/options');
+    return response.data; // expects { symbols, timeframes, strategies, etc. }
+  } catch (err) {
+    console.error('[API] fetchBacktestOptions error:', err);
+    throw err;
+  }
 };
 
-// Fetch all backtest results, optionally filtered by timeframe
-export const backtestResults = async (timeframe = '') => {
-  const params = timeframe ? { timeframe } : {};
-  const response = await apiClient.get('/backtests/results', { params });
-  return response.data; // expects array of backtest results
+/**
+ * Run a single backtest.
+ * @param {Object} payload - backtest configuration
+ * @returns {Object} normalized backtest result
+ */
+export const runBacktest = async (payload) => {
+  try {
+    const res = await api.post('/api/backtests/run', payload);
+
+    const data = {
+      saved: res.data.saved || {},
+      metrics: res.data.metrics || {},
+      equityCurve: res.data.equityCurve || res.data.saved?.equityCurve || [],
+      trades: res.data.trades || res.data.saved?.tradeBreakdown || [],
+    };
+
+    return data;
+  } catch (err) {
+    console.error('[API] runBacktest error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Run batch backtests for multiple combinations.
+ * @param {Object} payload - batch parameters (symbols, strategies, balances, etc.)
+ * @returns {Object} results array and used combinations
+ */
+export const runBatchBacktests = async (payload) => {
+  try {
+    const res = await api.post('/api/backtests/batch', payload);
+
+    const results = (res.data.results || []).map((r) => ({
+      saved: r.saved || {},
+      metrics: r.metrics || {},
+      equityCurve: r.equityCurve || r.saved?.equityCurve || [],
+      trades: r.trades || r.saved?.tradeBreakdown || [],
+    }));
+
+    return { results, usedCombos: res.data.usedCombos || [] };
+  } catch (err) {
+    console.error('[API] runBatchBacktests error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Fetch all backtests for a specific user.
+ * @param {string} userId
+ * @returns {Array} backtests
+ */
+export const fetchUserBacktests = async (userId) => {
+  if (!userId) return [];
+  try {
+    const res = await api.get(`/api/backtests/user/${userId}`);
+    return res.data.backtests || [];
+  } catch (err) {
+    console.error('[API] fetchUserBacktests error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Fetch a single backtest by its ID.
+ * @param {string} backtestId
+ * @returns {Object|null} backtest
+ */
+export const fetchBacktestById = async (backtestId) => {
+  if (!backtestId) return null;
+  try {
+    const res = await api.get(`/api/backtests/${backtestId}`);
+    return res.data.backtest || null;
+  } catch (err) {
+    console.error('[API] fetchBacktestById error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Delete a backtest by its ID.
+ * @param {string} backtestId
+ * @returns {boolean} success
+ */
+export const deleteBacktest = async (backtestId) => {
+  if (!backtestId) return false;
+  try {
+    await api.delete(`/api/backtests/${backtestId}`);
+    return true;
+  } catch (err) {
+    console.error('[API] deleteBacktest error:', err);
+    throw err;
+  }
 };
