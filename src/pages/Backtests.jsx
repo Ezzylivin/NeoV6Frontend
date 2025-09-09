@@ -33,6 +33,11 @@ export default function Backtests() {
   const [selectedTP, setSelectedTP] = useState(null);
   const [selectedSL, setSelectedSL] = useState(null);
   const [selectedPosition, setSelectedPosition] = useState("");
+  const [selectedStartDate, setSelectedStartDate] = useState("");
+  const [selectedEndDate, setSelectedEndDate] = useState("");
+
+  // Strategy parameters
+  const [strategyParams, setStrategyParams] = useState({});
 
   const [realism, setRealism] = useState(defaultRealism);
   const [collapsedLogs, setCollapsedLogs] = useState({});
@@ -47,20 +52,32 @@ export default function Backtests() {
     setSelectedBalance((prev) => prev || options.balances?.[0] || 1000);
     setSelectedRisk((prev) => prev || options.risks?.[0] || "Medium");
     setSelectedPosition((prev) => prev || options.positions?.[0] || "Both");
+
+    // Set initial strategy params if available
+    const strat = options.strategies?.find((s) => s.name === selectedStrategy);
+    if (strat?.parameters) setStrategyParams(strat.parameters);
   }, [options]);
+
+  // Update strategy params when strategy changes
+  useEffect(() => {
+    const strat = options.strategies?.find((s) => s.name === selectedStrategy);
+    setStrategyParams(strat?.parameters || {});
+  }, [selectedStrategy, options.strategies]);
 
   // Run single backtest
   const handleRunBacktest = async () => {
     await runBacktest({
       symbol: selectedSymbol,
       timeframe: selectedTimeframe,
-      initial_balance: selectedBalance,
-      strategy: selectedStrategy,
+      initialBalance: selectedBalance,
+      strategy: { name: selectedStrategy, parameters: strategyParams },
       risk: selectedRisk,
-      take_profit: selectedTP,
-      stop_loss: selectedSL,
+      takeProfit: selectedTP,
+      stopLoss: selectedSL,
       position: selectedPosition,
       realism,
+      startDate: selectedStartDate || undefined,
+      endDate: selectedEndDate || undefined,
     });
   };
 
@@ -70,30 +87,49 @@ export default function Backtests() {
       symbols: options.symbols || [],
       timeframes: options.timeframes || [],
       balances: options.balances || [],
-      strategies: (options.strategies || []).map((s) => s.name),
+      strategies: (options.strategies || []).map((s) => ({ name: s.name, parameters: s.parameters || {} })),
       risks: options.risks || [],
       take_profits: options.takeProfits || [],
       stop_losses: options.stopLosses || [],
       positions: options.positions || [],
       realism,
+      startDate: selectedStartDate || undefined,
+      endDate: selectedEndDate || undefined,
     });
   };
 
+  // Render dynamic strategy parameters
+  const renderStrategyParams = () =>
+    Object.keys(strategyParams || {}).map((key) => (
+      <label key={key} className="flex flex-col text-sm">
+        {key.charAt(0).toUpperCase() + key.slice(1)}
+        <input
+          type="number"
+          value={strategyParams[key]}
+          onChange={(e) =>
+            setStrategyParams((prev) => ({ ...prev, [key]: Number(e.target.value) }))
+          }
+          className="border p-1 rounded w-full"
+        />
+      </label>
+    ));
+
   // Utility to render a chart
-  const renderChart = (data, color = "#8884d8") => (
+  const renderChart = (data, color = "#8884d8") =>
     data?.length > 0 ? (
       <ResponsiveContainer width="100%" height={250}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="timestamp" />
+          <XAxis dataKey="time" />
           <YAxis />
           <Tooltip />
           <Legend />
-          <Line type="monotone" dataKey="balance" stroke={color} />
+          <Line type="monotone" dataKey="equity" stroke={color} />
         </LineChart>
       </ResponsiveContainer>
-    ) : <p>No equity data available.</p>
-  );
+    ) : (
+      <p>No equity data available.</p>
+    );
 
   // Utility to render mini summary table
   const renderSummary = (bt) => (
@@ -105,7 +141,9 @@ export default function Backtests() {
         </tr>
         <tr>
           <td className="border p-1 font-semibold">Final Balance</td>
-          <td className="border p-1">${bt.equityCurve?.slice(-1)[0]?.balance?.toFixed(2) || 0}</td>
+          <td className="border p-1">
+            ${bt.equityCurve?.slice(-1)[0]?.equity?.toFixed(2) || 0}
+          </td>
         </tr>
         <tr>
           <td className="border p-1 font-semibold">Max Drawdown</td>
@@ -113,7 +151,7 @@ export default function Backtests() {
         </tr>
         <tr>
           <td className="border p-1 font-semibold">Profit %</td>
-          <td className="border p-1">{bt.metrics?.profitPct?.toFixed(2) || 0}%</td>
+          <td className="border p-1">{bt.metrics?.netProfit?.toFixed(2) || 0}</td>
         </tr>
       </tbody>
     </table>
@@ -133,7 +171,9 @@ export default function Backtests() {
             className="border p-2 rounded w-full bg-white"
           >
             {(options.symbols || []).map((sym) => (
-              <option key={sym} value={sym}>{sym}</option>
+              <option key={sym} value={sym}>
+                {sym}
+              </option>
             ))}
           </select>
         </label>
@@ -146,7 +186,9 @@ export default function Backtests() {
             className="border p-2 rounded w-full bg-white"
           >
             {(options.strategies || []).map((strat) => (
-              <option key={strat.name} value={strat.name}>{strat.name}</option>
+              <option key={strat.name} value={strat.name}>
+                {strat.name}
+              </option>
             ))}
           </select>
         </label>
@@ -159,7 +201,9 @@ export default function Backtests() {
             className="border p-2 rounded w-full bg-white"
           >
             {(options.timeframes || []).map((tf) => (
-              <option key={tf} value={tf}>{tf}</option>
+              <option key={tf} value={tf}>
+                {tf}
+              </option>
             ))}
           </select>
         </label>
@@ -172,10 +216,86 @@ export default function Backtests() {
             className="border p-2 rounded w-full bg-white"
           >
             {(options.balances || []).map((bal) => (
-              <option key={bal} value={bal}>${bal}</option>
+              <option key={bal} value={bal}>
+                ${bal}
+              </option>
             ))}
           </select>
         </label>
+
+        <label className="text-sm">
+          Risk
+          <select
+            value={selectedRisk}
+            onChange={(e) => setSelectedRisk(e.target.value)}
+            className="border p-2 rounded w-full bg-white"
+          >
+            {(options.risks || []).map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="text-sm">
+          Take Profit %
+          <input
+            type="number"
+            value={selectedTP ?? ""}
+            onChange={(e) => setSelectedTP(Number(e.target.value))}
+            className="border p-1 rounded w-full"
+            placeholder="Optional"
+          />
+        </label>
+
+        <label className="text-sm">
+          Stop Loss %
+          <input
+            type="number"
+            value={selectedSL ?? ""}
+            onChange={(e) => setSelectedSL(Number(e.target.value))}
+            className="border p-1 rounded w-full"
+            placeholder="Optional"
+          />
+        </label>
+
+        <label className="text-sm">
+          Position
+          <select
+            value={selectedPosition}
+            onChange={(e) => setSelectedPosition(e.target.value)}
+            className="border p-2 rounded w-full bg-white"
+          >
+            {(options.positions || []).map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="text-sm">
+          Start Date
+          <input
+            type="date"
+            value={selectedStartDate}
+            onChange={(e) => setSelectedStartDate(e.target.value)}
+            className="border p-1 rounded w-full"
+          />
+        </label>
+
+        <label className="text-sm">
+          End Date
+          <input
+            type="date"
+            value={selectedEndDate}
+            onChange={(e) => setSelectedEndDate(e.target.value)}
+            className="border p-1 rounded w-full"
+          />
+        </label>
+
+        {renderStrategyParams()}
       </div>
 
       {/* Realism factors */}
@@ -186,7 +306,9 @@ export default function Backtests() {
               <input
                 type="checkbox"
                 checked={realism[key]}
-                onChange={() => setRealism((prev) => ({ ...prev, [key]: !prev[key] }))}
+                onChange={() =>
+                  setRealism((prev) => ({ ...prev, [key]: !prev[key] }))
+                }
               />
               {key.charAt(0).toUpperCase() + key.slice(1)}
             </label>
@@ -198,7 +320,12 @@ export default function Backtests() {
                 min="0"
                 max="100"
                 value={realism.slippage_bps}
-                onChange={(e) => setRealism((prev) => ({ ...prev, slippage_bps: Number(e.target.value) }))}
+                onChange={(e) =>
+                  setRealism((prev) => ({
+                    ...prev,
+                    slippage_bps: Number(e.target.value),
+                  }))
+                }
                 className="border p-1 w-20 rounded"
               />
             </label>
@@ -207,55 +334,43 @@ export default function Backtests() {
       </div>
 
       {/* Action buttons */}
-      <div className="flex gap-4">
+      <div className="flex gap-4 mt-4">
         <button
           onClick={handleRunBacktest}
           disabled={loading}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+          className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700"
         >
           Run Backtest
         </button>
         <button
           onClick={handleRunBatch}
           disabled={loading}
-          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50"
+          className="bg-green-600 text-white p-2 rounded hover:bg-green-700"
         >
-          Run Batch
+          Run Batch Backtests
         </button>
       </div>
 
-      {error && <p className="text-red-600 mt-2">{error}</p>}
-
-      {/* Single Backtest */}
+      {/* Display current backtest */}
       {currentBacktest && (
-        <div className="mt-6 bg-gray-50 p-4 rounded-lg shadow space-y-4">
-          <h3 className="text-xl font-semibold">Single Backtest</h3>
+        <div className="mt-6">
+          <h3 className="text-xl font-semibold">Current Backtest</h3>
           {renderChart(currentBacktest.equityCurve)}
           {renderSummary(currentBacktest)}
         </div>
       )}
 
-      {/* Batch Backtests */}
-      {batchResults?.length > 0 && (
-        <div className="space-y-6 mt-6">
-          <h3 className="text-xl font-bold">Batch Backtests</h3>
-          {batchResults.map((bt, idx) => (
-            <div key={idx} className="bg-gray-50 p-4 rounded-lg shadow">
-              <div className="flex justify-between items-center mb-2">
-                <span className="font-semibold">
-                  Result #{idx + 1} - {bt.saved?.strategy || "Unknown Strategy"}
-                </span>
-                <button
-                  className="text-blue-600 hover:underline"
-                  onClick={() =>
-                    setCollapsedLogs((prev) => ({ ...prev, [idx]: !prev[idx] }))
-                  }
-                >
-                  {collapsedLogs[idx] ? "Expand Chart" : "Collapse Chart"}
-                </button>
-              </div>
-              {!collapsedLogs[idx] && renderChart(bt.equityCurve, "#82ca9d")}
-              {!collapsedLogs[idx] && renderSummary(bt)}
+      {/* Display batch results */}
+      {batchResults?.results?.length > 0 && (
+        <div className="mt-6 space-y-6">
+          <h3 className="text-xl font-semibold">Batch Backtests</h3>
+          {batchResults.results.map((bt, idx) => (
+            <div key={idx} className="border p-4 rounded shadow bg-white">
+              <h4 className="font-semibold">
+                {bt.saved?.symbol || "Unknown"} | {bt.saved?.strategy?.name || ""}
+              </h4>
+              {renderChart(bt.equityCurve, "#82ca9d")}
+              {renderSummary(bt)}
             </div>
           ))}
         </div>
