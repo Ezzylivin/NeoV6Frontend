@@ -45,36 +45,38 @@ export default function Backtests() {
 
   // Load backend options
   useEffect(() => {
-    async function loadOptions() {
-      try {
-        const resp = await fetchOptions();
-        if (resp) {
-          setOptions({
-            symbols: resp.symbols || [],
-            timeframes: resp.timeframes || ["1m", "5m", "15m", "30m", "1h", "4h", "1d"],
-            balances: resp.balances || [100, 500, 1000, 5000, 10000],
-            strategies: resp.strategies || [],
-            risks: resp.risks || ["Low", "Medium", "High"],
-            takeProfits: resp.takeProfits || [null, 1, 2, 3, 5, 10],
-            stopLosses: resp.stopLosses || [null, 0.5, 1, 2, 3, 5],
-            positions: resp.positions || ["Long", "Short", "Both"]
-          });
+  async function loadOptions() {
+    try {
+      const resp = await fetchOptions();
+      if (resp) {
+        setOptions({
+          symbols: resp.symbols || [],
+          timeframes: resp.timeframes || [],
+          balances: resp.balances || [],
+          strategies: resp.strategies || [],
+          risks: resp.risks || [],
+          takeProfits: resp.takeProfits || [],
+          stopLosses: resp.stopLosses || [],
+          positions: resp.positions || [],
+        });
 
-          // Set defaults
-          if (!selectedSymbol && resp.symbols?.length) {
-  setSelectedSymbol(resp.symbols[0]);
-}
-if (!selectedStrategy.name && resp.strategies?.length) {
-  setSelectedStrategy(resp.strategies[0]);
-}
+        if (!selectedSymbol && resp.symbols?.length) {
+          setSelectedSymbol(resp.symbols[0]);
+        }
 
-      } catch (err) {
-        console.error("Failed to fetch options:", err);
-        setError("Could not load backtest options");
+        if (!selectedStrategy.name && resp.strategies?.length) {
+          setSelectedStrategy(resp.strategies[0]);
+        }
       }
+    } catch (err) {
+      console.error("Failed to fetch options:", err);
+      setError("Could not load backtest options");
     }
-    loadOptions();
-  }, [fetchOptions]);
+  }
+
+  loadOptions();
+}, [fetchOptions]);
+
 
   const normalizeNumber = val => {
     if (val === "" || val === null || val === undefined) return null;
