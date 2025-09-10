@@ -16,6 +16,7 @@ export function useBacktest() {
     useSlippage: true,
     useSpread: true,
     useNews: true,
+    useRandomEvents: true,
     randomEventProb: 0.005,
     slippage_bps: 5,
   });
@@ -39,20 +40,35 @@ export function useBacktest() {
     fetchOptions();
   }, []);
 
-  // Run single backtest
+  // --- Run single backtest ---
   const runBacktest = async (payload) => {
     setLoading(true);
     setError("");
     try {
       const cleanPayload = {
-        ...payload,
+        userId: payload.userId,
+        symbol: payload.symbol,
+        timeframe: payload.timeframe,
+        initialBalance: payload.initialBalance,
+        strategyId: payload.strategyId || null,
+        strategy: payload.strategy || {},
+        risk: payload.risk,
+        takeProfit: payload.takeProfit,
+        stopLoss: payload.stopLoss,
+        limit: payload.limit || undefined,
         startDate: payload.startDate || undefined,
         endDate: payload.endDate || undefined,
+        useNews: payload.useNews ?? true,
+        useSlippage: payload.useSlippage ?? true,
+        useSpread: payload.useSpread ?? true,
+        useRandomEvents: payload.useRandomEvents ?? false,
+        baseSlippageBps: payload.baseSlippageBps ?? 5,
+        positionSide: payload.positionSide || "Both",
+        tradeConfig: payload.tradeConfig || {},
       };
-      console.log(
-        "[Hook] runBacktest outgoing payload:",
-        JSON.stringify(cleanPayload, null, 2)
-      ); // 👈 log payload here
+
+      console.log("[Hook] runBacktest outgoing payload:", JSON.stringify(cleanPayload, null, 2));
+
       const result = await apiRunBacktest(cleanPayload);
       setCurrentBacktest(result);
       return result;
@@ -65,20 +81,40 @@ export function useBacktest() {
     }
   };
 
-  // Run batch backtests
+  // --- Run batch backtests ---
   const runBatchBacktests = async (payload) => {
     setLoading(true);
     setError("");
     try {
+      const cleanParamCombos = (payload.paramCombos || []).map((p) => ({
+        userId: payload.userId,
+        symbol: p.symbol,
+        timeframe: p.timeframe,
+        initialBalance: p.initialBalance,
+        strategyId: p.strategyId || null,
+        strategy: p.strategy || {},
+        risk: p.risk,
+        takeProfit: p.takeProfit,
+        stopLoss: p.stopLoss,
+        limit: p.limit || undefined,
+        startDate: p.startDate || undefined,
+        endDate: p.endDate || undefined,
+        useNews: p.useNews ?? true,
+        useSlippage: p.useSlippage ?? true,
+        useSpread: p.useSpread ?? true,
+        useRandomEvents: p.useRandomEvents ?? false,
+        baseSlippageBps: p.baseSlippageBps ?? 5,
+        positionSide: p.positionSide || "Both",
+        tradeConfig: p.tradeConfig || {},
+      }));
+
       const cleanPayload = {
-        ...payload,
-        startDate: payload.startDate || undefined,
-        endDate: payload.endDate || undefined,
+        userId: payload.userId,
+        paramCombos: cleanParamCombos,
       };
-      console.log(
-        "[Hook] runBatchBacktests outgoing payload:",
-        JSON.stringify(cleanPayload, null, 2)
-      ); // 👈 log payload here
+
+      console.log("[Hook] runBatchBacktests outgoing payload:", JSON.stringify(cleanPayload, null, 2));
+
       const { results } = await apiRunBatchBacktests(cleanPayload);
       setBatchResults(results);
       return results;
@@ -91,12 +127,9 @@ export function useBacktest() {
     }
   };
 
-  // Optional: utility to update date range in state
+  // Optional utility to update date range
   const updateDateRange = (startDate, endDate) => {
-    setDateRange({
-      startDate: startDate || "",
-      endDate: endDate || "",
-    });
+    setDateRange({ startDate: startDate || "", endDate: endDate || "" });
   };
 
   return {
@@ -110,5 +143,6 @@ export function useBacktest() {
     runBacktest,
     runBatchBacktests,
     updateDateRange,
+    setDefaultRealism,
   };
 }
