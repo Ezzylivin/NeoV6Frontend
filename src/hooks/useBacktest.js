@@ -7,7 +7,15 @@ import {
 } from "../api/backtest.js";
 
 export function useBacktest() {
-  const [options, setOptions] = useState({});
+  const [options, setOptions] = useState({
+    symbols: ["BTC/USDT"],
+    strategies: [{ name: "Default Strategy", parameters: {}, _id: null }],
+    timeframes: ["1h"],
+    balances: [1000],
+    risks: ["Medium"],
+    positions: ["Both"],
+    availableDates: {},
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [currentBacktest, setCurrentBacktest] = useState(null);
@@ -26,7 +34,20 @@ export function useBacktest() {
       try {
         setLoading(true);
         const data = await fetchBacktestOptions();
-        setOptions(data || {});
+        if (data) {
+          setOptions({
+            symbols: data.symbols?.length ? data.symbols : ["BTC/USDT"],
+            strategies:
+              data.strategies?.length
+                ? data.strategies
+                : [{ name: "Default Strategy", parameters: {}, _id: null }],
+            timeframes: data.timeframes?.length ? data.timeframes : ["1h"],
+            balances: data.balances?.length ? data.balances : [1000],
+            risks: data.risks?.length ? data.risks : ["Medium"],
+            positions: data.positions?.length ? data.positions : ["Both"],
+            availableDates: data.availableDates || {},
+          });
+        }
         setError(null);
       } catch (err) {
         console.error("❌ fetchBacktestOptions failed:", err);
@@ -40,43 +61,37 @@ export function useBacktest() {
 
   // --- Merge payload with safe defaults ---
   const mergeDefaults = (payload) => {
-    const safeSymbol = payload.symbol || options.symbols?.[0] || "BTC/USDT";
-    const safeTimeframe = payload.timeframe || options.timeframes?.[0] || "1h";
+    const safeSymbol = payload.symbol || options.symbols[0];
+    const safeTimeframe = payload.timeframe || options.timeframes[0];
     const safeBalance =
-      payload.initialBalance > 0
-        ? payload.initialBalance
-        : options.balances?.[0] || 1000;
+      payload.initialBalance > 0 ? payload.initialBalance : options.balances[0];
 
     const matchedStrategy =
-      options.strategies?.find((s) => s.name === payload.strategy?.name) ||
-      options.strategies?.[0] ||
-      { name: "Default Strategy", parameters: {}, _id: null };
+      options.strategies.find((s) => s.name === payload.strategy?.name) ||
+      options.strategies[0];
 
-    const strategyName = matchedStrategy?.name || "Default Strategy";
-    const strategyParams =
-      payload.strategy?.parameters || matchedStrategy?.parameters || {};
+    const strategyName = matchedStrategy.name || "Default Strategy";
+    const strategyParams = payload.strategy?.parameters || matchedStrategy.parameters || {};
 
+    const available = options.availableDates?.[safeSymbol]?.[safeTimeframe] || {};
     return {
       ...payload,
       symbol: safeSymbol,
       timeframe: safeTimeframe,
       initialBalance: safeBalance,
-      strategyId: matchedStrategy?._id || null,
+      strategyId: matchedStrategy._id || null,
       strategy: { name: strategyName, parameters: strategyParams },
-      risk: payload.risk || options.risks?.[0] || "Medium",
+      risk: payload.risk || options.risks[0],
       takeProfit: payload.takeProfit ?? null,
       stopLoss: payload.stopLoss ?? null,
-      startDate:
-        payload.startDate ||
-        options.availableDates?.[safeSymbol]?.[safeTimeframe]?.start,
-      endDate:
-        payload.endDate ||
-        options.availableDates?.[safeSymbol]?.[safeTimeframe]?.end,
-      positionSide: payload.positionSide || options.positions?.[0] || "Both",
+      startDate: payload.startDate || available.start,
+      endDate: payload.endDate || available.end,
+      positionSide: payload.positionSide || options.positions[0],
       useNews: payload.useNews ?? defaultRealism.useNews,
       useSlippage: payload.useSlippage ?? defaultRealism.useSlippage,
       useSpread: payload.useSpread ?? defaultRealism.useSpread,
-      useRandomEvents: payload.useRandomEvents ?? defaultRealism.randomEventProb > 0,
+      useRandomEvents:
+        payload.useRandomEvents ?? defaultRealism.randomEventProb > 0,
       baseSlippageBps: payload.baseSlippageBps ?? defaultRealism.slippage_bps,
       tradeConfig: payload.tradeConfig || {},
     };
