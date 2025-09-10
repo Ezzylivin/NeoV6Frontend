@@ -1,32 +1,61 @@
-// File: src/layouts/DashboardLayout.jsx
-import React from 'react';
-import { Outlet } from 'react-router-dom';
-import Header from '../components/Header.jsx';
-import { useAuth } from '../context/AuthContext.jsx';
+// File: src/components/Dashboard.jsx
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import StrategyList from "./StrategyList";
+import StrategyForm from "./StrategyForm";
+import { useAuth } from "../context/AuthContext.jsx";
 
-export default function DashboardLayout() {
-  const { isAuthenticated, user } = useAuth();
+const Dashboard = () => {
+  const { user } = useAuth(); // Using AuthContext to get the user data
+  const [selectedStrategyId, setSelectedStrategyId] = useState(null);
+  const [strategies, setStrategies] = useState([]);
+
+  // Fetch user strategies when the component mounts
+  useEffect(() => {
+    const fetchStrategies = async () => {
+      try {
+        const response = await axios.get(`/api/strategies/user/${user._id}`);
+        setStrategies(response.data.strategies);
+      } catch (error) {
+        console.error("Error fetching strategies:", error);
+      }
+    };
+
+    if (user) fetchStrategies();
+  }, [user]);
+
+  const handleEditStrategy = (strategyId) => {
+    setSelectedStrategyId(strategyId);
+  };
+
+  const handleSubmitStrategy = async (formData) => {
+    try {
+      // If `selectedStrategyId` is set, update the existing strategy
+      if (selectedStrategyId) {
+        await axios.put(`/api/strategies/${selectedStrategyId}`, formData);
+      } else {
+        // Otherwise, create a new strategy
+        await axios.post("/api/strategies", formData);
+      }
+
+      // After submission, fetch the updated strategy list
+      const response = await axios.get(`/api/strategies/user/${user._id}`);
+      setStrategies(response.data.strategies);
+      setSelectedStrategyId(null); // Reset selected strategy
+    } catch (error) {
+      console.error("Error submitting strategy:", error);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col">
-      {/* Top header */}
-      <Header />
-
-      {/* User info below header, aligned left */}
-      {isAuthenticated && (
-        <div className="flex justify-start pl-6 pt-2 pb-2 bg-gray-800 border-b border-gray-700">
-          <div className="text-left">
-            <p className="font-medium">{user.username}</p>
-            <p className="text-gray-400 text-sm">{user.email}</p>
-            <p className="text-green-400 font-semibold">Wallet: ${user.walletBalance?.toFixed(2)}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Main content */}
-      <main className="flex-1 p-6 overflow-auto">
-        <Outlet />
-      </main>
+    <div>
+      <h2 className="text-2xl font-bold mb-6">Dashboard</h2>
+      
+      {/* Strategy List and Form */}
+      <StrategyList strategies={strategies} onEdit={handleEditStrategy} />
+      <StrategyForm strategyId={selectedStrategyId} onSubmit={handleSubmitStrategy} />
     </div>
   );
-}
+};
+
+export default Dashboard;
