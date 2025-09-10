@@ -16,11 +16,12 @@ export function useBacktest() {
     positions: ["Both"],
     availableDates: {},
   });
-  const [loading, setLoading] = useState(false);
+  const [loadingSingle, setLoadingSingle] = useState(false);
+  const [loadingBatch, setLoadingBatch] = useState(false);
   const [error, setError] = useState(null);
   const [currentBacktest, setCurrentBacktest] = useState(null);
   const [batchResults, setBatchResults] = useState([]);
-  const [defaultRealism, setDefaultRealism] = useState({
+  const [defaultRealism] = useState({
     useNews: false,
     useSlippage: false,
     useSpread: false,
@@ -32,9 +33,7 @@ export function useBacktest() {
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        setLoading(true);
         const data = await fetchBacktestOptions();
-        console.log("Backtest options loaded:", data);
         setOptions({
           symbols: data?.symbols || [],
           strategies: data?.strategies || [],
@@ -47,9 +46,7 @@ export function useBacktest() {
         setError(null);
       } catch (err) {
         console.error("❌ fetchBacktestOptions failed:", err);
-        setError("Failed to load options");
-      } finally {
-        setLoading(false);
+        setError("Failed to load backtest options");
       }
     };
     loadOptions();
@@ -59,8 +56,8 @@ export function useBacktest() {
   const mergeDefaults = (payload) => {
     const safeSymbol = payload.symbol || options.symbols[0] || "BTC/USDT";
     const safeTimeframe = payload.timeframe || options.timeframes[0] || "1h";
-    const safeBalance = payload.initialBalance > 0
-      ? payload.initialBalance
+    const safeBalance = Number(payload.initialBalance) > 0
+      ? Number(payload.initialBalance)
       : options.balances[0] || 1000;
 
     const matchedStrategy =
@@ -68,8 +65,8 @@ export function useBacktest() {
       options.strategies[0] ||
       { name: "Default Strategy", parameters: {}, _id: null };
 
-    const strategyName = matchedStrategy?.name || "Default Strategy";
-    const strategyParams = payload.strategy?.parameters || matchedStrategy?.parameters || {};
+    const strategyParams = payload.strategy?.parameters || matchedStrategy.parameters || {};
+    const strategyName = matchedStrategy.name || "Default Strategy";
 
     const startDate =
       payload.startDate ||
@@ -106,10 +103,9 @@ export function useBacktest() {
   // --- Run single backtest ---
   const runBacktest = async (payload) => {
     const safePayload = mergeDefaults(payload);
-    console.log("🚀 [Hook] Running single backtest with payload:", safePayload);
-
+    setLoadingSingle(true);
+    setError(null);
     try {
-      setLoading(true);
       const result = await apiRunBacktest(safePayload);
       setCurrentBacktest(result || {});
       return result || {};
@@ -118,26 +114,24 @@ export function useBacktest() {
       setError("Failed to run backtest");
       throw err;
     } finally {
-      setLoading(false);
+      setLoadingSingle(false);
     }
   };
 
   // --- Run batch backtests ---
   const runBatchBacktests = async (payload) => {
     const safeParamCombos = (payload.paramCombos || []).map((p) => {
-      const stratDefaults =
-        options.strategies.find((s) => s.name === p.strategy?.name) || {};
+      const stratDefaults = options.strategies.find((s) => s.name === p.strategy?.name) || {};
       return mergeDefaults({
         ...p,
-        strategy: { name: stratDefaults.name, parameters: stratDefaults.parameters || {} },
+        strategy: { name: stratDefaults.name || "Default Strategy", parameters: stratDefaults.parameters || {} },
       });
     });
 
     const safePayload = { ...payload, paramCombos: safeParamCombos };
-    console.log("🚀 [Hook] Running batch backtests with payload:", safePayload);
-
+    setLoadingBatch(true);
+    setError(null);
     try {
-      setLoading(true);
       const result = await apiRunBatchBacktests(safePayload);
       setBatchResults(result || []);
       return result || [];
@@ -146,17 +140,18 @@ export function useBacktest() {
       setError("Failed to run batch backtests");
       throw err;
     } finally {
-      setLoading(false);
+      setLoadingBatch(false);
     }
   };
 
   return {
     options,
-    loading,
+    loadingSingle,
+    loadingBatch,
     error,
     currentBacktest,
-    runBacktest,
     batchResults,
+    runBacktest,
     runBatchBacktests,
     defaultRealism,
   };
