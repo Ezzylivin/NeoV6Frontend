@@ -19,14 +19,16 @@ export default function Backtests() {
 
   const {
     options,
-    loading,
-    error,
     currentBacktest,
-    runBacktest,
     batchResults,
+    runBacktest,
     runBatchBacktests,
     defaultRealism,
   } = useBacktest();
+
+  // --- Separate loading states ---
+  const [loadingSingle, setLoadingSingle] = useState(false);
+  const [loadingBatch, setLoadingBatch] = useState(false);
 
   // --- Backtest controls ---
   const [selectedSymbol, setSelectedSymbol] = useState("");
@@ -44,10 +46,10 @@ export default function Backtests() {
 
   // --- Auto-set defaults when options load ---
   useEffect(() => {
-    if (!options || !options.symbols) return;
+    if (!options.symbols?.length || !options.strategies?.length) return;
 
-    setSelectedSymbol(options.symbols?.[0] || "BTC/USDT");
-    setSelectedStrategy(options.strategies?.[0]?.name || "Default Strategy");
+    setSelectedSymbol(options.symbols[0] || "BTC/USDT");
+    setSelectedStrategy(options.strategies[0]?.name || "Default Strategy");
     setSelectedTimeframe(options.timeframes?.[0] || "1h");
     setSelectedBalance(options.balances?.[0] || 1000);
     setSelectedRisk(options.risks?.[0] || "Medium");
@@ -63,6 +65,7 @@ export default function Backtests() {
 
   // --- Update strategy parameters when selected strategy changes ---
   useEffect(() => {
+    if (!selectedStrategy) return;
     const strat = options.strategies?.find((s) => s.name === selectedStrategy);
     const defaults = {};
     if (strat?.parameters) {
@@ -75,90 +78,81 @@ export default function Backtests() {
 
   // --- Auto-adjust start/end dates ---
   useEffect(() => {
+    if (!selectedSymbol || !selectedTimeframe) return;
     const available = options.availableDates?.[selectedSymbol]?.[selectedTimeframe];
     if (!available) return;
-    setSelectedStartDate(available.start || new Date().toISOString().split("T")[0]);
-    setSelectedEndDate(available.end || new Date().toISOString().split("T")[0]);
+    setSelectedStartDate(available.start);
+    setSelectedEndDate(available.end);
   }, [selectedSymbol, selectedTimeframe, options.availableDates]);
 
   // --- Run single backtest ---
   const handleRunBacktest = async () => {
-    if (!userId) {
-      alert("You must be logged in to run backtests.");
-      return;
-    }
-
-    const strat = options.strategies?.find((s) => s.name === selectedStrategy) || options.strategies[0];
-
+    if (!userId) return alert("You must be logged in to run backtests.");
+    const strat = options.strategies?.find((s) => s.name === selectedStrategy) || {};
     const payload = {
       userId,
-      symbol: selectedSymbol,
-      timeframe: selectedTimeframe,
-      initialBalance: selectedBalance,
-      strategyId: strat?._id,
-      strategy: { name: strat?.name || selectedStrategy, parameters: strategyParams },
-      risk: selectedRisk,
-      takeProfit: selectedTP,
-      stopLoss: selectedSL,
-      startDate: selectedStartDate,
-      endDate: selectedEndDate,
+      symbol: selectedSymbol || options.symbols?.[0] || "BTC/USDT",
+      timeframe: selectedTimeframe || options.timeframes?.[0] || "1h",
+      initialBalance: selectedBalance > 0 ? selectedBalance : 1000,
+      strategyId: strat._id || null,
+      strategy: { name: strat.name || selectedStrategy, parameters: strategyParams },
+      risk: selectedRisk || options.risks?.[0] || "Medium",
+      takeProfit: selectedTP ?? undefined,
+      stopLoss: selectedSL ?? undefined,
+      startDate: selectedStartDate ?? undefined,
+      endDate: selectedEndDate ?? undefined,
       useNews: realism.useNews,
       useSlippage: realism.useSlippage,
       useSpread: realism.useSpread,
       useRandomEvents: realism.useRandomEvents ?? realism.randomEventProb > 0,
       baseSlippageBps: realism.slippage_bps,
-      positionSide: selectedPosition,
+      positionSide: selectedPosition || options.positions?.[0] || "Both",
       tradeConfig: {},
     };
 
     try {
+      setLoadingSingle(true);
       await runBacktest(payload);
-    } catch (err) {
-      console.error(err);
+    } finally {
+      setLoadingSingle(false);
     }
   };
 
   // --- Run batch backtests ---
   const handleRunBatch = async () => {
-    if (!userId) {
-      alert("You must be logged in to run batch backtests.");
-      return;
-    }
-
+    if (!userId) return alert("You must be logged in to run batch backtests.");
     const paramCombos = options.strategies?.map((s) => ({
       userId,
-      symbol: selectedSymbol,
-      timeframe: selectedTimeframe,
-      initialBalance: selectedBalance,
+      symbol: selectedSymbol || options.symbols?.[0],
+      timeframe: selectedTimeframe || options.timeframes?.[0],
+      initialBalance: selectedBalance > 0 ? selectedBalance : 1000,
       strategyId: s._id,
       strategy: { name: s.name, parameters: strategyParams },
-      risk: selectedRisk,
-      takeProfit: selectedTP,
-      stopLoss: selectedSL,
-      startDate: selectedStartDate,
-      endDate: selectedEndDate,
+      risk: selectedRisk || options.risks?.[0],
+      takeProfit: selectedTP ?? undefined,
+      stopLoss: selectedSL ?? undefined,
+      startDate: selectedStartDate ?? undefined,
+      endDate: selectedEndDate ?? undefined,
       useNews: realism.useNews,
       useSlippage: realism.useSlippage,
       useSpread: realism.useSpread,
       useRandomEvents: realism.useRandomEvents ?? realism.randomEventProb > 0,
       baseSlippageBps: realism.slippage_bps,
-      positionSide: selectedPosition,
+      positionSide: selectedPosition || options.positions?.[0] || "Both",
       tradeConfig: {},
     }));
 
     try {
+      setLoadingBatch(true);
       await runBatchBacktests({ paramCombos });
-    } catch (err) {
-      console.error(err);
+    } finally {
+      setLoadingBatch(false);
     }
   };
 
   // --- Render strategy parameter inputs ---
-  const renderStrategyParams = () => {
-    if (loading) return <p>Loading strategy parameters...</p>;
-    if (!strategyParams || Object.keys(strategyParams).length === 0) return <p>No parameters for this strategy.</p>;
-
-    return Object.keys(strategyParams).map((key) => (
+  const renderStrategyParams = () =>
+    Object.keys(strategyParams || {}).map((key) => (
       <label key={key} className="flex flex-col text-sm">
         {key}
         <input
@@ -171,14 +165,10 @@ export default function Backtests() {
         />
       </label>
     ));
-  };
 
   // --- Render equity chart ---
-  const renderChart = (data, color = "#8884d8") => {
-    if (loading) return <p>Loading chart...</p>;
-    if (!data || data.length === 0) return <p>No equity data.</p>;
-
-    return (
+  const renderChart = (data, color = "#8884d8") =>
+    data?.length > 0 ? (
       <ResponsiveContainer width="100%" height={250}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" />
@@ -189,39 +179,35 @@ export default function Backtests() {
           <Line type="monotone" dataKey="equity" stroke={color} />
         </LineChart>
       </ResponsiveContainer>
+    ) : (
+      <p>No equity data.</p>
     );
-  };
 
   // --- Render summary table ---
-  const renderSummary = (bt) => {
-    if (loading) return <p>Loading summary...</p>;
-    if (!bt) return null;
-
-    return (
-      <table className="w-full mt-2 text-sm border-collapse border border-gray-300">
-        <tbody>
-          <tr>
-            <td className="border p-1 font-semibold">Trades</td>
-            <td className="border p-1">{bt.trades?.length || 0}</td>
-          </tr>
-          <tr>
-            <td className="border p-1 font-semibold">Final Balance</td>
-            <td className="border p-1">
-              ${bt.equityCurve?.slice(-1)[0]?.equity?.toFixed(2) || 0}
-            </td>
-          </tr>
-          <tr>
-            <td className="border p-1 font-semibold">Max Drawdown</td>
-            <td className="border p-1">{bt.metrics?.maxDrawdown?.toFixed(2) || 0}%</td>
-          </tr>
-          <tr>
-            <td className="border p-1 font-semibold">Net Profit</td>
-            <td className="border p-1">{bt.metrics?.netProfit?.toFixed(2) || 0}</td>
-          </tr>
-        </tbody>
-      </table>
-    );
-  };
+  const renderSummary = (bt) => (
+    <table className="w-full mt-2 text-sm border-collapse border border-gray-300">
+      <tbody>
+        <tr>
+          <td className="border p-1 font-semibold">Trades</td>
+          <td className="border p-1">{bt.trades?.length || 0}</td>
+        </tr>
+        <tr>
+          <td className="border p-1 font-semibold">Final Balance</td>
+          <td className="border p-1">
+            ${bt.equityCurve?.slice(-1)[0]?.equity?.toFixed(2) || 0}
+          </td>
+        </tr>
+        <tr>
+          <td className="border p-1 font-semibold">Max Drawdown</td>
+          <td className="border p-1">{bt.metrics?.maxDrawdown?.toFixed(2) || 0}%</td>
+        </tr>
+        <tr>
+          <td className="border p-1 font-semibold">Net Profit</td>
+          <td className="border p-1">{bt.metrics?.netProfit?.toFixed(2) || 0}</td>
+        </tr>
+      </tbody>
+    </table>
+  );
 
   return (
     <div className="p-6 space-y-6">
@@ -229,75 +215,65 @@ export default function Backtests() {
 
       {/* Controls */}
       <div className="grid grid-cols-2 gap-4">
-        {loading ? (
-          <p>Loading options...</p>
-        ) : (
-          <>
-            <label>
-              Symbol
-              <select value={selectedSymbol} onChange={(e) => setSelectedSymbol(e.target.value)}>
-                {options.symbols?.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            </label>
+        <label>
+          Symbol
+          <select value={selectedSymbol} onChange={(e) => setSelectedSymbol(e.target.value)}>
+            {options.symbols?.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </label>
 
-            <label>
-              Strategy
-              <select value={selectedStrategy} onChange={(e) => setSelectedStrategy(e.target.value)}>
-                {options.strategies?.map((s) => (
-                  <option key={s.name} value={s.name}>{s.name}</option>
-                ))}
-              </select>
-            </label>
+        <label>
+          Strategy
+          <select value={selectedStrategy} onChange={(e) => setSelectedStrategy(e.target.value)}>
+            {options.strategies?.map((s) => (
+              <option key={s.name} value={s.name}>{s.name}</option>
+            ))}
+          </select>
+        </label>
 
-            <label>
-              Timeframe
-              <select value={selectedTimeframe} onChange={(e) => setSelectedTimeframe(e.target.value)}>
-                {options.timeframes?.map((tf) => (
-                  <option key={tf} value={tf}>{tf}</option>
-                ))}
-              </select>
-            </label>
+        <label>
+          Timeframe
+          <select value={selectedTimeframe} onChange={(e) => setSelectedTimeframe(e.target.value)}>
+            {options.timeframes?.map((tf) => (
+              <option key={tf} value={tf}>{tf}</option>
+            ))}
+          </select>
+        </label>
 
-            <label>
-              Balance
-              <input
-                type="number"
-                value={selectedBalance}
-                onChange={(e) => setSelectedBalance(Number(e.target.value))}
-              />
-            </label>
+        <label>
+          Balance
+          <input type="number" value={selectedBalance} onChange={(e) => setSelectedBalance(Number(e.target.value))} />
+        </label>
 
-            <label>
-              Risk
-              <select value={selectedRisk} onChange={(e) => setSelectedRisk(e.target.value)}>
-                {options.risks?.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-            </label>
+        <label>
+          Risk
+          <select value={selectedRisk} onChange={(e) => setSelectedRisk(e.target.value)}>
+            {options.risks?.map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+        </label>
 
-            <label>
-              Position
-              <select value={selectedPosition} onChange={(e) => setSelectedPosition(e.target.value)}>
-                {options.positions?.map((p) => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
-            </label>
+        <label>
+          Position
+          <select value={selectedPosition} onChange={(e) => setSelectedPosition(e.target.value)}>
+            {options.positions?.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+        </label>
 
-            <label>
-              Start Date
-              <input type="date" value={selectedStartDate} onChange={(e) => setSelectedStartDate(e.target.value)} />
-            </label>
+        <label>
+          Start Date
+          <input type="date" value={selectedStartDate} onChange={(e) => setSelectedStartDate(e.target.value)} />
+        </label>
 
-            <label>
-              End Date
-              <input type="date" value={selectedEndDate} onChange={(e) => setSelectedEndDate(e.target.value)} />
-            </label>
-          </>
-        )}
+        <label>
+          End Date
+          <input type="date" value={selectedEndDate} onChange={(e) => setSelectedEndDate(e.target.value)} />
+        </label>
       </div>
 
       {/* Strategy parameters */}
@@ -333,22 +309,19 @@ export default function Backtests() {
 
       {/* Run Buttons */}
       <div className="mt-4 flex gap-4">
-        <button onClick={handleRunBacktest} className="px-4 py-2 bg-blue-600 text-white rounded" disabled={loading}>
-          {loading ? "Running..." : "Run Backtest"}
+        <button onClick={handleRunBacktest} disabled={loadingSingle} className="px-4 py-2 bg-blue-600 text-white rounded">
+          {loadingSingle ? "Running..." : "Run Backtest"}
         </button>
-        <button onClick={handleRunBatch} className="px-4 py-2 bg-green-600 text-white rounded" disabled={loading}>
-          {loading ? "Running..." : "Run Batch Backtests"}
+        <button onClick={handleRunBatch} disabled={loadingBatch} className="px-4 py-2 bg-green-600 text-white rounded">
+          {loadingBatch ? "Running..." : "Run Batch Backtests"}
         </button>
       </div>
-
-      {/* Error message */}
-      {error && <p className="text-red-600">{error}</p>}
 
       {/* Single Backtest Result */}
       {currentBacktest && (
         <div className="mt-6 space-y-4">
           <h3 className="font-semibold">Single Backtest</h3>
-          {renderChart(currentBacktest.equityCurve)}
+          {currentBacktest.equityCurve?.length > 0 ? renderChart(currentBacktest.equityCurve) : <p>No equity data.</p>}
           {renderSummary(currentBacktest)}
         </div>
       )}
@@ -360,7 +333,7 @@ export default function Backtests() {
           {batchResults.map((bt, i) => (
             <div key={i} className="border p-2 rounded">
               <h4 className="font-medium">{bt.strategy?.name || `Strategy ${i + 1}`}</h4>
-              {renderChart(bt.equityCurve, `hsl(${(i * 60) % 360}, 70%, 50%)`)}
+              {bt.equityCurve?.length > 0 ? renderChart(bt.equityCurve, `hsl(${(i * 60) % 360}, 70%, 50%)`) : <p>No equity data.</p>}
               {renderSummary(bt)}
             </div>
           ))}
