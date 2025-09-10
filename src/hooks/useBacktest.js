@@ -69,6 +69,7 @@ export function useBacktest() {
     const strategyName = matchedStrategy?.name || "Default Strategy";
     const strategyParams = payload.strategy?.parameters || matchedStrategy?.parameters || {};
 
+    // --- Use availableDates from backend ---
     const startDate =
       payload.startDate ||
       options.availableDates?.[safeSymbol]?.[safeTimeframe]?.start ||
@@ -123,11 +124,15 @@ export function useBacktest() {
   // --- Run batch backtests ---
   const runBatchBacktests = async (payload) => {
     const safeParamCombos = (payload.paramCombos || []).map((p) => {
-      const stratDefaults =
+      // Ensure each strategy uses its own parameters from options
+      const matchedStrategy =
         options.strategies.find((s) => s.name === p.strategy?.name) || {};
       return mergeDefaults({
         ...p,
-        strategy: { name: stratDefaults.name, parameters: stratDefaults.parameters || {} },
+        strategy: {
+          name: matchedStrategy.name || p.strategy?.name || "Default Strategy",
+          parameters: matchedStrategy.parameters || p.strategy?.parameters || {},
+        },
       });
     });
 
