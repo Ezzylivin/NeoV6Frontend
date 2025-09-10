@@ -32,7 +32,7 @@ export default function Backtests() {
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [selectedStrategy, setSelectedStrategy] = useState("");
   const [selectedTimeframe, setSelectedTimeframe] = useState("");
-  const [selectedBalance, setSelectedBalance] = useState(0);
+  const [selectedBalance, setSelectedBalance] = useState(1000);
   const [selectedRisk, setSelectedRisk] = useState("");
   const [selectedTP, setSelectedTP] = useState(null);
   const [selectedSL, setSelectedSL] = useState(null);
@@ -46,20 +46,13 @@ export default function Backtests() {
   useEffect(() => {
     if (!options.symbols?.length || !options.strategies?.length) return;
 
-    setSelectedSymbol((prev) => prev || options.symbols[0]);
-    setSelectedStrategy((prev) => prev || options.strategies[0].name);
-    setSelectedTimeframe((prev) => prev || options.timeframes?.[0] || "1h");
-    setSelectedBalance((prev) => prev || options.balances?.[0] || 1000);
-    setSelectedRisk((prev) => prev || options.risks?.[0] || "Medium");
-    setSelectedPosition((prev) => prev || options.positions?.[0] || "Both");
-  }, [
-    options.symbols,
-    options.strategies,
-    options.timeframes,
-    options.balances,
-    options.risks,
-    options.positions,
-  ]);
+    setSelectedSymbol(options.symbols[0]);
+    setSelectedStrategy(options.strategies[0].name);
+    setSelectedTimeframe(options.timeframes?.[0] || "1h");
+    setSelectedBalance(options.balances?.[0] || 1000);
+    setSelectedRisk(options.risks?.[0] || "Medium");
+    setSelectedPosition(options.positions?.[0] || "Both");
+  }, [options.symbols, options.strategies, options.timeframes, options.balances, options.risks, options.positions]);
 
   // --- Update strategy parameters when selected strategy changes ---
   useEffect(() => {
@@ -73,8 +66,8 @@ export default function Backtests() {
     if (!selectedSymbol || !selectedTimeframe) return;
     const available = options.availableDates?.[selectedSymbol]?.[selectedTimeframe];
     if (!available) return;
-    setSelectedStartDate((prev) => prev || available.start);
-    setSelectedEndDate((prev) => prev || available.end);
+    setSelectedStartDate(available.start);
+    setSelectedEndDate(available.end);
   }, [selectedSymbol, selectedTimeframe, options.availableDates]);
 
   // --- Run single backtest ---
@@ -84,20 +77,20 @@ export default function Backtests() {
       return;
     }
 
-    const strat = options.strategies?.find((s) => s.name === selectedStrategy);
+    const strat = options.strategies?.find((s) => s.name === selectedStrategy) || options.strategies[0];
 
     const payload = {
       userId,
       symbol: selectedSymbol,
       timeframe: selectedTimeframe,
       initialBalance: selectedBalance > 0 ? selectedBalance : 1000,
-      strategyId: strat?._id || null,
-      strategy: { name: strat?.name || selectedStrategy, parameters: strategyParams || {} },
+      strategyId: strat._id,
+      strategy: { name: strat.name, parameters: strategyParams },
       risk: selectedRisk || "Medium",
-      takeProfit: selectedTP || undefined,
-      stopLoss: selectedSL || undefined,
-      startDate: selectedStartDate || undefined,
-      endDate: selectedEndDate || undefined,
+      takeProfit: selectedTP ?? undefined,
+      stopLoss: selectedSL ?? undefined,
+      startDate: selectedStartDate ?? undefined,
+      endDate: selectedEndDate ?? undefined,
       useNews: realism.useNews,
       useSlippage: realism.useSlippage,
       useSpread: realism.useSpread,
@@ -124,18 +117,17 @@ export default function Backtests() {
       return;
     }
 
-    // Example: run multiple strategies at once
     const paramCombos = options.strategies?.map((s) => ({
       symbol: selectedSymbol,
       timeframe: selectedTimeframe,
       initialBalance: selectedBalance > 0 ? selectedBalance : 1000,
-      strategyId: s._id || null,
-      strategy: { name: s.name, parameters: strategyParams || {} },
+      strategyId: s._id,
+      strategy: { name: s.name, parameters: strategyParams },
       risk: selectedRisk || "Medium",
-      takeProfit: selectedTP || undefined,
-      stopLoss: selectedSL || undefined,
-      startDate: selectedStartDate || undefined,
-      endDate: selectedEndDate || undefined,
+      takeProfit: selectedTP ?? undefined,
+      stopLoss: selectedSL ?? undefined,
+      startDate: selectedStartDate ?? undefined,
+      endDate: selectedEndDate ?? undefined,
       useNews: realism.useNews,
       useSlippage: realism.useSlippage,
       useSpread: realism.useSpread,
