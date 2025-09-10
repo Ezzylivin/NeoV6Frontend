@@ -46,23 +46,26 @@ export function useBacktest() {
       payload.initialBalance > 0
         ? payload.initialBalance
         : options.balances?.[0] || 1000;
-    const safeStrategy =
+
+    const matchedStrategy =
       options.strategies?.find((s) => s.name === payload.strategy?.name) ||
-      options.strategies?.[0] || { name: "Default Strategy", parameters: {}, _id: null };
+      options.strategies?.[0] ||
+      { name: "Default Strategy", parameters: {}, _id: null };
+
+    const strategyName = matchedStrategy?.name || "Default Strategy";
+    const strategyParams =
+      payload.strategy?.parameters || matchedStrategy?.parameters || {};
 
     return {
       ...payload,
       symbol: safeSymbol,
       timeframe: safeTimeframe,
       initialBalance: safeBalance,
-      strategyId: safeStrategy._id,
-      strategy: {
-        name: safeStrategy.name,
-        parameters: payload.strategy?.parameters || safeStrategy.parameters || {},
-      },
+      strategyId: matchedStrategy?._id || null,
+      strategy: { name: strategyName, parameters: strategyParams },
       risk: payload.risk || options.risks?.[0] || "Medium",
-      takeProfit: payload.takeProfit || undefined,
-      stopLoss: payload.stopLoss || undefined,
+      takeProfit: payload.takeProfit ?? null,
+      stopLoss: payload.stopLoss ?? null,
       startDate:
         payload.startDate ||
         options.availableDates?.[safeSymbol]?.[safeTimeframe]?.start,
