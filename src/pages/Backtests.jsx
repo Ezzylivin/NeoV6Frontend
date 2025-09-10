@@ -40,44 +40,33 @@ export default function Backtests() {
   const [selectedStartDate, setSelectedStartDate] = useState("");
   const [selectedEndDate, setSelectedEndDate] = useState("");
   const [strategyParams, setStrategyParams] = useState({});
-  const [realism, setRealism] = useState(defaultRealism || {});
+  const [realism, setRealism] = useState(defaultRealism);
 
-  // --- Auto-set defaults when options load ---
+  // --- Auto-set defaults safely when options load ---
   useEffect(() => {
-    if (!options) return;
+    if (!options || !options.symbols?.length || !options.strategies?.length) return;
 
-    if (options.symbols?.length && !selectedSymbol) {
-      setSelectedSymbol(options.symbols[0]);
-    }
-    if (options.strategies?.length && !selectedStrategy) {
-      setSelectedStrategy(options.strategies[0].name);
-    }
-    if (options.timeframes?.length && !selectedTimeframe) {
-      setSelectedTimeframe(options.timeframes[0]);
-    }
-    if (options.balances?.length && !selectedBalance) {
-      setSelectedBalance(options.balances[0]);
-    }
-    if (options.risks?.length && !selectedRisk) {
-      setSelectedRisk(options.risks[0]);
-    }
-    if (options.positions?.length && !selectedPosition) {
-      setSelectedPosition(options.positions[0]);
-    }
+    setSelectedSymbol((prev) => prev || options.symbols[0]);
+    setSelectedStrategy((prev) => prev || options.strategies[0].name);
+    setSelectedTimeframe((prev) => prev || options.timeframes?.[0] || "1h");
+    setSelectedBalance((prev) => prev || options.balances?.[0] || 1000);
+    setSelectedRisk((prev) => prev || options.risks?.[0] || "Medium");
+    setSelectedPosition((prev) => prev || options.positions?.[0] || "Both");
   }, [
-    options,
-    selectedSymbol,
-    selectedStrategy,
-    selectedTimeframe,
-    selectedBalance,
-    selectedRisk,
-    selectedPosition,
+    options.symbols,
+    options.strategies,
+    options.timeframes,
+    options.balances,
+    options.risks,
+    options.positions,
   ]);
 
-  // --- Update strategy parameters when selected strategy changes ---
+  // --- Update strategy parameters whenever selected strategy changes ---
   useEffect(() => {
-    if (!selectedStrategy || !options.strategies) return;
-    const strat = options.strategies.find((s) => s.name === selectedStrategy);
+    if (!selectedStrategy) return;
+    const strat = options.strategies?.find((s) => s.name === selectedStrategy);
+
+    // Fill parameters with defaults if defined, else 0
     const defaults = {};
     if (strat?.parameters) {
       Object.keys(strat.parameters).forEach((key) => {
@@ -92,8 +81,8 @@ export default function Backtests() {
     if (!selectedSymbol || !selectedTimeframe) return;
     const available = options.availableDates?.[selectedSymbol]?.[selectedTimeframe];
     if (!available) return;
-    if (!selectedStartDate) setSelectedStartDate(available.start);
-    if (!selectedEndDate) setSelectedEndDate(available.end);
+    setSelectedStartDate((prev) => prev || available.start);
+    setSelectedEndDate((prev) => prev || available.end);
   }, [selectedSymbol, selectedTimeframe, options.availableDates]);
 
   // --- Run single backtest ---
@@ -110,29 +99,28 @@ export default function Backtests() {
       symbol: selectedSymbol,
       timeframe: selectedTimeframe,
       initialBalance: selectedBalance > 0 ? selectedBalance : 1000,
-      strategyId: strat?._id,
-      strategy: { name: strat?.name, parameters: strategyParams },
-      risk: selectedRisk || "Medium",
+      strategyId: strat?._id || null,
+      strategy: { name: strat?.name || selectedStrategy, parameters: strategyParams || {} },
+      risk: selectedRisk || options.risks?.[0] || "Medium",
       takeProfit: selectedTP ?? undefined,
       stopLoss: selectedSL ?? undefined,
-      startDate: selectedStartDate ?? undefined,
-      endDate: selectedEndDate ?? undefined,
-      useNews: realism.useNews ?? false,
-      useSlippage: realism.useSlippage ?? false,
-      useSpread: realism.useSpread ?? false,
-      useRandomEvents: realism.useRandomEvents ?? realism.randomEventProb > 0 ?? false,
-      baseSlippageBps: realism.slippage_bps ?? 0,
-      positionSide: selectedPosition || "Both",
+      startDate: selectedStartDate ?? options.availableDates?.[selectedSymbol]?.[selectedTimeframe]?.start,
+      endDate: selectedEndDate ?? options.availableDates?.[selectedSymbol]?.[selectedTimeframe]?.end,
+      useNews: realism.useNews,
+      useSlippage: realism.useSlippage,
+      useSpread: realism.useSpread,
+      useRandomEvents: realism.useRandomEvents ?? realism.randomEventProb > 0,
+      baseSlippageBps: realism.slippage_bps,
+      positionSide: selectedPosition || options.positions?.[0] || "Both",
       tradeConfig: {},
     };
 
     console.log("🚀 [Backtests] Single Payload:", payload);
 
     try {
-      const result = await runBacktest(payload);
-      console.log("✅ [Backtests] Single Result:", result);
+      await runBacktest(payload);
     } catch (err) {
-      console.error("❌ [Backtests] runBacktest failed:", err);
+      console.error("❌ runBacktest failed:", err);
     }
   };
 
@@ -148,34 +136,29 @@ export default function Backtests() {
       timeframe: selectedTimeframe,
       initialBalance: selectedBalance > 0 ? selectedBalance : 1000,
       strategyId: s._id,
-      strategy: { name: s.name, parameters: strategyParams },
-      risk: selectedRisk || "Medium",
+      strategy: { name: s.name, parameters: strategyParams || {} },
+      risk: selectedRisk || options.risks?.[0] || "Medium",
       takeProfit: selectedTP ?? undefined,
       stopLoss: selectedSL ?? undefined,
-      startDate: selectedStartDate ?? undefined,
-      endDate: selectedEndDate ?? undefined,
-      useNews: realism.useNews ?? false,
-      useSlippage: realism.useSlippage ?? false,
-      useSpread: realism.useSpread ?? false,
-      useRandomEvents: realism.useRandomEvents ?? realism.randomEventProb > 0 ?? false,
-      baseSlippageBps: realism.slippage_bps ?? 0,
-      positionSide: selectedPosition || "Both",
+      startDate: selectedStartDate ?? options.availableDates?.[selectedSymbol]?.[selectedTimeframe]?.start,
+      endDate: selectedEndDate ?? options.availableDates?.[selectedSymbol]?.[selectedTimeframe]?.end,
+      useNews: realism.useNews,
+      useSlippage: realism.useSlippage,
+      useSpread: realism.useSpread,
+      useRandomEvents: realism.useRandomEvents ?? realism.randomEventProb > 0,
+      baseSlippageBps: realism.slippage_bps,
+      positionSide: selectedPosition || options.positions?.[0] || "Both",
       tradeConfig: {},
     }));
 
-    const payload = { userId, paramCombos };
-
-    console.log("🚀 [Backtests] Batch Payload:", payload);
-
     try {
-      const result = await runBatchBacktests(payload);
-      console.log("✅ [Backtests] Batch Results:", result);
+      await runBatchBacktests({ userId, paramCombos });
     } catch (err) {
-      console.error("❌ [Backtests] runBatchBacktests failed:", err);
+      console.error("❌ runBatchBacktests failed:", err);
     }
   };
 
-  // --- Render strategy parameter inputs ---
+  // --- Render strategy parameters ---
   const renderStrategyParams = () =>
     Object.keys(strategyParams || {}).map((key) => (
       <label key={key} className="flex flex-col text-sm">
@@ -234,8 +217,6 @@ export default function Backtests() {
     </table>
   );
 
-  if (!options) return <p>Loading backtest options...</p>;
-
   return (
     <div className="p-6 space-y-6">
       <h2 className="text-2xl font-bold">Backtesting</h2>
@@ -271,11 +252,7 @@ export default function Backtests() {
 
         <label>
           Balance
-          <input
-            type="number"
-            value={selectedBalance}
-            onChange={(e) => setSelectedBalance(Number(e.target.value))}
-          />
+          <input type="number" value={selectedBalance} onChange={(e) => setSelectedBalance(Number(e.target.value))} />
         </label>
 
         <label>
@@ -315,7 +292,7 @@ export default function Backtests() {
         <label>
           <input
             type="checkbox"
-            checked={realism.useNews ?? false}
+            checked={realism.useNews}
             onChange={(e) => setRealism((prev) => ({ ...prev, useNews: e.target.checked }))}
           />
           Use News
@@ -323,7 +300,7 @@ export default function Backtests() {
         <label>
           <input
             type="checkbox"
-            checked={realism.useSlippage ?? false}
+            checked={realism.useSlippage}
             onChange={(e) => setRealism((prev) => ({ ...prev, useSlippage: e.target.checked }))}
           />
           Use Slippage
@@ -331,7 +308,7 @@ export default function Backtests() {
         <label>
           <input
             type="checkbox"
-            checked={realism.useSpread ?? false}
+            checked={realism.useSpread}
             onChange={(e) => setRealism((prev) => ({ ...prev, useSpread: e.target.checked }))}
           />
           Use Spread
