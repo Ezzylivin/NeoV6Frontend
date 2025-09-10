@@ -1,3 +1,4 @@
+// File: src/hooks/useBacktest.js
 import { useState, useEffect } from "react";
 import {
   fetchBacktestOptions,
@@ -33,6 +34,7 @@ export function useBacktest() {
       try {
         setLoading(true);
         const data = await fetchBacktestOptions();
+        console.log("Backtest options loaded:", data);
         setOptions({
           symbols: data?.symbols || [],
           strategies: data?.strategies || [],
@@ -69,7 +71,6 @@ export function useBacktest() {
     const strategyName = matchedStrategy?.name || "Default Strategy";
     const strategyParams = payload.strategy?.parameters || matchedStrategy?.parameters || {};
 
-    // --- Use availableDates from backend ---
     const startDate =
       payload.startDate ||
       options.availableDates?.[safeSymbol]?.[safeTimeframe]?.start ||
@@ -124,15 +125,11 @@ export function useBacktest() {
   // --- Run batch backtests ---
   const runBatchBacktests = async (payload) => {
     const safeParamCombos = (payload.paramCombos || []).map((p) => {
-      // Ensure each strategy uses its own parameters from options
-      const matchedStrategy =
+      const stratDefaults =
         options.strategies.find((s) => s.name === p.strategy?.name) || {};
       return mergeDefaults({
         ...p,
-        strategy: {
-          name: matchedStrategy.name || p.strategy?.name || "Default Strategy",
-          parameters: matchedStrategy.parameters || p.strategy?.parameters || {},
-        },
+        strategy: { name: stratDefaults.name, parameters: stratDefaults.parameters || {} },
       });
     });
 
