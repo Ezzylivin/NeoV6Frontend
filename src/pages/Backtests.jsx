@@ -26,11 +26,9 @@ export default function Backtests() {
     defaultRealism,
   } = useBacktest();
 
-  // --- Separate loading states ---
   const [loadingSingle, setLoadingSingle] = useState(false);
   const [loadingBatch, setLoadingBatch] = useState(false);
 
-  // --- Backtest controls ---
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [selectedStrategy, setSelectedStrategy] = useState("");
   const [selectedTimeframe, setSelectedTimeframe] = useState("");
@@ -47,7 +45,6 @@ export default function Backtests() {
   // --- Auto-set defaults when options load ---
   useEffect(() => {
     if (!options.symbols?.length || !options.strategies?.length) return;
-
     setSelectedSymbol(options.symbols[0] || "BTC/USDT");
     setSelectedStrategy(options.strategies[0]?.name || "Default Strategy");
     setSelectedTimeframe(options.timeframes?.[0] || "1h");
@@ -121,14 +118,19 @@ export default function Backtests() {
   // --- Run batch backtests ---
   const handleRunBatch = async () => {
     if (!userId) return alert("You must be logged in to run batch backtests.");
+
+    // --- Each strategy uses its own parameters ---
     const paramCombos = options.strategies?.map((s) => ({
       userId,
-      symbol: selectedSymbol || options.symbols?.[0],
-      timeframe: selectedTimeframe || options.timeframes?.[0],
+      symbol: selectedSymbol || options.symbols?.[0] || "BTC/USDT",
+      timeframe: selectedTimeframe || options.timeframes?.[0] || "1h",
       initialBalance: selectedBalance > 0 ? selectedBalance : 1000,
-      strategyId: s._id,
-      strategy: { name: s.name, parameters: strategyParams },
-      risk: selectedRisk || options.risks?.[0],
+      strategyId: s._id || null,
+      strategy: {
+        name: s.name,
+        parameters: s.parameters || {},
+      },
+      risk: selectedRisk || options.risks?.[0] || "Medium",
       takeProfit: selectedTP ?? undefined,
       stopLoss: selectedSL ?? undefined,
       startDate: selectedStartDate ?? undefined,
@@ -150,7 +152,6 @@ export default function Backtests() {
     }
   };
 
-  // --- Render strategy parameter inputs ---
   const renderStrategyParams = () =>
     Object.keys(strategyParams || {}).map((key) => (
       <label key={key} className="flex flex-col text-sm">
@@ -166,7 +167,6 @@ export default function Backtests() {
       </label>
     ));
 
-  // --- Render equity chart ---
   const renderChart = (data, color = "#8884d8") =>
     data?.length > 0 ? (
       <ResponsiveContainer width="100%" height={250}>
@@ -183,7 +183,6 @@ export default function Backtests() {
       <p>No equity data.</p>
     );
 
-  // --- Render summary table ---
   const renderSummary = (bt) => (
     <table className="w-full mt-2 text-sm border-collapse border border-gray-300">
       <tbody>
