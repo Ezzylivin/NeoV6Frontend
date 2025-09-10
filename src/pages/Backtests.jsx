@@ -28,6 +28,7 @@ export default function Backtests() {
     defaultRealism,
   } = useBacktest();
 
+  // --- Form state ---
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [selectedStrategy, setSelectedStrategy] = useState("");
   const [selectedTimeframe, setSelectedTimeframe] = useState("");
@@ -41,7 +42,7 @@ export default function Backtests() {
   const [strategyParams, setStrategyParams] = useState({});
   const [realism, setRealism] = useState(defaultRealism);
 
-  // Auto-set defaults when options load
+  // --- Auto-set defaults when options load ---
   useEffect(() => {
     if (!options.symbols?.length || !options.strategies?.length) return;
 
@@ -60,14 +61,14 @@ export default function Backtests() {
     options.positions,
   ]);
 
-  // Update strategy parameters whenever the selected strategy changes
+  // --- Update strategy parameters whenever the selected strategy changes ---
   useEffect(() => {
     if (!selectedStrategy) return;
     const strat = options.strategies?.find((s) => s.name === selectedStrategy);
     setStrategyParams(strat?.parameters || {});
   }, [selectedStrategy, options.strategies]);
 
-  // Auto-adjust start/end dates
+  // --- Auto-adjust start/end dates ---
   useEffect(() => {
     if (!selectedSymbol || !selectedTimeframe) return;
     const available = options.availableDates?.[selectedSymbol]?.[selectedTimeframe];
@@ -83,30 +84,39 @@ export default function Backtests() {
       return;
     }
 
+    // --- Safe defaults to avoid 400 errors ---
+    const symbol = selectedSymbol || options.symbols?.[0] || "BTC/USDT";
+    const timeframe = selectedTimeframe || options.timeframes?.[0] || "1h";
+    const balance = selectedBalance > 0 ? selectedBalance : 1000;
+    const strategy =
+      options.strategies?.find((s) => s.name === selectedStrategy) ||
+      options.strategies?.[0];
+
     const payload = {
       userId,
-      symbol: selectedSymbol,
-      timeframe: selectedTimeframe,
-      initialBalance: selectedBalance,
-      strategyId:
-        options.strategies?.find((s) => s.name === selectedStrategy)?._id || null,
-      strategy: { name: selectedStrategy, parameters: strategyParams },
-      risk: selectedRisk,
-      takeProfit: selectedTP,
-      stopLoss: selectedSL,
+      symbol,
+      timeframe,
+      initialBalance: balance,
+      strategyId: strategy?._id,
+      strategy: { name: strategy?.name, parameters: strategy?.parameters || {} },
+      risk: selectedRisk || "Medium",
+      takeProfit: selectedTP || undefined,
+      stopLoss: selectedSL || undefined,
       limit: undefined,
-      startDate: selectedStartDate || undefined,
-      endDate: selectedEndDate || undefined,
+      startDate:
+        selectedStartDate ||
+        options.availableDates?.[symbol]?.[timeframe]?.start,
+      endDate:
+        selectedEndDate || options.availableDates?.[symbol]?.[timeframe]?.end,
       useNews: realism.useNews,
       useSlippage: realism.useSlippage,
       useSpread: realism.useSpread,
       useRandomEvents: realism.randomEventProb > 0,
       baseSlippageBps: realism.slippage_bps,
-      positionSide: selectedPosition,
+      positionSide: selectedPosition || "Both",
       tradeConfig: {},
     };
 
-    // ✅ Log realism + params before running
     console.log("⚙️ Strategy Params:", strategyParams);
     console.log("🎭 Realism Settings:", realism);
     console.log("🚀 [Page] Single Payload Sent:", payload);
@@ -152,7 +162,6 @@ export default function Backtests() {
 
     const payload = { userId, paramCombos };
 
-    // ✅ Log realism + params before batch run
     console.log("⚙️ Strategy Params (Batch):", strategyParams);
     console.log("🎭 Realism Settings (Batch):", realism);
     console.log("🚀 [Page] Final Batch Payload:", payload);
@@ -165,7 +174,7 @@ export default function Backtests() {
     }
   };
 
-  // Render strategy params
+  // --- Render strategy parameters ---
   const renderStrategyParams = () =>
     Object.keys(strategyParams || {}).map((key) => (
       <label key={key} className="flex flex-col text-sm">
@@ -181,7 +190,7 @@ export default function Backtests() {
       </label>
     ));
 
-  // Render chart
+  // --- Render chart ---
   const renderChart = (data, color = "#8884d8") =>
     data?.length > 0 ? (
       <ResponsiveContainer width="100%" height={250}>
@@ -198,7 +207,7 @@ export default function Backtests() {
       <p>No equity data.</p>
     );
 
-  // Render summary
+  // --- Render summary ---
   const renderSummary = (bt) => (
     <table className="w-full mt-2 text-sm border-collapse border border-gray-300">
       <tbody>
@@ -230,6 +239,7 @@ export default function Backtests() {
 
       {/* Controls */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg shadow">
+        {/* Symbol */}
         <label className="flex flex-col text-sm">
           Symbol
           <select
@@ -245,6 +255,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Strategy */}
         <label className="flex flex-col text-sm">
           Strategy
           <select
@@ -260,6 +271,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Timeframe */}
         <label className="flex flex-col text-sm">
           Timeframe
           <select
@@ -275,6 +287,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Balance */}
         <label className="flex flex-col text-sm">
           Balance
           <select
@@ -290,6 +303,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Risk */}
         <label className="flex flex-col text-sm">
           Risk
           <select
@@ -305,6 +319,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Take Profit */}
         <label className="flex flex-col text-sm">
           Take Profit
           <select
@@ -321,6 +336,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Stop Loss */}
         <label className="flex flex-col text-sm">
           Stop Loss
           <select
@@ -337,6 +353,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Position */}
         <label className="flex flex-col text-sm">
           Position
           <select
@@ -352,6 +369,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Start Date */}
         <label className="flex flex-col text-sm">
           Start Date
           <input
@@ -362,6 +380,7 @@ export default function Backtests() {
           />
         </label>
 
+        {/* End Date */}
         <label className="flex flex-col text-sm">
           End Date
           <input
@@ -438,9 +457,7 @@ export default function Backtests() {
           {renderChart(currentBacktest.equityCurve)}
           {renderSummary(currentBacktest)}
           <details className="mt-2">
-            <summary className="font-semibold cursor-pointer">
-              View Full JSON
-            </summary>
+            <summary className="font-semibold cursor-pointer">View Full JSON</summary>
             <pre className="text-xs max-h-64 overflow-auto p-2 bg-gray-100 rounded">
               {JSON.stringify(currentBacktest, null, 2)}
             </pre>
@@ -471,9 +488,7 @@ export default function Backtests() {
         </div>
       )}
 
-      {error && (
-        <div className="text-red-600 font-semibold mt-2">Error: {error}</div>
-      )}
+      {error && <div className="text-red-600 font-semibold mt-2">Error: {error}</div>}
     </div>
   );
 }
