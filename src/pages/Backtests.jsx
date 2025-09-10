@@ -1,7 +1,7 @@
 // File: src/pages/Backtests.jsx
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
-import { useAuth } from "../context/AuthContext.jsx"; // <-- make sure this exists
+import { useAuth } from "../context/AuthContext.jsx";
 import {
   ResponsiveContainer,
   LineChart,
@@ -14,8 +14,8 @@ import {
 } from "recharts";
 
 export default function Backtests() {
-  const { user } = useAuth(); // ✅ get logged-in user info
-  const userId = user?.id; // ✅ backend requires this
+  const { user } = useAuth();
+  const userId = user?.id;
 
   const {
     options,
@@ -91,20 +91,31 @@ export default function Backtests() {
       return;
     }
 
-    await runBacktest({
-      userId, // ✅ required by backend
+    const strategyObj = options.strategies?.find((s) => s.name === selectedStrategy);
+
+    const payload = {
+      userId,
       symbol: selectedSymbol,
+      strategyId: strategyObj?._id, // ✅ include strategyId if available
       timeframe: selectedTimeframe,
       initialBalance: selectedBalance,
       strategy: { name: selectedStrategy, parameters: strategyParams },
       risk: selectedRisk,
       takeProfit: selectedTP,
       stopLoss: selectedSL,
-      position: selectedPosition,
-      realism,
+      positionSide: selectedPosition, // ✅ fixed name
       startDate: selectedStartDate || undefined,
       endDate: selectedEndDate || undefined,
-    });
+      // realism expanded:
+      useNews: realism.news || false,
+      useSlippage: realism.slippage || false,
+      useSpread: realism.spread || false,
+      useRandomEvents: realism.randomEvents || false,
+      baseSlippageBps: realism.slippage_bps || 0,
+    };
+
+    console.log("Sending backtest payload:", payload); // 🪵 debug
+    await runBacktest(payload);
   };
 
   // --- RUN BATCH BACKTESTS ---
@@ -115,21 +126,25 @@ export default function Backtests() {
     }
 
     await runBatchBacktests({
-      userId, // ✅ required by backend
-      symbols: options.symbols || [],
-      timeframes: options.timeframes || [],
-      balances: options.balances || [],
-      strategies: (options.strategies || []).map((s) => ({
-        name: s.name,
-        parameters: s.parameters || {},
+      userId,
+      paramCombos: (options.strategies || []).map((s) => ({
+        symbol: selectedSymbol,
+        strategyId: s._id,
+        timeframe: selectedTimeframe,
+        initialBalance: selectedBalance,
+        strategy: { name: s.name, parameters: s.parameters || {} },
+        risk: selectedRisk,
+        takeProfit: selectedTP,
+        stopLoss: selectedSL,
+        positionSide: selectedPosition,
+        startDate: selectedStartDate || undefined,
+        endDate: selectedEndDate || undefined,
+        useNews: realism.news || false,
+        useSlippage: realism.slippage || false,
+        useSpread: realism.spread || false,
+        useRandomEvents: realism.randomEvents || false,
+        baseSlippageBps: realism.slippage_bps || 0,
       })),
-      risks: options.risks || [],
-      takeProfits: options.takeProfits || [], // ✅ camelCase
-      stopLosses: options.stopLosses || [],   // ✅ camelCase
-      positions: options.positions || [],
-      realism,
-      startDate: selectedStartDate || undefined,
-      endDate: selectedEndDate || undefined,
     });
   };
 
