@@ -58,7 +58,14 @@ export default function Backtests() {
   useEffect(() => {
     if (!selectedStrategy) return;
     const strat = options.strategies?.find((s) => s.name === selectedStrategy);
-    setStrategyParams(strat?.parameters || {});
+    // Fill parameters with defaults if defined, else 0
+    const defaults = {};
+    if (strat?.parameters) {
+      Object.keys(strat.parameters).forEach((key) => {
+        defaults[key] = strat.parameters[key] ?? 0;
+      });
+    }
+    setStrategyParams(defaults);
   }, [selectedStrategy, options.strategies]);
 
   // --- Auto-adjust start/end dates ---
@@ -212,7 +219,7 @@ export default function Backtests() {
     <div className="p-6 space-y-6">
       <h2 className="text-2xl font-bold">Backtesting</h2>
 
-      {/* --- Controls --- */}
+      {/* Controls */}
       <div className="grid grid-cols-2 gap-4">
         <label>
           Symbol
@@ -275,10 +282,10 @@ export default function Backtests() {
         </label>
       </div>
 
-      {/* --- Strategy parameters --- */}
+      {/* Strategy parameters */}
       <div className="mt-4">{renderStrategyParams()}</div>
 
-      {/* --- Realism settings --- */}
+      {/* Realism settings */}
       <div className="mt-4 grid grid-cols-3 gap-4">
         <label>
           <input
@@ -306,7 +313,7 @@ export default function Backtests() {
         </label>
       </div>
 
-      {/* --- Run Buttons --- */}
+      {/* Run Buttons */}
       <div className="mt-4 flex gap-4">
         <button onClick={handleRunBacktest} className="px-4 py-2 bg-blue-600 text-white rounded">
           {loading ? "Running..." : "Run Backtest"}
@@ -316,10 +323,10 @@ export default function Backtests() {
         </button>
       </div>
 
-      {/* --- Error message --- */}
+      {/* Error message */}
       {error && <p className="text-red-600">{error}</p>}
 
-      {/* --- Single Backtest Result --- */}
+      {/* Single Backtest Result */}
       {currentBacktest && (
         <div className="mt-6 space-y-4">
           <h3 className="font-semibold">Single Backtest</h3>
@@ -328,7 +335,7 @@ export default function Backtests() {
         </div>
       )}
 
-      {/* --- Batch Backtest Results --- */}
+      {/* Batch Backtest Results */}
       {batchResults?.length > 0 && (
         <div className="mt-6 space-y-6">
           <h3 className="font-semibold">Batch Backtests</h3>
