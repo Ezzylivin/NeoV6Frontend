@@ -214,6 +214,7 @@ export default function Backtests() {
 
       {/* Controls */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg shadow">
+        {/* Symbol */}
         <label className="flex flex-col text-sm">
           Symbol
           <select
@@ -227,6 +228,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Strategy */}
         <label className="flex flex-col text-sm">
           Strategy
           <select
@@ -240,6 +242,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Timeframe */}
         <label className="flex flex-col text-sm">
           Timeframe
           <select
@@ -253,6 +256,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Balance */}
         <label className="flex flex-col text-sm">
           Balance
           <select
@@ -266,6 +270,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Risk */}
         <label className="flex flex-col text-sm">
           Risk
           <select
@@ -279,6 +284,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Take Profit */}
         <label className="flex flex-col text-sm">
           Take Profit
           <select
@@ -293,6 +299,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Stop Loss */}
         <label className="flex flex-col text-sm">
           Stop Loss
           <select
@@ -307,6 +314,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Position */}
         <label className="flex flex-col text-sm">
           Position
           <select
@@ -320,6 +328,7 @@ export default function Backtests() {
           </select>
         </label>
 
+        {/* Start Date */}
         <label className="flex flex-col text-sm">
           Start Date
           <input
@@ -330,6 +339,7 @@ export default function Backtests() {
           />
         </label>
 
+        {/* End Date */}
         <label className="flex flex-col text-sm">
           End Date
           <input
@@ -405,7 +415,6 @@ export default function Backtests() {
           <h3 className="text-lg font-bold">Current Backtest</h3>
           {renderChart(currentBacktest.equityCurve)}
           {renderSummary(currentBacktest)}
-          <details class
           <details className="mt-2">
             <summary className="font-semibold cursor-pointer">View Full JSON</summary>
             <pre className="text-xs max-h-64 overflow-auto p-2 bg-gray-100 rounded">
