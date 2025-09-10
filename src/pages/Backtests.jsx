@@ -29,6 +29,7 @@ export default function Backtests() {
   const [loadingSingle, setLoadingSingle] = useState(false);
   const [loadingBatch, setLoadingBatch] = useState(false);
 
+  // --- Backtest controls ---
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [selectedStrategy, setSelectedStrategy] = useState("");
   const [selectedTimeframe, setSelectedTimeframe] = useState("");
@@ -44,21 +45,15 @@ export default function Backtests() {
 
   // --- Auto-set defaults when options load ---
   useEffect(() => {
-    if (!options.symbols?.length || !options.strategies?.length) return;
-    setSelectedSymbol(options.symbols[0] || "BTC/USDT");
-    setSelectedStrategy(options.strategies[0]?.name || "Default Strategy");
-    setSelectedTimeframe(options.timeframes?.[0] || "1h");
-    setSelectedBalance(options.balances?.[0] || 1000);
-    setSelectedRisk(options.risks?.[0] || "Medium");
-    setSelectedPosition(options.positions?.[0] || "Both");
-  }, [
-    options.symbols,
-    options.strategies,
-    options.timeframes,
-    options.balances,
-    options.risks,
-    options.positions,
-  ]);
+    if (options.symbols?.length && options.strategies?.length) {
+      setSelectedSymbol(options.symbols[0]);
+      setSelectedStrategy(options.strategies[0]?.name);
+      setSelectedTimeframe(options.timeframes?.[0] || "1h");
+      setSelectedBalance(options.balances?.[0] || 1000);
+      setSelectedRisk(options.risks?.[0] || "Medium");
+      setSelectedPosition(options.positions?.[0] || "Both");
+    }
+  }, [options]);
 
   // --- Update strategy parameters when selected strategy changes ---
   useEffect(() => {
@@ -88,22 +83,22 @@ export default function Backtests() {
     const strat = options.strategies?.find((s) => s.name === selectedStrategy) || {};
     const payload = {
       userId,
-      symbol: selectedSymbol || options.symbols?.[0] || "BTC/USDT",
-      timeframe: selectedTimeframe || options.timeframes?.[0] || "1h",
+      symbol: selectedSymbol,
+      timeframe: selectedTimeframe,
       initialBalance: selectedBalance > 0 ? selectedBalance : 1000,
       strategyId: strat._id || null,
       strategy: { name: strat.name || selectedStrategy, parameters: strategyParams },
-      risk: selectedRisk || options.risks?.[0] || "Medium",
+      risk: selectedRisk,
       takeProfit: selectedTP ?? undefined,
       stopLoss: selectedSL ?? undefined,
-      startDate: selectedStartDate ?? undefined,
-      endDate: selectedEndDate ?? undefined,
+      startDate: selectedStartDate,
+      endDate: selectedEndDate,
       useNews: realism.useNews,
       useSlippage: realism.useSlippage,
       useSpread: realism.useSpread,
       useRandomEvents: realism.useRandomEvents ?? realism.randomEventProb > 0,
       baseSlippageBps: realism.slippage_bps,
-      positionSide: selectedPosition || options.positions?.[0] || "Both",
+      positionSide: selectedPosition,
       tradeConfig: {},
     };
 
@@ -118,29 +113,24 @@ export default function Backtests() {
   // --- Run batch backtests ---
   const handleRunBatch = async () => {
     if (!userId) return alert("You must be logged in to run batch backtests.");
-
-    // --- Each strategy uses its own parameters ---
     const paramCombos = options.strategies?.map((s) => ({
       userId,
-      symbol: selectedSymbol || options.symbols?.[0] || "BTC/USDT",
-      timeframe: selectedTimeframe || options.timeframes?.[0] || "1h",
+      symbol: selectedSymbol,
+      timeframe: selectedTimeframe,
       initialBalance: selectedBalance > 0 ? selectedBalance : 1000,
-      strategyId: s._id || null,
-      strategy: {
-        name: s.name,
-        parameters: s.parameters || {},
-      },
-      risk: selectedRisk || options.risks?.[0] || "Medium",
+      strategyId: s._id,
+      strategy: { name: s.name, parameters: strategyParams },
+      risk: selectedRisk,
       takeProfit: selectedTP ?? undefined,
       stopLoss: selectedSL ?? undefined,
-      startDate: selectedStartDate ?? undefined,
-      endDate: selectedEndDate ?? undefined,
+      startDate: selectedStartDate,
+      endDate: selectedEndDate,
       useNews: realism.useNews,
       useSlippage: realism.useSlippage,
       useSpread: realism.useSpread,
       useRandomEvents: realism.useRandomEvents ?? realism.randomEventProb > 0,
       baseSlippageBps: realism.slippage_bps,
-      positionSide: selectedPosition || options.positions?.[0] || "Both",
+      positionSide: selectedPosition,
       tradeConfig: {},
     }));
 
@@ -152,6 +142,7 @@ export default function Backtests() {
     }
   };
 
+  // --- Render strategy parameter inputs ---
   const renderStrategyParams = () =>
     Object.keys(strategyParams || {}).map((key) => (
       <label key={key} className="flex flex-col text-sm">
@@ -167,6 +158,7 @@ export default function Backtests() {
       </label>
     ));
 
+  // --- Render equity chart ---
   const renderChart = (data, color = "#8884d8") =>
     data?.length > 0 ? (
       <ResponsiveContainer width="100%" height={250}>
@@ -183,6 +175,7 @@ export default function Backtests() {
       <p>No equity data.</p>
     );
 
+  // --- Render summary table ---
   const renderSummary = (bt) => (
     <table className="w-full mt-2 text-sm border-collapse border border-gray-300">
       <tbody>
@@ -217,27 +210,33 @@ export default function Backtests() {
         <label>
           Symbol
           <select value={selectedSymbol} onChange={(e) => setSelectedSymbol(e.target.value)}>
-            {options.symbols?.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
+            {options.symbols?.length ? (
+              options.symbols.map((s) => <option key={s} value={s}>{s}</option>)
+            ) : (
+              <option disabled>Loading symbols...</option>
+            )}
           </select>
         </label>
 
         <label>
           Strategy
           <select value={selectedStrategy} onChange={(e) => setSelectedStrategy(e.target.value)}>
-            {options.strategies?.map((s) => (
-              <option key={s.name} value={s.name}>{s.name}</option>
-            ))}
+            {options.strategies?.length ? (
+              options.strategies.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)
+            ) : (
+              <option disabled>Loading strategies...</option>
+            )}
           </select>
         </label>
 
         <label>
           Timeframe
           <select value={selectedTimeframe} onChange={(e) => setSelectedTimeframe(e.target.value)}>
-            {options.timeframes?.map((tf) => (
-              <option key={tf} value={tf}>{tf}</option>
-            ))}
+            {options.timeframes?.length ? (
+              options.timeframes.map((tf) => <option key={tf} value={tf}>{tf}</option>)
+            ) : (
+              <option disabled>Loading timeframes...</option>
+            )}
           </select>
         </label>
 
@@ -249,18 +248,22 @@ export default function Backtests() {
         <label>
           Risk
           <select value={selectedRisk} onChange={(e) => setSelectedRisk(e.target.value)}>
-            {options.risks?.map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
+            {options.risks?.length ? (
+              options.risks.map((r) => <option key={r} value={r}>{r}</option>)
+            ) : (
+              <option disabled>Loading risks...</option>
+            )}
           </select>
         </label>
 
         <label>
           Position
           <select value={selectedPosition} onChange={(e) => setSelectedPosition(e.target.value)}>
-            {options.positions?.map((p) => (
-              <option key={p} value={p}>{p}</option>
-            ))}
+            {options.positions?.length ? (
+              options.positions.map((p) => <option key={p} value={p}>{p}</option>)
+            ) : (
+              <option disabled>Loading positions...</option>
+            )}
           </select>
         </label>
 
