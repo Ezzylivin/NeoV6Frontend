@@ -1,7 +1,7 @@
 // File: src/pages/Backtests.jsx
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
-import { useAuth } from "../context/AuthContext.jsx"; 
+import { useAuth } from "../context/AuthContext.jsx";
 import {
   ResponsiveContainer,
   LineChart,
@@ -43,19 +43,26 @@ export default function Backtests() {
 
   // Auto-set defaults when options load
   useEffect(() => {
-    if (!options.symbols?.length) return;
+    if (!options.symbols?.length || !options.strategies?.length) return;
+
     setSelectedSymbol((prev) => prev || options.symbols[0]);
-    setSelectedStrategy((prev) => prev || options.strategies?.[0]?.name || "");
+    setSelectedStrategy((prev) => prev || options.strategies[0].name);
     setSelectedTimeframe((prev) => prev || options.timeframes?.[0] || "1h");
     setSelectedBalance((prev) => prev || options.balances?.[0] || 1000);
     setSelectedRisk((prev) => prev || options.risks?.[0] || "Medium");
     setSelectedPosition((prev) => prev || options.positions?.[0] || "Both");
-    const strat = options.strategies?.find((s) => s.name === selectedStrategy);
-    if (strat?.parameters) setStrategyParams(strat.parameters);
-  }, [options]);
+  }, [
+    options.symbols,
+    options.strategies,
+    options.timeframes,
+    options.balances,
+    options.risks,
+    options.positions,
+  ]);
 
-  // Update strategy params when strategy changes
+  // Update strategy parameters whenever the selected strategy changes
   useEffect(() => {
+    if (!selectedStrategy) return;
     const strat = options.strategies?.find((s) => s.name === selectedStrategy);
     setStrategyParams(strat?.parameters || {});
   }, [selectedStrategy, options.strategies]);
@@ -81,12 +88,13 @@ export default function Backtests() {
       symbol: selectedSymbol,
       timeframe: selectedTimeframe,
       initialBalance: selectedBalance,
-      strategyId: options.strategies?.find((s) => s.name === selectedStrategy)?._id || null,
+      strategyId:
+        options.strategies?.find((s) => s.name === selectedStrategy)?._id || null,
       strategy: { name: selectedStrategy, parameters: strategyParams },
       risk: selectedRisk,
       takeProfit: selectedTP,
       stopLoss: selectedSL,
-      limit: undefined, 
+      limit: undefined,
       startDate: selectedStartDate || undefined,
       endDate: selectedEndDate || undefined,
       useNews: realism.useNews,
@@ -120,7 +128,8 @@ export default function Backtests() {
         symbol: selectedSymbol,
         timeframe: selectedTimeframe,
         initialBalance: selectedBalance,
-        strategyId: options.strategies?.find((s) => s.name === selectedStrategy)?._id || null,
+        strategyId:
+          options.strategies?.find((s) => s.name === selectedStrategy)?._id || null,
         strategy: { name: selectedStrategy, parameters: strategyParams },
         risk: selectedRisk,
         takeProfit: selectedTP,
@@ -214,7 +223,6 @@ export default function Backtests() {
 
       {/* Controls */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg shadow">
-        {/* Symbol */}
         <label className="flex flex-col text-sm">
           Symbol
           <select
@@ -223,12 +231,13 @@ export default function Backtests() {
             className="border p-1 rounded"
           >
             {options.symbols?.map((sym) => (
-              <option key={sym} value={sym}>{sym}</option>
+              <option key={sym} value={sym}>
+                {sym}
+              </option>
             ))}
           </select>
         </label>
 
-        {/* Strategy */}
         <label className="flex flex-col text-sm">
           Strategy
           <select
@@ -237,12 +246,13 @@ export default function Backtests() {
             className="border p-1 rounded"
           >
             {options.strategies?.map((s) => (
-              <option key={s.name} value={s.name}>{s.name}</option>
+              <option key={s.name} value={s.name}>
+                {s.name}
+              </option>
             ))}
           </select>
         </label>
 
-        {/* Timeframe */}
         <label className="flex flex-col text-sm">
           Timeframe
           <select
@@ -251,12 +261,13 @@ export default function Backtests() {
             className="border p-1 rounded"
           >
             {options.timeframes?.map((tf) => (
-              <option key={tf} value={tf}>{tf}</option>
+              <option key={tf} value={tf}>
+                {tf}
+              </option>
             ))}
           </select>
         </label>
 
-        {/* Balance */}
         <label className="flex flex-col text-sm">
           Balance
           <select
@@ -265,12 +276,13 @@ export default function Backtests() {
             className="border p-1 rounded"
           >
             {options.balances?.map((b) => (
-              <option key={b} value={b}>{b}</option>
+              <option key={b} value={b}>
+                {b}
+              </option>
             ))}
           </select>
         </label>
 
-        {/* Risk */}
         <label className="flex flex-col text-sm">
           Risk
           <select
@@ -279,12 +291,13 @@ export default function Backtests() {
             className="border p-1 rounded"
           >
             {options.risks?.map((r) => (
-              <option key={r} value={r}>{r}</option>
+              <option key={r} value={r}>
+                {r}
+              </option>
             ))}
           </select>
         </label>
 
-        {/* Take Profit */}
         <label className="flex flex-col text-sm">
           Take Profit
           <select
@@ -294,12 +307,13 @@ export default function Backtests() {
           >
             <option value="">None</option>
             {options.takeProfits?.map((tp) => (
-              <option key={tp} value={tp}>{tp}</option>
+              <option key={tp} value={tp}>
+                {tp}
+              </option>
             ))}
           </select>
         </label>
 
-        {/* Stop Loss */}
         <label className="flex flex-col text-sm">
           Stop Loss
           <select
@@ -309,12 +323,13 @@ export default function Backtests() {
           >
             <option value="">None</option>
             {options.stopLosses?.map((sl) => (
-              <option key={sl} value={sl}>{sl}</option>
+              <option key={sl} value={sl}>
+                {sl}
+              </option>
             ))}
           </select>
         </label>
 
-        {/* Position */}
         <label className="flex flex-col text-sm">
           Position
           <select
@@ -323,12 +338,13 @@ export default function Backtests() {
             className="border p-1 rounded"
           >
             {options.positions?.map((pos) => (
-              <option key={pos} value={pos}>{pos}</option>
+              <option key={pos} value={pos}>
+                {pos}
+              </option>
             ))}
           </select>
         </label>
 
-        {/* Start Date */}
         <label className="flex flex-col text-sm">
           Start Date
           <input
@@ -339,7 +355,6 @@ export default function Backtests() {
           />
         </label>
 
-        {/* End Date */}
         <label className="flex flex-col text-sm">
           End Date
           <input
@@ -416,7 +431,9 @@ export default function Backtests() {
           {renderChart(currentBacktest.equityCurve)}
           {renderSummary(currentBacktest)}
           <details className="mt-2">
-            <summary className="font-semibold cursor-pointer">View Full JSON</summary>
+            <summary className="font-semibold cursor-pointer">
+              View Full JSON
+            </summary>
             <pre className="text-xs max-h-64 overflow-auto p-2 bg-gray-100 rounded">
               {JSON.stringify(currentBacktest, null, 2)}
             </pre>
@@ -431,7 +448,8 @@ export default function Backtests() {
           {batchResults.map((bt, i) => (
             <div key={i} className="border p-2 rounded space-y-2">
               <h4 className="font-semibold">
-                {bt.saved?.symbol || "Unknown Symbol"} - {bt.saved?.timeframe || "Unknown Timeframe"}
+                {bt.saved?.symbol || "Unknown Symbol"} -{" "}
+                {bt.saved?.timeframe || "Unknown Timeframe"}
               </h4>
               {renderChart(bt.equityCurve, "#82ca9d")}
               {renderSummary(bt)}
@@ -447,9 +465,7 @@ export default function Backtests() {
       )}
 
       {error && (
-        <div className="text-red-600 font-semibold mt-2">
-          Error: {error}
-        </div>
+        <div className="text-red-600 font-semibold mt-2">Error: {error}</div>
       )}
     </div>
   );
