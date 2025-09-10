@@ -24,6 +24,8 @@ export default function Backtests() {
     runBacktest,
     runBatchBacktests,
     defaultRealism,
+    loadingSingle: hookLoadingSingle,
+    loadingBatch: hookLoadingBatch,
   } = useBacktest();
 
   const [loadingSingle, setLoadingSingle] = useState(false);
@@ -85,7 +87,7 @@ export default function Backtests() {
       userId,
       symbol: selectedSymbol,
       timeframe: selectedTimeframe,
-      initialBalance: selectedBalance > 0 ? selectedBalance : 1000,
+      initialBalance: Number(selectedBalance) || 1000,
       strategyId: strat._id || null,
       strategy: { name: strat.name || selectedStrategy, parameters: strategyParams },
       risk: selectedRisk,
@@ -117,7 +119,7 @@ export default function Backtests() {
       userId,
       symbol: selectedSymbol,
       timeframe: selectedTimeframe,
-      initialBalance: selectedBalance > 0 ? selectedBalance : 1000,
+      initialBalance: Number(selectedBalance) || 1000,
       strategyId: s._id,
       strategy: { name: s.name, parameters: strategyParams },
       risk: selectedRisk,
@@ -242,7 +244,11 @@ export default function Backtests() {
 
         <label>
           Balance
-          <input type="number" value={selectedBalance} onChange={(e) => setSelectedBalance(Number(e.target.value))} />
+          <input
+            type="number"
+            value={selectedBalance}
+            onChange={(e) => setSelectedBalance(Number(e.target.value))}
+          />
         </label>
 
         <label>
@@ -311,11 +317,19 @@ export default function Backtests() {
 
       {/* Run Buttons */}
       <div className="mt-4 flex gap-4">
-        <button onClick={handleRunBacktest} disabled={loadingSingle} className="px-4 py-2 bg-blue-600 text-white rounded">
-          {loadingSingle ? "Running..." : "Run Backtest"}
+        <button
+          onClick={handleRunBacktest}
+          disabled={loadingSingle || hookLoadingSingle}
+          className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+        >
+          {loadingSingle || hookLoadingSingle ? "Running..." : "Run Backtest"}
         </button>
-        <button onClick={handleRunBatch} disabled={loadingBatch} className="px-4 py-2 bg-green-600 text-white rounded">
-          {loadingBatch ? "Running..." : "Run Batch Backtests"}
+        <button
+          onClick={handleRunBatch}
+          disabled={loadingBatch || hookLoadingBatch}
+          className="px-4 py-2 bg-green-600 text-white rounded disabled:opacity-50"
+        >
+          {loadingBatch || hookLoadingBatch ? "Running..." : "Run Batch Backtests"}
         </button>
       </div>
 
