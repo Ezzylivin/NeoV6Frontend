@@ -45,7 +45,7 @@ export default function Backtests() {
   useEffect(() => {
     if (!options.symbols?.length || !options.strategies?.length) return;
 
-    setSelectedSymbol((prev) => prev || options.symbols[0] || "BTC/USDT");
+    setSelectedSymbol((prev) => prev || options.symbols[0]);
     setSelectedStrategy((prev) => prev || options.strategies[0].name);
     setSelectedTimeframe((prev) => prev || options.timeframes?.[0] || "1h");
     setSelectedBalance((prev) => prev || options.balances?.[0] || 1000);
@@ -83,30 +83,17 @@ export default function Backtests() {
       return;
     }
 
-    // Validate required fields
-    if (!selectedSymbol || !selectedTimeframe || !selectedStrategy || !selectedBalance) {
-      console.error("⚠️ Missing required fields:", {
-        symbol: selectedSymbol,
-        timeframe: selectedTimeframe,
-        strategy: selectedStrategy,
-        balance: selectedBalance,
-      });
-      alert("Please fill out all fields before running the backtest.");
-      return;
-    }
-
-    // Build payload with fallbacks
     const payload = {
       userId,
-      symbol: selectedSymbol || "BTC/USDT",
-      timeframe: selectedTimeframe || "1h",
-      initialBalance: selectedBalance > 0 ? selectedBalance : 1000,
+      symbol: selectedSymbol,
+      timeframe: selectedTimeframe,
+      initialBalance: selectedBalance,
       strategyId:
         options.strategies?.find((s) => s.name === selectedStrategy)?._id || null,
-      strategy: { name: selectedStrategy || "Default", parameters: strategyParams },
-      risk: selectedRisk || "Medium",
-      takeProfit: selectedTP ?? null,
-      stopLoss: selectedSL ?? null,
+      strategy: { name: selectedStrategy, parameters: strategyParams },
+      risk: selectedRisk,
+      takeProfit: selectedTP,
+      stopLoss: selectedSL,
       limit: undefined,
       startDate: selectedStartDate || undefined,
       endDate: selectedEndDate || undefined,
@@ -115,10 +102,13 @@ export default function Backtests() {
       useSpread: realism.useSpread,
       useRandomEvents: realism.randomEventProb > 0,
       baseSlippageBps: realism.slippage_bps,
-      positionSide: selectedPosition || "Both",
+      positionSide: selectedPosition,
       tradeConfig: {},
     };
 
+    // ✅ Log realism + params before running
+    console.log("⚙️ Strategy Params:", strategyParams);
+    console.log("🎭 Realism Settings:", realism);
     console.log("🚀 [Page] Single Payload Sent:", payload);
 
     try {
@@ -136,24 +126,17 @@ export default function Backtests() {
       return;
     }
 
-    // Same validation for batch
-    if (!selectedSymbol || !selectedTimeframe || !selectedStrategy || !selectedBalance) {
-      console.error("⚠️ Missing required fields for batch run");
-      alert("Please fill out all fields before running batch backtests.");
-      return;
-    }
-
     const paramCombos = [
       {
-        symbol: selectedSymbol || "BTC/USDT",
-        timeframe: selectedTimeframe || "1h",
-        initialBalance: selectedBalance > 0 ? selectedBalance : 1000,
+        symbol: selectedSymbol,
+        timeframe: selectedTimeframe,
+        initialBalance: selectedBalance,
         strategyId:
           options.strategies?.find((s) => s.name === selectedStrategy)?._id || null,
-        strategy: { name: selectedStrategy || "Default", parameters: strategyParams },
-        risk: selectedRisk || "Medium",
-        takeProfit: selectedTP ?? null,
-        stopLoss: selectedSL ?? null,
+        strategy: { name: selectedStrategy, parameters: strategyParams },
+        risk: selectedRisk,
+        takeProfit: selectedTP,
+        stopLoss: selectedSL,
         limit: undefined,
         startDate: selectedStartDate || undefined,
         endDate: selectedEndDate || undefined,
@@ -162,12 +145,16 @@ export default function Backtests() {
         useSpread: realism.useSpread,
         useRandomEvents: realism.randomEventProb > 0,
         baseSlippageBps: realism.slippage_bps,
-        positionSide: selectedPosition || "Both",
+        positionSide: selectedPosition,
         tradeConfig: {},
       },
     ];
 
     const payload = { userId, paramCombos };
+
+    // ✅ Log realism + params before batch run
+    console.log("⚙️ Strategy Params (Batch):", strategyParams);
+    console.log("🎭 Realism Settings (Batch):", realism);
     console.log("🚀 [Page] Final Batch Payload:", payload);
 
     try {
