@@ -1,148 +1,440 @@
-// File: src/hooks/useBacktest.js
-import { useState, useEffect } from "react";
+// File: src/pages/Backtests.jsx
+import React, { useState, useEffect } from "react";
+import { useBacktest } from "../hooks/useBacktest.js";
+import { useAuth } from "../context/AuthContext.jsx";
 import {
-  fetchBacktestOptions,
-  runBacktest as apiRunBacktest,
-  runBatchBacktests as apiRunBatchBacktests,
-} from "../api/backtest.js";
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  CartesianGrid,
+} from "recharts";
 
-export function useBacktest() {
-  const [options, setOptions] = useState({});
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [currentBacktest, setCurrentBacktest] = useState(null);
-  const [batchResults, setBatchResults] = useState([]);
-  const [defaultRealism, setDefaultRealism] = useState({
-    useSlippage: true,
-    useSpread: true,
-    useNews: true,
-    useRandomEvents: true,
-    randomEventProb: 0.005,
-    slippage_bps: 5,
-  });
+export default function Backtests() {
+  const { user } = useAuth();
+  const userId = user?.id;
 
-  const [dateRange, setDateRange] = useState({
-    startDate: "",
-    endDate: "",
-  });
-
-  // Fetch options on mount
-  useEffect(() => {
-    const fetchOptions = async () => {
-      try {
-        const data = await fetchBacktestOptions();
-        setOptions(data);
-      } catch (err) {
-        console.error("[Hook] fetchBacktestOptions failed:", err);
-        setError("Failed to load backtest options.");
-      }
-    };
-    fetchOptions();
-  }, []);
-
-  // --- Run single backtest ---
-  const runBacktest = async (payload) => {
-    setLoading(true);
-    setError("");
-    try {
-      const cleanPayload = {
-        userId: payload.userId,
-        symbol: payload.symbol,
-        timeframe: payload.timeframe,
-        initialBalance: payload.initialBalance,
-        strategyId: payload.strategyId || null,
-        strategy: payload.strategy || {},
-        risk: payload.risk,
-        takeProfit: payload.takeProfit,
-        stopLoss: payload.stopLoss,
-        limit: payload.limit || undefined,
-        startDate: payload.startDate || undefined,
-        endDate: payload.endDate || undefined,
-        useNews: payload.useNews ?? true,
-        useSlippage: payload.useSlippage ?? true,
-        useSpread: payload.useSpread ?? true,
-        useRandomEvents: payload.useRandomEvents ?? false,
-        baseSlippageBps: payload.baseSlippageBps ?? 5,
-        positionSide: payload.positionSide || "Both",
-        tradeConfig: payload.tradeConfig || {},
-      };
-
-      console.log("[Hook] runBacktest outgoing payload:", JSON.stringify(cleanPayload, null, 2));
-
-      const result = await apiRunBacktest(cleanPayload);
-      setCurrentBacktest(result);
-      return result;
-    } catch (err) {
-      console.error("[Hook] runBacktest failed:", err);
-      setError(err.message || "Backtest failed");
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // --- Run batch backtests ---
-  const runBatchBacktests = async (payload) => {
-    setLoading(true);
-    setError("");
-    try {
-      const cleanParamCombos = (payload.paramCombos || []).map((p) => ({
-        userId: payload.userId,
-        symbol: p.symbol,
-        timeframe: p.timeframe,
-        initialBalance: p.initialBalance,
-        strategyId: p.strategyId || null,
-        strategy: p.strategy || {},
-        risk: p.risk,
-        takeProfit: p.takeProfit,
-        stopLoss: p.stopLoss,
-        limit: p.limit || undefined,
-        startDate: p.startDate || undefined,
-        endDate: p.endDate || undefined,
-        useNews: p.useNews ?? true,
-        useSlippage: p.useSlippage ?? true,
-        useSpread: p.useSpread ?? true,
-        useRandomEvents: p.useRandomEvents ?? false,
-        baseSlippageBps: p.baseSlippageBps ?? 5,
-        positionSide: p.positionSide || "Both",
-        tradeConfig: p.tradeConfig || {},
-      }));
-
-      const cleanPayload = {
-        userId: payload.userId,
-        paramCombos: cleanParamCombos,
-      };
-
-      console.log("[Hook] runBatchBacktests outgoing payload:", JSON.stringify(cleanPayload, null, 2));
-
-      const { results } = await apiRunBatchBacktests(cleanPayload);
-      setBatchResults(results);
-      return results;
-    } catch (err) {
-      console.error("[Hook] runBatchBacktests failed:", err);
-      setError(err.message || "Batch backtests failed");
-      return [];
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Optional utility to update date range
-  const updateDateRange = (startDate, endDate) => {
-    setDateRange({ startDate: startDate || "", endDate: endDate || "" });
-  };
-
-  return {
+  const {
     options,
     loading,
     error,
     currentBacktest,
-    batchResults,
-    defaultRealism,
-    dateRange,
     runBacktest,
+    batchResults,
     runBatchBacktests,
-    updateDateRange,
-    setDefaultRealism,
+    defaultRealism,
+  } = useBacktest();
+
+  const [selectedSymbol, setSelectedSymbol] = useState("");
+  const [selectedStrategy, setSelectedStrategy] = useState("");
+  const [selectedTimeframe, setSelectedTimeframe] = useState("");
+  const [selectedBalance, setSelectedBalance] = useState(0);
+  const [selectedRisk, setSelectedRisk] = useState("");
+  const [selectedTP, setSelectedTP] = useState(null);
+  const [selectedSL, setSelectedSL] = useState(null);
+  const [selectedPosition, setSelectedPosition] = useState("");
+  const [selectedStartDate, setSelectedStartDate] = useState("");
+  const [selectedEndDate, setSelectedEndDate] = useState("");
+  const [strategyParams, setStrategyParams] = useState({});
+  const [realism, setRealism] = useState(defaultRealism);
+
+  // --- AUTO-SET DEFAULTS WHEN OPTIONS LOAD ---
+  useEffect(() => {
+    if (!options.symbols?.length || !options.strategies?.length) return;
+
+    setSelectedSymbol((prev) => prev || options.symbols[0]);
+    setSelectedStrategy((prev) => prev || options.strategies[0].name);
+    setSelectedTimeframe((prev) => prev || options.timeframes?.[0] || "1h");
+    setSelectedBalance((prev) => prev || options.balances?.[0] || 1000);
+    setSelectedRisk((prev) => prev || options.risks?.[0] || "Medium");
+    setSelectedPosition((prev) => prev || options.positions?.[0] || "Both");
+  }, [options]);
+
+  // --- UPDATE STRATEGY PARAMS WHEN STRATEGY CHANGES ---
+  useEffect(() => {
+    const strat = options.strategies?.find((s) => s.name === selectedStrategy);
+    setStrategyParams(strat?.parameters || {});
+  }, [selectedStrategy, options.strategies]);
+
+  // --- AUTO-ADJUST START/END DATES ---
+  useEffect(() => {
+    if (!selectedSymbol || !selectedTimeframe) return;
+    const available = options.availableDates?.[selectedSymbol]?.[selectedTimeframe];
+    if (!available) return;
+
+    setSelectedStartDate((prev) => prev || available.start);
+    setSelectedEndDate((prev) => prev || available.end);
+  }, [selectedSymbol, selectedTimeframe, options.availableDates]);
+
+  // --- RUN SINGLE BACKTEST ---
+  const handleRunBacktest = async () => {
+    if (!userId) return alert("You must be logged in to run backtests.");
+
+    const payload = {
+      userId,
+      symbol: selectedSymbol,
+      timeframe: selectedTimeframe,
+      initialBalance: selectedBalance,
+      strategyId: options.strategies?.find((s) => s.name === selectedStrategy)?._id || null,
+      strategy: { name: selectedStrategy, parameters: strategyParams },
+      risk: selectedRisk,
+      takeProfit: selectedTP,
+      stopLoss: selectedSL,
+      limit: undefined,
+      startDate: selectedStartDate || undefined,
+      endDate: selectedEndDate || undefined,
+      useNews: realism.useNews,
+      useSlippage: realism.useSlippage,
+      useSpread: realism.useSpread,
+      useRandomEvents: realism.randomEventProb > 0,
+      baseSlippageBps: realism.slippage_bps,
+      positionSide: selectedPosition,
+      tradeConfig: {},
+    };
+
+    console.log("🚀 Single Payload:", payload);
+    try {
+      const result = await runBacktest(payload);
+      console.log("✅ Backtest Result:", result);
+    } catch (err) {
+      console.error("❌ runBacktest failed:", err);
+    }
   };
+
+  // --- RUN BATCH BACKTESTS ---
+  const handleRunBatch = async () => {
+    if (!userId) return alert("You must be logged in to run batch backtests.");
+
+    const paramCombos = [
+      {
+        symbol: selectedSymbol,
+        timeframe: selectedTimeframe,
+        initialBalance: selectedBalance,
+        strategyId: options.strategies?.find((s) => s.name === selectedStrategy)?._id || null,
+        strategy: { name: selectedStrategy, parameters: strategyParams },
+        risk: selectedRisk,
+        takeProfit: selectedTP,
+        stopLoss: selectedSL,
+        limit: undefined,
+        startDate: selectedStartDate || undefined,
+        endDate: selectedEndDate || undefined,
+        useNews: realism.useNews,
+        useSlippage: realism.useSlippage,
+        useSpread: realism.useSpread,
+        useRandomEvents: realism.randomEventProb > 0,
+        baseSlippageBps: realism.slippage_bps,
+        positionSide: selectedPosition,
+        tradeConfig: {},
+      },
+    ];
+
+    const payload = { userId, paramCombos };
+    console.log("🚀 Batch Payload:", payload);
+
+    try {
+      const result = await runBatchBacktests(payload);
+      console.log("✅ Batch Results:", result);
+    } catch (err) {
+      console.error("❌ runBatchBacktests failed:", err);
+    }
+  };
+
+  // --- RENDER STRATEGY PARAMETERS ---
+  const renderStrategyParams = () =>
+    Object.keys(strategyParams || {}).map((key) => (
+      <label key={key} className="flex flex-col text-sm">
+        {key.charAt(0).toUpperCase() + key.slice(1)}
+        <input
+          type="number"
+          value={strategyParams[key]}
+          onChange={(e) =>
+            setStrategyParams((prev) => ({ ...prev, [key]: Number(e.target.value) }))
+          }
+          className="border p-1 rounded w-full"
+        />
+      </label>
+    ));
+
+  // --- RENDER CHART ---
+  const renderChart = (data, color = "#8884d8") =>
+    data?.length > 0 ? (
+      <ResponsiveContainer width="100%" height={250}>
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="time" />
+          <YAxis />
+          <Tooltip />
+          <Legend />
+          <Line type="monotone" dataKey="equity" stroke={color} />
+        </LineChart>
+      </ResponsiveContainer>
+    ) : (
+      <p>No equity data.</p>
+    );
+
+  // --- RENDER SUMMARY ---
+  const renderSummary = (bt) => (
+    <table className="w-full mt-2 text-sm border-collapse border border-gray-300">
+      <tbody>
+        <tr>
+          <td className="border p-1 font-semibold">Trades</td>
+          <td className="border p-1">{bt.trades?.length || 0}</td>
+        </tr>
+        <tr>
+          <td className="border p-1 font-semibold">Final Balance</td>
+          <td className="border p-1">
+            ${bt.equityCurve?.slice(-1)[0]?.equity?.toFixed(2) || 0}
+          </td>
+        </tr>
+        <tr>
+          <td className="border p-1 font-semibold">Max Drawdown</td>
+          <td className="border p-1">{bt.metrics?.maxDrawdown?.toFixed(2) || 0}%</td>
+        </tr>
+        <tr>
+          <td className="border p-1 font-semibold">Net Profit</td>
+          <td className="border p-1">{bt.metrics?.netProfit?.toFixed(2) || 0}</td>
+        </tr>
+      </tbody>
+    </table>
+  );
+
+  return (
+    <div className="p-6 space-y-6">
+      <h2 className="text-2xl font-bold">Backtesting</h2>
+
+      {/* Controls */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg shadow">
+        {/* Symbol */}
+        <label className="flex flex-col text-sm">
+          Symbol
+          <select
+            value={selectedSymbol}
+            onChange={(e) => setSelectedSymbol(e.target.value)}
+            className="border p-1 rounded"
+          >
+            {options.symbols?.map((sym) => (
+              <option key={sym} value={sym}>{sym}</option>
+            ))}
+          </select>
+        </label>
+
+        {/* Strategy */}
+        <label className="flex flex-col text-sm">
+          Strategy
+          <select
+            value={selectedStrategy}
+            onChange={(e) => setSelectedStrategy(e.target.value)}
+            className="border p-1 rounded"
+          >
+            {options.strategies?.map((s) => (
+              <option key={s.name} value={s.name}>{s.name}</option>
+            ))}
+          </select>
+        </label>
+
+        {/* Timeframe */}
+        <label className="flex flex-col text-sm">
+          Timeframe
+          <select
+            value={selectedTimeframe}
+            onChange={(e) => setSelectedTimeframe(e.target.value)}
+            className="border p-1 rounded"
+          >
+            {options.timeframes?.map((tf) => (
+              <option key={tf} value={tf}>{tf}</option>
+            ))}
+          </select>
+        </label>
+
+        {/* Balance */}
+        <label className="flex flex-col text-sm">
+          Balance
+          <select
+            value={selectedBalance}
+            onChange={(e) => setSelectedBalance(Number(e.target.value))}
+            className="border p-1 rounded"
+          >
+            {options.balances?.map((b) => (
+              <option key={b} value={b}>{b}</option>
+            ))}
+          </select>
+        </label>
+
+        {/* Risk */}
+        <label className="flex flex-col text-sm">
+          Risk
+          <select
+            value={selectedRisk}
+            onChange={(e) => setSelectedRisk(e.target.value)}
+            className="border p-1 rounded"
+          >
+            {options.risks?.map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+        </label>
+
+        {/* Take Profit */}
+        <label className="flex flex-col text-sm">
+          Take Profit
+          <select
+            value={selectedTP || ""}
+            onChange={(e) => setSelectedTP(Number(e.target.value))}
+            className="border p-1 rounded"
+          >
+            <option value="">None</option>
+            {options.takeProfits?.map((tp) => (
+              <option key={tp} value={tp}>{tp}</option>
+            ))}
+          </select>
+        </label>
+
+        {/* Stop Loss */}
+        <label className="flex flex-col text-sm">
+          Stop Loss
+          <select
+            value={selectedSL || ""}
+            onChange={(e) => setSelectedSL(Number(e.target.value))}
+            className="border p-1 rounded"
+          >
+            <option value="">None</option>
+            {options.stopLosses?.map((sl) => (
+              <option key={sl} value={sl}>{sl}</option>
+            ))}
+          </select>
+        </label>
+
+        {/* Position */}
+        <label className="flex flex-col text-sm">
+          Position
+          <select
+            value={selectedPosition}
+            onChange={(e) => setSelectedPosition(e.target.value)}
+            className="border p-1 rounded"
+          >
+            {options.positions?.map((pos) => (
+              <option key={pos} value={pos}>{pos}</option>
+            ))}
+          </select>
+        </label>
+
+        {/* Start Date */}
+        <label className="flex flex-col text-sm">
+          Start Date
+          <input
+            type="date"
+            value={selectedStartDate}
+            onChange={(e) => setSelectedStartDate(e.target.value)}
+            className="border p-1 rounded"
+          />
+        </label>
+
+        {/* End Date */}
+        <label className="flex flex-col text-sm">
+          End Date
+          <input
+            type="date"
+            value={selectedEndDate}
+            onChange={(e) => setSelectedEndDate(e.target.value)}
+            className="border p-1 rounded"
+          />
+        </label>
+      </div>
+
+      {/* Strategy Params */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg shadow">
+        {renderStrategyParams()}
+      </div>
+
+      {/* Realism */}
+      <div className="flex flex-wrap gap-4 items-center bg-gray-50 p-4 rounded-lg shadow">
+        {Object.keys(defaultRealism).map((key) =>
+          key !== "slippage_bps" ? (
+            <label key={key} className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={realism[key]}
+                onChange={() => setRealism((prev) => ({ ...prev, [key]: !prev[key] }))}
+              />
+              {key}
+            </label>
+          ) : (
+            <label key={key} className="flex items-center gap-2">
+              Slippage Bps:
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={realism.slippage_bps}
+                onChange={(e) =>
+                  setRealism((prev) => ({ ...prev, slippage_bps: Number(e.target.value) }))
+                }
+                className="border p-1 w-20 rounded"
+              />
+            </label>
+          )
+        )}
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex gap-4 mt-4">
+        <button
+          onClick={handleRunBacktest}
+          disabled={loading}
+          className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700"
+        >
+          Run Backtest
+        </button>
+        <button
+          onClick={handleRunBatch}
+          disabled={loading}
+          className="bg-green-600 text-white p-2 rounded hover:bg-green-700"
+        >
+          Run Batch
+        </button>
+      </div>
+
+      {/* Current Backtest */}
+      {currentBacktest && (
+        <div className="bg-white p-4 shadow rounded-lg space-y-4">
+          <h3 className="text-lg font-bold">Current Backtest</h3>
+          {renderChart(currentBacktest.equityCurve)}
+          {renderSummary(currentBacktest)}
+          <details className="mt-2">
+            <summary className="font-semibold cursor-pointer">View Full JSON</summary>
+            <pre className="text-xs max-h-64 overflow-auto p-2 bg-gray-100 rounded">
+              {JSON.stringify(currentBacktest, null, 2)}
+            </pre>
+          </details>
+        </div>
+      )}
+
+      {/* Batch Results */}
+      {batchResults?.length > 0 && (
+        <div className="bg-white p-4 shadow rounded-lg space-y-6">
+          <h3 className="text-lg font-bold">Batch Results</h3>
+          {batchResults.map((bt, i) => (
+            <div key={i} className="border p-2 rounded space-y-2">
+              <h4 className="font-semibold">
+                {bt.saved?.symbol || "Unknown Symbol"} - {bt.saved?.timeframe || "Unknown Timeframe"}
+              </h4>
+              {renderChart(bt.equityCurve, "#82ca9d")}
+              {renderSummary(bt)}
+              <details className="mt-1">
+                <summary className="font-semibold cursor-pointer">View JSON</summary>
+                <pre className="text-xs max-h-64 overflow-auto p-2 bg-gray-100 rounded">
+                  {JSON.stringify(bt, null, 2)}
+                </pre>
+              </details>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {error && <div className="text-red-600 font-semibold mt-2">Error: {error}</div>}
+    </div>
+  );
 }
