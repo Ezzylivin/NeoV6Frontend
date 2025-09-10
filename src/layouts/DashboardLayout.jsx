@@ -1,8 +1,8 @@
 // File: src/components/Dashboard.jsx
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import StrategyList from "./StrategyList";
-import StrategyForm from "./StrategyForm";
+import StrategyList from "./strategyList.jsx";
+import StrategyForm from "./strategyForm.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const Dashboard = () => {
