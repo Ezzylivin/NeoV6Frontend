@@ -66,7 +66,7 @@ export default function Backtests() {
   useEffect(() => {
     const fetchOptions = async () => {
       try {
-        const res = await axios.get("/api/backtest/options"); // endpoint returning all available symbols, strategies, timeframes, etc.
+        const res = await axios.get("/backtest/options"); // endpoint returning all available symbols, strategies, timeframes, etc.
         setOptions(res.data);
 
         // Auto-select defaults
@@ -161,7 +161,7 @@ export default function Backtests() {
     }
     const newStrategy = { name: newStrategyName, parameters: newStrategyParams, userId };
     try {
-      const response = await axios.post("/api/strategies/save", newStrategy);
+      const response = await axios.post("/strategies/save", newStrategy);
       if (response.data.success) {
         setStrategyMessage("✅ Strategy created! It will appear in the dropdown.");
         setNewStrategyName("");
