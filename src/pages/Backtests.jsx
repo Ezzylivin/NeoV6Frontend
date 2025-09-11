@@ -12,6 +12,9 @@ import {
   Tooltip,
   Legend,
   CartesianGrid,
+  BarChart,
+  Bar,
+  Cell,
 } from "recharts";
 
 export default function Backtests() {
@@ -27,8 +30,7 @@ export default function Backtests() {
     defaultRealism,
   } = useBacktest();
 
-  const [activeTab, setActiveTab] = useState("backtests");
-
+  // Local state for selectors
   const [options, setOptions] = useState({
     symbols: [],
     strategies: [],
@@ -45,7 +47,6 @@ export default function Backtests() {
   const [loadingBatch, setLoadingBatch] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
 
-  // Backtest controls
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [selectedStrategy, setSelectedStrategy] = useState("");
   const [selectedTimeframe, setSelectedTimeframe] = useState("");
@@ -56,56 +57,52 @@ export default function Backtests() {
   const [selectedPosition, setSelectedPosition] = useState("");
   const [selectedStartDate, setSelectedStartDate] = useState("");
   const [selectedEndDate, setSelectedEndDate] = useState("");
+
   const [strategyParams, setStrategyParams] = useState({});
   const [realism, setRealism] = useState(defaultRealism);
 
-  // Strategy creator
+  // New strategy state
   const [newStrategyName, setNewStrategyName] = useState("");
   const [newStrategyParams, setNewStrategyParams] = useState({ param1: 0 });
   const [strategyMessage, setStrategyMessage] = useState("");
 
-  // Preview results
   const [previewBacktest, setPreviewBacktest] = useState(null);
+  const [activeTab, setActiveTab] = useState("backtests");
 
-  // Sync hook options to local state and set defaults
+  // Sync hook options to local state
   useEffect(() => {
     if (!hookOptions) return;
+
     setOptions(hookOptions);
 
-    const last = JSON.parse(localStorage.getItem("lastBacktestParams"));
-    if (last) {
-      setSelectedSymbol(last.selectedSymbol || hookOptions.symbols?.[0] || "");
-      setSelectedStrategy(last.selectedStrategy || hookOptions.strategies?.[0]?.name || "");
-      setSelectedTimeframe(last.selectedTimeframe || hookOptions.timeframes?.[0] || "1h");
-      setSelectedBalance(last.selectedBalance || hookOptions.balances?.[0] || 1000);
-      setSelectedRisk(last.selectedRisk || hookOptions.risks?.[0] || "Medium");
-      setSelectedPosition(last.selectedPosition || hookOptions.positions?.[0] || "Both");
-      setSelectedStartDate(last.selectedStartDate || "");
-      setSelectedEndDate(last.selectedEndDate || "");
-    } else {
-      setSelectedSymbol(hookOptions.symbols?.[0] || "");
-      setSelectedStrategy(hookOptions.strategies?.[0]?.name || "");
-      setSelectedTimeframe(hookOptions.timeframes?.[0] || "1h");
-      setSelectedBalance(hookOptions.balances?.[0] || 1000);
-      setSelectedRisk(hookOptions.risks?.[0] || "Medium");
-      setSelectedPosition(hookOptions.positions?.[0] || "Both");
-    }
+    // Set defaults from localStorage or first available
+    const last = JSON.parse(localStorage.getItem("lastBacktestParams") || "{}");
+    setSelectedSymbol(last.selectedSymbol || hookOptions.symbols?.[0] || "");
+    setSelectedStrategy(last.selectedStrategy || hookOptions.strategies?.[0]?.name || "");
+    setSelectedTimeframe(last.selectedTimeframe || hookOptions.timeframes?.[0] || "1h");
+    setSelectedBalance(last.selectedBalance || hookOptions.balances?.[0] || 1000);
+    setSelectedRisk(last.selectedRisk || hookOptions.risks?.[0] || "Medium");
+    setSelectedPosition(last.selectedPosition || hookOptions.positions?.[0] || "Both");
+    setSelectedTP(last.selectedTP || hookOptions.takeProfits?.[0] || "");
+    setSelectedSL(last.selectedSL || hookOptions.stopLosses?.[0] || "");
   }, [hookOptions]);
 
-  // Initialize strategy params for selected strategy
+  // Update strategy params when selection changes
   useEffect(() => {
     if (!selectedStrategy) return;
     const strat = options.strategies?.find((s) => s.name === selectedStrategy);
-    const defaults = {};
-    if (strat?.params) {
-      Object.keys(strat.params).forEach((key) => {
-        defaults[key] = strat.params[key]?.default ?? 0;
-      });
+    if (!strat?.params) {
+      setStrategyParams({});
+      return;
     }
+    const defaults = {};
+    Object.keys(strat.params).forEach((k) => {
+      defaults[k] = strat.params[k]?.default ?? 0;
+    });
     setStrategyParams(defaults);
   }, [selectedStrategy, options.strategies]);
 
-  // Auto-adjust dates based on symbol/timeframe availability
+  // Auto adjust dates if available
   useEffect(() => {
     if (!selectedSymbol || !selectedTimeframe) return;
     const available = options.availableDates?.[selectedSymbol]?.[selectedTimeframe];
@@ -114,19 +111,18 @@ export default function Backtests() {
     setSelectedEndDate(available.end);
   }, [selectedSymbol, selectedTimeframe, options.availableDates]);
 
-  // Render parameter inputs for new strategy
+  // New strategy param handling
   const renderNewStrategyParams = () =>
     Object.keys(newStrategyParams).map((key) => {
       const template = options.strategies?.find((s) => s.name === selectedStrategy);
       const paramInfo = template?.params?.[key] ?? {};
-      const desc = paramInfo?.description || "Adjust this parameter to change strategy behavior.";
+      const desc = paramInfo?.description || "Adjust this parameter.";
       const example =
         paramInfo?.example !== undefined
           ? `Example: ${paramInfo.example}`
           : paramInfo?.default !== undefined
           ? `Example: ${paramInfo.default}`
           : "";
-
       return (
         <div key={key} className="flex flex-col space-y-1 mt-2">
           <div className="flex justify-between items-center">
@@ -147,7 +143,6 @@ export default function Backtests() {
           <input
             type="number"
             value={newStrategyParams[key]}
-            placeholder="Enter value"
             onChange={(e) =>
               setNewStrategyParams((prev) => ({ ...prev, [key]: Number(e.target.value) }))
             }
@@ -158,7 +153,6 @@ export default function Backtests() {
       );
     });
 
-  // Render selected strategy params
   const renderSelectedStrategyParams = () =>
     Object.keys(strategyParams).map((key) => {
       const strat = options.strategies?.find((s) => s.name === selectedStrategy);
@@ -290,6 +284,8 @@ export default function Backtests() {
           selectedBalance,
           selectedRisk,
           selectedPosition,
+          selectedTP,
+          selectedSL,
           selectedStartDate,
           selectedEndDate,
         })
@@ -334,211 +330,224 @@ export default function Backtests() {
     }
   };
 
+  const formatTimestamp = (ts) => (ts ? new Date(ts).toLocaleString() : "");
+
   const renderChart = (data) => {
-    if (!data || !data.length) return <p className="text-sm text-gray-500">No equity data.</p>;
-    const sample = data[0] || {};
-    const key = "equity" in sample ? "equity" : "balance" in sample ? "balance" : Object.keys(sample).find(k => typeof sample[k] === "number") || "value";
+    if (!data || !data.length) return null;
     return (
       <ResponsiveContainer width="100%" height={300}>
         <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="time" tickFormatter={(t) => {
-            try { return new Date(t).toLocaleString(); } catch { return t; }
-          }} />
+          <XAxis dataKey="timestamp" tickFormatter={formatTimestamp} />
           <YAxis />
-          <Tooltip labelFormatter={(l) => (l ? new Date(l).toLocaleString() : l)} />
+          <Tooltip labelFormatter={formatTimestamp} />
           <Legend />
-          <Line type="monotone" dataKey={key} stroke="#8884d8" dot={false} />
+          <CartesianGrid stroke="#eee" strokeDasharray="5 5" />
+          <Line type="monotone" dataKey="balance" stroke="#8884d8" />
         </LineChart>
       </ResponsiveContainer>
     );
   };
 
-  const renderSummary = (bt) => {
-    if (!bt) return null;
-    const final = bt.equityCurve?.slice(-1)[0]?.equity ?? bt.equityCurve?.slice(-1)[0]?.balance ?? bt.metrics?.finalBalance ?? 0;
-    const trades = bt.trades?.length ?? 0;
-    const maxDd = bt.metrics?.maxDrawdown ?? bt.metrics?.maxDrawdownPct ?? 0;
-    const netProfit = bt.metrics?.netProfit ?? bt.metrics?.profit ?? 0;
+  const renderBatchChart = (batchData) => {
+    if (!batchData || !batchData.length) return null;
     return (
-      <table className="w-full mt-2 text-sm border border-gray-300">
-        <tbody>
-          <tr>
-            <td className="border p-1 font-semibold">Trades</td>
-            <td className="border p-1">{trades}</td>
-          </tr>
-          <tr>
-            <td className="border p-1 font-semibold">Final Balance</td>
-            <td className="border p-1">${Number(final).toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td className="border p-1 font-semibold">Max Drawdown</td>
-            <td className="border p-1">{Number(maxDd).toFixed(2)}%</td>
-          </tr>
-          <tr>
-            <td className="border p-1 font-semibold">Net Profit</td>
-            <td className="border p-1">${Number(netProfit).toFixed(2)}</td>
-          </tr>
-        </tbody>
-      </table>
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={batchData}>
+          <XAxis dataKey="strategy" />
+          <YAxis />
+          <Tooltip />
+          <Legend />
+          <CartesianGrid stroke="#eee" strokeDasharray="5 5" />
+          <Bar dataKey="finalBalance">
+            {batchData.map((entry, idx) => (
+              <Cell key={`cell-${idx}`} fill="#82ca9d" />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
     );
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <h2 className="text-2xl font-bold">Backtesting</h2>
+    <div className="p-4 space-y-4">
+      <h1 className="text-xl font-bold">Backtests</h1>
 
       {/* Tabs */}
-      <div className="flex space-x-4 border-b pb-2">
+      <div className="flex space-x-2">
         <button
+          className={`px-4 py-2 rounded ${activeTab === "backtests" ? "bg-blue-500 text-white" : "bg-gray-200"}`}
           onClick={() => setActiveTab("backtests")}
-          className={`py-2 px-4 ${activeTab === "backtests" ? "border-b-2 border-blue-500 font-semibold" : "text-gray-500"}`}
         >
-          Backtests
+          Single Backtest
         </button>
         <button
-          onClick={() => setActiveTab("strategies")}
-          className={`py-2 px-4 ${activeTab === "strategies" ? "border-b-2 border-blue-500 font-semibold" : "text-gray-500"}`}
+          className={`px-4 py-2 rounded ${activeTab === "batch" ? "bg-blue-500 text-white" : "bg-gray-200"}`}
+          onClick={() => setActiveTab("batch")}
         >
-          Strategies
+          Batch Backtests
+        </button>
+        <button
+          className={`px-4 py-2 rounded ${activeTab === "strategy" ? "bg-blue-500 text-white" : "bg-gray-200"}`}
+          onClick={() => setActiveTab("strategy")}
+        >
+          New Strategy
         </button>
       </div>
 
-      {/* Backtests Tab */}
+      {/* Tab Content */}
       {activeTab === "backtests" && (
-        <>
-          <div className="border p-4 rounded space-y-2">
-            <h3 className="font-semibold">Run Backtests</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <label className="flex flex-col">
-                <span className="text-sm font-medium">Symbol</span>
-                <select value={selectedSymbol} onChange={(e) => setSelectedSymbol(e.target.value)} className="border p-1 rounded">
-                  {options.symbols?.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="flex flex-col">
-                <span className="text-sm font-medium">Strategy</span>
-                <select value={selectedStrategy} onChange={(e) => setSelectedStrategy(e.target.value)} className="border p-1 rounded">
-                  {options.strategies?.map((s) => (
-                    <option key={s.name} value={s.name}>{s.name}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="flex flex-col">
-                <span className="text-sm font-medium">Timeframe</span>
-                <select value={selectedTimeframe} onChange={(e) => setSelectedTimeframe(e.target.value)} className="border p-1 rounded">
-                  {options.timeframes?.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="flex flex-col">
-                <span className="text-sm font-medium">Balance</span>
-                <input type="number" value={selectedBalance} onChange={(e) => setSelectedBalance(Number(e.target.value))} className="border p-1 rounded" />
-              </label>
-
-              <label className="flex flex-col">
-                <span className="text-sm font-medium">Risk</span>
-                <select value={selectedRisk} onChange={(e) => setSelectedRisk(e.target.value)} className="border p-1 rounded">
-                  {options.risks?.map((r) => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="flex flex-col">
-                <span className="text-sm font-medium">Position Side</span>
-                <select value={selectedPosition} onChange={(e) => setSelectedPosition(e.target.value)} className="border p-1 rounded">
-                  {options.positions?.map((p) => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="flex flex-col">
-                <span className="text-sm font-medium">Start Date</span>
-                <input type="date" value={selectedStartDate} onChange={(e) => setSelectedStartDate(e.target.value)} className="border p-1 rounded" />
-              </label>
-
-              <label className="flex flex-col">
-                <span className="text-sm font-medium">End Date</span>
-                <input type="date" value={selectedEndDate} onChange={(e) => setSelectedEndDate(e.target.value)} className="border p-1 rounded" />
-              </label>
-            </div>
-
-            <div className="mt-4">{renderSelectedStrategyParams()}</div>
-
-            <div className="flex space-x-4 mt-4">
-              <button onClick={handleRunBacktest} disabled={loadingSingle} className="px-4 py-2 bg-blue-500 text-white rounded">
-                {loadingSingle ? "Running..." : "Run Backtest"}
-              </button>
-              <button onClick={handleRunBatch} disabled={loadingBatch} className="px-4 py-2 bg-green-500 text-white rounded">
-                {loadingBatch ? "Running Batch..." : "Run Batch Backtests"}
-              </button>
-            </div>
-
-            {currentBacktest && (
-              <div className="mt-6">
-                <h4 className="font-semibold">Last Backtest Result</h4>
-                {renderSummary(currentBacktest)}
-                {renderChart(currentBacktest.equityCurve || currentBacktest.balanceCurve)}
-              </div>
-            )}
-
-            {batchResults?.length > 0 && (
-              <div className="mt-6">
-                <h4 className="font-semibold">Batch Results</h4>
-                {batchResults.map((b, idx) => (
-                  <div key={idx} className="mt-4 border p-2 rounded">
-                    <p className="font-medium">{b.strategyName || b.name}</p>
-                    {renderSummary(b)}
-                    {renderChart(b.equityCurve || b.balanceCurve)}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* Strategies Tab */}
-      {activeTab === "strategies" && (
-        <div className="border p-4 rounded space-y-4">
-          <h3 className="font-semibold">Create / Preview Strategy</h3>
-          <label className="flex flex-col">
-            <span className="font-medium">Strategy Name</span>
-            <input
-              value={newStrategyName}
-              onChange={(e) => setNewStrategyName(e.target.value)}
-              className="border p-1 rounded"
-            />
+        <div className="space-y-2">
+          <label>
+            Symbol
+            <select value={selectedSymbol} onChange={(e) => setSelectedSymbol(e.target.value)}>
+              {options.symbols.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
           </label>
+          <label>
+            Strategy
+            <select value={selectedStrategy} onChange={(e) => setSelectedStrategy(e.target.value)}>
+              {options.strategies.map((s) => (
+                <option key={s.name} value={s.name}>{s.name}</option>
+              ))}
+            </select>
+          </label>
+          {renderSelectedStrategyParams()}
 
-          {renderNewStrategyParams()}
-
-          <div className="flex space-x-2 mt-2">
-            <button onClick={handleAddNewStrategyParam} className="px-2 py-1 bg-gray-300 rounded">
-              + Add Param
+          <label>
+            Timeframe
+            <select value={selectedTimeframe} onChange={(e) => setSelectedTimeframe(e.target.value)}>
+              {options.timeframes.map((tf) => (
+                <option key={tf} value={tf}>{tf}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Balance
+            <input type="number" value={selectedBalance} onChange={(e) => setSelectedBalance(Number(e.target.value))} />
+          </label>
+          <label>
+            Risk
+            <select value={selectedRisk} onChange={(e) => setSelectedRisk(e.target.value)}>
+              {options.risks.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Position
+            <select value={selectedPosition} onChange={(e) => setSelectedPosition(e.target.value)}>
+              {options.positions.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Take Profit
+            <select value={selectedTP} onChange={(e) => setSelectedTP(e.target.value)}>
+              {options.takeProfits.map((tp) => (
+                <option key={tp} value={tp}>{tp}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Stop Loss
+            <select value={selectedSL} onChange={(e) => setSelectedSL(e.target.value)}>
+              {options.stopLosses.map((sl) => (
+                <option key={sl} value={sl}>{sl}</option>
+              ))}
+            </select>
+          </label>
+          <div className="space-x-2 mt-2">
+            <button
+              onClick={handleRunBacktest}
+              disabled={loadingSingle}
+              className="px-4 py-2 bg-blue-500 text-white rounded"
+            >
+              {loadingSingle ? "Running..." : "Run Backtest"}
             </button>
-            <button onClick={handleCreateStrategy} className="px-2 py-1 bg-blue-500 text-white rounded">
-              Create Strategy
-            </button>
-            <button onClick={handlePreviewStrategy} className="px-2 py-1 bg-green-500 text-white rounded">
+            <button
+              onClick={handlePreviewStrategy}
+              disabled={loadingPreview}
+              className="px-4 py-2 bg-gray-500 text-white rounded"
+            >
               {loadingPreview ? "Previewing..." : "Preview Strategy"}
             </button>
           </div>
 
-          {strategyMessage && <p className="text-sm text-gray-600 mt-2">{strategyMessage}</p>}
           {previewBacktest && (
-            <div className="mt-4 border p-2 rounded">
-              <h4 className="font-medium">Preview Result</h4>
-              {renderSummary(previewBacktest)}
-              {renderChart(previewBacktest.equityCurve || previewBacktest.balanceCurve)}
+            <div className="mt-4">
+              <h2 className="font-bold">Strategy Preview</h2>
+              {renderChart(previewBacktest.balanceOverTime)}
+            </div>
+          )}
+
+          {currentBacktest && (
+            <div className="mt-4">
+              <h2 className="font-bold">Backtest Result</h2>
+              {renderChart(currentBacktest.balanceOverTime)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "batch" && (
+        <div className="space-y-2">
+          <button
+            onClick={handleRunBatch}
+            disabled={loadingBatch}
+            className="px-4 py-2 bg-green-500 text-white rounded"
+          >
+            {loadingBatch ? "Running Batch..." : "Run Batch Backtests"}
+          </button>
+          {batchResults && batchResults.length > 0 && (
+            <div className="mt-4">
+              <h2 className="font-bold">Batch Results</h2>
+              {renderBatchChart(batchResults)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "strategy" && (
+        <div className="space-y-2">
+          <label>
+            Strategy Name
+            <input
+              type="text"
+              value={newStrategyName}
+              onChange={(e) => setNewStrategyName(e.target.value)}
+              className="border p-1 rounded w-full"
+            />
+          </label>
+          {renderNewStrategyParams()}
+          <button
+            onClick={handleAddNewStrategyParam}
+            className="px-3 py-1 bg-gray-300 rounded text-sm mt-2"
+          >
+            + Add Parameter
+          </button>
+          <div className="mt-2 space-x-2">
+            <button
+              onClick={handleCreateStrategy}
+              className="px-4 py-2 bg-blue-500 text-white rounded"
+            >
+              Create Strategy
+            </button>
+            <button
+              onClick={handlePreviewStrategy}
+              disabled={loadingPreview}
+              className="px-4 py-2 bg-gray-500 text-white rounded"
+            >
+              {loadingPreview ? "Previewing..." : "Preview Strategy"}
+            </button>
+          </div>
+          {strategyMessage && <p className="mt-2 text-sm">{strategyMessage}</p>}
+          {previewBacktest && (
+            <div className="mt-4">
+              <h2 className="font-bold">Strategy Preview</h2>
+              {renderChart(previewBacktest.balanceOverTime)}
             </div>
           )}
         </div>
