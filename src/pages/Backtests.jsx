@@ -19,6 +19,7 @@ export default function Backtests() {
   const userId = user?.id;
 
   const {
+    options: hookOptions,
     currentBacktest,
     batchResults,
     runBacktest,
@@ -33,6 +34,8 @@ export default function Backtests() {
     balances: [],
     risks: [],
     positions: [],
+    takeProfits: [],
+    stopLosses: [],
     availableDates: {},
   });
 
@@ -58,38 +61,34 @@ export default function Backtests() {
   const [newStrategyParams, setNewStrategyParams] = useState({ param1: 0 });
   const [strategyMessage, setStrategyMessage] = useState("");
 
-  // Fetch options
+  // Sync options from hook
   useEffect(() => {
-    const fetchOptions = async () => {
-      try {
-        const res = await axios.get("/backtests/options");
-        const data = res.data.data || res.data;
-        setOptions(data);
+    if (!hookOptions) return;
+    setOptions(hookOptions);
 
-        const last = JSON.parse(localStorage.getItem("lastBacktestParams"));
-        if (last) {
-          setSelectedSymbol(last.selectedSymbol);
-          setSelectedStrategy(last.selectedStrategy);
-          setSelectedTimeframe(last.selectedTimeframe);
-          setSelectedBalance(last.selectedBalance);
-          setSelectedRisk(last.selectedRisk);
-          setSelectedPosition(last.selectedPosition);
-          setSelectedStartDate(last.selectedStartDate);
-          setSelectedEndDate(last.selectedEndDate);
-        } else if (data.symbols?.length && data.strategies?.length) {
-          setSelectedSymbol(data.symbols[0]);
-          setSelectedStrategy(data.strategies[0]?.name);
-          setSelectedTimeframe(data.timeframes?.[0] || "1h");
-          setSelectedBalance(data.balances?.[0] || 1000);
-          setSelectedRisk(data.risks?.[0] || "Medium");
-          setSelectedPosition(data.positions?.[0] || "Both");
-        }
-      } catch (err) {
-        console.error("Failed to fetch options:", err);
-      }
-    };
-    fetchOptions();
-  }, []);
+    const last = JSON.parse(localStorage.getItem("lastBacktestParams"));
+    if (last) {
+      setSelectedSymbol(last.selectedSymbol);
+      setSelectedStrategy(last.selectedStrategy);
+      setSelectedTimeframe(last.selectedTimeframe);
+      setSelectedBalance(last.selectedBalance);
+      setSelectedRisk(last.selectedRisk);
+      setSelectedPosition(last.selectedPosition);
+      setSelectedTP(last.selectedTP || "");
+      setSelectedSL(last.selectedSL || "");
+      setSelectedStartDate(last.selectedStartDate);
+      setSelectedEndDate(last.selectedEndDate);
+    } else if (hookOptions.symbols?.length && hookOptions.strategies?.length) {
+      setSelectedSymbol(hookOptions.symbols[0]);
+      setSelectedStrategy(hookOptions.strategies[0]?.name);
+      setSelectedTimeframe(hookOptions.timeframes?.[0] || "1h");
+      setSelectedBalance(hookOptions.balances?.[0] || 1000);
+      setSelectedRisk(hookOptions.risks?.[0] || "Medium");
+      setSelectedPosition(hookOptions.positions?.[0] || "Both");
+      setSelectedTP(hookOptions.takeProfits?.[0] || "");
+      setSelectedSL(hookOptions.stopLosses?.[0] || "");
+    }
+  }, [hookOptions]);
 
   // Update strategy params
   useEffect(() => {
@@ -199,7 +198,7 @@ export default function Backtests() {
       useSlippage: realism.useSlippage,
       useSpread: realism.useSpread,
       useRandomEvents: realism.useRandomEvents ?? realism.randomEventProb > 0,
-      baseSlippageBps: realism.slippage_bps,
+      baseSlippageBps: realism.baseSlippageBps,
       positionSide: selectedPosition,
       tradeConfig: {},
     };
@@ -215,6 +214,8 @@ export default function Backtests() {
           selectedBalance,
           selectedRisk,
           selectedPosition,
+          selectedTP,
+          selectedSL,
           selectedStartDate,
           selectedEndDate,
         })
@@ -243,7 +244,7 @@ export default function Backtests() {
       useSlippage: realism.useSlippage,
       useSpread: realism.useSpread,
       useRandomEvents: realism.useRandomEvents ?? realism.randomEventProb > 0,
-      baseSlippageBps: realism.slippage_bps,
+      baseSlippageBps: realism.baseSlippageBps,
       positionSide: selectedPosition,
       tradeConfig: {},
     }));
@@ -337,9 +338,7 @@ export default function Backtests() {
           Symbol
           <select value={selectedSymbol} onChange={(e) => setSelectedSymbol(e.target.value)}>
             {options.symbols?.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
+              <option key={s} value={s}>{s}</option>
             ))}
           </select>
         </label>
@@ -348,33 +347,19 @@ export default function Backtests() {
           Strategy
           <select value={selectedStrategy} onChange={(e) => setSelectedStrategy(e.target.value)}>
             {options.strategies?.map((s) => (
-              <option key={s.name} value={s.name}>
-                {s.name}
-              </option>
+              <option key={s.name} value={s.name}>{s.name}</option>
             ))}
           </select>
         </label>
 
-        {Object.keys(strategyParams).map((key) => {
-          const strat = options.strategies?.find((s) => s.name === selectedStrategy);
-          const desc = strat?.params?.[key]?.description || "Adjust this parameter.";
-          const example = strat?.params?.[key]?.example !== undefined ? `Example: ${strat.params[key].example}` : "";
-          return (
-            <div key={key} className="flex flex-col mt-1">
-              <label>
-                {key} ({desc} {example})
-                <input
-                  type="number"
-                  value={strategyParams[key]}
-                  onChange={(e) =>
-                    setStrategyParams((prev) => ({ ...prev, [key]: Number(e.target.value) }))
-                  }
-                  className="border p-1 rounded w-full"
-                />
-              </label>
-            </div>
-          );
-        })}
+        <label>
+          Timeframe
+          <select value={selectedTimeframe} onChange={(e) => setSelectedTimeframe(e.target.value)}>
+            {options.timeframes?.map((tf) => (
+              <option key={tf} value={tf}>{tf}</option>
+            ))}
+          </select>
+        </label>
 
         <label>
           Balance
@@ -404,6 +389,24 @@ export default function Backtests() {
         </label>
 
         <label>
+          Take Profit
+          <select value={selectedTP} onChange={(e) => setSelectedTP(e.target.value)}>
+            {options.takeProfits?.map((tp) => (
+              <option key={tp} value={tp}>{tp}</option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Stop Loss
+          <select value={selectedSL} onChange={(e) => setSelectedSL(e.target.value)}>
+            {options.stopLosses?.map((sl) => (
+              <option key={sl} value={sl}>{sl}</option>
+            ))}
+          </select>
+        </label>
+
+        <label>
           Start Date
           <input
             type="date"
@@ -424,43 +427,42 @@ export default function Backtests() {
         <div className="flex space-x-2 mt-2">
           <button
             onClick={handleRunBacktest}
-            className="px-3 py-1 bg-green-600 text-white rounded"
             disabled={loadingSingle}
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
           >
-            {loadingSingle ? "Running Single..." : "Run Single Backtest"}
+            {loadingSingle ? "Running..." : "Run Backtest"}
           </button>
 
           <button
             onClick={handleRunBatch}
-            className="px-3 py-1 bg-purple-600 text-white rounded"
             disabled={loadingBatch}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
             {loadingBatch ? "Running Batch..." : "Run Batch Backtests"}
           </button>
         </div>
       </div>
 
-      {/* Single backtest chart & summary */}
+      {/* Backtest Results */}
       {currentBacktest && (
-        <>
-          <h3 className="text-lg font-semibold">Single Backtest Result</h3>
+        <div className="border p-4 rounded mt-4">
+          <h3 className="font-semibold">Latest Backtest</h3>
           {renderChart(currentBacktest.equityCurve)}
           {renderSummary(currentBacktest)}
-        </>
+        </div>
       )}
 
-      {/* Batch backtest results */}
       {batchResults?.length > 0 && (
-        <>
-          <h3 className="text-lg font-semibold mt-4">Batch Backtest Results</h3>
+        <div className="border p-4 rounded mt-4">
+          <h3 className="font-semibold">Batch Backtest Results</h3>
           {batchResults.map((bt, idx) => (
-            <div key={idx} className="border p-2 rounded my-2 bg-gray-50">
-              <h4 className="font-medium">{bt.strategy?.name || `Strategy ${idx + 1}`}</h4>
+            <div key={idx} className="mt-2">
+              <h4 className="font-medium">{bt.strategyName}</h4>
               {renderChart(bt.equityCurve, "#82ca9d")}
               {renderSummary(bt)}
             </div>
           ))}
-        </>
+        </div>
       )}
     </div>
   );
