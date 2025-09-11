@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { useAuth } from "../context/AuthContext.jsx";
-import StrategyList from "../components/StrategyList.jsx";
-import StrategyForm from "../components/StrategyForm.jsx";
+import StrategyList from "../components/strategyList.jsx";
+import StrategyForm from "../components/strategyForm.jsx";
 import {
   ResponsiveContainer,
   LineChart,
