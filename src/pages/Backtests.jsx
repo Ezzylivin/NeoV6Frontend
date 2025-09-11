@@ -50,7 +50,7 @@ export default function Backtests() {
   const [strategyParams, setStrategyParams] = useState({});
   const [realism, setRealism] = useState(defaultRealism);
 
-  // Recommended presets for beginners
+  // Beginner-friendly presets
   const beginnerPresets = [
     {
       name: "Conservative BTC Swing",
@@ -236,8 +236,8 @@ export default function Backtests() {
     <div className="p-4 space-y-4">
       <h1 className="text-xl font-bold">Backtests</h1>
 
-      {/* Presets */}
       <div className="space-y-2">
+        {/* Beginner Presets */}
         <label>
           Beginner Presets
           <select
