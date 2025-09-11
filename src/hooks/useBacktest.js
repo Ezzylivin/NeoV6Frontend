@@ -11,22 +11,28 @@ export function useBacktest() {
     balances: [1000],
     risks: ["Medium"],
     positions: ["Both"],
+    takeProfits: [null],
+    stopLosses: [null],
     availableDates: {},
   });
+
   const [loadingSingle, setLoadingSingle] = useState(false);
   const [loadingBatch, setLoadingBatch] = useState(false);
   const [error, setError] = useState(null);
   const [currentBacktest, setCurrentBacktest] = useState(null);
   const [batchResults, setBatchResults] = useState([]);
+  
   const [defaultRealism] = useState({
     useNews: true,
     useSlippage: true,
     useSpread: true,
-    randomEventProb: 0,
-    slippage_bps: 5,
+    useRandomEvents: false,
+    baseSlippageBps: 5,
   });
 
-  // Fetch backtest options
+  /**
+   * Fetch backtest options from backend
+   */
   useEffect(() => {
     const loadOptions = async () => {
       try {
@@ -38,6 +44,8 @@ export function useBacktest() {
           balances: data?.balances || [1000],
           risks: data?.risks || ["Medium"],
           positions: data?.positions || ["Both"],
+          takeProfits: data?.takeProfits || [null],
+          stopLosses: data?.stopLosses || [null],
           availableDates: data?.availableDates || {},
         });
         setError(null);
@@ -49,7 +57,9 @@ export function useBacktest() {
     loadOptions();
   }, []);
 
-  // Merge payload with safe defaults
+  /**
+   * Merge payload with safe defaults
+   */
   const mergeDefaults = (payload) => {
     const safeSymbol = payload.symbol || options.symbols[0] || "BTC/USDT";
     const safeTimeframe = payload.timeframe || options.timeframes[0] || "1h";
@@ -85,8 +95,8 @@ export function useBacktest() {
       strategyId: matchedStrategy._id || null,
       strategy: { name: strategyName, parameters: strategyParams },
       risk: payload.risk || options.risks[0] || "Medium",
-      takeProfit: payload.takeProfit ?? null,
-      stopLoss: payload.stopLoss ?? null,
+      takeProfit: payload.takeProfit ?? options.takeProfits[0] ?? null,
+      stopLoss: payload.stopLoss ?? options.stopLosses[0] ?? null,
       startDate,
       endDate,
       positionSide: payload.positionSide || options.positions[0] || "Both",
@@ -94,13 +104,15 @@ export function useBacktest() {
       useSlippage: payload.useSlippage ?? defaultRealism.useSlippage,
       useSpread: payload.useSpread ?? defaultRealism.useSpread,
       useRandomEvents:
-        payload.useRandomEvents ?? defaultRealism.randomEventProb > 0,
-      baseSlippageBps: payload.baseSlippageBps ?? defaultRealism.slippage_bps,
+        payload.useRandomEvents ?? defaultRealism.useRandomEvents,
+      baseSlippageBps: payload.baseSlippageBps ?? defaultRealism.baseSlippageBps,
       tradeConfig: payload.tradeConfig || {},
     };
   };
 
-  // Run single backtest
+  /**
+   * Run single backtest
+   */
   const runBacktest = async (payload) => {
     const safePayload = mergeDefaults(payload);
     setLoadingSingle(true);
@@ -118,7 +130,9 @@ export function useBacktest() {
     }
   };
 
-  // Run batch backtests
+  /**
+   * Run batch backtests
+   */
   const runBatchBacktests = async (payload) => {
     const safeParamCombos = (payload.paramCombos || []).map((p) => {
       const stratDefaults =
