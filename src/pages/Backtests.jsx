@@ -2,14 +2,13 @@
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { useAuth } from "../context/AuthContext.jsx";
-import axios from "../api/apiClient.js";
 import {
   ResponsiveContainer,
   LineChart,
   Line,
   XAxis,
   YAxis,
-  Tooltip,
+  Tooltip as ChartTooltip,
   Legend,
   CartesianGrid,
 } from "recharts";
@@ -18,8 +17,10 @@ export default function Backtests() {
   const { user } = useAuth();
   const userId = user?.id;
 
-  const { options: hookOptions, currentBacktest, runBacktest, defaultRealism } = useBacktest();
+  const { options: hookOptions, currentBacktest, runBacktest, defaultRealism } =
+    useBacktest();
 
+  // Global options
   const [options, setOptions] = useState({
     symbols: [],
     strategies: [],
@@ -33,8 +34,8 @@ export default function Backtests() {
   });
 
   const [loadingSingle, setLoadingSingle] = useState(false);
-  const [loadingPreview, setLoadingPreview] = useState(false);
 
+  // User selections
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [selectedStrategy, setSelectedStrategy] = useState("");
   const [selectedTimeframe, setSelectedTimeframe] = useState("");
@@ -48,25 +49,51 @@ export default function Backtests() {
 
   const [strategyParams, setStrategyParams] = useState({});
   const [realism, setRealism] = useState(defaultRealism);
-  const [previewBacktest, setPreviewBacktest] = useState(null);
 
-  // Populate options when hookOptions updates
+  // Recommended presets for beginners
+  const beginnerPresets = [
+    {
+      name: "Conservative BTC Swing",
+      symbol: "BTC/USDT",
+      strategy: "Simple Moving Average",
+      timeframe: "4h",
+      balance: 1000,
+      risk: "Low",
+      position: "Long Only",
+      takeProfit: 5,
+      stopLoss: 2,
+      params: { shortSMA: 10, longSMA: 50 },
+    },
+    {
+      name: "Aggressive ETH Day Trade",
+      symbol: "ETH/USDT",
+      strategy: "RSI Momentum",
+      timeframe: "1h",
+      balance: 1000,
+      risk: "High",
+      position: "Both",
+      takeProfit: 10,
+      stopLoss: 5,
+      params: { rsiPeriod: 14, overbought: 70, oversold: 30 },
+    },
+  ];
+
+  // Populate options from hook and set defaults
   useEffect(() => {
     if (!hookOptions) return;
     setOptions(hookOptions);
 
-    // Set defaults
     setSelectedSymbol(hookOptions.symbols?.[0] || "");
     setSelectedStrategy(hookOptions.strategies?.[0]?.name || "");
     setSelectedTimeframe(hookOptions.timeframes?.[0] || "1h");
     setSelectedBalance(hookOptions.balances?.[0] || 1000);
     setSelectedRisk(hookOptions.risks?.[0] || "Medium");
     setSelectedPosition(hookOptions.positions?.[0] || "Both");
-    setSelectedTP(hookOptions.takeProfits?.[0] || "");
-    setSelectedSL(hookOptions.stopLosses?.[0] || "");
+    setSelectedTP(hookOptions.takeProfits?.[0] || 0);
+    setSelectedSL(hookOptions.stopLosses?.[0] || 0);
   }, [hookOptions]);
 
-  // Update strategy params when selection changes
+  // Update strategy parameters whenever selection changes
   useEffect(() => {
     if (!selectedStrategy) return;
     const strat = options.strategies?.find((s) => s.name === selectedStrategy);
@@ -74,14 +101,17 @@ export default function Backtests() {
       setStrategyParams({});
       return;
     }
+
     const defaults = {};
-    Object.keys(strat.params).forEach((k) => {
-      defaults[k] = strat.params[k]?.default ?? 0;
+    Object.keys(strat.params).forEach((key) => {
+      const paramInfo = strat.params[key];
+      const dynamicRange = paramInfo?.ranges?.[selectedSymbol]?.[selectedTimeframe];
+      defaults[key] = paramInfo?.default ?? dynamicRange?.default ?? 0;
     });
     setStrategyParams(defaults);
-  }, [selectedStrategy, options.strategies]);
+  }, [selectedStrategy, selectedSymbol, selectedTimeframe, options.strategies]);
 
-  // Auto adjust dates if available
+  // Auto-set start/end dates
   useEffect(() => {
     if (!selectedSymbol || !selectedTimeframe) return;
     const available = options.availableDates?.[selectedSymbol]?.[selectedTimeframe];
@@ -90,29 +120,64 @@ export default function Backtests() {
     setSelectedEndDate(available.end);
   }, [selectedSymbol, selectedTimeframe, options.availableDates]);
 
+  // Apply preset
+  const applyPreset = (preset) => {
+    setSelectedSymbol(preset.symbol);
+    setSelectedStrategy(preset.strategy);
+    setSelectedTimeframe(preset.timeframe);
+    setSelectedBalance(preset.balance);
+    setSelectedRisk(preset.risk);
+    setSelectedPosition(preset.position);
+    setSelectedTP(preset.takeProfit);
+    setSelectedSL(preset.stopLoss);
+    setStrategyParams(preset.params);
+  };
+
+  // Render strategy parameters
   const renderStrategyParams = () =>
     Object.keys(strategyParams).map((key) => {
       const strat = options.strategies?.find((s) => s.name === selectedStrategy);
       const paramInfo = strat?.params?.[key] ?? {};
-      const desc = paramInfo?.description || "";
-      const example =
-        paramInfo?.default !== undefined ? `Example: ${paramInfo.default}` : "";
+      const dynamicRange = paramInfo?.ranges?.[selectedSymbol]?.[selectedTimeframe];
+      const min = dynamicRange?.min ?? paramInfo.min ?? 0;
+      const max = dynamicRange?.max ?? paramInfo.max ?? 1000;
+      const step = dynamicRange?.step ?? paramInfo.step ?? 1;
+      const example = dynamicRange?.example ?? paramInfo.example ?? paramInfo.default ?? 0;
+
+      const description =
+        paramInfo.description || "No description provided. Adjust according to strategy.";
+      const useCase = paramInfo.useCase
+        ? `Use Case: ${paramInfo.useCase}`
+        : "Typical use: adjust to modify strategy behavior.";
+
       return (
-        <div key={key} className="flex flex-col mt-1">
-          <label className="text-sm">
+        <div key={key} className="flex flex-col mt-2">
+          <label className="text-sm relative group">
             <div className="flex justify-between items-center">
-              <span>{key}</span>
-              <span className="text-xs text-gray-500">{example}</span>
+              <span className="font-medium">{key}</span>
+              <span className="text-xs text-gray-500">
+                Example: {example}, Range: {min}-{max}
+              </span>
             </div>
-            <div className="text-xs text-gray-500 mb-1">{desc}</div>
             <input
               type="number"
               value={strategyParams[key]}
+              min={min}
+              max={max}
+              step={step}
               onChange={(e) =>
-                setStrategyParams((prev) => ({ ...prev, [key]: Number(e.target.value) }))
+                setStrategyParams((prev) => ({
+                  ...prev,
+                  [key]: Number(e.target.value),
+                }))
               }
               className="border p-1 rounded w-full"
+              placeholder={`Recommended: ${example}`}
             />
+            <div className="absolute left-full ml-2 top-0 w-64 bg-gray-800 text-white p-2 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity text-xs z-10">
+              <div>{description}</div>
+              <div className="mt-1 italic">{useCase}</div>
+            </div>
           </label>
         </div>
       );
@@ -158,7 +223,7 @@ export default function Backtests() {
         <LineChart data={data}>
           <XAxis dataKey="timestamp" tickFormatter={formatTimestamp} />
           <YAxis />
-          <Tooltip labelFormatter={formatTimestamp} />
+          <ChartTooltip labelFormatter={formatTimestamp} />
           <Legend />
           <CartesianGrid stroke="#eee" strokeDasharray="5 5" />
           <Line type="monotone" dataKey="balance" stroke="#8884d8" />
@@ -171,35 +236,71 @@ export default function Backtests() {
     <div className="p-4 space-y-4">
       <h1 className="text-xl font-bold">Backtests</h1>
 
-      {/* Single Backtest */}
+      {/* Presets */}
       <div className="space-y-2">
+        <label>
+          Beginner Presets
+          <select
+            onChange={(e) => {
+              const preset = beginnerPresets.find((p) => p.name === e.target.value);
+              if (preset) applyPreset(preset);
+            }}
+          >
+            <option value="">Select a preset</option>
+            {beginnerPresets.map((p) => (
+              <option key={p.name} value={p.name}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {/* Symbol */}
         <label>
           Symbol
           <select value={selectedSymbol} onChange={(e) => setSelectedSymbol(e.target.value)}>
             {options.symbols.map((s) => (
-              <option key={s} value={s}>{s}</option>
+              <option key={s} value={s}>
+                {s}
+              </option>
             ))}
           </select>
         </label>
+
+        {/* Strategy */}
         <label>
           Strategy
-          <select value={selectedStrategy} onChange={(e) => setSelectedStrategy(e.target.value)}>
+          <select
+            value={selectedStrategy}
+            onChange={(e) => setSelectedStrategy(e.target.value)}
+          >
             {options.strategies.map((s) => (
-              <option key={s.name} value={s.name}>{s.name}</option>
+              <option key={s.name} value={s.name}>
+                {s.name}
+              </option>
             ))}
           </select>
         </label>
+
+        {/* Strategy parameters */}
         {renderStrategyParams()}
 
+        {/* Timeframe */}
         <label>
           Timeframe
-          <select value={selectedTimeframe} onChange={(e) => setSelectedTimeframe(e.target.value)}>
+          <select
+            value={selectedTimeframe}
+            onChange={(e) => setSelectedTimeframe(e.target.value)}
+          >
             {options.timeframes.map((tf) => (
-              <option key={tf} value={tf}>{tf}</option>
+              <option key={tf} value={tf}>
+                {tf}
+              </option>
             ))}
           </select>
         </label>
 
+        {/* Balance */}
         <label>
           Balance
           <input
@@ -209,42 +310,58 @@ export default function Backtests() {
           />
         </label>
 
+        {/* Risk */}
         <label>
           Risk
           <select value={selectedRisk} onChange={(e) => setSelectedRisk(e.target.value)}>
             {options.risks.map((r) => (
-              <option key={r} value={r}>{r}</option>
+              <option key={r} value={r}>
+                {r}
+              </option>
             ))}
           </select>
         </label>
 
+        {/* Position */}
         <label>
           Position
-          <select value={selectedPosition} onChange={(e) => setSelectedPosition(e.target.value)}>
+          <select
+            value={selectedPosition}
+            onChange={(e) => setSelectedPosition(e.target.value)}
+          >
             {options.positions.map((p) => (
-              <option key={p} value={p}>{p}</option>
+              <option key={p} value={p}>
+                {p}
+              </option>
             ))}
           </select>
         </label>
 
+        {/* Take Profit */}
         <label>
           Take Profit
           <select value={selectedTP} onChange={(e) => setSelectedTP(e.target.value)}>
             {options.takeProfits.map((tp) => (
-              <option key={tp} value={tp}>{tp}</option>
+              <option key={tp} value={tp}>
+                {tp}
+              </option>
             ))}
           </select>
         </label>
 
+        {/* Stop Loss */}
         <label>
           Stop Loss
           <select value={selectedSL} onChange={(e) => setSelectedSL(e.target.value)}>
             {options.stopLosses.map((sl) => (
-              <option key={sl} value={sl}>{sl}</option>
+              <option key={sl} value={sl}>
+                {sl}
+              </option>
             ))}
           </select>
         </label>
 
+        {/* Run Button */}
         <div className="space-x-2 mt-2">
           <button
             onClick={handleRunBacktest}
@@ -255,6 +372,7 @@ export default function Backtests() {
           </button>
         </div>
 
+        {/* Chart */}
         {currentBacktest && (
           <div className="mt-4">
             <h2 className="font-bold">Backtest Result</h2>
