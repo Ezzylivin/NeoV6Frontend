@@ -67,10 +67,7 @@ export default function Backtests() {
   // Preview results
   const [previewBacktest, setPreviewBacktest] = useState(null);
 
-  /**
-   * Sync options provided by the hook into local state.
-   * Also pre-select sensible defaults (first items) if nothing chosen.
-   */
+  // Sync hook options to local state and set defaults
   useEffect(() => {
     if (!hookOptions) return;
     setOptions(hookOptions);
@@ -95,26 +92,20 @@ export default function Backtests() {
     }
   }, [hookOptions]);
 
-  /**
-   * When selected strategy changes, initialize strategyParams with defaults
-   * and show beginner-friendly description + example if available.
-   */
+  // Initialize strategy params for selected strategy
   useEffect(() => {
     if (!selectedStrategy) return;
     const strat = options.strategies?.find((s) => s.name === selectedStrategy);
     const defaults = {};
     if (strat?.params) {
       Object.keys(strat.params).forEach((key) => {
-        // prefer explicit default value, fallback to 0
         defaults[key] = strat.params[key]?.default ?? 0;
       });
     }
     setStrategyParams(defaults);
   }, [selectedStrategy, options.strategies]);
 
-  /**
-   * Auto adjust start/end dates when symbol/timeframe changes and we have availability info
-   */
+  // Auto-adjust dates based on symbol/timeframe availability
   useEffect(() => {
     if (!selectedSymbol || !selectedTimeframe) return;
     const available = options.availableDates?.[selectedSymbol]?.[selectedTimeframe];
@@ -123,17 +114,12 @@ export default function Backtests() {
     setSelectedEndDate(available.end);
   }, [selectedSymbol, selectedTimeframe, options.availableDates]);
 
-  /**
-   * Render parameter inputs for the Strategy Creator (newStrategyParams)
-   * and include the user-friendly description and an example.
-   */
+  // Render parameter inputs for new strategy
   const renderNewStrategyParams = () =>
     Object.keys(newStrategyParams).map((key) => {
-      // Try to find a description/example from the currently selected strategy template
       const template = options.strategies?.find((s) => s.name === selectedStrategy);
       const paramInfo = template?.params?.[key] ?? {};
       const desc = paramInfo?.description || "Adjust this parameter to change strategy behavior.";
-      // Prefer an explicit example field; otherwise show the default value as the example
       const example =
         paramInfo?.example !== undefined
           ? `Example: ${paramInfo.example}`
@@ -172,17 +158,18 @@ export default function Backtests() {
       );
     });
 
-  /**
-   * Helper to render parameter inputs for the selected strategy inside the Backtests form.
-   * Shows description + example next to each parameter.
-   */
+  // Render selected strategy params
   const renderSelectedStrategyParams = () =>
     Object.keys(strategyParams).map((key) => {
       const strat = options.strategies?.find((s) => s.name === selectedStrategy);
       const paramInfo = strat?.params?.[key] ?? {};
       const desc = paramInfo?.description || "Adjust this parameter.";
       const example =
-        paramInfo?.example !== undefined ? `Example: ${paramInfo.example}` : paramInfo?.default !== undefined ? `Example: ${paramInfo.default}` : "";
+        paramInfo?.example !== undefined
+          ? `Example: ${paramInfo.example}`
+          : paramInfo?.default !== undefined
+          ? `Example: ${paramInfo.default}`
+          : "";
       return (
         <div key={key} className="flex flex-col mt-1">
           <label className="text-sm">
@@ -221,14 +208,11 @@ export default function Backtests() {
         setStrategyMessage("✅ Strategy created! It will appear in the dropdown.");
         setNewStrategyName("");
         setNewStrategyParams({ param1: 0 });
-        // refresh options from backend to include the newly created strategy
         try {
           const updated = await axios.get("/backtests/options");
           const payload = updated.data || updated.data?.data || updated;
           setOptions(payload);
-        } catch (refreshErr) {
-          // ignore - the new strategy will appear on next load
-        }
+        } catch {}
       } else {
         setStrategyMessage("❌ Error creating strategy.");
       }
@@ -238,9 +222,6 @@ export default function Backtests() {
     }
   };
 
-  /**
-   * Preview a strategy quickly (lightweight preview endpoint expected)
-   */
   const handlePreviewStrategy = async () => {
     if (!userId) return alert("Login required to preview strategy.");
     const payload = {
@@ -274,9 +255,6 @@ export default function Backtests() {
     }
   };
 
-  /**
-   * Run a single backtest (uses hook's runBacktest)
-   */
   const handleRunBacktest = async () => {
     if (!userId) return alert("Login required to run backtests.");
     const matched = options.strategies?.find((s) => s.name === selectedStrategy) || {};
@@ -323,9 +301,6 @@ export default function Backtests() {
     }
   };
 
-  /**
-   * Run a batch of backtests (one per saved strategy by default)
-   */
   const handleRunBatch = async () => {
     if (!userId) return alert("Login required to run batch backtests.");
     const paramCombos = options.strategies?.map((s) => ({
@@ -359,9 +334,6 @@ export default function Backtests() {
     }
   };
 
-  /**
-   * Generic chart renderer that detects whether data uses `equity` or `balance`.
-   */
   const renderChart = (data) => {
     if (!data || !data.length) return <p className="text-sm text-gray-500">No equity data.</p>;
     const sample = data[0] || {};
@@ -437,7 +409,6 @@ export default function Backtests() {
         <>
           <div className="border p-4 rounded space-y-2">
             <h3 className="font-semibold">Run Backtests</h3>
-
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <label className="flex flex-col">
                 <span className="text-sm font-medium">Symbol</span>
@@ -460,19 +431,12 @@ export default function Backtests() {
               <label className="flex flex-col">
                 <span className="text-sm font-medium">Timeframe</span>
                 <select value={selectedTimeframe} onChange={(e) => setSelectedTimeframe(e.target.value)} className="border p-1 rounded">
-                  {options.timeframes?.map((tf) => (
-                    <option key={tf} value={tf}>{tf}</option>
+                  {options.timeframes?.map((t) => (
+                    <option key={t} value={t}>{t}</option>
                   ))}
                 </select>
               </label>
-            </div>
 
-            {/* render selected strategy params with descriptions */}
-            <div className="mt-3 space-y-2">
-              {renderSelectedStrategyParams()}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
               <label className="flex flex-col">
                 <span className="text-sm font-medium">Balance</span>
                 <input type="number" value={selectedBalance} onChange={(e) => setSelectedBalance(Number(e.target.value))} className="border p-1 rounded" />
@@ -481,19 +445,21 @@ export default function Backtests() {
               <label className="flex flex-col">
                 <span className="text-sm font-medium">Risk</span>
                 <select value={selectedRisk} onChange={(e) => setSelectedRisk(e.target.value)} className="border p-1 rounded">
-                  {options.risks?.map((r) => <option key={r} value={r}>{r}</option>)}
+                  {options.risks?.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
                 </select>
               </label>
 
               <label className="flex flex-col">
-                <span className="text-sm font-medium">Position</span>
+                <span className="text-sm font-medium">Position Side</span>
                 <select value={selectedPosition} onChange={(e) => setSelectedPosition(e.target.value)} className="border p-1 rounded">
-                  {options.positions?.map((p) => <option key={p} value={p}>{p}</option>)}
+                  {options.positions?.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
                 </select>
               </label>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
               <label className="flex flex-col">
                 <span className="text-sm font-medium">Start Date</span>
                 <input type="date" value={selectedStartDate} onChange={(e) => setSelectedStartDate(e.target.value)} className="border p-1 rounded" />
@@ -503,119 +469,79 @@ export default function Backtests() {
                 <span className="text-sm font-medium">End Date</span>
                 <input type="date" value={selectedEndDate} onChange={(e) => setSelectedEndDate(e.target.value)} className="border p-1 rounded" />
               </label>
-
-              <label className="flex flex-col">
-                <span className="text-sm font-medium">Take Profit (%)</span>
-                <input type="number" value={selectedTP} onChange={(e) => setSelectedTP(e.target.value)} className="border p-1 rounded" />
-              </label>
             </div>
 
-            <div className="flex items-center justify-between mt-3">
-              <div className="space-x-2">
-                <button onClick={handleRunBacktest} disabled={loadingSingle} className="px-4 py-2 bg-green-600 text-white rounded">
-                  {loadingSingle ? "Running..." : "Run Single Backtest"}
-                </button>
-                <button onClick={handleRunBatch} disabled={loadingBatch} className="px-4 py-2 bg-purple-600 text-white rounded">
-                  {loadingBatch ? "Running Batch..." : "Run Batch Backtests"}
-                </button>
+            <div className="mt-4">{renderSelectedStrategyParams()}</div>
+
+            <div className="flex space-x-4 mt-4">
+              <button onClick={handleRunBacktest} disabled={loadingSingle} className="px-4 py-2 bg-blue-500 text-white rounded">
+                {loadingSingle ? "Running..." : "Run Backtest"}
+              </button>
+              <button onClick={handleRunBatch} disabled={loadingBatch} className="px-4 py-2 bg-green-500 text-white rounded">
+                {loadingBatch ? "Running Batch..." : "Run Batch Backtests"}
+              </button>
+            </div>
+
+            {currentBacktest && (
+              <div className="mt-6">
+                <h4 className="font-semibold">Last Backtest Result</h4>
+                {renderSummary(currentBacktest)}
+                {renderChart(currentBacktest.equityCurve || currentBacktest.balanceCurve)}
               </div>
+            )}
 
-              <div className="text-sm text-gray-500">
-                Realism: {realism.useNews ? "News " : ""}{realism.useSlippage ? "Slippage " : ""}{realism.useSpread ? "Spread" : ""}
-              </div>
-            </div>
-          </div>
-
-          {/* Current Backtest Chart & Summary */}
-          {currentBacktest && (
-            <div className="border p-4 rounded">
-              <h3 className="font-semibold">Single Backtest Result</h3>
-              {renderChart(currentBacktest.equityCurve)}
-              {renderSummary(currentBacktest)}
-            </div>
-          )}
-
-          {/* Batch Backtest Results */}
-          {batchResults?.length > 0 && (
-            <div className="border p-4 rounded">
-              <h3 className="font-semibold">Batch Backtest Results</h3>
-              <div className="space-y-3">
-                {batchResults.map((bt, idx) => (
-                  <div key={idx} className="p-2 border rounded bg-gray-50">
-                    <div className="flex justify-between items-center">
-                      <div className="font-medium">{bt.strategy?.name || `Strategy ${idx + 1}`}</div>
-                      <div className="text-sm text-gray-600">Profit: ${Number(bt.metrics?.netProfit ?? bt.profit ?? 0).toFixed(2)}</div>
-                    </div>
-                    <div className="mt-2">{renderChart(bt.equityCurve)}</div>
-                    <div className="mt-2">{renderSummary(bt)}</div>
+            {batchResults?.length > 0 && (
+              <div className="mt-6">
+                <h4 className="font-semibold">Batch Results</h4>
+                {batchResults.map((b, idx) => (
+                  <div key={idx} className="mt-4 border p-2 rounded">
+                    <p className="font-medium">{b.strategyName || b.name}</p>
+                    {renderSummary(b)}
+                    {renderChart(b.equityCurve || b.balanceCurve)}
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </>
       )}
 
       {/* Strategies Tab */}
       {activeTab === "strategies" && (
-        <>
-          <div className="border p-4 rounded space-y-2">
-            <h3 className="font-semibold">Create / Preview Strategy</h3>
+        <div className="border p-4 rounded space-y-4">
+          <h3 className="font-semibold">Create / Preview Strategy</h3>
+          <label className="flex flex-col">
+            <span className="font-medium">Strategy Name</span>
+            <input
+              value={newStrategyName}
+              onChange={(e) => setNewStrategyName(e.target.value)}
+              className="border p-1 rounded"
+            />
+          </label>
 
-            <label className="flex flex-col">
-              <span className="text-sm font-medium">Strategy Name</span>
-              <input type="text" value={newStrategyName} onChange={(e) => setNewStrategyName(e.target.value)} placeholder="Enter strategy name" className="border p-1 rounded w-full" />
-            </label>
+          {renderNewStrategyParams()}
 
-            {/* Show parameter editor for new strategy */}
-            <div className="mt-2">{renderNewStrategyParams()}</div>
-
-            <div className="flex space-x-2 mt-3">
-              <button onClick={handleAddNewStrategyParam} className="px-3 py-1 bg-gray-300 rounded">Add Param</button>
-              <button onClick={handleCreateStrategy} className="px-3 py-1 bg-green-600 text-white rounded">Save Strategy</button>
-              <button onClick={handlePreviewStrategy} className="px-3 py-1 bg-yellow-500 text-white rounded">{loadingPreview ? "Previewing..." : "Preview Strategy"}</button>
-            </div>
-
-            {strategyMessage && <p className="mt-2">{strategyMessage}</p>}
+          <div className="flex space-x-2 mt-2">
+            <button onClick={handleAddNewStrategyParam} className="px-2 py-1 bg-gray-300 rounded">
+              + Add Param
+            </button>
+            <button onClick={handleCreateStrategy} className="px-2 py-1 bg-blue-500 text-white rounded">
+              Create Strategy
+            </button>
+            <button onClick={handlePreviewStrategy} className="px-2 py-1 bg-green-500 text-white rounded">
+              {loadingPreview ? "Previewing..." : "Preview Strategy"}
+            </button>
           </div>
 
-          {/* Preview Results */}
+          {strategyMessage && <p className="text-sm text-gray-600 mt-2">{strategyMessage}</p>}
           {previewBacktest && (
-            <div className="border p-4 rounded">
-              <h3 className="font-semibold">Preview Results</h3>
-              {renderChart(previewBacktest.equityCurve || previewBacktest.equity || previewBacktest.data)}
-              <pre className="mt-2 text-sm bg-gray-50 p-2 rounded overflow-auto">{JSON.stringify(previewBacktest.metrics ?? previewBacktest.summary ?? previewBacktest, null, 2)}</pre>
+            <div className="mt-4 border p-2 rounded">
+              <h4 className="font-medium">Preview Result</h4>
+              {renderSummary(previewBacktest)}
+              {renderChart(previewBacktest.equityCurve || previewBacktest.balanceCurve)}
             </div>
           )}
-
-          {/* List available built-in strategy parameter descriptions (beginner-friendly examples) */}
-          <div className="border p-4 rounded">
-            <h3 className="font-semibold">Parameter Help (examples)</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-              {options.strategies?.map((s) => (
-                <div key={s.name} className="p-2 border rounded">
-                  <div className="font-medium">{s.name}</div>
-                  <div className="text-xs text-gray-600 mt-1">Beginner-friendly parameter descriptions and examples:</div>
-                  <ul className="mt-2 text-sm space-y-1">
-                    {s.params && Object.keys(s.params).length ? (
-                      Object.keys(s.params).map((k) => {
-                        const p = s.params[k];
-                        const example = p.example !== undefined ? p.example : p.default !== undefined ? p.default : "";
-                        return (
-                          <li key={k}>
-                            <strong>{k}:</strong> {p.description ?? "No description provided."} {example ? <span className="text-gray-500"> (Example: {example})</span> : null}
-                          </li>
-                        );
-                      })
-                    ) : (
-                      <li className="text-sm text-gray-500">No parameter info available for this strategy.</li>
-                    )}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
+        </div>
       )}
     </div>
   );
