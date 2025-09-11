@@ -6,22 +6,21 @@ const API_BASE = "https://neov6backend.onrender.com/api/backtests";
 
 export function useBacktest() {
   const [options, setOptions] = useState({
-    symbols: [],
-    strategies: [],
-    timeframes: [],
+    symbols: ["BTC/USDT"],          // default
+    strategies: [{ name: "Default Strategy", params: {} }],
+    timeframes: ["1h"],
     balances: [1000],
     risks: ["Medium"],
     positions: ["Both"],
-    takeProfits: [null],
-    stopLosses: [null],
+    takeProfits: [0],
+    stopLosses: [0],
     availableDates: {},
   });
 
   const [loadingSingle, setLoadingSingle] = useState(false);
-  const [loadingBatch, setLoadingBatch] = useState(false);
   const [error, setError] = useState(null);
   const [currentBacktest, setCurrentBacktest] = useState(null);
-  const [batchResults, setBatchResults] = useState([]);
+
   const [defaultRealism] = useState({
     useNews: true,
     useSlippage: true,
@@ -30,52 +29,48 @@ export function useBacktest() {
     baseSlippageBps: 5,
   });
 
-  /**
-   * Fetch backtest options from backend
-   */
+  // Fetch options from backend
   useEffect(() => {
     const loadOptions = async () => {
       try {
         const { data } = await axios.get(`${API_BASE}/options`);
         setOptions({
-          symbols: data?.symbols || [],
-          strategies: data?.strategies || [],
-          timeframes: data?.timeframes || ["1h"],
-          balances: data?.balances || [1000],
-          risks: data?.risks || ["Medium"],
-          positions: data?.positions || ["Both"],
-          takeProfits: data?.takeProfits || [null],
-          stopLosses: data?.stopLosses || [null],
+          symbols: data?.symbols?.length ? data.symbols : ["BTC/USDT"],
+          strategies: data?.strategies?.length
+            ? data.strategies
+            : [{ name: "Default Strategy", params: {} }],
+          timeframes: data?.timeframes?.length ? data.timeframes : ["1h"],
+          balances: data?.balances?.length ? data.balances : [1000],
+          risks: data?.risks?.length ? data.risks : ["Medium"],
+          positions: data?.positions?.length ? data.positions : ["Both"],
+          takeProfits: data?.takeProfits?.length ? data.takeProfits : [0],
+          stopLosses: data?.stopLosses?.length ? data.stopLosses : [0],
           availableDates: data?.availableDates || {},
         });
         setError(null);
       } catch (err) {
         console.error("❌ fetchBacktestOptions failed:", err);
-        setError("Failed to load backtest options");
+        setError("Failed to load backtest options, using defaults");
+        // Defaults already set in initial state
       }
     };
     loadOptions();
   }, []);
 
-  /**
-   * Merge payload with safe defaults
-   */
+  // Merge payload with safe defaults
   const mergeDefaults = (payload) => {
-    const safeSymbol = payload.symbol || options.symbols[0] || "BTC/USDT";
-    const safeTimeframe = payload.timeframe || options.timeframes[0] || "1h";
+    const safeSymbol = payload.symbol || options.symbols[0];
+    const safeTimeframe = payload.timeframe || options.timeframes[0];
     const safeBalance =
-      Number(payload.initialBalance) > 0
-        ? Number(payload.initialBalance)
-        : options.balances[0] || 1000;
+      Number(payload.initialBalance) > 0 ? Number(payload.initialBalance) : options.balances[0];
 
     const matchedStrategy =
       options.strategies.find((s) => s.name === payload.strategy?.name) ||
-      options.strategies[0] ||
-      { name: "Default Strategy", parameters: {}, _id: null };
+      options.strategies[0];
 
     const strategyParams =
-      payload.strategy?.parameters || matchedStrategy.parameters || {};
-    const strategyName = matchedStrategy.name || "Default Strategy";
+      payload.strategy?.parameters || matchedStrategy?.params || {};
+    const strategyName = matchedStrategy?.name || "Default Strategy";
 
     const startDate =
       payload.startDate ||
@@ -92,34 +87,30 @@ export function useBacktest() {
       symbol: safeSymbol,
       timeframe: safeTimeframe,
       initialBalance: safeBalance,
-      strategyId: matchedStrategy._id || null,
+      strategyId: matchedStrategy?._id || null,
       strategy: { name: strategyName, parameters: strategyParams },
-      risk: payload.risk || options.risks[0] || "Medium",
-      takeProfit: payload.takeProfit ?? options.takeProfits[0] ?? null,
-      stopLoss: payload.stopLoss ?? options.stopLosses[0] ?? null,
+      risk: payload.risk || options.risks[0],
+      takeProfit: payload.takeProfit ?? options.takeProfits[0],
+      stopLoss: payload.stopLoss ?? options.stopLosses[0],
       startDate,
       endDate,
-      positionSide: payload.positionSide || options.positions[0] || "Both",
+      positionSide: payload.positionSide || options.positions[0],
       useNews: payload.useNews ?? defaultRealism.useNews,
       useSlippage: payload.useSlippage ?? defaultRealism.useSlippage,
       useSpread: payload.useSpread ?? defaultRealism.useSpread,
-      useRandomEvents:
-        payload.useRandomEvents ?? defaultRealism.useRandomEvents,
+      useRandomEvents: payload.useRandomEvents ?? defaultRealism.useRandomEvents,
       baseSlippageBps: payload.baseSlippageBps ?? defaultRealism.baseSlippageBps,
       tradeConfig: payload.tradeConfig || {},
     };
   };
 
-  /**
-   * Run single backtest
-   */
+  // Run single backtest
   const runBacktest = async (payload) => {
     const safePayload = mergeDefaults(payload);
     setLoadingSingle(true);
     setError(null);
     try {
       const { data } = await axios.post(`${API_BASE}/run`, safePayload);
-      // Ensure balanceOverTime exists for charting
       const backtestData = { ...data, balanceOverTime: data.balanceOverTime || [] };
       setCurrentBacktest(backtestData);
       return backtestData;
@@ -132,52 +123,12 @@ export function useBacktest() {
     }
   };
 
-  /**
-   * Run batch backtests
-   */
-  const runBatchBacktests = async (payload) => {
-    const safeParamCombos = (payload.paramCombos || []).map((p) => {
-      const stratDefaults =
-        options.strategies.find((s) => s.name === p.strategy?.name) || {};
-      return mergeDefaults({
-        ...p,
-        strategy: {
-          name: stratDefaults.name || "Default Strategy",
-          parameters: stratDefaults.parameters || {},
-        },
-      });
-    });
-
-    const safePayload = { ...payload, paramCombos: safeParamCombos };
-    setLoadingBatch(true);
-    setError(null);
-    try {
-      const { data } = await axios.post(`${API_BASE}/run-batch`, safePayload);
-      const results = (data || []).map((res) => ({
-        strategy: res.strategy?.name || "Unnamed",
-        finalBalance: res.finalBalance || 0,
-        balanceOverTime: res.balanceOverTime || [],
-      }));
-      setBatchResults(results);
-      return results;
-    } catch (err) {
-      console.error("❌ runBatchBacktests failed:", err);
-      setError("Failed to run batch backtests");
-      throw err;
-    } finally {
-      setLoadingBatch(false);
-    }
-  };
-
   return {
     options,
     loadingSingle,
-    loadingBatch,
     error,
     currentBacktest,
-    batchResults,
     runBacktest,
-    runBatchBacktests,
     defaultRealism,
   };
 }
