@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { useAuth } from "../context/AuthContext.jsx";
-import axios from "../api/apiClient.js"; // your token-aware axios instance
+import axios from "../api/apiClient.js"; // token-aware axios instance
 import {
   ResponsiveContainer,
   LineChart,
@@ -11,8 +11,6 @@ import {
   Tooltip,
   Legend,
   CartesianGrid,
-  BarChart,
-  Bar,
 } from "recharts";
 
 export default function Backtests() {
@@ -66,7 +64,7 @@ export default function Backtests() {
   useEffect(() => {
     const fetchOptions = async () => {
       try {
-        const res = await axios.get("/backtest/options"); // endpoint returning all available symbols, strategies, timeframes, etc.
+        const res = await axios.get("/backtest/options");
         setOptions(res.data);
 
         // Auto-select defaults
@@ -100,9 +98,9 @@ export default function Backtests() {
     if (!selectedStrategy) return;
     const strat = options.strategies?.find((s) => s.name === selectedStrategy);
     const defaults = {};
-    if (strat?.parameters) {
-      Object.keys(strat.parameters).forEach((key) => {
-        defaults[key] = strat.parameters[key]?.default ?? 0;
+    if (strat?.params) {
+      Object.keys(strat.params).forEach((key) => {
+        defaults[key] = strat.params[key]?.default ?? 0;
       });
     }
     setStrategyParams(defaults);
@@ -117,37 +115,41 @@ export default function Backtests() {
     setSelectedEndDate(available.end);
   }, [selectedSymbol, selectedTimeframe, options.availableDates]);
 
-  // --- Strategy Creator: Render Params ---
+  // --- Strategy Creator: Render Params with description ---
   const renderNewStrategyParams = () =>
-    Object.keys(newStrategyParams).map((key) => (
-      <div key={key} className="flex flex-col space-y-1 mt-2">
-        <div className="flex justify-between items-center">
-          <label className="font-medium">{key}</label>
-          {Object.keys(newStrategyParams).length > 1 && (
-            <button
-              onClick={() => {
-                const copy = { ...newStrategyParams };
-                delete copy[key];
-                setNewStrategyParams(copy);
-              }}
-              className="px-2 py-1 bg-red-500 text-white rounded text-sm"
-            >
-              Delete
-            </button>
-          )}
+    Object.keys(newStrategyParams).map((key) => {
+      const strat = options.strategies?.find((s) => s.name === selectedStrategy);
+      const desc = strat?.params?.[key]?.description || "Adjust this parameter to change strategy behavior.";
+      return (
+        <div key={key} className="flex flex-col space-y-1 mt-2">
+          <div className="flex justify-between items-center">
+            <label className="font-medium">{key}</label>
+            {Object.keys(newStrategyParams).length > 1 && (
+              <button
+                onClick={() => {
+                  const copy = { ...newStrategyParams };
+                  delete copy[key];
+                  setNewStrategyParams(copy);
+                }}
+                className="px-2 py-1 bg-red-500 text-white rounded text-sm"
+              >
+                Delete
+              </button>
+            )}
+          </div>
+          <input
+            type="number"
+            value={newStrategyParams[key]}
+            placeholder="Enter value"
+            onChange={(e) =>
+              setNewStrategyParams((prev) => ({ ...prev, [key]: Number(e.target.value) }))
+            }
+            className="border p-1 rounded w-full"
+          />
+          <p className="text-xs text-gray-500">{desc}</p>
         </div>
-        <input
-          type="number"
-          value={newStrategyParams[key]}
-          placeholder="Enter value"
-          onChange={(e) =>
-            setNewStrategyParams((prev) => ({ ...prev, [key]: Number(e.target.value) }))
-          }
-          className="border p-1 rounded w-full"
-        />
-        <p className="text-xs text-gray-500">Tip: Adjust {key} to control strategy behavior.</p>
-      </div>
-    ));
+      );
+    });
 
   const handleAddParamField = () => {
     const paramName = `param${Object.keys(newStrategyParams).length + 1}`;
@@ -159,7 +161,7 @@ export default function Backtests() {
       setStrategyMessage("Please enter a strategy name.");
       return;
     }
-    const newStrategy = { name: newStrategyName, parameters: newStrategyParams, userId };
+    const newStrategy = { name: newStrategyName, params: newStrategyParams, userId };
     try {
       const response = await axios.post("/strategies/save", newStrategy);
       if (response.data.success) {
@@ -167,8 +169,7 @@ export default function Backtests() {
         setNewStrategyName("");
         setNewStrategyParams({ param1: 0 });
         setSelectedStrategy(newStrategyName);
-        // Optionally refresh options to include new strategy
-        const updatedOptions = await axios.get("/api/backtest/options");
+        const updatedOptions = await axios.get("/backtest/options");
         setOptions(updatedOptions.data);
       } else {
         setStrategyMessage("❌ Error creating strategy.");
@@ -254,7 +255,6 @@ export default function Backtests() {
     }
   };
 
-  // --- Render chart & summary ---
   const renderChart = (data, color = "#8884d8") =>
     data?.length ? (
       <ResponsiveContainer width="100%" height={250}>
@@ -309,31 +309,29 @@ export default function Backtests() {
             type="text"
             value={newStrategyName}
             onChange={(e) => setNewStrategyName(e.target.value)}
-            placeholder="Mean Reversion"
+            placeholder="Enter strategy name"
             className="border p-1 rounded w-full mt-1"
           />
         </label>
-        <div className="mt-2">
-          <h4 className="font-medium">Parameters</h4>
-          {renderNewStrategyParams()}
-          <button
-            onClick={handleAddParamField}
-            className="mt-2 px-3 py-1 bg-green-500 text-white rounded"
-          >
-            + Add Parameter
-          </button>
-        </div>
-        {strategyMessage && <p className="mt-2 text-sm text-gray-700">{strategyMessage}</p>}
+        <button
+          onClick={handleAddParamField}
+          className="mt-2 px-3 py-1 bg-blue-600 text-white rounded"
+        >
+          Add Parameter
+        </button>
+        {renderNewStrategyParams()}
         <button
           onClick={handleCreateStrategy}
-          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded"
+          className="mt-2 px-3 py-1 bg-green-600 text-white rounded"
         >
           Save Strategy
         </button>
+        {strategyMessage && <p className="mt-1 text-sm">{strategyMessage}</p>}
       </div>
 
-      {/* Backtest Controls */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      {/* Single Backtest Controls */}
+      <div className="border p-4 rounded space-y-2">
+        <h3 className="font-semibold">Run Single Backtest</h3>
         <label>
           Symbol
           <select value={selectedSymbol} onChange={(e) => setSelectedSymbol(e.target.value)}>
@@ -344,6 +342,7 @@ export default function Backtests() {
             ))}
           </select>
         </label>
+
         <label>
           Strategy
           <select value={selectedStrategy} onChange={(e) => setSelectedStrategy(e.target.value)}>
@@ -354,16 +353,28 @@ export default function Backtests() {
             ))}
           </select>
         </label>
-        <label>
-          Timeframe
-          <select value={selectedTimeframe} onChange={(e) => setSelectedTimeframe(e.target.value)}>
-            {options.timeframes?.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </label>
+
+        {/* Render dynamic strategy parameters */}
+        {Object.keys(strategyParams).map((key) => {
+          const strat = options.strategies?.find((s) => s.name === selectedStrategy);
+          const desc = strat?.params?.[key]?.description || "Adjust this parameter.";
+          return (
+            <div key={key} className="flex flex-col mt-1">
+              <label>
+                {key} ({desc})
+                <input
+                  type="number"
+                  value={strategyParams[key]}
+                  onChange={(e) =>
+                    setStrategyParams((prev) => ({ ...prev, [key]: Number(e.target.value) }))
+                  }
+                  className="border p-1 rounded w-full"
+                />
+              </label>
+            </div>
+          );
+        })}
+
         <label>
           Balance
           <input
@@ -372,6 +383,7 @@ export default function Backtests() {
             onChange={(e) => setSelectedBalance(Number(e.target.value))}
           />
         </label>
+
         <label>
           Risk
           <select value={selectedRisk} onChange={(e) => setSelectedRisk(e.target.value)}>
@@ -382,6 +394,7 @@ export default function Backtests() {
             ))}
           </select>
         </label>
+
         <label>
           Position
           <select value={selectedPosition} onChange={(e) => setSelectedPosition(e.target.value)}>
@@ -392,6 +405,7 @@ export default function Backtests() {
             ))}
           </select>
         </label>
+
         <label>
           Start Date
           <input
@@ -400,6 +414,7 @@ export default function Backtests() {
             onChange={(e) => setSelectedStartDate(e.target.value)}
           />
         </label>
+
         <label>
           End Date
           <input
@@ -408,108 +423,21 @@ export default function Backtests() {
             onChange={(e) => setSelectedEndDate(e.target.value)}
           />
         </label>
-      </div>
 
-      {/* Advanced Options */}
-      <button
-        className="mt-2 px-3 py-1 bg-gray-300 rounded"
-        onClick={() => setShowAdvanced(!showAdvanced)}
-      >
-        {showAdvanced ? "Hide Advanced Options" : "Show Advanced Options"}
-      </button>
-      {showAdvanced && (
-        <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-4">
-          <label>
-            Take Profit
-            <input
-              type="number"
-              value={selectedTP}
-              onChange={(e) => setSelectedTP(Number(e.target.value))}
-            />
-          </label>
-          <label>
-            Stop Loss
-            <input
-              type="number"
-              value={selectedSL}
-              onChange={(e) => setSelectedSL(Number(e.target.value))}
-            />
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={realism.useNews}
-              onChange={(e) => setRealism({ ...realism, useNews: e.target.checked })}
-            />
-            Use News
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={realism.useSlippage}
-              onChange={(e) => setRealism({ ...realism, useSlippage: e.target.checked })}
-            />
-            Use Slippage
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={realism.useSpread}
-              onChange={(e) => setRealism({ ...realism, useSpread: e.target.checked })}
-            />
-            Use Spread
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={realism.useRandomEvents}
-              onChange={(e) => setRealism({ ...realism, useRandomEvents: e.target.checked })}
-            />
-            Random Events
-          </label>
-        </div>
-      )}
-
-      {/* Run Buttons */}
-      <div className="mt-4 flex gap-4">
         <button
           onClick={handleRunBacktest}
-          disabled={loadingSingle || hookLoadingSingle}
-          className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+          className="mt-2 px-3 py-1 bg-green-600 text-white rounded"
+          disabled={loadingSingle}
         >
-          {loadingSingle || hookLoadingSingle ? "Running..." : "Run Backtest"}
-        </button>
-        <button
-          onClick={handleRunBatch}
-          disabled={loadingBatch || hookLoadingBatch}
-          className="px-4 py-2 bg-green-600 text-white rounded disabled:opacity-50"
-        >
-          {loadingBatch || hookLoadingBatch ? "Running Batch..." : "Run Batch"}
+          {loadingSingle ? "Running..." : "Run Backtest"}
         </button>
       </div>
 
-      {/* Single Backtest Result */}
-      {currentBacktest && (
-        <div className="mt-6 space-y-4">
-          <h3 className="font-semibold">Single Backtest</h3>
-          {renderChart(currentBacktest.equityCurve)}
-          {renderSummary(currentBacktest)}
-        </div>
-      )}
+      {/* Chart */}
+      {currentBacktest && renderChart(currentBacktest.equityCurve)}
 
-      {/* Batch Backtests */}
-      {batchResults?.length > 0 && (
-        <div className="mt-6 space-y-6">
-          <h3 className="font-semibold">Batch Backtests</h3>
-          {batchResults.map((bt, i) => (
-            <div key={i} className="border p-2 rounded">
-              <h4 className="font-medium">{bt.strategy?.name || `Strategy ${i + 1}`}</h4>
-              {renderChart(bt.equityCurve, `hsl(${(i * 60) % 360},70%,50%)`)}
-              {renderSummary(bt)}
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Summary */}
+      {currentBacktest && renderSummary(currentBacktest)}
     </div>
   );
 }
