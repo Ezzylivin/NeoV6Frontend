@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react";
-import {
-  fetchBacktestOptions,
-  runBacktest as apiRunBacktest,
-  runBatchBacktests as apiRunBatchBacktests,
-} from "../api/backtest.js";
+import axios from "axios";
+
+const API_BASE = "https://neov6backend.onrender.com/api/backtests";
 
 export function useBacktest() {
   const [options, setOptions] = useState({
@@ -21,18 +19,18 @@ export function useBacktest() {
   const [currentBacktest, setCurrentBacktest] = useState(null);
   const [batchResults, setBatchResults] = useState([]);
   const [defaultRealism] = useState({
-    useNews: true,  // Default to true
-    useSlippage: true,  // Default to true
-    useSpread: true,  // Default to true
-    randomEventProb: 0,  // Default slippage and randomness set to 0
-    slippage_bps: 5,  // Default slippage
+    useNews: true,
+    useSlippage: true,
+    useSpread: true,
+    randomEventProb: 0,
+    slippage_bps: 5,
   });
 
-  // Fetch options on mount
+  // Fetch backtest options
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const data = await fetchBacktestOptions();
+        const { data } = await axios.get(`${API_BASE}/options`);
         setOptions({
           symbols: data?.symbols || [],
           strategies: data?.strategies || [],
@@ -55,16 +53,18 @@ export function useBacktest() {
   const mergeDefaults = (payload) => {
     const safeSymbol = payload.symbol || options.symbols[0] || "BTC/USDT";
     const safeTimeframe = payload.timeframe || options.timeframes[0] || "1h";
-    const safeBalance = Number(payload.initialBalance) > 0
-      ? Number(payload.initialBalance)
-      : options.balances[0] || 1000;
+    const safeBalance =
+      Number(payload.initialBalance) > 0
+        ? Number(payload.initialBalance)
+        : options.balances[0] || 1000;
 
     const matchedStrategy =
       options.strategies.find((s) => s.name === payload.strategy?.name) ||
       options.strategies[0] ||
       { name: "Default Strategy", parameters: {}, _id: null };
 
-    const strategyParams = payload.strategy?.parameters || matchedStrategy.parameters || {};
+    const strategyParams =
+      payload.strategy?.parameters || matchedStrategy.parameters || {};
     const strategyName = matchedStrategy.name || "Default Strategy";
 
     const startDate =
@@ -93,7 +93,8 @@ export function useBacktest() {
       useNews: payload.useNews ?? defaultRealism.useNews,
       useSlippage: payload.useSlippage ?? defaultRealism.useSlippage,
       useSpread: payload.useSpread ?? defaultRealism.useSpread,
-      useRandomEvents: payload.useRandomEvents ?? defaultRealism.randomEventProb > 0,
+      useRandomEvents:
+        payload.useRandomEvents ?? defaultRealism.randomEventProb > 0,
       baseSlippageBps: payload.baseSlippageBps ?? defaultRealism.slippage_bps,
       tradeConfig: payload.tradeConfig || {},
     };
@@ -105,9 +106,9 @@ export function useBacktest() {
     setLoadingSingle(true);
     setError(null);
     try {
-      const result = await apiRunBacktest(safePayload);
-      setCurrentBacktest(result || {});
-      return result || {};
+      const { data } = await axios.post(`${API_BASE}/run`, safePayload);
+      setCurrentBacktest(data || {});
+      return data || {};
     } catch (err) {
       console.error("❌ runBacktest failed:", err);
       setError("Failed to run backtest");
@@ -120,10 +121,14 @@ export function useBacktest() {
   // Run batch backtests
   const runBatchBacktests = async (payload) => {
     const safeParamCombos = (payload.paramCombos || []).map((p) => {
-      const stratDefaults = options.strategies.find((s) => s.name === p.strategy?.name) || {};
+      const stratDefaults =
+        options.strategies.find((s) => s.name === p.strategy?.name) || {};
       return mergeDefaults({
         ...p,
-        strategy: { name: stratDefaults.name || "Default Strategy", parameters: stratDefaults.parameters || {} },
+        strategy: {
+          name: stratDefaults.name || "Default Strategy",
+          parameters: stratDefaults.parameters || {},
+        },
       });
     });
 
@@ -131,9 +136,9 @@ export function useBacktest() {
     setLoadingBatch(true);
     setError(null);
     try {
-      const result = await apiRunBatchBacktests(safePayload);
-      setBatchResults(result || []);
-      return result || [];
+      const { data } = await axios.post(`${API_BASE}/run-batch`, safePayload);
+      setBatchResults(data || []);
+      return data || [];
     } catch (err) {
       console.error("❌ runBatchBacktests failed:", err);
       setError("Failed to run batch backtests");
