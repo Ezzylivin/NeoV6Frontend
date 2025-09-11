@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import axios from "../api/axios"; // your token-aware axios instance
 import {
   ResponsiveContainer,
   LineChart,
@@ -19,7 +20,6 @@ export default function Backtests() {
   const userId = user?.id;
 
   const {
-    options,
     currentBacktest,
     batchResults,
     runBacktest,
@@ -28,6 +28,16 @@ export default function Backtests() {
     loadingSingle: hookLoadingSingle,
     loadingBatch: hookLoadingBatch,
   } = useBacktest();
+
+  const [options, setOptions] = useState({
+    symbols: [],
+    strategies: [],
+    timeframes: [],
+    balances: [],
+    risks: [],
+    positions: [],
+    availableDates: {},
+  });
 
   const [loadingSingle, setLoadingSingle] = useState(false);
   const [loadingBatch, setLoadingBatch] = useState(false);
@@ -52,29 +62,40 @@ export default function Backtests() {
   const [strategyMessage, setStrategyMessage] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  // --- Auto-set defaults ---
+  // --- Fetch live options from backend ---
   useEffect(() => {
-    const last = JSON.parse(localStorage.getItem("lastBacktestParams"));
-    if (last) {
-      setSelectedSymbol(last.selectedSymbol);
-      setSelectedStrategy(last.selectedStrategy);
-      setSelectedTimeframe(last.selectedTimeframe);
-      setSelectedBalance(last.selectedBalance);
-      setSelectedRisk(last.selectedRisk);
-      setSelectedPosition(last.selectedPosition);
-      setSelectedStartDate(last.selectedStartDate);
-      setSelectedEndDate(last.selectedEndDate);
-    } else if (options.symbols?.length && options.strategies?.length) {
-      setSelectedSymbol(options.symbols[0]);
-      setSelectedStrategy(options.strategies[0]?.name);
-      setSelectedTimeframe(options.timeframes?.[0] || "1h");
-      setSelectedBalance(options.balances?.[0] || 1000);
-      setSelectedRisk(options.risks?.[0] || "Medium");
-      setSelectedPosition(options.positions?.[0] || "Both");
-    }
-  }, [options]);
+    const fetchOptions = async () => {
+      try {
+        const res = await axios.get("/api/backtest/options"); // endpoint returning all available symbols, strategies, timeframes, etc.
+        setOptions(res.data);
 
-  // --- Update strategy parameters on strategy change ---
+        // Auto-select defaults
+        const last = JSON.parse(localStorage.getItem("lastBacktestParams"));
+        if (last) {
+          setSelectedSymbol(last.selectedSymbol);
+          setSelectedStrategy(last.selectedStrategy);
+          setSelectedTimeframe(last.selectedTimeframe);
+          setSelectedBalance(last.selectedBalance);
+          setSelectedRisk(last.selectedRisk);
+          setSelectedPosition(last.selectedPosition);
+          setSelectedStartDate(last.selectedStartDate);
+          setSelectedEndDate(last.selectedEndDate);
+        } else if (res.data.symbols?.length && res.data.strategies?.length) {
+          setSelectedSymbol(res.data.symbols[0]);
+          setSelectedStrategy(res.data.strategies[0]?.name);
+          setSelectedTimeframe(res.data.timeframes?.[0] || "1h");
+          setSelectedBalance(res.data.balances?.[0] || 1000);
+          setSelectedRisk(res.data.risks?.[0] || "Medium");
+          setSelectedPosition(res.data.positions?.[0] || "Both");
+        }
+      } catch (err) {
+        console.error("Failed to fetch options:", err);
+      }
+    };
+    fetchOptions();
+  }, []);
+
+  // --- Update strategy parameters when selected strategy changes ---
   useEffect(() => {
     if (!selectedStrategy) return;
     const strat = options.strategies?.find((s) => s.name === selectedStrategy);
@@ -87,7 +108,7 @@ export default function Backtests() {
     setStrategyParams(defaults);
   }, [selectedStrategy, options.strategies]);
 
-  // --- Auto adjust dates ---
+  // --- Auto adjust start/end dates ---
   useEffect(() => {
     if (!selectedSymbol || !selectedTimeframe) return;
     const available = options.availableDates?.[selectedSymbol]?.[selectedTimeframe];
@@ -140,17 +161,15 @@ export default function Backtests() {
     }
     const newStrategy = { name: newStrategyName, parameters: newStrategyParams, userId };
     try {
-      const response = await fetch(`/api/strategies/save`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newStrategy),
-      });
-      const data = await response.json();
-      if (data.success) {
+      const response = await axios.post("/api/strategies/save", newStrategy);
+      if (response.data.success) {
         setStrategyMessage("✅ Strategy created! It will appear in the dropdown.");
         setNewStrategyName("");
         setNewStrategyParams({ param1: 0 });
         setSelectedStrategy(newStrategyName);
+        // Optionally refresh options to include new strategy
+        const updatedOptions = await axios.get("/api/backtest/options");
+        setOptions(updatedOptions.data);
       } else {
         setStrategyMessage("❌ Error creating strategy.");
       }
