@@ -1,7 +1,8 @@
+// File: src/pages/Backtests.jsx
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { useAuth } from "../context/AuthContext.jsx";
-import axios from "../api/apiClient.js"; // token-aware axios instance
+import axios from "../api/apiClient.js";
 import {
   ResponsiveContainer,
   LineChart,
@@ -23,8 +24,6 @@ export default function Backtests() {
     runBacktest,
     runBatchBacktests,
     defaultRealism,
-    loadingSingle: hookLoadingSingle,
-    loadingBatch: hookLoadingBatch,
   } = useBacktest();
 
   const [options, setOptions] = useState({
@@ -40,7 +39,7 @@ export default function Backtests() {
   const [loadingSingle, setLoadingSingle] = useState(false);
   const [loadingBatch, setLoadingBatch] = useState(false);
 
-  // --- Backtest controls ---
+  // Backtest controls
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [selectedStrategy, setSelectedStrategy] = useState("");
   const [selectedTimeframe, setSelectedTimeframe] = useState("");
@@ -54,20 +53,19 @@ export default function Backtests() {
   const [strategyParams, setStrategyParams] = useState({});
   const [realism, setRealism] = useState(defaultRealism);
 
-  // --- Strategy creator state ---
+  // Strategy creator
   const [newStrategyName, setNewStrategyName] = useState("");
   const [newStrategyParams, setNewStrategyParams] = useState({ param1: 0 });
   const [strategyMessage, setStrategyMessage] = useState("");
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
-  // --- Fetch live options from backend ---
+  // Fetch options
   useEffect(() => {
     const fetchOptions = async () => {
       try {
-        const res = await axios.get("/backtest/options");
-        setOptions(res.data);
+        const res = await axios.get("/backtests/options");
+        const data = res.data.data || res.data;
+        setOptions(data);
 
-        // Auto-select defaults
         const last = JSON.parse(localStorage.getItem("lastBacktestParams"));
         if (last) {
           setSelectedSymbol(last.selectedSymbol);
@@ -78,13 +76,13 @@ export default function Backtests() {
           setSelectedPosition(last.selectedPosition);
           setSelectedStartDate(last.selectedStartDate);
           setSelectedEndDate(last.selectedEndDate);
-        } else if (res.data.symbols?.length && res.data.strategies?.length) {
-          setSelectedSymbol(res.data.symbols[0]);
-          setSelectedStrategy(res.data.strategies[0]?.name);
-          setSelectedTimeframe(res.data.timeframes?.[0] || "1h");
-          setSelectedBalance(res.data.balances?.[0] || 1000);
-          setSelectedRisk(res.data.risks?.[0] || "Medium");
-          setSelectedPosition(res.data.positions?.[0] || "Both");
+        } else if (data.symbols?.length && data.strategies?.length) {
+          setSelectedSymbol(data.symbols[0]);
+          setSelectedStrategy(data.strategies[0]?.name);
+          setSelectedTimeframe(data.timeframes?.[0] || "1h");
+          setSelectedBalance(data.balances?.[0] || 1000);
+          setSelectedRisk(data.risks?.[0] || "Medium");
+          setSelectedPosition(data.positions?.[0] || "Both");
         }
       } catch (err) {
         console.error("Failed to fetch options:", err);
@@ -93,7 +91,7 @@ export default function Backtests() {
     fetchOptions();
   }, []);
 
-  // --- Update strategy parameters when selected strategy changes ---
+  // Update strategy params
   useEffect(() => {
     if (!selectedStrategy) return;
     const strat = options.strategies?.find((s) => s.name === selectedStrategy);
@@ -106,7 +104,7 @@ export default function Backtests() {
     setStrategyParams(defaults);
   }, [selectedStrategy, options.strategies]);
 
-  // --- Auto adjust start/end dates ---
+  // Auto adjust dates
   useEffect(() => {
     if (!selectedSymbol || !selectedTimeframe) return;
     const available = options.availableDates?.[selectedSymbol]?.[selectedTimeframe];
@@ -115,11 +113,12 @@ export default function Backtests() {
     setSelectedEndDate(available.end);
   }, [selectedSymbol, selectedTimeframe, options.availableDates]);
 
-  // --- Strategy Creator: Render Params with description ---
+  // Strategy Creator render
   const renderNewStrategyParams = () =>
     Object.keys(newStrategyParams).map((key) => {
       const strat = options.strategies?.find((s) => s.name === selectedStrategy);
-      const desc = strat?.params?.[key]?.description || "Adjust this parameter to change strategy behavior.";
+      const desc = strat?.params?.[key]?.description || "Adjust this parameter.";
+      const example = strat?.params?.[key]?.example !== undefined ? `Example: ${strat.params[key].example}` : "";
       return (
         <div key={key} className="flex flex-col space-y-1 mt-2">
           <div className="flex justify-between items-center">
@@ -146,7 +145,7 @@ export default function Backtests() {
             }
             className="border p-1 rounded w-full"
           />
-          <p className="text-xs text-gray-500">{desc}</p>
+          <p className="text-xs text-gray-500">{desc} {example}</p>
         </div>
       );
     });
@@ -169,7 +168,7 @@ export default function Backtests() {
         setNewStrategyName("");
         setNewStrategyParams({ param1: 0 });
         setSelectedStrategy(newStrategyName);
-        const updatedOptions = await axios.get("/backtest/options");
+        const updatedOptions = await axios.get("/backtests/options");
         setOptions(updatedOptions.data);
       } else {
         setStrategyMessage("❌ Error creating strategy.");
@@ -180,7 +179,7 @@ export default function Backtests() {
     }
   };
 
-  // --- Run Backtests ---
+  // Run single backtest
   const handleRunBacktest = async () => {
     if (!userId) return alert("Login required to run backtests.");
     const strat = options.strategies?.find((s) => s.name === selectedStrategy) || {};
@@ -225,6 +224,7 @@ export default function Backtests() {
     }
   };
 
+  // Run batch backtest
   const handleRunBatch = async () => {
     if (!userId) return alert("Login required to run batch backtests.");
     const paramCombos = options.strategies?.map((s) => ({
@@ -329,9 +329,10 @@ export default function Backtests() {
         {strategyMessage && <p className="mt-1 text-sm">{strategyMessage}</p>}
       </div>
 
-      {/* Single Backtest Controls */}
+      {/* Backtest Controls */}
       <div className="border p-4 rounded space-y-2">
-        <h3 className="font-semibold">Run Single Backtest</h3>
+        <h3 className="font-semibold">Run Backtests</h3>
+
         <label>
           Symbol
           <select value={selectedSymbol} onChange={(e) => setSelectedSymbol(e.target.value)}>
@@ -354,14 +355,14 @@ export default function Backtests() {
           </select>
         </label>
 
-        {/* Render dynamic strategy parameters */}
         {Object.keys(strategyParams).map((key) => {
           const strat = options.strategies?.find((s) => s.name === selectedStrategy);
           const desc = strat?.params?.[key]?.description || "Adjust this parameter.";
+          const example = strat?.params?.[key]?.example !== undefined ? `Example: ${strat.params[key].example}` : "";
           return (
             <div key={key} className="flex flex-col mt-1">
               <label>
-                {key} ({desc})
+                {key} ({desc} {example})
                 <input
                   type="number"
                   value={strategyParams[key]}
@@ -388,9 +389,7 @@ export default function Backtests() {
           Risk
           <select value={selectedRisk} onChange={(e) => setSelectedRisk(e.target.value)}>
             {options.risks?.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
+              <option key={r} value={r}>{r}</option>
             ))}
           </select>
         </label>
@@ -399,9 +398,7 @@ export default function Backtests() {
           Position
           <select value={selectedPosition} onChange={(e) => setSelectedPosition(e.target.value)}>
             {options.positions?.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
+              <option key={p} value={p}>{p}</option>
             ))}
           </select>
         </label>
@@ -424,20 +421,47 @@ export default function Backtests() {
           />
         </label>
 
-        <button
-          onClick={handleRunBacktest}
-          className="mt-2 px-3 py-1 bg-green-600 text-white rounded"
-          disabled={loadingSingle}
-        >
-          {loadingSingle ? "Running..." : "Run Backtest"}
-        </button>
+        <div className="flex space-x-2 mt-2">
+          <button
+            onClick={handleRunBacktest}
+            className="px-3 py-1 bg-green-600 text-white rounded"
+            disabled={loadingSingle}
+          >
+            {loadingSingle ? "Running Single..." : "Run Single Backtest"}
+          </button>
+
+          <button
+            onClick={handleRunBatch}
+            className="px-3 py-1 bg-purple-600 text-white rounded"
+            disabled={loadingBatch}
+          >
+            {loadingBatch ? "Running Batch..." : "Run Batch Backtests"}
+          </button>
+        </div>
       </div>
 
-      {/* Chart */}
-      {currentBacktest && renderChart(currentBacktest.equityCurve)}
+      {/* Single backtest chart & summary */}
+      {currentBacktest && (
+        <>
+          <h3 className="text-lg font-semibold">Single Backtest Result</h3>
+          {renderChart(currentBacktest.equityCurve)}
+          {renderSummary(currentBacktest)}
+        </>
+      )}
 
-      {/* Summary */}
-      {currentBacktest && renderSummary(currentBacktest)}
+      {/* Batch backtest results */}
+      {batchResults?.length > 0 && (
+        <>
+          <h3 className="text-lg font-semibold mt-4">Batch Backtest Results</h3>
+          {batchResults.map((bt, idx) => (
+            <div key={idx} className="border p-2 rounded my-2 bg-gray-50">
+              <h4 className="font-medium">{bt.strategy?.name || `Strategy ${idx + 1}`}</h4>
+              {renderChart(bt.equityCurve, "#82ca9d")}
+              {renderSummary(bt)}
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }
