@@ -1,4 +1,3 @@
-// File: src/hooks/useBacktest.js
 import { useState, useEffect } from "react";
 import {
   fetchBacktestOptions,
@@ -22,14 +21,14 @@ export function useBacktest() {
   const [currentBacktest, setCurrentBacktest] = useState(null);
   const [batchResults, setBatchResults] = useState([]);
   const [defaultRealism] = useState({
-    useNews: false,
-    useSlippage: false,
-    useSpread: false,
-    randomEventProb: 0,
-    slippage_bps: 5,
+    useNews: true,  // Default to true
+    useSlippage: true,  // Default to true
+    useSpread: true,  // Default to true
+    randomEventProb: 0,  // Default slippage and randomness set to 0
+    slippage_bps: 5,  // Default slippage
   });
 
-  // --- Fetch options on mount ---
+  // Fetch options on mount
   useEffect(() => {
     const loadOptions = async () => {
       try {
@@ -52,7 +51,7 @@ export function useBacktest() {
     loadOptions();
   }, []);
 
-  // --- Merge payload with safe defaults ---
+  // Merge payload with safe defaults
   const mergeDefaults = (payload) => {
     const safeSymbol = payload.symbol || options.symbols[0] || "BTC/USDT";
     const safeTimeframe = payload.timeframe || options.timeframes[0] || "1h";
@@ -100,7 +99,7 @@ export function useBacktest() {
     };
   };
 
-  // --- Run single backtest ---
+  // Run single backtest
   const runBacktest = async (payload) => {
     const safePayload = mergeDefaults(payload);
     setLoadingSingle(true);
@@ -118,7 +117,7 @@ export function useBacktest() {
     }
   };
 
-  // --- Run batch backtests ---
+  // Run batch backtests
   const runBatchBacktests = async (payload) => {
     const safeParamCombos = (payload.paramCombos || []).map((p) => {
       const stratDefaults = options.strategies.find((s) => s.name === p.strategy?.name) || {};
