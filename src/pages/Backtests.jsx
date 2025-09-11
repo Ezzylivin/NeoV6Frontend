@@ -1,6 +1,9 @@
+// File: src/pages/Backtests.jsx
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import StrategyList from "../components/StrategyList.jsx";
+import StrategyForm from "../components/StrategyForm.jsx";
 import {
   ResponsiveContainer,
   LineChart,
@@ -44,30 +47,76 @@ export default function Backtests() {
   const [strategyParams, setStrategyParams] = useState({});
   const [realism, setRealism] = useState(defaultRealism);
 
+  // --- Strategy management ---
+  const [strategies, setStrategies] = useState([]);
+  const [selectedStrategyId, setSelectedStrategyId] = useState(null);
+
+  useEffect(() => {
+    if (!userId) return;
+    const fetchStrategies = async () => {
+      try {
+        const response = await fetch(`/api/strategies/user/${userId}`);
+        const data = await response.json();
+        setStrategies(data);
+      } catch (err) {
+        console.error("Error fetching strategies:", err);
+      }
+    };
+    fetchStrategies();
+  }, [userId]);
+
+  const handleEditStrategy = (strategyId) => setSelectedStrategyId(strategyId);
+
+  const handleSubmitStrategy = async (formData) => {
+    try {
+      if (selectedStrategyId) {
+        await fetch(`/api/strategies/${selectedStrategyId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+      } else {
+        await fetch("/api/strategies", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+      }
+
+      // Refresh strategies
+      const res = await fetch(`/api/strategies/user/${userId}`);
+      const updated = await res.json();
+      setStrategies(updated);
+      setSelectedStrategyId(null);
+    } catch (err) {
+      console.error("Error submitting strategy:", err);
+    }
+  };
+
   // --- Auto-set defaults when options load ---
   useEffect(() => {
-    if (options.symbols?.length && options.strategies?.length) {
+    if (options.symbols?.length && strategies.length) {
       setSelectedSymbol(options.symbols[0]);
-      setSelectedStrategy(options.strategies[0]?.name);
+      setSelectedStrategy(strategies[0]?.name || "");
       setSelectedTimeframe(options.timeframes?.[0] || "1h");
       setSelectedBalance(options.balances?.[0] || 1000);
       setSelectedRisk(options.risks?.[0] || "Medium");
       setSelectedPosition(options.positions?.[0] || "Both");
     }
-  }, [options]);
+  }, [options, strategies]);
 
   // --- Update strategy parameters when selected strategy changes ---
   useEffect(() => {
     if (!selectedStrategy) return;
-    const strat = options.strategies?.find((s) => s.name === selectedStrategy);
+    const strat = strategies.find((s) => s.name === selectedStrategy);
     const defaults = {};
-    if (strat?.parameters) {
-      Object.keys(strat.parameters).forEach((key) => {
-        defaults[key] = strat.parameters[key] ?? 0;
+    if (strat?.params) {
+      Object.keys(strat.params).forEach((key) => {
+        defaults[key] = strat.params[key] ?? 0;
       });
     }
     setStrategyParams(defaults);
-  }, [selectedStrategy, options.strategies]);
+  }, [selectedStrategy, strategies]);
 
   // --- Auto-adjust start/end dates ---
   useEffect(() => {
@@ -81,7 +130,7 @@ export default function Backtests() {
   // --- Run single backtest ---
   const handleRunBacktest = async () => {
     if (!userId) return alert("You must be logged in to run backtests.");
-    const strat = options.strategies?.find((s) => s.name === selectedStrategy) || {};
+    const strat = strategies.find((s) => s.name === selectedStrategy) || {};
     const payload = {
       userId,
       symbol: selectedSymbol,
@@ -102,7 +151,6 @@ export default function Backtests() {
       positionSide: selectedPosition,
       tradeConfig: {},
     };
-
     try {
       setLoadingSingle(true);
       await runBacktest(payload);
@@ -114,7 +162,7 @@ export default function Backtests() {
   // --- Run batch backtests ---
   const handleRunBatch = async () => {
     if (!userId) return alert("You must be logged in to run batch backtests.");
-    const paramCombos = options.strategies?.map((s) => ({
+    const paramCombos = strategies.map((s) => ({
       userId,
       symbol: selectedSymbol,
       timeframe: selectedTimeframe,
@@ -134,7 +182,6 @@ export default function Backtests() {
       positionSide: selectedPosition,
       tradeConfig: {},
     }));
-
     try {
       setLoadingBatch(true);
       await runBatchBacktests({ paramCombos });
@@ -160,11 +207,15 @@ export default function Backtests() {
 
   return (
     <div className="p-6 space-y-6">
-      <h2 className="text-2xl font-bold">Backtesting</h2>
+      <h2 className="text-2xl font-bold">Backtests</h2>
+
+      {/* Strategy List and Form */}
+      <StrategyList strategies={strategies} onEdit={handleEditStrategy} />
+      <StrategyForm strategyId={selectedStrategyId} onSubmit={handleSubmitStrategy} />
 
       {/* Controls */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* Render various select inputs for symbol, strategy, etc. */}
+      <div className="grid grid-cols-2 gap-4 mt-4">
+        {/* Render select inputs for symbol, timeframe, balance, risk, position, etc. */}
       </div>
 
       {/* Strategy parameters */}
@@ -172,7 +223,7 @@ export default function Backtests() {
 
       {/* Realism settings */}
       <div className="mt-4 grid grid-cols-3 gap-4">
-        {/* Realism settings checkboxes */}
+        {/* Realism checkboxes here */}
       </div>
 
       {/* Run Buttons */}
@@ -193,8 +244,21 @@ export default function Backtests() {
         </button>
       </div>
 
-      {/* Results and Summary */}
-      {/* Render single and batch backtest results with charts and summaries */}
+      {/* Results & Charts */}
+      <div className="mt-6">
+        {currentBacktest && (
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={currentBacktest.results}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="timestamp" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Line type="monotone" dataKey="balance" stroke="#8884d8" />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </div>
     </div>
   );
 }
