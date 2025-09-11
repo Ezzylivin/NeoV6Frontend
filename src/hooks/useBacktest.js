@@ -1,3 +1,4 @@
+// File: src/hooks/useBacktest.js
 import { useState, useEffect } from "react";
 import axios from "axios";
 
@@ -21,7 +22,6 @@ export function useBacktest() {
   const [error, setError] = useState(null);
   const [currentBacktest, setCurrentBacktest] = useState(null);
   const [batchResults, setBatchResults] = useState([]);
-  
   const [defaultRealism] = useState({
     useNews: true,
     useSlippage: true,
@@ -119,8 +119,10 @@ export function useBacktest() {
     setError(null);
     try {
       const { data } = await axios.post(`${API_BASE}/run`, safePayload);
-      setCurrentBacktest(data || {});
-      return data || {};
+      // Ensure balanceOverTime exists for charting
+      const backtestData = { ...data, balanceOverTime: data.balanceOverTime || [] };
+      setCurrentBacktest(backtestData);
+      return backtestData;
     } catch (err) {
       console.error("❌ runBacktest failed:", err);
       setError("Failed to run backtest");
@@ -151,8 +153,13 @@ export function useBacktest() {
     setError(null);
     try {
       const { data } = await axios.post(`${API_BASE}/run-batch`, safePayload);
-      setBatchResults(data || []);
-      return data || [];
+      const results = (data || []).map((res) => ({
+        strategy: res.strategy?.name || "Unnamed",
+        finalBalance: res.finalBalance || 0,
+        balanceOverTime: res.balanceOverTime || [],
+      }));
+      setBatchResults(results);
+      return results;
     } catch (err) {
       console.error("❌ runBatchBacktests failed:", err);
       setError("Failed to run batch backtests");
