@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { useAuth } from "../context/AuthContext.jsx";
-import axios from "../api/axios"; // your token-aware axios instance
+import axios from "../api/apiClient.js"; // your token-aware axios instance
 import {
   ResponsiveContainer,
   LineChart,
