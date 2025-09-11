@@ -13,6 +13,11 @@ import {
   Legend,
   CartesianGrid,
 } from "recharts";
+import { Tab } from "@headlessui/react";
+
+function classNames(...classes) {
+  return classes.filter(Boolean).join(" ");
+}
 
 export default function Backtests() {
   const { user } = useAuth();
@@ -260,117 +265,148 @@ export default function Backtests() {
 
   return (
     <div className="space-y-6">
-      {/* Backtest Controls */}
-      <div className="border p-4 rounded space-y-2">
-        <h3 className="font-semibold">Run Backtests</h3>
+      <Tab.Group>
+        <Tab.List className="flex space-x-2 border-b pb-2">
+          {["Run Backtest", "Create Strategy", "Preview Strategy"].map((tab) => (
+            <Tab
+              key={tab}
+              className={({ selected }) =>
+                classNames(
+                  "px-4 py-2 rounded-t-lg focus:outline-none",
+                  selected
+                    ? "bg-blue-500 text-white"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                )
+              }
+            >
+              {tab}
+            </Tab>
+          ))}
+        </Tab.List>
 
-        <label>
-          Symbol
-          <select value={selectedSymbol} onChange={(e) => setSelectedSymbol(e.target.value)}>
-            {options.symbols?.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        </label>
+        <Tab.Panels>
+          {/* Run Backtest */}
+          <Tab.Panel>
+            <div className="border p-4 rounded space-y-2">
+              <h3 className="font-semibold">Run Backtests</h3>
 
-        <label>
-          Strategy
-          <select value={selectedStrategy} onChange={(e) => setSelectedStrategy(e.target.value)}>
-            {options.strategies?.map((s) => (
-              <option key={s.name} value={s.name}>{s.name}</option>
-            ))}
-          </select>
-        </label>
+              <label>
+                Symbol
+                <select value={selectedSymbol} onChange={(e) => setSelectedSymbol(e.target.value)}>
+                  {options.symbols?.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </label>
 
-        <label>
-          Timeframe
-          <select value={selectedTimeframe} onChange={(e) => setSelectedTimeframe(e.target.value)}>
-            {options.timeframes?.map((tf) => (
-              <option key={tf} value={tf}>{tf}</option>
-            ))}
-          </select>
-        </label>
+              <label>
+                Strategy
+                <select value={selectedStrategy} onChange={(e) => setSelectedStrategy(e.target.value)}>
+                  {options.strategies?.map((s) => (
+                    <option key={s.name} value={s.name}>{s.name}</option>
+                  ))}
+                </select>
+              </label>
 
-        <label>
-          Balance
-          <input type="number" value={selectedBalance} onChange={(e) => setSelectedBalance(Number(e.target.value))} />
-        </label>
+              <label>
+                Timeframe
+                <select value={selectedTimeframe} onChange={(e) => setSelectedTimeframe(e.target.value)}>
+                  {options.timeframes?.map((tf) => (
+                    <option key={tf} value={tf}>{tf}</option>
+                  ))}
+                </select>
+              </label>
 
-        <label>
-          Risk
-          <select value={selectedRisk} onChange={(e) => setSelectedRisk(e.target.value)}>
-            {options.risks?.map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
-        </label>
+              <label>
+                Balance
+                <input type="number" value={selectedBalance} onChange={(e) => setSelectedBalance(Number(e.target.value))} />
+              </label>
 
-        <button
-          onClick={handleRunBacktest}
-          className="px-4 py-2 bg-blue-500 text-white rounded"
-          disabled={loadingSingle}
-        >
-          {loadingSingle ? "Running..." : "Run Backtest"}
-        </button>
-      </div>
+              <label>
+                Risk
+                <select value={selectedRisk} onChange={(e) => setSelectedRisk(e.target.value)}>
+                  {options.risks?.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </label>
 
-      {/* Strategy Creator */}
-      <div className="border p-4 rounded space-y-2">
-        <h3 className="font-semibold">Create / Preview Strategy</h3>
-        <label>
-          Strategy Name
-          <input
-            type="text"
-            value={newStrategyName}
-            onChange={(e) => setNewStrategyName(e.target.value)}
-            placeholder="Enter strategy name"
-            className="border p-1 rounded w-full"
-          />
-        </label>
+              <button
+                onClick={handleRunBacktest}
+                className="px-4 py-2 bg-blue-500 text-white rounded"
+                disabled={loadingSingle}
+              >
+                {loadingSingle ? "Running..." : "Run Backtest"}
+              </button>
+            </div>
+          </Tab.Panel>
 
-        {renderNewStrategyParams()}
+          {/* Create Strategy */}
+          <Tab.Panel>
+            <div className="border p-4 rounded space-y-2">
+              <h3 className="font-semibold">Create Strategy</h3>
+              <label>
+                Strategy Name
+                <input
+                  type="text"
+                  value={newStrategyName}
+                  onChange={(e) => setNewStrategyName(e.target.value)}
+                  placeholder="Enter strategy name"
+                  className="border p-1 rounded w-full"
+                />
+              </label>
 
-        <div className="flex space-x-2 mt-2">
-          <button
-            onClick={handleAddParamField}
-            className="px-3 py-1 bg-gray-300 rounded"
-          >
-            Add Param
-          </button>
-          <button
-            onClick={handleCreateStrategy}
-            className="px-3 py-1 bg-green-500 text-white rounded"
-          >
-            Save Strategy
-          </button>
-          <button
-            onClick={handlePreviewStrategy}
-            className="px-3 py-1 bg-yellow-500 text-white rounded"
-          >
-            {loadingPreview ? "Previewing..." : "Preview Strategy"}
-          </button>
-        </div>
+              {renderNewStrategyParams()}
 
-        {strategyMessage && <p className="mt-2">{strategyMessage}</p>}
-      </div>
+              <div className="flex space-x-2 mt-2">
+                <button
+                  onClick={handleAddParamField}
+                  className="px-3 py-1 bg-gray-300 rounded"
+                >
+                  Add Param
+                </button>
+                <button
+                  onClick={handleCreateStrategy}
+                  className="px-3 py-1 bg-green-500 text-white rounded"
+                >
+                  Save Strategy
+                </button>
+              </div>
 
-      {/* Preview Results */}
-      {previewBacktest && (
-        <div className="border p-4 rounded">
-          <h3 className="font-semibold">Preview Results</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={previewBacktest.equityCurve}>
-              <XAxis dataKey="time" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <CartesianGrid stroke="#f0f0f0" />
-              <Line type="monotone" dataKey="balance" stroke="#8884d8" />
-            </LineChart>
-          </ResponsiveContainer>
-          <pre className="mt-2 text-sm">{JSON.stringify(previewBacktest.summary, null, 2)}</pre>
-        </div>
-      )}
+              {strategyMessage && <p className="mt-2">{strategyMessage}</p>}
+            </div>
+          </Tab.Panel>
+
+          {/* Preview Strategy */}
+          <Tab.Panel>
+            <div className="border p-4 rounded space-y-2">
+              <h3 className="font-semibold">Preview Strategy</h3>
+              <button
+                onClick={handlePreviewStrategy}
+                className="px-3 py-1 bg-yellow-500 text-white rounded"
+              >
+                {loadingPreview ? "Previewing..." : "Preview Strategy"}
+              </button>
+
+              {previewBacktest && (
+                <div className="mt-4">
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={previewBacktest.equityCurve}>
+                      <XAxis dataKey="time" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <CartesianGrid stroke="#f0f0f0" />
+                      <Line type="monotone" dataKey="balance" stroke="#8884d8" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                  <pre className="mt-2 text-sm">{JSON.stringify(previewBacktest.summary, null, 2)}</pre>
+                </div>
+              )}
+            </div>
+          </Tab.Panel>
+        </Tab.Panels>
+      </Tab.Group>
 
       {/* Current Backtest Results */}
       {currentBacktest && (
