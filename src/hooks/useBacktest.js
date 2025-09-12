@@ -2,11 +2,12 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 
-const API_BASE = "https://neov6backend.onrender.com/api/backtests";
+// SUGGESTION: Use an environment variable for the API base URL
+const API_BASE = process.env.REACT_APP_API_URL || "https://neov6backend.onrender.com/api/backtests";
 
 export function useBacktest() {
   const [options, setOptions] = useState({
-    symbols: ["BTC/USDT"],          // default
+    symbols: ["BTC/USDT"],
     strategies: [{ name: "Default Strategy", params: {} }],
     timeframes: ["1h"],
     balances: [1000],
@@ -33,12 +34,13 @@ export function useBacktest() {
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const { data } = await axios.get(`${API_BASE}/options`);
+        // Note: The backend response has a 'data' wrapper
+        const { data: response } = await axios.get(`${API_BASE}/options`);
+        const data = response.data; // Access the actual data object
+        
         setOptions({
           symbols: data?.symbols?.length ? data.symbols : ["BTC/USDT"],
-          strategies: data?.strategies?.length
-            ? data.strategies
-            : [{ name: "Default Strategy", params: {} }],
+          strategies: data?.strategies?.length ? data.strategies : [{ name: "Default Strategy", params: {} }],
           timeframes: data?.timeframes?.length ? data.timeframes : ["1h"],
           balances: data?.balances?.length ? data.balances : [1000],
           risks: data?.risks?.length ? data.risks : ["Medium"],
@@ -51,7 +53,6 @@ export function useBacktest() {
       } catch (err) {
         console.error("❌ fetchBacktestOptions failed:", err);
         setError("Failed to load backtest options, using defaults");
-        // Defaults already set in initial state
       }
     };
     loadOptions();
@@ -61,26 +62,19 @@ export function useBacktest() {
   const mergeDefaults = (payload) => {
     const safeSymbol = payload.symbol || options.symbols[0];
     const safeTimeframe = payload.timeframe || options.timeframes[0];
-    const safeBalance =
-      Number(payload.initialBalance) > 0 ? Number(payload.initialBalance) : options.balances[0];
+    const safeBalance = Number(payload.initialBalance) > 0 ? Number(payload.initialBalance) : options.balances[0];
 
-    const matchedStrategy =
-      options.strategies.find((s) => s.name === payload.strategy?.name) ||
-      options.strategies[0];
+    const matchedStrategy = options.strategies.find((s) => s.name === payload.strategy?.name) || options.strategies[0];
+    
+    // --- FIX: Add 'type' to the strategy object ---
+    const finalStrategy = {
+      name: matchedStrategy?.name || "Default Strategy",
+      type: matchedStrategy?.strategyType || "SMA", // <-- CRITICAL FIX
+      parameters: payload.strategy?.parameters || matchedStrategy?.params || {},
+    };
 
-    const strategyParams =
-      payload.strategy?.parameters || matchedStrategy?.params || {};
-    const strategyName = matchedStrategy?.name || "Default Strategy";
-
-    const startDate =
-      payload.startDate ||
-      options.availableDates?.[safeSymbol]?.[safeTimeframe]?.start ||
-      new Date().toISOString().split("T")[0];
-
-    const endDate =
-      payload.endDate ||
-      options.availableDates?.[safeSymbol]?.[safeTimeframe]?.end ||
-      new Date().toISOString().split("T")[0];
+    const startDate = payload.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const endDate = payload.endDate || new Date().toISOString().split("T")[0];
 
     return {
       ...payload,
@@ -88,7 +82,7 @@ export function useBacktest() {
       timeframe: safeTimeframe,
       initialBalance: safeBalance,
       strategyId: matchedStrategy?._id || null,
-      strategy: { name: strategyName, parameters: strategyParams },
+      strategy: finalStrategy, // Use the fixed strategy object
       risk: payload.risk || options.risks[0],
       takeProfit: payload.takeProfit ?? options.takeProfits[0],
       stopLoss: payload.stopLoss ?? options.stopLosses[0],
@@ -106,17 +100,28 @@ export function useBacktest() {
 
   // Run single backtest
   const runBacktest = async (payload) => {
-    const safePayload = mergeDefaults(payload);
+    // NOTE: An auth solution will be needed to provide a real userId
+    const payloadWithUser = { ...payload, userId: '65f0c233932a32a13295964f' }; // Placeholder ID
+    const safePayload = mergeDefaults(payloadWithUser);
+    
     setLoadingSingle(true);
     setError(null);
     try {
-      const { data } = await axios.post(`${API_BASE}/run`, safePayload);
-      const backtestData = { ...data, balanceOverTime: data.balanceOverTime || [] };
+      const { data: response } = await axios.post(`${API_BASE}/run`, safePayload);
+      const data = response.data; // Access the actual data object
+
+      // --- FIX: Use 'equityCurve' to match the backend schema ---
+      const backtestData = {
+        ...data,
+        equityCurve: data?.equityCurve || [], // <-- FIX
+      };
+
       setCurrentBacktest(backtestData);
       return backtestData;
     } catch (err) {
       console.error("❌ runBacktest failed:", err);
-      setError("Failed to run backtest");
+      const errorMessage = err.response?.data?.message || "Failed to run backtest";
+      setError(errorMessage);
       throw err;
     } finally {
       setLoadingSingle(false);
