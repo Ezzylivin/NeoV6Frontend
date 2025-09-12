@@ -4,6 +4,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer
 } from "recharts";
 import { useAuth } from '../context/AuthContext.jsx';
+import api from '../api/apiClient.js';
 
 export default function Dashboard() {
   // The useAuth hook can now be used without a direct import from a separate file.
