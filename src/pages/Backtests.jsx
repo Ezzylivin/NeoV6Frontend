@@ -1,5 +1,7 @@
 import React, { useState, useEffect, createContext, useContext } from "react";
 import axios from "axios";
+import useAuth from '../context/AuthContext.jsx';
+import useBacktest from '../hooks/useBacktest.js';
 import {
   ResponsiveContainer,
   LineChart,
