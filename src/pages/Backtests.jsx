@@ -1,7 +1,5 @@
 import React, { useState, useEffect, createContext, useContext } from "react";
 import axios from "axios";
-import useAuth from '../context/AuthContext.jsx';
-import useBacktest from '../hooks/useBacktest.js';
 import {
   ResponsiveContainer,
   LineChart,
@@ -13,15 +11,32 @@ import {
   CartesianGrid,
 } from "recharts";
 
-// --- INLINE AUTH CONTEXT TO RESOLVE IMPORT ERRORS ---
-const AuthContext = createContext(null);
+// --- INLINE AUTH CONTEXT FOR AUTH TOKEN MANAGEMENT ---
+const AuthContext = createContext();
+
 const useAuth = () => {
-  // A simple mock user to satisfy the userId requirement for API calls.
+  const [user, setUser] = useState(() => {
+    const savedUser = localStorage.getItem("user");
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
+  const [token, setToken] = useState(() => localStorage.getItem("token") || null);
+
+  useEffect(() => {
+    // In a real app, you would validate the token. Here, we'll just set it.
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } else {
+      delete axios.defaults.headers.common['Authorization'];
+    }
+  }, [token]);
+
+  // Use a mock user for this example as there's no login flow.
   const mockUser = { id: "user-123", name: "Mock User" };
-  return { user: mockUser };
+
+  return { user: user || mockUser, token, setToken };
 };
 
-// --- INLINE BACKTEST HOOK TO RESOLVE IMPORT ERRORS ---
+// --- INLINE BACKTEST HOOK FOR API COMMUNICATION ---
 const API_BASE = "https://neov6backend.onrender.com/api/backtests";
 
 const useBacktest = () => {
@@ -43,7 +58,6 @@ const useBacktest = () => {
   const [batchResults, setBatchResults] = useState([]);
   const defaultRealism = { useSlippage: true, useSpread: true, useNews: false, slippage_bps: 10, randomEventProb: 0.1 };
 
-  // Fetch options from backend on initial load
   useEffect(() => {
     const loadOptions = async () => {
       try {
@@ -70,7 +84,6 @@ const useBacktest = () => {
     loadOptions();
   }, []);
 
-  // Run single backtest
   const runBacktest = async (payload) => {
     setLoading(true);
     setError(null);
@@ -90,14 +103,13 @@ const useBacktest = () => {
     }
   };
 
-  // Run batch backtests
   const runBatchBacktests = async (payload) => {
     setLoading(true);
     setError(null);
     setCurrentBacktest(null);
     setBatchResults([]);
     try {
-      const { data: response } = await axios.post(`${API_BASE}/batch`, payload);
+      const { data: response } = await axios.post(`${API_BASE}/run-batch`, payload);
       const data = response.data;
       setBatchResults(data);
       return data;
@@ -167,7 +179,6 @@ export default function Backtests() {
     defaultRealism,
   } = useBacktest();
 
-  // --- State for all backtest controls ---
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [selectedStrategy, setSelectedStrategy] = useState("");
   const [selectedTimeframe, setSelectedTimeframe] = useState("");
@@ -182,13 +193,11 @@ export default function Backtests() {
   const [realism, setRealism] = useState(defaultRealism);
   const [activeTab, setActiveTab] = useState("presets");
 
-  // A set of pre-configured options for new users
   const beginnerPresets = [
     { name: "Conservative BTC Swing", symbol: "BTC/USDT", strategy: { name: "SMA", type: "SMA" }, timeframe: "4h", balance: 10000, risk: "Low", position: "Long Only", takeProfit: 5, stopLoss: 2, params: { fast: 10, slow: 50 } },
     { name: "Aggressive ETH Day Trade", symbol: "ETH/USDT", strategy: { name: "RSI", type: "RSI" }, timeframe: "1h", balance: 10000, risk: "High", position: "Both", takeProfit: 10, stopLoss: 5, params: { period: 14, overbought: 70, oversold: 30 } },
   ];
 
-  // --- Effects to auto-populate form with defaults from the backend ---
   useEffect(() => {
     if (!options || options.symbols.length === 0) return;
     setSelectedSymbol(options.symbols?.[0] || "");
@@ -218,7 +227,6 @@ export default function Backtests() {
     }
   }, [selectedSymbol, selectedTimeframe, options.availableDates]);
 
-  // --- Functions to handle form actions ---
   const applyPreset = (preset) => {
     setSelectedSymbol(preset.symbol);
     setSelectedStrategy(preset.strategy.name);
@@ -273,7 +281,6 @@ export default function Backtests() {
     }
   };
 
-  // --- Render helpers for cleaner JSX ---
   const renderStrategyParams = () =>
     Object.keys(strategyParams || {}).map((key) => (
       <label key={key} className="flex flex-col text-sm font-medium text-gray-700">
@@ -318,10 +325,7 @@ export default function Backtests() {
       <p className="text-gray-600">Analyze and optimize your trading strategies with historical data.</p>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* --- Backtest Controls & Settings Panel --- */}
         <div className="md:col-span-1 bg-white p-6 rounded-xl shadow-lg">
-          
-          {/* Tabs */}
           <div className="flex space-x-1 border-b mb-4">
             {['presets', 'strategy', 'advanced'].map(tabName => (
               <button
@@ -333,8 +337,6 @@ export default function Backtests() {
               </button>
             ))}
           </div>
-
-          {/* Presets Tab Content */}
           {activeTab === 'presets' && (
             <div className="space-y-4">
               <label className="block text-sm font-medium text-gray-700">
@@ -352,8 +354,6 @@ export default function Backtests() {
               </label>
             </div>
           )}
-
-          {/* Strategy Tab Content */}
           {activeTab === 'strategy' && (
             <div className="space-y-4">
               <label className="block text-sm font-medium text-gray-700">Symbol
@@ -413,8 +413,6 @@ export default function Backtests() {
               </div>
             </div>
           )}
-
-          {/* Advanced Tab Content */}
           {activeTab === 'advanced' && (
             <div className="space-y-3">
               <h3 className="text-md font-medium text-gray-900">Realism Settings</h3>
@@ -445,8 +443,6 @@ export default function Backtests() {
               </label>
             </div>
           )}
-
-          {/* Action Buttons */}
           <div className="mt-6 space-y-2">
             <button
               onClick={handleRunBacktest}
@@ -465,13 +461,9 @@ export default function Backtests() {
           </div>
           {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
         </div>
-
-        {/* --- Results Panel --- */}
         <div className="md:col-span-2 bg-white p-6 rounded-xl shadow-lg">
           <h2 className="text-xl font-bold mb-4">Backtest Results</h2>
           {loading && <p className="text-center text-gray-500 pt-16">Loading results...</p>}
-
-          {/* Single Backtest Result */}
           {currentBacktest && (
             <div className="space-y-4">
               <h3 className="font-semibold text-lg text-gray-800">Current Backtest</h3>
@@ -479,8 +471,6 @@ export default function Backtests() {
               {renderChart(currentBacktest.equityCurve)}
             </div>
           )}
-
-          {/* Batch Backtest Results */}
           {batchResults?.length > 0 && (
             <div className="mt-6 space-y-6">
               <h3 className="font-semibold text-lg text-gray-800">Batch Backtests</h3>
@@ -493,8 +483,6 @@ export default function Backtests() {
               ))}
             </div>
           )}
-
-          {/* Initial state message */}
           {!currentBacktest && !batchResults?.length && !loading && (
             <p className="text-center text-gray-500 pt-16">Run a backtest to see results here.</p>
           )}
