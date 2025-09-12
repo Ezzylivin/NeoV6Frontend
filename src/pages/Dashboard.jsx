@@ -10,52 +10,32 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [livePrices, setLivePrices] = useState({ BTC: 0, ETH: 0 });
 
-  // Add state to hold potential errors for each chart
-  const [error1, setError1] = useState(null);
-  const [error2, setError2] = useState(null);
-
   const [timeframe1, setTimeframe1] = useState("1h");
   const [timeframe2, setTimeframe2] = useState("1h");
 
   const symbol1 = "BTC/USD";
   const symbol2 = "ETH/USD";
-  const exchange = "coinbase"; // Your exchange ID
+  const exchange = "coinbase"; // US-only
 
-  const timeOptions = ["1m", "5m", "15m", "30m", "1h", "4h", "1d"];
+  const timeOptions = ["1m","5m","10m","15m","30m","1h","4h","1d"];
 
-  // Fetch and format candles
-  const fetchChart = async (symbol, timeframe, setCandles, setError) => {
-    setError(null); // Clear previous error on new fetch
+  // Fetch candles
+  const fetchChart = async (symbol, timeframe, setCandles) => {
     try {
       const res = await axios.get(
-        `https://neov6backend.onrender.com/api/candles?exchangeId=${exchange}&symbol=${symbol}&timeframe=${timeframe}`
+        `https://neov6backend.onrender.com/api/candles?exchange=${exchange}&symbol=${symbol}&timeframe=${timeframe}`
       );
-
-      if (res.data && Array.isArray(res.data.candles)) {
-        const formattedData = res.data.candles.map(c => ({
-          time: c[0],   // Timestamp
-          open: c[1],   // Open
-          high: c[2],   // High
-          low: c[3],    // Low
-          close: c[4]   // Close
+      setCandles(res.data || []);
+      // update live price
+      if (res.data?.length) {
+        setLivePrices(prev => ({
+          ...prev,
+          [symbol.split("/")[0]]: res.data[res.data.length - 1].close
         }));
-
-        setCandles(formattedData);
-        
-        if (formattedData.length) {
-          setLivePrices(prev => ({
-            ...prev,
-            [symbol.split("/")[0]]: formattedData[formattedData.length - 1].close
-          }));
-        }
-      } else {
-        setCandles([]); 
       }
     } catch (err) {
       console.error(`Error fetching chart for ${symbol}:`, err);
-      // Set a user-friendly error message to be displayed in the UI
-      setError(`Failed to load chart: ${err.message}. This is likely a CORS issue or the backend server is down.`);
-      setCandles([]); // Clear data on error
+      setCandles([]);
     }
   };
 
@@ -63,8 +43,8 @@ export default function Dashboard() {
     setLoading(true);
     const loadCharts = async () => {
       await Promise.all([
-        fetchChart(symbol1, timeframe1, setCandles1, setError1),
-        fetchChart(symbol2, timeframe2, setCandles2, setError2)
+        fetchChart(symbol1, timeframe1, setCandles1),
+        fetchChart(symbol2, timeframe2, setCandles2)
       ]);
       setLoading(false);
     };
@@ -81,7 +61,7 @@ export default function Dashboard() {
       return (
         <div className="bg-white p-2 border shadow rounded text-sm">
           <p><strong>{symbol}</strong></p>
-          <p>{new Date(d.time).toLocaleString()}</p>
+          <p>{new Date(d.time * 1000).toLocaleString()}</p>
           <p>O: ${d.open}</p>
           <p>H: ${d.high}</p>
           <p>L: ${d.low}</p>
@@ -92,9 +72,8 @@ export default function Dashboard() {
     return null;
   };
 
-  // Pass the 'error' state to the render function
-  const renderChart = (symbol, candles, timeframe, setTimeframe, color, error) => {
-    const latest = candles.length ? candles[candles.length - 1] : null;
+  const renderChart = (symbol, candles, timeframe, setTimeframe, color) => {
+    const latest = candles.length ? candles[candles.length-1] : null;
     const intervalUp = latest ? latest.close >= latest.open : true;
 
     return (
@@ -104,16 +83,20 @@ export default function Dashboard() {
             {symbol} - ${livePrices[symbol.split("/")[0]]?.toLocaleString() || "0"}
             <span
               style={{
-                display: "inline-block", width: "10px", height: "10px",
-                marginLeft: "6px", borderRadius: "50%",
+                display: "inline-block",
+                width: "10px",
+                height: "10px",
+                marginLeft: "6px",
+                borderRadius: "50%",
                 backgroundColor: intervalUp ? "green" : "red"
               }}
             ></span>
           </span>
+
           <select
             value={timeframe}
             onChange={(e) => setTimeframe(e.target.value)}
-            className="border p-1 text-sm rounded"
+            className="border p-1 text-sm"
           >
             {timeOptions.map((t) => (
               <option key={t} value={t}>{t}</option>
@@ -122,30 +105,28 @@ export default function Dashboard() {
         </div>
 
         <div style={{ width: "100%", height: 300 }}>
-          {/* Display the error message if it exists */}
-          {error ? (
-            <div className="flex items-center justify-center h-full text-red-600 bg-red-50 p-4 rounded">
-              <p className="text-center font-semibold">{error}</p>
-            </div>
-          ) : candles.length > 0 ? (
+          {candles.length ? (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={candles}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" tickFormatter={ts => new Date(ts).toLocaleTimeString()} />
-                <YAxis domain={["auto", "auto"]} allowDataOverflow={true} />
+                <XAxis dataKey="time" tickFormatter={ts => new Date(ts*1000).toLocaleTimeString()} />
+                <YAxis domain={["auto", "auto"]} />
                 <Tooltip content={<CustomTooltip symbol={symbol} />} />
                 <Line
                   type="monotone"
                   dataKey="close"
                   stroke={color}
-                  dot={false}
+                  dot={d => (
+                    <circle
+                      r={3}
+                      fill={d.payload.close >= d.payload.open ? "green" : "red"}
+                    />
+                  )}
                 />
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-full text-gray-500">
-              <p>No data available for {symbol}</p>
-            </div>
+            <p>No data for {symbol}</p>
           )}
         </div>
       </div>
@@ -153,17 +134,14 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="p-4 bg-gray-50 min-h-screen">
+    <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Neo-V6 Dashboard</h1>
-      {/* Show a general loading message, errors will be shown in the chart areas */}
-      {loading && !error1 && !error2 && <p>Loading charts...</p>}
+      {loading && <p>Loading charts...</p>}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Pass the error states to the renderChart calls */}
-        {renderChart(symbol1, candles1, timeframe1, setTimeframe1, "#8884d8", error1)}
-        {renderChart(symbol2, candles2, timeframe2, setTimeframe2, "#82ca9d", error2)}
+        {renderChart(symbol1, candles1, timeframe1, setTimeframe1, "#8884d8")}
+        {renderChart(symbol2, candles2, timeframe2, setTimeframe2, "#82ca9d")}
       </div>
     </div>
   );
 }
-
