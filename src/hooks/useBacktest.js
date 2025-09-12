@@ -1,9 +1,8 @@
-// File: src/hooks/useBacktest.js
 import { useState, useEffect } from "react";
 import axios from "axios";
 
-// SUGGESTION: Use an environment variable for the API base URL
-const API_BASE = process.env.REACT_APP_API_URL || "https://neov6backend.onrender.com/api/backtests";
+// This is the real API base URL provided by your backend.
+const API_BASE = "https://neov6backend.onrender.com/api/backtests";
 
 export function useBacktest() {
   const [options, setOptions] = useState({
@@ -18,25 +17,27 @@ export function useBacktest() {
     availableDates: {},
   });
 
-  const [loadingSingle, setLoadingSingle] = useState(false);
+  // A single loading state for all API calls
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [currentBacktest, setCurrentBacktest] = useState(null);
+  const [batchResults, setBatchResults] = useState([]);
 
-  const [defaultRealism] = useState({
-    useNews: true,
+  // A default set of realism options
+  const defaultRealism = {
+    useNews: false,
     useSlippage: true,
     useSpread: true,
     useRandomEvents: false,
-    baseSlippageBps: 5,
-  });
+    slippage_bps: 5,
+  };
 
-  // Fetch options from backend
+  // Fetch options from the backend when the component mounts
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        // Note: The backend response has a 'data' wrapper
         const { data: response } = await axios.get(`${API_BASE}/options`);
-        const data = response.data; // Access the actual data object
+        const data = response.data;
         
         setOptions({
           symbols: data?.symbols?.length ? data.symbols : ["BTC/USDT"],
@@ -58,82 +59,54 @@ export function useBacktest() {
     loadOptions();
   }, []);
 
-  // Merge payload with safe defaults
-  const mergeDefaults = (payload) => {
-    const safeSymbol = payload.symbol || options.symbols[0];
-    const safeTimeframe = payload.timeframe || options.timeframes[0];
-    const safeBalance = Number(payload.initialBalance) > 0 ? Number(payload.initialBalance) : options.balances[0];
-
-    const matchedStrategy = options.strategies.find((s) => s.name === payload.strategy?.name) || options.strategies[0];
-    
-    // --- FIX: Add 'type' to the strategy object ---
-    const finalStrategy = {
-      name: matchedStrategy?.name || "Default Strategy",
-      type: matchedStrategy?.strategyType || "SMA", // <-- CRITICAL FIX
-      parameters: payload.strategy?.parameters || matchedStrategy?.params || {},
-    };
-
-    const startDate = payload.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-    const endDate = payload.endDate || new Date().toISOString().split("T")[0];
-
-    return {
-      ...payload,
-      symbol: safeSymbol,
-      timeframe: safeTimeframe,
-      initialBalance: safeBalance,
-      strategyId: matchedStrategy?._id || null,
-      strategy: finalStrategy, // Use the fixed strategy object
-      risk: payload.risk || options.risks[0],
-      takeProfit: payload.takeProfit ?? options.takeProfits[0],
-      stopLoss: payload.stopLoss ?? options.stopLosses[0],
-      startDate,
-      endDate,
-      positionSide: payload.positionSide || options.positions[0],
-      useNews: payload.useNews ?? defaultRealism.useNews,
-      useSlippage: payload.useSlippage ?? defaultRealism.useSlippage,
-      useSpread: payload.useSpread ?? defaultRealism.useSpread,
-      useRandomEvents: payload.useRandomEvents ?? defaultRealism.useRandomEvents,
-      baseSlippageBps: payload.baseSlippageBps ?? defaultRealism.baseSlippageBps,
-      tradeConfig: payload.tradeConfig || {},
-    };
-  };
-
-  // Run single backtest
+  // Run a single backtest
   const runBacktest = async (payload) => {
-    // NOTE: An auth solution will be needed to provide a real userId
-    const payloadWithUser = { ...payload, userId: '65f0c233932a32a13295964f' }; // Placeholder ID
-    const safePayload = mergeDefaults(payloadWithUser);
-    
-    setLoadingSingle(true);
+    setLoading(true);
     setError(null);
     try {
-      const { data: response } = await axios.post(`${API_BASE}/run`, safePayload);
-      const data = response.data; // Access the actual data object
-
-      // --- FIX: Use 'equityCurve' to match the backend schema ---
-      const backtestData = {
-        ...data,
-        equityCurve: data?.equityCurve || [], // <-- FIX
-      };
-
+      const { data: response } = await axios.post(`${API_BASE}/run`, payload);
+      const backtestData = response.data;
+      
       setCurrentBacktest(backtestData);
       return backtestData;
     } catch (err) {
       console.error("❌ runBacktest failed:", err);
-      const errorMessage = err.response?.data?.message || "Failed to run backtest";
+      const errorMessage = err.response?.data?.message || "Failed to run single backtest";
       setError(errorMessage);
       throw err;
     } finally {
-      setLoadingSingle(false);
+      setLoading(false);
+    }
+  };
+
+  // Run a batch of backtests
+  const runBatchBacktests = async (payload) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data: response } = await axios.post(`${API_BASE}/run-batch`, payload);
+      const batchData = response.data;
+      
+      setBatchResults(batchData);
+      return batchData;
+    } catch (err) {
+      console.error("❌ runBatchBacktests failed:", err);
+      const errorMessage = err.response?.data?.message || "Failed to run batch backtests";
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
   return {
     options,
-    loadingSingle,
+    loading,
     error,
     currentBacktest,
     runBacktest,
+    batchResults,
+    runBatchBacktests,
     defaultRealism,
   };
 }
