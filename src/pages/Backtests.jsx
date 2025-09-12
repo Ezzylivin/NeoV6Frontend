@@ -1,4 +1,5 @@
 import React, { useState, useEffect, createContext, useContext } from "react";
+import axios from "axios";
 import {
   ResponsiveContainer,
   LineChart,
@@ -10,95 +11,105 @@ import {
   CartesianGrid,
 } from "recharts";
 
+// --- INLINE AUTH CONTEXT TO RESOLVE IMPORT ERRORS ---
+const AuthContext = createContext(null);
+const useAuth = () => {
+  // A simple mock user to satisfy the userId requirement for API calls.
+  const mockUser = { id: "user-123", name: "Mock User" };
+  return { user: mockUser };
+};
 
+// --- INLINE BACKTEST HOOK TO RESOLVE IMPORT ERRORS ---
+const API_BASE = "https://neov6backend.onrender.com/api/backtests";
 
 const useBacktest = () => {
+  const [options, setOptions] = useState({
+    symbols: [],
+    strategies: [],
+    timeframes: [],
+    balances: [],
+    risks: [],
+    positions: [],
+    takeProfits: [],
+    stopLosses: [],
+    availableDates: {},
+  });
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [currentBacktest, setCurrentBacktest] = useState(null);
   const [batchResults, setBatchResults] = useState([]);
   const defaultRealism = { useSlippage: true, useSpread: true, useNews: false, slippage_bps: 10, randomEventProb: 0.1 };
-  
-  // A helper to generate mock equity curves based on a start balance
-  const generateMockEquityCurve = (initialBalance) => {
-    const data = [];
-    let currentEquity = initialBalance;
-    const time = new Date("2023-01-01T00:00:00Z");
-    for (let i = 0; i < 12; i++) {
-      currentEquity += (Math.random() - 0.5) * currentEquity * 0.1; // Random growth/loss
-      data.push({ time: new Date(time).toISOString(), equity: currentEquity });
-      time.setMonth(time.getMonth() + 1);
-    }
-    return data;
-  };
-  
-  // A helper to calculate mock metrics
-  const calculateMetrics = (equityCurve, initialBalance) => {
-    if (!equityCurve || equityCurve.length === 0) {
-      return { finalBalance: initialBalance, netProfit: 0, winRate: 0, totalTrades: 0 };
-    }
 
-    const finalBalance = equityCurve[equityCurve.length - 1].equity;
-    const netProfit = finalBalance - initialBalance;
-    const totalTrades = Math.floor(Math.random() * 50) + 10;
-    const winRate = Math.random() * 100;
-
-    return {
-      finalBalance,
-      netProfit,
-      winRate: isNaN(winRate) ? 0 : winRate,
-      totalTrades,
-      maxDrawdown: Math.random() * 20,
+  // Fetch options from backend on initial load
+  useEffect(() => {
+    const loadOptions = async () => {
+      try {
+        const { data: response } = await axios.get(`${API_BASE}/options`);
+        const data = response.data;
+        
+        setOptions({
+          symbols: data?.symbols || [],
+          strategies: data?.strategies || [],
+          timeframes: data?.timeframes || [],
+          balances: data?.balances || [],
+          risks: data?.risks || [],
+          positions: data?.positions || [],
+          takeProfits: data?.takeProfits || [],
+          stopLosses: data?.stopLosses || [],
+          availableDates: data?.availableDates || {},
+        });
+        setError(null);
+      } catch (err) {
+        console.error("❌ fetchBacktestOptions failed:", err);
+        setError("Failed to load backtest options.");
+      }
     };
-  };
+    loadOptions();
+  }, []);
 
+  // Run single backtest
   const runBacktest = async (payload) => {
     setLoading(true);
     setError(null);
     setCurrentBacktest(null);
     setBatchResults([]);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    
-    // Generate new mock data for each run
-    const equityCurve = generateMockEquityCurve(payload.initialBalance);
-    const metrics = calculateMetrics(equityCurve, payload.initialBalance);
-
-    const result = {
-      ...payload,
-      ...metrics,
-      equityCurve,
-      trades: [], // Simplified for this example
-    };
-
-    setLoading(false);
-    setCurrentBacktest(result);
+    try {
+      const { data: response } = await axios.post(`${API_BASE}/run`, payload);
+      const data = response.data;
+      setCurrentBacktest(data);
+      return data;
+    } catch (err) {
+      console.error("❌ runBacktest failed:", err.response?.data?.message || err.message);
+      setError(err.response?.data?.message || "Failed to run backtest");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Run batch backtests
   const runBatchBacktests = async (payload) => {
     setLoading(true);
     setError(null);
     setCurrentBacktest(null);
     setBatchResults([]);
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    
-    // Generate new mock data for each batch
-    const results = payload.paramCombos.map(combo => {
-      const equityCurve = generateMockEquityCurve(combo.initialBalance);
-      const metrics = calculateMetrics(equityCurve, combo.initialBalance);
-      return {
-        ...combo,
-        ...metrics,
-        equityCurve,
-        trades: [],
-      };
-    });
-
-    setLoading(false);
-    setBatchResults(results);
+    try {
+      const { data: response } = await axios.post(`${API_BASE}/batch`, payload);
+      const data = response.data;
+      setBatchResults(data);
+      return data;
+    } catch (err) {
+      console.error("❌ runBatchBacktests failed:", err.response?.data?.message || err.message);
+      setError(err.response?.data?.message || "Failed to run batch backtests");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
   };
 
   return {
-    options: mockOptions,
+    options,
     loading,
     error,
     currentBacktest,
@@ -109,7 +120,7 @@ const useBacktest = () => {
   };
 };
 
-// --- A single function to create the backtest payload, reducing code duplication. ---
+// --- MAIN COMPONENT CODE ---
 const createPayload = (userId, state, options) => {
   const { selectedSymbol, selectedTimeframe, selectedBalance, selectedStrategy,
     selectedRisk, selectedTP, selectedSL, selectedPosition, selectedStartDate, selectedEndDate,
@@ -177,7 +188,7 @@ export default function Backtests() {
 
   // --- Effects to auto-populate form with defaults from the backend ---
   useEffect(() => {
-    if (!options) return;
+    if (!options || options.symbols.length === 0) return;
     setSelectedSymbol(options.symbols?.[0] || "");
     setSelectedStrategy(options.strategies?.[0]?.name || "");
     setSelectedTimeframe(options.timeframes?.[0] || "1h");
@@ -185,7 +196,6 @@ export default function Backtests() {
     setSelectedRisk(options.risks?.[0] || "Medium");
     setSelectedPosition(options.positions?.[0] || "Both");
     
-    // Set initial strategy parameters
     const initialStrat = options.strategies?.find((s) => s.name === options.strategies[0].name);
     setStrategyParams(initialStrat?.parameters || {});
   }, [options]);
@@ -197,7 +207,6 @@ export default function Backtests() {
     }
   }, [selectedStrategy, options.strategies]);
 
-  // --- Auto-adjust start/end dates based on selected symbol/timeframe ---
   useEffect(() => {
     if (!selectedSymbol || !selectedTimeframe || !options.availableDates) return;
     const available = options.availableDates[selectedSymbol]?.[selectedTimeframe];
