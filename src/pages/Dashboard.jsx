@@ -1,10 +1,14 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext, createContext } from "react";
 import axios from "axios";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer
 } from "recharts";
+import useAuth from '../context/AuthContext.js';
 
 export default function Dashboard() {
+  // The useAuth hook can now be used without a direct import from a separate file.
+  const { user, isAuthenticated } = useAuth();
+
   const [candles1, setCandles1] = useState([]);
   const [candles2, setCandles2] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,27 +24,24 @@ export default function Dashboard() {
 
   const timeOptions = ["1m", "5m", "15m", "30m", "1h", "4h", "1d"];
 
-  // Fetch and format candles
+  // Fetch and format candles using the configured apiClient
   const fetchChart = async (symbol, timeframe, setCandles) => {
     try {
-      // FIX 1: The backend controller expects 'exchangeId' as the query parameter name.
-      const res = await axios.get(
-        `https://neov6backend.onrender.com/api/candles?exchangeId=${exchange}&symbol=${symbol}&timeframe=${timeframe}`
+      const res = await apiClient.get(
+        `/candles?exchangeId=${exchange}&symbol=${symbol}&timeframe=${timeframe}`
       );
 
-      // FIX 2: The candleService returns an object { candles: [...] }.
-      // The 'candles' property is an array of arrays. We need to transform it.
       if (res.data && Array.isArray(res.data.candles)) {
         const formattedData = res.data.candles.map(c => ({
-          time: c[0],   // Timestamp is the 1st element
-          open: c[1],   // Open is the 2nd
-          high: c[2],   // High is the 3rd
-          low: c[3],    // Low is the 4th
-          close: c[4]   // Close is the 5th
+          time: c[0],
+          open: c[1],
+          high: c[2],
+          low: c[3],
+          close: c[4]
         }));
 
         setCandles(formattedData);
-        setError(null); // Clear any previous errors on success
+        setError(null);
 
         if (formattedData.length) {
           setLivePrices(prev => ({
@@ -80,7 +81,6 @@ export default function Dashboard() {
       return (
         <div className="bg-white p-2 border shadow rounded text-sm">
           <p><strong>{symbol}</strong></p>
-           {/* FIX 3: The timestamp from CCXT is already in milliseconds. */}
           <p>{new Date(d.time).toLocaleString()}</p>
           <p>O: ${d.open}</p>
           <p>H: ${d.high}</p>
@@ -149,7 +149,10 @@ export default function Dashboard() {
 
   return (
     <div className="p-4 bg-gray-100 min-h-screen">
-      <h1 className="text-3xl font-bold mb-6 text-gray-800">Neo-V6 Dashboard</h1>
+      <h1 className="text-3xl font-bold mb-6 text-gray-800">
+        {isAuthenticated && user ? `Welcome to the Dashboard, ${user.username}!` : "Neo-V6 Dashboard"}
+      </h1>
+      
       {loading && <p>Loading charts...</p>}
       {error && <div className="bg-red-100 text-red-700 p-3 rounded mb-4">{error}</div>}
 
