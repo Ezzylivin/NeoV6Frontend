@@ -27,7 +27,7 @@ export default function Dashboard() {
   // Fetch and format candles using the configured apiClient
   const fetchChart = async (symbol, timeframe, setCandles) => {
     try {
-      const res = await apiClient.get(
+      const res = await api.get(
         `/candles?exchangeId=${exchange}&symbol=${symbol}&timeframe=${timeframe}`
       );
 
