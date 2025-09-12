@@ -3,7 +3,7 @@ import axios from "axios";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer
 } from "recharts";
-import useAuth from '../context/AuthContext.js';
+import useAuth from '../context/AuthContext.jsx';
 
 export default function Dashboard() {
   // The useAuth hook can now be used without a direct import from a separate file.
