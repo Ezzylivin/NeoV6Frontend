@@ -9,65 +9,24 @@ const Header = () => {
 
   const handleLogout = () => {
     logout();
-    navigate('/login'); // redirect user to login page
+    navigate('/');
   };
 
-  const headerStyle = {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '1rem 2rem',
-    background: '#000000', // true black
-    color: 'white',
-    borderBottom: '1px solid #444'
-  };
-
-  const navStyle = {
-    display: 'flex',
-    gap: '1.5rem',
-    alignItems: 'center'
-  };
-
-  const linkStyle = {
-    color: '#3b82f6', // blue links
-    textDecoration: 'none',
-    fontWeight: '500'
-  };
-
-  const buttonStyle = {
-    marginLeft: '1rem',
-    background: '#e53e3e',
-    color: 'white',
-    border: 'none',
-    padding: '0.5rem 1rem',
-    borderRadius: '5px',
-    cursor: 'pointer'
-  };
-
+  // Using TailwindCSS classes for consistency
   return (
-    <header style={headerStyle}>
-      <div className="logo">
-        <Link
-          to="/dashboard"
-          style={{ color: '#3b82f6', textDecoration: 'none', fontSize: '1.5rem', fontWeight: 'bold' }}
-        >
-          Neo-V6
-        </Link>
-      </div>
-
-      <nav style={navStyle}>
-        <Link to="/dashboard" style={linkStyle}>Dashboard</Link>
-        <Link to="/dashboard/backtests" style={linkStyle}>Backtests</Link>
-        <Link to="/dashboard/tradingbot" style={linkStyle}>Trading Bot</Link>
-        {isAuthenticated && <Link to="/dashboard/settings" style={linkStyle}>Settings</Link>}
-
+    <header className="flex items-center justify-between border-b border-slate-700 bg-slate-900 px-6 py-4">
+      <Link to="/dashboard" className="text-2xl font-bold text-blue-500">NeoV6</Link>
+      <nav className="flex items-center gap-6">
+        <Link to="/dashboard" className="text-slate-300 hover:text-blue-400">Dashboard</Link>
+        <Link to="/dashboard/backtests" className="text-slate-300 hover:text-blue-400">Backtests</Link>
+        <Link to="/dashboard/strategies" className="text-slate-300 hover:text-blue-400">Strategies</Link> {/* <-- Add this link */}
         {isAuthenticated ? (
-          <>
-            <span>Welcome, {user?.username}!</span>
-            <button onClick={handleLogout} style={buttonStyle}>Logout</button>
-          </>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-slate-400">Welcome, {user?.username}!</span>
+            <button onClick={handleLogout} className="rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">Logout</button>
+          </div>
         ) : (
-          <Link to="/login" style={linkStyle}>Login</Link>
+          <Link to="/" className="text-slate-300 hover:text-blue-400">Login</Link>
         )}
       </nav>
     </header>
