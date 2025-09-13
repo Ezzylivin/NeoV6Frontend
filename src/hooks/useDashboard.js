@@ -1,40 +1,35 @@
 // File: src/hooks/useDashboard.js
 import { useState, useCallback } from "react";
-import { useAuth } from "../context/AuthContext.jsx";
+import * as botApi from "../api/bot.js";
+import * as dataApi from "../api/data.js"; // We need to create this file
 
 export function useDashboard() {
-  const { user } = useAuth();
   const [botStatus, setBotStatus] = useState(null);
-  const [logs, setLogs] = useState([]);
-  const [prices, setPrices] = useState({});
+  const [livePrices, setLivePrices] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const fetchDashboardData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
-
-      // Fetch bot status
-      const botRes = await fetch(`${import.meta.env.VITE_API_URL}/bots/status?userId=${user.id}`);
-      const botData = await botRes.json();
-      setBotStatus(botData.status || null);
-      setLogs((prev) => [
-        ...prev,
-        `[${new Date().toLocaleTimeString()}] Bot status: ${botData.status?.isRunning ? "Running" : "Stopped"}`
+      // Fetch bot status and live prices at the same time for speed
+      const [status, prices] = await Promise.all([
+        botApi.getStatus(),
+        dataApi.fetchLivePrices(['BTCUSDT', 'ETHUSDT', 'SOLUSDT']) // Example symbols
       ]);
+      
+      setBotStatus(status.status); // The status is nested in the response
+      setLivePrices(prices);
 
-      // Fetch live prices
-      const symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"];
-      const priceRes = await fetch(`${import.meta.env.VITE_API_URL}/prices?symbols=${symbols.join(",")}`);
-      const priceData = await priceRes.json();
-      if (priceData.success) setPrices(priceData.prices);
     } catch (err) {
-      setError(err.message);
+      const errorMessage = err.response?.data?.message || "Failed to load dashboard data.";
+      setError(errorMessage);
+      console.error(errorMessage);
     } finally {
       setLoading(false);
     }
-  }, [user.id]);
+  }, []);
 
-  return { botStatus, logs, prices, loading, error, fetchDashboardData };
+  return { botStatus, livePrices, loading, error, fetchDashboardData };
 }
