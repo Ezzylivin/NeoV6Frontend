@@ -8,7 +8,7 @@ import GuestRoute from './components/GuestRoute.jsx';
 import DashboardLayout from './layouts/DashboardLayout.jsx';
 
 // Pages
-import AuthPage from './pages/AuthPage.jsx';
+import AuthPage from './pages/Authpage.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Backtests from './pages/Backtests.jsx';
 import Strategies from './pages/Strategies.jsx';
