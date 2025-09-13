@@ -1,14 +1,13 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class', // <-- ADD THIS LINE
   content: [
     "./index.html",
-    "./src/**/*.{js,jsx,ts,tsx}", // Scans all your component files for classes
+    "./src/**/*.{js,jsx,ts,tsx}",
   ],
   theme: {
     extend: {
-      // Here we define your app's color palette
       colors: {
-        // Example: You can now use classes like `bg-gray-900` or `text-blue-500`
         gray: {
           700: '#334155',
           800: '#1e293b',
