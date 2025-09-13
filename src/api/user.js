@@ -1,35 +1,37 @@
 // File: src/api/auth.js
-import apiClient from './apiClient.js'; // Uses centralized axios instance
+import apiClient from './apiClient.js';
 
-// Register a new user
-export const registerUser = async (username,email, password) => {
-  try {
-    const response = await apiClient.post('/users/register', {username, email, password });
-    return response.data;
-  } catch (error) {
-    throw new Error(error.response?.data?.message || 'Registration failed');
-  }
-};
-
-// Log in an existing user
-export const loginUser = async (email, password) => {
-  try {
-    const response = await apiClient.post('/users/login', { email, password });
-    return response.data;
-  } catch (error) {
-    throw new Error(error.response?.data?.message || 'Login failed');
-  }
+/**
+ * Register a new user.
+ * @param {object} userData - { username, email, password }
+ */
+export const register = async (userData) => {
+  const { data } = await apiClient.post('/users/register', userData);
+  return data; // Returns { token, user }
 };
 
 /**
- * Calls the backend to get the current user's profile info.
- * GET /api/users/me
+ * Log in an existing user.
+ * @param {object} credentials - { identifier, password }
+ */
+export const login = async (credentials) => {
+  const { data } = await apiClient.post('/users/login', credentials);
+  return data; // Returns { token, user }
+};
+
+/**
+ * Get the current authenticated user's profile.
  */
 export const getMe = async () => {
-  try {
-    const response = await apiClient.get('/users/me');
-    return response.data;
-  } catch (error) {
-    throw new Error(error.response?.data?.message || 'Could not fetch user profile.');
-  }
+  const { data } = await apiClient.get('/users/me');
+  return data; // Returns { user }
+};
+
+/**
+ * Update the user's API keys for an exchange.
+ * @param {object} keyData - { exchange, apiKey, apiSecret }
+ */
+export const updateApiKeys = async (keyData) => {
+    const { data } = await apiClient.post('/users/keys', keyData);
+    return data; // Returns { message, keys }
 };
