@@ -5,10 +5,10 @@ import { AuthProvider } from './context/AuthContext';
 import PrivateRoute from './components/ProtectedRoute';
 import GuestRoute from './components/GuestRoute';
 import DashboardLayout from './layouts/DashboardLayout';
-import AuthPage from './pages/AuthPage';
-import Dashboard from './pages/Dashboard';
-import Backtests from './pages/Backtests';
-import Strategies from './pages/Strategies'; // <-- 1. Import the new page
+import AuthPage from './pages/AuthPage.jsx';
+import Dashboard from './pages/Dashboard.jsx';
+import Backtests from './pages/Backtests.jsx';
+import Strategies from './pages/Strategies.jsx'; // <-- 1. Import the new page
 
 function App() {
   return (
