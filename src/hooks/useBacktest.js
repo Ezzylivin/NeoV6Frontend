@@ -1,112 +1,69 @@
-import { useState, useEffect } from "react";
-import axios from "axios";
-
-// This is the real API base URL provided by your backend.
-const API_BASE = "https://neov6backend.onrender.com/api/backtests";
+// File: src/hooks/useBacktest.js
+import { useState, useEffect, useCallback } from "react";
+import * as backtestApi from "../api/backtest.js"; // Import our fixed API service
 
 export function useBacktest() {
-  const [options, setOptions] = useState({
-    symbols: ["BTC/USDT"],
-    strategies: [{ name: "Default Strategy", params: {} }],
-    timeframes: ["1h"],
-    balances: [1000],
-    risks: ["Medium"],
-    positions: ["Both"],
-    takeProfits: [0],
-    stopLosses: [0],
-    availableDates: {},
-  });
-
-  // A single loading state for all API calls
+  const [options, setOptions] = useState({ symbols: [], strategies: [] });
+  const [pastBacktests, setPastBacktests] = useState({ results: [], total: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [currentBacktest, setCurrentBacktest] = useState(null);
-  const [batchResults, setBatchResults] = useState([]);
 
-  // A default set of realism options
-  const defaultRealism = {
-    useNews: false,
-    useSlippage: true,
-    useSpread: true,
-    useRandomEvents: false,
-    slippage_bps: 5,
-  };
-
-  // Fetch options from the backend when the component mounts
-  useEffect(() => {
-    const loadOptions = async () => {
-      try {
-        const { data: response } = await axios.get(`${API_BASE}/options`);
-        const data = response.data;
-        
-        setOptions({
-          symbols: data?.symbols?.length ? data.symbols : ["BTC/USDT"],
-          strategies: data?.strategies?.length ? data.strategies : [{ name: "Default Strategy", params: {} }],
-          timeframes: data?.timeframes?.length ? data.timeframes : ["1h"],
-          balances: data?.balances?.length ? data.balances : [1000],
-          risks: data?.risks?.length ? data.risks : ["Medium"],
-          positions: data?.positions?.length ? data.positions : ["Both"],
-          takeProfits: data?.takeProfits?.length ? data.takeProfits : [0],
-          stopLosses: data?.stopLosses?.length ? data.stopLosses : [0],
-          availableDates: data?.availableDates || {},
-        });
-        setError(null);
-      } catch (err) {
-        console.error("❌ fetchBacktestOptions failed:", err);
-        setError("Failed to load backtest options, using defaults");
-      }
-    };
-    loadOptions();
+  // Fetch initial options for the form
+  const getOptions = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const opts = await backtestApi.fetchOptions();
+      setOptions(opts);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to load backtest options.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // Run a single backtest
-  const runBacktest = async (payload) => {
+  // Fetch the user's history of backtests
+  const getPastBacktests = useCallback(async (page = 1) => {
     setLoading(true);
     setError(null);
     try {
-      const { data: response } = await axios.post(`${API_BASE}/run`, payload);
-      const backtestData = response.data;
-      
-      setCurrentBacktest(backtestData);
-      return backtestData;
+      const data = await backtestApi.fetchAll(page);
+      setPastBacktests({ results: data.backtests, total: data.total });
     } catch (err) {
-      console.error("❌ runBacktest failed:", err);
-      const errorMessage = err.response?.data?.message || "Failed to run single backtest";
-      setError(errorMessage);
-      throw err;
+      setError(err.response?.data?.message || "Failed to load past backtests.");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // Run a batch of backtests
-  const runBatchBacktests = async (payload) => {
+  // Run a new backtest
+  const runNewBacktest = useCallback(async (payload) => {
     setLoading(true);
     setError(null);
     try {
-      const { data: response } = await axios.post(`${API_BASE}/run-batch`, payload);
-      const batchData = response.data;
-      
-      setBatchResults(batchData);
-      return batchData;
+      const result = await backtestApi.run(payload);
+      getPastBacktests(); // Refresh the list of past backtests after running a new one
+      return result;
     } catch (err) {
-      console.error("❌ runBatchBacktests failed:", err);
-      const errorMessage = err.response?.data?.message || "Failed to run batch backtests";
+      const errorMessage = err.response?.data?.message || "Failed to run backtest.";
       setError(errorMessage);
-      throw err;
+      throw new Error(errorMessage); // Re-throw for the component to catch if needed
     } finally {
       setLoading(false);
     }
-  };
+  }, [getPastBacktests]);
+
+  useEffect(() => {
+    getOptions();
+    getPastBacktests();
+  }, [getOptions, getPastBacktests]);
 
   return {
     options,
+    pastBacktests,
     loading,
     error,
-    currentBacktest,
-    runBacktest,
-    batchResults,
-    runBatchBacktests,
-    defaultRealism,
+    runNewBacktest,
+    refresh: getPastBacktests, // Allow components to trigger a refresh
   };
 }
