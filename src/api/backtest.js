@@ -2,81 +2,33 @@
 import api from "./apiClient.js";
 
 /** Fetch available backtest options */
-export const fetchBacktestOptions = async () => {
-  try {
-    const res = await api.get("/backtests/options");
-    return res.data || {};
-  } catch (err) {
-    console.error("[API] fetchBacktestOptions error:", err);
-    throw err;
-  }
+export const fetchOptions = async () => {
+  const { data } = await api.get("/backtests/options");
+  return data.data || {}; // Backend wraps response in { success, message, data }
 };
 
 /** Run a single backtest */
-export const runBacktest = async (payload) => {
-  try {
-    const res = await api.post("/backtests/run", payload);
-    return {
-      saved: res.data.saved || {},
-      metrics: res.data.metrics || {},
-      equityCurve: res.data.equityCurve || res.data.saved?.equityCurve || [],
-      trades: res.data.trades || res.data.saved?.tradeBreakdown || [],
-    };
-  } catch (err) {
-    console.error("[API] runBacktest error:", err);
-    throw err;
-  }
+export const run = async (payload) => {
+  const { data } = await api.post("/backtests/run", payload);
+  // CORRECT: The backend now returns the full, saved backtest document directly in the data property.
+  return data.data; 
 };
 
-/** Run batch backtests */
-export const runBatchBacktests = async (payload) => {
-  try {
-    const res = await api.post("/backtests/batch", payload);
-    const results = (res.data.results || []).map((r) => ({
-      saved: r.saved || {},
-      metrics: r.metrics || {},
-      equityCurve: r.equityCurve || r.saved?.equityCurve || [],
-      trades: r.trades || r.saved?.tradeBreakdown || [],
-    }));
-    return { results, usedCombos: res.data.usedCombos || [] };
-  } catch (err) {
-    console.error("[API] runBatchBacktests error:", err);
-    throw err;
-  }
+/** Fetch all backtests for the authenticated user */
+export const fetchAll = async (page = 1, limit = 10) => {
+  // CORRECT: The endpoint is just /backtests, user ID is from the token.
+  const { data } = await api.get(`/backtests?page=${page}&limit=${limit}`);
+  return data.data; // Returns { backtests, page, limit, total }
 };
 
-/** Fetch all backtests for a user */
-export const fetchUserBacktests = async (userId) => {
-  if (!userId) return [];
-  try {
-    const res = await api.get(`/backtests/user/${userId}`);
-    return res.data.backtests || [];
-  } catch (err) {
-    console.error("[API] fetchUserBacktests error:", err);
-    throw err;
-  }
+/** Fetch a single backtest by its ID */
+export const fetchById = async (backtestId) => {
+  const { data } = await api.get(`/backtests/${backtestId}`);
+  return data.data.backtest;
 };
 
-/** Fetch a backtest by ID */
-export const fetchBacktestById = async (backtestId) => {
-  if (!backtestId) return null;
-  try {
-    const res = await api.get(`/backtests/${backtestId}`);
-    return res.data.backtest || null;
-  } catch (err) {
-    console.error("[API] fetchBacktestById error:", err);
-    throw err;
-  }
-};
-
-/** Delete a backtest by ID */
-export const deleteBacktest = async (backtestId) => {
-  if (!backtestId) return false;
-  try {
-    await api.delete(`/backtests/${backtestId}`);
-    return true;
-  } catch (err) {
-    console.error("[API] deleteBacktest error:", err);
-    throw err;
-  }
+/** Delete a backtest by its ID */
+export const remove = async (backtestId) => {
+  const { data } = await api.delete(`/backtests/${backtestId}`);
+  return data;
 };
