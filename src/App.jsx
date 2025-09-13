@@ -2,7 +2,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
-import PrivateRoute from './components/PrivateRoute';
+import PrivateRoute from './components/ProtectedRoute';
 import GuestRoute from './components/GuestRoute';
 import DashboardLayout from './layouts/DashboardLayout';
 import AuthPage from './pages/AuthPage';
