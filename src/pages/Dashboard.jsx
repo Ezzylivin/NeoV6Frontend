@@ -1,147 +1,79 @@
-import React, { useState, useEffect } from "react";
-import axios from "axios";
-import {
-  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer
-} from "recharts";
+// File: src/pages/Dashboard.jsx
+import React, { useEffect } from "react";
+import { useDashboard } from "../hooks/useDashboard.js";
+
+// A small, reusable component for displaying a single statistic
+const StatCard = ({ title, value, valueColor }) => (
+  <div className="bg-gray-800 p-6 rounded-xl">
+    <p className="text-sm text-gray-400">{title}</p>
+    <p className={`text-2xl font-bold ${valueColor || ''}`}>{value}</p>
+  </div>
+);
+
+// A component to display live crypto prices
+const LivePrices = ({ prices }) => (
+  <div>
+    <h2 className="text-xl font-bold mb-4">Live Market Prices</h2>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {Object.entries(prices).map(([symbol, price]) => (
+        <StatCard 
+          key={symbol} 
+          title={symbol} 
+          value={price ? `$${Number(price).toLocaleString()}` : 'Loading...'} 
+        />
+      ))}
+    </div>
+  </div>
+);
+
+// A component to display the bot's current status
+const BotStatus = ({ status }) => {
+  const isRunning = status?.isRunning;
+  return (
+    <div>
+      <h2 className="text-xl font-bold mb-4">Bot Status</h2>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <StatCard 
+          title="Status" 
+          value={isRunning ? "Running" : "Stopped"}
+          valueColor={isRunning ? 'text-green-500' : 'text-red-500'}
+        />
+        <StatCard title="Symbol" value={status?.symbol || 'N/A'} />
+        <StatCard title="Strategy" value={status?.strategy?.name || 'N/A'} />
+      </div>
+    </div>
+  );
+};
+
 
 export default function Dashboard() {
-  const [candles1, setCandles1] = useState([]);
-  const [candles2, setCandles2] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [livePrices, setLivePrices] = useState({ BTC: 0, ETH: 0 });
+  const { botStatus, livePrices, loading, error, fetchDashboardData } = useDashboard();
 
-  const [timeframe1, setTimeframe1] = useState("1h");
-  const [timeframe2, setTimeframe2] = useState("1h");
-
-  const symbol1 = "BTC/USD";
-  const symbol2 = "ETH/USD";
-  const exchange = "coinbase"; // US-only
-
-  const timeOptions = ["1m","5m","10m","15m","30m","1h","4h","1d"];
-
-  // Fetch candles
-  const fetchChart = async (symbol, timeframe, setCandles) => {
-    try {
-      const res = await axios.get(
-        `https://neov6backend.onrender.com/api/candles?exchange=${exchange}&symbol=${symbol}&timeframe=${timeframe}`
-      );
-      setCandles(res.data || []);
-      // update live price
-      if (res.data?.length) {
-        setLivePrices(prev => ({
-          ...prev,
-          [symbol.split("/")[0]]: res.data[res.data.length - 1].close
-        }));
-      }
-    } catch (err) {
-      console.error(`Error fetching chart for ${symbol}:`, err);
-      setCandles([]);
-    }
-  };
-
+  // Fetch data when the component mounts
   useEffect(() => {
-    setLoading(true);
-    const loadCharts = async () => {
-      await Promise.all([
-        fetchChart(symbol1, timeframe1, setCandles1),
-        fetchChart(symbol2, timeframe2, setCandles2)
-      ]);
-      setLoading(false);
-    };
+    fetchDashboardData();
+  }, [fetchDashboardData]);
 
-    loadCharts();
-    const interval = setInterval(loadCharts, 60000);
-    return () => clearInterval(interval);
-  }, [timeframe1, timeframe2]);
+  if (loading) {
+    return <div className="p-6 text-center">Loading Dashboard...</div>;
+  }
 
-  const CustomTooltip = ({ active, payload, symbol }) => {
-    if (active && payload && payload.length) {
-      const d = payload[0].payload;
-      const color = d.close >= d.open ? "green" : "red";
-      return (
-        <div className="bg-white p-2 border shadow rounded text-sm">
-          <p><strong>{symbol}</strong></p>
-          <p>{new Date(d.time * 1000).toLocaleString()}</p>
-          <p>O: ${d.open}</p>
-          <p>H: ${d.high}</p>
-          <p>L: ${d.low}</p>
-          <p style={{ color }}>C: ${d.close}</p>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const renderChart = (symbol, candles, timeframe, setTimeframe, color) => {
-    const latest = candles.length ? candles[candles.length-1] : null;
-    const intervalUp = latest ? latest.close >= latest.open : true;
-
-    return (
-      <div>
-        <div className="mb-2 flex items-center gap-2">
-          <span className="font-semibold">
-            {symbol} - ${livePrices[symbol.split("/")[0]]?.toLocaleString() || "0"}
-            <span
-              style={{
-                display: "inline-block",
-                width: "10px",
-                height: "10px",
-                marginLeft: "6px",
-                borderRadius: "50%",
-                backgroundColor: intervalUp ? "green" : "red"
-              }}
-            ></span>
-          </span>
-
-          <select
-            value={timeframe}
-            onChange={(e) => setTimeframe(e.target.value)}
-            className="border p-1 text-sm"
-          >
-            {timeOptions.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-        </div>
-
-        <div style={{ width: "100%", height: 300 }}>
-          {candles.length ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={candles}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" tickFormatter={ts => new Date(ts*1000).toLocaleTimeString()} />
-                <YAxis domain={["auto", "auto"]} />
-                <Tooltip content={<CustomTooltip symbol={symbol} />} />
-                <Line
-                  type="monotone"
-                  dataKey="close"
-                  stroke={color}
-                  dot={d => (
-                    <circle
-                      r={3}
-                      fill={d.payload.close >= d.payload.open ? "green" : "red"}
-                    />
-                  )}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <p>No data for {symbol}</p>
-          )}
-        </div>
-      </div>
-    );
-  };
+  if (error) {
+    return <div className="p-6 text-center text-red-500">Error: {error}</div>;
+  }
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Neo-V6 Dashboard</h1>
-      {loading && <p>Loading charts...</p>}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {renderChart(symbol1, candles1, timeframe1, setTimeframe1, "#8884d8")}
-        {renderChart(symbol2, candles2, timeframe2, setTimeframe2, "#82ca9d")}
+    <div className="p-6 space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <p className="text-gray-400">Welcome back! Here is your current trading overview.</p>
       </div>
+
+      <BotStatus status={botStatus} />
+      
+      <LivePrices prices={livePrices} />
+      
+      {/* You could add a historical performance chart here later if needed */}
     </div>
   );
 }
