@@ -3,7 +3,7 @@ import apiClient from './apiClient.js'; // your configured axios instance
 
 export const getLogs = async () => {
   try {
-    const response = await apiClient.get('/logs/get');
+    const response = await apiClient.get('/log/get');
     return response.data;
   } catch (error) {
     throw new Error(error.response?.data?.message || 'Failed to fetch logs');
@@ -15,7 +15,7 @@ export const getLogs = async () => {
 
 export const createLog = async () => {
   try {
-    const response = await apiClient.get('/logs/create');
+    const response = await apiClient.get('/log/create');
     return response.data;
   } catch (error) {
     throw new Error(error.response?.data?.message || 'Failed to fetch logs');
