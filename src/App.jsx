@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.jsx';
-import PrivateRoute from './components/PrivateRoute.jsx'; // Corrected filename from your previous files
+import PrivateRoute from './components/ProtectedRoute.jsx'; // Corrected filename from your previous files
 import GuestRoute from './components/GuestRoute.jsx';
 
 // Layouts
