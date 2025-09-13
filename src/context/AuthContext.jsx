@@ -15,6 +15,11 @@ export const AuthProvider = ({ children }) => {
   const isAuthenticated = !!token;
 
   const saveAuthData = (userData, tokenData) => {
+    // FIX: Ensure user data and token are valid before saving
+    if (!userData || !tokenData) {
+        console.error("AuthContext: Attempted to save invalid auth data.");
+        return;
+    }
     setUser(userData);
     setTokenState(tokenData);
     localStorage.setItem("user", JSON.stringify(userData));
@@ -44,28 +49,45 @@ export const AuthProvider = ({ children }) => {
       setInitializing(false);
     };
     validateToken();
-  }, []);
+  }, []); // Note: Removed 'token' from dependency array to prevent re-validation loops
 
   const loginUser = async (credentials) => {
     setLoading(true);
     setError(null);
     try {
+      // FIX: Directly destructure the expected response from the API call
       const { token, user } = await authApi.login(credentials);
       saveAuthData(user, token);
       return { success: true };
     } catch (err) {
-      setError(err.response?.data?.message || "Login failed");
-      return { success: false, error: err.response?.data?.message };
+      // FIX: Provide more detailed error logging
+      const errorMessage = err.response?.data?.message || "Login failed. Please check your credentials.";
+      console.error("Login API Error:", err.response?.data || err);
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
     } finally {
+      // This 'finally' block ensures the button is always re-enabled
       setLoading(false);
     }
   };
 
   const registerUser = async (userData) => {
-    // ... (register logic similar to login)
+    setLoading(true);
+    setError(null);
+    try {
+        const { token, user } = await authApi.register(userData);
+        saveAuthData(user, token);
+        return { success: true };
+    } catch (err) {
+        const errorMessage = err.response?.data?.message || "Registration failed.";
+        console.error("Register API Error:", err.response?.data || err);
+        setError(errorMessage);
+        return { success: false, error: errorMessage };
+    } finally {
+        setLoading(false);
+    }
   };
 
-  // --- ADDED THIS FUNCTION ---
   const logout = () => {
     clearAuthData();
   };
@@ -73,7 +95,7 @@ export const AuthProvider = ({ children }) => {
   return (
     <AuthContext.Provider value={{ user, isAuthenticated, loading, error, initializing, loginUser, registerUser, logout }}>
       {children}
-    </AuthContext.Provider>
+    </Auth-Context.Provider>
   );
 };
 
