@@ -5,7 +5,7 @@ import { AuthProvider } from './context/AuthContext';
 import PrivateRoute from './components/ProtectedRoute';
 import GuestRoute from './components/GuestRoute';
 import DashboardLayout from './layouts/DashboardLayout';
-import AuthPage from './pages/AuthPage.jsx';
+import AuthPage from './pages/Authpage.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Backtests from './pages/Backtests.jsx';
 import Strategies from './pages/Strategies.jsx'; // <-- 1. Import the new page
