@@ -1,15 +1,22 @@
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend } from 'recharts';
 
-const CombinedDataChart = ({ data }) => {
+// UPGRADE: The component now accepts 'symbol' as a prop
+const CombinedDataChart = ({ symbol, data }) => {
   if (!data || data.length === 0) {
-    return <div className="rounded-xl bg-gray-800 p-4 text-center">No combined data available.</div>;
+    return (
+      <div className="rounded-xl bg-gray-800 p-4 text-center text-gray-400">
+          <h3 className="font-bold text-white mb-2">{symbol}</h3>
+          <p>No data available for this symbol.</p>
+      </div>
+    );
   }
 
   return (
     <div className="rounded-xl bg-gray-800 p-4">
       <div className="mb-4">
-        <h3 className="font-bold text-white">BTC Price vs. Fed Funds Rate</h3>
+        {/* UPGRADE: The title is now dynamic based on the symbol */}
+        <h3 className="font-bold text-white">{symbol} vs. Fed Funds Rate</h3>
         <p className="text-sm text-gray-400">Daily data from combined sources</p>
       </div>
       <ResponsiveContainer width="100%" height={300}>
@@ -27,7 +34,8 @@ const CombinedDataChart = ({ data }) => {
             labelFormatter={(dateStr) => new Date(dateStr).toLocaleDateString()}
           />
           <Legend />
-          <Line yAxisId="left" type="monotone" dataKey="close" name="BTC Price" stroke="#f97316" strokeWidth={2} dot={false} />
+          {/* UPGRADE: The line's name in the legend is now dynamic */}
+          <Line yAxisId="left" type="monotone" dataKey="close" name={`${symbol} Price`} stroke="#f97316" strokeWidth={2} dot={false} />
           <Line yAxisId="right" type="monotone" dataKey="fed_funds_rate" name="Fed Rate (%)" stroke="#3b82f6" strokeWidth={2} dot={false} />
         </LineChart>
       </ResponsiveContainer>
