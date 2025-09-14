@@ -1,89 +1,52 @@
-import React, { useEffect, useState } from "react";
-import { useDashboard } from "../hooks/useDashboard.js";
-import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
+import React, { useEffect } from 'react';
 
-// A reusable chart component with timeframe selectors
-const MarketChart = ({ symbol, data, onTimeframeChange }) => {
-  const [timeframe, setTimeframe] = useState('1h');
-  const timeframes = ['15m', '1h', '4h', '1d'];
+// 1. Import your custom hook
+import { useDashboard } from '../hooks/useDashboard.js';
 
-  const handleTimeframeClick = (newTimeframe) => {
-    setTimeframe(newTimeframe);
-    onTimeframeChange(symbol, newTimeframe);
-  };
-
-  const latestPrice = data.length > 0 ? data[data.length - 1].close : 0;
-  const priceColor = data.length > 1 && data[data.length - 1].close >= data[data.length - 2].close ? 'text-green-400' : 'text-red-400';
-
-  return (
-    <div className="rounded-xl bg-gray-800 p-4">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h3 className="font-bold text-white">{symbol}</h3>
-          <p className={`text-2xl font-semibold ${priceColor}`}>
-            ${latestPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </p>
-        </div>
-        <div className="flex items-center gap-1 rounded-lg bg-gray-700 p-1">
-          {timeframes.map(tf => (
-            <button
-              key={tf}
-              onClick={() => handleTimeframeClick(tf)}
-              className={`rounded-md px-3 py-1 text-sm font-semibold transition ${
-                timeframe === tf ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-600'
-              }`}
-            >
-              {tf}
-            </button>
-          ))}
-        </div>
-      </div>
-      <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={data} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-          <XAxis 
-            dataKey="time" 
-            tickFormatter={(unixTime) => new Date(unixTime).toLocaleTimeString()} 
-            stroke="#64748b"
-          />
-          <YAxis 
-            domain={['dataMin', 'dataMax']} 
-            stroke="#64748b"
-            tickFormatter={(price) => `$${price.toLocaleString()}`}
-          />
-          <Tooltip 
-            contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155' }}
-            labelFormatter={(unixTime) => new Date(unixTime).toLocaleString()}
-          />
-          <Line type="monotone" dataKey="close" stroke="#3b82f6" strokeWidth={2} dot={false} />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  );
-};
+// 2. Import both of your chart components
+import MarketChart from '../components/MarketChart.jsx';
+import CombinedDataChart from '../components/CombinedDataChart.jsx';
 
 export default function Dashboard() {
-  const { botStatus, chartData, loading, error, fetchDashboardData, fetchChartData } = useDashboard();
+  // 3. Get all the data and states from your powerful custom hook
+  const { 
+    chartData, 
+    macroData, 
+    loading, 
+    error, 
+    fetchDashboardData, 
+    fetchChartData 
+  } = useDashboard();
 
+  // 4. Fetch all necessary data when the component first loads
   useEffect(() => {
     fetchDashboardData();
-  }, [fetchDashboardData]);
+  }, [fetchDashboardData]); // Dependency array ensures this runs only once
 
+  // 5. Handle loading and error states for a clean user experience
   if (loading) {
-    return <div className="p-6 text-center">Loading Dashboard...</div>;
+    return <div className="p-6 text-center text-gray-400">Loading Dashboard...</div>;
   }
   if (error) {
     return <div className="p-6 text-center text-red-500">Error: {error}</div>;
   }
 
+  // 6. Render the full dashboard layout with all components
   return (
     <div className="space-y-8 p-6">
       <div>
-        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <h1 className="text-3xl font-bold text-white">Dashboard</h1>
         <p className="text-gray-400">Welcome back! Here is your current trading overview.</p>
       </div>
 
-      {/* Reusable charts with timeframe selectors */}
+      {/* Render the new chart for our combined Python service data */}
+      {/* This component gets the 'macroData' from the hook */}
+      <div className="grid grid-cols-1 gap-6">
+        <CombinedDataChart data={macroData} />
+      </div>
+
+      {/* Render your existing, reusable market charts */}
+      {/* These components get their data from the 'chartData' state */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <MarketChart 
           symbol="BTCUSDT" 
@@ -97,7 +60,7 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* You can add your Bot Status component here if you like */}
+      {/* You can add other components like bot status here */}
     </div>
   );
 }
