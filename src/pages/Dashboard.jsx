@@ -1,55 +1,70 @@
-// File: src/pages/Dashboard.jsx
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useDashboard } from "../hooks/useDashboard.js";
+import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
 
-// A small, reusable component for displaying a single statistic
-const StatCard = ({ title, value, valueColor }) => (
-  <div className="bg-gray-800 p-6 rounded-xl">
-    <p className="text-sm text-gray-400">{title}</p>
-    <p className={`text-2xl font-bold ${valueColor || ''}`}>{value}</p>
-  </div>
-);
+// A reusable chart component with timeframe selectors
+const MarketChart = ({ symbol, data, onTimeframeChange }) => {
+  const [timeframe, setTimeframe] = useState('1h');
+  const timeframes = ['15m', '1h', '4h', '1d'];
 
-// A component to display live crypto prices
-const LivePrices = ({ prices }) => (
-  <div>
-    <h2 className="text-xl font-bold mb-4">Live Market Prices</h2>
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {Object.entries(prices).map(([symbol, price]) => (
-        <StatCard 
-          key={symbol} 
-          title={symbol} 
-          value={price ? `$${Number(price).toLocaleString()}` : 'Loading...'} 
-        />
-      ))}
-    </div>
-  </div>
-);
+  const handleTimeframeClick = (newTimeframe) => {
+    setTimeframe(newTimeframe);
+    onTimeframeChange(symbol, newTimeframe);
+  };
 
-// A component to display the bot's current status
-const BotStatus = ({ status }) => {
-  const isRunning = status?.isRunning;
+  const latestPrice = data.length > 0 ? data[data.length - 1].close : 0;
+  const priceColor = data.length > 1 && data[data.length - 1].close >= data[data.length - 2].close ? 'text-green-400' : 'text-red-400';
+
   return (
-    <div>
-      <h2 className="text-xl font-bold mb-4">Bot Status</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard 
-          title="Status" 
-          value={isRunning ? "Running" : "Stopped"}
-          valueColor={isRunning ? 'text-green-500' : 'text-red-500'}
-        />
-        <StatCard title="Symbol" value={status?.symbol || 'N/A'} />
-        <StatCard title="Strategy" value={status?.strategy?.name || 'N/A'} />
+    <div className="rounded-xl bg-gray-800 p-4">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h3 className="font-bold text-white">{symbol}</h3>
+          <p className={`text-2xl font-semibold ${priceColor}`}>
+            ${latestPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
+        </div>
+        <div className="flex items-center gap-1 rounded-lg bg-gray-700 p-1">
+          {timeframes.map(tf => (
+            <button
+              key={tf}
+              onClick={() => handleTimeframeClick(tf)}
+              className={`rounded-md px-3 py-1 text-sm font-semibold transition ${
+                timeframe === tf ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-600'
+              }`}
+            >
+              {tf}
+            </button>
+          ))}
+        </div>
       </div>
+      <ResponsiveContainer width="100%" height={300}>
+        <LineChart data={data} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+          <XAxis 
+            dataKey="time" 
+            tickFormatter={(unixTime) => new Date(unixTime).toLocaleTimeString()} 
+            stroke="#64748b"
+          />
+          <YAxis 
+            domain={['dataMin', 'dataMax']} 
+            stroke="#64748b"
+            tickFormatter={(price) => `$${price.toLocaleString()}`}
+          />
+          <Tooltip 
+            contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155' }}
+            labelFormatter={(unixTime) => new Date(unixTime).toLocaleString()}
+          />
+          <Line type="monotone" dataKey="close" stroke="#3b82f6" strokeWidth={2} dot={false} />
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 };
 
-
 export default function Dashboard() {
-  const { botStatus, livePrices, loading, error, fetchDashboardData } = useDashboard();
+  const { botStatus, chartData, loading, error, fetchDashboardData, fetchChartData } = useDashboard();
 
-  // Fetch data when the component mounts
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
@@ -57,23 +72,32 @@ export default function Dashboard() {
   if (loading) {
     return <div className="p-6 text-center">Loading Dashboard...</div>;
   }
-
   if (error) {
     return <div className="p-6 text-center text-red-500">Error: {error}</div>;
   }
 
   return (
-    <div className="p-6 space-y-8">
+    <div className="space-y-8 p-6">
       <div>
         <h1 className="text-3xl font-bold">Dashboard</h1>
         <p className="text-gray-400">Welcome back! Here is your current trading overview.</p>
       </div>
 
-      <BotStatus status={botStatus} />
-      
-      <LivePrices prices={livePrices} />
-      
-      {/* You could add a historical performance chart here later if needed */}
+      {/* Reusable charts with timeframe selectors */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <MarketChart 
+          symbol="BTCUSDT" 
+          data={chartData.BTCUSDT} 
+          onTimeframeChange={fetchChartData} 
+        />
+        <MarketChart 
+          symbol="ETHUSDT" 
+          data={chartData.ETHUSDT} 
+          onTimeframeChange={fetchChartData} 
+        />
+      </div>
+
+      {/* You can add your Bot Status component here if you like */}
     </div>
   );
 }
