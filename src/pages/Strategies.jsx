@@ -110,8 +110,13 @@ export default function Strategies() {
     fetchStrategies();
   }, [fetchStrategies]);
 
-  const handleSave = async (strategyData) => {
-    await strategyApi.upsert(strategyData);
+ const handleSave = async (strategyData) => {
+    // FIX: Differentiate between creating a new strategy and updating an old one
+    if (strategyData._id) {
+      await strategyApi.update(strategyData._id, strategyData);
+    } else {
+      await strategyApi.create(strategyData);
+    }
     setSelectedStrategy(null);
     fetchStrategies();
   };
