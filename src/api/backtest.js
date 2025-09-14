@@ -54,3 +54,9 @@ export const remove = async (backtestId) => {
   const { data } = await apiClient.delete(`/backtest/${backtestId}`);
   return data;
 };
+
+export const runPythonSMABacktest = async (params) => {
+  // This calls the Node.js endpoint that forwards the request to the Python service
+  const { data } = await apiClient.post('/api/external/run-backtest', params);
+  return data;
+};
