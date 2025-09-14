@@ -20,6 +20,15 @@ export const run = async (payload) => {
 };
 
 /**
+ * Runs a batch of backtests.
+ * @param {Array<object>} configs - An array of configuration objects.
+ */
+export const runBatch = async (configs) => {
+  const { data } = await apiClient.post("/backtest/batch", { configs });
+  return data.data; // The backend returns a summary object in the 'data' property
+};
+
+/**
  * Fetches all of the user's past backtests with pagination.
  */
 export const fetchAll = async (page = 1, limit = 10) => {
