@@ -46,9 +46,36 @@ export function useBacktest() {
     setLoading(true);
     setError(null);
     try {
-      const result = await backtestApi.run(payload);
-      await getPastBacktests(); // Refresh the list after a new run
+      let result;
+
+      // **UPGRADE**: This logic routes the request based on the selected strategy.
+      if (payload.strategyId === 'python_sma_crossover') {
+        console.log("Routing request to Python backtest service...");
+        // Call the specific API function that talks to our Python service
+        const pythonResult = await backtestApi.runPythonSMABacktest(payload);
+        
+        // Map the Python output to the format your frontend expects
+        result = {
+          metrics: {
+            totalReturn: pythonResult.total_return_percent,
+            winRate: pythonResult.sharpe_ratio, // Using Sharpe as a proxy for this metric field
+            totalTrades: pythonResult.total_trades
+          },
+          // Add a flag to indicate this result isn't from the database
+          isPythonResult: true 
+        };
+        // Note: This result is temporary and not saved to your backtest history.
+        
+      } else {
+        // This is the original logic for all your standard, database-driven strategies
+        console.log("Routing request to standard Node.js backtest service...");
+        result = await backtestApi.run(payload);
+        // Refresh the history list with the newly saved backtest
+        await getPastBacktests(); 
+      }
+      
       return result;
+
     } catch (err) {
       const errorMessage = err.response?.data?.message || "Failed to run backtest.";
       setError(errorMessage);
@@ -59,6 +86,7 @@ export function useBacktest() {
   }, [getPastBacktests]);
 
   const runNewBatchBacktest = useCallback(async (configs) => {
+    // This function remains unchanged and works with your existing Node.js batch logic
     setLoading(true);
     setError(null);
     try {
