@@ -1,34 +1,47 @@
-// File: src/api/backtest.js
-import api from "./apiClient.js";
+import apiClient from "./apiClient.js";
 
-/** Fetch available backtest options */
+/**
+ * Fetches all available options (symbols, strategies) for the backtest form.
+ */
 export const fetchOptions = async () => {
-  const { data } = await api.get("/backtest/options");
-  return data.data || {}; // Backend wraps response in { success, message, data }
+  // FIX: Changed path to singular 'backtest'
+  const { data } = await apiClient.get("/backtest/options");
+  return data.data || {};
 };
 
-/** Run a single backtest */
+/**
+ * Runs a new backtest.
+ * @param {object} payload - The configuration for the backtest.
+ */
 export const run = async (payload) => {
-  const { data } = await api.post("/backtest/run", payload);
-  // CORRECT: The backend now returns the full, saved backtest document directly in the data property.
-  return data.data; 
+  // FIX: Changed path to singular 'backtest'
+  const { data } = await apiClient.post("/backtest/run", payload);
+  return data.data;
 };
 
-/** Fetch all backtests for the authenticated user */
+/**
+ * Fetches all of the user's past backtests with pagination.
+ */
 export const fetchAll = async (page = 1, limit = 10) => {
-  // CORRECT: The endpoint is just /backtests, user ID is from the token.
-  const { data } = await api.get(`/backtest?page=${page}&limit=${limit}`);
-  return data.data; // Returns { backtests, page, limit, total }
+  // FIX: Changed path to singular 'backtest'
+  const { data } = await apiClient.get(`/backtest?page=${page}&limit=${limit}`);
+  return data.data;
 };
 
-/** Fetch a single backtest by its ID */
+/**
+ * Fetches a single backtest result by its ID.
+ */
 export const fetchById = async (backtestId) => {
-  const { data } = await api.get(`/backtest/${backtestId}`);
+  // FIX: Changed path to singular 'backtest'
+  const { data } = await apiClient.get(`/backtest/${backtestId}`);
   return data.data.backtest;
 };
 
-/** Delete a backtest by its ID */
+/**
+ * Deletes a backtest by its ID.
+ */
 export const remove = async (backtestId) => {
-  const { data } = await api.delete(`/backtest/${backtestId}`);
+  // FIX: Changed path to singular 'backtest'
+  const { data } = await apiClient.delete(`/backtest/${backtestId}`);
   return data;
 };
