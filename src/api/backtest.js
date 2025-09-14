@@ -57,6 +57,6 @@ export const remove = async (backtestId) => {
 
 export const runPythonSMABacktest = async (params) => {
   // This calls the Node.js endpoint that forwards the request to the Python service
-  const { data } = await apiClient.post('/api/external/run-backtest', params);
+  const { data } = await apiClient.post('/external/run-backtest', params);
   return data;
 };
