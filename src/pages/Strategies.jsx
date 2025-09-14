@@ -122,8 +122,14 @@ export default function Strategies() {
   };
 
   const handleDelete = async (strategyId) => {
+      // --- THIS IS THE FIX ---
+    // Add a safety check to ensure the ID is valid before making an API call.
+    if (!strategyId) {
+      console.error("Attempted to delete a strategy with an invalid ID.");
+      return;
+    }
     await strategyApi.remove(strategyId);
-    fetchStrategies();
+    fetchStrategies(); // Refresh the list
   };
 
   return (
