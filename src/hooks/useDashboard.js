@@ -1,21 +1,21 @@
 import { useState, useCallback } from "react";
-// Import our new API function alongside the existing ones
+// Import all your API functions
 import * as botApi from "../api/bot.js";
 import * as dataApi from "../api/data.js";
 
 export function useDashboard() {
-  // Existing states
+  // State from your existing hook
   const [botStatus, setBotStatus] = useState(null);
   const [chartData, setChartData] = useState({ BTCUSDT: [], ETHUSDT: [] });
-  
-  // 1. Add new state for our combined data
-  const [macroData, setMacroData] = useState([]);
+
+  // UPGRADE: New state to hold the object of top 5 crypto market data
+  const [marketData, setMarketData] = useState({});
 
   // General loading and error states
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Your existing fetchChartData function (no changes needed here)
+  // This is your existing function for individual charts, it remains unchanged
   const fetchChartData = useCallback(async (symbol, timeframe) => {
     try {
       const candles = await dataApi.fetchCandles({ symbol, timeframe });
@@ -27,37 +27,44 @@ export function useDashboard() {
     }
   }, []);
 
-  // 2. Add a new function to fetch the combined macro data
-  const fetchMacroData = useCallback(async () => {
+  // UPGRADE: This new function fetches the combined data for the top 5 cryptos
+  const fetchCombinedMarketData = useCallback(async () => {
     try {
-        const data = await dataApi.fetchCombinedMacroData();
-        setMacroData(data);
+      const data = await dataApi.fetchCombinedMacroData();
+      setMarketData(data);
     } catch (err) {
-        console.error('Failed to fetch macro data:', err);
-        // We can let the main fetchDashboardData function handle the user-facing error
-        throw err; 
+      console.error("Failed to fetch market data:", err);
+      // Let the main function handle the user-facing error
+      throw err;
     }
   }, []);
   
-  // Function to fetch all initial dashboard data
+  // UPGRADE: The main fetch function now runs everything in parallel
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // 3. Add our new fetch function to the parallel execution
       await Promise.all([
         botApi.getStatus().then(status => setBotStatus(status.status)),
         fetchChartData('BTCUSDT', '1h'),
         fetchChartData('ETHUSDT', '1h'),
-        fetchMacroData(), // <-- Add the new call here
+        fetchCombinedMarketData(), // Added the new data fetch here
       ]);
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to load dashboard data.");
+      setError(err.response?.data?.message || "Failed to load all dashboard data.");
     } finally {
       setLoading(false);
     }
-  }, [fetchChartData, fetchMacroData]); // <-- Add fetchMacroData to dependency array
+  }, [fetchChartData, fetchCombinedMarketData]);
 
-  // 4. Return the new state so your components can use it
-  return { botStatus, chartData, macroData, loading, error, fetchDashboardData, fetchChartData };
+  // UPGRADE: Return all the data your dashboard page will need
+  return { 
+    botStatus, 
+    chartData, 
+    marketData, // The new data for your multi-chart display
+    loading, 
+    error, 
+    fetchDashboardData, 
+    fetchChartData 
+  };
 }
