@@ -36,6 +36,20 @@ export function useBacktest() {
     }
   }, []);
 
+   const runNewBatchBacktest = useCallback(async (configs) => {
+    setLoading(true);
+    setError(null);
+    try {
+      return await backtestApi.runBatch(configs);
+    } catch (err) {         
+      const errorMessage = err.response?.data?.message || "Failed to run backtest.";
+      setError(errorMessage);
+      throw new Error(errorMessage); // Re-throw for the component to catch if needed
+    } finally {
+      setLoading(false);
+    }
+  }, [getPastBacktests]);
+
   // Run a new backtest
   const runNewBacktest = useCallback(async (payload) => {
     setLoading(true);
