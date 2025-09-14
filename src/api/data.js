@@ -11,7 +11,7 @@ export const fetchLivePrices = async (symbols) => {
 
 export const fetchCombinedMacroData = async () => {
   try {
-    const { data } = await apiClient.get('/api/external/crypto-macro-data');
+    const { data } = await apiClient.get('/external/crypto-macro-data');
     return data;
   } catch (error) {
     // Log the error and re-throw it so the hook can handle it
