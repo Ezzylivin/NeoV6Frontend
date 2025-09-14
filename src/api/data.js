@@ -9,6 +9,16 @@ export const fetchLivePrices = async (symbols) => {
   return data;
 };
 
+export const fetchCombinedMacroData = async () => {
+  try {
+    const { data } = await apiClient.get('/api/external/crypto-macro-data');
+    return data;
+  } catch (error) {
+    // Log the error and re-throw it so the hook can handle it
+    console.error("API error fetching combined macro data:", error);
+    throw error;
+  }
+};
 /**
  * Fetches candlestick data for a single symbol.
  */
