@@ -35,14 +35,17 @@ export default function Backtests() {
     endDate: new Date().toISOString().split('T')[0],
   });
 
+ // FIX: Simplified and more reliable effect to set default strategy
   useEffect(() => {
-    if (options.strategies?.length > 0 && !form.strategyId) {
-      setForm(prev => ({ ...prev, strategyId: options.strategies[0]._id }));
+    if (options.strategies?.length > 0) {
+      setForm(prev => ({
+        ...prev,
+        strategyId: prev.strategyId || options.strategies[0]._id,
+        symbol: prev.symbol || options.symbols[0],
+      }));
     }
-    if (options.symbols?.length > 0 && !form.symbol) {
-      setForm(prev => ({ ...prev, symbol: options.symbols[0] }));
-    }
-  }, [options, form.strategyId, form.symbol]);
+  }, [options.strategies, options.symbols]); // This now only depends on the options themselves
+
 
   const handleChange = (e) => {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
