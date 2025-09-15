@@ -7,8 +7,7 @@ export function useDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // 🛠️ Refactored function to just fetch and return data, without setting state
-  const fetchData = useCallback(async (symbol, timeframe) => {
+  const fetchChartData = useCallback(async (symbol, timeframe) => {
     try {
       const candles = await dataApi.fetchCandles({ symbol, timeframe });
       if (!candles) {
@@ -25,14 +24,14 @@ export function useDashboard() {
     setError('');
     setLoading(true);
     try {
-      // 🛠️ The Fix: Use Promise.all to fetch all data sources concurrently
+      // The Fix: Use Promise.all to fetch all data sources concurrently
       const [marketDataResponse, btcChartData, ethChartData] = await Promise.all([
         dataApi.fetchCombinedMacroData(),
-        fetchData('BTC-USD', '1h'),
-        fetchData('ETH-USD', '1h')
+        fetchChartData('BTC-USD', '1h'),
+        fetchChartData('ETH-USD', '1h')
       ]);
 
-      // 🛠️ The Fix: Set both states at once after all data is fetched
+      // The Fix: Set all states at once after all fetches are complete
       setMarketData(marketDataResponse || {});
       setChartData({
         'BTC-USD': btcChartData,
@@ -46,11 +45,11 @@ export function useDashboard() {
       // This will only run after all data is successfully loaded and state updates are queued
       setLoading(false);
     }
-  }, [fetchData]);
+  }, [fetchChartData]);
 
   useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData]);
 
-  return { marketData, chartData, loading, error, fetchChartData: fetchData, loadDashboardData };
+  return { marketData, chartData, loading, error, fetchChartData, loadDashboardData };
 }
