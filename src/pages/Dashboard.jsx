@@ -5,7 +5,7 @@ import MarketChart from '../components/MarketChart.jsx';
 export default function Dashboard() {
   const { 
     chartData, 
-    botStatus, 
+    // 🛠️ 'botStatus' has been removed from destructuring.
     loading, 
     error, 
     fetchChartData,
@@ -27,13 +27,7 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold text-white">Dashboard</h1>
           <p className="text-gray-400">Welcome back! Here is your current trading overview.</p>
         </div>
-        <div className="text-right">
-          <p className="text-sm text-gray-400">Bot Status</p>
-          <p className={`text-lg font-bold ${botStatus === 'Active' ? 'text-green-400' : 'text-red-400'}`}>
-            {/* 🛠️ The fix is here! This handles cases where botStatus might be a boolean. */}
-            {typeof botStatus === 'boolean' ? (botStatus ? 'Active' : 'Inactive') : (botStatus || 'Unknown')}
-          </p>
-        </div>
+        {/* 🛠️ The entire 'Bot Status' div has been removed. */}
       </div>
 
       {error && <div className="p-2 text-center text-yellow-300 bg-yellow-800/50 rounded-lg">{error}</div>}
