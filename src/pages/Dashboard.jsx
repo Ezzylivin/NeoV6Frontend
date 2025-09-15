@@ -1,13 +1,12 @@
 import React, { useEffect } from 'react';
 import { useDashboard } from '../hooks/useDashboard.js';
 import MarketChart from '../components/MarketChart.jsx';
-import CombinedDataChart from '../components/CombinedDataChart.jsx'; // We'll keep this one for now
+import CombinedDataChart from '../components/CombinedDataChart.jsx';
 
 export default function Dashboard() {
   const { 
     chartData, 
     marketData,
-    macroData,
     loading, 
     error, 
     fetchChartData,
@@ -36,25 +35,21 @@ export default function Dashboard() {
       <div>
         <h2 className="text-2xl font-bold text-white mb-4">Market Overview</h2>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Now we can pass the data to the correct components */}
-          <MarketChart 
+          <CombinedDataChart 
             symbol="BTC-USD"
             data={marketData['BTC-USD']}
-            // ... other props
           />
-          <MarketChart
+          <CombinedDataChart
             symbol="ETH-USD"
             data={marketData['ETH-USD']}
-            // ... other props
           />
-          {/* We'll use a new component for the macro data */}
-          {/* <MacroChart data={macroData} /> */}
         </div>
       </div>
 
       <div>
         <h2 className="text-2xl font-bold text-white mb-4">Live Price Charts</h2>
         <div className="grid grid-cols-1 gap-6 lg-grid-cols-2">
+          {/* 🛠️ The Fix: Use USD-based symbols */}
           <MarketChart 
             symbol="BTC-USD" 
             data={chartData['BTC-USD']} 
