@@ -30,16 +30,14 @@ export default function Dashboard() {
         <div className="text-right">
           <p className="text-sm text-gray-400">Bot Status</p>
           <p className={`text-lg font-bold ${botStatus === 'Active' ? 'text-green-400' : 'text-red-400'}`}>
-            {botStatus || 'Unknown'}
+            {/* 🛠️ The fix is here! This handles cases where botStatus might be a boolean. */}
+            {typeof botStatus === 'boolean' ? (botStatus ? 'Active' : 'Inactive') : (botStatus || 'Unknown')}
           </p>
         </div>
       </div>
 
       {error && <div className="p-2 text-center text-yellow-300 bg-yellow-800/50 rounded-lg">{error}</div>}
 
-      {/* The Market Overview section has been removed. */}
-
-      {/* Section for your original Live Price Charts */}
       <div>
         <h2 className="text-2xl font-bold text-white mb-4">Live Price Charts</h2>
         <div className="grid grid-cols-1 gap-6 lg-grid-cols-2">
