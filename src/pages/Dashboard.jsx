@@ -21,6 +21,10 @@ export default function Dashboard() {
     return <div className="p-6 text-center text-gray-400">Loading Dashboard Data...</div>;
   }
 
+  // 🛠️ The Fix: Add conditional rendering to check if data is available
+  const btcCombinedData = marketData['BTC-USD'];
+  const ethCombinedData = marketData['ETH-USD'];
+
   return (
     <div className="space-y-8 p-6">
       <div className="flex justify-between items-start">
@@ -35,21 +39,34 @@ export default function Dashboard() {
       <div>
         <h2 className="text-2xl font-bold text-white mb-4">Market Overview</h2>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <CombinedDataChart 
-            symbol="BTC-USD"
-            data={marketData['BTC-USD']}
-          />
-          <CombinedDataChart
-            symbol="ETH-USD"
-            data={marketData['ETH-USD']}
-          />
+          {btcCombinedData ? (
+            <CombinedDataChart 
+              symbol="BTC-USD"
+              data={btcCombinedData}
+            />
+          ) : (
+            <div className="rounded-xl bg-gray-800 p-4 text-center text-gray-400">
+              <h3 className="font-bold text-white mb-2">BTC-USD</h3>
+              <p>Loading combined data...</p>
+            </div>
+          )}
+          {ethCombinedData ? (
+            <CombinedDataChart
+              symbol="ETH-USD"
+              data={ethCombinedData}
+            />
+          ) : (
+            <div className="rounded-xl bg-gray-800 p-4 text-center text-gray-400">
+              <h3 className="font-bold text-white mb-2">ETH-USD</h3>
+              <p>Loading combined data...</p>
+            </div>
+          )}
         </div>
       </div>
 
       <div>
         <h2 className="text-2xl font-bold text-white mb-4">Live Price Charts</h2>
         <div className="grid grid-cols-1 gap-6 lg-grid-cols-2">
-          {/* 🛠️ The Fix: Use USD-based symbols */}
           <MarketChart 
             symbol="BTC-USD" 
             data={chartData['BTC-USD']} 
