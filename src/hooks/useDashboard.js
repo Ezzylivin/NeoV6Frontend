@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect } from "react";
 import * as dataApi from "../api/data.js";
 
 export function useDashboard() {
+  // New state for macro data
+  const [macroData, setMacroData] = useState([]);
   const [marketData, setMarketData] = useState({});
   const [chartData, setChartData] = useState({ 'BTC-USD': [], 'ETH-USD': [] });
   const [loading, setLoading] = useState(true);
@@ -24,25 +26,27 @@ export function useDashboard() {
     setError('');
     setLoading(true);
     try {
-      // The Fix: Use Promise.all to fetch all data sources concurrently
-      const [marketDataResponse, btcChartData, ethChartData] = await Promise.all([
-        dataApi.fetchCombinedMacroData(),
-        fetchChartData('BTC-USD', '1h'),
+      // The Fix: Fetch crypto data and macro data separately
+      const marketDataResponse = await dataApi.fetchMarketData();
+      const macroDataResponse = await dataApi.fetchCombinedMacroData();
+
+      // Ensure data is not null before setting state
+      if (marketDataResponse) {
+        setMarketData(marketDataResponse);
+      }
+      if (macroDataResponse) {
+        setMacroData(macroDataResponse);
+      }
+
+      await Promise.all([
+        fetchChartData('BTC-USD', '1h'), 
         fetchChartData('ETH-USD', '1h')
       ]);
-
-      // The Fix: Set all states at once after all fetches are complete
-      setMarketData(marketDataResponse || {});
-      setChartData({
-        'BTC-USD': btcChartData,
-        'ETH-USD': ethChartData
-      });
       
     } catch (err) {
       console.error("Failed to load all dashboard data:", err);
       setError('Failed to load dashboard data.');
     } finally {
-      // This will only run after all data is successfully loaded and state updates are queued
       setLoading(false);
     }
   }, [fetchChartData]);
@@ -51,5 +55,5 @@ export function useDashboard() {
     loadDashboardData();
   }, [loadDashboardData]);
 
-  return { marketData, chartData, loading, error, fetchChartData, loadDashboardData };
+  return { macroData, marketData, chartData, loading, error, fetchChartData, loadDashboardData };
 }
