@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useDashboard } from '../hooks/useDashboard.js';
-import UnifiedChart from '../components/UnifiedChart.jsx'; // Import our new unified component
+import UnifiedChart from '../components/UnifiedChart.jsx';
 
 export default function Dashboard() {
   const { marketData, loading, error, fetchDashboardData } = useDashboard();
@@ -27,7 +27,6 @@ export default function Dashboard() {
       
       {hasData ? (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* We now have one clean section that dynamically creates our powerful new charts */}
           {Object.keys(marketData).map(symbol => (
             <UnifiedChart 
               key={symbol}
@@ -37,4 +36,8 @@ export default function Dashboard() {
           ))}
         </div>
       ) : (
-        !loading && <div className="p-6 text-center text-gray-400">No market data available to display
+        !loading && <div className="p-6 text-center text-gray-400">No market data available to display.</div>
+      )}
+    </div>
+  );
+}
