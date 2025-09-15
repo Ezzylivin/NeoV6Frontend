@@ -1,9 +1,8 @@
 import { useState, useCallback, useEffect } from "react";
 import * as dataApi from "../api/data.js";
-import * as botApi from "../api/bot.js";
 
 export function useDashboard() {
-  const [botStatus, setBotStatus] = useState(null);
+  // 🛠️ The 'botStatus' state has been removed.
   const [marketData, setMarketData] = useState({});
   const [chartData, setChartData] = useState({ BTCUSDT: [], ETHUSDT: [] });
   const [loading, setLoading] = useState(true);
@@ -25,17 +24,7 @@ export function useDashboard() {
     try {
       await Promise.all([
         dataApi.fetchCombinedMacroData().then(data => setMarketData(data)),
-        // 🛠️ The fix is here! We now access the 'status' property from the response object.
-        botApi.getStatus().then(response => {
-          // Assuming the response is an object with a 'status' key or a 'isRunning' key
-          if (response.status) {
-            setBotStatus(response.status);
-          } else if (response.isRunning !== undefined) {
-            setBotStatus(response.isRunning ? 'Active' : 'Inactive');
-          } else {
-            setBotStatus('Unknown');
-          }
-        }),
+        // 🛠️ The 'botApi.getStatus()' call has been removed from here.
         fetchChartData('BTCUSDT', '1h'),
         fetchChartData('ETHUSDT', '1h')
       ]);
@@ -51,5 +40,6 @@ export function useDashboard() {
     loadDashboardData();
   }, [loadDashboardData]);
 
-  return { marketData, chartData, botStatus, loading, error, fetchChartData, loadDashboardData };
+  // 🛠️ The 'botStatus' has been removed from the return object.
+  return { marketData, chartData, loading, error, fetchChartData, loadDashboardData };
 }
