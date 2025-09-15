@@ -2,7 +2,7 @@ import React from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend } from 'recharts';
 
 const CombinedDataChart = ({ symbol, data }) => {
-  // 🛠️ The Fix: Check for both the existence of the data prop AND its length.
+  // The Fix: Check for both the existence of the data prop AND its length.
   if (!data || !Array.isArray(data) || data.length === 0) {
     return (
       <div className="rounded-xl bg-gray-800 p-4 text-center text-gray-400">
@@ -33,6 +33,7 @@ const CombinedDataChart = ({ symbol, data }) => {
             labelFormatter={(dateStr) => new Date(dateStr).toLocaleDateString()}
           />
           <Legend />
+          {/* The Fix: Use connectNulls={true} to handle missing data points */}
           <Line yAxisId="left" type="monotone" dataKey="close" name={`${symbol} Price`} stroke="#f97316" strokeWidth={2} dot={false} connectNulls={true} />
           <Line yAxisId="right" type="monotone" dataKey="fed_funds_rate" name="Fed Rate (%)" stroke="#3b82f6" strokeWidth={2} dot={false} connectNulls={true} />
         </LineChart>
