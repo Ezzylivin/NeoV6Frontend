@@ -3,7 +3,7 @@ import * as dataApi from "../api/data.js";
 
 export function useDashboard() {
   const [marketData, setMarketData] = useState({});
-  const [chartData, setChartData] = useState({ 'BTC-USD': [], 'ETH-USD': [] }); // 🛠️ Updated initial state
+  const [chartData, setChartData] = useState({ 'BTC-USD': [], 'ETH-USD': [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -30,7 +30,6 @@ export function useDashboard() {
         setMarketData(marketDataResponse);
       }
       
-      // 🛠️ The Fix: Use USD-based symbols
       await Promise.all([
         fetchChartData('BTC-USD', '1h'), 
         fetchChartData('ETH-USD', '1h')
