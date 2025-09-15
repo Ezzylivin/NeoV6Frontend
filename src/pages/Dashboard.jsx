@@ -17,7 +17,7 @@ export default function Dashboard() {
     loadDashboardData();
   }, [loadDashboardData]);
 
-  // 🛠️ The fix: The component will now display "Loading" until ALL data is fetched.
+  // 🛠️ The Fix: The component will now display "Loading" until ALL data is fetched.
   if (loading) {
     return <div className="p-6 text-center text-gray-400">Loading Dashboard Data...</div>;
   }
