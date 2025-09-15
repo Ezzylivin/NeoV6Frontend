@@ -1,12 +1,13 @@
 import React, { useEffect } from 'react';
 import { useDashboard } from '../hooks/useDashboard.js';
 import MarketChart from '../components/MarketChart.jsx';
-import CombinedDataChart from '../components/CombinedDataChart.jsx';
+import CombinedDataChart from '../components/CombinedDataChart.jsx'; // We'll keep this one for now
 
 export default function Dashboard() {
   const { 
     chartData, 
     marketData,
+    macroData,
     loading, 
     error, 
     fetchChartData,
@@ -17,7 +18,6 @@ export default function Dashboard() {
     loadDashboardData();
   }, [loadDashboardData]);
 
-  // 🛠️ The Fix: The component will now display "Loading" until ALL data is fetched.
   if (loading) {
     return <div className="p-6 text-center text-gray-400">Loading Dashboard Data...</div>;
   }
@@ -36,14 +36,19 @@ export default function Dashboard() {
       <div>
         <h2 className="text-2xl font-bold text-white mb-4">Market Overview</h2>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <CombinedDataChart 
+          {/* Now we can pass the data to the correct components */}
+          <MarketChart 
             symbol="BTC-USD"
             data={marketData['BTC-USD']}
+            // ... other props
           />
-          <CombinedDataChart
+          <MarketChart
             symbol="ETH-USD"
             data={marketData['ETH-USD']}
+            // ... other props
           />
+          {/* We'll use a new component for the macro data */}
+          {/* <MacroChart data={macroData} /> */}
         </div>
       </div>
 
