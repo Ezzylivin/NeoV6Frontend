@@ -1,6 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import * as dataApi from "../api/data.js";
-import * as botApi from "../api/bot.js";
+import * as botApi from "../api/bot.js"; // Assuming this file exists
 
 export function useDashboard() {
   const [botStatus, setBotStatus] = useState(null);
@@ -8,13 +8,10 @@ export function useDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // This is the main function that the component will call.
-  // It orchestrates all the data fetching.
   const loadDashboardData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      // Run all API calls in parallel for the best performance
       const [marketDataResponse, botStatusResponse] = await Promise.all([
         dataApi.fetchCombinedMacroData(),
         botApi.getStatus()
@@ -29,7 +26,14 @@ export function useDashboard() {
     } finally {
       setLoading(false);
     }
-  }, []); // Empty dependency array means this function is created only once.
+  }, []);
 
-  return { marketData, botStatus, loading, error, loadDashboardData };
+  // This useEffect manages the data fetching lifecycle, including polling
+  useEffect(() => {
+    loadDashboardData(); // Fetch immediately on mount
+    const intervalId = setInterval(loadDashboardData, 45000); // Refresh every 45 seconds
+    return () => clearInterval(intervalId); // Cleanup on unmount
+  }, [loadDashboardData]);
+
+  return { marketData, botStatus, loading, error };
 }
