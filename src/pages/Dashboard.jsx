@@ -3,11 +3,14 @@ import { useDashboard } from '../hooks/useDashboard.js';
 import UnifiedChart from '../components/UnifiedChart.jsx';
 
 export default function Dashboard() {
-  const { marketData, loading, error, fetchDashboardData } = useDashboard();
+  const { marketData, botStatus, loading, error, loadDashboardData } = useDashboard();
 
+  // This useEffect is the key. The empty dependency array [] at the end
+  // tells React to run this function ONLY ONCE, when the component first mounts.
+  // This breaks the infinite loop.
   useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
+    loadDashboardData();
+  }, []); // <-- Empty array is crucial!
 
   if (loading) {
     return <div className="p-6 text-center text-gray-400">Loading Dashboard Data...</div>;
@@ -20,9 +23,17 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8 p-6">
-      <div>
-        <h1 className="text-3xl font-bold text-white">Market Dashboard</h1>
-        <p className="text-gray-400">Top Cryptocurrencies vs. US Macroeconomic Data</p>
+      <div className="flex justify-between items-start">
+        <div>
+            <h1 className="text-3xl font-bold text-white">Market Dashboard</h1>
+            <p className="text-gray-400">Top Cryptocurrencies vs. US Macroeconomic Data</p>
+        </div>
+        <div className="text-right">
+            <p className="text-sm text-gray-400">Bot Status</p>
+            <p className={`text-lg font-bold ${botStatus === 'Active' ? 'text-green-400' : 'text-red-400'}`}>
+                {botStatus || 'Unknown'}
+            </p>
+        </div>
       </div>
       
       {hasData ? (
@@ -36,7 +47,9 @@ export default function Dashboard() {
           ))}
         </div>
       ) : (
-        !loading && <div className="p-6 text-center text-gray-400">No market data available to display.</div>
+        <div className="p-6 text-center text-gray-400 rounded-lg bg-gray-800">
+          No market data available to display.
+        </div>
       )}
     </div>
   );
