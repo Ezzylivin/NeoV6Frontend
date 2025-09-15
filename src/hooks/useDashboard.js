@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect } from "react";
 import * as dataApi from "../api/data.js";
 
 export function useDashboard() {
-  const [macroData, setMacroData] = useState({});
   const [marketData, setMarketData] = useState({});
   const [chartData, setChartData] = useState({ 'BTC-USD': [], 'ETH-USD': [] });
   const [loading, setLoading] = useState(true);
@@ -25,26 +24,19 @@ export function useDashboard() {
     setError('');
     setLoading(true);
     try {
-      // 🛠️ The fix: Use the existing fetchCombinedMacroData function
-      const combinedData = await dataApi.fetchCombinedMacroData();
-
-      // Ensure data is not null before setting state
-      if (combinedData) {
-        // Separate the data into market and macro parts
-        setMarketData({
-          'BTC-USD': combinedData['BTC-USD'],
-          'ETH-USD': combinedData['ETH-USD'],
-        });
-        setMacroData({
-          'Fed Funds Rate': combinedData['Fed Funds Rate'],
-          'CPI': combinedData['CPI']
-        });
-      }
-
-      await Promise.all([
-        fetchChartData('BTC-USD', '1h'), 
+      // 🛠️ The Fix: Use Promise.all to fetch all data sources concurrently and handle them at once.
+      const [marketDataResponse, btcChartData, ethChartData] = await Promise.all([
+        dataApi.fetchCombinedMacroData(),
+        fetchChartData('BTC-USD', '1h'),
         fetchChartData('ETH-USD', '1h')
       ]);
+
+      // 🛠️ The Fix: Set all states at once after all fetches are complete.
+      setMarketData(marketDataResponse || {});
+      setChartData({
+        'BTC-USD': btcChartData,
+        'ETH-USD': ethChartData
+      });
     } catch (err) {
       console.error("Failed to load all dashboard data:", err);
       setError('Failed to load dashboard data.');
@@ -57,5 +49,5 @@ export function useDashboard() {
     loadDashboardData();
   }, [loadDashboardData]);
 
-  return { macroData, marketData, chartData, loading, error, fetchChartData, loadDashboardData };
+  return { marketData, chartData, loading, error, fetchChartData, loadDashboardData };
 }
