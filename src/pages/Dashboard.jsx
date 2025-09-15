@@ -5,7 +5,6 @@ import MarketChart from '../components/MarketChart.jsx';
 export default function Dashboard() {
   const { 
     chartData, 
-    // 🛠️ 'botStatus' has been removed from destructuring.
     loading, 
     error, 
     fetchChartData,
@@ -27,7 +26,6 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold text-white">Dashboard</h1>
           <p className="text-gray-400">Welcome back! Here is your current trading overview.</p>
         </div>
-        {/* 🛠️ The entire 'Bot Status' div has been removed. */}
       </div>
 
       {error && <div className="p-2 text-center text-yellow-300 bg-yellow-800/50 rounded-lg">{error}</div>}
