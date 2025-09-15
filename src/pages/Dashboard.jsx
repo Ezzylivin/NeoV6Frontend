@@ -13,9 +13,17 @@ export default function Dashboard() {
     loadDashboardData 
   } = useDashboard();
 
+
+  // 🛠️ Add this line
+  console.log("Dashboard rendering with marketData:", marketData);
+
   useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData]);
+
+  if (loading) {
+    return <div className="p-6 text-center text-gray-400">Loading Dashboard Data...</div>;
+  }
 
   if (loading) {
     return <div className="p-6 text-center text-gray-400">Loading Dashboard Data...</div>;
