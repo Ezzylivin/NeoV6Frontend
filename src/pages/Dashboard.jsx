@@ -13,17 +13,9 @@ export default function Dashboard() {
     loadDashboardData 
   } = useDashboard();
 
-
-  // 🛠️ Add this line
-  console.log("Dashboard rendering with marketData:", marketData);
-
   useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData]);
-
-  if (loading) {
-    return <div className="p-6 text-center text-gray-400">Loading Dashboard Data...</div>;
-  }
 
   if (loading) {
     return <div className="p-6 text-center text-gray-400">Loading Dashboard Data...</div>;
@@ -43,14 +35,15 @@ export default function Dashboard() {
       <div>
         <h2 className="text-2xl font-bold text-white mb-4">Market Overview</h2>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* 🛠️ This is the fix! We now pass the specific data array to the component. */}
           <CombinedDataChart 
             symbol="BTC-USD"
-            data={marketData['BTC-USD']}
+            // 🛠️ Use optional chaining to safely pass the data.
+            data={marketData?.['BTC-USD']}
           />
           <CombinedDataChart
             symbol="ETH-USD"
-            data={marketData['ETH-USD']}
+            // 🛠️ Use optional chaining to safely pass the data.
+            data={marketData?.['ETH-USD']}
           />
         </div>
       </div>
