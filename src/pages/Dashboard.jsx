@@ -1,6 +1,6 @@
 import React from 'react';
 import { useDashboard } from '../hooks/useDashboard.js';
-import UnifiedChart from '../components/UnifiedChart.jsx';
+
 import MarketChart from '../components/MarketChart.jsx';
 
 export default function Dashboard() {
