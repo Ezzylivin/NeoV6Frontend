@@ -1,40 +1,55 @@
 import { useState, useCallback } from "react";
 import * as dataApi from "../api/data.js";
-import * as botApi from "../api/bot.js"; // Assuming you still need this
+import * as botApi from "../api/bot.js"; 
 
 export function useDashboard() {
+  // UPGRADE: Add state to hold the bot's status
+  const [botStatus, setBotStatus] = useState(null);
+  
   const [marketData, setMarketData] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const fetchCombinedMarketData = useCallback(async () => {
     try {
-      // This function should receive an object like { "BTC-USD": [...], "ETH-USD": [...] }
       const data = await dataApi.fetchCombinedMacroData();
       setMarketData(data);
     } catch (err) {
       console.error("Failed to fetch market data:", err);
       setError('Failed to load market data.');
-      throw err; // Re-throw to be caught by Promise.all
+      throw err; // Re-throw so Promise.all can catch it
+    }
+  }, []);
+
+  // UPGRADE: Add a dedicated function to fetch the bot status
+  const fetchBotStatus = useCallback(async () => {
+    try {
+      const statusData = await botApi.getStatus();
+      setBotStatus(statusData.status); // Assuming the API returns { status: 'Active' }
+    } catch (err) {
+      console.error("Failed to fetch bot status:", err);
+      // We'll set a specific, non-critical error for the bot status
+      setBotStatus('Error'); 
     }
   }, []);
   
-  // This function fetches all data needed for the dashboard in parallel
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      // You can add other initial data fetches here as needed
+      // UPGRADE: Run the bot status fetch in parallel with the market data
       await Promise.all([
-        fetchCombinedMarketData()
-        // botApi.getStatus().then(status => setBotStatus(status.status)),
+        fetchCombinedMarketData(),
+        fetchBotStatus()
       ]);
     } catch (err) {
-      // The individual fetch function already sets a more specific error
+      // An error from fetchCombinedMarketData will be caught here
+      // The bot status fetch handles its own errors gracefully
     } finally {
       setLoading(false);
     }
-  }, [fetchCombinedMarketData]);
+  }, [fetchCombinedMarketData, fetchBotStatus]);
 
-  return { marketData, loading, error, fetchDashboardData };
+  // UPGRADE: Return the botStatus in the hook's output
+  return { marketData, botStatus, loading, error, fetchDashboardData };
 }
