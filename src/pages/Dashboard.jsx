@@ -32,10 +32,10 @@ export default function Dashboard() {
 
       {error && <div className="p-2 text-center text-yellow-300 bg-yellow-800/50 rounded-lg">{error}</div>}
 
-      {/* New Market Overview Section */}
       <div>
         <h2 className="text-2xl font-bold text-white mb-4">Market Overview</h2>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* 🛠️ This is the fix! We now pass the specific data array to the component. */}
           <CombinedDataChart 
             symbol="BTC-USD"
             data={marketData['BTC-USD']}
@@ -47,7 +47,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Live Price Charts Section */}
       <div>
         <h2 className="text-2xl font-bold text-white mb-4">Live Price Charts</h2>
         <div className="grid grid-cols-1 gap-6 lg-grid-cols-2">
