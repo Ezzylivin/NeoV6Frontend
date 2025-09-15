@@ -22,27 +22,24 @@ export function useDashboard() {
     }
   }, []);
 
-  const loadDashboardData = useCallback(async () => {
-    setError('');
-    setLoading(true);
-    try {
-      // Use async/await with Promise.all for fetching multiple data sources concurrently
-      const [marketDataResponse] = await Promise.all([
-        dataApi.fetchCombinedMacroData(),
-        fetchChartData('BTCUSDT', '1h'),
-        fetchChartData('ETHUSDT', '1h')
-      ]);
-
-      // Set state based on API responses
-      setMarketData(marketDataResponse || {});
-      
-    } catch (err) {
-      console.error("Failed to load all dashboard data:", err);
-      setError('Failed to load dashboard data.');
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchChartData]);
+ // A section of your useDashboard.js file
+const loadDashboardData = useCallback(async () => {
+  setError('');
+  setLoading(true);
+  try {
+    const [marketDataResponse] = await Promise.all([
+      dataApi.fetchCombinedMacroData(),
+      fetchChartData('BTCUSDT', '1h'),
+      fetchChartData('ETHUSDT', '1h')
+    ]);
+    setMarketData(marketDataResponse || {});
+  } catch (err) {
+    console.error("Failed to load all dashboard data:", err);
+    setError('Failed to load dashboard data.');
+  } finally {
+    setLoading(false);
+  }
+}, [fetchChartData]);
 
   useEffect(() => {
     loadDashboardData();
