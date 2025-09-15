@@ -1,10 +1,12 @@
 import React, { useEffect } from 'react';
 import { useDashboard } from '../hooks/useDashboard.js';
 import MarketChart from '../components/MarketChart.jsx';
+import CombinedDataChart from '../components/CombinedDataChart.jsx';
 
 export default function Dashboard() {
   const { 
     chartData, 
+    marketData,
     loading, 
     error, 
     fetchChartData,
@@ -30,6 +32,22 @@ export default function Dashboard() {
 
       {error && <div className="p-2 text-center text-yellow-300 bg-yellow-800/50 rounded-lg">{error}</div>}
 
+      {/* New Market Overview Section */}
+      <div>
+        <h2 className="text-2xl font-bold text-white mb-4">Market Overview</h2>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <CombinedDataChart 
+            symbol="BTC-USD"
+            data={marketData['BTC-USD']}
+          />
+          <CombinedDataChart
+            symbol="ETH-USD"
+            data={marketData['ETH-USD']}
+          />
+        </div>
+      </div>
+
+      {/* Live Price Charts Section */}
       <div>
         <h2 className="text-2xl font-bold text-white mb-4">Live Price Charts</h2>
         <div className="grid grid-cols-1 gap-6 lg-grid-cols-2">
