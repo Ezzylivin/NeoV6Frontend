@@ -3,7 +3,7 @@ import * as dataApi from "../api/data.js";
 
 export function useDashboard() {
   const [marketData, setMarketData] = useState({});
-  const [chartData, setChartData] = useState({ BTCUSDT: [], ETHUSDT: [] });
+  const [chartData, setChartData] = useState({ 'BTC-USD': [], 'ETH-USD': [] }); // 🛠️ Updated initial state
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -25,17 +25,15 @@ export function useDashboard() {
     setError('');
     setLoading(true);
     try {
-      // 🛠️ The Fix: Fetch market data separately
       const marketDataResponse = await dataApi.fetchCombinedMacroData();
       if (marketDataResponse) {
         setMarketData(marketDataResponse);
       }
       
-      // 🛠️ The Fix: Fetch chart data in parallel using Promise.all
-      // fetchChartData calls setChartData internally, so we don't need to capture the return value
+      // 🛠️ The Fix: Use USD-based symbols
       await Promise.all([
-        fetchChartData('BTCUSDT', '1h'),
-        fetchChartData('ETHUSDT', '1h')
+        fetchChartData('BTC-USD', '1h'), 
+        fetchChartData('ETH-USD', '1h')
       ]);
       
     } catch (err) {
