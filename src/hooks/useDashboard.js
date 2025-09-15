@@ -7,7 +7,6 @@ export function useDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Use async/await for cleaner promise handling
   const fetchChartData = useCallback(async (symbol, timeframe) => {
     try {
       const candles = await dataApi.fetchCandles({ symbol, timeframe });
@@ -22,24 +21,30 @@ export function useDashboard() {
     }
   }, []);
 
- // A section of your useDashboard.js file
-const loadDashboardData = useCallback(async () => {
-  setError('');
-  setLoading(true);
-  try {
-    const [marketDataResponse] = await Promise.all([
-      dataApi.fetchCombinedMacroData(),
-      fetchChartData('BTCUSDT', '1h'),
-      fetchChartData('ETHUSDT', '1h')
-    ]);
-    setMarketData(marketDataResponse || {});
-  } catch (err) {
-    console.error("Failed to load all dashboard data:", err);
-    setError('Failed to load dashboard data.');
-  } finally {
-    setLoading(false);
-  }
-}, [fetchChartData]);
+  const loadDashboardData = useCallback(async () => {
+    setError('');
+    setLoading(true);
+    try {
+      // 🛠️ The Fix: Fetch market data separately
+      const marketDataResponse = await dataApi.fetchCombinedMacroData();
+      if (marketDataResponse) {
+        setMarketData(marketDataResponse);
+      }
+      
+      // 🛠️ The Fix: Fetch chart data in parallel using Promise.all
+      // fetchChartData calls setChartData internally, so we don't need to capture the return value
+      await Promise.all([
+        fetchChartData('BTCUSDT', '1h'),
+        fetchChartData('ETHUSDT', '1h')
+      ]);
+      
+    } catch (err) {
+      console.error("Failed to load all dashboard data:", err);
+      setError('Failed to load dashboard data.');
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchChartData]);
 
   useEffect(() => {
     loadDashboardData();
