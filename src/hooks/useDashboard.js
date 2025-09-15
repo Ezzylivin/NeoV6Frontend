@@ -2,8 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import * as dataApi from "../api/data.js";
 
 export function useDashboard() {
-  // New state for macro data
-  const [macroData, setMacroData] = useState([]);
+  const [macroData, setMacroData] = useState({});
   const [marketData, setMarketData] = useState({});
   const [chartData, setChartData] = useState({ 'BTC-USD': [], 'ETH-USD': [] });
   const [loading, setLoading] = useState(true);
@@ -26,23 +25,26 @@ export function useDashboard() {
     setError('');
     setLoading(true);
     try {
-      // The Fix: Fetch crypto data and macro data separately
-      const marketDataResponse = await dataApi.fetchMarketData();
-      const macroDataResponse = await dataApi.fetchCombinedMacroData();
+      // 🛠️ The fix: Use the existing fetchCombinedMacroData function
+      const combinedData = await dataApi.fetchCombinedMacroData();
 
       // Ensure data is not null before setting state
-      if (marketDataResponse) {
-        setMarketData(marketDataResponse);
-      }
-      if (macroDataResponse) {
-        setMacroData(macroDataResponse);
+      if (combinedData) {
+        // Separate the data into market and macro parts
+        setMarketData({
+          'BTC-USD': combinedData['BTC-USD'],
+          'ETH-USD': combinedData['ETH-USD'],
+        });
+        setMacroData({
+          'Fed Funds Rate': combinedData['Fed Funds Rate'],
+          'CPI': combinedData['CPI']
+        });
       }
 
       await Promise.all([
         fetchChartData('BTC-USD', '1h'), 
         fetchChartData('ETH-USD', '1h')
       ]);
-      
     } catch (err) {
       console.error("Failed to load all dashboard data:", err);
       setError('Failed to load dashboard data.');
