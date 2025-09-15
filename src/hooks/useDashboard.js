@@ -9,7 +9,7 @@ export function useDashboard() {
   const [error, setError] = useState('');
 
   const loadDashboardData = useCallback(async () => {
-    setLoading(true);
+    // Don't set loading to true here, to avoid a full-screen refresh
     setError('');
     try {
       const [marketDataResponse, botStatusResponse] = await Promise.all([
@@ -24,6 +24,7 @@ export function useDashboard() {
       console.error("Failed to load all dashboard data:", err);
       setError('Failed to load dashboard data. Please check the connection and API keys.');
     } finally {
+      // Turn off the initial loading spinner after the first fetch
       setLoading(false);
     }
   }, []);
