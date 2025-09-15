@@ -37,13 +37,11 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <CombinedDataChart 
             symbol="BTC-USD"
-            // 🛠️ Use optional chaining to safely pass the data.
-            data={marketData?.['BTC-USD']}
+            data={marketData['BTC-USD']}
           />
           <CombinedDataChart
             symbol="ETH-USD"
-            // 🛠️ Use optional chaining to safely pass the data.
-            data={marketData?.['ETH-USD']}
+            data={marketData['ETH-USD']}
           />
         </div>
       </div>
@@ -51,14 +49,15 @@ export default function Dashboard() {
       <div>
         <h2 className="text-2xl font-bold text-white mb-4">Live Price Charts</h2>
         <div className="grid grid-cols-1 gap-6 lg-grid-cols-2">
+          {/* 🛠️ The Fix: Use USD-based symbols */}
           <MarketChart 
-            symbol="BTCUSDT" 
-            data={chartData.BTCUSDT} 
+            symbol="BTC-USD" 
+            data={chartData['BTC-USD']} 
             onTimeframeChange={fetchChartData} 
           />
           <MarketChart 
-            symbol="ETHUSDT" 
-            data={chartData.ETHUSDT} 
+            symbol="ETH-USD" 
+            data={chartData['ETH-USD']} 
             onTimeframeChange={fetchChartData} 
           />
         </div>
