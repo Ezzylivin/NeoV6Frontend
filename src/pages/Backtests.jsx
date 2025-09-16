@@ -1,114 +1,101 @@
+// File: src/pages/Backtests.jsx
 import React, { useState } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
-import "./backtests.css";
+import "../styles/Backtests.css"; // optional for extra styles
 
 export default function Backtests() {
-  const { options, pastBacktests, loading, error, runNewBacktest } = useBacktest();
+  const {
+    options,
+    pastBacktests,
+    loading,
+    error,
+    runNewBacktest,
+  } = useBacktest();
 
-  const [selectedStrategy, setSelectedStrategy] = useState("");
-  const [selectedSymbol, setSelectedSymbol] = useState("");
-  const [selectedTimeframe, setSelectedTimeframe] = useState("");
+  const [strategy, setStrategy] = useState("");
+  const [symbol, setSymbol] = useState("");
+  const [timeframe, setTimeframe] = useState("");
+  const [takeProfit, setTakeProfit] = useState(options.takeProfits[0]);
+  const [stopLoss, setStopLoss] = useState(options.stopLosses[0]);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
-  const handleRunBacktest = async () => {
-    if (!selectedStrategy || !selectedSymbol || !selectedTimeframe) return;
+  const handleRun = async () => {
+    if (!strategy || !symbol || !timeframe) return;
     try {
-      await runNewBacktest({
-        strategyId: selectedStrategy,
-        symbol: selectedSymbol,
-        timeframe: selectedTimeframe,
-        startDate: "2025-01-01",
-        endDate: "2025-09-16",
-        takeProfit: 1,
-        stopLoss: 1,
-      });
+      await runNewBacktest({ strategyId: strategy, symbol, timeframe, startDate, endDate, takeProfit, stopLoss });
+      alert("Backtest completed!");
     } catch (err) {
       console.error(err);
     }
   };
 
   return (
-    <div className="backtest-panel">
+    <div className="backtests-page">
       <h2>Run Backtest</h2>
-      <div className="form-grid">
-        <div>
-          <label>Strategy</label>
-          <select
-            className="form-input dark-dropdown"
-            value={selectedStrategy}
-            onChange={(e) => setSelectedStrategy(e.target.value)}
-          >
-            <option value="">Select Strategy</option>
-            {options.strategies.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </div>
+      {error && <div className="error">{error}</div>}
 
-        <div>
-          <label>Symbol</label>
-          <select
-            className="form-input dark-dropdown"
-            value={selectedSymbol}
-            onChange={(e) => setSelectedSymbol(e.target.value)}
-          >
-            <option value="">Select Symbol</option>
-            {options.symbols.map((sym) => (
-              <option key={sym} value={sym}>
-                {sym}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="backtest-form">
+        <select value={strategy} onChange={e => setStrategy(e.target.value)} className="dashboard-dropdown">
+          <option value="">Select Strategy</option>
+          {options.strategies.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
 
-        <div>
-          <label>Timeframe</label>
-          <select
-            className="form-input dark-dropdown"
-            value={selectedTimeframe}
-            onChange={(e) => setSelectedTimeframe(e.target.value)}
-          >
-            <option value="">Select Timeframe</option>
-            {options.timeframes.map((tf) => (
-              <option key={tf} value={tf}>
-                {tf}
-              </option>
-            ))}
-          </select>
-        </div>
+        <select value={symbol} onChange={e => setSymbol(e.target.value)} className="dashboard-dropdown">
+          <option value="">Select Symbol</option>
+          {options.symbols.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+
+        <select value={timeframe} onChange={e => setTimeframe(e.target.value)} className="dashboard-dropdown">
+          <option value="">Select Timeframe</option>
+          {options.timeframes.map(tf => <option key={tf} value={tf}>{tf}</option>)}
+        </select>
+
+        <select value={takeProfit} onChange={e => setTakeProfit(Number(e.target.value))} className="dashboard-dropdown">
+          {options.takeProfits.map(tp => <option key={tp} value={tp}>{tp}%</option>)}
+        </select>
+
+        <select value={stopLoss} onChange={e => setStopLoss(Number(e.target.value))} className="dashboard-dropdown">
+          {options.stopLosses.map(sl => <option key={sl} value={sl}>{sl}%</option>)}
+        </select>
+
+        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+
+        <button onClick={handleRun} disabled={loading}>{loading ? "Running..." : "Run Backtest"}</button>
       </div>
 
-      <button className="run-button" onClick={handleRunBacktest} disabled={loading}>
-        {loading ? "Running..." : "Run Backtest"}
-      </button>
-
-      {error && <p style={{ color: "red" }}>{error}</p>}
-
-      <h2>Past Backtests</h2>
-      <div className="past-backtests overflow-x-auto">
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Strategy</th>
-              <th>Symbol</th>
-              <th>Timeframe</th>
-              <th>Result</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pastBacktests.results.map((b) => (
-              <tr key={b.id}>
-                <td>{b.id}</td>
-                <td>{b.strategy}</td>
-                <td>{b.symbol}</td>
-                <td>{b.timeframe}</td>
-                <td>{b.result}</td>
+      <h3>Past Backtests</h3>
+      <div className="backtest-table">
+        {pastBacktests.results.length === 0 && <p>No backtests yet.</p>}
+        {pastBacktests.results.length > 0 && (
+          <table>
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Strategy</th>
+                <th>Timeframe</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>TP/SL</th>
+                <th>Profit</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {pastBacktests.results.map(bt => (
+                <tr key={bt._id}>
+                  <td>{bt.symbol}</td>
+                  <td>{bt.strategyName}</td>
+                  <td>{bt.timeframe}</td>
+                  <td>{new Date(bt.startDate).toLocaleDateString()}</td>
+                  <td>{new Date(bt.endDate).toLocaleDateString()}</td>
+                  <td>{bt.tp}/{bt.sl}</td>
+                  <td>{bt.metrics?.totalProfit ?? "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
