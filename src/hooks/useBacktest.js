@@ -3,7 +3,13 @@ import { useState, useEffect, useCallback } from "react";
 import * as backtestApi from "../api/backtest.js";
 
 export function useBacktest() {
-  const [options, setOptions] = useState({ strategies: [], symbols: [], timeframes: [] });
+  const [options, setOptions] = useState({
+    strategies: [],
+    symbols: [],
+    timeframes: [],
+    takeProfits: [0.5, 1, 1.5, 2, 3], // predefined TP percentages
+    stopLosses: [0.5, 1, 1.5, 2, 3],  // predefined SL percentages
+  });
   const [pastBacktests, setPastBacktests] = useState({ results: [], total: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -12,7 +18,7 @@ export function useBacktest() {
   const getOptions = useCallback(async () => {
     try {
       const data = await backtestApi.fetchOptions();
-      setOptions(data);
+      setOptions((prev) => ({ ...prev, ...data }));
     } catch (err) {
       console.error("Failed to load options:", err);
       setError("Failed to load backtest options.");
@@ -32,14 +38,14 @@ export function useBacktest() {
 
   // Run a single backtest
   const runNewBacktest = useCallback(
-    async (payload) => {
+    async ({ strategyId, symbol, timeframe, startDate, endDate, takeProfit, stopLoss }) => {
       setLoading(true);
       setError(null);
       try {
+        const payload = { strategyId, symbol, timeframe, startDate, endDate, takeProfit, stopLoss };
         const response = await backtestApi.runBacktest(payload);
         if (response?.data) {
-          // optional: handle metrics here
-          await getPastBacktests(); // refresh past backtests
+          await getPastBacktests();
         }
         return response.data;
       } catch (err) {
@@ -59,15 +65,14 @@ export function useBacktest() {
       setLoading(true);
       setError(null);
       try {
-        // Expect configs = [{ strategyId, symbol, timeframe, startDate, endDate, takeProfit, stopLoss }, ...]
+        // configs = array of { strategyId, symbol, timeframe, startDate, endDate, takeProfit, stopLoss }
         const response = await backtestApi.runBatch(configs);
         if (response?.data) {
-          await getPastBacktests(); // refresh past backtests
+          await getPastBacktests();
         }
         return response.data;
       } catch (err) {
-        const errorMessage =
-          err.response?.data?.message || "Failed to run batch backtests.";
+        const errorMessage = err.response?.data?.message || "Failed to run batch backtests.";
         setError(errorMessage);
         throw new Error(errorMessage);
       } finally {
