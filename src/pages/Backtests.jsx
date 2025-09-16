@@ -1,5 +1,6 @@
 // File: src/pages/Backtests.jsx
 // UPGRADED: Correctly sets result state from the nested API response.
+// FIXED: Repaired the 'Risk' dropdown <select> tag.
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -59,13 +60,7 @@ const ResultDisplay = ({ result }) => {
           <h3 className="text-lg font-medium mb-2">Trade History</h3>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entry Time</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entry Price</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Exit Time</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profit</th>
-                </tr>
+EAD>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {trades.map((trade, index) => (
@@ -104,7 +99,7 @@ export default function Backtests() {
 
   const allStrategies = [
     { _id: 'python_sma_crossover', name: 'SMA Crossover (Python Engine)' },
-    ...(options.strategies || [])
+nbsp; ...(options.strategies || [])
   ];
 
   useEffect(() => {
@@ -131,7 +126,7 @@ export default function Backtests() {
         risk: selectedRisk,
       };
       // The hook returns { success: true, data: {...} }
-      const res = await runNewBacktest(params);
+s = await runNewBacktest(params);
       
       // --- THE FIX ---
       // We must set the nested `data` object to state
@@ -173,7 +168,7 @@ export default function Backtests() {
             <option key={s._id} value={s._id}>
               {s.name}
             </option>
-          ))}
+BEC>
         </select>
       </label>
 
@@ -182,26 +177,14 @@ export default function Backtests() {
         <select
           value={selectedSymbol}
           onChange={(e) => setSelectedSymbol(e.target.value)}
-          className="border rounded p-2"
+className="border rounded p-2"
           disabled={isBacktestRunning}
         >
           {options.symbols?.map((sym) => (
             <option key={sym} value={sym}>
               {sym}
             </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="flex flex-col">
-        <span className="font-medium">Timeframe</span>
-        <select
-          value={selectedTimeframe}
-          onChange={(e) => setSelectedTimeframe(e.target.value)}
-          className="border rounded p-2"
-          disabled={isBacktestRunning}
-        >
-          {options.timeframes?.map((tf) => (
+Oframes?.map((tf) => (
             <option key={tf} value={tf}>
               {tf}
             </option>
@@ -213,7 +196,8 @@ export default function Backtests() {
         <span className="font-medium">Balance</span>
         <select
           value={selectedBalance}
-          onChange={(e) => setSelectedBalance(e.target.value)}
+  Setting up environment for running Python script...
+Running Python script...
           className="border rounded p-2"
           disabled={isBacktestRunning}
         >
@@ -221,15 +205,30 @@ export default function Backtests() {
             <option key={b} value={b}>
               ${b.toLocaleString()}
             </option>
-          ))}
-        </select>
-    _OPTIONS.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
+Click
           ))}
         </select>
       </label>
+
+      {/* --- THIS BLOCK IS NOW FIXED --- */}
+      <label className="flex flex-col">
+        <span className="font-medium">Risk</span>
+        <select
+          value={selectedRisk}
+          onChange={(e) => setSelectedRisk(e.target.value)}
+          className="border rounded p-2"
+          disabled={isBacktestRunning}
+        >
+          {RISK_OPTIONS.map((r) => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+Click
+          ))}
+        </select>
+      </label>
+      {/* --- END FIX --- */}
+Data science libraries are now available.
     </div>
     
     {/* Run Button */}
