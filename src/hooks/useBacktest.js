@@ -37,8 +37,11 @@ export function useBacktest() {
       setError(null);
       try {
         const response = await backtestApi.runBacktest(payload);
-        await getPastBacktests(); // refresh past backtests
-        return response;
+        if (response?.data) {
+          // optional: handle metrics here
+          await getPastBacktests(); // refresh past backtests
+        }
+        return response.data;
       } catch (err) {
         const errorMessage = err.response?.data?.message || "Failed to run backtest.";
         setError(errorMessage);
@@ -56,11 +59,15 @@ export function useBacktest() {
       setLoading(true);
       setError(null);
       try {
+        // Expect configs = [{ strategyId, symbol, timeframe, startDate, endDate, takeProfit, stopLoss }, ...]
         const response = await backtestApi.runBatch(configs);
-        await getPastBacktests(); // refresh past backtests
-        return response;
+        if (response?.data) {
+          await getPastBacktests(); // refresh past backtests
+        }
+        return response.data;
       } catch (err) {
-        const errorMessage = err.response?.data?.message || "Failed to run batch backtests.";
+        const errorMessage =
+          err.response?.data?.message || "Failed to run batch backtests.";
         setError(errorMessage);
         throw new Error(errorMessage);
       } finally {
