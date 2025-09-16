@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+// File: src/pages/Backtests.jsx
+import React, { useState } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import "./Backtests.css";
 import {
@@ -20,10 +21,9 @@ export default function Backtests() {
     error,
     runNewBacktest,
     runNewBatchBacktest,
-    getPastBacktests,
   } = useBacktest();
 
-  // Form states
+  // --- Form state ---
   const [selectedStrategy, setSelectedStrategy] = useState("");
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [selectedTimeframe, setSelectedTimeframe] = useState("");
@@ -34,24 +34,22 @@ export default function Backtests() {
 
   const handleRunBacktest = async () => {
     if (!selectedStrategy || !selectedSymbol) return;
-    const payload = {
-      strategy: selectedStrategy,
-      symbol: selectedSymbol,
-      timeframe: selectedTimeframe,
-      startDate: selectedStartDate,
-      endDate: selectedEndDate,
-      takeProfit: selectedTakeProfit,
-      stopLoss: selectedStopLoss,
-    };
     try {
-      await runNewBacktest(payload);
+      await runNewBacktest({
+        strategy: selectedStrategy,
+        symbol: selectedSymbol,
+        timeframe: selectedTimeframe,
+        startDate: selectedStartDate,
+        endDate: selectedEndDate,
+        takeProfit: selectedTakeProfit,
+        stopLoss: selectedStopLoss,
+      });
     } catch (err) {
       console.error(err);
     }
   };
 
   const handleRunBatchBacktest = async () => {
-    // Example batch payload - can be expanded
     const batchConfigs = options.strategies.map((strat) => ({
       strategy: strat,
       symbol: selectedSymbol,
@@ -68,26 +66,16 @@ export default function Backtests() {
     }
   };
 
-  const handleDeleteBacktest = async (id) => {
-    try {
-      await fetch(
-        `https://neov6backend.onrender.com/api/backtest/${id}`,
-        { method: "DELETE" }
-      );
-      getPastBacktests();
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   return (
     <div className="dashboard-container">
       <h1 className="header">Backtests</h1>
+
       {error && <div className="error-banner">{error}</div>}
 
       {/* --- Backtest Form --- */}
-      <div className="card-row">
-        <div className="metric-card">
+      <div className="form-card">
+        <h2 className="sub-header">New Backtest</h2>
+        <div className="form-grid">
           <label>
             Strategy
             <select
@@ -152,9 +140,9 @@ export default function Backtests() {
               onChange={(e) => setSelectedTakeProfit(e.target.value)}
             >
               <option value="">Select TP</option>
-              <option value="0.5">0.5%</option>
-              <option value="1">1%</option>
-              <option value="2">2%</option>
+              {options.takeProfits?.map((tp) => (
+                <option key={tp} value={tp}>{tp}%</option>
+              ))}
             </select>
           </label>
 
@@ -165,20 +153,16 @@ export default function Backtests() {
               onChange={(e) => setSelectedStopLoss(e.target.value)}
             >
               <option value="">Select SL</option>
-              <option value="0.5">0.5%</option>
-              <option value="1">1%</option>
-              <option value="2">2%</option>
+              {options.stopLosses?.map((sl) => (
+                <option key={sl} value={sl}>{sl}%</option>
+              ))}
             </select>
           </label>
+        </div>
 
-          <div className="interval-controls">
-            <button className="interval-button" onClick={handleRunBacktest}>
-              Run Single Backtest
-            </button>
-            <button className="interval-button" onClick={handleRunBatchBacktest}>
-              Run Batch Backtest
-            </button>
-          </div>
+        <div className="form-actions">
+          <button onClick={handleRunBacktest}>Run Single Backtest</button>
+          <button onClick={handleRunBatchBacktest}>Run Batch Backtest</button>
         </div>
       </div>
 
@@ -187,28 +171,24 @@ export default function Backtests() {
       {loading ? (
         <div>Loading...</div>
       ) : (
-        <div className="card-row">
-          {(pastBacktests.results || []).map((b) => (
-            <div key={b._id} className="metric-card">
+        <div className="backtests-grid">
+          {pastBacktests.results.map((b) => (
+            <div key={b._id} className="backtest-card">
               <div className="card-title">{b.symbol} - {b.strategy}</div>
-              <div className="card-value">Profit: {b.metrics?.profit?.toFixed(2)}</div>
-              <div className="card-value">Max Drawdown: {b.metrics?.maxDrawdown?.toFixed(2)}%</div>
-              <div className="card-value">Trades: {b.metrics?.trades}</div>
-              <div className="card-value">Win Rate: {b.metrics?.winRate?.toFixed(2)}%</div>
-              <div className="card-value">Sharpe Ratio: {b.metrics?.sharpeRatio?.toFixed(2)}</div>
-              <button
-                className="interval-button"
-                onClick={() => handleDeleteBacktest(b._id)}
-              >
-                Delete
-              </button>
+              <div className="card-metrics">
+                <div>Profit: {b.metrics?.profit?.toFixed(2)}</div>
+                <div>Max Drawdown: {b.metrics?.maxDrawdown?.toFixed(2)}%</div>
+                <div>Trades: {b.metrics?.trades}</div>
+                <div>Win Rate: {b.metrics?.winRate?.toFixed(2)}%</div>
+                <div>Sharpe Ratio: {b.metrics?.sharpeRatio?.toFixed(2)}</div>
+              </div>
 
-              {/* --- Performance Chart --- */}
-              {b.equityCurve && b.equityCurve.length > 0 && (
+              {/* --- Equity Chart --- */}
+              {b.equityCurve?.length > 0 && (
                 <div className="chart-container">
                   <ResponsiveContainer width="100%" height={200}>
                     <LineChart data={b.equityCurve}>
-                      <CartesianGrid stroke="#4A5568" />
+                      <CartesianGrid stroke="#ccc" />
                       <XAxis dataKey="time" />
                       <YAxis />
                       <Tooltip />
