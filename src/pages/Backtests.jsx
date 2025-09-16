@@ -1,17 +1,6 @@
 // File: src/pages/Backtests.jsx
 import React, { useState } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
-import "./Backtests.css";
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-  CartesianGrid,
-} from "recharts";
 
 export default function Backtests() {
   const {
@@ -23,185 +12,183 @@ export default function Backtests() {
     runNewBatchBacktest,
   } = useBacktest();
 
-  // --- Form state ---
-  const [selectedStrategy, setSelectedStrategy] = useState("");
-  const [selectedSymbol, setSelectedSymbol] = useState("");
-  const [selectedTimeframe, setSelectedTimeframe] = useState("");
-  const [selectedStartDate, setSelectedStartDate] = useState("");
-  const [selectedEndDate, setSelectedEndDate] = useState("");
-  const [selectedTakeProfit, setSelectedTakeProfit] = useState("");
-  const [selectedStopLoss, setSelectedStopLoss] = useState("");
+  const [form, setForm] = useState({
+    strategyId: "",
+    symbol: "",
+    timeframe: "",
+    startDate: "",
+    endDate: "",
+    takeProfit: options.takeProfits[0],
+    stopLoss: options.stopLosses[0],
+  });
 
-  const handleRunBacktest = async () => {
-    if (!selectedStrategy || !selectedSymbol) return;
-    try {
-      await runNewBacktest({
-        strategy: selectedStrategy,
-        symbol: selectedSymbol,
-        timeframe: selectedTimeframe,
-        startDate: selectedStartDate,
-        endDate: selectedEndDate,
-        takeProfit: selectedTakeProfit,
-        stopLoss: selectedStopLoss,
-      });
-    } catch (err) {
-      console.error(err);
-    }
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleRunBatchBacktest = async () => {
-    const batchConfigs = options.strategies.map((strat) => ({
-      strategy: strat,
-      symbol: selectedSymbol,
-      timeframe: selectedTimeframe,
-      startDate: selectedStartDate,
-      endDate: selectedEndDate,
-      takeProfit: selectedTakeProfit,
-      stopLoss: selectedStopLoss,
-    }));
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     try {
-      await runNewBatchBacktest(batchConfigs);
+      await runNewBacktest(form);
     } catch (err) {
       console.error(err);
     }
   };
 
   return (
-    <div className="dashboard-container">
-      <h1 className="header">Backtests</h1>
+    <div className="backtests-page p-6">
+      <h2 className="text-2xl font-bold mb-4 text-white">Run Backtests</h2>
 
-      {error && <div className="error-banner">{error}</div>}
-
-      {/* --- Backtest Form --- */}
-      <div className="form-card">
-        <h2 className="sub-header">New Backtest</h2>
-        <div className="form-grid">
-          <label>
-            Strategy
+      <div className="backtest-panel bg-[#1f1f2f] rounded-xl p-6 mb-6 shadow-md">
+        <form className="form-grid grid grid-cols-1 md:grid-cols-3 gap-4" onSubmit={handleSubmit}>
+          {/* Strategy */}
+          <div>
+            <label className="text-sm text-gray-300">Strategy</label>
             <select
-              value={selectedStrategy}
-              onChange={(e) => setSelectedStrategy(e.target.value)}
+              name="strategyId"
+              value={form.strategyId}
+              onChange={handleChange}
+              className="form-input"
             >
               <option value="">Select Strategy</option>
               {options.strategies?.map((s) => (
-                <option key={s} value={s}>{s}</option>
+                <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
-          </label>
+          </div>
 
-          <label>
-            Symbol
-            <select
-              value={selectedSymbol}
-              onChange={(e) => setSelectedSymbol(e.target.value)}
-            >
+          {/* Symbol */}
+          <div>
+            <label className="text-sm text-gray-300">Symbol</label>
+            <select name="symbol" value={form.symbol} onChange={handleChange} className="form-input">
               <option value="">Select Symbol</option>
-              {options.symbols?.map((s) => (
-                <option key={s} value={s}>{s}</option>
+              {options.symbols?.map((sym) => (
+                <option key={sym} value={sym}>{sym}</option>
               ))}
             </select>
-          </label>
+          </div>
 
-          <label>
-            Timeframe
-            <select
-              value={selectedTimeframe}
-              onChange={(e) => setSelectedTimeframe(e.target.value)}
-            >
+          {/* Timeframe */}
+          <div>
+            <label className="text-sm text-gray-300">Timeframe</label>
+            <select name="timeframe" value={form.timeframe} onChange={handleChange} className="form-input">
               <option value="">Select Timeframe</option>
-              {options.timeframes?.map((t) => (
-                <option key={t} value={t}>{t}</option>
+              {options.timeframes?.map((tf) => (
+                <option key={tf} value={tf}>{tf}</option>
               ))}
             </select>
-          </label>
+          </div>
 
-          <label>
-            Start Date
+          {/* Dates */}
+          <div>
+            <label className="text-sm text-gray-300">Start Date</label>
             <input
               type="date"
-              value={selectedStartDate}
-              onChange={(e) => setSelectedStartDate(e.target.value)}
+              name="startDate"
+              value={form.startDate}
+              onChange={handleChange}
+              className="form-input"
             />
-          </label>
+          </div>
 
-          <label>
-            End Date
+          <div>
+            <label className="text-sm text-gray-300">End Date</label>
             <input
               type="date"
-              value={selectedEndDate}
-              onChange={(e) => setSelectedEndDate(e.target.value)}
+              name="endDate"
+              value={form.endDate}
+              onChange={handleChange}
+              className="form-input"
             />
-          </label>
+          </div>
 
-          <label>
-            Take Profit
+          {/* TP / SL */}
+          <div>
+            <label className="text-sm text-gray-300">Take Profit (%)</label>
             <select
-              value={selectedTakeProfit}
-              onChange={(e) => setSelectedTakeProfit(e.target.value)}
+              name="takeProfit"
+              value={form.takeProfit}
+              onChange={handleChange}
+              className="form-input"
             >
-              <option value="">Select TP</option>
               {options.takeProfits?.map((tp) => (
-                <option key={tp} value={tp}>{tp}%</option>
+                <option key={tp} value={tp}>{tp}</option>
               ))}
             </select>
-          </label>
+          </div>
 
-          <label>
-            Stop Loss
+          <div>
+            <label className="text-sm text-gray-300">Stop Loss (%)</label>
             <select
-              value={selectedStopLoss}
-              onChange={(e) => setSelectedStopLoss(e.target.value)}
+              name="stopLoss"
+              value={form.stopLoss}
+              onChange={handleChange}
+              className="form-input"
             >
-              <option value="">Select SL</option>
               {options.stopLosses?.map((sl) => (
-                <option key={sl} value={sl}>{sl}%</option>
+                <option key={sl} value={sl}>{sl}</option>
               ))}
             </select>
-          </label>
-        </div>
+          </div>
 
-        <div className="form-actions">
-          <button onClick={handleRunBacktest}>Run Single Backtest</button>
-          <button onClick={handleRunBatchBacktest}>Run Batch Backtest</button>
-        </div>
+          {/* Submit Button */}
+          <div className="flex items-end">
+            <button
+              type="submit"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition"
+              disabled={loading}
+            >
+              {loading ? "Running..." : "Run Backtest"}
+            </button>
+          </div>
+        </form>
+
+        {error && <p className="text-red-500 mt-2">{error}</p>}
       </div>
 
-      {/* --- Past Backtests --- */}
-      <h2 className="sub-header">Past Backtests</h2>
-      {loading ? (
-        <div>Loading...</div>
-      ) : (
-        <div className="backtests-grid">
-          {pastBacktests.results.map((b) => (
-            <div key={b._id} className="backtest-card">
-              <div className="card-title">{b.symbol} - {b.strategy}</div>
-              <div className="card-metrics">
-                <div>Profit: {b.metrics?.profit?.toFixed(2)}</div>
-                <div>Max Drawdown: {b.metrics?.maxDrawdown?.toFixed(2)}%</div>
-                <div>Trades: {b.metrics?.trades}</div>
-                <div>Win Rate: {b.metrics?.winRate?.toFixed(2)}%</div>
-                <div>Sharpe Ratio: {b.metrics?.sharpeRatio?.toFixed(2)}</div>
-              </div>
-
-              {/* --- Equity Chart --- */}
-              {b.equityCurve?.length > 0 && (
-                <div className="chart-container">
-                  <ResponsiveContainer width="100%" height={200}>
-                    <LineChart data={b.equityCurve}>
-                      <CartesianGrid stroke="#ccc" />
-                      <XAxis dataKey="time" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Line type="monotone" dataKey="value" stroke="#3182CE" dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+      {/* Past Backtests */}
+      <div className="past-backtests bg-[#1f1f2f] rounded-xl p-6 shadow-md">
+        <h3 className="text-xl font-semibold text-white mb-4">Past Backtests</h3>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left">
+            <thead>
+              <tr className="text-gray-400 border-b border-gray-700">
+                <th className="py-2 px-4">Strategy</th>
+                <th className="py-2 px-4">Symbol</th>
+                <th className="py-2 px-4">Timeframe</th>
+                <th className="py-2 px-4">Start</th>
+                <th className="py-2 px-4">End</th>
+                <th className="py-2 px-4">TP</th>
+                <th className="py-2 px-4">SL</th>
+                <th className="py-2 px-4">Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pastBacktests.results?.length ? (
+                pastBacktests.results.map((b) => (
+                  <tr key={b.id} className="hover:bg-[#2a2a3d] transition">
+                    <td className="py-2 px-4">{b.strategyName}</td>
+                    <td className="py-2 px-4">{b.symbol}</td>
+                    <td className="py-2 px-4">{b.timeframe}</td>
+                    <td className="py-2 px-4">{b.startDate}</td>
+                    <td className="py-2 px-4">{b.endDate}</td>
+                    <td className="py-2 px-4">{b.takeProfit}%</td>
+                    <td className="py-2 px-4">{b.stopLoss}%</td>
+                    <td className="py-2 px-4">{b.result}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="8" className="text-gray-400 py-4 text-center">
+                    No backtests yet.
+                  </td>
+                </tr>
               )}
-            </div>
-          ))}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
     </div>
   );
 }
