@@ -1,6 +1,6 @@
 // ./pages/Dashboard.jsx
 // FULL UPGRADED VERSION
-// Now includes chart interval selection (1W, 1M, 3M, All)
+// Updated chart intervals to include '1D'
 
 import React, { useState, useEffect } from 'react';
 import { 
@@ -17,7 +17,8 @@ import {
 import './Dashboard.css';
 
 const POLLING_INTERVAL_MS = 30000; // 30 seconds
-const chartIntervals = ['1W', '1M', '3M', 'ALL']; // Define intervals
+// --- NEW: Updated intervals ---
+const chartIntervals = ['1D', '1W', '1M', '3M', 'ALL']; // Added '1D'
 
 // --- Custom Tooltip Component (Unchanged) ---
 const CustomTooltip = ({ active, payload, label }) => {
@@ -70,7 +71,7 @@ function MetricCard({ title, value, unit = '' }) {
   );
 }
 
-// --- NEW: Interval Buttons Component ---
+// --- Interval Buttons Component (Unchanged) ---
 const IntervalButtons = ({ intervals, activeInterval, onIntervalChange }) => {
   return (
     <div className="interval-controls">
@@ -90,25 +91,19 @@ const IntervalButtons = ({ intervals, activeInterval, onIntervalChange }) => {
 
 // --- Main Dashboard Component (Updated) ---
 function Dashboard() {
-  // --- NEW: Master vs. Displayed State ---
   const [masterBtcData, setMasterBtcData] = useState([]);
   const [masterEthData, setMasterEthData] = useState([]);
   const [displayedBtcData, setDisplayedBtcData] = useState([]);
   const [displayedEthData, setDisplayedEthData] = useState([]);
-  
-  // --- NEW: State for active intervals ---
-  const [btcInterval, setBtcInterval] = useState('1M'); // Default to 1 Month
-  const [ethInterval, setEthInterval] = useState('1M'); // Default to 1 Month
-
-  // (Existing states)
+  const [btcInterval, setBtcInterval] = useState('1M'); 
+  const [ethInterval, setEthInterval] = useState('1M'); 
   const [latestMetrics, setLatestMetrics] = useState({ cpi: null, fedRate: null });
   const [latestBtcPrice, setLatestBtcPrice] = useState(null);
   const [latestEthPrice, setLatestEthPrice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Effect 1: Fetching data (polled)
-  // This now *only* sets the master data, prices, and metrics
+  // Effect 1: Fetching data (polled) - Unchanged
   useEffect(() => {
     const fetchData = async () => {
       setError(null);
@@ -126,11 +121,9 @@ function Dashboard() {
         const cleanBtc = btcArray.map(d => ({...d, close: parseFloat(d.close)}));
         const cleanEth = ethArray.map(d => ({...d, close: parseFloat(d.close)}));
 
-        // --- NEW: Set MASTER data lists ---
         setMasterBtcData(cleanBtc);
         setMasterEthData(cleanEth);
         
-        // (Set latest prices and metrics - unchanged)
         if (cleanBtc.length > 0) {
           setLatestBtcPrice(cleanBtc[cleanBtc.length - 1].close);
         }
@@ -158,19 +151,22 @@ function Dashboard() {
       }
     };
 
-    fetchData(); // Initial fetch
-    const intervalId = setInterval(fetchData, POLLING_INTERVAL_MS); // Poll for updates
-    return () => clearInterval(intervalId); // Cleanup
+    fetchData(); 
+    const intervalId = setInterval(fetchData, POLLING_INTERVAL_MS);
+    return () => clearInterval(intervalId);
     
   }, [loading]);
 
-  // --- NEW: Effect 2: Filtering for BTC Chart ---
-  // This runs whenever master BTC data changes OR the BTC interval button is clicked
+  // Effect 2: Filtering for BTC Chart - Updated with '1D'
   useEffect(() => {
     const filterData = () => {
       const now = Date.now() / 1000; // in seconds
       let cutoff = 0;
       switch (btcInterval) {
+        // --- NEW: Added '1D' case ---
+        case '1D':
+          cutoff = now - 1 * 86400; // 1 day
+          break;
         case '1W':
           cutoff = now - 7 * 86400; // 7 days
           break;
@@ -194,12 +190,16 @@ function Dashboard() {
     }
   }, [masterBtcData, btcInterval]); // Re-run filter when data or interval changes
 
-  // --- NEW: Effect 3: Filtering for ETH Chart ---
+  // Effect 3: Filtering for ETH Chart - Updated with '1D'
   useEffect(() => {
     const filterData = () => {
       const now = Date.now() / 1000;
       let cutoff = 0;
       switch (ethInterval) {
+        // --- NEW: Added '1D' case ---
+        case '1D':
+          cutoff = now - 1 * 86400; // 1 day
+          break;
         case '1W':
           cutoff = now - 7 * 86400;
           break;
@@ -245,9 +245,9 @@ function Dashboard() {
       <h2 className="sub-header">Live Price Charts</h2>
       
       <div className="chart-container">
-        {/* --- NEW: Interval Buttons for BTC --- */}
         <div className="chart-header">
           <h3>BTC-USD Closing Price</h3>
+          {/* --- NEW: Renders the updated intervals --- */}
           <IntervalButtons 
             intervals={chartIntervals}
             activeInterval={btcInterval}
@@ -255,7 +255,6 @@ function Dashboard() {
           />
         </div>
         <ResponsiveContainer width="100%" height={300}>
-          {/* --- NEW: Chart now uses 'displayedBtcData' --- */}
           <LineChart data={displayedBtcData}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="time" />
@@ -268,9 +267,9 @@ function Dashboard() {
       </div>
 
       <div className="chart-container">
-        {/* --- NEW: Interval Buttons for ETH --- */}
         <div className="chart-header">
           <h3>ETH-USD Closing Price</h3>
+          {/* --- NEW: Renders the updated intervals --- */}
           <IntervalButtons 
             intervals={chartIntervals}
             activeInterval={ethInterval}
@@ -278,7 +277,6 @@ function Dashboard() {
           />
         </div>
         <ResponsiveContainer width="100%" height={300}>
-          {/* --- NEW: Chart now uses 'displayedEthData' --- */}
           <LineChart data={displayedEthData}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="time" />
