@@ -1,268 +1,142 @@
-// File: src/pages/Backtests.jsx
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
-import { useAuth } from "../context/AuthContext.jsx";
-
-// Define static options here
-const BALANCE_OPTIONS = [100, 300, 500, 1000, 10000];
-const RISK_OPTIONS = ["Low", "Medium", "High"];
-
-// --- Result Display Component ---
-const ResultDisplay = ({ result }) => {
-  if (!result || !result.metrics) return null;
-
-  const { metrics, trades, equityCurve } = result;
-
-  return (
-    <div className="mt-6 p-4 border rounded-lg bg-white shadow-md">
-      <h2 className="text-xl font-semibold mb-4">Backtest Results ✨</h2>
-
-      {/* Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-gray-100 p-4 rounded-lg">
-          <h3 className="text-sm font-medium text-gray-600">Total Return</h3>
-          <p className="text-2xl font-bold text-blue-600">
-            {metrics.totalReturn ? `${metrics.totalReturn.toFixed(2)}%` : "N/A"}
-          </p>
-        </div>
-        <div className="bg-gray-100 p-4 rounded-lg">
-          <h3 className="text-sm font-medium text-gray-600">Win Rate</h3>
-          <p className="text-2xl font-bold text-green-600">
-            {metrics.winRate ? `${(metrics.winRate * 100).toFixed(2)}%` : "N/A"}
-          </p>
-        </div>
-        <div className="bg-gray-100 p-4 rounded-lg">
-          <h3 className="text-sm font-medium text-gray-600">Total Trades</h3>
-          <p className="text-2xl font-bold text-gray-800">
-            {metrics.totalTrades || "N/A"}
-          </p>
-        </div>
-      </div>
-
-      {/* Equity Curve */}
-      {equityCurve && (
-        <div className="mb-6">
-          <h3 className="text-lg font-medium mb-2">Equity Curve</h3>
-          <p className="text-sm text-gray-500">
-            [Chart placeholder] – integrate chart lib here
-          </p>
-        </div>
-      )}
-
-      {/* Trade History */}
-      {trades && trades.length > 0 && (
-        <div>
-          <h3 className="text-lg font-medium mb-2">Trade History</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Entry Time
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Entry Price
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Exit Time
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Profit
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {trades.map((trade, index) => (
-                  <tr key={index}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(trade.entryTime).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {trade.entryPrice}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(trade.exitTime).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <span
-                        className={
-                          trade.profit >= 0 ? "text-green-600" : "text-red-600"
-                        }
-                      >
-                        {trade.profit.toFixed(2)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
 
 export default function Backtests() {
-  const { user } = useAuth();
-  const { options, loading, error, runNewBacktest } = useBacktest();
+  const { options, pastBacktests, loading, error, runNewBacktest } = useBacktest();
 
-  const [selectedStrategy, setSelectedStrategy] = useState("");
+  // Selected values
+  const [selectedStrategyId, setSelectedStrategyId] = useState("");
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [selectedTimeframe, setSelectedTimeframe] = useState("");
-  const [selectedBalance, setSelectedBalance] = useState(BALANCE_OPTIONS[3]);
-  const [selectedRisk, setSelectedRisk] = useState(RISK_OPTIONS[1]);
-  const [result, setResult] = useState(null);
-  const [isBacktestRunning, setIsBacktestRunning] = useState(false);
 
-  const allStrategies = [
-    { _id: "python_sma_crossover", name: "SMA Crossover (Python Engine)" },
-    ...(options.strategies || []),
-  ];
-
-  useEffect(() => {
-    if (allStrategies.length && !selectedStrategy) {
-      setSelectedStrategy(allStrategies[0]._id);
-    }
-    if (options?.symbols?.length && !selectedSymbol) {
-      setSelectedSymbol(options.symbols[0]);
-    }
-    if (options?.timeframes?.length && !selectedTimeframe) {
-      setSelectedTimeframe(options.timeframes[0]);
-    }
-  }, [options, allStrategies, selectedStrategy, selectedSymbol, selectedTimeframe]);
-
-  const handleRun = useCallback(async () => {
-    setIsBacktestRunning(true);
-    setResult(null);
+  const handleRunBacktest = async () => {
     try {
-      const params = {
-        strategyId: selectedStrategy,
+      if (!selectedStrategyId || !selectedSymbol || !selectedTimeframe) {
+        alert("Please select all fields.");
+        return;
+      }
+
+      await runNewBacktest({
+        strategyId: selectedStrategyId,
         symbol: selectedSymbol,
         timeframe: selectedTimeframe,
-        initialBalance: Number(selectedBalance),
-        risk: selectedRisk,
-      };
-      const res = await runNewBacktest(params);
-      setResult(res.data);
+      });
+
+      alert("Backtest executed successfully.");
     } catch (err) {
       console.error("Backtest failed:", err);
-    } finally {
-      setIsBacktestRunning(false);
+      alert("Backtest failed: " + err.message);
     }
-  }, [selectedStrategy, selectedSymbol, selectedTimeframe, selectedBalance, selectedRisk, runNewBacktest]);
+  };
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">Backtesting</h1>
+    <div style={{ padding: "2rem", color: "#fff", backgroundColor: "#121212" }}>
+      <h1>Backtests</h1>
 
-      {error && <div className="text-red-500 mb-4 font-medium">Error: {error}</div>}
+      {/* Error display */}
+      {error && <div style={{ color: "red", marginBottom: "1rem" }}>{error}</div>}
 
-      {(loading || isBacktestRunning) && (
-        <div className="text-gray-500 mb-4 font-medium">
-          {loading ? "Loading options..." : "Running backtest..."}
-        </div>
-      )}
-
-      {/* Selection Form */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        {/* Strategy */}
-        <label className="flex flex-col">
-          <span className="font-medium">Strategy</span>
-          <select
-            value={selectedStrategy}
-            onChange={(e) => setSelectedStrategy(e.target.value)}
-            className="border rounded p-2"
-            disabled={isBacktestRunning}
-          >
-            {allStrategies.map((s) => (
-              <option key={s._id} value={s._id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* Symbol */}
-        <label className="flex flex-col">
-          <span className="font-medium">Symbol</span>
-          <select
-            value={selectedSymbol}
-            onChange={(e) => setSelectedSymbol(e.target.value)}
-            className="border rounded p-2"
-            disabled={isBacktestRunning}
-          >
-            {options.symbols?.map((sym) => (
-              <option key={sym} value={sym}>
-                {sym}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* Timeframe */}
-        <label className="flex flex-col">
-          <span className="font-medium">Timeframe</span>
-          <select
-            value={selectedTimeframe}
-            onChange={(e) => setSelectedTimeframe(e.target.value)}
-            className="border rounded p-2"
-            disabled={isBacktestRunning}
-          >
-            {options.timeframes?.map((tf) => (
-              <option key={tf} value={tf}>
-                {tf}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* Balance */}
-        <label className="flex flex-col">
-          <span className="font-medium">Balance</span>
-          <select
-            value={selectedBalance}
-            onChange={(e) => setSelectedBalance(Number(e.target.value))}
-            className="border rounded p-2"
-            disabled={isBacktestRunning}
-          >
-            {BALANCE_OPTIONS.map((b) => (
-              <option key={b} value={b}>
-                ${b.toLocaleString()}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* Risk */}
-        <label className="flex flex-col">
-          <span className="font-medium">Risk</span>
-          <select
-            value={selectedRisk}
-            onChange={(e) => setSelectedRisk(e.target.value)}
-            className="border rounded p-2"
-            disabled={isBacktestRunning}
-          >
-            {RISK_OPTIONS.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      {/* Run Button */}
-      <button
-        onClick={handleRun}
-        disabled={loading || isBacktestRunning || !selectedStrategy || !selectedSymbol || !selectedTimeframe}
-        className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 disabled:opacity-50"
+      {/* Strategy Dropdown */}
+      <label htmlFor="strategy" style={{ display: "block", marginBottom: "0.5rem" }}>
+        Strategy
+      </label>
+      <select
+        id="strategy"
+        value={selectedStrategyId}
+        onChange={(e) => setSelectedStrategyId(e.target.value)}
+        style={{
+          backgroundColor: "black",
+          color: "white",
+          padding: "0.5rem",
+          borderRadius: "0.25rem",
+          border: "1px solid #333",
+          marginBottom: "1rem",
+        }}
       >
-        {isBacktestRunning ? "Running..." : "Run Backtest"}
+        <option value="">-- Select Strategy --</option>
+        {options.strategies.map((s) => (
+          <option key={s._id} value={s._id}>
+            {s.name}
+          </option>
+        ))}
+      </select>
+
+      {/* Symbol Dropdown */}
+      <label htmlFor="symbol" style={{ display: "block", marginBottom: "0.5rem" }}>
+        Symbol
+      </label>
+      <select
+        id="symbol"
+        value={selectedSymbol}
+        onChange={(e) => setSelectedSymbol(e.target.value)}
+        style={{
+          backgroundColor: "black",
+          color: "white",
+          padding: "0.5rem",
+          borderRadius: "0.25rem",
+          border: "1px solid #333",
+          marginBottom: "1rem",
+        }}
+      >
+        <option value="">-- Select Symbol --</option>
+        {options.symbols.map((s) => (
+          <option key={s} value={s}>
+            {s}
+          </option>
+        ))}
+      </select>
+
+      {/* Timeframe Dropdown */}
+      <label htmlFor="timeframe" style={{ display: "block", marginBottom: "0.5rem" }}>
+        Timeframe
+      </label>
+      <select
+        id="timeframe"
+        value={selectedTimeframe}
+        onChange={(e) => setSelectedTimeframe(e.target.value)}
+        style={{
+          backgroundColor: "black",
+          color: "white",
+          padding: "0.5rem",
+          borderRadius: "0.25rem",
+          border: "1px solid #333",
+          marginBottom: "1rem",
+        }}
+      >
+        <option value="">-- Select Timeframe --</option>
+        {options.timeframes.map((t) => (
+          <option key={t} value={t}>
+            {t}
+          </option>
+        ))}
+      </select>
+
+      <button
+        onClick={handleRunBacktest}
+        style={{
+          padding: "0.75rem 1.5rem",
+          backgroundColor: "#1f1f1f",
+          color: "white",
+          border: "1px solid #333",
+          borderRadius: "0.25rem",
+          cursor: "pointer",
+        }}
+      >
+        Run Backtest
       </button>
 
-      {/* Results */}
-      <ResultDisplay result={result} />
+      {/* Past Backtests */}
+      <div style={{ marginTop: "2rem" }}>
+        <h2>Past Backtests</h2>
+        {pastBacktests.results.length === 0 && <div>No backtests found.</div>}
+        <ul>
+          {pastBacktests.results.map((bt) => (
+            <li key={bt._id}>
+              {bt.strategyName} | {bt.symbol} | {bt.timeframe} | {new Date(bt.createdAt).toLocaleString()}
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
