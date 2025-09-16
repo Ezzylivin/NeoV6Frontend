@@ -18,11 +18,17 @@ export default function AuthPage() {
   
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const result = isRegister
-      ? await registerUser(formData)
-      : await loginUser({ identifier: formData.email, password: formData.password });
+    let result;
+    if (isRegister) {
+        result = await registerUser(formData);
+    } else {
+        result = await loginUser({ identifier: formData.email, password: formData.password });
+    }
     
-    // The redirect will be handled by the useEffect hook
+    // THE FIX: Check the result of the login/register call and handle navigation here.
+    if (result.success) {
+        navigate('/dashboard');
+    }
   };
 
   if (initializing) return <div className="flex h-screen w-full items-center justify-center bg-gray-900">Loading...</div>;
@@ -39,10 +45,10 @@ export default function AuthPage() {
         
         <form onSubmit={handleSubmit} className="space-y-4">
           {isRegister && (
-            <input name="username" type="text" value={formData.username} onChange={handleChange} placeholder="Username" required className="w-full rounded-md border-gray-600 bg-gray-700 p-3 text-white focus:ring-2 focus:ring-blue-500"/>
+            <input name="username" type="text" value={formData.username} onChange={handleChange} placeholder="Username" required className="w-full rounded-md border-gray-600 bg-gray-700 p-3 text-white focus:ring-2 focus:ring-blue-500" disabled={loading} />
           )}
-          <input name="email" type="email" value={formData.email} onChange={handleChange} placeholder="Email" required className="w-full rounded-md border-gray-600 bg-gray-700 p-3 text-white focus:ring-2 focus:ring-blue-500"/>
-          <input name="password" type="password" value={formData.password} onChange={handleChange} placeholder="Password" required className="w-full rounded-md border-gray-600 bg-gray-700 p-3 text-white focus:ring-2 focus:ring-blue-500"/>
+          <input name="email" type="email" value={formData.email} onChange={handleChange} placeholder="Email" required className="w-full rounded-md border-gray-600 bg-gray-700 p-3 text-white focus:ring-2 focus:ring-blue-500" disabled={loading} />
+          <input name="password" type="password" value={formData.password} onChange={handleChange} placeholder="Password" required className="w-full rounded-md border-gray-600 bg-gray-700 p-3 text-white focus:ring-2 focus:ring-blue-500" disabled={loading} />
           
           <button type="submit" disabled={loading} className="w-full rounded-md bg-blue-600 py-3 font-bold text-white transition hover:bg-blue-700 disabled:bg-gray-500">
             {loading ? 'Processing...' : (isRegister ? 'Create Account' : 'Login')}
@@ -51,7 +57,7 @@ export default function AuthPage() {
 
         <p className="text-center text-sm text-gray-400">
           {isRegister ? 'Already have an account?' : "Don't have an account?"}
-          <button type="button" onClick={() => setIsRegister(!isRegister)} className="ml-2 font-semibold text-blue-500 hover:underline">
+          <button type="button" onClick={() => setIsRegister(!isRegister)} className="ml-2 font-semibold text-blue-500 hover:underline" disabled={loading}>
             {isRegister ? 'Sign in' : 'Sign up'}
           </button>
         </p>
