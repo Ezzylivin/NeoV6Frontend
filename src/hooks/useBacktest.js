@@ -11,20 +11,27 @@ export function useBacktest() {
   const [error, setError] = useState(null);
 
   const getOptions = useCallback(async () => {
-    try {
-      const opts = await backtestApi.fetchOptions();
-      
-      // --- FIX #1 ---
-      // Only set options IF opts is a valid object.
-      // This prevents a bad response from setting state to 'undefined'.
-      if (opts) {
-        setOptions(opts);
-      }
-    } catch (err) {
-      console.error("Failed to load options:", err);
-      setError("Failed to load backtest options.");
-    }
-  }, []);
+    try {
+        const { data } = await backtestApi.fetchOptions();
+        
+        // --- THE FIX ---
+        // Safely access the data from the 'data' key in the response.
+        if (data && data.symbols && data.timeframes) {
+            setOptions({
+                strategies: data.strategies || [],
+                symbols: data.symbols,
+                timeframes: data.timeframes,
+            });
+        } else {
+            // Handle the case where the data is not in the expected format.
+            console.error("API response is missing required data keys.");
+            setError("Failed to load backtest options due to unexpected data format.");
+        }
+    } catch (err) {
+        console.error("Failed to load options:", err);
+        setError("Failed to load backtest options.");
+    }
+}, []);
 
   const getPastBacktests = useCallback(async (page = 1) => {
     try {
