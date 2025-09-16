@@ -18,7 +18,7 @@ import './Dashboard.css';
 
 const POLLING_INTERVAL_MS = 30000; // 30 seconds
 // --- NEW: Updated intervals ---
-const chartIntervals = ['1D', '1W', '1M', '3M', 'ALL']; // Added '1D'
+const chartIntervals = ['1D', '1W', '1M', '3M']; // Added '1D'
 
 // --- Custom Tooltip Component (Unchanged) ---
 const CustomTooltip = ({ active, payload, label }) => {
