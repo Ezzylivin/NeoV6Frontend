@@ -1,5 +1,5 @@
 // ../api/backtest.js
-// CORRECTED VERSION: Returns the nested 'data' key to fix the TypeError.
+// CORRECTED VERSION
 
 import axios from 'axios';
 
@@ -20,8 +20,8 @@ const handleError = (error) => {
 export const fetchOptions = async () => {
   try {
     const response = await api.get('/api/backtest/options');
-    // FIX: Return the nested 'data' key
-    return response.data.data;
+    // FIX: Return the entire response object
+    return response;
   } catch (err) {
     handleError(err);
   }
@@ -33,8 +33,8 @@ export const fetchOptions = async () => {
 export const fetchAll = async (page = 1, limit = 10) => {
   try {
     const response = await api.get(`/api/backtest?page=${page}&limit=${limit}`);
-    // FIX: Return the nested 'data' key
-    return response.data.data;
+    // FIX: Return the entire response object
+    return response;
   } catch (err) {
     handleError(err);
   }
