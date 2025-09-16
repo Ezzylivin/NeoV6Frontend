@@ -1,5 +1,5 @@
 // ./pages/Dashboard.jsx
-// This version includes a fix for the "NaN is not valid JSON" error.
+// UPGRADED: Now imports CSS, uses classNames, and polls for live data.
 
 import React, { useState, useEffect } from 'react';
 import { 
@@ -13,33 +13,39 @@ import {
   ResponsiveContainer 
 } from 'recharts';
 
+// Import the new stylesheet
+import './Dashboard.css';
+
+// This is a simple tunable parameter
+const POLLING_INTERVAL_MS = 30000; // 30 seconds
+
 // A simple "card" component for styling our metrics
 function MetricCard({ title, value, unit = '' }) {
   if (value === null || value === undefined || isNaN(value)) {
     value = "N/A";
   }
   return (
-    <div style={styles.card}>
-      <h3 style={styles.cardTitle}>{title}</h3>
-      <div style={styles.cardValue}>{value}{unit}</div>
+    <div className="metric-card">
+      <h3 className="card-title">{title}</h3>
+      <div className="card-value">{value}{unit}</div>
     </div>
   );
 }
 
 // Main Dashboard Component
 function Dashboard() {
-  // 1. States for data, loading, and errors
   const [btcData, setBtcData] = useState([]);
   const [ethData, setEthData] = useState([]);
   const [latestMetrics, setLatestMetrics] = useState({ cpi: null, fedRate: null });
-  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // 2. useEffect to fetch data on mount
+  // useEffect now handles data polling
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true);
+      // Don't show loading spinner on background refreshes
+      // Only show it on the very first load
+      // setLoading(true); // <- We remove this
       setError(null);
 
       try {
@@ -48,19 +54,10 @@ function Dashboard() {
           throw new Error(`HTTP error! Status: ${response.status}`);
         }
 
-        // --- THIS IS THE FIX ---
-        // 1. Get the response as raw text instead of .json()
         const text = await response.text();
-
-        // 2. Replace all occurrences of NaN with null. 
-        // We use a regular expression /NaN/g to replace ALL instances.
         const fixedText = text.replace(/NaN/g, 'null');
-
-        // 3. Now, parse the "fixed" text
         const result = JSON.parse(fixedText);
-        // --- END OF FIX ---
         
-        // --- Data Parsing (same as before) ---
         const btcArray = result['BTC-USD'] || [];
         const ethArray = result['ETH-USD'] || [];
 
@@ -87,39 +84,48 @@ function Dashboard() {
         
       } catch (e) {
         console.error("Failed to fetch or parse data:", e);
-        // This will also catch errors from JSON.parse if the fix fails
         setError(e.message);
       } finally {
-        setLoading(false);
+        // Stop loading spinner only on first load
+        if (loading) setLoading(false);
       }
     };
 
+    // --- LIVE DATA POLLING ---
+    // 1. Fetch data immediately on load
     fetchData();
-  }, []); // Runs once on mount
 
-  // 3. Render logic (same as before)
+    // 2. Then, set an interval to fetch data every 30 seconds
+    const intervalId = setInterval(fetchData, POLLING_INTERVAL_MS);
+
+    // 3. This is a cleanup function. React runs this when the
+    // component is unmounted to prevent memory leaks.
+    return () => clearInterval(intervalId);
+    // -------------------------
+
+  }, [loading]); // We add 'loading' to the dependency array
+
+  // Show loading spinner *only* on the first load
   if (loading) {
-    return <div style={styles.container}>Loading dashboard data...</div>;
+    return <div className="dashboard-container">Loading dashboard data...</div>;
   }
 
-  if (error) {
-    return <div style={styles.container}>Error: {error}</div>;
-  }
-
-  // 4. Success! Render the full dashboard (same as before)
+  // Show a non-blocking error if a background refresh fails
   return (
-    <div style={styles.container}>
-      <h1 style={styles.header}>Crypto & Macro Dashboard</h1>
+    <div className="dashboard-container">
+      {error && <div className="error-banner">Error refreshing data: {error}</div>}
       
-      <h2 style={styles.subHeader}>Key Metrics</h2>
-      <div style={styles.cardRow}>
+      <h1 className="header">Crypto & Macro Dashboard</h1>
+      
+      <h2 className="sub-header">Key Metrics</h2>
+      <div className="card-row">
         <MetricCard title="Latest CPI" value={latestMetrics.cpi} />
         <MetricCard title="Fed Funds Rate" value={latestMetrics.fedRate} unit="%" />
       </div>
 
-      <h2 style={styles.subHeader}>Price Charts</h2>
+      <h2 className="sub-header">Live Price Charts</h2>
       
-      <div style={styles.chartContainer}>
+      <div className="chart-container">
         <h3>BTC-USD Closing Price</h3>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={btcData}>
@@ -128,12 +134,12 @@ function Dashboard() {
             <YAxis domain={['auto', 'auto']} />
             <Tooltip />
             <Legend />
-            <Line type="monotone" dataKey="close" stroke="#f7931a" name="BTC Close" dot={false} />
+            <Line type="monotone" dataKey="close" stroke="var(--btc-color)" name="BTC Close" dot={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>
 
-      <div style={styles.chartContainer}>
+      <div className="chart-container">
         <h3>ETH-USD Closing Price</h3>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={ethData}>
@@ -142,59 +148,12 @@ function Dashboard() {
             <YAxis domain={['auto', 'auto']} />
             <Tooltip />
             <Legend />
-            <Line type="monotone" dataKey="close" stroke="#8884d8" name="ETH Close" dot={false} />
+            <Line type="monotone" dataKey="close" stroke="var(--eth-color)" name="ETH Close" dot={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>
     </div>
   );
 }
-
-// --- Basic CSS-in-JS for styling (same as before) ---
-const styles = {
-  container: {
-    fontFamily: 'Arial, sans-serif',
-    padding: '20px',
-    backgroundColor: '#f4f7f6',
-  },
-  header: {
-    color: '#333',
-    borderBottom: '2px solid #ddd',
-    paddingBottom: '10px'
-  },
-  subHeader: {
-    color: '#555',
-    marginTop: '30px'
-  },
-  cardRow: {
-    display: 'flex',
-    gap: '20px',
-    flexWrap: 'wrap'
-  },
-  card: {
-    backgroundColor: '#fff',
-    padding: '20px',
-    borderRadius: '8px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    minWidth: '200px',
-  },
-  cardTitle: {
-    margin: '0 0 10px 0',
-    color: '#777',
-    fontSize: '16px'
-  },
-  cardValue: {
-    fontSize: '28px',
-    fontWeight: 'bold',
-    color: '#333'
-  },
-  chartContainer: {
-    backgroundColor: '#fff',
-    padding: '20px',
-    borderRadius: '8px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    marginTop: '20px',
-  }
-};
 
 export default Dashboard;
