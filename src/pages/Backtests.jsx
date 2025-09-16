@@ -1,15 +1,15 @@
 // File: src/pages/Backtests.jsx
-// UPGRADED: Added a dedicated results display component, improved loading states, and disabled the button during a backtest.
+// UPGRADED: Correctly sets result state from the nested API response.
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
-// Define static options here instead of from the API
+// Define static options here
 const BALANCE_OPTIONS = [100, 300, 500, 1000, 10000];
 const RISK_OPTIONS = ["Low", "Medium", "High"];
 
-// NEW: A dedicated component to display backtest results in a clean format
+// NEW: A dedicated component to display backtest results
 const ResultDisplay = ({ result }) => {
   if (!result || !result.metrics) {
     return null;
@@ -20,7 +20,7 @@ const ResultDisplay = ({ result }) => {
   return (
     <div className="mt-6 p-4 border rounded-lg bg-white shadow-md">
       <h2 className="text-xl font-semibold mb-4">Backtest Results ✨</h2>
-      
+      
       {/* Metrics Section */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-gray-100 p-4 rounded-lg">
@@ -42,7 +42,7 @@ const ResultDisplay = ({ result }) => {
           </p>
         </div>
       </div>
-      
+      
       {/* Equity Curve (Optional) */}
       {equityCurve && (
         <div className="mb-6">
@@ -52,7 +52,7 @@ const ResultDisplay = ({ result }) => {
           </p>
         </div>
       )}
-      
+      
       {/* Trade History (Optional) */}
       {trades && trades.length > 0 && (
         <div>
@@ -130,121 +130,119 @@ export default function Backtests() {
         initialBalance: Number(selectedBalance),
         risk: selectedRisk,
       };
+      // The hook returns { success: true, data: {...} }
       const res = await runNewBacktest(params);
-      setResult(res);
+      
+      // --- THE FIX ---
+      // We must set the nested `data` object to state
+      // so that `result.metrics` is available in ResultDisplay
+      setResult(res.data); 
+
     } catch (err) {
       console.error("Backtest failed:", err);
-      // The hook already sets the error, so we don't need to set it again here
+      // Error is already set by the hook
     } finally {
       setIsBacktestRunning(false);
     }
   }, [selectedStrategy, selectedSymbol, selectedTimeframe, selectedBalance, selectedRisk, runNewBacktest]);
 
   return (
-  <div className="p-6">
-    <h1 className="text-2xl font-bold mb-6">Backtesting</h1>
+  <div className="p-6">
+    <h1 className="text-2xl font-bold mb-6">Backtesting</h1>
 
-    {error && <div className="text-red-500 mb-4 font-medium">Error: {error}</div>}
-    
-    {/* Show a single loading indicator for the initial data load or backtest run */}
-    {(loading || isBacktestRunning) && (
-      <div className="text-gray-500 mb-4 font-medium">
-        {loading ? "Loading options..." : "Running backtest..."}
-      </div>
-    )}
-    
-    {/* Selection Form */}
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-      <label className="flex flex-col">
-        <span className="font-medium">Strategy</span>
-        <select
-          value={selectedStrategy}
-          onChange={(e) => setSelectedStrategy(e.target.value)}
-          className="border rounded p-2"
-          disabled={isBacktestRunning}
-        >
-          {allStrategies.map((s) => (
-            <option key={s._id} value={s._id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-      </label>
+    {error && <div className="text-red-500 mb-4 font-medium">Error: {error}</div>}
+    
+    {/* Loading indicator */}
+    {(loading || isBacktestRunning) && (
+      <div className="text-gray-500 mb-4 font-medium">
+        {loading ? "Loading options..." : "Running backtest..."}
+      </div>
+    )}
+    
+    {/* Selection Form */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <label className="flex flex-col">
+        <span className="font-medium">Strategy</span>
+        <select
+          value={selectedStrategy}
+          onChange={(e) => setSelectedStrategy(e.target.value)}
+          className="border rounded p-2"
+          disabled={isBacktestRunning}
+        >
+          {allStrategies.map((s) => (
+            <option key={s._id} value={s._id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </label>
 
-      <label className="flex flex-col">
-        <span className="font-medium">Symbol</span>
-        <select
-          value={selectedSymbol}
-          onChange={(e) => setSelectedSymbol(e.target.value)}
-          className="border rounded p-2"
-          disabled={isBacktestRunning}
-        >
-          {options.symbols?.map((sym) => (
-            <option key={sym} value={sym}>
-              {sym}
-            </option>
-          ))}
-        </select>
-      </label>
+      <label className="flex flex-col">
+        <span className="font-medium">Symbol</span>
+        <select
+          value={selectedSymbol}
+          onChange={(e) => setSelectedSymbol(e.target.value)}
+          className="border rounded p-2"
+          disabled={isBacktestRunning}
+        >
+          {options.symbols?.map((sym) => (
+            <option key={sym} value={sym}>
+              {sym}
+            </option>
+          ))}
+        </select>
+      </label>
 
-      <label className="flex flex-col">
-        <span className="font-medium">Timeframe</span>
-        <select
-          value={selectedTimeframe}
-          onChange={(e) => setSelectedTimeframe(e.target.value)}
-          className="border rounded p-2"
-          disabled={isBacktestRunning}
-        >
-          {options.timeframes?.map((tf) => (
-            <option key={tf} value={tf}>
-              {tf}
-            </option>
-          ))}
-        </select>
-      </label>
+      <label className="flex flex-col">
+        <span className="font-medium">Timeframe</span>
+        <select
+          value={selectedTimeframe}
+          onChange={(e) => setSelectedTimeframe(e.target.value)}
+          className="border rounded p-2"
+          disabled={isBacktestRunning}
+        >
+          {options.timeframes?.map((tf) => (
+            <option key={tf} value={tf}>
+              {tf}
+            </option>
+          ))}
+        </select>
+      </label>
 
-      <label className="flex flex-col">
-        <span className="font-medium">Balance</span>
-        <select
-          value={selectedBalance}
-          onChange={(e) => setSelectedBalance(e.target.value)}
-          className="border rounded p-2"
-          disabled={isBacktestRunning}
-        >
-          {BALANCE_OPTIONS.map((b) => (
-            <option key={b} value={b}>
-              ${b.toLocaleString()}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="flex flex-col">
-        <span className="font-medium">Risk</span>
-        <select
-          value={selectedRisk}
-          onChange={(e) => setSelectedRisk(e.target.value)}
-          className="border rounded p-2"
-          disabled={isBacktestRunning}
-        >
-          {RISK_OPTIONS.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
-      </label>
-    </div>
-    {/* Run Button */}
-    <button
-      onClick={handleRun}
-      disabled={loading || isBacktestRunning || !selectedStrategy || !selectedSymbol || !selectedTimeframe}
-      className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 disabled:opacity-50"
-    >
-      {isBacktestRunning ? "Running..." : "Run Backtest"}
-    </button>
-    {/* Results Display */}
-    <ResultDisplay result={result} />
-  </div>
+      <label className="flex flex-col">
+        <span className="font-medium">Balance</span>
+        <select
+          value={selectedBalance}
+          onChange={(e) => setSelectedBalance(e.target.value)}
+          className="border rounded p-2"
+          disabled={isBacktestRunning}
+        >
+          {BALANCE_OPTIONS.map((b) => (
+            <option key={b} value={b}>
+              ${b.toLocaleString()}
+            </option>
+          ))}
+        </select>
+    _OPTIONS.map((r) => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+    
+    {/* Run Button */}
+    <button
+      onClick={handleRun}
+      disabled={loading || isBacktestRunning || !selectedStrategy || !selectedSymbol || !selectedTimeframe}
+      className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 disabled:opacity-50"
+    >
+      {isBacktestRunning ? "Running..." : "Run Backtest"}
+    </button>
+    
+    {/* Results Display */}
+    <ResultDisplay result={result} />
+  </div>
 );
 }
