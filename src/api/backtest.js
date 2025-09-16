@@ -1,18 +1,46 @@
 // File: src/api/backtest.js
-import api from "./api.js"; // ✅ fixed import
+import api from "./apiClient.js"; // shared axios client
 
+// Fetch available backtest options (e.g., strategies, datasets, risks, balances)
 export async function fetchOptions() {
-  return api.get("/backtest/options");
+  try {
+    const res = await api.get("/backtest/options");
+    return res.data;
+  } catch (err) {
+    console.error("Failed to fetch backtest options:", err);
+    throw err;
+  }
 }
 
+// Fetch all backtests with pagination
 export async function fetchAll(page = 1) {
-  return api.get(`/backtest?page=${page}`);
+  try {
+    const res = await api.get(`/backtest?page=${page}`);
+    return res.data;
+  } catch (err) {
+    console.error("Failed to fetch backtests:", err);
+    throw err;
+  }
 }
 
+// Run a single backtest
 export async function runBacktest(payload) {
-  return api.post("/backtest/run", payload);
+  try {
+    const res = await api.post("/backtest/run", payload);
+    return res.data;
+  } catch (err) {
+    console.error("Failed to run backtest:", err);
+    throw err;
+  }
 }
 
+// Run multiple backtests in batch
 export async function runBatch(configs) {
-  return api.post("/backtest/run-batch", { configs });
+  try {
+    const res = await api.post("/backtest/run-batch", { configs });
+    return res.data;
+  } catch (err) {
+    console.error("Failed to run batch backtests:", err);
+    throw err;
+  }
 }
