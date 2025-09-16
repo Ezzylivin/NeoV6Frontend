@@ -1,7 +1,16 @@
-// File: src/pages/Backtests.jsx
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import "./Backtests.css";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  CartesianGrid,
+} from "recharts";
 
 export default function Backtests() {
   const {
@@ -14,167 +23,201 @@ export default function Backtests() {
     getPastBacktests,
   } = useBacktest();
 
-  // Form state
+  // Form states
   const [selectedStrategy, setSelectedStrategy] = useState("");
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [selectedTimeframe, setSelectedTimeframe] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [takeProfit, setTakeProfit] = useState("");
-  const [stopLoss, setStopLoss] = useState("");
-  const [batchConfigs, setBatchConfigs] = useState([]);
+  const [selectedStartDate, setSelectedStartDate] = useState("");
+  const [selectedEndDate, setSelectedEndDate] = useState("");
+  const [selectedTakeProfit, setSelectedTakeProfit] = useState("");
+  const [selectedStopLoss, setSelectedStopLoss] = useState("");
 
-  // Run single backtest
   const handleRunBacktest = async () => {
+    if (!selectedStrategy || !selectedSymbol) return;
+    const payload = {
+      strategy: selectedStrategy,
+      symbol: selectedSymbol,
+      timeframe: selectedTimeframe,
+      startDate: selectedStartDate,
+      endDate: selectedEndDate,
+      takeProfit: selectedTakeProfit,
+      stopLoss: selectedStopLoss,
+    };
     try {
-      await runNewBacktest({
-        strategyId: selectedStrategy,
-        symbol: selectedSymbol,
-        timeframe: selectedTimeframe,
-        startDate,
-        endDate,
-        takeProfit,
-        stopLoss,
-      });
+      await runNewBacktest(payload);
     } catch (err) {
-      console.error("Backtest failed:", err);
+      console.error(err);
     }
   };
 
-  // Run batch backtests
-  const handleRunBatch = async () => {
+  const handleRunBatchBacktest = async () => {
+    // Example batch payload - can be expanded
+    const batchConfigs = options.strategies.map((strat) => ({
+      strategy: strat,
+      symbol: selectedSymbol,
+      timeframe: selectedTimeframe,
+      startDate: selectedStartDate,
+      endDate: selectedEndDate,
+      takeProfit: selectedTakeProfit,
+      stopLoss: selectedStopLoss,
+    }));
     try {
       await runNewBatchBacktest(batchConfigs);
     } catch (err) {
-      console.error("Batch backtests failed:", err);
+      console.error(err);
     }
   };
 
-  // Delete a backtest
   const handleDeleteBacktest = async (id) => {
     try {
-      await fetch(`https://neov6backend.onrender.com/api/backtest/${id}`, {
-        method: "DELETE",
-      });
-      getPastBacktests(); // refresh
+      await fetch(
+        `https://neov6backend.onrender.com/api/backtest/${id}`,
+        { method: "DELETE" }
+      );
+      getPastBacktests();
     } catch (err) {
-      console.error("Failed to delete backtest:", err);
+      console.error(err);
     }
   };
 
   return (
-    <div className="backtests-container">
-      <h2 className="header">Backtests</h2>
-
+    <div className="dashboard-container">
+      <h1 className="header">Backtests</h1>
       {error && <div className="error-banner">{error}</div>}
 
       {/* --- Backtest Form --- */}
-      <div className="backtest-form card-row">
+      <div className="card-row">
         <div className="metric-card">
-          <label>Strategy</label>
-          <select
-            value={selectedStrategy}
-            onChange={(e) => setSelectedStrategy(e.target.value)}
-          >
-            <option value="">Select Strategy</option>
-            {options.strategies?.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
+          <label>
+            Strategy
+            <select
+              value={selectedStrategy}
+              onChange={(e) => setSelectedStrategy(e.target.value)}
+            >
+              <option value="">Select Strategy</option>
+              {options.strategies?.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </label>
 
-          <label>Symbol</label>
-          <select
-            value={selectedSymbol}
-            onChange={(e) => setSelectedSymbol(e.target.value)}
-          >
-            <option value="">Select Symbol</option>
-            {options.symbols?.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
+          <label>
+            Symbol
+            <select
+              value={selectedSymbol}
+              onChange={(e) => setSelectedSymbol(e.target.value)}
+            >
+              <option value="">Select Symbol</option>
+              {options.symbols?.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </label>
 
-          <label>Timeframe</label>
-          <select
-            value={selectedTimeframe}
-            onChange={(e) => setSelectedTimeframe(e.target.value)}
-          >
-            <option value="">Select Timeframe</option>
-            {options.timeframes?.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+          <label>
+            Timeframe
+            <select
+              value={selectedTimeframe}
+              onChange={(e) => setSelectedTimeframe(e.target.value)}
+            >
+              <option value="">Select Timeframe</option>
+              {options.timeframes?.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </label>
 
-          <label>Start Date</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-          />
+          <label>
+            Start Date
+            <input
+              type="date"
+              value={selectedStartDate}
+              onChange={(e) => setSelectedStartDate(e.target.value)}
+            />
+          </label>
 
-          <label>End Date</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-          />
+          <label>
+            End Date
+            <input
+              type="date"
+              value={selectedEndDate}
+              onChange={(e) => setSelectedEndDate(e.target.value)}
+            />
+          </label>
 
-          <label>Take Profit</label>
-          <select
-            value={takeProfit}
-            onChange={(e) => setTakeProfit(e.target.value)}
-          >
-            <option value="">None</option>
-            <option value="1%">1%</option>
-            <option value="2%">2%</option>
-            <option value="5%">5%</option>
-          </select>
+          <label>
+            Take Profit
+            <select
+              value={selectedTakeProfit}
+              onChange={(e) => setSelectedTakeProfit(e.target.value)}
+            >
+              <option value="">Select TP</option>
+              <option value="0.5">0.5%</option>
+              <option value="1">1%</option>
+              <option value="2">2%</option>
+            </select>
+          </label>
 
-          <label>Stop Loss</label>
-          <select
-            value={stopLoss}
-            onChange={(e) => setStopLoss(e.target.value)}
-          >
-            <option value="">None</option>
-            <option value="1%">1%</option>
-            <option value="2%">2%</option>
-            <option value="5%">5%</option>
-          </select>
+          <label>
+            Stop Loss
+            <select
+              value={selectedStopLoss}
+              onChange={(e) => setSelectedStopLoss(e.target.value)}
+            >
+              <option value="">Select SL</option>
+              <option value="0.5">0.5%</option>
+              <option value="1">1%</option>
+              <option value="2">2%</option>
+            </select>
+          </label>
 
-          <button className="interval-button active" onClick={handleRunBacktest}>
-            Run Backtest
-          </button>
-          <button className="interval-button" onClick={handleRunBatch}>
-            Run Batch
-          </button>
+          <div className="interval-controls">
+            <button className="interval-button" onClick={handleRunBacktest}>
+              Run Single Backtest
+            </button>
+            <button className="interval-button" onClick={handleRunBatchBacktest}>
+              Run Batch Backtest
+            </button>
+          </div>
         </div>
       </div>
 
       {/* --- Past Backtests --- */}
-      <div className="sub-header">Past Backtests</div>
+      <h2 className="sub-header">Past Backtests</h2>
       {loading ? (
         <div>Loading...</div>
       ) : (
         <div className="card-row">
-          {pastBacktests.results?.map((b) => (
+          {(pastBacktests.results || []).map((b) => (
             <div key={b._id} className="metric-card">
               <div className="card-title">{b.symbol} - {b.strategy}</div>
               <div className="card-value">Profit: {b.metrics?.profit?.toFixed(2)}</div>
-              <div className="card-value">
-                Max Drawdown: {b.metrics?.maxDrawdown?.toFixed(2)}%
-              </div>
+              <div className="card-value">Max Drawdown: {b.metrics?.maxDrawdown?.toFixed(2)}%</div>
               <div className="card-value">Trades: {b.metrics?.trades}</div>
+              <div className="card-value">Win Rate: {b.metrics?.winRate?.toFixed(2)}%</div>
+              <div className="card-value">Sharpe Ratio: {b.metrics?.sharpeRatio?.toFixed(2)}</div>
               <button
                 className="interval-button"
                 onClick={() => handleDeleteBacktest(b._id)}
               >
                 Delete
               </button>
+
+              {/* --- Performance Chart --- */}
+              {b.equityCurve && b.equityCurve.length > 0 && (
+                <div className="chart-container">
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={b.equityCurve}>
+                      <CartesianGrid stroke="#4A5568" />
+                      <XAxis dataKey="time" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Line type="monotone" dataKey="value" stroke="#3182CE" dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </div>
           ))}
         </div>
