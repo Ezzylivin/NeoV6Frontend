@@ -1,46 +1,16 @@
 // File: src/api/backtest.js
-import api from "./apiClient.js"; // shared axios client
+import axios from "axios";
 
-// Fetch available backtest options (e.g., strategies, datasets, risks, balances)
-export async function fetchOptions() {
-  try {
-    const res = await api.get("/backtest/options");
-    return res.data;
-  } catch (err) {
-    console.error("Failed to fetch backtest options:", err);
-    throw err;
-  }
-}
+const API_BASE = "https://neov6backend.onrender.com/api/backtest";
 
-// Fetch all backtests with pagination
-export async function fetchAll(page = 1) {
-  try {
-    const res = await api.get(`/backtest?page=${page}`);
-    return res.data;
-  } catch (err) {
-    console.error("Failed to fetch backtests:", err);
-    throw err;
-  }
-}
+// Fetch all past backtests (paginated)
+export const fetchAll = (page = 1) => axios.get(`${API_BASE}?page=${page}`);
+
+// Fetch options for dropdowns
+export const fetchOptions = () => axios.get(`${API_BASE}/options`);
 
 // Run a single backtest
-export async function runBacktest(payload) {
-  try {
-    const res = await api.post("/backtest", payload); // <-- updated path
-    return res.data;
-  } catch (err) {
-    console.error("Failed to run backtest:", err);
-    throw err;
-  }
-}
+export const runBacktest = (payload) => axios.post(API_BASE, payload);
 
-// Run multiple backtests in batch
-export async function runBatch(configs) {
-  try {
-    const res = await api.post("/backtest/batch", { configs }); // <-- updated path
-    return res.data;
-  } catch (err) {
-    console.error("Failed to run batch backtests:", err);
-    throw err;
-  }
-}
+// Run batch backtests
+export const runBatch = (configs) => axios.post(`${API_BASE}/batch`, configs);
