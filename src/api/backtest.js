@@ -26,7 +26,7 @@ export async function fetchAll(page = 1) {
 // Run a single backtest
 export async function runBacktest(payload) {
   try {
-    const res = await api.post("/backtest/run", payload);
+    const res = await api.post("/backtest", payload); // <-- updated path
     return res.data;
   } catch (err) {
     console.error("Failed to run backtest:", err);
@@ -37,7 +37,7 @@ export async function runBacktest(payload) {
 // Run multiple backtests in batch
 export async function runBatch(configs) {
   try {
-    const res = await api.post("/backtest/run-batch", { configs });
+    const res = await api.post("/backtest/batch", { configs }); // <-- updated path
     return res.data;
   } catch (err) {
     console.error("Failed to run batch backtests:", err);
