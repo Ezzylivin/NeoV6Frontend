@@ -8,32 +8,10 @@ export function useBacktest() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const normalizeOptions = (raw) => {
-    if (!raw) return { strategies: [], symbols: [], timeframes: [] };
-
-    return {
-      strategies: raw.strategies || [],
-      symbols: raw.symbols || [],
-      timeframes: raw.timeframes || [],
-    };
-  };
-
   const getOptions = useCallback(async () => {
     try {
-      const response = await backtestApi.fetchOptions();
-
-      // Prefer nested .data.data but fallback gracefully
-      const raw = response?.data?.data ?? response?.data;
-
-      if (raw) {
-        setOptions(normalizeOptions(raw));
-        if (!raw.strategies || !raw.symbols || !raw.timeframes) {
-          console.warn("Backtest options missing expected keys:", raw);
-        }
-      } else {
-        console.error("Backtest options response missing data:", response);
-        setError("Failed to load backtest options due to unexpected format.");
-      }
+      const data = await backtestApi.fetchOptions();
+      setOptions(data);
     } catch (err) {
       console.error("Failed to load options:", err);
       setError("Failed to load backtest options.");
@@ -42,13 +20,8 @@ export function useBacktest() {
 
   const getPastBacktests = useCallback(async (page = 1) => {
     try {
-      const response = await backtestApi.fetchAll(page);
-      const raw = response?.data?.data ?? response?.data;
-
-      setPastBacktests({
-        results: raw?.backtests || [],
-        total: raw?.total || 0,
-      });
+      const data = await backtestApi.fetchAll(page);
+      setPastBacktests({ results: data.backtests, total: data.total });
     } catch (err) {
       console.error("Failed to load past backtests:", err);
       setError(err.response?.data?.message || "Failed to load past backtests.");
@@ -59,10 +32,7 @@ export function useBacktest() {
     const loadInitialData = async () => {
       setLoading(true);
       setError(null);
-      await Promise.all([
-        getOptions(),
-        getPastBacktests()
-      ]);
+      await Promise.all([getOptions(), getPastBacktests()]);
       setLoading(false);
     };
     loadInitialData();
@@ -73,12 +43,10 @@ export function useBacktest() {
     setError(null);
     try {
       const response = await backtestApi.runBacktest(payload);
-      const raw = response?.data?.data ?? response?.data;
-
-      if (!raw?.isPythonResult) {
+      if (!response?.data?.data?.isPythonResult) {
         await getPastBacktests();
       }
-      return response.data; // return full { success, message, data }
+      return response.data;
     } catch (err) {
       const errorMessage = err.response?.data?.message || "Failed to run backtest.";
       setError(errorMessage);
