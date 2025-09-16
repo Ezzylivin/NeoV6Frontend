@@ -1,191 +1,152 @@
 // File: src/pages/Backtests.jsx
 import React, { useState } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
-// import "./Backtests.css"; // Optional: you can define extra CSS here
+import "./Backtests.css";
 
 export default function Backtests() {
-  const {
-    options,
-    pastBacktests,
-    loading,
-    error,
-    runNewBacktest,
-    runNewBatchBacktest,
-    getPastBacktests,
-  } = useBacktest();
+  const { options, pastBacktests, loading, error, runNewBacktest, runNewBatchBacktest } = useBacktest();
 
-  const [formData, setFormData] = useState({
-    strategyId: "",
+  const [formState, setFormState] = useState({
+    strategy: "",
     symbol: "",
     timeframe: "",
-    balance: 1000,
-    risk: "1%",
+    startDate: "",
+    endDate: "",
+    takeProfit: "0.5%",
+    stopLoss: "0.5%",
+    batchConfigs: [],
   });
 
+  // Handle form input changes
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormState({ ...formState, [e.target.name]: e.target.value });
   };
 
-  const handleSingleBacktest = async () => {
-    if (!formData.strategyId || !formData.symbol || !formData.timeframe) {
-      alert("Please fill in all required fields.");
-      return;
-    }
+  // Single backtest submission
+  const handleRunBacktest = async () => {
     try {
-      await runNewBacktest(formData);
-      alert("Single backtest completed!");
+      await runNewBacktest({
+        strategyId: formState.strategy,
+        symbol: formState.symbol,
+        timeframe: formState.timeframe,
+        startDate: formState.startDate,
+        endDate: formState.endDate,
+        takeProfit: formState.takeProfit,
+        stopLoss: formState.stopLoss,
+      });
+      alert("Backtest executed successfully!");
     } catch (err) {
-      console.error(err);
-      alert(`Backtest failed: ${err.message}`);
+      alert("Backtest failed: " + err.message);
     }
   };
 
-  const handleBatchBacktest = async () => {
-    if (!formData.strategyId || !formData.symbol || !formData.timeframe) {
-      alert("Please fill in all required fields.");
-      return;
-    }
+  // Batch backtest submission
+  const handleRunBatch = async () => {
     try {
-      // Wrap single formData in array for batch execution
-      await runNewBatchBacktest([formData]);
-      alert("Batch backtest completed!");
+      // Example: You would gather multiple configs from batchConfigs array
+      await runNewBatchBacktest(formState.batchConfigs);
+      alert("Batch backtests executed successfully!");
     } catch (err) {
-      console.error(err);
-      alert(`Batch backtest failed: ${err.message}`);
+      alert("Batch backtests failed: " + err.message);
     }
   };
 
   return (
-    <div className="backtests-container" style={{ backgroundColor: "#000", color: "#fff", minHeight: "100vh", padding: "2rem" }}>
-      <h1>Backtests</h1>
+    <div className="backtests-container">
+      <div className="backtest-form">
+        <h2>Run Backtest</h2>
 
-      {/* Unified Form */}
-      <div className="form-container" style={{ marginBottom: "2rem" }}>
+        {error && <div className="backtest-error">{error}</div>}
+        {loading && <div className="backtest-loading">Loading...</div>}
+
         <label>
-          Strategy:
-          <select
-            name="strategyId"
-            value={formData.strategyId}
-            onChange={handleChange}
-            style={{ backgroundColor: "#000", color: "#fff", border: "1px solid #fff", marginLeft: "1rem" }}
-          >
-            <option value="">Select Strategy</option>
-            {options.strategies?.map((s) => (
-              <option key={s._id} value={s._id}>
-                {s.name}
-              </option>
+          Strategy
+          <select name="strategy" value={formState.strategy} onChange={handleChange}>
+            <option value="">Select strategy</option>
+            {options.strategies.map((s) => (
+              <option key={s._id} value={s._id}>{s.name}</option>
             ))}
           </select>
         </label>
 
-        <label style={{ marginLeft: "1rem" }}>
-          Symbol:
-          <select
-            name="symbol"
-            value={formData.symbol}
-            onChange={handleChange}
-            style={{ backgroundColor: "#000", color: "#fff", border: "1px solid #fff", marginLeft: "0.5rem" }}
-          >
-            <option value="">Select Symbol</option>
-            {options.symbols?.map((sym) => (
-              <option key={sym} value={sym}>
-                {sym}
-              </option>
+        <label>
+          Symbol
+          <select name="symbol" value={formState.symbol} onChange={handleChange}>
+            <option value="">Select symbol</option>
+            {options.symbols.map((s) => (
+              <option key={s} value={s}>{s}</option>
             ))}
           </select>
         </label>
 
-        <label style={{ marginLeft: "1rem" }}>
-          Timeframe:
-          <select
-            name="timeframe"
-            value={formData.timeframe}
-            onChange={handleChange}
-            style={{ backgroundColor: "#000", color: "#fff", border: "1px solid #fff", marginLeft: "0.5rem" }}
-          >
-            <option value="">Select Timeframe</option>
-            {options.timeframes?.map((tf) => (
-              <option key={tf} value={tf}>
-                {tf}
-              </option>
+        <label>
+          Timeframe
+          <select name="timeframe" value={formState.timeframe} onChange={handleChange}>
+            <option value="">Select timeframe</option>
+            {options.timeframes.map((t) => (
+              <option key={t} value={t}>{t}</option>
             ))}
           </select>
         </label>
 
-        <label style={{ marginLeft: "1rem" }}>
-          Balance:
-          <input
-            type="number"
-            name="balance"
-            value={formData.balance}
-            onChange={handleChange}
-            style={{ backgroundColor: "#000", color: "#fff", border: "1px solid #fff", width: "100px", marginLeft: "0.5rem" }}
-          />
+        <label>
+          Start Date
+          <input type="date" name="startDate" value={formState.startDate} onChange={handleChange} />
         </label>
 
-        <label style={{ marginLeft: "1rem" }}>
-          Risk:
-          <select
-            name="risk"
-            value={formData.risk}
-            onChange={handleChange}
-            style={{ backgroundColor: "#000", color: "#fff", border: "1px solid #fff", marginLeft: "0.5rem" }}
-          >
+        <label>
+          End Date
+          <input type="date" name="endDate" value={formState.endDate} onChange={handleChange} />
+        </label>
+
+        <label>
+          Take Profit
+          <select name="takeProfit" value={formState.takeProfit} onChange={handleChange}>
             <option value="0.5%">0.5%</option>
             <option value="1%">1%</option>
             <option value="2%">2%</option>
+            <option value="5%">5%</option>
           </select>
         </label>
 
-        {/* Buttons */}
-        <div style={{ marginTop: "1rem" }}>
-          <button
-            onClick={handleSingleBacktest}
-            style={{ backgroundColor: "#222", color: "#fff", border: "1px solid #fff", padding: "0.5rem 1rem", marginRight: "1rem", cursor: "pointer" }}
-          >
-            Run Single Backtest
-          </button>
-          <button
-            onClick={handleBatchBacktest}
-            style={{ backgroundColor: "#222", color: "#fff", border: "1px solid #fff", padding: "0.5rem 1rem", cursor: "pointer" }}
-          >
-            Run Batch Backtest
-          </button>
+        <label>
+          Stop Loss
+          <select name="stopLoss" value={formState.stopLoss} onChange={handleChange}>
+            <option value="0.5%">0.5%</option>
+            <option value="1%">1%</option>
+            <option value="2%">2%</option>
+            <option value="5%">5%</option>
+          </select>
+        </label>
+
+        <div style={{ marginTop: "15px" }}>
+          <button onClick={handleRunBacktest}>Run Backtest</button>
+          <button onClick={handleRunBatch}>Run Batch</button>
         </div>
       </div>
 
-      {/* Past Backtests */}
       <div className="past-backtests">
         <h2>Past Backtests</h2>
-        {loading ? (
-          <p>Loading...</p>
-        ) : error ? (
-          <p style={{ color: "red" }}>{error}</p>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", color: "#fff" }}>
-            <thead>
-              <tr>
-                <th style={{ borderBottom: "1px solid #fff", padding: "0.5rem" }}>Date</th>
-                <th style={{ borderBottom: "1px solid #fff", padding: "0.5rem" }}>Strategy</th>
-                <th style={{ borderBottom: "1px solid #fff", padding: "0.5rem" }}>Symbol</th>
-                <th style={{ borderBottom: "1px solid #fff", padding: "0.5rem" }}>Return</th>
-                <th style={{ borderBottom: "1px solid #fff", padding: "0.5rem" }}>Trades</th>
+        <table>
+          <thead>
+            <tr>
+              <th>Strategy</th>
+              <th>Symbol</th>
+              <th>Timeframe</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pastBacktests.results.map((b) => (
+              <tr key={b._id}>
+                <td>{b.strategy?.name || "-"}</td>
+                <td>{b.symbol || "-"}</td>
+                <td>{b.timeframe || "-"}</td>
+                <td>{new Date(b.createdAt).toLocaleDateString()}</td>
               </tr>
-            </thead>
-            <tbody>
-              {pastBacktests.results?.map((bt) => (
-                <tr key={bt._id}>
-                  <td style={{ borderBottom: "1px solid #fff", padding: "0.5rem" }}>{new Date(bt.createdAt).toLocaleString()}</td>
-                  <td style={{ borderBottom: "1px solid #fff", padding: "0.5rem" }}>{bt.strategyName}</td>
-                  <td style={{ borderBottom: "1px solid #fff", padding: "0.5rem" }}>{bt.symbol}</td>
-                  <td style={{ borderBottom: "1px solid #fff", padding: "0.5rem" }}>{bt.totalReturn || "-"}</td>
-                  <td style={{ borderBottom: "1px solid #fff", padding: "0.5rem" }}>{bt.totalTrades || "-"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
