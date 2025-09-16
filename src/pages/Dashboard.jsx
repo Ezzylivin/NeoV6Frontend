@@ -1,24 +1,25 @@
+// src/pages/Dashboard.jsx
 import React, { useEffect } from 'react';
 import { useDashboard } from '../hooks/useDashboard.js';
+import { useMarketOverview } from '../hooks/useMarketOverview.js'; // 🛠️ Import the new hook
 import MarketChart from '../components/MarketChart.jsx';
 import CombinedDataChart from '../components/CombinedDataChart.jsx';
 
 export default function Dashboard() {
-  const { 
-    chartData, 
-    marketData,
-    loading, 
-    error, 
-    fetchChartData,
-    loadDashboardData 
-  } = useDashboard();
+  // Use both hooks independently at the top level
+  const { chartData, loading: chartLoading, error: chartError, fetchChartData } = useDashboard();
+  const { marketData, loading: marketLoading, error: marketError } = useMarketOverview();
 
-  useEffect(() => {
-    loadDashboardData();
-  }, [loadDashboardData]);
+  // Combine the loading and error states from both hooks
+  const loading = chartLoading || marketLoading;
+  const error = chartError || marketError;
 
   if (loading) {
     return <div className="p-6 text-center text-gray-400">Loading Dashboard Data...</div>;
+  }
+
+  if (error) {
+    return <div className="p-2 text-center text-yellow-300 bg-yellow-800/50 rounded-lg">{error}</div>;
   }
 
   return (
@@ -30,11 +31,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {error && <div className="p-2 text-center text-yellow-300 bg-yellow-800/50 rounded-lg">{error}</div>}
-
       <div>
         <h2 className="text-2xl font-bold text-white mb-4">Market Overview</h2>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* Use the data from the useMarketOverview hook */}
           <CombinedDataChart 
             symbol="BTC-USD"
             data={marketData['BTC-USD']}
@@ -49,7 +49,7 @@ export default function Dashboard() {
       <div>
         <h2 className="text-2xl font-bold text-white mb-4">Live Price Charts</h2>
         <div className="grid grid-cols-1 gap-6 lg-grid-cols-2">
-          {/* 🛠️ The Fix: Use USD-based symbols */}
+          {/* Use the data from the useDashboard hook */}
           <MarketChart 
             symbol="BTC-USD" 
             data={chartData['BTC-USD']} 
