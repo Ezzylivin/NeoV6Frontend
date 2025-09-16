@@ -1,31 +1,23 @@
 /* ./pages/Dashboard.css */
 /* FULL UPGRADED VERSION */
-/* Styles for your dashboard, using your dark theme */
+/* Added .custom-tooltip styles at the bottom */
 
 .dashboard-container {
   /* --- 🎨 YOUR DARK THEME IS HERE 🎨 --- */
-  /* These are based on your Tailwind config */
-  --theme-bg: #1A202C;        /* This is Tailwind's bg-gray-900 */
-  --card-bg: #2D3748;         /* This is bg-gray-800 (for contrast) */
-  --text-primary: #F7FAFC;    /* This is text-gray-100 */
-  --text-secondary: #A0AEC0;  /* This is text-gray-400 (for titles) */
-  --border-color: #4A5568;   /* This is border-gray-700 */
+  --theme-bg: #1A202C;        /* Tailwind's bg-gray-900 */
+  --card-bg: #2D3748;         /* Tailwind's bg-gray-800 */
+  --text-primary: #F7FAFC;    /* Tailwind's text-gray-100 */
+  --text-secondary: #A0AEC0;  /* Tailwind's text-gray-400 */
+  --border-color: #4A5568;   /* Tailwind's border-gray-700 */
   
   --btc-color: #f7931a;
   --eth-color: #8884d8;
   /* ---------------------------------- */
 
-  /* Styles that use your theme variables */
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   padding: 24px;
-  
-  /* NOTE: We let the <body> style from your main CSS set the 
-    background and color. If you see a white background,
-    un-comment these two lines:
-  */
-  /* background-color: var(--theme-bg); */
-  /* color: var(--text-primary); */
-  
+  /* background-color: var(--theme-bg); */ /* Inherits from body */
+  /* color: var(--text-primary); */      /* Inherits from body */
   min-height: 100vh;
 }
 
@@ -53,7 +45,7 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   border: 1px solid var(--border-color);
   min-width: 200px;
-  flex: 1; /* Makes cards grow to fill space */
+  flex: 1; 
 }
 
 .card-title {
@@ -79,24 +71,51 @@
 }
 
 /* --- Dark Theme Fixes for Recharts --- */
-
-/* This styles the grid lines inside the chart */
 .chart-container .recharts-cartesian-grid-line line {
   stroke: var(--border-color);
 }
-
-/* This styles the text (X-axis, Y-axis, Legend) */
 .recharts-text {
   fill: var(--text-secondary);
 }
 
 /* --- Error Banner Style --- */
 .error-banner {
-  background-color: #4C1D1D; /* Dark Red */
-  color: #FEE2E2; /* Light Red */
+  background-color: #4C1D1D; 
+  color: #FEE2E2; 
   padding: 16px;
   border-radius: 8px;
   margin-bottom: 20px;
   font-weight: 600;
   border: 1px solid #7F1D1D;
+}
+
+/* --- NEW: Custom Tooltip Style --- */
+.custom-tooltip {
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  padding: 12px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  color: var(--text-primary);
+}
+
+.tooltip-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.tooltip-item {
+  color: var(--text-secondary);
+  margin: 4px 0;
+  font-size: 14px;
+}
+
+.tooltip-item-close {
+  color: var(--text-primary);
+  font-weight: 600;
+  margin: 6px 0 0 0;
+  font-size: 14px;
 }
