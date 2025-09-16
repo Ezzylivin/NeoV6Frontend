@@ -1,17 +1,8 @@
 // File: src/pages/Backtests.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
+import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer } from "recharts";
 import "./Backtests.css";
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-  CartesianGrid,
-} from "recharts";
 
 export default function Backtests() {
   const {
@@ -21,243 +12,245 @@ export default function Backtests() {
     error,
     runNewBacktest,
     runNewBatchBacktest,
-    getPastBacktests,
   } = useBacktest();
 
-  // Form state
-  const [strategyId, setStrategyId] = useState("");
-  const [symbol, setSymbol] = useState("");
-  const [timeframe, setTimeframe] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [takeProfit, setTakeProfit] = useState("5%");
-  const [stopLoss, setStopLoss] = useState("2%");
-  const [batchConfigs, setBatchConfigs] = useState([]);
+  const [formData, setFormData] = useState({
+    strategyId: "",
+    symbol: "",
+    timeframe: "",
+    startDate: "",
+    endDate: "",
+    takeProfit: "",
+    stopLoss: "",
+  });
 
-  const handleSingleBacktest = async () => {
-    if (!strategyId || !symbol || !timeframe || !startDate || !endDate) {
-      alert("Please fill in all required fields.");
-      return;
-    }
-
-    const payload = {
-      strategyId,
-      symbol,
-      timeframe,
-      startDate,
-      endDate,
-      takeProfit,
-      stopLoss,
-    };
-
-    try {
-      await runNewBacktest(payload);
-      alert("Single backtest completed!");
-    } catch (err) {
-      console.error("Backtest failed:", err);
-      alert(`Backtest failed: ${err.message}`);
-    }
-  };
-
-  const handleBatchBacktest = async () => {
-    if (batchConfigs.length === 0) {
-      alert("Batch configs are empty!");
-      return;
-    }
-
-    try {
-      await runNewBatchBacktest(batchConfigs);
-      alert("Batch backtests completed!");
-    } catch (err) {
-      console.error("Batch backtest failed:", err);
-      alert(`Batch backtest failed: ${err.message}`);
-    }
-  };
-
-  // Metrics state
+  const [batchConfigs, setBatchConfigs] = useState([{ ...formData }]);
   const [metricsData, setMetricsData] = useState([]);
 
-  const updateMetrics = (backtestResult) => {
-    // Example: add simple equity curve for chart
-    if (!backtestResult?.equityCurve) return;
-    setMetricsData(
-      backtestResult.equityCurve.map((v, i) => ({ index: i + 1, equity: v }))
-    );
+  // Handle input changes
+  const handleChange = (e, index = null) => {
+    const { name, value } = e.target;
+    if (index !== null) {
+      const newBatch = [...batchConfigs];
+      newBatch[index][name] = value;
+      setBatchConfigs(newBatch);
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
   };
 
+  // Add/remove batch row
+  const addBatchRow = () => setBatchConfigs([...batchConfigs, { ...formData }]);
+  const removeBatchRow = (i) => setBatchConfigs(batchConfigs.filter((_, idx) => idx !== i));
+
+  // Run single backtest
+  const handleSingleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const result = await runNewBacktest(formData);
+      setMetricsData(result.metrics || []);
+    } catch (err) {
+      console.error("Single backtest failed:", err);
+    }
+  };
+
+  // Run batch backtests
+  const handleBatchSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const result = await runNewBatchBacktest(batchConfigs);
+      setMetricsData(result.metrics || []);
+    } catch (err) {
+      console.error("Batch backtest failed:", err);
+    }
+  };
+
+  // Generate TP/SL options
+  const tpSlOptions = [0.5, 1, 2, 3, 5, 10, 20].map((val) => (
+    <option key={val} value={val}>{val}%</option>
+  ));
+
   return (
-    <div className="backtests-container">
-      <h2 className="backtests-header">Backtests</h2>
+    <div className="dashboard-container">
+      <h2 className="header">Backtests</h2>
 
       {error && <div className="error-banner">{error}</div>}
 
-      <div className="backtests-form">
-        <label>
-          Strategy
-          <select
-            value={strategyId}
-            onChange={(e) => setStrategyId(e.target.value)}
-          >
-            <option value="">Select strategy</option>
-            {options.strategies?.map((s) => (
-              <option key={s._id} value={s._id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </label>
+      {/* --- Single Backtest Form --- */}
+      <form className="card-row" onSubmit={handleSingleSubmit}>
+        <div className="metric-card">
+          <h3 className="card-title">Single Backtest</h3>
 
-        <label>
-          Symbol
-          <select value={symbol} onChange={(e) => setSymbol(e.target.value)}>
-            <option value="">Select symbol</option>
-            {options.symbols?.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
+          <label>
+            Strategy
+            <select name="strategyId" value={formData.strategyId} onChange={handleChange} required>
+              <option value="">Select strategy</option>
+              {options.strategies.map((s) => (
+                <option key={s._id} value={s._id}>{s.name}</option>
+              ))}
+            </select>
+          </label>
 
-        <label>
-          Timeframe
-          <select
-            value={timeframe}
-            onChange={(e) => setTimeframe(e.target.value)}
-          >
-            <option value="">Select timeframe</option>
-            {options.timeframes?.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </label>
+          <label>
+            Symbol
+            <select name="symbol" value={formData.symbol} onChange={handleChange} required>
+              <option value="">Select symbol</option>
+              {options.symbols.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </label>
 
-        <label>
-          Start Date
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-          />
-        </label>
+          <label>
+            Timeframe
+            <select name="timeframe" value={formData.timeframe} onChange={handleChange} required>
+              <option value="">Select timeframe</option>
+              {options.timeframes.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </label>
 
-        <label>
-          End Date
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-          />
-        </label>
+          <label>
+            Start Date
+            <input type="date" name="startDate" value={formData.startDate} onChange={handleChange} required />
+          </label>
 
-        <label>
-          Take Profit
-          <select
-            value={takeProfit}
-            onChange={(e) => setTakeProfit(e.target.value)}
-          >
-            {["1%", "2%", "5%", "10%", "15%"].map((tp) => (
-              <option key={tp} value={tp}>
-                {tp}
-              </option>
-            ))}
-          </select>
-        </label>
+          <label>
+            End Date
+            <input type="date" name="endDate" value={formData.endDate} onChange={handleChange} required />
+          </label>
 
-        <label>
-          Stop Loss
-          <select
-            value={stopLoss}
-            onChange={(e) => setStopLoss(e.target.value)}
-          >
-            {["1%", "2%", "5%", "10%"].map((sl) => (
-              <option key={sl} value={sl}>
-                {sl}
-              </option>
-            ))}
-          </select>
-        </label>
+          <label>
+            Take Profit %
+            <select name="takeProfit" value={formData.takeProfit} onChange={handleChange}>
+              <option value="">Select TP</option>
+              {tpSlOptions}
+            </select>
+          </label>
 
-        <div className="form-buttons">
-          <button
-            type="button"
-            className="single-backtest"
-            onClick={handleSingleBacktest}
-            disabled={loading}
-          >
-            Run Single Backtest
-          </button>
-          <button
-            type="button"
-            className="batch-backtest"
-            onClick={handleBatchBacktest}
-            disabled={loading}
-          >
-            Run Batch Backtests
+          <label>
+            Stop Loss %
+            <select name="stopLoss" value={formData.stopLoss} onChange={handleChange}>
+              <option value="">Select SL</option>
+              {tpSlOptions}
+            </select>
+          </label>
+
+          <button type="submit" disabled={loading}>
+            {loading ? "Running..." : "Run Backtest"}
           </button>
         </div>
-      </div>
+      </form>
 
-      {/* Metrics Charts */}
+      {/* --- Batch Backtests Form --- */}
+      <form className="card-row" onSubmit={handleBatchSubmit}>
+        {batchConfigs.map((config, idx) => (
+          <div className="metric-card" key={idx}>
+            <h3 className="card-title">Batch #{idx + 1}</h3>
+
+            <label>
+              Strategy
+              <select name="strategyId" value={config.strategyId} onChange={(e) => handleChange(e, idx)} required>
+                <option value="">Select strategy</option>
+                {options.strategies.map((s) => (
+                  <option key={s._id} value={s._id}>{s.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Symbol
+              <select name="symbol" value={config.symbol} onChange={(e) => handleChange(e, idx)} required>
+                <option value="">Select symbol</option>
+                {options.symbols.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Timeframe
+              <select name="timeframe" value={config.timeframe} onChange={(e) => handleChange(e, idx)} required>
+                <option value="">Select timeframe</option>
+                {options.timeframes.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Start Date
+              <input type="date" name="startDate" value={config.startDate} onChange={(e) => handleChange(e, idx)} required />
+            </label>
+
+            <label>
+              End Date
+              <input type="date" name="endDate" value={config.endDate} onChange={(e) => handleChange(e, idx)} required />
+            </label>
+
+            <label>
+              Take Profit %
+              <select name="takeProfit" value={config.takeProfit} onChange={(e) => handleChange(e, idx)}>
+                <option value="">Select TP</option>
+                {tpSlOptions}
+              </select>
+            </label>
+
+            <label>
+              Stop Loss %
+              <select name="stopLoss" value={config.stopLoss} onChange={(e) => handleChange(e, idx)}>
+                <option value="">Select SL</option>
+                {tpSlOptions}
+              </select>
+            </label>
+
+            <div style={{ marginTop: "8px" }}>
+              {idx === batchConfigs.length - 1 && <button type="button" onClick={addBatchRow}>Add Row</button>}
+              {batchConfigs.length > 1 && <button type="button" onClick={() => removeBatchRow(idx)}>Remove Row</button>}
+            </div>
+          </div>
+        ))}
+        {batchConfigs.length > 0 && (
+          <div style={{ width: "100%" }}>
+            <button type="submit" disabled={loading}>
+              {loading ? "Running Batch..." : "Run Batch Backtests"}
+            </button>
+          </div>
+        )}
+      </form>
+
+      {/* --- Metrics Charts --- */}
       {metricsData.length > 0 && (
         <div className="chart-container">
-          <div className="chart-header">
-            <h3>Equity Curve</h3>
-          </div>
-          <ResponsiveContainer width="100%" height={300}>
+          <h3 className="chart-header">Performance Metrics</h3>
+          <ResponsiveContainer width="100%" height={400}>
             <LineChart data={metricsData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="index" stroke="#A0AEC0" />
-              <YAxis stroke="#A0AEC0" />
-              <Tooltip
-                contentStyle={{ backgroundColor: "#2D3748", border: "1px solid #4A5568" }}
-              />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip contentStyle={{ backgroundColor: "#2D3748", borderColor: "#4A5568" }} />
               <Legend />
-              <Line
-                type="monotone"
-                dataKey="equity"
-                stroke="#3182CE"
-                strokeWidth={2}
-                dot={false}
-              />
+              <Line type="monotone" dataKey="equity" stroke="#3182CE" dot={false} />
+              <Line type="monotone" dataKey="balance" stroke="#f7931a" dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
       )}
 
-      {/* Past Backtests Table */}
-      <div className="chart-container">
-        <h3>Past Backtests</h3>
-        {pastBacktests.results.length === 0 ? (
-          <p>No past backtests yet.</p>
-        ) : (
-          <table style={{ width: "100%", color: "#F7FAFC", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <th>Strategy</th>
-                <th>Symbol</th>
-                <th>Timeframe</th>
-                <th>Start Date</th>
-                <th>End Date</th>
-                <th>Profit/Loss</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pastBacktests.results.map((b) => (
-                <tr key={b._id}>
-                  <td>{b.strategyName}</td>
-                  <td>{b.symbol}</td>
-                  <td>{b.timeframe}</td>
-                  <td>{b.startDate}</td>
-                  <td>{b.endDate}</td>
-                  <td>{b.profitLoss}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+      {/* --- Past Backtests Table --- */}
+      <div className="card-row">
+        {pastBacktests.results.map((b) => (
+          <div className="metric-card" key={b._id}>
+            <div className="card-title">{b.strategyName}</div>
+            <div className="card-value">{b.symbol}</div>
+            <div>Timeframe: {b.timeframe}</div>
+            <div>Start: {b.startDate}</div>
+            <div>End: {b.endDate}</div>
+            <div>Take Profit: {b.takeProfit}%</div>
+            <div>Stop Loss: {b.stopLoss}%</div>
+          </div>
+        ))}
       </div>
     </div>
   );
