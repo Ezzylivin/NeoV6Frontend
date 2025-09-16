@@ -1,67 +1,203 @@
-// src/pages/Dashboard.jsx
-import React, { useEffect } from 'react';
-import { useDashboard } from '../hooks/useDashboard.js';
-import { useMarketOverview } from '../hooks/useMarketOverview.js'; // 🛠️ Import the new hook
-import MarketChart from '../components/MarketChart.jsx';
-import CombinedDataChart from '../components/CombinedDataChart.jsx';
+// ./pages/Dashboard.jsx
+// This is the NEW content for your main dashboard page.
+// It includes data fetching, metrics, and recharts.
 
-export default function Dashboard() {
-  // Use both hooks independently at the top level
-  const { chartData, loading: chartLoading, error: chartError, fetchChartData } = useDashboard();
-  const { marketData, loading: marketLoading, error: marketError } = useMarketOverview();
+import React, { useState, useEffect } from 'react';
+// Import components from the recharts library
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer 
+} from 'recharts';
 
-  // Combine the loading and error states from both hooks
-  const loading = chartLoading || marketLoading;
-  const error = chartError || marketError;
+// A simple "card" component for styling our metrics
+function MetricCard({ title, value, unit = '' }) {
+  if (value === null || value === undefined || isNaN(value)) {
+    value = "N/A";
+  }
+  return (
+    <div style={styles.card}>
+      <h3 style={styles.cardTitle}>{title}</h3>
+      <div style={styles.cardValue}>{value}{unit}</div>
+    </div>
+  );
+}
 
+// Main Dashboard Component
+// *** NOTE: The function is named 'Dashboard' to match your App.js import ***
+function Dashboard() {
+  // 1. States for data, loading, and errors
+  const [btcData, setBtcData] = useState([]);
+  const [ethData, setEthData] = useState([]);
+  const [latestMetrics, setLatestMetrics] = useState({ cpi: null, fedRate: null });
+  
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // 2. useEffect to fetch data on mount
+  useEffect(() => {
+    // You may need to install recharts: npm install recharts
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch('https://crypto-lpzi.onrender.com/api/data');
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        const result = await response.json();
+        
+        // --- Data Parsing ---
+        const btcArray = result['BTC-USD'] || [];
+        const ethArray = result['ETH-USD'] || [];
+
+        // Convert string numbers to actual numbers for charting
+        const cleanBtc = btcArray.map(d => ({...d, close: parseFloat(d.close)}));
+        const cleanEth = ethArray.map(d => ({...d, close: parseFloat(d.close)}));
+
+        setBtcData(cleanBtc);
+        setEthData(cleanEth);
+        
+        // Find the latest metrics
+        // We look backwards from the most recent data point
+        let metricsFound = { cpi: null, fedRate: null };
+        const combinedData = [...cleanBtc].reverse(); // Use BTC data to find metrics
+        
+        for (const obs of combinedData) {
+          if (metricsFound.cpi === null && obs.cpi && !isNaN(obs.cpi)) {
+            metricsFound.cpi = obs.cpi;
+          }
+          if (metricsFound.fedRate === null && obs.fed_funds_rate && !isNaN(obs.fed_funds_rate)) {
+            metricsFound.fedRate = obs.fed_funds_rate;
+          }
+          // If we've found both, we can stop
+          if (metricsFound.cpi !== null && metricsFound.fedRate !== null) break;
+        }
+        
+        setLatestMetrics(metricsFound);
+        
+      } catch (e) {
+        console.error("Failed to fetch or parse data:", e);
+        setError(e.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []); // Runs once on mount
+
+  // 3. Render logic based on state
   if (loading) {
-    return <div className="p-6 text-center text-gray-400">Loading Dashboard Data...</div>;
+    return <div style={styles.container}>Loading dashboard data...</div>;
   }
 
   if (error) {
-    return <div className="p-2 text-center text-yellow-300 bg-yellow-800/50 rounded-lg">{error}</div>;
+    return <div style={styles.container}>Error: {error}</div>;
   }
 
+  // 4. Success! Render the full dashboard
   return (
-    <div className="space-y-8 p-6">
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-          <p className="text-gray-400">Welcome back! Here is your current trading overview.</p>
-        </div>
+    <div style={styles.container}>
+      <h1 style={styles.header}>Crypto & Macro Dashboard</h1>
+      
+      {/* --- Key Metrics Section --- */}
+      <h2 style={styles.subHeader}>Key Metrics</h2>
+      <div style={styles.cardRow}>
+        <MetricCard title="Latest CPI" value={latestMetrics.cpi} />
+        <MetricCard title="Fed Funds Rate" value={latestMetrics.fedRate} unit="%" />
       </div>
 
-      <div>
-        <h2 className="text-2xl font-bold text-white mb-4">Market Overview</h2>
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Use the data from the useMarketOverview hook */}
-          <CombinedDataChart 
-            symbol="BTC-USD"
-            data={marketData['BTC-USD']}
-          />
-          <CombinedDataChart
-            symbol="ETH-USD"
-            data={marketData['ETH-USD']}
-          />
-        </div>
+      {/* --- Charts Section --- */}
+      <h2 style={styles.subHeader}>Price Charts</h2>
+      
+      {/* BTC Chart */}
+      <div style={styles.chartContainer}>
+        <h3>BTC-USD Closing Price</h3>
+        {/* ResponsiveContainer makes the chart fit its parent div */}
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={btcData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="time" />
+            <YAxis domain={['auto', 'auto']} />
+            <Tooltip />
+            <Legend />
+            <Line type="monotone" dataKey="close" stroke="#f7931a" name="BTC Close" dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
 
-      <div>
-        <h2 className="text-2xl font-bold text-white mb-4">Live Price Charts</h2>
-        <div className="grid grid-cols-1 gap-6 lg-grid-cols-2">
-          {/* Use the data from the useDashboard hook */}
-          <MarketChart 
-            symbol="BTC-USD" 
-            data={chartData['BTC-USD']} 
-            onTimeframeChange={fetchChartData} 
-          />
-          <MarketChart 
-            symbol="ETH-USD" 
-            data={chartData['ETH-USD']} 
-            onTimeframeChange={fetchChartData} 
-          />
-        </div>
+      {/* ETH Chart */}
+      <div style={styles.chartContainer}>
+        <h3>ETH-USD Closing Price</h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={ethData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="time" />
+            <YAxis domain={['auto', 'auto']} />
+            <Tooltip />
+            <Legend />
+            <Line type="monotone" dataKey="close" stroke="#8884d8" name="ETH Close" dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );
 }
+
+// --- Basic CSS-in-JS for styling ---
+// You can move this to a .css file if you prefer
+const styles = {
+  container: {
+    fontFamily: 'Arial, sans-serif',
+    padding: '20px',
+    backgroundColor: '#f4f7f6',
+  },
+  header: {
+    color: '#333',
+    borderBottom: '2px solid #ddd',
+    paddingBottom: '10px'
+  },
+  subHeader: {
+    color: '#555',
+    marginTop: '30px'
+  },
+  cardRow: {
+    display: 'flex',
+    gap: '20px',
+    flexWrap: 'wrap'
+  },
+  card: {
+    backgroundColor: '#fff',
+    padding: '20px',
+    borderRadius: '8px',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    minWidth: '200px',
+  },
+  cardTitle: {
+    margin: '0 0 10px 0',
+    color: '#777',
+    fontSize: '16px'
+  },
+  cardValue: {
+    fontSize: '28px',
+    fontWeight: 'bold',
+    color: '#333'
+  },
+  chartContainer: {
+    backgroundColor: '#fff',
+    padding: '20px',
+    borderRadius: '8px',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    marginTop: '20px',
+  }
+};
+
+// *** NOTE: The export is 'Dashboard' to match your App.js import ***
+export default Dashboard;
