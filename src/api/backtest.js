@@ -1,5 +1,5 @@
 // ../api/backtest.js
-// CORRECTED VERSION
+// UPGRADED: Correctly returns the entire response object.
 
 import axios from 'axios';
 
@@ -20,7 +20,6 @@ const handleError = (error) => {
 export const fetchOptions = async () => {
   try {
     const response = await api.get('/api/backtest/options');
-    // FIX: Return the entire response object
     return response;
   } catch (err) {
     handleError(err);
@@ -33,7 +32,6 @@ export const fetchOptions = async () => {
 export const fetchAll = async (page = 1, limit = 10) => {
   try {
     const response = await api.get(`/api/backtest?page=${page}&limit=${limit}`);
-    // FIX: Return the entire response object
     return response;
   } catch (err) {
     handleError(err);
@@ -46,7 +44,7 @@ export const fetchAll = async (page = 1, limit = 10) => {
 export const runBacktest = async (payload) => {
   try {
     const response = await api.post('/api/backtest/run', payload);
-    return response.data.data;
+    return response;
   } catch (err) {
     handleError(err);
   }
@@ -58,7 +56,7 @@ export const runBacktest = async (payload) => {
 export const runBatch = async (configs) => {
   try {
     const response = await api.post('/api/backtest/batch', { configs });
-    return response.data.data;
+    return response;
   } catch (err) {
     handleError(err);
   }
