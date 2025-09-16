@@ -15,12 +15,10 @@ export function useBacktest() {
         const response = await backtestApi.fetchOptions();
         
         // --- THE FIX ---
-        // Safely access the data from the 'data' key in the response.
-        // The `response` from `fetchOptions` is the full JSON object from the backend
-        // that contains a 'data' property.
+        // Correctly access the nested data object.
         if (response.data && response.data.symbols && response.data.timeframes) {
             setOptions({
-                
+                strategies: response.data.strategies || [],
                 symbols: response.data.symbols,
                 timeframes: response.data.timeframes,
             });
@@ -68,11 +66,11 @@ export function useBacktest() {
     setLoading(true);
     setError(null);
     try {
-      const result = await backtestApi.runBacktest(payload);
-      if (!result.isPythonResult) {
+      const response = await backtestApi.runBacktest(payload);
+      if (!response.data.isPythonResult) {
         await getPastBacktests();
       }
-      return result;
+      return response.data;
     } catch (err) {
       const errorMessage = err.response?.data?.message || "Failed to run backtest.";
       setError(errorMessage);
@@ -86,9 +84,9 @@ export function useBacktest() {
     setLoading(true);
     setError(null);
     try {
-      const result = await backtestApi.runBatch(configs);
+      const response = await backtestApi.runBatch(configs);
       await getPastBacktests();
-      return result;
+      return response.data;
     } catch (err) {
       const errorMessage = err.response?.data?.message || "Failed to run batch test.";
       setError(errorMessage);
