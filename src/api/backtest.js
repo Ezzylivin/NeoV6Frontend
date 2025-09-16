@@ -1,27 +1,23 @@
 // ../api/backtest.js
-// NEW FILE: This file contains all your API calls with the correct paths.
+// UPGRADED: Corrected the POST routes to fix the 405 Method Not Allowed error.
 
 import axios from 'axios';
 
-// Create a single, shared axios instance
-// This assumes your API is on the same domain (e.g., /api/...)
 const api = axios.create({
   withCredentials: true,
 });
 
-// Helper for handling errors
 const handleError = (error) => {
   console.error("API Error:", error.response?.data?.message || error.message);
   throw new Error(error.response?.data?.message || "An API error occurred.");
 };
 
 /**
- * Fetches the dropdown options (strategies, symbols, timeframes)
+ * Fetches the dropdown options (Correct - this is working)
  */
 export const fetchOptions = async () => {
   try {
-    // FIX: Use plural /api/backtests/options
-    const response = await api.get('/api/backtests/options');
+    const response = await api.get('/api/backtest/options');
     return response.data.data;
   } catch (err) {
     handleError(err);
@@ -29,13 +25,12 @@ export const fetchOptions = async () => {
 };
 
 /**
- * Fetches a paginated list of past backtests
+ * Fetches a paginated list of past backtests (Correct - this is working)
  */
 export const fetchAll = async (page = 1, limit = 10) => {
   try {
-    // FIX: Use plural /api/backtests
-    const response = await api.get(`/api/backtests?page=${page}&limit=${limit}`);
-    return response.data.data; // This returns { backtests, total, ... }
+    const response = await api.get(`/api/backtest?page=${page}&limit=${limit}`);
+    return response.data.data;
   } catch (err) {
     handleError(err);
   }
@@ -43,13 +38,12 @@ export const fetchAll = async (page = 1, limit = 10) => {
 
 /**
  * Runs a new single backtest.
- * The backend controller will route this to Python or Node.js.
  */
 export const runBacktest = async (payload) => {
   try {
-    // NOTE: This assumes your controller route is POST /api/backtests/run
-    // Please verify this against your backend router file.
-    const response = await api.post('/api/backtests/run', payload);
+    // --- FIX: The correct RESTful path is POST to the base resource ---
+    // Changed from '/api/backtests/run' to '/api/backtest'
+    const response = await api.post('/api/backtests', payload);
     return response.data.data;
   } catch (err) {
     handleError(err);
@@ -61,10 +55,10 @@ export const runBacktest = async (payload) => {
  */
 export const runBatch = async (configs) => {
   try {
-    // NOTE: This assumes your controller route is POST /api/backtests/run-batch
-    // It sends an object { configs: [...] } as the body.
-    const response = await api.post('/api/backtests/run-batch', { configs });
-    return response.data.data; // This returns { summary, results, errors }
+    // --- FIX: Cleaned up this route for consistency ---
+    // Changed from '/api/backtests/run-batch' to '/api/backtest/batch'
+    const response = await api.post('/api/backtests/batch', { configs });
+    return response.data.data;
   } catch (err) {
     handleError(err);
   }
