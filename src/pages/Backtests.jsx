@@ -1,141 +1,152 @@
-import React, { useState, useEffect } from "react";
+// File: src/pages/Backtests.jsx
+import React, { useState } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
+import "./Backtests.css";
 
 export default function Backtests() {
-  const { options, pastBacktests, loading, error, runNewBacktest } = useBacktest();
+  const { options, pastBacktests, loading, error, runNewBacktest, runNewBatchBacktest } = useBacktest();
 
-  // Selected values
-  const [selectedStrategyId, setSelectedStrategyId] = useState("");
-  const [selectedSymbol, setSelectedSymbol] = useState("");
-  const [selectedTimeframe, setSelectedTimeframe] = useState("");
+  const [formState, setFormState] = useState({
+    strategy: "",
+    symbol: "",
+    timeframe: "",
+    startDate: "",
+    endDate: "",
+    takeProfit: "0.5%",
+    stopLoss: "0.5%",
+    batchConfigs: [],
+  });
 
+  // Handle form input changes
+  const handleChange = (e) => {
+    setFormState({ ...formState, [e.target.name]: e.target.value });
+  };
+
+  // Single backtest submission
   const handleRunBacktest = async () => {
     try {
-      if (!selectedStrategyId || !selectedSymbol || !selectedTimeframe) {
-        alert("Please select all fields.");
-        return;
-      }
-
       await runNewBacktest({
-        strategyId: selectedStrategyId,
-        symbol: selectedSymbol,
-        timeframe: selectedTimeframe,
+        strategyId: formState.strategy,
+        symbol: formState.symbol,
+        timeframe: formState.timeframe,
+        startDate: formState.startDate,
+        endDate: formState.endDate,
+        takeProfit: formState.takeProfit,
+        stopLoss: formState.stopLoss,
       });
-
-      alert("Backtest executed successfully.");
+      alert("Backtest executed successfully!");
     } catch (err) {
-      console.error("Backtest failed:", err);
       alert("Backtest failed: " + err.message);
     }
   };
 
+  // Batch backtest submission
+  const handleRunBatch = async () => {
+    try {
+      // Example: You would gather multiple configs from batchConfigs array
+      await runNewBatchBacktest(formState.batchConfigs);
+      alert("Batch backtests executed successfully!");
+    } catch (err) {
+      alert("Batch backtests failed: " + err.message);
+    }
+  };
+
   return (
-    <div style={{ padding: "2rem", color: "#fff", backgroundColor: "#121212" }}>
-      <h1>Backtests</h1>
+    <div className="backtests-container">
+      <div className="backtest-form">
+        <h2>Run Backtest</h2>
 
-      {/* Error display */}
-      {error && <div style={{ color: "red", marginBottom: "1rem" }}>{error}</div>}
+        {error && <div className="backtest-error">{error}</div>}
+        {loading && <div className="backtest-loading">Loading...</div>}
 
-      {/* Strategy Dropdown */}
-      <label htmlFor="strategy" style={{ display: "block", marginBottom: "0.5rem" }}>
-        Strategy
-      </label>
-      <select
-        id="strategy"
-        value={selectedStrategyId}
-        onChange={(e) => setSelectedStrategyId(e.target.value)}
-        style={{
-          backgroundColor: "black",
-          color: "white",
-          padding: "0.5rem",
-          borderRadius: "0.25rem",
-          border: "1px solid #333",
-          marginBottom: "1rem",
-        }}
-      >
-        <option value="">-- Select Strategy --</option>
-        {options.strategies.map((s) => (
-          <option key={s._id} value={s._id}>
-            {s.name}
-          </option>
-        ))}
-      </select>
+        <label>
+          Strategy
+          <select name="strategy" value={formState.strategy} onChange={handleChange}>
+            <option value="">Select strategy</option>
+            {options.strategies.map((s) => (
+              <option key={s._id} value={s._id}>{s.name}</option>
+            ))}
+          </select>
+        </label>
 
-      {/* Symbol Dropdown */}
-      <label htmlFor="symbol" style={{ display: "block", marginBottom: "0.5rem" }}>
-        Symbol
-      </label>
-      <select
-        id="symbol"
-        value={selectedSymbol}
-        onChange={(e) => setSelectedSymbol(e.target.value)}
-        style={{
-          backgroundColor: "black",
-          color: "white",
-          padding: "0.5rem",
-          borderRadius: "0.25rem",
-          border: "1px solid #333",
-          marginBottom: "1rem",
-        }}
-      >
-        <option value="">-- Select Symbol --</option>
-        {options.symbols.map((s) => (
-          <option key={s} value={s}>
-            {s}
-          </option>
-        ))}
-      </select>
+        <label>
+          Symbol
+          <select name="symbol" value={formState.symbol} onChange={handleChange}>
+            <option value="">Select symbol</option>
+            {options.symbols.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </label>
 
-      {/* Timeframe Dropdown */}
-      <label htmlFor="timeframe" style={{ display: "block", marginBottom: "0.5rem" }}>
-        Timeframe
-      </label>
-      <select
-        id="timeframe"
-        value={selectedTimeframe}
-        onChange={(e) => setSelectedTimeframe(e.target.value)}
-        style={{
-          backgroundColor: "black",
-          color: "white",
-          padding: "0.5rem",
-          borderRadius: "0.25rem",
-          border: "1px solid #333",
-          marginBottom: "1rem",
-        }}
-      >
-        <option value="">-- Select Timeframe --</option>
-        {options.timeframes.map((t) => (
-          <option key={t} value={t}>
-            {t}
-          </option>
-        ))}
-      </select>
+        <label>
+          Timeframe
+          <select name="timeframe" value={formState.timeframe} onChange={handleChange}>
+            <option value="">Select timeframe</option>
+            {options.timeframes.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </label>
 
-      <button
-        onClick={handleRunBacktest}
-        style={{
-          padding: "0.75rem 1.5rem",
-          backgroundColor: "#1f1f1f",
-          color: "white",
-          border: "1px solid #333",
-          borderRadius: "0.25rem",
-          cursor: "pointer",
-        }}
-      >
-        Run Backtest
-      </button>
+        <label>
+          Start Date
+          <input type="date" name="startDate" value={formState.startDate} onChange={handleChange} />
+        </label>
 
-      {/* Past Backtests */}
-      <div style={{ marginTop: "2rem" }}>
+        <label>
+          End Date
+          <input type="date" name="endDate" value={formState.endDate} onChange={handleChange} />
+        </label>
+
+        <label>
+          Take Profit
+          <select name="takeProfit" value={formState.takeProfit} onChange={handleChange}>
+            <option value="0.5%">0.5%</option>
+            <option value="1%">1%</option>
+            <option value="2%">2%</option>
+            <option value="5%">5%</option>
+          </select>
+        </label>
+
+        <label>
+          Stop Loss
+          <select name="stopLoss" value={formState.stopLoss} onChange={handleChange}>
+            <option value="0.5%">0.5%</option>
+            <option value="1%">1%</option>
+            <option value="2%">2%</option>
+            <option value="5%">5%</option>
+          </select>
+        </label>
+
+        <div style={{ marginTop: "15px" }}>
+          <button onClick={handleRunBacktest}>Run Backtest</button>
+          <button onClick={handleRunBatch}>Run Batch</button>
+        </div>
+      </div>
+
+      <div className="past-backtests">
         <h2>Past Backtests</h2>
-        {pastBacktests.results.length === 0 && <div>No backtests found.</div>}
-        <ul>
-          {pastBacktests.results.map((bt) => (
-            <li key={bt._id}>
-              {bt.strategyName} | {bt.symbol} | {bt.timeframe} | {new Date(bt.createdAt).toLocaleString()}
-            </li>
-          ))}
-        </ul>
+        <table>
+          <thead>
+            <tr>
+              <th>Strategy</th>
+              <th>Symbol</th>
+              <th>Timeframe</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pastBacktests.results.map((b) => (
+              <tr key={b._id}>
+                <td>{b.strategy?.name || "-"}</td>
+                <td>{b.symbol || "-"}</td>
+                <td>{b.timeframe || "-"}</td>
+                <td>{new Date(b.createdAt).toLocaleDateString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
