@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
-import "../styles/backtests.css";
+import "./backtests.css";
 
 export default function Backtests() {
   const { options, pastBacktests, loading, error, runNewBacktest } = useBacktest();
