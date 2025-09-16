@@ -35,13 +35,14 @@ export function useBacktest() {
   }, []);
 
   const runNewBacktest = useCallback(
-    async ({ strategy, symbol, timeframe, startDate, endDate, takeProfit, stopLoss }) => {
+    async ({ strategyId, symbol, timeframe, startDate, endDate, takeProfit, stopLoss }) => {
       setLoading(true);
       setError(null);
       try {
-        const payload = { strategy, symbol, timeframe, startDate, endDate, takeProfit, stopLoss };
-        await backtestApi.runBacktest(payload);
-        await getPastBacktests();
+        const payload = { strategyId, symbol, timeframe, startDate, endDate, takeProfit, stopLoss };
+        const response = await backtestApi.runBacktest(payload);
+        if (response?.data) await getPastBacktests();
+        return response.data;
       } catch (err) {
         const errorMessage = err.response?.data?.message || "Failed to run backtest.";
         setError(errorMessage);
@@ -58,9 +59,9 @@ export function useBacktest() {
       setLoading(true);
       setError(null);
       try {
-        // configs = array of { strategy, symbol, timeframe, startDate, endDate, takeProfit, stopLoss }
-        await backtestApi.runBatch(configs);
-        await getPastBacktests();
+        const response = await backtestApi.runBatch(configs);
+        if (response?.data) await getPastBacktests();
+        return response.data;
       } catch (err) {
         const errorMessage = err.response?.data?.message || "Failed to run batch backtests.";
         setError(errorMessage);
