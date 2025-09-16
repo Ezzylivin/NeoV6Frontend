@@ -43,7 +43,7 @@ const ResultDisplay = ({ result }) => {
         </div>
       </div>
       
-      {/* Equity Curve (Optional) */}
+      {/* Equity Curve */}
       {equityCurve && (
         <div className="mb-6">
           <h3 className="text-lg font-medium mb-2">Equity Curve</h3>
@@ -53,7 +53,7 @@ const ResultDisplay = ({ result }) => {
         </div>
       )}
       
-      {/* Trade History (Optional) */}
+      {/* Trade History */}
       {trades && trades.length > 0 && (
         <div>
           <h3 className="text-lg font-medium mb-2">Trade History</h3>
@@ -77,6 +77,7 @@ const ResultDisplay = ({ result }) => {
                       <span className={trade.profit >= 0 ? 'text-green-600' : 'text-red-600'}>
                         {trade.profit.toFixed(2)}
                       </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -153,99 +154,4 @@ export default function Backtests() {
       )}
       
       {/* Selection Form */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <label className="flex flex-col">
-          <span className="font-medium">Strategy</span>
-          <select
-            value={selectedStrategy}
-            onChange={(e) => setSelectedStrategy(e.target.value)}
-            className="border rounded p-2"
-            disabled={isBacktestRunning}
-          >
-            {allStrategies.map((s) => (
-              <option key={s._id} value={s._id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="flex flex-col">
-          <span className="font-medium">Symbol</span>
-          <select
-            value={selectedSymbol}
-            onChange={(e) => setSelectedSymbol(e.target.value)}
-            className="border rounded p-2"
-            disabled={isBacktestRunning}
-          >
-            {options.symbols?.map((sym) => (
-              <option key={sym} value={sym}>
-                {sym}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="flex flex-col">
-          <span className="font-medium">Timeframe</span>
-          <select
-            value={selectedTimeframe}
-            onChange={(e) => setSelectedTimeframe(e.target.value)}
-            className="border rounded p-2"
-            disabled={isBacktestRunning}
-          >
-            {options.timeframes?.map((tf) => (
-              <option key={tf} value={tf}>
-                {tf}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="flex flex-col">
-          <span className="font-medium">Balance</span>
-          <select
-            value={selectedBalance}
-            onChange={(e) => setSelectedBalance(e.target.value)}
-            className="border rounded p-2"
-            disabled={isBacktestRunning}
-          >
-            {BALANCE_OPTIONS.map((b) => (
-              <option key={b} value={b}>
-                ${b.toLocaleString()}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="flex flex-col">
-          <span className="font-medium">Risk</span>
-          <select
-            value={selectedRisk}
-            onChange={(e) => setSelectedRisk(e.target.value)}
-            className="border rounded p-2"
-            disabled={isBacktestRunning}
-          >
-            {RISK_OPTIONS.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      {/* Run Button */}
-      <button
-        onClick={handleRun}
-        disabled={loading || isBacktestRunning || !selectedStrategy || !selectedSymbol || !selectedTimeframe}
-        className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 disabled:opacity-50"
-      >
-        {isBacktestRunning ? "Running..." : "Run Backtest"}
-      </button>
-
-      {/* Results Display */}
-      <ResultDisplay result={result} />
-    </div>
-  );
-}
+      <div className
