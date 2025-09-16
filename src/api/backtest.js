@@ -1,62 +1,71 @@
-import apiClient from "./apiClient.js";
+// ../api/backtest.js
+// NEW FILE: This file contains all your API calls with the correct paths.
+
+import axios from 'axios';
+
+// Create a single, shared axios instance
+// This assumes your API is on the same domain (e.g., /api/...)
+const api = axios.create({
+  withCredentials: true,
+});
+
+// Helper for handling errors
+const handleError = (error) => {
+  console.error("API Error:", error.response?.data?.message || error.message);
+  throw new Error(error.response?.data?.message || "An API error occurred.");
+};
 
 /**
- * Fetches all available options (symbols, strategies) for the backtest form.
+ * Fetches the dropdown options (strategies, symbols, timeframes)
  */
 export const fetchOptions = async () => {
-  // FIX: Changed path to singular 'backtest'
-  const { data } = await apiClient.get("/backtest/options");
-  return data.data || {};
+  try {
+    // FIX: Use plural /api/backtests/options
+    const response = await api.get('/api/backtests/options');
+    return response.data.data;
+  } catch (err) {
+    handleError(err);
+  }
 };
 
 /**
- * Runs a new backtest.
- * @param {object} payload - The configuration for the backtest.
- */
-export const run = async (payload) => {
-  // FIX: Changed path to singular 'backtest'
-  const { data } = await apiClient.post("/backtest/run", payload);
-  return data.data;
-};
-
-/**
- * Runs a batch of backtests.
- * @param {Array<object>} configs - An array of configuration objects.
- */
-export const runBatch = async (configs) => {
-  const { data } = await apiClient.post("/backtest/batch", { configs });
-  return data.data; // The backend returns a summary object in the 'data' property
-};
-
-/**
- * Fetches all of the user's past backtests with pagination.
+ * Fetches a paginated list of past backtests
  */
 export const fetchAll = async (page = 1, limit = 10) => {
-  // FIX: Changed path to singular 'backtest'
-  const { data } = await apiClient.get(`/backtest?page=${page}&limit=${limit}`);
-  return data.data;
+  try {
+    // FIX: Use plural /api/backtests
+    const response = await api.get(`/api/backtests?page=${page}&limit=${limit}`);
+    return response.data.data; // This returns { backtests, total, ... }
+  } catch (err) {
+    handleError(err);
+  }
 };
 
 /**
- * Fetches a single backtest result by its ID.
+ * Runs a new single backtest.
+ * The backend controller will route this to Python or Node.js.
  */
-export const fetchById = async (backtestId) => {
-  // FIX: Changed path to singular 'backtest'
-  const { data } = await apiClient.get(`/backtest/${backtestId}`);
-  return data.data.backtest;
+export const runBacktest = async (payload) => {
+  try {
+    // NOTE: This assumes your controller route is POST /api/backtests/run
+    // Please verify this against your backend router file.
+    const response = await api.post('/api/backtests/run', payload);
+    return response.data.data;
+  } catch (err) {
+    handleError(err);
+  }
 };
 
 /**
- * Deletes a backtest by its ID.
+ * Runs a new batch backtest.
  */
-export const remove = async (backtestId) => {
-  // FIX: Changed path to singular 'backtest'
-  const { data } = await apiClient.delete(`/backtest/${backtestId}`);
-  return data;
-};
-
-export const runPythonSMABacktest = async (params) => {
-  // This calls the Node.js endpoint that forwards the request to the Python service
-  const { data } = await apiClient.post('/external/run-backtest', params);
-  return data;
+export const runBatch = async (configs) => {
+  try {
+    // NOTE: This assumes your controller route is POST /api/backtests/run-batch
+    // It sends an object { configs: [...] } as the body.
+    const response = await api.post('/api/backtests/run-batch', { configs });
+    return response.data.data; // This returns { summary, results, errors }
+  } catch (err) {
+    handleError(err);
+  }
 };
