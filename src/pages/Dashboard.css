@@ -1,6 +1,6 @@
 /* ./pages/Dashboard.css */
 /* FULL UPGRADED VERSION */
-/* Added .custom-tooltip styles at the bottom */
+/* Added interval button styles at the bottom */
 
 .dashboard-container {
   /* --- 🎨 YOUR DARK THEME IS HERE 🎨 --- */
@@ -9,6 +9,7 @@
   --text-primary: #F7FAFC;    /* Tailwind's text-gray-100 */
   --text-secondary: #A0AEC0;  /* Tailwind's text-gray-400 */
   --border-color: #4A5568;   /* Tailwind's border-gray-700 */
+  --accent-color: #3182CE;   /* A blue for active buttons */
   
   --btc-color: #f7931a;
   --eth-color: #8884d8;
@@ -16,9 +17,8 @@
 
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   padding: 24px;
-  /* background-color: var(--theme-bg); */ /* Inherits from body */
-  /* color: var(--text-primary); */      /* Inherits from body */
   min-height: 100vh;
+  /* Background is inherited from <body> */
 }
 
 .header {
@@ -89,7 +89,7 @@
   border: 1px solid #7F1D1D;
 }
 
-/* --- NEW: Custom Tooltip Style --- */
+/* --- Custom Tooltip Style --- */
 .custom-tooltip {
   background-color: var(--card-bg);
   border: 1px solid var(--border-color);
@@ -98,7 +98,6 @@
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
   color: var(--text-primary);
 }
-
 .tooltip-label {
   font-weight: 600;
   color: var(--text-primary);
@@ -106,16 +105,58 @@
   padding-bottom: 4px;
   border-bottom: 1px solid var(--border-color);
 }
-
 .tooltip-item {
   color: var(--text-secondary);
   margin: 4px 0;
   font-size: 14px;
 }
-
 .tooltip-item-close {
   color: var(--text-primary);
   font-weight: 600;
   margin: 6px 0 0 0;
   font-size: 14px;
+}
+
+/* --- NEW: Chart Header and Interval Buttons --- */
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap; /* Allows buttons to wrap on small screens */
+  margin-bottom: 16px;
+}
+
+.chart-header h3 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.interval-controls {
+  display: flex;
+  background-color: var(--theme-bg); /* Darker background */
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+.interval-button {
+  background-color: transparent;
+  border: none;
+  color: var(--text-secondary); /* Inactive text */
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 6px;
+}
+
+.interval-button.active {
+  background-color: var(--accent-color); /* Active blue */
+  color: var(--text-primary); /* Active text */
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.interval-button:not(.active):hover {
+  color: var(--text-primary);
+  background-color: rgba(255, 255, 255, 0.05); /* Subtle hover */
 }
