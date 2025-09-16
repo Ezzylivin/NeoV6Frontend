@@ -1,16 +1,50 @@
-// File: src/api/backtest.js
-import axios from "axios";
+// File: ../api/backtest.js
+import api from "./apiClient.js"; // your token-aware Axios instance
 
-const API_BASE = "https://neov6backend.onrender.com/api/backtest";
+// --- Helpers to normalize backend responses ---
+const normalizeOptions = (raw) => ({
+  strategies: raw?.strategies || [],
+  symbols: raw?.symbols || [],
+  timeframes: raw?.timeframes || [],
+});
 
-// Fetch all past backtests (paginated)
-export const fetchAll = (page = 1) => axios.get(`${API_BASE}?page=${page}`);
+const normalizePastBacktests = (raw) => ({
+  backtests: raw?.backtests || [],
+  total: raw?.total || 0,
+});
 
-// Fetch options for dropdowns
-export const fetchOptions = () => axios.get(`${API_BASE}/options`);
+// --- API calls ---
+export async function fetchOptions() {
+  const response = await api.get("/backtest/options");
+  const raw = response?.data?.data ?? response?.data;
 
-// Run a single backtest
-export const runBacktest = (payload) => axios.post(API_BASE, payload);
+  if (!raw) {
+    console.warn("fetchOptions(): unexpected response format", response);
+    return { strategies: [], symbols: [], timeframes: [] };
+  }
 
-// Run batch backtests
-export const runBatch = (configs) => axios.post(`${API_BASE}/batch`, configs);
+  return normalizeOptions(raw);
+}
+
+export async function fetchAll(page = 1) {
+  const response = await api.get(`/backtest/all?page=${page}`);
+  const raw = response?.data?.data ?? response?.data;
+
+  if (!raw) {
+    console.warn("fetchAll(): unexpected response format", response);
+    return { backtests: [], total: 0 };
+  }
+
+  return normalizePastBacktests(raw);
+}
+
+export async function runBacktest(payload) {
+  const response = await api.post("/backtest/run", payload);
+  // return entire response (so hook can still check .data.data.isPythonResult)
+  return response;
+}
+
+export async function runBatch(configs) {
+  const response = await api.post("/backtest/batch", configs);
+  return response;
+}
