@@ -20,7 +20,7 @@ export function useBacktest() {
         // that contains a 'data' property.
         if (response.data && response.data.symbols && response.data.timeframes) {
             setOptions({
-                strategies: response.data.strategies || [],
+                
                 symbols: response.data.symbols,
                 timeframes: response.data.timeframes,
             });
