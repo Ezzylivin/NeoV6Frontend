@@ -1,111 +1,49 @@
-/* File: src/styles/backtests.css */
-
-/* Form Inputs & Dropdowns */
-.form-input {
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.5rem;
-  background-color: #1f1f2f; /* same as chart panels */
+/* File: src/styles/Backtests.css */
+.dashboard-dropdown {
+  background-color: #1e1e2f; /* same as dashboard chart background */
+  color: #ffffff;
+  border: 1px solid #444;
+  padding: 6px 10px;
+  margin: 5px;
+  border-radius: 6px;
+}
+.backtest-form input[type="date"] {
+  background-color: #1e1e2f;
   color: #fff;
-  border: 1px solid #333;
-  transition: all 0.2s ease-in-out;
+  border: 1px solid #444;
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin: 5px;
 }
-
-.form-input:focus {
-  outline: none;
-  border-color: #4f46e5; /* subtle blue highlight */
-  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
-}
-
-/* Dropdown options background */
-.form-input option {
-  background-color: #1f1f2f;
-  color: #fff;
-}
-
-/* Buttons */
 button {
+  background-color: #4f46e5;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: all 0.2s ease-in-out;
 }
-
 button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
-
-/* Past Backtests Table */
-.past-backtests table {
+table {
   width: 100%;
   border-collapse: collapse;
-}
-
-.past-backtests th, .past-backtests td {
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #333;
-  color: #fff;
-  text-align: left;
-}
-
-.past-backtests th {
-  color: #a1a1aa; /* lighter gray for headers */
-  font-weight: 600;
-  text-transform: uppercase;
-  font-size: 0.85rem;
-}
-
-.past-backtests tr:hover {
-  background-color: #2a2a3d;
-}
-
-/* Panel Backgrounds */
-.backtest-panel, .past-backtests {
-  background-color: #1f1f2f;
-  border-radius: 1rem;
-  padding: 1.5rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
-}
-
-/* Responsive Form Grid */
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-}
-
-@media (min-width: 768px) {
-  .form-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-/* Text & Labels */
-label {
-  display: block;
-  margin-bottom: 0.25rem;
-  font-size: 0.875rem;
-  color: #d4d4d8; /* light gray */
-}
-
-h2, h3 {
+  margin-top: 15px;
   color: #fff;
 }
-
-/* Scrollable Table */
-.past-backtests .overflow-x-auto {
-  overflow-x: auto;
+th, td {
+  border: 1px solid #444;
+  padding: 8px;
+  text-align: center;
 }
-
-/* Optional: subtle scrollbar styling */
-.past-backtests .overflow-x-auto::-webkit-scrollbar {
-  height: 6px;
+th {
+  background-color: #2d2d3d;
 }
-
-.past-backtests .overflow-x-auto::-webkit-scrollbar-thumb {
-  background-color: #555;
-  border-radius: 3px;
+tr:nth-child(even) {
+  background-color: #1f1f2a;
 }
-
-.past-backtests .overflow-x-auto::-webkit-scrollbar-track {
-  background: #1f1f2f;
+tr:hover {
+  background-color: #2a2a3b;
 }
