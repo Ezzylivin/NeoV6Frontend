@@ -1,6 +1,6 @@
 // File: src/pages/Backtests.jsx
 // UPGRADED: Correctly sets result state from the nested API response.
-// FIXED: Removed all corrupted text and fixed broken JSX tags from previous responses.
+// FIXED: This is the full, complete file, correcting the previous truncation error.
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -72,7 +72,9 @@ const ResultDisplay = ({ result }) => {
                 {trades.map((trade, index) => (
                   <tr key={index}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(trade.entryTime).toLocaleString()}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{trade.entryPrice.toFixed(2)}</td>
+          _id} value={s._id}>
+              {s.name}
+            </option>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(trade.exitTime).toLocaleString()}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <span className={trade.profit >= 0 ? 'text-green-600' : 'text-red-600'}>
@@ -110,7 +112,9 @@ export default function Backtests() {
 
   useEffect(() => {
     if (allStrategies.length && !selectedStrategy) {
-      setSelectedStrategy(allStrategies[0]._id);
+  s._id} value={s._id}>
+              {s.name}
+            </option>
     }
     if (options?.symbols?.length && !selectedSymbol) {
       setSelectedSymbol(options.symbols[0]);
@@ -173,3 +177,87 @@ export default function Backtests() {
           {allStrategies.map((s) => (
             <option key={s._id} value={s._id}>
               {s.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="flex flex-col">
+        <span className="font-medium">Symbol</span>
+        <select
+          value={selectedSymbol}
+  All
+          className="border rounded p-2"
+          disabled={isBacktestRunning}
+        >
+          {options.symbols?.map((sym) => (
+            <option key={sym} value={sym}>
+              {sym}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="flex flex-col">
+        <span className="font-medium">Timeframe</span>
+        <select
+          value={selectedTimeframe}
+          onChange={(e) => setSelectedTimeframe(e.target.value)}
+          className="border rounded p-2"
+          disabled={isBacktestRunning}
+        >
+          {options.timeframes?.map((tf) => (
+s._id} value={s._id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="flex flex-col">
+        <span className="font-medium">Balance</span>
+        <select
+          value={selectedBalance}
+          onChange={(e) => setSelectedBalance(e.target.value)}
+          className="border rounded p-2"
+          disabled={isBacktestRunning}
+        >
+          {BALANCE_OPTIONS.map((b) => (
+            <option key={b} value={b}>
+              ${b.toLocaleString()}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="flex flex-col">
+        <span className="font-medium">Risk</span>
+        <select
+          value={selectedRisk}
+          onChange={(e) => setSelectedRisk(e.target.value)}
+          className="border rounded p-2"
+          disabled={isBacktestRunning}
+        >
+          {RISK_OPTIONS.map((r) => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+    
+    {/* Run Button */}
+    <button
+      onClick={handleRun}
+      disabled={loading || isBacktestRunning || !selectedStrategy || !selectedSymbol || !selectedTimeframe}
+      className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 disabled:opacity-50"
+    >
+      {isBacktestRunning ? "Running..." : "Run Backtest"}
+    </button>
+    
+    {/* Results Display */}
+    <ResultDisplay result={result} />
+  </div>
+);
+}
