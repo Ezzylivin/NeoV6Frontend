@@ -1,6 +1,6 @@
 // ./pages/Dashboard.jsx
 // FULL UPGRADED VERSION
-// Now shows Live Price cards and a custom OHLC tooltip for charts
+// Tooltip now converts the 'start' timestamp to include the time.
 
 import React, { useState, useEffect } from 'react';
 import { 
@@ -18,8 +18,7 @@ import './Dashboard.css';
 
 const POLLING_INTERVAL_MS = 30000; // 30 seconds
 
-// --- NEW: Custom Tooltip Component ---
-// We define this here to show all the data you requested
+// --- UPGRADED: Custom Tooltip Component ---
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
@@ -32,9 +31,22 @@ const CustomTooltip = ({ active, payload, label }) => {
       });
     };
 
+    // --- THIS IS THE FIX ---
+    // 1. Convert Unix timestamp string (seconds) to a number
+    const timestampInSeconds = parseFloat(data.start);
+    // 2. Convert to milliseconds for JavaScript Date object
+    const timestampInMs = timestampInSeconds * 1000;
+    // 3. Create a new Date object
+    const date = new Date(timestampInMs);
+    // 4. Format to a readable string (e.g., "6/19/2025, 12:00:00 AM")
+    const formattedDateTime = date.toLocaleString(); 
+    // --- END OF FIX ---
+
     return (
       <div className="custom-tooltip">
-        <p className="tooltip-label">{`Date: ${data.time}`}</p>
+        {/* Use the new formatted date and time string */}
+        <p className="tooltip-label">{formattedDateTime}</p>
+        
         <p className="tooltip-item">{`Open: ${formatCurrency(data.open)}`}</p>
         <p className="tooltip-item">{`High: ${formatCurrency(data.high)}`}</p>
         <p className="tooltip-item">{`Low: ${formatCurrency(data.low)}`}</p>
@@ -75,11 +87,8 @@ function Dashboard() {
   const [btcData, setBtcData] = useState([]);
   const [ethData, setEthData] = useState([]);
   const [latestMetrics, setLatestMetrics] = useState({ cpi: null, fedRate: null });
-  
-  // --- NEW: State for Live Prices ---
   const [latestBtcPrice, setLatestBtcPrice] = useState(null);
   const [latestEthPrice, setLatestEthPrice] = useState(null);
-  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -103,7 +112,6 @@ function Dashboard() {
         setBtcData(cleanBtc);
         setEthData(cleanEth);
         
-        // --- NEW: Set Live Prices ---
         if (cleanBtc.length > 0) {
           setLatestBtcPrice(cleanBtc[cleanBtc.length - 1].close);
         }
@@ -111,7 +119,6 @@ function Dashboard() {
           setLatestEthPrice(cleanEth[cleanEth.length - 1].close);
         }
 
-        // Find latest metrics
         let metricsFound = { cpi: null, fedRate: null };
         const combinedData = [...cleanBtc].reverse(); 
         for (const obs of combinedData) {
@@ -151,11 +158,8 @@ function Dashboard() {
       
       <h2 className="sub-header">Key Metrics</h2>
       <div className="card-row">
-        {/* --- NEW: Live Price Cards --- */}
         <MetricCard title="Live BTC Price" value={latestBtcPrice} />
         <MetricCard title="Live ETH Price" value={latestEthPrice} />
-        
-        {/* Existing macro cards */}
         <MetricCard title="Latest CPI" value={latestMetrics.cpi} />
         <MetricCard title="Fed Funds Rate" value={latestMetrics.fedRate} unit="%" />
       </div>
@@ -169,7 +173,6 @@ function Dashboard() {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="time" />
             <YAxis domain={['auto', 'auto']} />
-            {/* --- NEW: Use Custom Tooltip --- */}
             <Tooltip content={<CustomTooltip />} />
             <Legend />
             <Line type="monotone" dataKey="close" stroke="var(--btc-color)" name="BTC Close" dot={false} />
@@ -184,7 +187,6 @@ function Dashboard() {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="time" />
             <YAxis domain={['auto', 'auto']} />
-            {/* --- NEW: Use Custom Tooltip --- */}
             <Tooltip content={<CustomTooltip />} />
             <Legend />
             <Line type="monotone" dataKey="close" stroke="var(--eth-color)" name="ETH Close" dot={false} />
