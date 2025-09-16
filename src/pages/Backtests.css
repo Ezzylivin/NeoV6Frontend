@@ -1,0 +1,105 @@
+/* File: src/pages/Backtests.css */
+
+/* Container for the whole backtests page */
+.backtests-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+}
+
+/* Form sections */
+.backtest-form {
+  background-color: #1e1e2f;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.backtest-form h2 {
+  margin-bottom: 15px;
+  font-size: 1.5rem;
+}
+
+.backtest-form label {
+  display: block;
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+
+.backtest-form select,
+.backtest-form input[type="text"],
+.backtest-form input[type="number"],
+.backtest-form input[type="date"] {
+  width: 100%;
+  padding: 8px 12px;
+  margin-top: 4px;
+  margin-bottom: 15px;
+  border-radius: 6px;
+  border: 1px solid #333;
+  background-color: #000;
+  color: #fff;
+  font-size: 1rem;
+}
+
+.backtest-form select option {
+  background-color: #000;
+  color: #fff;
+}
+
+/* Button styling */
+.backtest-form button {
+  padding: 10px 20px;
+  margin-right: 10px;
+  border: none;
+  border-radius: 8px;
+  background-color: #4caf50;
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.backtest-form button:hover {
+  background-color: #45a049;
+}
+
+/* Batch results / past backtests */
+.past-backtests {
+  background-color: #1e1e2f;
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.past-backtests table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #fff;
+}
+
+.past-backtests th,
+.past-backtests td {
+  padding: 12px;
+  border-bottom: 1px solid #333;
+  text-align: left;
+}
+
+.past-backtests th {
+  background-color: #272739;
+}
+
+.past-backtests tr:hover {
+  background-color: #33334d;
+}
+
+/* Error & Loading */
+.backtest-error {
+  color: #ff4d4d;
+  margin-bottom: 10px;
+}
+
+.backtest-loading {
+  color: #fff;
+  margin-bottom: 10px;
+}
