@@ -1,10 +1,10 @@
 // File: src/pages/Backtests.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
-import "./Backtests.css";
 
 export default function Backtests() {
   const { options, pastBacktests, loading, error, runNewBacktest } = useBacktest();
+
   const [strategy, setStrategy] = useState("");
   const [symbol, setSymbol] = useState("");
   const [timeframe, setTimeframe] = useState("");
@@ -13,12 +13,19 @@ export default function Backtests() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
+  useEffect(() => {
+    setTakeProfit(options.takeProfits[0]);
+    setStopLoss(options.stopLosses[0]);
+  }, [options]);
+
   const handleRun = async () => {
     if (!strategy || !symbol || !timeframe) return;
     try {
-      await runNewBacktest({ strategy, symbol, timeframe, startDate, endDate, tp: takeProfit, sl: stopLoss });
+      await runNewBacktest({ strategyId: strategy, symbol, timeframe, startDate, endDate, takeProfit, stopLoss });
       alert("Backtest completed!");
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return (
@@ -26,6 +33,7 @@ export default function Backtests() {
       <h2>Run Backtest</h2>
       {error && <div className="error">{error}</div>}
       <div className="backtest-form">
+        {/* strategy, symbol, timeframe, TP/SL dropdowns and dates */}
         <select value={strategy} onChange={e => setStrategy(e.target.value)}>
           <option value="">Select Strategy</option>
           {options.strategies.map(s => <option key={s} value={s}>{s}</option>)}
@@ -50,28 +58,26 @@ export default function Backtests() {
       </div>
 
       <h3>Past Backtests</h3>
-      {pastBacktests.results.length === 0 ? <p>No backtests yet.</p> : (
-        <table>
-          <thead>
-            <tr>
-              <th>Symbol</th><th>Strategy</th><th>Timeframe</th><th>Start</th><th>End</th><th>TP/SL</th><th>Profit</th>
+      <table>
+        <thead>
+          <tr>
+            <th>Symbol</th><th>Strategy</th><th>Timeframe</th><th>Start</th><th>End</th><th>TP/SL</th><th>Profit</th>
+          </tr>
+        </thead>
+        <tbody>
+          {pastBacktests.results.map(bt => (
+            <tr key={bt._id}>
+              <td>{bt.symbol}</td>
+              <td>{bt.strategyName}</td>
+              <td>{bt.timeframe}</td>
+              <td>{new Date(bt.startDate).toLocaleDateString()}</td>
+              <td>{new Date(bt.endDate).toLocaleDateString()}</td>
+              <td>{bt.tp}/{bt.sl}</td>
+              <td>{bt.metrics?.totalProfit ?? "-"}</td>
             </tr>
-          </thead>
-          <tbody>
-            {pastBacktests.results.map(bt => (
-              <tr key={bt._id}>
-                <td>{bt.symbol}</td>
-                <td>{bt.strategyName}</td>
-                <td>{bt.timeframe}</td>
-                <td>{new Date(bt.startDate).toLocaleDateString()}</td>
-                <td>{new Date(bt.endDate).toLocaleDateString()}</td>
-                <td>{bt.tp}/{bt.sl}</td>
-                <td>{bt.metrics?.totalProfit ?? "-"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
