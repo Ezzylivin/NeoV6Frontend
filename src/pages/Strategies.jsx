@@ -7,7 +7,6 @@ const initialStrategyState = {
   description: '',
   params: {
     strategyType: 'Moving Average Crossover',
-    // Default parameters for a Moving Average Crossover
     shortPeriod: 10,
     longPeriod: 50,
   },
@@ -27,7 +26,7 @@ const Strategies = () => {
         setAuthToken(token);
       }
       const response = await api.get("/strategy");
-      
+
       let data = response.data;
       if (data && Array.isArray(data.strategies)) {
         setStrategies(data.strategies);
@@ -211,23 +210,19 @@ const Strategies = () => {
   }
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '1000px', margin: 'auto' }}>
+    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '1000px', margin: 'auto', backgroundColor: '#fff', color: '#333' }}>
       <h1>My Trading Strategies</h1>
       <p style={{ fontSize: '16px', color: '#555' }}>
         Welcome! This is where you can define the trading rules that our system will use to find profitable opportunities in the market. You don't need to be an expert to get started. Just pick a strategy type and adjust its simple parameters.
       </p>
 
-      {/* ---------------------------------- */}
-      {/* SECTION 1: CREATE A NEW STRATEGY */}
-      {/* ---------------------------------- */}
       <div style={{ padding: '20px', border: '1px solid #ccc', borderRadius: '8px', marginBottom: '40px', backgroundColor: '#f9f9f9' }}>
         <h2>Step 1: Create a New Trading Strategy</h2>
-        <p style={{ fontStyle: 'italic', marginBottom: '20px' }}>
+        <p style={{ fontStyle: 'italic', marginBottom: '20px', color: '#555' }}>
           Think of a strategy as a set of rules for your backtest. You'll give it a name and a set of simple, powerful rules that tell it when to buy or sell.
         </p>
 
         <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
-          {/* Strategy Details */}
           <div>
             <h3>Give Your Strategy a Name</h3>
             <label>
@@ -258,11 +253,7 @@ const Strategies = () => {
                 A brief summary of what your strategy is designed to do. This is just for your own notes.
               </p>
             </label>
-          </div>
-
-          {/* Strategy Parameters */}
-          <div>
-            <h3>Choose Your Strategy Type and Rules</h3>
+            
             <label>
               Strategy Type:
               <select name="strategyType" value={newStrategy.params.strategyType} onChange={handleChange} style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}>
@@ -274,8 +265,10 @@ const Strategies = () => {
                 Pick one of the most popular trading rules. Each one uses a different mathematical tool to find buy and sell signals.
               </p>
             </label>
+          </div>
 
-            {/* Dynamically rendered parameters */}
+          <div>
+            <h3>Choose Your Strategy Type and Rules</h3>
             {renderStrategyParameters()}
           </div>
           <div style={{ gridColumn: 'span 2', textAlign: 'center', marginTop: '20px' }}>
@@ -284,12 +277,9 @@ const Strategies = () => {
         </form>
       </div>
 
-      {/* ---------------------------------- */}
-      {/* SECTION 2: VIEW & MANAGE STRATEGIES */}
-      {/* ---------------------------------- */}
       <div style={{ padding: '20px', border: '1px solid #ccc', borderRadius: '8px', backgroundColor: '#f9f9f9' }}>
         <h2>Step 2: My Saved Strategies</h2>
-        <p style={{ fontStyle: 'italic', marginBottom: '20px' }}>
+        <p style={{ fontStyle: 'italic', marginBottom: '20px', color: '#555' }}>
           Here are all the strategies you have saved. You can use these strategies to run a backtest on different assets and timeframes.
         </p>
 
