@@ -1,49 +1,175 @@
 /* File: src/styles/Backtests.css */
-.dashboard-dropdown {
-  background-color: #1e1e2f; /* same as dashboard chart background */
+
+/* --- Container --- */
+.dashboard-container {
+  padding: 20px;
+  background-color: #1b1b2b;
+  color: #ffffff;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* --- Headers --- */
+.header {
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+.card-title {
+  font-size: 20px;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.card-value {
+  font-size: 16px;
+  margin-bottom: 5px;
+}
+
+.chart-header {
+  font-size: 20px;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+/* --- Forms --- */
+.backtest-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.metric-card {
+  background-color: #1e1e2f;
+  padding: 15px;
+  border-radius: 8px;
+  flex: 1 1 300px;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 15px;
+}
+
+.metric-card label {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.metric-card input[type="text"],
+.metric-card input[type="date"],
+.metric-card select {
+  background-color: #1e1e2f;
   color: #ffffff;
   border: 1px solid #444;
   padding: 6px 10px;
-  margin: 5px;
   border-radius: 6px;
+  margin-top: 5px;
+  font-size: 14px;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
 }
-.backtest-form input[type="date"] {
+
+/* Dropdown option colors */
+.metric-card select option {
   background-color: #1e1e2f;
-  color: #fff;
-  border: 1px solid #444;
-  padding: 6px 10px;
-  border-radius: 6px;
-  margin: 5px;
+  color: #ffffff;
 }
+
+/* Focus and hover for inputs/selects */
+.metric-card input:focus,
+.metric-card select:focus {
+  border-color: #4f46e5;
+  outline: none;
+}
+
+/* --- Buttons --- */
 button {
   background-color: #4f46e5;
-  color: white;
+  color: #ffffff;
   border: none;
   padding: 8px 15px;
   border-radius: 6px;
   cursor: pointer;
+  font-size: 14px;
+  margin-top: 5px;
+  transition: background 0.2s;
 }
+
+button:hover:not(:disabled) {
+  background-color: #6366f1;
+}
+
 button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* --- Error banner --- */
+.error-banner {
+  background-color: #b91c1c;
+  color: #fff;
+  padding: 10px 15px;
+  border-radius: 6px;
+  margin-bottom: 15px;
+}
+
+/* --- Charts --- */
+.chart-container {
+  background-color: #1e1e2f;
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+
+/* --- Tables --- */
 table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 15px;
-  color: #fff;
+  color: #ffffff;
 }
+
 th, td {
   border: 1px solid #444;
   padding: 8px;
   text-align: center;
+  font-size: 14px;
 }
+
 th {
   background-color: #2d2d3d;
 }
+
 tr:nth-child(even) {
   background-color: #1f1f2a;
 }
+
 tr:hover {
   background-color: #2a2a3b;
+}
+
+/* --- Responsive container for charts --- */
+.responsive-container {
+  width: 100%;
+  height: 400px;
+}
+
+/* --- Dropdowns specifically for dashboard consistency --- */
+.dashboard-dropdown {
+  background-color: #1e1e2f;
+  color: #ffffff;
+  border: 1px solid #444;
+  padding: 6px 10px;
+  margin: 5px 0;
+  border-radius: 6px;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+.dashboard-dropdown option {
+  background-color: #1e1e2f;
+  color: #ffffff;
 }
