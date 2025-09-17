@@ -126,7 +126,7 @@ const Strategies = () => {
                 value={newStrategy.params.shortPeriod}
                 onChange={handleChange}
                 required
-                style={{ backgroundColor: '#444', color: '#eee', border: '1px solid #555' }}
+                style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
               />
               <p style={{ fontSize: '12px', color: '#aaa' }}>
                 This is the **"fast"** moving average. It looks at the last **{newStrategy.params.shortPeriod}** days (or hours, depending on your timeframe). A smaller number means it reacts faster to new price changes, but can also give false alarms.
@@ -140,7 +140,7 @@ const Strategies = () => {
                 value={newStrategy.params.longPeriod}
                 onChange={handleChange}
                 required
-                style={{ backgroundColor: '#444', color: '#eee', border: '1px solid #555' }}
+                style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
               />
               <p style={{ fontSize: '12px', color: '#aaa' }}>
                 This is the **"slow"** moving average. It looks at the last **{newStrategy.params.longPeriod}** days. This line is much smoother and shows the overall, long-term trend.
@@ -162,7 +162,7 @@ const Strategies = () => {
                 value={newStrategy.params.rsiPeriod}
                 onChange={handleChange}
                 required
-                style={{ backgroundColor: '#444', color: '#eee', border: '1px solid #555' }}
+                style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
               />
               <p style={{ fontSize: '12px', color: '#aaa' }}>
                 The **RSI (Relative Strength Index)** is a number that tells you if an asset has been bought or sold too much. This number is based on its price movements over the last **{newStrategy.params.rsiPeriod}** days. The common rule is to look to **buy** when the RSI is very low (below 30) and **sell** when it is very high (above 70).
@@ -181,7 +181,7 @@ const Strategies = () => {
                 value={newStrategy.params.period}
                 onChange={handleChange}
                 required
-                style={{ backgroundColor: '#444', color: '#eee', border: '1px solid #555' }}
+                style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
               />
               <p style={{ fontSize: '12px', color: '#aaa' }}>
                 This sets the length for the central line of the Bollinger Bands, which is an average of the last **{newStrategy.params.period}** days. This line shows the average price.
@@ -195,7 +195,7 @@ const Strategies = () => {
                 value={newStrategy.params.numStdDev}
                 onChange={handleChange}
                 required
-                style={{ backgroundColor: '#444', color: '#eee', border: '1px solid #555' }}
+                style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
               />
               <p style={{ fontSize: '12px', color: '#aaa' }}>
                 This number sets how wide the bands are. A bigger number makes the bands wider, meaning the price has to move more to reach them. The bands tell you if the price is unusually high or low. The general rule is to **buy** when the price touches the lower band and **sell** when it touches the upper band.
@@ -217,13 +217,13 @@ const Strategies = () => {
   }
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '1000px', margin: 'auto', backgroundColor: '#1e1e1e', color: '#eee' }}>
+    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '1000px', margin: 'auto', backgroundColor: '#121e2c', color: '#eee' }}>
       <h1>My Trading Strategies</h1>
       <p style={{ fontSize: '16px', color: '#aaa' }}>
         Welcome! This is where you can define the trading rules that our system will use to find profitable opportunities in the market. You don't need to be an expert to get started. Just pick a strategy type and adjust its simple parameters.
       </p>
 
-      <div style={{ padding: '20px', border: '1px solid #555', borderRadius: '8px', marginBottom: '40px', backgroundColor: '#2a2a2a' }}>
+      <div style={{ padding: '20px', border: '1px solid #3e4e60', borderRadius: '8px', marginBottom: '40px', backgroundColor: '#1e2b3c' }}>
         <h2>Step 1: Create a New Trading Strategy</h2>
         <p style={{ fontStyle: 'italic', marginBottom: '20px', color: '#aaa' }}>
           Think of a strategy as a set of rules for your backtest. You'll give it a name and a set of simple, powerful rules that tell it when to buy or sell.
@@ -241,7 +241,7 @@ const Strategies = () => {
                 onChange={handleChange}
                 required
                 placeholder="e.g., The MACD Power Play"
-                style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: '#444', color: '#eee', border: '1px solid #555' }}
+                style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
               />
               <p style={{ fontSize: '12px', color: '#aaa', marginTop: '5px' }}>
                 Choose a unique and memorable name for your strategy. This helps you find it later.
@@ -254,7 +254,7 @@ const Strategies = () => {
                 value={newStrategy.description}
                 onChange={handleChange}
                 placeholder="e.g., This strategy looks for trends using MACD."
-                style={{ width: '100%', minHeight: '80px', padding: '8px', boxSizing: 'border-box', backgroundColor: '#444', color: '#eee', border: '1px solid #555' }}
+                style={{ width: '100%', minHeight: '80px', padding: '8px', boxSizing: 'border-box', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
               />
               <p style={{ fontSize: '12px', color: '#aaa', marginTop: '5px' }}>
                 A brief summary of what your strategy is designed to do. This is just for your own notes.
@@ -263,7 +263,7 @@ const Strategies = () => {
             
             <label>
               Strategy Type:
-              <select name="strategyType" value={newStrategy.params.strategyType} onChange={handleChange} style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: '#444', color: '#eee', border: '1px solid #555' }}>
+              <select name="strategyType" value={newStrategy.params.strategyType} onChange={handleChange} style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}>
                 <option value="Moving Average Crossover">Moving Average Crossover</option>
                 <option value="RSI">Relative Strength Index (RSI)</option>
                 <option value="Bollinger Bands">Bollinger Bands</option>
@@ -284,7 +284,7 @@ const Strategies = () => {
         </form>
       </div>
 
-      <div style={{ padding: '20px', border: '1px solid #555', borderRadius: '8px', backgroundColor: '#2a2a2a' }}>
+      <div style={{ padding: '20px', border: '1px solid #3e4e60', borderRadius: '8px', backgroundColor: '#1e2b3c' }}>
         <h2>Step 2: My Saved Strategies</h2>
         <p style={{ fontStyle: 'italic', marginBottom: '20px', color: '#aaa' }}>
           Here are all the strategies you have saved. You can use these strategies to run a backtest on different assets and timeframes.
