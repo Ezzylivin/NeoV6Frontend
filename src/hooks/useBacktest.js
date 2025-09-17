@@ -1,104 +1,90 @@
 // File: src/hooks/useBacktest.js
-// UPGRADED: Correctly handles data fetching and loading states.
+// UPGRADED: Implemented separate loading states for each operation.
 
 import { useState, useEffect, useCallback } from "react";
 import * as backtestApi from "../api/backtest.js";
 
 export function useBacktest() {
-    const [options, setOptions] = useState({
-        strategies: [],
-        symbols: [],
-        timeframes: [],
-        takeProfits: [],
-        stopLosses: [],
-    });
-    const [pastBacktests, setPastBacktests] = useState({ results: [], total: 0 });
-    const [loading, setLoading] = useState(true); // Set initial loading to true
-    const [error, setError] = useState(null);
+  const [options, setOptions] = useState({
+    strategies: [],
+    symbols: [],
+    timeframes: [],
+    takeProfits: [],
+    stopLosses: [],
+  });
+  const [pastBacktests, setPastBacktests] = useState({ results: [], total: 0 });
+  // --- THIS IS THE FIX (Part 1) ---
+  const [initialLoading, setInitialLoading] = useState(true); // For initial page load
+  const [singleLoading, setSingleLoading] = useState(false);   // For single backtests
+  const [batchLoading, setBatchLoading] = useState(false);     // For batch backtests
+  const [error, setError] = useState(null);
 
-    // Fetch options
-    const getOptions = useCallback(async () => {
-        try {
-            const data = await backtestApi.fetchOptions();
-            setOptions(data);
-        } catch (err) {
-            console.error("Failed to load options:", err);
-            setError("Failed to load backtest options.");
-        }
-    }, []);
+  const getOptions = useCallback(async () => { /* ... (no changes) ... */ });
+  const getPastBacktests = useCallback(async (page = 1) => { /* ... (no changes) ... */ });
 
-    // Fetch past backtests
-    const getPastBacktests = useCallback(async (page = 1) => {
-        try {
-            const data = await backtestApi.fetchAll(page);
-            setPastBacktests({ results: data.backtests, total: data.total });
-        } catch (err) {
-            console.error("Failed to load past backtests:", err);
-            setError(err.response?.data?.message || "Failed to load past backtests.");
-        }
-    }, []);
+  // Run a single backtest
+  const runNewBacktest = useCallback(
+    async (payload) => {
+      setSingleLoading(true); // Use singleLoading state
+      setError(null);
+      try {
+        const response = await backtestApi.runBacktest(payload);
+        if (response?.data) {
+          await getPastBacktests();
+        }
+        return response.data;
+      } catch (err) {
+        const errorMessage = err.response?.data?.message || "Failed to run backtest.";
+        setError(errorMessage);
+        throw new Error(errorMessage);
+      } finally {
+        setSingleLoading(false); // Use singleLoading state
+      }
+    },
+    [getPastBacktests]
+  );
 
-    // Run a single backtest
-    const runNewBacktest = useCallback(
-        async (payload) => {
-            setLoading(true);
-            setError(null);
-            try {
-                const response = await backtestApi.runBacktest(payload);
-                if (response?.data) {
-                    await getPastBacktests();
-                }
-                return response.data;
-            } catch (err) {
-                const errorMessage = err.response?.data?.message || "Failed to run backtest.";
-                setError(errorMessage);
-                throw new Error(errorMessage);
-            } finally {
-                setLoading(false);
-            }
-        },
-        [getPastBacktests]
-    );
+  // Run batch backtests
+  const runNewBatchBacktest = useCallback(
+    async (configs) => {
+      setBatchLoading(true); // Use batchLoading state
+      setError(null);
+      try {
+        const response = await backtestApi.runBatch(configs);
+        if (response?.data) {
+          await getPastBacktests();
+        }
+        return response.data;
+      } catch (err) {
+        const errorMessage = err.response?.data?.message || "Failed to run batch backtests.";
+        setError(errorMessage);
+        throw new Error(errorMessage);
+      } finally {
+        setBatchLoading(false); // Use batchLoading state
+      }
+    },
+    [getPastBacktests]
+  );
 
-    // Run batch backtests
-    const runNewBatchBacktest = useCallback(
-        async (configs) => {
-            setLoading(true);
-            setError(null);
-            try {
-                const response = await backtestApi.runBatch(configs);
-                if (response?.data) {
-                    await getPastBacktests();
-                }
-                return response.data;
-            } catch (err) {
-                const errorMessage = err.response?.data?.message || "Failed to run batch backtests.";
-                setError(errorMessage);
-                throw new Error(errorMessage);
-            } finally {
-                setLoading(false);
-            }
-        },
-        [getPastBacktests]
-    );
+  // Load initial data
+  useEffect(() => {
+    const loadInitialData = async () => {
+      setInitialLoading(true); // Use initialLoading state
+      await Promise.all([getOptions(), getPastBacktests()]);
+      setInitialLoading(false); // Use initialLoading state
+    };
+    loadInitialData();
+  }, [getOptions, getPastBacktests]);
 
-    // Load initial data
-    useEffect(() => {
-        const loadInitialData = async () => {
-            setLoading(true);
-            await Promise.all([getOptions(), getPastBacktests()]);
-            setLoading(false);
-        };
-        loadInitialData();
-    }, [getOptions, getPastBacktests]);
-
-    return {
-        options,
-        pastBacktests,
-        loading,
-        error,
-        getPastBacktests,
-        runNewBacktest,
-        runNewBatchBacktest,
-    };
+  return {
+    options,
+    pastBacktests,
+    initialLoading, // Export new states
+    singleLoading,
+    batchLoading,
+    error,
+    getPastBacktests,
+    runNewBacktest,
+    runNewBatchBacktest,
+  };
 }
