@@ -27,7 +27,7 @@ export default function Backtests() {
 
   // --- Form state ---
   const [formData, setFormData] = useState({
-    strategyCode: "",
+    code: "",
     symbol: "BTC/USD",
     timeframe: "1d",
     startDate: "2024-01-01",
@@ -41,10 +41,10 @@ export default function Backtests() {
 
   // --- Auto-select first available strategy once options load ---
   useEffect(() => {
-    if (options.strategies?.length > 0 && !formData.strategyCode) {
+    if (options.strategies?.length > 0 && !formData.code) {
       setFormData((prev) => ({
         ...prev,
-        strategyCode: options.strategies[0].code, // FIX: use strategyCode instead of _id
+        code: options.strategies[0].code, // FIX: use strategyCode instead of _id
       }));
     }
   }, [options.strategies]);
@@ -114,7 +114,7 @@ export default function Backtests() {
             Strategy
             <select
               name="strategyCode"
-              value={formData.strategyCode}
+              value={formData.code}
               onChange={handleChange}
               required
             >
