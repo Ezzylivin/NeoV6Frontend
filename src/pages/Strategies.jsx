@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import api, { setAuthToken } from '../api/apiClient.js';
 
-// Define a default state for the new strategy form
+// Define the initial state for a new strategy, including its parameters
 const initialStrategyState = {
   name: '',
   description: '',
   params: {
     strategyType: 'Moving Average Crossover',
-    symbol: 'AAPL',
-    timeframe: '1d',
-    initialBalance: 1000,
-    takeProfit: 5,
-    stopLoss: 2,
+    // Default parameters for a Moving Average Crossover
+    shortPeriod: 10,
+    longPeriod: 50,
   },
 };
 
@@ -29,7 +27,7 @@ const Strategies = () => {
         setAuthToken(token);
       }
       const response = await api.get("/strategy");
-
+      
       let data = response.data;
       if (data && Array.isArray(data.strategies)) {
         setStrategies(data.strategies);
@@ -52,15 +50,29 @@ const Strategies = () => {
   // Function to handle changes in the creation form
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Check if the parameter is nested within 'params'
     if (name in newStrategy.params) {
-      setNewStrategy({
-        ...newStrategy,
-        params: {
-          ...newStrategy.params,
-          [name]: value,
-        },
-      });
+      if (name === 'strategyType') {
+        const resetParams = {
+          'Moving Average Crossover': { shortPeriod: 10, longPeriod: 50 },
+          'RSI': { rsiPeriod: 14 },
+          'Bollinger Bands': { period: 20, numStdDev: 2 },
+        };
+        setNewStrategy({
+          ...newStrategy,
+          params: {
+            strategyType: value,
+            ...resetParams[value],
+          },
+        });
+      } else {
+        setNewStrategy({
+          ...newStrategy,
+          params: {
+            ...newStrategy.params,
+            [name]: value,
+          },
+        });
+      }
     } else {
       setNewStrategy({
         ...newStrategy,
@@ -73,11 +85,8 @@ const Strategies = () => {
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      // Send a POST request to create the new strategy
       const response = await api.post("/strategy", newStrategy);
       const createdStrategy = response.data;
-
-      // Add the new strategy to the list and reset the form
       setStrategies([...strategies, createdStrategy]);
       setNewStrategy(initialStrategyState);
       console.log("Strategy created successfully:", createdStrategy);
@@ -101,6 +110,97 @@ const Strategies = () => {
       console.error("Failed to delete strategy:", e);
     }
   };
+  
+  // A helper function to render dynamic parameters based on the strategy type
+  const renderStrategyParameters = () => {
+    switch (newStrategy.params.strategyType) {
+      case 'Moving Average Crossover':
+        return (
+          <>
+            <label>
+              Short Period:
+              <input
+                type="number"
+                name="shortPeriod"
+                value={newStrategy.params.shortPeriod}
+                onChange={handleChange}
+                required
+              />
+              <p style={{ fontSize: '12px', color: '#666' }}>
+                This is the **"fast"** moving average. It looks at the last **{newStrategy.params.shortPeriod}** days (or hours, depending on your timeframe). A smaller number means it reacts faster to new price changes, but can also give false alarms.
+              </p>
+            </label>
+            <label>
+              Long Period:
+              <input
+                type="number"
+                name="longPeriod"
+                value={newStrategy.params.longPeriod}
+                onChange={handleChange}
+                required
+              />
+              <p style={{ fontSize: '12px', color: '#666' }}>
+                This is the **"slow"** moving average. It looks at the last **{newStrategy.params.longPeriod}** days. This line is much smoother and shows the overall, long-term trend.
+              </p>
+            </label>
+            <p style={{ marginTop: '10px', fontStyle: 'italic', fontSize: '14px' }}>
+              **The rule:** The strategy will look to **buy** when the fast line crosses **above** the slow line, and **sell** when the fast line crosses **below** the slow line.
+            </p>
+          </>
+        );
+      case 'RSI':
+        return (
+          <>
+            <label>
+              RSI Period:
+              <input
+                type="number"
+                name="rsiPeriod"
+                value={newStrategy.params.rsiPeriod}
+                onChange={handleChange}
+                required
+              />
+              <p style={{ fontSize: '12px', color: '#666' }}>
+                The **RSI (Relative Strength Index)** is a number that tells you if an asset has been bought or sold too much. This number is based on its price movements over the last **{newStrategy.params.rsiPeriod}** days. The common rule is to look to **buy** when the RSI is very low (below 30) and **sell** when it is very high (above 70).
+              </p>
+            </label>
+          </>
+        );
+      case 'Bollinger Bands':
+        return (
+          <>
+            <label>
+              Period:
+              <input
+                type="number"
+                name="period"
+                value={newStrategy.params.period}
+                onChange={handleChange}
+                required
+              />
+              <p style={{ fontSize: '12px', color: '#666' }}>
+                This sets the length for the central line of the Bollinger Bands, which is an average of the last **{newStrategy.params.period}** days. This line shows the average price.
+              </p>
+            </label>
+            <label>
+              Standard Deviations:
+              <input
+                type="number"
+                name="numStdDev"
+                value={newStrategy.params.numStdDev}
+                onChange={handleChange}
+                required
+              />
+              <p style={{ fontSize: '12px', color: '#666' }}>
+                This number sets how wide the bands are. A bigger number makes the bands wider, meaning the price has to move more to reach them. The bands tell you if the price is unusually high or low. The general rule is to **buy** when the price touches the lower band and **sell** when it touches the upper band.
+              </p>
+            </label>
+          </>
+        );
+      default:
+        return null;
+    }
+  };
 
   if (isLoading) {
     return <div>Loading strategies...</div>;
@@ -111,21 +211,25 @@ const Strategies = () => {
   }
 
   return (
-    <div>
+    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '1000px', margin: 'auto' }}>
+      <h1>My Trading Strategies</h1>
+      <p style={{ fontSize: '16px', color: '#555' }}>
+        Welcome! This is where you can define the trading rules that our system will use to find profitable opportunities in the market. You don't need to be an expert to get started. Just pick a strategy type and adjust its simple parameters.
+      </p>
+
       {/* ---------------------------------- */}
       {/* SECTION 1: CREATE A NEW STRATEGY */}
       {/* ---------------------------------- */}
-      <div style={{ padding: '20px', border: '1px solid #ccc', borderRadius: '8px', marginBottom: '20px' }}>
-        <h2>Create a New Trading Strategy</h2>
+      <div style={{ padding: '20px', border: '1px solid #ccc', borderRadius: '8px', marginBottom: '40px', backgroundColor: '#f9f9f9' }}>
+        <h2>Step 1: Create a New Trading Strategy</h2>
         <p style={{ fontStyle: 'italic', marginBottom: '20px' }}>
-          This is where you'll define a new trading strategy. Think of a strategy as a set of rules for your backtest.
-          You can create simple rules, like "buy when a fast moving average crosses a slow one."
+          Think of a strategy as a set of rules for your backtest. You'll give it a name and a set of simple, powerful rules that tell it when to buy or sell.
         </p>
 
-        <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+        <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
           {/* Strategy Details */}
           <div>
-            <h3>Strategy Details</h3>
+            <h3>Give Your Strategy a Name</h3>
             <label>
               Strategy Name:
               <input
@@ -134,10 +238,11 @@ const Strategies = () => {
                 value={newStrategy.name}
                 onChange={handleChange}
                 required
-                placeholder="e.g., MACD Crossover"
+                placeholder="e.g., The MACD Power Play"
+                style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
               />
-              <p style={{ fontSize: '12px', color: '#666' }}>
-                A unique and descriptive name for your strategy.
+              <p style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+                Choose a unique and memorable name for your strategy. This helps you find it later.
               </p>
             </label>
             <label>
@@ -146,93 +251,35 @@ const Strategies = () => {
                 name="description"
                 value={newStrategy.description}
                 onChange={handleChange}
-                placeholder="e.g., A simple strategy to test the MACD indicator."
+                placeholder="e.g., This strategy looks for trends using MACD."
+                style={{ width: '100%', minHeight: '80px', padding: '8px', boxSizing: 'border-box' }}
               />
-              <p style={{ fontSize: '12px', color: '#666' }}>
-                A brief summary of what your strategy does.
+              <p style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+                A brief summary of what your strategy is designed to do. This is just for your own notes.
               </p>
             </label>
           </div>
 
           {/* Strategy Parameters */}
           <div>
-            <h3>Strategy Parameters</h3>
+            <h3>Choose Your Strategy Type and Rules</h3>
             <label>
               Strategy Type:
-              <select name="strategyType" value={newStrategy.params.strategyType} onChange={handleChange}>
+              <select name="strategyType" value={newStrategy.params.strategyType} onChange={handleChange} style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}>
                 <option value="Moving Average Crossover">Moving Average Crossover</option>
-                {/* Add other strategy types here */}
+                <option value="RSI">Relative Strength Index (RSI)</option>
+                <option value="Bollinger Bands">Bollinger Bands</option>
               </select>
-              <p style={{ fontSize: '12px', color: '#666' }}>
-                The core logic of your strategy. A Moving Average Crossover generates buy/sell signals when two moving averages cross each other.
+              <p style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+                Pick one of the most popular trading rules. Each one uses a different mathematical tool to find buy and sell signals.
               </p>
             </label>
-            <label>
-              Symbol:
-              <input
-                type="text"
-                name="symbol"
-                value={newStrategy.params.symbol}
-                onChange={handleChange}
-                required
-                placeholder="e.g., AAPL, BTC/USD"
-              />
-              <p style={{ fontSize: '12px', color: '#666' }}>
-                The asset you want to backtest your strategy on.
-              </p>
-            </label>
-            <label>
-              Timeframe:
-              <select name="timeframe" value={newStrategy.params.timeframe} onChange={handleChange}>
-                <option value="1d">1 Day</option>
-                <option value="4h">4 Hours</option>
-                <option value="1h">1 Hour</option>
-                <option value="15m">15 Minutes</option>
-              </select>
-              <p style={{ fontSize: '12px', color: '#666' }}>
-                The length of each candlestick (data point) on your chart.
-              </p>
-            </label>
-            <label>
-              Initial Balance:
-              <input
-                type="number"
-                name="initialBalance"
-                value={newStrategy.params.initialBalance}
-                onChange={handleChange}
-                required
-              />
-              <p style={{ fontSize: '12px', color: '#666' }}>
-                The starting amount of money for your backtest.
-              </p>
-            </label>
-            <label>
-              Take Profit (%):
-              <input
-                type="number"
-                name="takeProfit"
-                value={newStrategy.params.takeProfit}
-                onChange={handleChange}
-              />
-              <p style={{ fontSize: '12px', color: '#666' }}>
-                Automatically close a winning trade once it hits this percentage gain.
-              </p>
-            </label>
-            <label>
-              Stop Loss (%):
-              <input
-                type="number"
-                name="stopLoss"
-                value={newStrategy.params.stopLoss}
-                onChange={handleChange}
-              />
-              <p style={{ fontSize: '12px', color: '#666' }}>
-                Automatically close a losing trade once it hits this percentage loss.
-              </p>
-            </label>
+
+            {/* Dynamically rendered parameters */}
+            {renderStrategyParameters()}
           </div>
-          <div style={{ gridColumn: 'span 2', textAlign: 'center' }}>
-            <button type="submit" style={{ padding: '10px 20px' }}>Create Strategy</button>
+          <div style={{ gridColumn: 'span 2', textAlign: 'center', marginTop: '20px' }}>
+            <button type="submit" style={{ padding: '12px 24px', fontSize: '16px', fontWeight: 'bold' }}>Create Strategy</button>
           </div>
         </form>
       </div>
@@ -240,19 +287,31 @@ const Strategies = () => {
       {/* ---------------------------------- */}
       {/* SECTION 2: VIEW & MANAGE STRATEGIES */}
       {/* ---------------------------------- */}
-      <div style={{ padding: '20px', border: '1px solid #ccc', borderRadius: '8px' }}>
-        <h2>My Existing Strategies</h2>
+      <div style={{ padding: '20px', border: '1px solid #ccc', borderRadius: '8px', backgroundColor: '#f9f9f9' }}>
+        <h2>Step 2: My Saved Strategies</h2>
+        <p style={{ fontStyle: 'italic', marginBottom: '20px' }}>
+          Here are all the strategies you have saved. You can use these strategies to run a backtest on different assets and timeframes.
+        </p>
+
         {strategies.length > 0 ? (
           <ul style={{ listStyle: 'none', padding: 0 }}>
             {strategies.map((strategy) => (
-              <li key={strategy._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', borderBottom: '1px solid #eee' }}>
-                <span>{strategy.name || "Unnamed Strategy"}</span>
-                <button onClick={() => handleDelete(strategy._id)}>Delete</button>
+              <li key={strategy._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', borderBottom: '1px solid #eee' }}>
+                <span>
+                  <strong>{strategy.name || "Unnamed Strategy"}</strong>
+                  <br />
+                  <span style={{ fontSize: '12px', color: '#888' }}>
+                    Type: {strategy.params.strategyType}
+                  </span>
+                </span>
+                <button onClick={() => handleDelete(strategy._id)} style={{ padding: '8px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Delete</button>
               </li>
             ))}
           </ul>
         ) : (
-          <div>No strategies found. Start by creating one above!</div>
+          <div>
+            <p>You haven't created any strategies yet. Get started by using the form above!</p>
+          </div>
         )}
       </div>
     </div>
