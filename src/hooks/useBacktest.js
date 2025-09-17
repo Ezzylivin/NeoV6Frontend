@@ -1,5 +1,5 @@
 // File: src/hooks/useBacktest.js
-// UPGRADED: Correctly handles data fetching and loading states.
+// UPGRADED: Handles single + batch backtests, loading, errors, and metrics properly.
 
 import { useState, useEffect, useCallback } from "react";
 import * as backtestApi from "../api/backtest.js";
@@ -13,7 +13,7 @@ export function useBacktest() {
         stopLosses: [],
     });
     const [pastBacktests, setPastBacktests] = useState({ results: [], total: 0 });
-    const [loading, setLoading] = useState(true); // Set initial loading to true
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     // Fetch options
@@ -38,16 +38,14 @@ export function useBacktest() {
         }
     }, []);
 
-    // Run a single backtest
+    // Run single backtest (simulateOnly default true)
     const runNewBacktest = useCallback(
-        async (payload) => {
+        async (payload, simulateOnly = true) => {
             setLoading(true);
             setError(null);
             try {
-                const response = await backtestApi.runBacktest(payload);
-                if (response?.data) {
-                    await getPastBacktests();
-                }
+                const response = await backtestApi.runBacktest({ ...payload, simulateOnly });
+                if (!simulateOnly) await getPastBacktests();
                 return response.data;
             } catch (err) {
                 const errorMessage = err.response?.data?.message || "Failed to run backtest.";
@@ -67,9 +65,7 @@ export function useBacktest() {
             setError(null);
             try {
                 const response = await backtestApi.runBatch(configs);
-                if (response?.data) {
-                    await getPastBacktests();
-                }
+                if (response?.data) await getPastBacktests();
                 return response.data;
             } catch (err) {
                 const errorMessage = err.response?.data?.message || "Failed to run batch backtests.";
@@ -82,7 +78,7 @@ export function useBacktest() {
         [getPastBacktests]
     );
 
-    // Load initial data
+    // Initial load
     useEffect(() => {
         const loadInitialData = async () => {
             setLoading(true);
