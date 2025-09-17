@@ -17,16 +17,12 @@ export function useBacktest() {
   const [batchLoading, setBatchLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Doc: Fetches the strategies, symbols, and timeframes from the back end.
+  // Fetch backtest options
   const getOptions = useCallback(async () => {
     setError(null);
     try {
-      // FIX: Directly use the returned data from the API function.
       const fetchedOptions = await backtestApi.fetchOptions();
-      
-      // FIX: Directly set the state.
       setOptions(fetchedOptions);
-      
     } catch (err) {
       const errorMessage = err.response?.data?.message || "Failed to fetch options.";
       setError(errorMessage);
@@ -34,24 +30,33 @@ export function useBacktest() {
     }
   }, []);
 
-  // Doc: Fetches a list of past backtest results.
-    const getPastBacktests = useCallback(async (page = 1) => {
-        try {
-            const data = await backtestApi.fetchAll(page);
-            setPastBacktests({ results: data.backtests, total: data.total });
-        } catch (err) {
-            console.error("Failed to load past backtests:", err);
-            setError(err.response?.data?.message || "Failed to load past backtests.");
-        }
-    }, []);
+  // Fetch past backtests
+  const getPastBacktests = useCallback(async (page = 1) => {
+    try {
+      const data = await backtestApi.fetchAll(page);
+      setPastBacktests({ results: data.backtests, total: data.total });
+    } catch (err) {
+      console.error("Failed to load past backtests:", err);
+      setError(err.response?.data?.message || "Failed to load past backtests.");
+    }
+  }, []);
 
   // Run a single backtest
   const runNewBacktest = useCallback(
-    async (payload) => {
+    async ({ symbol, timeframe, strategyCode, startDate, endDate, takeProfit, stopLoss }) => {
       setSingleLoading(true);
       setError(null);
       try {
-        const response = await backtestApi.runBacktest(payload);
+        // FIX: Pass strategyCode instead of strategyId
+        const response = await backtestApi.runBacktest({
+          symbol,
+          timeframe,
+          strategyCode,
+          startDate,
+          endDate,
+          takeProfit,
+          stopLoss,
+        });
         if (response?.data) {
           await getPastBacktests();
         }
@@ -73,7 +78,12 @@ export function useBacktest() {
       setBatchLoading(true);
       setError(null);
       try {
-        const response = await backtestApi.runBatch(configs);
+        // FIX: Ensure configs use strategyCode
+        const formattedConfigs = configs.map(cfg => ({
+          ...cfg,
+          strategyCode: cfg.strategyCode,
+        }));
+        const response = await backtestApi.runBatch(formattedConfigs);
         if (response?.data) {
           await getPastBacktests();
         }
@@ -93,7 +103,6 @@ export function useBacktest() {
   useEffect(() => {
     const loadInitialData = async () => {
       setInitialLoading(true);
-      // Run both fetch calls in parallel for better performance
       await Promise.all([getOptions(), getPastBacktests()]);
       setInitialLoading(false);
     };
