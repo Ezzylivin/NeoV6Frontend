@@ -46,9 +46,9 @@ export async function fetchAll(page = 1) {
 
 export async function runBacktest(payload) {
   // FIX: Payload must include strategyCode
-  if (!payload.strategyCode) {
-    console.error("runBacktest(): Missing strategyCode in payload", payload);
-    throw new Error("strategyCode is required for backtest");
+  if (!payload.code) {
+    console.error("runBacktest(): Missing strategy 'code' in payload", payload);
+    throw new Error("strategy 'code' is required for backtest");
   }
   const response = await api.post("/backtest/run", payload);
   return response;
@@ -57,9 +57,9 @@ export async function runBacktest(payload) {
 export async function runBatch(configs) {
   // FIX: Ensure each config has a strategyCode
   const sanitizedConfigs = configs.map((cfg) => {
-    if (!cfg.strategyCode) {
-      console.error("runBatch(): Missing strategyCode in config", cfg);
-      throw new Error("strategyCode is required for batch backtest");
+    if (!cfg.code) {
+      console.error("runBatch(): Missing 'code' in config", cfg);
+      throw new Error("strategy 'code' is required for batch backtest");
     }
     return cfg;
   });
