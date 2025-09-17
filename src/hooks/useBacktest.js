@@ -20,7 +20,7 @@ export function useBacktest() {
     setError(null);
     try {
       // Step 1: Make the API call to get the options data.
-      const response = await backtestApi.getOptions();
+      const response = await backtestApi.fetchOptions();
 
       // Step 2: Check if the response is valid before setting state.
       if (response?.data) {
