@@ -28,8 +28,6 @@ const Strategies = () => {
       const response = await api.get("/strategy");
 
       let data = response.data;
-      
-      // FIX: Correctly access the nested 'strategies' array from the API response
       if (data && Array.isArray(data.strategies)) {
         setStrategies(data.strategies);
       } else {
@@ -57,6 +55,13 @@ const Strategies = () => {
           'Moving Average Crossover': { shortPeriod: 10, longPeriod: 50 },
           'RSI': { rsiPeriod: 14 },
           'Bollinger Bands': { period: 20, numStdDev: 2 },
+          'Stochastic Oscillator': { kPeriod: 14, dPeriod: 3 },
+          'MACD': { fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 },
+          'Parabolic SAR': { accelerationFactorStart: 0.02, accelerationFactorIncrement: 0.02, accelerationFactorMaximum: 0.2 },
+          'On-Balance Volume': { obvPeriod: 10 },
+          'CCI': { cciPeriod: 20 },
+          'ATR': { atrPeriod: 14 },
+          'Ichimoku Cloud': { conversionLinePeriod: 9, baseLinePeriod: 26, laggingSpanPeriod: 26, cloudSpanPeriod: 52 },
         };
         setNewStrategy({
           ...newStrategy,
@@ -201,6 +206,278 @@ const Strategies = () => {
                 This number sets how wide the bands are. A bigger number makes the bands wider, meaning the price has to move more to reach them. The bands tell you if the price is unusually high or low. The general rule is to **buy** when the price touches the lower band and **sell** when it touches the upper band.
               </p>
             </label>
+            <p style={{ marginTop: '10px', fontStyle: 'italic', fontSize: '14px', color: '#ddd' }}>
+              **The rule:** This strategy looks for the price to touch the edges of the bands to identify overbought or oversold conditions.
+            </p>
+          </>
+        );
+      case 'Stochastic Oscillator':
+        return (
+          <>
+            <label>
+              %K Period:
+              <input
+                type="number"
+                name="kPeriod"
+                value={newStrategy.params.kPeriod}
+                onChange={handleChange}
+                required
+                style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
+              />
+              <p style={{ fontSize: '12px', color: '#aaa' }}>
+                The **Stochastic Oscillator** measures an asset's momentum and speed. The **%K period** compares a closing price to its price range over the last **{newStrategy.params.kPeriod}** days.
+              </p>
+            </label>
+            <label>
+              %D Period:
+              <input
+                type="number"
+                name="dPeriod"
+                value={newStrategy.params.dPeriod}
+                onChange={handleChange}
+                required
+                style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
+              />
+              <p style={{ fontSize: '12px', color: '#aaa' }}>
+                The **%D period** is a moving average of the %K line, used to smooth out the signals and reduce noise.
+              </p>
+            </label>
+            <p style={{ marginTop: '10px', fontStyle: 'italic', fontSize: '14px', color: '#ddd' }}>
+              **The rule:** This strategy looks to **buy** when the %K line crosses **above** the %D line, and **sell** when the %K line crosses **below** the %D line.
+            </p>
+          </>
+        );
+      case 'MACD':
+        return (
+          <>
+            <label>
+              Fast Period:
+              <input
+                type="number"
+                name="fastPeriod"
+                value={newStrategy.params.fastPeriod}
+                onChange={handleChange}
+                required
+                style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
+              />
+              <p style={{ fontSize: '12px', color: '#aaa' }}>
+                This is the **"fast"** moving average for the MACD, typically over 12 periods.
+              </p>
+            </label>
+            <label>
+              Slow Period:
+              <input
+                type="number"
+                name="slowPeriod"
+                value={newStrategy.params.slowPeriod}
+                onChange={handleChange}
+                required
+                style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
+              />
+              <p style={{ fontSize: '12px', color: '#aaa' }}>
+                This is the **"slow"** moving average, typically over 26 periods.
+              </p>
+            </label>
+            <label>
+              Signal Period:
+              <input
+                type="number"
+                name="signalPeriod"
+                value={newStrategy.params.signalPeriod}
+                onChange={handleChange}
+                required
+                style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
+              />
+              <p style={{ fontSize: '12px', color: '#aaa' }}>
+                A moving average of the MACD line itself, typically over 9 periods, which helps generate buy and sell signals.
+              </p>
+            </label>
+            <p style={{ marginTop: '10px', fontStyle: 'italic', fontSize: '14px', color: '#ddd' }}>
+              **The rule:** The strategy will look to **buy** when the MACD line crosses **above** the signal line and **sell** when it crosses **below** the signal line.
+            </p>
+          </>
+        );
+      case 'Parabolic SAR':
+        return (
+          <>
+            <label>
+              Acceleration Factor (Start):
+              <input
+                type="number"
+                name="accelerationFactorStart"
+                value={newStrategy.params.accelerationFactorStart}
+                onChange={handleChange}
+                required
+                step="0.01"
+                style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
+              />
+              <p style={{ fontSize: '12px', color: '#aaa' }}>
+                This controls the sensitivity of the dots that appear above or below the price. A lower number makes the indicator less sensitive.
+              </p>
+            </label>
+            <label>
+              Acceleration Factor (Increment):
+              <input
+                type="number"
+                name="accelerationFactorIncrement"
+                value={newStrategy.params.accelerationFactorIncrement}
+                onChange={handleChange}
+                required
+                step="0.01"
+                style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
+              />
+              <p style={{ fontSize: '12px', color: '#aaa' }}>
+                This is the amount by which the acceleration factor increases with each new trend high or low.
+              </p>
+            </label>
+            <label>
+              Acceleration Factor (Maximum):
+              <input
+                type="number"
+                name="accelerationFactorMaximum"
+                value={newStrategy.params.accelerationFactorMaximum}
+                onChange={handleChange}
+                required
+                step="0.01"
+                style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
+              />
+              <p style={{ fontSize: '12px', color: '#aaa' }}>
+                This sets the upper limit for the acceleration factor, preventing the indicator from becoming too sensitive and giving false signals.
+              </p>
+            </label>
+            <p style={{ marginTop: '10px', fontStyle: 'italic', fontSize: '14px', color: '#ddd' }}>
+              **The rule:** This strategy looks to **buy** when the dots flip from **above** the price to **below** it, and **sell** when the dots flip from **below** the price to **above** it.
+            </p>
+          </>
+        );
+      case 'On-Balance Volume':
+        return (
+          <>
+            <label>
+              OBV Period:
+              <input
+                type="number"
+                name="obvPeriod"
+                value={newStrategy.params.obvPeriod}
+                onChange={handleChange}
+                required
+                style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
+              />
+              <p style={{ fontSize: '12px', color: '#aaa' }}>
+                The **OBV (On-Balance Volume)** measures volume flow to predict price changes. This sets the period for a moving average that is applied to the OBV line to help identify the underlying trend.
+              </p>
+            </label>
+            <p style={{ marginTop: '10px', fontStyle: 'italic', fontSize: '14px', color: '#ddd' }}>
+              **The rule:** The main rule is to look for a divergence between the OBV line and the asset's price. For example, a rising price with a falling OBV suggests the uptrend is losing momentum.
+            </p>
+          </>
+        );
+      case 'CCI':
+        return (
+          <>
+            <label>
+              CCI Period:
+              <input
+                type="number"
+                name="cciPeriod"
+                value={newStrategy.params.cciPeriod}
+                onChange={handleChange}
+                required
+                style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
+              />
+              <p style={{ fontSize: '12px', color: '#aaa' }}>
+                The **Commodity Channel Index (CCI)** measures the current price relative to an average price. A high CCI value suggests the price is above its average, which could indicate the beginning of an uptrend. A low value suggests the price is below its average.
+              </p>
+            </label>
+            <p style={{ marginTop: '10px', fontStyle: 'italic', fontSize: '14px', color: '#ddd' }}>
+              **The rule:** This strategy looks to **buy** when the CCI crosses **above** 100, and **sell** when it crosses **below** -100.
+            </p>
+          </>
+        );
+      case 'ATR':
+        return (
+          <>
+            <label>
+              ATR Period:
+              <input
+                type="number"
+                name="atrPeriod"
+                value={newStrategy.params.atrPeriod}
+                onChange={handleChange}
+                required
+                style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
+              />
+              <p style={{ fontSize: '12px', color: '#aaa' }}>
+                The **Average True Range (ATR)** measures how much an asset's price is moving on average over the last **{newStrategy.params.atrPeriod}** days. This number shows volatility but does not provide buy or sell signals on its own. It's best used for managing risk by setting your stop loss.
+              </p>
+            </label>
+            <p style={{ marginTop: '10px', fontStyle: 'italic', fontSize: '14px', color: '#ddd' }}>
+              **The rule:** The ATR is primarily used for **risk management**. A common rule is to place a **stop loss** at a distance of 1.5 to 2 times the ATR from your entry price.
+            </p>
+          </>
+        );
+      case 'Ichimoku Cloud':
+        return (
+          <>
+            <label>
+              Conversion Line Period (Tenkan-sen):
+              <input
+                type="number"
+                name="conversionLinePeriod"
+                value={newStrategy.params.conversionLinePeriod}
+                onChange={handleChange}
+                required
+                style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
+              />
+              <p style={{ fontSize: '12px', color: '#aaa' }}>
+                The fastest line, based on the average of the last 9 periods.
+              </p>
+            </label>
+            <label>
+              Base Line Period (Kijun-sen):
+              <input
+                type="number"
+                name="baseLinePeriod"
+                value={newStrategy.params.baseLinePeriod}
+                onChange={handleChange}
+                required
+                style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
+              />
+              <p style={{ fontSize: '12px', color: '#aaa' }}>
+                The slower line, based on the average of the last 26 periods.
+              </p>
+            </label>
+            <label>
+              Lagging Span Period (Chikou Span):
+              <input
+                type="number"
+                name="laggingSpanPeriod"
+                value={newStrategy.params.laggingSpanPeriod}
+                onChange={handleChange}
+                required
+                style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
+              />
+              <p style={{ fontSize: '12px', color: '#aaa' }}>
+                The current closing price shifted back 26 periods.
+              </p>
+            </label>
+            <label>
+              Cloud Span Period (Senkou Span):
+              <input
+                type="number"
+                name="cloudSpanPeriod"
+                value={newStrategy.params.cloudSpanPeriod}
+                onChange={handleChange}
+                required
+                style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}
+              />
+              <p style={{ fontSize: '12px', color: '#aaa' }}>
+                The number of periods to look at for the "cloud" that forecasts price movement.
+              </p>
+            </label>
+            <p style={{ marginTop: '10px', fontStyle: 'italic', fontSize: '14px', color: '#ddd' }}>
+              **The rule:** The core rule is to **buy** when the price is **above** the cloud and the fast line crosses **above** the slow line. You would **sell** when the opposite happens.
+            </p>
           </>
         );
       default:
@@ -267,6 +544,13 @@ const Strategies = () => {
                 <option value="Moving Average Crossover">Moving Average Crossover</option>
                 <option value="RSI">Relative Strength Index (RSI)</option>
                 <option value="Bollinger Bands">Bollinger Bands</option>
+                <option value="Stochastic Oscillator">Stochastic Oscillator</option>
+                <option value="MACD">MACD</option>
+                <option value="Parabolic SAR">Parabolic SAR</option>
+                <option value="On-Balance Volume">On-Balance Volume</option>
+                <option value="CCI">Commodity Channel Index (CCI)</option>
+                <option value="ATR">Average True Range (ATR)</option>
+                <option value="Ichimoku Cloud">Ichimoku Cloud</option>
               </select>
               <p style={{ fontSize: '12px', color: '#aaa', marginTop: '5px' }}>
                 Pick one of the most popular trading rules. Each one uses a different mathematical tool to find buy and sell signals.
