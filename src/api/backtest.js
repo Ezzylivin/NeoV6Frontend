@@ -50,7 +50,7 @@ export async function runBacktest(payload) {
     console.error("runBacktest(): Missing strategyCode in payload", payload);
     throw new Error("strategyCode is required for backtest");
   }
-  const response = await api.post("/backtest", payload);
+  const response = await api.post("/backtest/run", payload);
   return response;
 }
 
