@@ -8,6 +8,8 @@ export function useBacktest() {
     strategies: [],
     symbols: [],
     timeframes: [],
+    takeProfits: [],
+    stopLosses: [],
   });
   const [pastBacktests, setPastBacktests] = useState({ results: [], total: 0 });
   const [initialLoading, setInitialLoading] = useState(true);
