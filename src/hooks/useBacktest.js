@@ -44,14 +44,14 @@ export function useBacktest() {
 
   // Run a single backtest
   const runNewBacktest = useCallback(
-    async ({ symbol, timeframe, strategyCode, startDate, endDate, takeProfit, stopLoss }) => {
+    async ({ symbol, timeframe, code, startDate, endDate, takeProfit, stopLoss }) => {
       setSingleLoading(true);
       setError(null);
       try {
         const response = await backtestApi.runBacktest({
           symbol,
           timeframe,
-          strategyCode,
+          code,
           startDate,
           endDate,
           takeProfit,
@@ -80,7 +80,7 @@ export function useBacktest() {
       try {
         const formattedConfigs = configs.map(cfg => ({
           ...cfg,
-          strategyCode: cfg.strategyCode,
+          code: cfg.code,
         }));
         const response = await backtestApi.runBatch(formattedConfigs);
         if (response?.data) {
