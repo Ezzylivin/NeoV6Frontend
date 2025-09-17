@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api, { setAuthToken } from './api'; // Ensure the path is correct
+import api, { setAuthToken } from '../api/apiClient.js'; // Ensure the path is correct
 
 const Strategies = () => {
   const [strategies, setStrategies] = useState([]);
