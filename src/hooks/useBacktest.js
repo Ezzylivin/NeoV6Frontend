@@ -21,16 +21,12 @@ export function useBacktest() {
   const getOptions = useCallback(async () => {
     setError(null);
     try {
-      // Step 1: Make the API call to get the options data.
-      const response = await backtestApi.fetchOptions();
-
-      // Step 2: Check if the response is valid before setting state.
-      if (response?.data) {
-        // Step 3: Update the options state with the fetched data.
-        setOptions(response.data);
-      } else {
-        console.error("API response for options was invalid:", response);
-      }
+      // FIX: Directly use the returned data from the API function.
+      const fetchedOptions = await backtestApi.fetchOptions();
+      
+      // FIX: Directly set the state.
+      setOptions(fetchedOptions);
+      
     } catch (err) {
       const errorMessage = err.response?.data?.message || "Failed to fetch options.";
       setError(errorMessage);
@@ -39,9 +35,15 @@ export function useBacktest() {
   }, []);
 
   // Doc: Fetches a list of past backtest results.
-  const getPastBacktests = useCallback(async (page = 1) => {
-    // ... (Your existing getPastBacktests logic, which seems okay) ...
-  }, []);
+    const getPastBacktests = useCallback(async (page = 1) => {
+        try {
+            const data = await backtestApi.fetchAll(page);
+            setPastBacktests({ results: data.backtests, total: data.total });
+        } catch (err) {
+            console.error("Failed to load past backtests:", err);
+            setError(err.response?.data?.message || "Failed to load past backtests.");
+        }
+    }, []);
 
   // Run a single backtest
   const runNewBacktest = useCallback(
