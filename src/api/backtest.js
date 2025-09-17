@@ -1,58 +1,69 @@
-// File: ../api/backtest.js
-// UPGRADED: Corrected API endpoints and batch payload to match the backend router.
+// File: src/api/backtest.js
+// UPGRADED: Corrected API endpoints and ensured strategyCode is passed correctly.
 
 import api from "./apiClient.js"; // your token-aware Axios instance
 
-// --- Helpers to normalize backend responses (No changes needed here) ---
+// --- Helpers to normalize backend responses ---
 const normalizeOptions = (raw) => ({
-  strategies: raw?.strategies || [],
-  symbols: raw?.symbols || [],
-  timeframes: raw?.timeframes || [],
+  strategies: raw?.strategies || [],
+  symbols: raw?.symbols || [],
+  timeframes: raw?.timeframes || [],
+  takeProfits: raw?.takeProfits || [],
+  stopLosses: raw?.stopLosses || [],
 });
 
 const normalizePastBacktests = (raw) => ({
-  backtests: raw?.backtests || [],
-  total: raw?.total || 0,
+  backtests: raw?.backtests || [],
+  total: raw?.total || 0,
 });
 
 // --- API calls ---
 export async function fetchOptions() {
-    try {
-        const response = await api.get("/backtest/options");
-        const raw = response?.data?.data ?? response?.data;
+  try {
+    const response = await api.get("/backtest/options");
+    const raw = response?.data?.data ?? response?.data;
 
-        // Doc: Log a success message to confirm the data was received.
-        console.log("fetchOptions(): data received successfully", raw);
-
-        // Doc: The normalizeOptions function handles empty or unexpected data.
-        return normalizeOptions(raw);
-    } catch (error) {
-        console.error("fetchOptions(): failed to fetch options.", error);
-        throw error; // Re-throw the error to be handled by the calling hook.
-    }
+    console.log("fetchOptions(): data received successfully", raw);
+    return normalizeOptions(raw);
+  } catch (error) {
+    console.error("fetchOptions(): failed to fetch options.", error);
+    throw error;
+  }
 }
+
 export async function fetchAll(page = 1) {
-  // FIX: The backend route is '/backtest', not '/backtest/all'.
-  const response = await api.get(`/backtest?page=${page}`);
-  const raw = response?.data?.data ?? response?.data;
+  // FIX: The backend route is '/backtest'
+  const response = await api.get(`/backtest?page=${page}`);
+  const raw = response?.data?.data ?? response?.data;
 
-  if (!raw) {
-    console.warn("fetchAll(): unexpected response format", response);
-    return { backtests: [], total: 0 };
-  }
+  if (!raw) {
+    console.warn("fetchAll(): unexpected response format", response);
+    return { backtests: [], total: 0 };
+  }
 
-  return normalizePastBacktests(raw);
+  return normalizePastBacktests(raw);
 }
 
 export async function runBacktest(payload) {
-  // FIX: The backend route is '/backtest', not '/backtest/run'.
-  const response = await api.post("/backtest", payload);
-  // Return entire response so the hook can check response.data
-  return response;
+  // FIX: Payload must include strategyCode
+  if (!payload.strategyCode) {
+    console.error("runBacktest(): Missing strategyCode in payload", payload);
+    throw new Error("strategyCode is required for backtest");
+  }
+  const response = await api.post("/backtest", payload);
+  return response;
 }
 
 export async function runBatch(configs) {
-  // FIX: The controller expects an object with a 'configs' key: { configs: [...] }
-  const response = await api.post("/backtest/batch", { configs });
-  return response;
+  // FIX: Ensure each config has a strategyCode
+  const sanitizedConfigs = configs.map((cfg) => {
+    if (!cfg.strategyCode) {
+      console.error("runBatch(): Missing strategyCode in config", cfg);
+      throw new Error("strategyCode is required for batch backtest");
+    }
+    return cfg;
+  });
+
+  const response = await api.post("/backtest/batch", { configs: sanitizedConfigs });
+  return response;
 }
