@@ -17,7 +17,9 @@ export default function Backtests() {
   const {
     options,
     pastBacktests,
-    loading,
+    initialLoading,
+    singleLoading,
+    batchLoading,
     error,
     runNewBacktest,
     runNewBatchBacktest,
@@ -42,7 +44,7 @@ export default function Backtests() {
     if (options.strategies?.length > 0 && !formData.strategyCode) {
       setFormData((prev) => ({
         ...prev,
-        strategyCode: options.strategies[0].code, // use code, not _id
+        strategyCode: options.strategies[0].code, // FIX: use strategyCode instead of _id
       }));
     }
   }, [options.strategies]);
@@ -65,12 +67,11 @@ export default function Backtests() {
 
   const handleSingleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Attempting single backtest submission...");
     setMetricsData([]);
     try {
       const result = await runNewBacktest(formData);
-      if (result?.data?.metrics?.equityCurve) {
-        setMetricsData(result.data.metrics.equityCurve);
+      if (result?.metrics?.equityCurve) {
+        setMetricsData(result.metrics.equityCurve);
       }
     } catch (err) {
       console.error("Single backtest failed:", err);
@@ -79,11 +80,10 @@ export default function Backtests() {
 
   const handleBatchSubmit = async (e) => {
     e.preventDefault();
-    console.log("Attempting batch backtest submission...");
     setMetricsData([]);
     try {
       const result = await runNewBatchBacktest(batchConfigs);
-      const firstSuccessfulResult = result?.data?.find((res) => res.metrics);
+      const firstSuccessfulResult = result?.find((res) => res.metrics);
       if (firstSuccessfulResult?.metrics?.equityCurve) {
         setMetricsData(firstSuccessfulResult.metrics.equityCurve);
       }
@@ -207,13 +207,13 @@ export default function Backtests() {
             </select>
           </label>
 
-          <button type="submit" disabled={loading}>
-            {loading ? "Running..." : "Run Backtest"}
+          <button type="submit" disabled={singleLoading}>
+            {singleLoading ? "Running..." : "Run Backtest"}
           </button>
         </div>
       </form>
 
-      {/* --- Batch Backtests and Charts remain here (unchanged) --- */}
+      {/* --- Batch Backtests and Charts remain unchanged --- */}
     </div>
   );
 }
