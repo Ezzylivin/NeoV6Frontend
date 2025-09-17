@@ -13,6 +13,18 @@ import {
 } from "recharts";
 import "./Backtests.css";
 
+// Initial state for the single backtest form
+const initialFormData = {
+  // FIX: Use 'code' to match the useBacktest hook
+  code: "", 
+  symbol: "BTC/USD",
+  timeframe: "1d",
+  startDate: "2024-01-01",
+  endDate: "2025-09-15",
+  takeProfit: "5",
+  stopLoss: "2",
+};
+
 export default function Backtests() {
   const {
     options,
@@ -26,17 +38,8 @@ export default function Backtests() {
   } = useBacktest();
 
   // --- Form state ---
-  const [formData, setFormData] = useState({
-    code: "",
-    symbol: "BTC/USD",
-    timeframe: "1d",
-    startDate: "2024-01-01",
-    endDate: "2025-09-15",
-    takeProfit: "5",
-    stopLoss: "2",
-  });
-
-  const [batchConfigs, setBatchConfigs] = useState([{ ...formData }]);
+  const [formData, setFormData] = useState(initialFormData);
+  const [batchConfigs, setBatchConfigs] = useState([{ ...initialFormData }]);
   const [metricsData, setMetricsData] = useState([]);
 
   // --- Auto-select first available strategy once options load ---
@@ -44,10 +47,10 @@ export default function Backtests() {
     if (options.strategies?.length > 0 && !formData.code) {
       setFormData((prev) => ({
         ...prev,
-        code: options.strategies[0].code, // FIX: use strategyCode instead of _id
+        code: options.strategies[0].code, 
       }));
     }
-  }, [options.strategies]);
+  }, [options.strategies, formData.code]); 
 
   // --- Handlers ---
   const handleChange = (e, index = null) => {
@@ -113,8 +116,8 @@ export default function Backtests() {
           <label>
             Strategy
             <select
-              name="strategyCode"
-              value={formData.code}
+              name="code" // FIX: Use 'code' here to match the form state
+              value={formData.code} 
               onChange={handleChange}
               required
             >
