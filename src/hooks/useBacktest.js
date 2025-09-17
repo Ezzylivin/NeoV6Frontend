@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import * as backtestApi from "../api/backtest.js";
+import { setAuthToken } from '../api/apiClient.js'; // Import setAuthToken
 
 export function useBacktest() {
   const [options, setOptions] = useState({
@@ -47,7 +48,6 @@ export function useBacktest() {
       setSingleLoading(true);
       setError(null);
       try {
-        // FIX: Pass strategyCode instead of strategyId
         const response = await backtestApi.runBacktest({
           symbol,
           timeframe,
@@ -78,7 +78,6 @@ export function useBacktest() {
       setBatchLoading(true);
       setError(null);
       try {
-        // FIX: Ensure configs use strategyCode
         const formattedConfigs = configs.map(cfg => ({
           ...cfg,
           strategyCode: cfg.strategyCode,
@@ -102,6 +101,12 @@ export function useBacktest() {
   // Load initial data
   useEffect(() => {
     const loadInitialData = async () => {
+      // FIX: Set auth token here before making any API calls
+      const token = localStorage.getItem('userToken');
+      if (token) {
+        setAuthToken(token);
+      }
+
       setInitialLoading(true);
       await Promise.all([getOptions(), getPastBacktests()]);
       setInitialLoading(false);
