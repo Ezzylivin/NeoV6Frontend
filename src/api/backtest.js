@@ -17,18 +17,20 @@ const normalizePastBacktests = (raw) => ({
 
 // --- API calls ---
 export async function fetchOptions() {
-  // This endpoint is correct.
-  const response = await api.get("/backtest/options");
-  const raw = response?.data?.data ?? response?.data;
+    try {
+        const response = await api.get("/backtest/options");
+        const raw = response?.data?.data ?? response?.data;
 
-  if (!raw) {
-    console.warn("fetchOptions(): unexpected response format", response);
-    return { strategies: [], symbols: [], timeframes: [] };
-  }
+        // Doc: Log a success message to confirm the data was received.
+        console.log("fetchOptions(): data received successfully", raw);
 
-  return normalizeOptions(raw);
+        // Doc: The normalizeOptions function handles empty or unexpected data.
+        return normalizeOptions(raw);
+    } catch (error) {
+        console.error("fetchOptions(): failed to fetch options.", error);
+        throw error; // Re-throw the error to be handled by the calling hook.
+    }
 }
-
 export async function fetchAll(page = 1) {
   // FIX: The backend route is '/backtest', not '/backtest/all'.
   const response = await api.get(`/backtest?page=${page}`);
