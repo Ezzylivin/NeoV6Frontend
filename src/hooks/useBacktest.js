@@ -89,26 +89,7 @@ export function useBacktest() {
     [getPastBacktests]
   );
 
-  // --- Run batch backtests ---
-  const runNewBatchBacktest = useCallback(
-    async (configs) => {
-      setBatchLoading(true);
-      setError(null);
-      try {
-        const formattedConfigs = configs.map(cfg => formatPayload(cfg, false));
-        const result = await backtestApi.runBatch(formattedConfigs);
-        await getPastBacktests();
-        return result;
-      } catch (err) {
-        console.error("Batch backtest failed:", err);
-        setError(err.message || "Failed to run batch backtests.");
-        throw err;
-      } finally {
-        setBatchLoading(false);
-      }
-    },
-    [getPastBacktests]
-  );
+
 
   // --- Preview strategy ---
   const previewStrategy = useCallback(
