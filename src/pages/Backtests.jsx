@@ -1,3 +1,4 @@
+// File: src/pages/Backtests.jsx
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import {
@@ -14,29 +15,25 @@ import "./Backtests.css";
 
 // Initial state for single backtest form
 const initialFormData = {
-  code: "",       // Strategy code
-  symbol: "",     // empty, to be auto-selected
+  code: "",        // Strategy code
+  symbol: "",      // empty, to be auto-selected
   timeframe: "",  // empty, to be auto-selected
   startDate: "2024-01-01",
   endDate: "2025-09-15",
   takeProfit: "", // empty, to be selected from options
-  stopLoss: "",   // empty, to be selected from options
+  stopLoss: "",    // empty, to be selected from options
 };
 
 export default function Backtests() {
   const {
     options,
-    pastBacktests,
     initialLoading,
     singleLoading,
-    batchLoading,
     error,
     runNewBacktest,
-    runNewBatchBacktest,
   } = useBacktest();
 
   const [formData, setFormData] = useState(initialFormData);
-  const [batchConfigs, setBatchConfigs] = useState([{ ...initialFormData }]);
   const [metricsData, setMetricsData] = useState([]);
 
   // Auto-select first strategy if none selected
@@ -55,34 +52,24 @@ export default function Backtests() {
   }, [options, formData.code]);
 
   // --- Handlers ---
-  const handleChange = (e, index = null) => {
+  const handleChange = (e) => {
     const { name, value } = e.target;
-    if (index !== null) {
-      const newBatch = [...batchConfigs];
-      newBatch[index][name] = value;
-      setBatchConfigs(newBatch);
-    } else {
-      setFormData({ ...formData, [name]: value });
-    }
+    setFormData({ ...formData, [name]: value });
   };
-
-  const addBatchRow = () => setBatchConfigs([...batchConfigs, { ...initialFormData }]);
-  const removeBatchRow = (i) => setBatchConfigs(batchConfigs.filter((_, idx) => idx !== i));
 
   const handleSingleSubmit = async (e) => {
     e.preventDefault();
     setMetricsData([]);
 
     try {
-      // --- FIX: Map frontend payload to backend expectation ---
       const payload = {
         code: formData.code,
-        pair: formData.symbol,                          // symbol -> pair
+        pair: formData.symbol,
         timeframe: formData.timeframe,
         startDate: formData.startDate,
         endDate: formData.endDate,
-        tp: parseFloat(formData.takeProfit) || 0,      // string -> number
-        sl: parseFloat(formData.stopLoss) || 0,        // string -> number
+        tp: parseFloat(formData.takeProfit) || 0,
+        sl: parseFloat(formData.stopLoss) || 0,
       };
 
       const result = await runNewBacktest(payload);
@@ -94,18 +81,6 @@ export default function Backtests() {
     }
   };
 
-  const handleBatchSubmit = async (e) => {
-    e.preventDefault();
-    setMetricsData([]);
-    try {
-      const result = await runNewBatchBacktest(batchConfigs);
-      const firstSuccessful = result?.find((res) => res.metrics?.equityCurve);
-      if (firstSuccessful) setMetricsData(firstSuccessful.metrics.equityCurve);
-    } catch (err) {
-      console.error("Batch backtest failed:", err);
-    }
-  };
-
   const tpSlOptions = [0.5, 1, 2, 3, 5, 10, 20].map((val) => (
     <option key={val} value={val}>
       {val}%
@@ -113,6 +88,7 @@ export default function Backtests() {
   ));
 
   if (initialLoading) return <div>Loading backtests...</div>;
+  if (error) return <div style={{ color: 'red' }}>Error: {error}</div>;
 
   return (
     <div className="dashboard-container">
@@ -200,9 +176,6 @@ export default function Backtests() {
           </button>
         </div>
       </form>
-
-      {/* --- Batch Backtest Form (simplified) --- */}
-      {/* Add more UI for batch as needed, calling handleBatchSubmit */}
 
       {/* --- Metrics Chart --- */}
       {metricsData.length > 0 && (
