@@ -1,9 +1,6 @@
-// File: src/api/backtest.js
-// UPGRADED: Corrected API endpoints and ensured 'code' is passed correctly.
+import api from "./apiClient.js";
 
-import api from "./apiClient.js"; // your token-aware Axios instance
-
-// --- Helpers to normalize backend responses ---
+// --- Helpers ---
 const normalizeOptions = (raw) => ({
   strategies: raw?.strategies || [],
   symbols: raw?.symbols || [],
@@ -21,55 +18,44 @@ const normalizePastBacktests = (raw) => ({
 export async function fetchOptions() {
   try {
     const response = await api.get("/backtest/options");
-    const raw = response?.data?.data ?? response?.data;
-
-    console.log("fetchOptions(): data received successfully", raw);
-    return normalizeOptions(raw);
+    return normalizeOptions(response.data);
   } catch (error) {
     console.error("fetchOptions(): failed to fetch options.", error);
-    // FIX: Return a default, empty object to prevent a full app crash
-    return {
-      strategies: [],
-      symbols: [],
-      timeframes: [],
-      takeProfits: [],
-      stopLosses: [],
-    };
+    return normalizeOptions({});
   }
 }
 
 export async function fetchAll(page = 1) {
-  const response = await api.get(`/backtest?page=${page}`);
-  const raw = response?.data?.data ?? response?.data;
-
-  if (!raw) {
-    console.warn("fetchAll(): unexpected response format", response);
-    return { backtests: [], total: 0 };
+  try {
+    const response = await api.get(`/backtest?page=${page}`);
+    return normalizePastBacktests(response.data);
+  } catch (error) {
+    console.error("fetchAll(): failed to fetch past backtests.", error);
+    return normalizePastBacktests({});
   }
-
-  return normalizePastBacktests(raw);
 }
 
-// FIX: Payload must include 'code' and use the correct endpoint
 export async function runBacktest(payload) {
-  if (!payload.code) {
-    console.error("runBacktest(): Missing strategy 'code' in payload", payload);
-    throw new Error("strategy 'code' is required for backtest");
+  if (!payload.code) throw new Error("strategy 'code' is required for backtest");
+  try {
+    const { data } = await api.post("/backtest/run", payload);
+    return data;
+  } catch (error) {
+    console.error("runBacktest(): failed", error);
+    throw error;
   }
-  const { data } = await api.post("/backtest/run", payload);
-  return data;
 }
 
-// FIX: Ensure each config has a 'code' and use the correct endpoint
 export async function runBatch(configs) {
   const sanitizedConfigs = configs.map((cfg) => {
-    if (!cfg.code) {
-      console.error("runBatch(): Missing 'code' in config", cfg);
-      throw new Error("strategy 'code' is required for batch backtest");
-    }
+    if (!cfg.code) throw new Error("strategy 'code' is required for batch backtest");
     return cfg;
   });
-
-  const response = await api.post("/backtest/batch", { configs: sanitizedConfigs });
-  return response;
+  try {
+    const { data } = await api.post("/backtest/batch", { configs: sanitizedConfigs });
+    return data;
+  } catch (error) {
+    console.error("runBatch(): failed", error);
+    throw error;
+  }
 }
