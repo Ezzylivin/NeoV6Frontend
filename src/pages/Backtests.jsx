@@ -91,7 +91,7 @@ export default function Backtests() {
     try {
       const payload = {
         code: formData.code,
-        pair: formData.symbol,
+        symbol: formData.symbol,
         timeframe: formData.timeframe,
         startDate: formData.startDate,
         endDate: formData.endDate,
