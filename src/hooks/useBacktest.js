@@ -128,7 +128,6 @@ export function useBacktest() {
     error,
     getPastBacktests,
     runNewBacktest,
-    runNewBatchBacktest,
     previewStrategy,
   };
 }
