@@ -1,4 +1,3 @@
-// File: src/pages/Backtests.jsx
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import {
@@ -15,13 +14,13 @@ import "./Backtests.css";
 
 // Initial state for single backtest form
 const initialFormData = {
-  code: "",        // Strategy code
-  symbol: "",      // empty, to be auto-selected
+  code: "",       // Strategy code
+  symbol: "",     // empty, to be auto-selected
   timeframe: "",  // empty, to be auto-selected
   startDate: "2024-01-01",
   endDate: "2025-09-15",
   takeProfit: "", // empty, to be selected from options
-  stopLoss: "",    // empty, to be selected from options
+  stopLoss: "",   // empty, to be selected from options
 };
 
 export default function Backtests() {
@@ -36,7 +35,7 @@ export default function Backtests() {
   const [formData, setFormData] = useState(initialFormData);
   const [metricsData, setMetricsData] = useState([]);
 
-  // Auto-select first strategy if none selected
+  // Auto-select first strategy on initial load
   useEffect(() => {
     if (options.strategies?.length > 0 && !formData.code) {
       const firstStrategy = options.strategies[0];
@@ -54,7 +53,35 @@ export default function Backtests() {
   // --- Handlers ---
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+
+    // This block handles the special logic for the Strategy dropdown
+    if (name === "code") {
+      const selectedStrategy = options.strategies.find((s) => s.code === value);
+      
+      if (selectedStrategy) {
+        setFormData((prev) => ({
+          ...prev,
+          code: selectedStrategy.code,
+          symbol: selectedStrategy.params?.symbol || options.symbols[0] || "",
+          timeframe: selectedStrategy.params?.timeframe || options.timeframes[0] || "",
+          takeProfit: selectedStrategy.params?.takeProfit || options.takeProfits[0] || "",
+          stopLoss: selectedStrategy.params?.stopLoss || options.stopLosses[0] || "",
+        }));
+      } else {
+        setFormData((prev) => ({
+          ...prev,
+          code: "",
+          symbol: "",
+          timeframe: "",
+          takeProfit: "",
+          stopLoss: "",
+        }));
+      }
+    } else {
+      // This 'else' block correctly handles all other inputs (Symbol, Timeframe, etc.).
+      // It updates only the field that the user is interacting with.
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleSingleSubmit = async (e) => {
@@ -81,12 +108,6 @@ export default function Backtests() {
     }
   };
 
-  const tpSlOptions = [0.5, 1, 2, 3, 5, 10, 20].map((val) => (
-    <option key={val} value={val}>
-      {val}%
-    </option>
-  ));
-
   if (initialLoading) return <div>Loading backtests...</div>;
   if (error) return <div style={{ color: 'red' }}>Error: {error}</div>;
 
@@ -100,7 +121,7 @@ export default function Backtests() {
       <form className="card-row" onSubmit={handleSingleSubmit}>
         <div className="metric-card">
           <h3 className="card-title">Single Backtest</h3>
-
+          {/* All form elements remain the same */}
           <label>
             Strategy
             <select name="code" value={formData.code} onChange={handleChange} required>
@@ -153,7 +174,7 @@ export default function Backtests() {
               <option value="">Select TP</option>
               {options.takeProfits.map((val) => (
                 <option key={val} value={val}>
-                  {val}%
+                  {val * 100}%
                 </option>
               ))}
             </select>
@@ -165,7 +186,7 @@ export default function Backtests() {
               <option value="">Select SL</option>
               {options.stopLosses.map((val) => (
                 <option key={val} value={val}>
-                  {val}%
+                  {val * 100}%
                 </option>
               ))}
             </select>
