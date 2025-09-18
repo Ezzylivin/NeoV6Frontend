@@ -60,29 +60,6 @@ export async function runBacktest(payload) {
   }
 }
 
-// --- Run batch backtests ---
-export async function runBatch(configs) {
-  if (!Array.isArray(configs) || configs.length === 0)
-    throw new Error("At least one backtest config is required for batch");
-
-  const sanitizedConfigs = configs.map((cfg) => ({
-    code: cfg.code,
-    pair: cfg.pair || "",
-    timeframe: cfg.timeframe || "1h",
-    tp: cfg.tp || null,
-    sl: cfg.sl || null,
-    simulateOnly: false, // full backtest
-    params: cfg.params || {},
-  }));
-
-  try {
-    const { data } = await api.post("/backtest/batch", { batchParams: sanitizedConfigs });
-    return data;
-  } catch (error) {
-    console.error("runBatch(): failed", error);
-    throw error;
-  }
-}
 
 // --- Preview a strategy without saving ---
 export async function previewStrategy(payload) {
