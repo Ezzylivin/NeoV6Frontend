@@ -19,24 +19,26 @@ const Strategies = () => {
   const [newStrategy, setNewStrategy] = useState(initialStrategyState);
 
   // Function to fetch all strategies from the backend
- // Function to fetch all strategies from the backend
 const fetchStrategies = async () => {
-  try {
-    const token = localStorage.getItem('userToken');
-    if (token) {
-      setAuthToken(token);
-    }
-    const response = await api.get("/strategy");
+    try {
+        const token = localStorage.getItem('userToken');
+        if (token) {
+            setAuthToken(token);
+        }
+        const response = await api.get("/strategy");
 
-    let data = response.data;
-    if (data && Array.isArray(data.strategies)) {
-      // FIX: Filter out strategies with a null or missing _id
-      setStrategies(data.strategies.filter(s => s._id !== null));
-    } else {
-      console.warn("API response format was unexpected.");
-      setStrategies([]);
-    }
-  } catch (e) {
+        let data = response.data;
+        
+        // FIX: Add a new check for a top-level array response
+        if (Array.isArray(data)) {
+            setStrategies(data);
+        } else if (data && Array.isArray(data.strategies)) {
+            setStrategies(data.strategies);
+        } else {
+            console.warn("API response format was unexpected.");
+            setStrategies([]);
+        }
+    } catch (e) {
     setError(e.response?.data?.message || e.message);
     console.error("Failed to fetch strategies:", e);
   } finally {
