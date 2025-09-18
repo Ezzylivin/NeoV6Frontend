@@ -1,4 +1,3 @@
-// File: src/pages/Backtests.jsx
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import {
@@ -13,10 +12,9 @@ import {
 } from "recharts";
 import "./Backtests.css";
 
-// Initial state for the single backtest form
+// Initial state for single backtest form
 const initialFormData = {
-  // FIX: Use 'code' to match the useBacktest hook
-  code: "", 
+  code: "", // Strategy code
   symbol: "BTC/USD",
   timeframe: "1d",
   startDate: "2024-01-01",
@@ -37,20 +35,19 @@ export default function Backtests() {
     runNewBatchBacktest,
   } = useBacktest();
 
-  // --- Form state ---
   const [formData, setFormData] = useState(initialFormData);
   const [batchConfigs, setBatchConfigs] = useState([{ ...initialFormData }]);
   const [metricsData, setMetricsData] = useState([]);
 
-  // --- Auto-select first available strategy once options load ---
+  // Auto-select first strategy if none selected
   useEffect(() => {
     if (options.strategies?.length > 0 && !formData.code) {
       setFormData((prev) => ({
         ...prev,
-        code: options.strategies[0].code, 
+        code: options.strategies[0].code,
       }));
     }
-  }, [options.strategies, formData.code]); 
+  }, [options.strategies, formData.code]);
 
   // --- Handlers ---
   const handleChange = (e, index = null) => {
@@ -64,9 +61,8 @@ export default function Backtests() {
     }
   };
 
-  const addBatchRow = () => setBatchConfigs([...batchConfigs, { ...formData }]);
-  const removeBatchRow = (i) =>
-    setBatchConfigs(batchConfigs.filter((_, idx) => idx !== i));
+  const addBatchRow = () => setBatchConfigs([...batchConfigs, { ...initialFormData }]);
+  const removeBatchRow = (i) => setBatchConfigs(batchConfigs.filter((_, idx) => idx !== i));
 
   const handleSingleSubmit = async (e) => {
     e.preventDefault();
@@ -86,21 +82,20 @@ export default function Backtests() {
     setMetricsData([]);
     try {
       const result = await runNewBatchBacktest(batchConfigs);
-      const firstSuccessfulResult = result?.find((res) => res.metrics);
-      if (firstSuccessfulResult?.metrics?.equityCurve) {
-        setMetricsData(firstSuccessfulResult.metrics.equityCurve);
-      }
+      const firstSuccessful = result?.find((res) => res.metrics?.equityCurve);
+      if (firstSuccessful) setMetricsData(firstSuccessful.metrics.equityCurve);
     } catch (err) {
       console.error("Batch backtest failed:", err);
     }
   };
 
-  // --- Options for TP/SL dropdowns ---
   const tpSlOptions = [0.5, 1, 2, 3, 5, 10, 20].map((val) => (
     <option key={val} value={val}>
       {val}%
     </option>
   ));
+
+  if (initialLoading) return <div>Loading backtests...</div>;
 
   return (
     <div className="dashboard-container">
@@ -115,12 +110,7 @@ export default function Backtests() {
 
           <label>
             Strategy
-            <select
-              name="code" // FIX: Use 'code' here to match the form state
-              value={formData.code} 
-              onChange={handleChange}
-              required
-            >
+            <select name="code" value={formData.code} onChange={handleChange} required>
               <option value="">Select strategy</option>
               {options.strategies.map((s) => (
                 <option key={s.code} value={s.code}>
@@ -132,12 +122,7 @@ export default function Backtests() {
 
           <label>
             Symbol
-            <select
-              name="symbol"
-              value={formData.symbol}
-              onChange={handleChange}
-              required
-            >
+            <select name="symbol" value={formData.symbol} onChange={handleChange} required>
               <option value="">Select symbol</option>
               {options.symbols.map((s) => (
                 <option key={s} value={s}>
@@ -149,12 +134,7 @@ export default function Backtests() {
 
           <label>
             Timeframe
-            <select
-              name="timeframe"
-              value={formData.timeframe}
-              onChange={handleChange}
-              required
-            >
+            <select name="timeframe" value={formData.timeframe} onChange={handleChange} required>
               <option value="">Select timeframe</option>
               {options.timeframes.map((t) => (
                 <option key={t} value={t}>
@@ -166,33 +146,17 @@ export default function Backtests() {
 
           <label>
             Start Date
-            <input
-              type="date"
-              name="startDate"
-              value={formData.startDate}
-              onChange={handleChange}
-              required
-            />
+            <input type="date" name="startDate" value={formData.startDate} onChange={handleChange} required />
           </label>
 
           <label>
             End Date
-            <input
-              type="date"
-              name="endDate"
-              value={formData.endDate}
-              onChange={handleChange}
-              required
-            />
+            <input type="date" name="endDate" value={formData.endDate} onChange={handleChange} required />
           </label>
 
           <label>
             Take Profit %
-            <select
-              name="takeProfit"
-              value={formData.takeProfit}
-              onChange={handleChange}
-            >
+            <select name="takeProfit" value={formData.takeProfit} onChange={handleChange}>
               <option value="">Select TP</option>
               {tpSlOptions}
             </select>
@@ -200,11 +164,7 @@ export default function Backtests() {
 
           <label>
             Stop Loss %
-            <select
-              name="stopLoss"
-              value={formData.stopLoss}
-              onChange={handleChange}
-            >
+            <select name="stopLoss" value={formData.stopLoss} onChange={handleChange}>
               <option value="">Select SL</option>
               {tpSlOptions}
             </select>
@@ -216,7 +176,25 @@ export default function Backtests() {
         </div>
       </form>
 
-      {/* --- Batch Backtests and Charts remain unchanged --- */}
+      {/* --- Batch Backtest Form (simplified) --- */}
+      {/* Add more UI for batch as needed, calling handleBatchSubmit */}
+
+      {/* --- Metrics Chart --- */}
+      {metricsData.length > 0 && (
+        <div className="chart-card">
+          <h3>Equity Curve</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={metricsData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Line type="monotone" dataKey="equity" stroke="#8884d8" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }
