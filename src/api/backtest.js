@@ -27,7 +27,14 @@ export async function fetchOptions() {
     return normalizeOptions(raw);
   } catch (error) {
     console.error("fetchOptions(): failed to fetch options.", error);
-    throw error;
+    // FIX: Return a default, empty object to prevent a full app crash
+    return {
+      strategies: [],
+      symbols: [],
+      timeframes: [],
+      takeProfits: [],
+      stopLosses: [],
+    };
   }
 }
 
