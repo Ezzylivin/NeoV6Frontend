@@ -72,8 +72,20 @@ export default function Backtests() {
   const handleSingleSubmit = async (e) => {
     e.preventDefault();
     setMetricsData([]);
+
     try {
-      const result = await runNewBacktest(formData);
+      // --- FIX: Map frontend payload to backend expectation ---
+      const payload = {
+        code: formData.code,
+        pair: formData.symbol,                          // symbol -> pair
+        timeframe: formData.timeframe,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        tp: parseFloat(formData.takeProfit) || 0,      // string -> number
+        sl: parseFloat(formData.stopLoss) || 0,        // string -> number
+      };
+
+      const result = await runNewBacktest(payload);
       if (result?.metrics?.equityCurve) {
         setMetricsData(result.metrics.equityCurve);
       }
@@ -94,12 +106,11 @@ export default function Backtests() {
     }
   };
 
-  // --- Default hardcoded TP/SL values ---
-  const defaultTpSlOptions = [0.5, 1, 2, 3, 5, 10, 20];
-
-  // --- Use backend options if available, else fallback ---
-  const tpOptions = options.takeProfits?.length ? options.takeProfits : defaultTpSlOptions;
-  const slOptions = options.stopLosses?.length ? options.stopLosses : defaultTpSlOptions;
+  const tpSlOptions = [0.5, 1, 2, 3, 5, 10, 20].map((val) => (
+    <option key={val} value={val}>
+      {val}%
+    </option>
+  ));
 
   if (initialLoading) return <div>Loading backtests...</div>;
 
@@ -164,7 +175,7 @@ export default function Backtests() {
             Take Profit %
             <select name="takeProfit" value={formData.takeProfit} onChange={handleChange}>
               <option value="">Select TP</option>
-              {tpOptions.map((val) => (
+              {options.takeProfits.map((val) => (
                 <option key={val} value={val}>
                   {val}%
                 </option>
@@ -176,7 +187,7 @@ export default function Backtests() {
             Stop Loss %
             <select name="stopLoss" value={formData.stopLoss} onChange={handleChange}>
               <option value="">Select SL</option>
-              {slOptions.map((val) => (
+              {options.stopLosses.map((val) => (
                 <option key={val} value={val}>
                   {val}%
                 </option>
