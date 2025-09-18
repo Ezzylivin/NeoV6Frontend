@@ -94,11 +94,12 @@ export default function Backtests() {
     }
   };
 
-  const tpSlOptions = [0.5, 1, 2, 3, 5, 10, 20].map((val) => (
-    <option key={val} value={val}>
-      {val}%
-    </option>
-  ));
+  // --- Default hardcoded TP/SL values ---
+  const defaultTpSlOptions = [0.5, 1, 2, 3, 5, 10, 20];
+
+  // --- Use backend options if available, else fallback ---
+  const tpOptions = options.takeProfits?.length ? options.takeProfits : defaultTpSlOptions;
+  const slOptions = options.stopLosses?.length ? options.stopLosses : defaultTpSlOptions;
 
   if (initialLoading) return <div>Loading backtests...</div>;
 
@@ -163,7 +164,7 @@ export default function Backtests() {
             Take Profit %
             <select name="takeProfit" value={formData.takeProfit} onChange={handleChange}>
               <option value="">Select TP</option>
-              {options.takeProfits.map((val) => (
+              {tpOptions.map((val) => (
                 <option key={val} value={val}>
                   {val}%
                 </option>
@@ -175,7 +176,7 @@ export default function Backtests() {
             Stop Loss %
             <select name="stopLoss" value={formData.stopLoss} onChange={handleChange}>
               <option value="">Select SL</option>
-              {options.stopLosses.map((val) => (
+              {slOptions.map((val) => (
                 <option key={val} value={val}>
                   {val}%
                 </option>
