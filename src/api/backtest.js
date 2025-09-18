@@ -56,8 +56,8 @@ export async function runBacktest(payload) {
     console.error("runBacktest(): Missing strategy 'code' in payload", payload);
     throw new Error("strategy 'code' is required for backtest");
   }
-  const response = await api.post("/backtest/run", payload);
-  return response;
+  const { data } = await api.post("/backtest/run", payload);
+  return data;
 }
 
 // FIX: Ensure each config has a 'code' and use the correct endpoint
