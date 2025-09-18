@@ -1,3 +1,4 @@
+// File: src/hooks/useBacktest.js
 import { useState, useEffect, useCallback } from "react";
 import * as backtestApi from "../api/backtest.js";
 import { setAuthToken } from '../api/apiClient.js';
@@ -41,13 +42,40 @@ export function useBacktest() {
     }
   }, []);
 
+  // --- Helper: format payload for backend ---
+  const formatPayload = (payload, previewOnly = false) => {
+    const {
+      code,
+      pair,
+      timeframe,
+      startDate,
+      endDate,
+      tp,
+      sl,
+      params = {}
+    } = payload;
+
+    return {
+      code,
+      pair,
+      timeframe,
+      startDate: startDate || null,
+      endDate: endDate || null,
+      tp: tp ?? null,
+      sl: sl ?? null,
+      simulateOnly: previewOnly,
+      params
+    };
+  };
+
   // --- Run single backtest ---
   const runNewBacktest = useCallback(
     async (payload) => {
       setSingleLoading(true);
       setError(null);
       try {
-        const result = await backtestApi.runBacktest(payload);
+        const formattedPayload = formatPayload(payload, false); // full backtest
+        const result = await backtestApi.runBacktest(formattedPayload);
         await getPastBacktests();
         return result;
       } catch (err) {
@@ -67,7 +95,8 @@ export function useBacktest() {
       setBatchLoading(true);
       setError(null);
       try {
-        const result = await backtestApi.runBatch(configs);
+        const formattedConfigs = configs.map(cfg => formatPayload(cfg, false));
+        const result = await backtestApi.runBatch(formattedConfigs);
         await getPastBacktests();
         return result;
       } catch (err) {
@@ -79,6 +108,25 @@ export function useBacktest() {
       }
     },
     [getPastBacktests]
+  );
+
+  // --- Preview strategy ---
+  const previewStrategy = useCallback(
+    async (payload) => {
+      setSingleLoading(true);
+      setError(null);
+      try {
+        const formattedPayload = formatPayload(payload, true); // previewOnly
+        return await backtestApi.previewStrategy(formattedPayload);
+      } catch (err) {
+        console.error("Preview failed:", err);
+        setError(err.message || "Failed to preview strategy.");
+        throw err;
+      } finally {
+        setSingleLoading(false);
+      }
+    },
+    []
   );
 
   // --- Load initial data ---
@@ -100,5 +148,6 @@ export function useBacktest() {
     getPastBacktests,
     runNewBacktest,
     runNewBatchBacktest,
+    previewStrategy,
   };
 }
