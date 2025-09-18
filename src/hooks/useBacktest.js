@@ -46,7 +46,7 @@ export function useBacktest() {
   const formatPayload = (payload, previewOnly = false) => {
     const {
       code,
-      pair,
+      symbol,
       timeframe,
       startDate,
       endDate,
@@ -57,7 +57,7 @@ export function useBacktest() {
 
     return {
       code,
-      pair,
+      symbol,
       timeframe,
       startDate: startDate || null,
       endDate: endDate || null,
@@ -88,8 +88,6 @@ export function useBacktest() {
     },
     [getPastBacktests]
   );
-
-
 
   // --- Preview strategy ---
   const previewStrategy = useCallback(
