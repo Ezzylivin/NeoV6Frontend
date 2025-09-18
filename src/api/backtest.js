@@ -1,5 +1,5 @@
 // File: src/api/backtest.js
-// UPGRADED: Corrected API endpoints and ensured strategyCode is passed correctly.
+// UPGRADED: Corrected API endpoints and ensured 'code' is passed correctly.
 
 import api from "./apiClient.js"; // your token-aware Axios instance
 
@@ -32,7 +32,6 @@ export async function fetchOptions() {
 }
 
 export async function fetchAll(page = 1) {
-  // FIX: The backend route is '/backtest'
   const response = await api.get(`/backtest?page=${page}`);
   const raw = response?.data?.data ?? response?.data;
 
@@ -44,8 +43,8 @@ export async function fetchAll(page = 1) {
   return normalizePastBacktests(raw);
 }
 
+// FIX: Payload must include 'code' and use the correct endpoint
 export async function runBacktest(payload) {
-  // FIX: Payload must include strategyCode
   if (!payload.code) {
     console.error("runBacktest(): Missing strategy 'code' in payload", payload);
     throw new Error("strategy 'code' is required for backtest");
@@ -54,8 +53,8 @@ export async function runBacktest(payload) {
   return response;
 }
 
+// FIX: Ensure each config has a 'code' and use the correct endpoint
 export async function runBatch(configs) {
-  // FIX: Ensure each config has a strategyCode
   const sanitizedConfigs = configs.map((cfg) => {
     if (!cfg.code) {
       console.error("runBatch(): Missing 'code' in config", cfg);
