@@ -14,13 +14,13 @@ import "./Backtests.css";
 
 // Initial state for single backtest form
 const initialFormData = {
-  code: "", // Strategy code
-  symbol: "BTC/USD",
-  timeframe: "1d",
+  code: "",       // Strategy code
+  symbol: "",     // empty, to be auto-selected
+  timeframe: "",  // empty, to be auto-selected
   startDate: "2024-01-01",
   endDate: "2025-09-15",
-  takeProfit: "5",
-  stopLoss: "2",
+  takeProfit: "", // empty, to be selected from options
+  stopLoss: "",   // empty, to be selected from options
 };
 
 export default function Backtests() {
@@ -42,12 +42,17 @@ export default function Backtests() {
   // Auto-select first strategy if none selected
   useEffect(() => {
     if (options.strategies?.length > 0 && !formData.code) {
+      const firstStrategy = options.strategies[0];
       setFormData((prev) => ({
         ...prev,
-        code: options.strategies[0].code,
+        code: firstStrategy.code,
+        symbol: firstStrategy.params?.symbol || options.symbols[0] || "",
+        timeframe: firstStrategy.params?.timeframe || options.timeframes[0] || "",
+        takeProfit: firstStrategy.params?.takeProfit || options.takeProfits[0] || "",
+        stopLoss: firstStrategy.params?.stopLoss || options.stopLosses[0] || "",
       }));
     }
-  }, [options.strategies, formData.code]);
+  }, [options, formData.code]);
 
   // --- Handlers ---
   const handleChange = (e, index = null) => {
@@ -158,7 +163,11 @@ export default function Backtests() {
             Take Profit %
             <select name="takeProfit" value={formData.takeProfit} onChange={handleChange}>
               <option value="">Select TP</option>
-              {tpSlOptions}
+              {options.takeProfits.map((val) => (
+                <option key={val} value={val}>
+                  {val}%
+                </option>
+              ))}
             </select>
           </label>
 
@@ -166,7 +175,11 @@ export default function Backtests() {
             Stop Loss %
             <select name="stopLoss" value={formData.stopLoss} onChange={handleChange}>
               <option value="">Select SL</option>
-              {tpSlOptions}
+              {options.stopLosses.map((val) => (
+                <option key={val} value={val}>
+                  {val}%
+                </option>
+              ))}
             </select>
           </label>
 
