@@ -68,18 +68,6 @@ export async function previewStrategy(payload) {
   }
 }
 
-// ✅ --- NEW: Run a batch backtest ---
-export async function runBatchBacktest(payload) {
-  setAuthToken(localStorage.getItem('userToken'));
-  try {
-    const { data } = await api.post("/backtest/batch", payload);
-    return data;
-  } catch (error) {
-    console.error("runBatchBacktest(): failed", error);
-    throw error;
-  }
-}
-
 // ✅ --- NEW: Run a combined strategy backtest ---
 export async function runComboBacktest(payload) {
   setAuthToken(localStorage.getItem('userToken'));
