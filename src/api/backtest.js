@@ -1,125 +1,104 @@
-import { useState, useEffect, useCallback } from "react";
-import * as backtestApi from "../api/backtest.js";
-import { setAuthToken } from '../api/apiClient.js';
+import api, { setAuthToken } from "./apiClient.js";
 
-export function useBacktest() {
-  const [options, setOptions] = useState({
-    strategies: [],
-    symbols: [],
-    timeframes: [],
-    takeProfits: [],
-    stopLosses: [],
-  });
+const normalizeOptions = (raw) => ({
+  strategies: raw?.strategies || [],
+  symbols: raw?.symbols || [],
+  timeframes: raw?.timeframes || [],
+  takeProfits: raw?.takeProfits || [],
+  stopLosses: raw?.stopLosses || [],
+});
 
-  const [pastBacktests, setPastBacktests] = useState({ results: [], total: 0 });
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [singleLoading, setSingleLoading] = useState(false);
-  const [batchLoading, setBatchLoading] = useState(false);
-  const [error, setError] = useState(null);
+const normalizePastBacktests = (raw) => ({
+  backtests: raw?.backtests || [],
+  total: raw?.total || 0,
+});
 
-  const getOptions = useCallback(async () => {
-    setAuthToken(localStorage.getItem("userToken"));
-    setError(null);
-    try {
-      const fetchedOptions = await backtestApi.fetchOptions();
-      setOptions(fetchedOptions);
-    } catch (err) {
-      setError(err.message || "Failed to fetch options.");
-    }
-  }, []);
+export async function fetchOptions() {
+  setAuthToken(localStorage.getItem('userToken'));
+  try {
+    const response = await api.get("/backtest/options");
+    return normalizeOptions(response.data);
+  } catch (error) {
+    console.error("fetchOptions(): failed to fetch options.", error);
+    return normalizeOptions({});
+  }
+}
 
-  const getPastBacktests = useCallback(async (page = 1) => {
-    setAuthToken(localStorage.getItem("userToken"));
-    setError(null);
-    try {
-      // ✅ Corrected to use the exact name 'fetchAll'
-      const data = await backtestApi.fetchAll(page);
-      setPastBacktests({ results: data.backtests, total: data.total });
-    } catch (err) {
-      setError(err.message || "Failed to load past backtests.");
-    }
-  }, []);
+export async function fetchAll(page = 1) {
+  setAuthToken(localStorage.getItem('userToken'));
+  try {
+    const response = await api.get(`/backtest?page=${page}`);
+    return normalizePastBacktests(response.data);
+  } catch (error) {
+    console.error("fetchAll(): failed to fetch past backtests.", error);
+    return normalizePastBacktests({});
+  }
+}
 
-  const getBacktestById = useCallback(async (id) => {
-    setAuthToken(localStorage.getItem("userToken"));
-    setInitialLoading(true);
-    setError(null);
-    try {
-      // ✅ Corrected to use the exact name 'fetchById'
-      return await backtestApi.fetchById(id);
-    } catch (err) {
-      setError(err.message || "Failed to fetch backtest.");
-      throw err;
-    } finally {
-      setInitialLoading(false);
-    }
-  }, []);
-  
-  const deleteBacktest = useCallback(async (id) => {
-    setAuthToken(localStorage.getItem("userToken"));
-    setError(null);
-    try {
-      // ✅ Corrected to use the exact name 'deleteById'
-      await backtestApi.deleteById(id);
-      await getPastBacktests();
-    } catch (err) {
-      setError(err.message || "Failed to delete backtest.");
-      throw err;
-    }
-  }, [getPastBacktests]);
+export async function fetchById(id) {
+  setAuthToken(localStorage.getItem('userToken'));
+  try {
+    const { data } = await api.get(`/backtest/${id}`);
+    return data;
+  } catch (error) {
+    console.error(`fetchById(${id}): failed to fetch backtest.`, error);
+    throw error;
+  }
+}
 
-  const runNewBacktest = useCallback(
-    async (payload) => {
-      setAuthToken(localStorage.getItem("userToken"));
-      setSingleLoading(true);
-      setError(null);
-      try {
-        const result = await backtestApi.runBacktest(payload);
-        await getPastBacktests();
-        return result;
-      } catch (err) {
-        setError(err.message || "Failed to run backtest.");
-        throw err;
-      } finally {
-        setSingleLoading(false);
-      }
-    },
-    [getPastBacktests]
-  );
+export async function deleteById(id) {
+  setAuthToken(localStorage.getItem('userToken'));
+  try {
+    const { data } = await api.delete(`/backtest/${id}`);
+    return data;
+  } catch (error) {
+    console.error(`deleteById(${id}): failed to delete backtest.`, error);
+    throw error;
+  }
+}
 
-  const previewStrategy = useCallback(
-    async (payload) => {
-      setAuthToken(localStorage.getItem("userToken"));
-      setSingleLoading(true);
-      setError(null);
-      try {
-        return await backtestApi.previewStrategy(payload);
-      } catch (err) {
-        setError(err.message || "Failed to preview strategy.");
-        throw err;
-      } finally {
-        setSingleLoading(false);
-      }
-    },
-    []
-  );
+export async function runBacktest(payload) {
+  setAuthToken(localStorage.getItem('userToken'));
+  if (!payload.code) throw new Error("strategy 'code' is required for backtest");
 
-  useEffect(() => {
-    setInitialLoading(true);
-    Promise.all([getOptions(), getPastBacktests()]).finally(() => setInitialLoading(false));
-  }, [getOptions, getPastBacktests]);
-
-  return {
-    options,
-    pastBacktests,
-    initialLoading,
-    singleLoading,
-    batchLoading,
-    error,
-    getPastBacktests,
-    getBacktestById,
-    deleteBacktest,
-    runNewBacktest,
-    previewStrategy,
+  const fullPayload = {
+    ...payload,
+    symbol: payload.symbol || "",
+    params: payload.params || {},
+    timeframe: payload.timeframe || "1h",
+    tp: payload.tp || null,
+    sl: payload.sl || null,
+    simulateOnly: false,
   };
+
+  try {
+    const { data } = await api.post("/backtest/run", fullPayload);
+    return data;
+  } catch (error) {
+    console.error("runBacktest(): failed", error);
+    throw error;
+  }
+}
+
+export async function previewStrategy(payload) {
+  setAuthToken(localStorage.getItem('userToken'));
+  if (!payload.code) throw new Error("strategy 'code' is required for preview");
+
+  const previewPayload = {
+    ...payload,
+    symbol: payload.symbol || "",
+    timeframe: payload.timeframe || "1h",
+    params: payload.params || {},
+    tp: payload.tp || null,
+    sl: payload.sl || null,
+    simulateOnly: true,
+  };
+
+  try {
+    const { data } = await api.post("/backtest/preview", previewPayload);
+    return data;
+  } catch (error) {
+    console.error("previewStrategy(): failed", error);
+    throw error;
+  }
 }
