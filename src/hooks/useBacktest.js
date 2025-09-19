@@ -28,7 +28,7 @@ export function useBacktest() {
     }
   }, []);
 
-  const getPastBacktests = useCallback(async (page = 1) => {
+  const getPastBacktests = useCallback(async (page = 1)_ => {
     setAuthToken(localStorage.getItem("userToken"));
     setError(null);
     try {
@@ -39,13 +39,14 @@ export function useBacktest() {
     }
   }, []);
 
-  // ✅ ADDED: Function to get a single backtest by its ID
-  const getById = useCallback(async (id) => {
+  // Corrected function name to getBacktestById for consistency in the hook
+  const getBacktestById = useCallback(async (id) => {
     setAuthToken(localStorage.getItem("userToken"));
-    setInitialLoading(true); // Use initialLoading for fetching single item
+    setInitialLoading(true);
     setError(null);
     try {
-      return await backtestApi.getBacktestById(id);
+      // ✅ FIXED: Now calls the correct 'fetchById' function from the API file
+      return await backtestApi.fetchById(id);
     } catch (err) {
       setError(err.message || "Failed to fetch backtest.");
       throw err;
@@ -54,13 +55,12 @@ export function useBacktest() {
     }
   }, []);
   
-  // ✅ ADDED: Function to delete a backtest by its ID
   const deleteBacktest = useCallback(async (id) => {
     setAuthToken(localStorage.getItem("userToken"));
     setError(null);
     try {
-      await backtestApi.getBacktestById(id);
-      // Refresh the list of backtests after one is deleted
+      // ✅ FIXED: Now calls the correct 'deleteById' function from the API file
+      await backtestApi.deleteById(id);
       await getPastBacktests();
     } catch (err) {
       setError(err.message || "Failed to delete backtest.");
@@ -117,8 +117,8 @@ export function useBacktest() {
     batchLoading,
     error,
     getPastBacktests,
-    getBacktestById, // Exported new function
-    deleteBacktest,  // Exported new function
+    getBacktestById,
+    deleteBacktest,
     runNewBacktest,
     previewStrategy,
   };
