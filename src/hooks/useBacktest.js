@@ -17,7 +17,6 @@ export function useBacktest() {
   const [batchLoading, setBatchLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // ✅ FIXED: Added setAuthToken to ensure request is authenticated
   const getOptions = useCallback(async () => {
     setAuthToken(localStorage.getItem("userToken"));
     setError(null);
@@ -29,7 +28,6 @@ export function useBacktest() {
     }
   }, []);
 
-  // ✅ FIXED: Added setAuthToken to ensure request is authenticated
   const getPastBacktests = useCallback(async (page = 1) => {
     setAuthToken(localStorage.getItem("userToken"));
     setError(null);
@@ -41,7 +39,35 @@ export function useBacktest() {
     }
   }, []);
 
-  // ✅ FIXED: Added setAuthToken to ensure request is authenticated
+  // ✅ ADDED: Function to get a single backtest by its ID
+  const getBacktestById = useCallback(async (id) => {
+    setAuthToken(localStorage.getItem("userToken"));
+    setInitialLoading(true); // Use initialLoading for fetching single item
+    setError(null);
+    try {
+      return await backtestApi.fetchById(id);
+    } catch (err) {
+      setError(err.message || "Failed to fetch backtest.");
+      throw err;
+    } finally {
+      setInitialLoading(false);
+    }
+  }, []);
+  
+  // ✅ ADDED: Function to delete a backtest by its ID
+  const deleteBacktest = useCallback(async (id) => {
+    setAuthToken(localStorage.getItem("userToken"));
+    setError(null);
+    try {
+      await backtestApi.deleteById(id);
+      // Refresh the list of backtests after one is deleted
+      await getPastBacktests();
+    } catch (err) {
+      setError(err.message || "Failed to delete backtest.");
+      throw err;
+    }
+  }, [getPastBacktests]);
+
   const runNewBacktest = useCallback(
     async (payload) => {
       setAuthToken(localStorage.getItem("userToken"));
@@ -61,7 +87,6 @@ export function useBacktest() {
     [getPastBacktests]
   );
 
-  // ✅ FIXED: Added setAuthToken to ensure request is authenticated
   const previewStrategy = useCallback(
     async (payload) => {
       setAuthToken(localStorage.getItem("userToken"));
@@ -79,7 +104,6 @@ export function useBacktest() {
     []
   );
 
-  // Load initial data when the hook is first used
   useEffect(() => {
     setInitialLoading(true);
     Promise.all([getOptions(), getPastBacktests()]).finally(() => setInitialLoading(false));
@@ -93,6 +117,8 @@ export function useBacktest() {
     batchLoading,
     error,
     getPastBacktests,
+    getBacktestById, // Exported new function
+    deleteBacktest,  // Exported new function
     runNewBacktest,
     previewStrategy,
   };
