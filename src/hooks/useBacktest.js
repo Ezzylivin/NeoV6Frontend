@@ -28,7 +28,7 @@ export function useBacktest() {
     }
   }, []);
 
-  const getPastBacktests = useCallback(async (page = 1)_ => {
+  const getPastBacktests = useCallback(async (page = 1) => {
     setAuthToken(localStorage.getItem("userToken"));
     setError(null);
     try {
