@@ -84,35 +84,38 @@ export default function Backtests() {
     }
   };
 
-  const handleSingleSubmit = async (e) => {
-    e.preventDefault();
-    setMetricsData([]);
+ // File: src/pages/Backtests.jsx
 
-    try {
-      const payload = {
-        code: formData.code,
-        symbol: formData.symbol,
-        timeframe: formData.timeframe,
-        startDate: formData.startDate,
-        endDate: formData.endDate,
-        tp: parseFloat(formData.takeProfit) || 0,
-        sl: parseFloat(formData.stopLoss) || 0,
-      };
+const handleSingleSubmit = async (e) => {
+  e.preventDefault();
+  setMetricsData([]);
 
+  try {
+    const payload = {
+      code: formData.code,
+      symbol: formData.symbol,
+      timeframe: formData.timeframe,
+      startDate: formData.startDate,
+      endDate: formData.endDate,
+      tp: parseFloat(formData.takeProfit) || 0,
+      sl: parseFloat(formData.stopLoss) || 0,
+    };
 
-      const result = await runNewBacktest(payload);
-
-      // ADD THIS LINE to see what the backend is actually sending back
+    const result = await runNewBacktest(payload);
     console.log("Backend Response:", result);
 
-      
-      if (result?.metrics?.equityCurve) {
-        setMetricsData(result.metrics.equityCurve);
-      }
-    } catch (err) {
-      console.error("Single backtest failed:", err);
+    // ✅ FIXED: This now looks in the correct place (`result.equityCurve`) 
+    // and checks that the array is not empty.
+    if (result?.equityCurve && result.equityCurve.length > 0) {
+      setMetricsData(result.equityCurve);
+    } else {
+      console.log("Chart data is empty. The backtest may have produced no trades.");
     }
-  };
+
+  } catch (err) {
+    console.error("Single backtest failed:", err);
+  }
+};
 
   if (initialLoading) return <div>Loading backtests...</div>;
   if (error) return <div style={{ color: 'red' }}>Error: {error}</div>;
