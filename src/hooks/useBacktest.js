@@ -1,3 +1,4 @@
+// File: src/hooks/useBacktest.js
 import { useState, useEffect, useCallback } from "react";
 import * as backtestApi from "../api/backtest.js";
 import { setAuthToken } from '../api/apiClient.js';
@@ -17,59 +18,68 @@ export function useBacktest() {
   const [batchLoading, setBatchLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // --- Fetch backtest options ---
   const getOptions = useCallback(async () => {
     setError(null);
     try {
       const fetchedOptions = await backtestApi.fetchOptions();
       setOptions(fetchedOptions);
     } catch (err) {
+      console.error("Error fetching options:", err);
       setError(err.message || "Failed to fetch options.");
     }
   }, []);
 
+  // --- Fetch past backtests ---
   const getPastBacktests = useCallback(async (page = 1) => {
     setError(null);
     try {
       const data = await backtestApi.fetchAll(page);
       setPastBacktests({ results: data.backtests, total: data.total });
     } catch (err) {
+      console.error("Failed to load past backtests:", err);
       setError(err.message || "Failed to load past backtests.");
     }
   }, []);
 
-  const getBacktestById = useCallback(async (id) => {
-    setInitialLoading(true);
-    setError(null);
-    try {
-      return await backtestApi.fetchById(id);
-    } catch (err) {
-      setError(err.message || "Failed to fetch backtest.");
-      throw err;
-    } finally {
-      setInitialLoading(false);
-    }
-  }, []);
-  
-  const deleteBacktest = useCallback(async (id) => {
-    setError(null);
-    try {
-      await backtestApi.deleteById(id);
-      await getPastBacktests();
-    } catch (err) {
-      setError(err.message || "Failed to delete backtest.");
-      throw err;
-    }
-  }, [getPastBacktests]);
+  // --- Helper: format payload for backend ---
+  const formatPayload = (payload, previewOnly = false) => {
+    const {
+      code,
+      symbol,
+      timeframe,
+      startDate,
+      endDate,
+      tp,
+      sl,
+      params = {}
+    } = payload;
 
+    return {
+      code,
+      symbol,
+      timeframe,
+      startDate: startDate || null,
+      endDate: endDate || null,
+      tp: tp ?? null,
+      sl: sl ?? null,
+      simulateOnly: previewOnly,
+      params
+    };
+  };
+
+  // --- Run single backtest ---
   const runNewBacktest = useCallback(
     async (payload) => {
       setSingleLoading(true);
       setError(null);
       try {
-        const result = await backtestApi.runBacktest(payload);
+        const formattedPayload = formatPayload(payload, false); // full backtest
+        const result = await backtestApi.runBacktest(formattedPayload);
         await getPastBacktests();
         return result;
       } catch (err) {
+        console.error("Single backtest failed:", err);
         setError(err.message || "Failed to run backtest.");
         throw err;
       } finally {
@@ -79,13 +89,16 @@ export function useBacktest() {
     [getPastBacktests]
   );
 
+  // --- Preview strategy ---
   const previewStrategy = useCallback(
     async (payload) => {
       setSingleLoading(true);
       setError(null);
       try {
-        return await backtestApi.previewStrategy(payload);
+        const formattedPayload = formatPayload(payload, true); // previewOnly
+        return await backtestApi.previewStrategy(formattedPayload);
       } catch (err) {
+        console.error("Preview failed:", err);
         setError(err.message || "Failed to preview strategy.");
         throw err;
       } finally {
@@ -97,14 +110,10 @@ export function useBacktest() {
 
   // --- Load initial data ---
   useEffect(() => {
-    // ✅ This is the fix. Set the token first.
     const token = localStorage.getItem("userToken");
-    if (token) {
-      setAuthToken(token);
-    }
+    if (token) setAuthToken(token);
 
     setInitialLoading(true);
-    // Now these API calls will have the auth header and succeed.
     Promise.all([getOptions(), getPastBacktests()]).finally(() => setInitialLoading(false));
   }, [getOptions, getPastBacktests]);
 
@@ -116,8 +125,6 @@ export function useBacktest() {
     batchLoading,
     error,
     getPastBacktests,
-    getBacktestById,
-    deleteBacktest,
     runNewBacktest,
     previewStrategy,
   };
