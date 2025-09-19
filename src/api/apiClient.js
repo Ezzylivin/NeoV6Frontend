@@ -1,17 +1,10 @@
 import axios from "axios";
 
-// Base URL for API calls (from VITE_API_URL)
-const API_URL = import.meta.env.VITE_API_URL;
-
 const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
-  withCredentials: true, // ensures cookies / credentials are sent
+  baseURL: import.meta.env.VITE_API_URL,
+  headers: { "Content-Type": "application/json" },
 });
 
-// Utility to set/remove JWT auth token
 export const setAuthToken = (token) => {
   if (token) {
     api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
@@ -20,18 +13,7 @@ export const setAuthToken = (token) => {
   }
 };
 
-// Optional: intercept requests to handle auth errors globally
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response && error.response.status === 401) {
-      // Example: auto-logout or redirect to login
-      console.warn("Unauthorized, token may be invalid or expired");
-      // Optionally remove token
-      setAuthToken(null);
-    }
-    return Promise.reject(error);
-  }
-);
+// REMOVED: The interceptor is taken out to prevent circular dependencies.
+// 401 error handling should be done in the UI where the API call is made.
 
 export default api;
