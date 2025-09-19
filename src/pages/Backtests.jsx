@@ -39,6 +39,9 @@ export default function Backtests() {
   // Auto-select first strategy on initial load
   useEffect(() => {
     if (options.strategies?.length > 0 && !formData.code) {
+
+      console.log("Strategies received from backend:", options.strategies);
+      
       const firstStrategy = options.strategies[0];
       setFormData((prev) => ({
         ...prev,
