@@ -18,7 +18,6 @@ export function useBacktest() {
   const [error, setError] = useState(null);
 
   const getOptions = useCallback(async () => {
-    setAuthToken(localStorage.getItem("userToken"));
     setError(null);
     try {
       const fetchedOptions = await backtestApi.fetchOptions();
@@ -29,7 +28,6 @@ export function useBacktest() {
   }, []);
 
   const getPastBacktests = useCallback(async (page = 1) => {
-    setAuthToken(localStorage.getItem("userToken"));
     setError(null);
     try {
       const data = await backtestApi.fetchAll(page);
@@ -39,13 +37,10 @@ export function useBacktest() {
     }
   }, []);
 
-  // Corrected function name to getBacktestById for consistency in the hook
   const getBacktestById = useCallback(async (id) => {
-    setAuthToken(localStorage.getItem("userToken"));
     setInitialLoading(true);
     setError(null);
     try {
-      // ✅ FIXED: Now calls the correct 'fetchById' function from the API file
       return await backtestApi.fetchById(id);
     } catch (err) {
       setError(err.message || "Failed to fetch backtest.");
@@ -56,10 +51,8 @@ export function useBacktest() {
   }, []);
   
   const deleteBacktest = useCallback(async (id) => {
-    setAuthToken(localStorage.getItem("userToken"));
     setError(null);
     try {
-      // ✅ FIXED: Now calls the correct 'deleteById' function from the API file
       await backtestApi.deleteById(id);
       await getPastBacktests();
     } catch (err) {
@@ -70,7 +63,6 @@ export function useBacktest() {
 
   const runNewBacktest = useCallback(
     async (payload) => {
-      setAuthToken(localStorage.getItem("userToken"));
       setSingleLoading(true);
       setError(null);
       try {
@@ -89,7 +81,6 @@ export function useBacktest() {
 
   const previewStrategy = useCallback(
     async (payload) => {
-      setAuthToken(localStorage.getItem("userToken"));
       setSingleLoading(true);
       setError(null);
       try {
@@ -104,8 +95,16 @@ export function useBacktest() {
     []
   );
 
+  // --- Load initial data ---
   useEffect(() => {
+    // ✅ This is the fix. Set the token first.
+    const token = localStorage.getItem("userToken");
+    if (token) {
+      setAuthToken(token);
+    }
+
     setInitialLoading(true);
+    // Now these API calls will have the auth header and succeed.
     Promise.all([getOptions(), getPastBacktests()]).finally(() => setInitialLoading(false));
   }, [getOptions, getPastBacktests]);
 
