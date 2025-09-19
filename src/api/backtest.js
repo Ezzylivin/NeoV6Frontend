@@ -1,5 +1,6 @@
 // File: src/api/backtest.js
-import api from "./apiClient.js";
+
+import api, { setAuthToken } from "./apiClient.js"; // ✅ 1. Import setAuthToken
 
 // --- Helpers to normalize API responses ---
 const normalizeOptions = (raw) => ({
@@ -17,6 +18,7 @@ const normalizePastBacktests = (raw) => ({
 
 // --- Fetch backtest options ---
 export async function fetchOptions() {
+  setAuthToken(localStorage.getItem('userToken')); // ✅ 2. Call it here
   try {
     const response = await api.get("/backtest/options");
     return normalizeOptions(response.data);
@@ -28,6 +30,7 @@ export async function fetchOptions() {
 
 // --- Fetch paginated past backtests ---
 export async function fetchAll(page = 1) {
+  setAuthToken(localStorage.getItem('userToken')); // ✅ 2. And here
   try {
     const response = await api.get(`/backtest?page=${page}`);
     return normalizePastBacktests(response.data);
@@ -39,9 +42,9 @@ export async function fetchAll(page = 1) {
 
 // --- Run single backtest ---
 export async function runBacktest(payload) {
+  setAuthToken(localStorage.getItem('userToken')); // ✅ 2. And here
   if (!payload.code) throw new Error("strategy 'code' is required for backtest");
 
-  // Optional fields defaults
   const fullPayload = {
     ...payload,
     symbol: payload.symbol || "",
@@ -49,7 +52,7 @@ export async function runBacktest(payload) {
     timeframe: payload.timeframe || "1h",
     tp: payload.tp || null,
     sl: payload.sl || null,
-    simulateOnly: false, // full backtest
+    simulateOnly: false,
   };
 
   try {
@@ -61,9 +64,9 @@ export async function runBacktest(payload) {
   }
 }
 
-
 // --- Preview a strategy without saving ---
 export async function previewStrategy(payload) {
+  setAuthToken(localStorage.getItem('userToken')); // ✅ 2. And here
   if (!payload.code) throw new Error("strategy 'code' is required for preview");
 
   const previewPayload = {
@@ -73,7 +76,7 @@ export async function previewStrategy(payload) {
     params: payload.params || {},
     tp: payload.tp || null,
     sl: payload.sl || null,
-    simulateOnly: true, // preview mode
+    simulateOnly: true,
   };
 
   try {
