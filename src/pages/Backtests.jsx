@@ -99,6 +99,7 @@ const handleSingleSubmit = async (e) => {
       endDate: formData.endDate,
       tp: parseFloat(formData.takeProfit) || 0,
       sl: parseFloat(formData.stopLoss) || 0,
+      params: formData.params,
     };
 
     const result = await runNewBacktest(payload);
