@@ -34,6 +34,7 @@ export default function Backtests() {
 
   const [formData, setFormData] = useState(initialFormData);
   const [metricsData, setMetricsData] = useState([]);
+  
 
   // Auto-select first strategy on initial load
   useEffect(() => {
@@ -78,6 +79,8 @@ export default function Backtests() {
   const handleSingleSubmit = async (e) => {
     e.preventDefault();
     setMetricsData([]);
+
+     console.log("Current formData state:", formData); 
 
     try {
       const payload = {
