@@ -44,7 +44,8 @@ export async function runBacktest(payload) {
   // Optional fields defaults
   const fullPayload = {
     ...payload,
-    pair: payload.pair || "",
+    symbol: payload.symbol || "",
+    params: payload.params || {},
     timeframe: payload.timeframe || "1h",
     tp: payload.tp || null,
     sl: payload.sl || null,
@@ -67,8 +68,9 @@ export async function previewStrategy(payload) {
 
   const previewPayload = {
     ...payload,
-    pair: payload.pair || "",
+    symbol: payload.symbol || "",
     timeframe: payload.timeframe || "1h",
+    params: payload.params || {},
     tp: payload.tp || null,
     sl: payload.sl || null,
     simulateOnly: true, // preview mode
