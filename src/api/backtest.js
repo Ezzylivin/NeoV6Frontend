@@ -1,5 +1,4 @@
-// File: src/api/backtest.js
-import api from "./apiClient.js";
+import api, { setAuthToken } from "./apiClient.js";
 
 // --- Helpers to normalize API responses ---
 const normalizeOptions = (raw) => ({
@@ -17,6 +16,7 @@ const normalizePastBacktests = (raw) => ({
 
 // --- Fetch backtest options ---
 export async function fetchOptions() {
+  setAuthToken(localStorage.getItem('userToken'));
   try {
     const response = await api.get("/backtest/options");
     return normalizeOptions(response.data);
@@ -28,6 +28,7 @@ export async function fetchOptions() {
 
 // --- Fetch paginated past backtests ---
 export async function fetchAll(page = 1) {
+  setAuthToken(localStorage.getItem('userToken'));
   try {
     const response = await api.get(`/backtest?page=${page}`);
     return normalizePastBacktests(response.data);
@@ -39,19 +40,10 @@ export async function fetchAll(page = 1) {
 
 // --- Run single backtest ---
 export async function runBacktest(payload) {
+  setAuthToken(localStorage.getItem('userToken'));
   if (!payload.code) throw new Error("strategy 'code' is required for backtest");
 
-  // Optional fields defaults
-  const fullPayload = {
-    ...payload,
-    symbol: payload.symbol || "",
-    params: payload.params || {},
-    timeframe: payload.timeframe || "1h",
-    tp: payload.tp || null,
-    sl: payload.sl || null,
-    simulateOnly: false, // full backtest
-  };
-
+  const fullPayload = { ...payload };
   try {
     const { data } = await api.post("/backtest/run", fullPayload);
     return data;
@@ -61,26 +53,41 @@ export async function runBacktest(payload) {
   }
 }
 
-
 // --- Preview a strategy without saving ---
 export async function previewStrategy(payload) {
+  setAuthToken(localStorage.getItem('userToken'));
   if (!payload.code) throw new Error("strategy 'code' is required for preview");
 
-  const previewPayload = {
-    ...payload,
-    symbol: payload.symbol || "",
-    timeframe: payload.timeframe || "1h",
-    params: payload.params || {},
-    tp: payload.tp || null,
-    sl: payload.sl || null,
-    simulateOnly: true, // preview mode
-  };
-
+  const previewPayload = { ...payload };
   try {
     const { data } = await api.post("/backtest/preview", previewPayload);
     return data;
   } catch (error) {
     console.error("previewStrategy(): failed", error);
+    throw error;
+  }
+}
+
+// ✅ --- NEW: Run a batch backtest ---
+export async function runBatchBacktest(payload) {
+  setAuthToken(localStorage.getItem('userToken'));
+  try {
+    const { data } = await api.post("/backtest/batch", payload);
+    return data;
+  } catch (error) {
+    console.error("runBatchBacktest(): failed", error);
+    throw error;
+  }
+}
+
+// ✅ --- NEW: Run a combined strategy backtest ---
+export async function runComboBacktest(payload) {
+  setAuthToken(localStorage.getItem('userToken'));
+  try {
+    const { data } = await api.post("/backtest/combo", payload);
+    return data;
+  } catch (error) {
+    console.error("runComboBacktest(): failed", error);
     throw error;
   }
 }
