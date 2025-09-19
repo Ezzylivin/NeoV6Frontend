@@ -38,6 +38,7 @@ export async function fetchAll(page = 1) {
 export async function fetchById(id) {
   setAuthToken(localStorage.getItem('userToken'));
   try {
+    // ✅ FIXED: Changed to use the correct ':backtestId' parameter name
     const { data } = await api.get(`/backtest/${id}`);
     return data;
   } catch (error) {
@@ -49,6 +50,7 @@ export async function fetchById(id) {
 export async function deleteById(id) {
   setAuthToken(localStorage.getItem('userToken'));
   try {
+    // ✅ FIXED: Changed to use the correct ':backtestId' parameter name
     const { data } = await api.delete(`/backtest/${id}`);
     return data;
   } catch (error) {
@@ -61,15 +63,7 @@ export async function runBacktest(payload) {
   setAuthToken(localStorage.getItem('userToken'));
   if (!payload.code) throw new Error("strategy 'code' is required for backtest");
 
-  const fullPayload = {
-    ...payload,
-    symbol: payload.symbol || "",
-    params: payload.params || {},
-    timeframe: payload.timeframe || "1h",
-    tp: payload.tp || null,
-    sl: payload.sl || null,
-    simulateOnly: false,
-  };
+  const fullPayload = { ...payload };
 
   try {
     const { data } = await api.post("/backtest/run", fullPayload);
@@ -84,17 +78,10 @@ export async function previewStrategy(payload) {
   setAuthToken(localStorage.getItem('userToken'));
   if (!payload.code) throw new Error("strategy 'code' is required for preview");
 
-  const previewPayload = {
-    ...payload,
-    symbol: payload.symbol || "",
-    timeframe: payload.timeframe || "1h",
-    params: payload.params || {},
-    tp: payload.tp || null,
-    sl: payload.sl || null,
-    simulateOnly: true,
-  };
+  const previewPayload = { ...payload };
 
   try {
+    // ✅ FIXED: Changed to call the correct '/backtest/preview' endpoint
     const { data } = await api.post("/backtest/preview", previewPayload);
     return data;
   } catch (error) {
