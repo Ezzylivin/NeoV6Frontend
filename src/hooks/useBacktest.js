@@ -40,12 +40,12 @@ export function useBacktest() {
   }, []);
 
   // ✅ ADDED: Function to get a single backtest by its ID
-  const getBacktestById = useCallback(async (id) => {
+  const getById = useCallback(async (id) => {
     setAuthToken(localStorage.getItem("userToken"));
     setInitialLoading(true); // Use initialLoading for fetching single item
     setError(null);
     try {
-      return await backtestApi.fetchById(id);
+      return await backtestApi.getBacktestById(id);
     } catch (err) {
       setError(err.message || "Failed to fetch backtest.");
       throw err;
@@ -59,7 +59,7 @@ export function useBacktest() {
     setAuthToken(localStorage.getItem("userToken"));
     setError(null);
     try {
-      await backtestApi.deleteById(id);
+      await backtestApi.getBacktestById(id);
       // Refresh the list of backtests after one is deleted
       await getPastBacktests();
     } catch (err) {
