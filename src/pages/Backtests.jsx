@@ -12,13 +12,41 @@ import {
 } from "recharts";
 import "./Backtests.css";
 
-// Initial state with a wider default date range
+// --- Helper function to format a date as YYYY-MM-DD ---
+const formatDate = (date) => {
+  const year = date.getFullYear();
+  // 'padStart' ensures the month and day are two digits (e.g., 09)
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// --- Calculate the dynamic dates ---
+const getInitialDates = () => {
+  const today = new Date();
+  
+  // End Date: Yesterday
+  const endDate = new Date(today);
+  endDate.setDate(today.getDate() - 1);
+  
+  // Start Date: One year before today
+  const startDate = new Date(today);
+  startDate.setFullYear(today.getFullYear() - 1);
+  
+  return {
+    startDate: formatDate(startDate),
+    endDate: formatDate(endDate),
+  };
+};
+
+
+// --- Initial state for single backtest form ---
 const initialFormData = {
   code: "",
   symbol: "",
   timeframe: "",
-  startDate: "2024-01-01", // Default to a wider range
-  endDate: "2024-09-18",   // Default to a wider range
+  startDate: getInitialDates().startDate, // ✅ Dynamically set
+  endDate: getInitialDates().endDate,     // ✅ Dynamically set
   takeProfit: "",
   stopLoss: "",
 };
