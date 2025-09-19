@@ -99,7 +99,13 @@ export default function Backtests() {
         sl: parseFloat(formData.stopLoss) || 0,
       };
 
+
       const result = await runNewBacktest(payload);
+
+      // ADD THIS LINE to see what the backend is actually sending back
+    console.log("Backend Response:", result);
+
+      
       if (result?.metrics?.equityCurve) {
         setMetricsData(result.metrics.equityCurve);
       }
