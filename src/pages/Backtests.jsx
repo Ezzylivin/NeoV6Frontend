@@ -1,309 +1,188 @@
-import React, { useState, useEffect } from "react";
-import { useBacktest } from "../hooks/useBacktest.js";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
-import "./Backtests.css";
+import React, { useState, useEffect } from 'react';
+import api, { setAuthToken } from '../api/apiClient.js';
 
-// --- Helper functions for dates (no change) ---
-const formatDate = (date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+// --- Data for Strategy Guides (for brevity, this is condensed) ---
+const strategyGuides = {
+    'ATR': { whatItIs: "ATR measures market volatility...", howItWorks: "...", combineWith: "..." },
+    'Bollinger Bands': { whatItIs: "Bollinger Bands use a moving average...", howItWorks: "...", combineWith: "..." },
+    'CCI': { whatItIs: "CCI measures deviation from the average price...", howItWorks: "...", combineWith: "..." },
+    'Ichimoku Cloud': { whatItIs: "Ichimoku combines multiple lines...", howItWorks: "...", combineWith: "..." },
+    'MACD': { whatItIs: "MACD shows momentum...", howItWorks: "...", combineWith: "..." },
+    'On-Balance Volume': { whatItIs: "OBV tracks cumulative buying/selling pressure...", howItWorks: "...", combineWith: "..." },
+    'Parabolic SAR': { whatItIs: "Parabolic SAR generates trend-based signals...", howItWorks: "...", combineWith: "..." },
+    'RSI': { whatItIs: "RSI measures overbought and oversold conditions...", howItWorks: "...", combineWith: "..." },
+    'Moving Average Crossover': { whatItIs: "Simple Moving Average crossover strategy...", howItWorks: "...", combineWith: "..." },
+    'Stochastic Oscillator': { whatItIs: "Stochastic measures momentum...", howItWorks: "...", combineWith: "..." }
 };
 
-const getInitialDates = () => {
-  const today = new Date();
-  const endDate = new Date(today);
-  endDate.setDate(today.getDate() - 1);
-  const startDate = new Date(today);
-  startDate.setFullYear(today.getFullYear() - 1);
-  return { startDate: formatDate(startDate), endDate: formatDate(endDate) };
+const initialStrategyState = {
+  name: '',
+  description: '',
+  params: {
+    strategyType: 'Moving Average Crossover',
+    shortPeriod: 10,
+    longPeriod: 50,
+  },
 };
 
-// --- Initial state for forms (no change) ---
-const initialFormData = {
-  code: "",
-  symbol: "",
-  timeframe: "",
-  startDate: getInitialDates().startDate,
-  endDate: getInitialDates().endDate,
-  params: {},
-};
+const Strategies = () => {
+  const [strategies, setStrategies] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null); // For success feedback
 
-const initialComboData = {
-  strategyConfigs: [{ code: "" }],
-  combinationRule: 'AND',
-  symbol: "",
-  timeframe: "",
-  startDate: getInitialDates().startDate,
-  endDate: getInitialDates().endDate,
-};
-
-// --- MetricsDisplay Component (no change) ---
-const MetricsDisplay = ({ metrics }) => {
-    if (!metrics || Object.keys(metrics).length === 0) {
-        return <p className="no-metrics">No performance metrics available.</p>;
+  // Function to fetch all strategies from the backend
+  const fetchStrategies = async () => {
+    try {
+      const token = localStorage.getItem('userToken');
+      if (token) {
+        setAuthToken(token);
+      }
+      const response = await api.get("/strategy");
+      setStrategies(Array.isArray(response.data) ? response.data : []);
+    } catch (e) {
+      setError(e.response?.data?.message || e.message);
+    } finally {
+      setIsLoading(false);
     }
-    const formatValue = (key, value) => {
-        if (typeof value !== 'number') return String(value);
-        if (key.toLowerCase().includes('rate') || key.toLowerCase().includes('factor')) return `${(value * 100).toFixed(2)}%`;
-        if (key.toLowerCase().includes('profit') || key.toLowerCase().includes('drawdown') || key.toLowerCase().includes('balance')) return `$${value.toFixed(2)}`;
-        return value;
-    };
-    const keyMetrics = {
-        "Total Profit": metrics.totalProfit, "Total Trades": metrics.totalTrades, "Win Rate": metrics.winRate,
-        "Max Drawdown": metrics.maxDrawdown, "Profit Factor": metrics.profitFactor, "Final Balance": metrics.finalBalance,
-    };
-    return (
-        <div className="metrics-grid">
-            {Object.entries(keyMetrics).map(([key, value]) => (
-                <div key={key} className="metric-item">
-                    <span className="metric-label">{key}</span>
-                    <span className="metric-value">{formatValue(key, value)}</span>
-                </div>
-            ))}
-        </div>
-    );
-};
-
-export default function Backtests() {
-  const {
-    options, initialLoading, singleLoading, batchLoading, error, runNewBacktest, runComboBacktest,
-  } = useBacktest();
-
-  const [formData, setFormData] = useState(initialFormData);
-  const [comboData, setComboData] = useState(initialComboData);
-  const [backtestResults, setBacktestResults] = useState(null);
+  };
 
   useEffect(() => {
-    if (options.strategies?.length > 0 && !formData.code) {
-      const firstStrategy = options.strategies[0];
-      setFormData((prev) => ({
-        ...prev,
-        code: firstStrategy.code,
-        symbol: firstStrategy.params?.symbol || options.symbols[0] || "",
-        timeframe: firstStrategy.params?.timeframe || options.timeframes[0] || "",
-        params: firstStrategy.params || {},
-      }));
-      setComboData(prev => ({
-        ...prev,
-        symbol: options.symbols[0] || "",
-        timeframe: options.timeframes[0] || "",
-        strategyConfigs: [{ code: options.strategies[0]?.code || "" }]
-      }));
-    }
-  }, [options.strategies, options.symbols, options.timeframes, formData.code]);
+    fetchStrategies();
+  }, []);
 
-  // --- Handlers (no change) ---
+  // Function to handle changes in the creation form
   const handleChange = (e) => {
     const { name, value } = e.target;
-    if (name === "code") {
-      const selectedStrategy = options.strategies.find((s) => s.code === value);
-      if (selectedStrategy) {
-        setFormData((prev) => ({
-          ...prev,
-          code: selectedStrategy.code,
-          symbol: selectedStrategy.params?.symbol || options.symbols[0] || "",
-          timeframe: selectedStrategy.params?.timeframe || options.timeframes[0] || "",
-          params: selectedStrategy.params || {},
-        }));
-      } else {
-        setFormData((prev) => ({ ...prev, code: "", symbol: "", timeframe: "", params: {} }));
-      }
+    if (name === 'strategyType') {
+        const resetParams = {
+            'Moving Average Crossover': { shortPeriod: 10, longPeriod: 50 }, 'RSI': { rsiPeriod: 14 }, 'Bollinger Bands': { period: 20, numStdDev: 2 },
+            'Stochastic Oscillator': { kPeriod: 14, dPeriod: 3 }, 'MACD': { fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 },
+            'Parabolic SAR': { accelerationFactorStart: 0.02, accelerationFactorIncrement: 0.02, accelerationFactorMaximum: 0.2 },
+            'On-Balance Volume': { obvPeriod: 10 }, 'CCI': { cciPeriod: 20 }, 'ATR': { atrPeriod: 14 },
+            'Ichimoku Cloud': { conversionLinePeriod: 9, baseLinePeriod: 26, laggingSpanPeriod: 26, cloudSpanPeriod: 52 },
+        };
+        setNewStrategy(prev => ({ ...prev, params: { strategyType: value, ...resetParams[value] } }));
+    } else if (Object.keys(newStrategy.params).includes(name)) {
+        setNewStrategy(prev => ({ ...prev, params: { ...prev.params, [name]: value } }));
     } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
+        setNewStrategy(prev => ({ ...prev, [name]: value }));
     }
   };
 
-  const handleComboChange = (e, index) => {
-    const { name, value } = e.target;
-    if (name === "strategyCode") {
-      const newConfigs = [...comboData.strategyConfigs];
-      newConfigs[index] = { ...newConfigs[index], code: value };
-      setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
-    } else {
-      setComboData(prev => ({ ...prev, [name]: value }));
-    }
-  };
-
-  const addStrategyToCombo = () => setComboData(prev => ({ ...prev, strategyConfigs: [...prev.strategyConfigs, { code: "" }] }));
-  const removeStrategyFromCombo = (index) => setComboData(prev => ({ ...prev, strategyConfigs: comboData.strategyConfigs.filter((_, i) => i !== index) }));
-
-  // --- Submit Handlers (no change) ---
-  const handleSingleSubmit = async (e) => {
+  // ✅ UPGRADED: Function to handle form submission for a new strategy
+  const handleCreate = async (e) => {
     e.preventDefault();
-    setBacktestResults(null);
+    setError(null); // Clear previous errors
+    setSuccessMessage(null); // Clear previous success messages
     try {
-      const result = await runNewBacktest(formData);
-      if (result?.equityCurve?.length > 0) {
-        setBacktestResults({
-          combined: { metrics: { ...result.metrics, finalBalance: result.finalBalance }, equityCurve: result.equityCurve },
-          individuals: []
-        });
-      } else {
-        alert("Backtest ran successfully but produced no trades.");
-      }
-    } catch (err) {
-      console.error("Single backtest failed:", err);
+      const response = await api.post("/strategy", newStrategy);
+      setStrategies([...strategies, response.data]);
+      setNewStrategy(initialStrategyState);
+      setSuccessMessage("Strategy created successfully!");
+    } catch (e) {
+      // Set the error message from the backend to be displayed on the page
+      setError(e.response?.data?.message || "An unexpected error occurred.");
     }
   };
 
-  const handleComboSubmit = async (e) => {
-    e.preventDefault();
-    setBacktestResults(null);
+  // Function to handle deleting a strategy
+  const handleDelete = async (strategyId) => {
+    if (!window.confirm("Are you sure you want to delete this strategy?")) return;
     try {
-      const payload = { ...comboData, strategyCodes: comboData.strategyConfigs.map(s => s.code).filter(Boolean) };
-      delete payload.strategyConfigs;
-      if (payload.strategyCodes.length < 2) {
-        alert("Please select at least two strategies for a combo backtest.");
-        return;
-      }
-      const result = await runComboBacktest(payload);
-      if (result?.combinedResult?.metrics?.equityCurve) {
-        setBacktestResults({
-          combined: { metrics: result.combinedResult.metrics, equityCurve: result.combinedResult.metrics.equityCurve },
-          individuals: result.individualResults.map(res => ({
-            name: res.strategyName,
-            metrics: res.metrics,
-            equityCurve: res.metrics.equityCurve
-          }))
-        });
-      } else {
-        alert("Combo backtest ran successfully but produced no trades.");
-      }
-    } catch (err) {
-      console.error("Combo backtest failed:", err);
+      await api.delete(`/strategy/${strategyId}`);
+      setStrategies(strategies.filter(s => s._id !== strategyId));
+    } catch (e) {
+      setError(e.response?.data?.message || e.message);
     }
   };
+  
+  // A helper function to render dynamic parameters and guides
+  const renderStrategyParameters = () => {
+    const p = newStrategy.params;
+    const guide = strategyGuides[p.strategyType];
+    let parameterInputs = null;
 
-  if (initialLoading) return <div>Loading backtests...</div>;
-  if (error) return <div style={{ color: 'red' }}>Error: {error}</div>;
+    switch (p.strategyType) {
+        case 'Moving Average Crossover':
+            parameterInputs = (<><label>Short Period:<input type="number" name="shortPeriod" value={p.shortPeriod} onChange={handleChange} required style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} /></label><label>Long Period:<input type="number" name="longPeriod" value={p.longPeriod} onChange={handleChange} required style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} /></label></>);
+            break;
+        case 'RSI':
+            parameterInputs = <label>RSI Period:<input type="number" name="rsiPeriod" value={p.rsiPeriod} onChange={handleChange} required style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} /></label>;
+            break;
+        case 'Bollinger Bands':
+             parameterInputs = (<><label>Period:<input type="number" name="period" value={p.period} onChange={handleChange} required style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} /></label><label>Standard Deviations:<input type="number" name="numStdDev" value={p.numStdDev} onChange={handleChange} required style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} /></label></>);
+            break;
+        default: parameterInputs = null;
+    }
+
+    return (
+        <div>
+            {parameterInputs}
+            {guide && (
+                <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '1px solid #3e4e60', color: '#cbd5e1' }}>
+                    <h4 style={{ fontWeight: '600', color: '#94a3b8' }}>Strategy Guide</h4>
+                    <p style={{ fontSize: '12px', marginTop: '8px' }}><strong>What it is:</strong> {guide.whatItIs}</p>
+                    <p style={{ fontSize: '12px', marginTop: '4px' }}><strong>How it works:</strong> {guide.howItWorks}</p>
+                    <p style={{ fontSize: '12px', marginTop: '4px' }}><strong>Combine With:</strong> {guide.combineWith}</p>
+                </div>
+            )}
+        </div>
+    );
+  };
+
+  if (isLoading) return <div style={{ color: '#eee' }}>Loading strategies...</div>;
 
   return (
-    <div className="dashboard-container">
-      <h2 className="header">Backtests</h2>
-      {error && <div className="error-banner">{error}</div>}
-      
-      <div className="forms-container">
-        {/* --- Single Backtest Form --- */}
-        <form className="card-row" onSubmit={handleSingleSubmit}>
-          <div className="metric-card">
-            <h3 className="card-title">Single Backtest</h3>
-            <label>Strategy
-              <select name="code" value={formData.code} onChange={handleChange} required>
-                <option value="">Select strategy</option>
-                {options.strategies.map(s => (<option key={s.code} value={s.code}>{s.name}</option>))}
-              </select>
-            </label>
-            <label>Symbol
-              <select name="symbol" value={formData.symbol} onChange={handleChange} required>
-                <option value="">Select symbol</option>
-                {options.symbols.map(s => (<option key={s} value={s}>{s}</option>))}
-              </select>
-            </label>
-            <label>Timeframe
-              <select name="timeframe" value={formData.timeframe} onChange={handleChange} required>
-                <option value="">Select timeframe</option>
-                {options.timeframes.map(t => (<option key={t} value={t}>{t}</option>))}
-              </select>
-            </label>
-            <label>Start Date<input type="date" name="startDate" value={formData.startDate} onChange={handleChange} required /></label>
-            <label>End Date<input type="date" name="endDate" value={formData.endDate} onChange={handleChange} required /></label>
-            <button type="submit" disabled={singleLoading}>{singleLoading ? "Running..." : "Run Backtest"}</button>
+    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '1000px', margin: 'auto', backgroundColor: '#121e2c', color: '#eee' }}>
+      <h1>My Trading Strategies</h1>
+      <p style={{ fontSize: '16px', color: '#aaa' }}>Define the trading rules our system will use. Pick a strategy type and adjust its parameters.</p>
+
+      <div style={{ padding: '20px', border: '1px solid #3e4e60', borderRadius: '8px', marginBottom: '40px', backgroundColor: '#1e2b3c' }}>
+        <h2>Create a New Trading Strategy</h2>
+        <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
+          {/* LEFT COLUMN */}
+          <div>
+            <h3>Configuration</h3>
+            <label>Strategy Type:<select name="strategyType" value={newStrategy.params.strategyType} onChange={handleChange} style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}><option value="Moving Average Crossover">Moving Average Crossover</option><option value="RSI">RSI</option><option value="Bollinger Bands">Bollinger Bands</option><option value="Stochastic Oscillator">Stochastic Oscillator</option><option value="MACD">MACD</option><option value="Parabolic SAR">Parabolic SAR</option><option value="On-Balance Volume">On-Balance Volume</option><option value="CCI">CCI</option><option value="ATR">ATR</option><option value="Ichimoku Cloud">Ichimoku Cloud</option></select></label>
+            <label>Strategy Name:<input type="text" name="name" value={newStrategy.name} onChange={handleChange} required placeholder="e.g., The MACD Power Play" style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} /></label>
+            <label>Description:<textarea name="description" value={newStrategy.description} onChange={handleChange} placeholder="e.g., This strategy looks for trends using MACD." style={{ width: '100%', minHeight: '80px', padding: '8px', boxSizing: 'border-box', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} /></label>
+          </div>
+
+          {/* RIGHT COLUMN */}
+          <div>
+            <h3>Parameters & Guide</h3>
+            {renderStrategyParameters()}
+          </div>
+          
+          <div style={{ gridColumn: 'span 2', textAlign: 'center', marginTop: '20px' }}>
+            {/* ✅ NEW: Display for error and success messages */}
+            {error && <div style={{ color: '#ef4444', marginBottom: '15px', fontWeight: '500' }}>{error}</div>}
+            {successMessage && <div style={{ color: '#22c55e', marginBottom: '15px', fontWeight: '500' }}>{successMessage}</div>}
+            
+            <button type="submit" style={{ padding: '12px 24px', fontSize: '16px', fontWeight: 'bold', backgroundColor: '#4CAF50', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Create Strategy</button>
           </div>
         </form>
-
-        {/* --- Combo Strategy Builder --- */}
-        <form className="card-row" onSubmit={handleComboSubmit}>
-         <div className="metric-card">
-           <h3 className="card-title">Combo Strategy Builder</h3>
-           <div className="combo-strategies-list">
-             <h4>Strategies to Combine</h4>
-             {comboData.strategyConfigs.map((strategy, index) => (
-               <div key={index} className="combo-strategy-item">
-                 <select name="strategyCode" value={strategy.code} onChange={(e) => handleComboChange(e, index)} required>
-                   <option value="">Select Strategy {index + 1}</option>
-                   {options.strategies.map(s => (<option key={s.code} value={s.code}>{s.name}</option>))}
-                 </select>
-                 {comboData.strategyConfigs.length > 1 && (
-                   <button type="button" onClick={() => removeStrategyFromCombo(index)} className="button-remove">X</button>
-                 )}
-               </div>
-             ))}
-             <button type="button" onClick={addStrategyToCombo} className="button-add">+ Add Strategy</button>
-           </div>
-
-           <label>Combination Rule
-             <select name="combinationRule" value={comboData.combinationRule} onChange={handleComboChange} required>
-               <option value="AND">AND (All must agree)</option>
-               <option value="OR">OR (Any can trigger)</option>
-             </select>
-           </label>
-           <label>Symbol<select name="symbol" value={comboData.symbol} onChange={handleComboChange} required><option value="">Select symbol</option>{options.symbols.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
-           <label>Timeframe<select name="timeframe" value={comboData.timeframe} onChange={handleComboChange} required><option value="">Select timeframe</option>{options.timeframes.map(t => <option key={t} value={t}>{t}</option>)}</select></label>
-           <label>Start Date<input type="date" name="startDate" value={comboData.startDate} onChange={handleComboChange} required /></label>
-           <label>End Date<input type="date" name="endDate" value={comboData.endDate} onChange={handleComboChange} required /></label>
-           <button type="submit" disabled={batchLoading}>{batchLoading ? "Running..." : "Run Combo Test"}</button>
-         </div>
-       </form> 
       </div>
 
-      {/* --- ✅ DEBUGGING: Results Display RE-ENABLED --- */}
-      {backtestResults && (
-        <>
-          {/* Combined Chart & Metrics */}
-          {backtestResults.combined?.equityCurve?.length > 0 && (
-            <div className="chart-card">
-              <h3>Combined Strategy Performance</h3>
-              <MetricsDisplay metrics={backtestResults.combined.metrics} />
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={backtestResults.combined.equityCurve}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="timestamp" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="balance" name="Combined Equity" stroke="#8884d8" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          {/* Individual Charts & Metrics */}
-          {backtestResults.individuals?.length > 0 && (
-             <div className="individual-charts-container">
-                <h3 className="header">Individual Strategy Performance</h3>
-                {backtestResults.individuals.map((result, index) => (
-                  result.equityCurve?.length > 0 && (
-                    <div key={index} className="chart-card">
-                        <h4>{result.name}</h4>
-                        <MetricsDisplay metrics={result.metrics} />
-                        <ResponsiveContainer width="100%" height={250}>
-                            <LineChart data={result.equityCurve}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="timestamp" />
-                                <YAxis />
-                                <Tooltip />
-                                <Line type="monotone" dataKey="balance" name={result.name} stroke="#82ca9d" />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
-                  )
-                ))}
-            </div>
-          )}
-        </>
-      )}
+      <div style={{ padding: '20px', border: '1px solid #3e4e60', borderRadius: '8px', backgroundColor: '#1e2b3c' }}>
+        <h2>My Saved Strategies</h2>
+        {strategies.length > 0 ? (
+          <ul style={{ listStyle: 'none', padding: 0 }}>
+            {strategies.map((strategy) => (
+              <li key={strategy._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', borderBottom: '1px solid #333' }}>
+                <span><strong>{strategy.name || "Unnamed Strategy"}</strong><br /><span style={{ fontSize: '12px', color: '#888' }}>Type: {strategy.params.strategyType}</span></span>
+                <button onClick={() => handleDelete(strategy._id)} style={{ padding: '8px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Delete</button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p style={{ color: '#aaa' }}>You haven't created any strategies yet. Get started by using the form above!</p>
+        )}
+      </div>
     </div>
   );
-}
+};
+
+export default Strategies;
 
