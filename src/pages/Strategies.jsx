@@ -4,58 +4,67 @@ import api, { setAuthToken } from '../api/apiClient.js';
 // --- Data for Strategy Guides ---
 const strategyGuides = {
     'ATR': {
-        whatItIs: "ATR measures market volatility. Higher ATR = bigger price swings, lower ATR = calmer market. ATR itself isn’t a signal generator—it tells you how much a price typically moves.",
-        howItWorks: "Long Entry: Price breaks above previous close + (ATR × multiplier) → a volatility breakout. Long Exit: Price drops below entry - (ATR × multiplier) → stop-loss.",
-        combineWith: "Combine With: Momentum or trend indicators (SMA, MACD) to filter false breakouts."
+        title: "ATR (Average True Range)",
+        whatItIs: "ATR measures market volatility. Higher ATR means bigger price swings; lower ATR means a calmer market. It doesn't generate buy/sell signals on its own but is excellent for managing risk.",
+        howItWorks: "A common use is setting a stop-loss. For a long entry, you might place a stop at 'entry price - (ATR × multiplier)'. This adapts your risk based on the current volatility.",
+        combineWith: "Combine with trend indicators like SMA or MACD to confirm breakouts and manage risk."
     },
     'Bollinger Bands': {
-        whatItIs: "Bollinger Bands use a moving average + standard deviations to show price volatility.",
-        howItWorks: "Long Entry: Price touches or drops below the lower band (oversold). Long Exit: Price touches or crosses the upper band.",
-        combineWith: "Combine With: RSI or ATR for confirmation of oversold/overbought conditions."
+        title: "Bollinger Bands",
+        whatItIs: "These bands use a moving average plus standard deviations to show price volatility and relative price levels.",
+        howItWorks: "The main idea is 'mean reversion'. A long entry is often triggered when the price touches or drops below the lower band (considered 'oversold'), with an exit when it hits the upper band.",
+        combineWith: "Combine with RSI or a Stochastic Oscillator to get stronger confirmation of oversold or overbought conditions."
     },
     'CCI': {
-        whatItIs: "CCI measures deviation from the average price; identifies overbought/oversold levels.",
-        howItWorks: "Long Entry: CCI crosses below oversold threshold (e.g., -100). Long Exit: CCI crosses above overbought threshold (e.g., 100).",
-        combineWith: "Combine With: Trend indicators to avoid counter-trend trades."
+        title: "CCI (Commodity Channel Index)",
+        whatItIs: "CCI measures how far the current price has deviated from its statistical average. It's used to identify overbought or oversold levels.",
+        howItWorks: "A long entry can be triggered when the CCI crosses up from below an oversold threshold (like -100). The exit could be when it crosses above an overbought threshold (like +100).",
+        combineWith: "Use with trend indicators (like SMAs) to avoid taking trades that go against the dominant market direction."
     },
     'Ichimoku Cloud': {
-        whatItIs: "Ichimoku combines multiple lines and a “cloud” to show trend, support/resistance, and momentum.",
-        howItWorks: "Long Entry: Price above cloud + conversion line crosses above base line. Long Exit: Price drops below cloud or conversion crosses below base.",
-        combineWith: "Combine With: Oscillators (RSI, Stochastic) to confirm entries in ranging markets."
+        title: "Ichimoku Cloud",
+        whatItIs: "Ichimoku is an all-in-one indicator showing trend, support/resistance levels, and momentum with multiple lines and a 'cloud'.",
+        howItWorks: "A strong long entry signal occurs when the price is above the cloud and the 'Conversion Line' crosses above the 'Base Line'. The exit is the reverse.",
+        combineWith: "It's a comprehensive system on its own, but can be paired with oscillators like RSI to confirm entries in ranging (sideways) markets."
     },
     'MACD': {
-        whatItIs: "MACD shows momentum and trend direction using fast & slow EMA differences.",
-        howItWorks: "Long Entry: MACD line crosses above signal line. Long Exit: MACD line crosses below signal line.",
-        combineWith: "Combine With: ATR or Bollinger Bands to avoid whipsaws in sideways markets."
+        title: "MACD (Moving Average Convergence Divergence)",
+        whatItIs: "MACD is a popular indicator that shows both the trend's direction and its momentum by comparing two moving averages.",
+        howItWorks: "A long entry is signaled when the main 'MACD line' crosses above the 'Signal line'. The exit is when it crosses back below.",
+        combineWith: "Combine with ATR or Bollinger Bands to help avoid false signals ('whipsaws') when the market isn't trending strongly."
     },
     'On-Balance Volume': {
-        whatItIs: "OBV tracks cumulative buying/selling pressure via volume. Divergence signals potential trend reversal.",
-        howItWorks: "Long Entry: OBV crosses below its moving average → buy before trend rises. Long Exit: OBV crosses above MA.",
-        combineWith: "Combine With: SMA or MACD to confirm price trend aligns with volume."
+        title: "On-Balance Volume (OBV)",
+        whatItIs: "OBV tracks the cumulative buying and selling pressure by looking at trading volume. A rising OBV suggests buyers are in control.",
+        howItWorks: "A key signal is 'divergence'. If the price is making new highs but the OBV is not, it could mean the trend is losing steam and might reverse.",
+        combineWith: "Use with a trend indicator like a Simple Moving Average (SMA) to confirm that the price action agrees with the volume pressure."
     },
     'Parabolic SAR': {
-        whatItIs: "Parabolic SAR (Stop and Reverse) generates trend-based signals. Dots above price → downtrend, dots below → uptrend.",
-        howItWorks: "Long Entry: Price closes above SAR dot. Long Exit: Price closes below SAR dot.",
-        combineWith: "Combine With: ATR to manage stop-loss dynamically."
+        title: "Parabolic SAR (Stop and Reverse)",
+        whatItIs: "This indicator places dots on the chart that show the trend's direction. Dots below the price indicate an uptrend; dots above indicate a downtrend.",
+        howItWorks: "A long entry is signaled when the dots flip from being above the price to below it. The exit is when they flip back above.",
+        combineWith: "Excellent for trend-following. It can be paired with ATR to help manage your stop-loss distance dynamically."
     },
     'RSI': {
-        whatItIs: "RSI measures overbought and oversold conditions.",
-        howItWorks: "Long Entry: RSI crosses below oversold threshold (30). Long Exit: RSI crosses above overbought threshold (70).",
-        combineWith: "Combine With: Trend indicators like SMA or Ichimoku to avoid counter-trend trades."
+        title: "RSI (Relative Strength Index)",
+        whatItIs: "RSI is a momentum oscillator that measures the speed and change of price movements to identify overbought (>70) and oversold (<30) conditions.",
+        howItWorks: "A common long entry is when the RSI crosses up from below the oversold threshold (e.g., 30). The exit could be when it crosses the overbought threshold (e.g., 70).",
+        combineWith: "Best in range-bound (sideways) markets. Use with a trend indicator like an SMA to avoid trading against a strong trend."
     },
     'Moving Average Crossover': {
-        whatItIs: "Simple Moving Average crossover strategy uses fast and slow MA lines.",
-        howItWorks: "Long Entry: Fast MA crosses above slow MA. Long Exit: Fast MA crosses below slow MA.",
-        combineWith: "Combine With: ATR for volatility filter or RSI for oversold/overbought confirmation."
+        title: "SMA (Simple Moving Average) Crossover",
+        whatItIs: "This classic trend-following strategy uses two moving averages: one short-term ('fast') and one long-term ('slow').",
+        howItWorks: "A long entry is signaled when the fast moving average crosses above the slow moving average (a 'Golden Cross'). The exit is when it crosses back below (a 'Death Cross').",
+        combineWith: "Works well in trending markets. Can be combined with ATR to filter for volatility or RSI for confirmation."
     },
     'Stochastic Oscillator': {
-        whatItIs: "Stochastic measures momentum relative to recent high/low.",
-        howItWorks: "Long Entry: %K crosses above %D in oversold zone (<20). Long Exit: %K crosses below %D in overbought zone (>80).",
-        combineWith: "Combine With: Trend indicators like SMA or MACD to filter false signals during strong trends."
+        title: "Stochastic Oscillator",
+        whatItIs: "The Stochastic is a momentum indicator that compares a closing price to its price range over a certain period.",
+        howItWorks: "A long entry is signaled when the main '%K' line crosses above the '%D' line in the oversold zone (e.g., below 20). The exit is when it crosses below in the overbought zone (e.g., above 80).",
+        combineWith: "Great in range-bound markets. Use with a trend indicator like MACD to filter out false signals during strong trends."
     }
 };
 
-// --- Initial state for a new strategy ---
 const initialStrategyState = {
   name: '',
   description: '',
@@ -72,7 +81,6 @@ const Strategies = () => {
   const [error, setError] = useState(null);
   const [newStrategy, setNewStrategy] = useState(initialStrategyState);
 
-  // Function to fetch all strategies from the backend
   const fetchStrategies = async () => {
     try {
       const token = localStorage.getItem('userToken');
@@ -81,14 +89,7 @@ const Strategies = () => {
       }
       const response = await api.get("/strategy");
       const data = response.data;
-      
-      if (Array.isArray(data)) {
-        setStrategies(data);
-      } else if (data && Array.isArray(data.strategies)) {
-        setStrategies(data.strategies);
-      } else {
-        setStrategies([]);
-      }
+      setStrategies(Array.isArray(data) ? data : []);
     } catch (e) {
       setError(e.response?.data?.message || e.message);
     } finally {
@@ -100,21 +101,20 @@ const Strategies = () => {
     fetchStrategies();
   }, []);
 
-  // Function to handle changes in the creation form
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === 'strategyType') {
         const resetParams = {
             'Moving Average Crossover': { shortPeriod: 10, longPeriod: 50 },
-            'RSI': { rsiPeriod: 14 },
+            'RSI': { rsiPeriod: 14, overbought: 70, oversold: 30 },
             'Bollinger Bands': { period: 20, numStdDev: 2 },
-            'Stochastic Oscillator': { kPeriod: 14, dPeriod: 3 },
+            'Stochastic Oscillator': { kPeriod: 14, dPeriod: 3, overbought: 80, oversold: 20 },
             'MACD': { fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 },
-            'Parabolic SAR': { accelerationFactorStart: 0.02, accelerationFactorIncrement: 0.02, accelerationFactorMaximum: 0.2 },
-            'On-Balance Volume': { obvPeriod: 10 },
-            'CCI': { cciPeriod: 20 },
-            'ATR': { atrPeriod: 14 },
-            'Ichimoku Cloud': { conversionLinePeriod: 9, baseLinePeriod: 26, laggingSpanPeriod: 26, cloudSpanPeriod: 52 },
+            'Parabolic SAR': { start: 0.02, increment: 0.02, max: 0.2 },
+            'On-Balance Volume': { maPeriod: 20 },
+            'CCI': { period: 20, overbought: 100, oversold: -100 },
+            'ATR': { period: 14, multiplier: 2 },
+            'Ichimoku Cloud': { conversionLinePeriod: 9, baseLinePeriod: 26, laggingSpanPeriod: 26, leadingSpanBPeriod: 52 },
         };
         setNewStrategy(prev => ({
             ...prev,
@@ -133,7 +133,6 @@ const Strategies = () => {
     }
   };
 
-  // Function to handle form submission for a new strategy
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
@@ -145,7 +144,6 @@ const Strategies = () => {
     }
   };
 
-  // Function to handle deleting a strategy
   const handleDelete = async (strategyId) => {
     if (!window.confirm("Are you sure you want to delete this strategy?")) return;
     try {
@@ -156,62 +154,49 @@ const Strategies = () => {
     }
   };
   
-  // A helper function to render dynamic parameters and guides
   const renderStrategyParameters = () => {
     const p = newStrategy.params;
     const guide = strategyGuides[p.strategyType];
-    
     let parameterInputs = null;
 
-    switch (p.strategyType) {
-        case 'Moving Average Crossover':
-            parameterInputs = (
-              <>
-                <label>Short Period:<input type="number" name="shortPeriod" value={p.shortPeriod} onChange={handleChange} required style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} /></label>
-                <label>Long Period:<input type="number" name="longPeriod" value={p.longPeriod} onChange={handleChange} required style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} /></label>
-              </>
-            );
-            break;
-        case 'RSI':
-            parameterInputs = <label>RSI Period:<input type="number" name="rsiPeriod" value={p.rsiPeriod} onChange={handleChange} required style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} /></label>;
-            break;
-        case 'Bollinger Bands':
-             parameterInputs = (
-              <>
-                <label>Period:<input type="number" name="period" value={p.period} onChange={handleChange} required style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} /></label>
-                <label>Standard Deviations:<input type="number" name="numStdDev" value={p.numStdDev} onChange={handleChange} required style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} /></label>
-              </>
-            );
-            break;
-        // ... other cases for other strategies
-        default:
-            parameterInputs = null;
-    }
+    // Dynamically generate inputs based on keys in params, excluding strategyType
+    parameterInputs = Object.keys(p).filter(key => key !== 'strategyType').map(key => (
+        <label key={key}>
+            {/* Convert camelCase to Title Case for labels */}
+            {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:
+            <input 
+                type="number" 
+                name={key} 
+                value={p[key]} 
+                onChange={handleChange} 
+                required 
+                style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} 
+            />
+        </label>
+    ));
 
     return (
         <div>
             {parameterInputs}
             {guide && (
-                <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '1px solid #3e4e60', color: '#cbd5e1' }}>
-                    <h4 style={{ fontWeight: '600', color: '#94a3b8' }}>Strategy Guide</h4>
-                    <p style={{ fontSize: '12px', marginTop: '8px' }}><strong>What it is:</strong> {guide.whatItIs}</p>
-                    <p style={{ fontSize: '12px', marginTop: '4px' }}><strong>How it works:</strong> {guide.howItWorks}</p>
-                    <p style={{ fontSize: '12px', marginTop: '4px' }}><strong>Combine With:</strong> {guide.combineWith}</p>
+                <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '1px solid #3e4e60', color: '#cbd5e1', fontSize: '13px' }}>
+                    <h4 style={{ fontWeight: '600', color: '#94a3b8' }}>{guide.title} Guide</h4>
+                    <p style={{ marginTop: '8px' }}><strong>What it is:</strong> {guide.whatItIs}</p>
+                    <p style={{ marginTop: '4px' }}><strong>How it works:</strong> {guide.howItWorks}</p>
+                    <p style={{ marginTop: '4px' }}><strong>Combine With:</strong> {guide.combineWith}</p>
                 </div>
             )}
         </div>
     );
   };
 
-  if (isLoading) return <div style={{ color: '#eee' }}>Loading strategies...</div>;
+  if (isLoading) return <div style={{ color: '#eee' }}>Loading...</div>;
   if (error) return <div style={{ color: '#dc3545' }}>Error: {error}</div>;
 
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '1000px', margin: 'auto', backgroundColor: '#121e2c', color: '#eee' }}>
       <h1>My Trading Strategies</h1>
-      <p style={{ fontSize: '16px', color: '#aaa' }}>
-        Welcome! Define the trading rules our system will use to find profitable opportunities. Pick a strategy type and adjust its parameters.
-      </p>
+      <p style={{ fontSize: '16px', color: '#aaa' }}>Define trading rules to find market opportunities. Pick a strategy type and adjust its parameters.</p>
 
       <div style={{ padding: '20px', border: '1px solid #3e4e60', borderRadius: '8px', marginBottom: '40px', backgroundColor: '#1e2b3c' }}>
         <h2>Create a New Trading Strategy</h2>
@@ -222,25 +207,16 @@ const Strategies = () => {
             <label>
               Strategy Type:
               <select name="strategyType" value={newStrategy.params.strategyType} onChange={handleChange} style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}>
-                <option value="Moving Average Crossover">Moving Average Crossover</option>
-                <option value="RSI">Relative Strength Index (RSI)</option>
-                <option value="Bollinger Bands">Bollinger Bands</option>
-                <option value="Stochastic Oscillator">Stochastic Oscillator</option>
-                <option value="MACD">MACD</option>
-                <option value="Parabolic SAR">Parabolic SAR</option>
-                <option value="On-Balance Volume">On-Balance Volume</option>
-                <option value="CCI">Commodity Channel Index (CCI)</option>
-                <option value="ATR">Average True Range (ATR)</option>
-                <option value="Ichimoku Cloud">Ichimoku Cloud</option>
+                 {Object.keys(strategyGuides).map(type => <option key={type} value={type}>{strategyGuides[type].title}</option>)}
               </select>
             </label>
             <label>
               Strategy Name:
-              <input type="text" name="name" value={newStrategy.name} onChange={handleChange} required placeholder="e.g., The MACD Power Play" style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} />
+              <input type="text" name="name" value={newStrategy.name} onChange={handleChange} required placeholder="e.g., My MACD Trend Follower" style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} />
             </label>
             <label>
               Description:
-              <textarea name="description" value={newStrategy.description} onChange={handleChange} placeholder="e.g., This strategy looks for trends using MACD." style={{ width: '100%', minHeight: '80px', padding: '8px', boxSizing: 'border-box', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} />
+              <textarea name="description" value={newStrategy.description} onChange={handleChange} placeholder="A short note about this strategy." style={{ width: '100%', minHeight: '80px', padding: '8px', boxSizing: 'border-box', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} />
             </label>
           </div>
 
