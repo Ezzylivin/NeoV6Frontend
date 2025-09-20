@@ -77,6 +77,7 @@ export default function Backtests() {
   const [formData, setFormData] = useState(initialFormData);
   const [comboData, setComboData] = useState(initialComboData);
   const [backtestResults, setBacktestResults] = useState(null);
+  const [activeTestType, setActiveTestType] = useState(null); // ✅ NEW: Track which test was run
 
   useEffect(() => {
     if (options.strategies?.length > 0 && !formData.code) {
@@ -135,11 +136,12 @@ export default function Backtests() {
   const handleSingleSubmit = async (e) => {
     e.preventDefault();
     setBacktestResults(null);
+    setActiveTestType('single'); // ✅ NEW: Set the active test type
     try {
       const result = await runNewBacktest(formData);
       if (result?.equityCurve?.length > 0) {
         setBacktestResults({
-          combined: { 
+          main: { 
             metrics: { ...result.metrics, totalProfit: result.profit, finalBalance: result.finalBalance }, 
             equityCurve: result.equityCurve 
           },
@@ -156,6 +158,7 @@ export default function Backtests() {
   const handleComboSubmit = async (e) => {
     e.preventDefault();
     setBacktestResults(null);
+    setActiveTestType('combo'); // ✅ NEW: Set the active test type
     try {
       const payload = { ...comboData, strategyCodes: comboData.strategyConfigs.map(s => s.code).filter(Boolean) };
       delete payload.strategyConfigs;
@@ -166,7 +169,7 @@ export default function Backtests() {
       const result = await runComboBacktest(payload);
       if (result?.combinedResult?.metrics?.equityCurve) {
         setBacktestResults({
-          combined: { 
+          main: { 
             metrics: result.combinedResult.metrics, 
             equityCurve: result.combinedResult.metrics.equityCurve 
           },
@@ -255,16 +258,16 @@ export default function Backtests() {
         </form>
       </div>
 
-      {/* ✅ UPGRADED: Results Display now has robust safety checks */}
+      {/* ✅ UPGRADED: Results Display now has robust safety checks and dynamic titles */}
       {backtestResults && (
         <>
-          {/* Combined Chart & Metrics */}
-          {backtestResults.combined?.equityCurve && Array.isArray(backtestResults.combined.equityCurve) && backtestResults.combined.equityCurve.length > 0 && (
+          {/* Main Chart & Metrics */}
+          {backtestResults.main?.equityCurve && Array.isArray(backtestResults.main.equityCurve) && backtestResults.main.equityCurve.length > 0 && (
             <div className="chart-card">
-              <h3>Combined Strategy Performance</h3>
-              <MetricsDisplay metrics={backtestResults.combined.metrics} />
+              <h3>{activeTestType === 'combo' ? 'Combined Strategy Performance' : 'Backtest Results'}</h3>
+              <MetricsDisplay metrics={backtestResults.main.metrics} />
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={backtestResults.combined.equityCurve}>
+                <LineChart data={backtestResults.main.equityCurve}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="timestamp" name="Time" />
                   <YAxis />
