@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.jsx';
-import PrivateRoute from './components/ProtectedRoute.jsx'; // Corrected filename from your previous files
+import PrivateRoute from './components/ProtectedRoute.jsx';
 import GuestRoute from './components/GuestRoute.jsx';
 
 // Layouts
@@ -15,6 +15,21 @@ import Strategies from './pages/Strategies.jsx';
 import TradingBot from './pages/TradingBot.jsx';
 import Settings from './pages/Settings.jsx';
 import NotFound from './pages/NotFound.jsx';
+
+// ✅ 1. Import the setAuthToken function
+import { setAuthToken } from './api/apiClient.js';
+
+// ✅ 2. This function runs once, immediately when the app loads
+const initializeApp = () => {
+  const token = localStorage.getItem('userToken');
+  if (token) {
+    setAuthToken(token);
+  }
+};
+
+// ✅ 3. Run the initialization before the App component renders
+initializeApp();
+
 
 function App() {
   return (
