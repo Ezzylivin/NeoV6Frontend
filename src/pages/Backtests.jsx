@@ -48,6 +48,46 @@ const initialComboData = {
   endDate: getInitialDates().endDate,
 };
 
+// ✅ --- NEW: Component to display performance metrics ---
+const MetricsDisplay = ({ metrics }) => {
+    if (!metrics || Object.keys(metrics).length === 0) {
+        return <p className="no-metrics">No performance metrics available.</p>;
+    }
+
+    const formatValue = (key, value) => {
+        if (typeof value !== 'number') return value;
+        if (key.toLowerCase().includes('rate') || key.toLowerCase().includes('factor')) {
+            return `${(value * 100).toFixed(2)}%`;
+        }
+        if (key.toLowerCase().includes('profit') || key.toLowerCase().includes('drawdown') || key.toLowerCase().includes('balance')) {
+            return `$${value.toFixed(2)}`;
+        }
+        return value;
+    };
+    
+    // Select a subset of key metrics to display
+    const keyMetrics = {
+        "Total Profit": metrics.totalProfit,
+        "Total Trades": metrics.totalTrades,
+        "Win Rate": metrics.winRate,
+        "Max Drawdown": metrics.maxDrawdown,
+        "Profit Factor": metrics.profitFactor,
+        "Final Balance": metrics.finalBalance,
+    };
+
+    return (
+        <div className="metrics-grid">
+            {Object.entries(keyMetrics).map(([key, value]) => (
+                <div key={key} className="metric-item">
+                    <span className="metric-label">{key}</span>
+                    <span className="metric-value">{formatValue(key, value)}</span>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+
 export default function Backtests() {
   const {
     options,
@@ -62,8 +102,8 @@ export default function Backtests() {
   const [formData, setFormData] = useState(initialFormData);
   const [comboData, setComboData] = useState(initialComboData);
   
-  // ✅ UPGRADED: State to hold multiple chart results
-  const [chartResults, setChartResults] = useState(null);
+  // ✅ UPGRADED: State to hold full results (metrics + equity curve)
+  const [backtestResults, setBacktestResults] = useState(null);
 
   useEffect(() => {
     if (options.strategies?.length > 0 && !formData.code) {
@@ -128,14 +168,17 @@ export default function Backtests() {
   // --- Submit Handlers ---
   const handleSingleSubmit = async (e) => {
     e.preventDefault();
-    setChartResults(null); // Reset charts
+    setBacktestResults(null); // Reset results
     try {
       const result = await runNewBacktest(formData);
       if (result?.equityCurve && result.equityCurve.length > 0) {
-        // ✅ UPGRADED: Set chart data in the new format
-        setChartResults({
-          combined: result.equityCurve,
-          individuals: [] // No individuals for a single run
+        // ✅ UPGRADED: Set full results in the new format
+        setBacktestResults({
+          combined: {
+            metrics: { ...result.metrics, finalBalance: result.finalBalance },
+            equityCurve: result.equityCurve,
+          },
+          individuals: []
         });
       } else {
         alert("Backtest ran successfully but produced no trades.");
@@ -147,7 +190,7 @@ export default function Backtests() {
 
   const handleComboSubmit = async (e) => {
     e.preventDefault();
-    setChartResults(null); // Reset charts
+    setBacktestResults(null); // Reset results
     try {
       const payload = {
         ...comboData,
@@ -162,13 +205,17 @@ export default function Backtests() {
 
       const result = await runComboBacktest(payload);
 
-      // ✅ UPGRADED: Handle the new, detailed response from the backend
       if (result && result.combinedResult?.metrics?.equityCurve) {
-        setChartResults({
-          combined: result.combinedResult.metrics.equityCurve,
+        // ✅ UPGRADED: Set full results for combo test
+        setBacktestResults({
+          combined: {
+             metrics: result.combinedResult.metrics,
+             equityCurve: result.combinedResult.metrics.equityCurve
+          },
           individuals: result.individualResults.map(res => ({
             name: res.strategyName,
-            data: res.metrics.equityCurve
+            metrics: res.metrics,
+            equityCurve: res.metrics.equityCurve
           }))
         });
       } else {
@@ -188,21 +235,22 @@ export default function Backtests() {
       {error && <div className="error-banner">{error}</div>}
       
       <div className="forms-container">
-        {/* --- Single Backtest Form (no change) --- */}
-        <form className="card-row" onSubmit={handleSingleSubmit}>{/* ... */}</form>
+        {/* --- Single Backtest Form --- */}
+        <form className="card-row" onSubmit={handleSingleSubmit}>{/* ... form fields ... */}</form>
 
-        {/* --- Combo Strategy Builder (no change) --- */}
-        <form className="card-row" onSubmit={handleComboSubmit}>{/* ... */}</form>
+        {/* --- Combo Strategy Builder --- */}
+        <form className="card-row" onSubmit={handleComboSubmit}>{/* ... form fields ... */}</form>
       </div>
 
-      {/* --- ✅ UPGRADED: Multi-Chart Display --- */}
-      {chartResults && (
+      {/* --- ✅ UPGRADED: Multi-Chart and Metrics Display --- */}
+      {backtestResults && (
         <>
-          {/* Combined Chart */}
+          {/* Combined Chart & Metrics */}
           <div className="chart-card">
             <h3>Combined Strategy Performance</h3>
+            <MetricsDisplay metrics={backtestResults.combined.metrics} />
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={chartResults.combined}>
+              <LineChart data={backtestResults.combined.equityCurve}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis />
@@ -213,15 +261,16 @@ export default function Backtests() {
             </ResponsiveContainer>
           </div>
 
-          {/* Individual Charts */}
-          {chartResults.individuals.length > 0 && (
+          {/* Individual Charts & Metrics */}
+          {backtestResults.individuals.length > 0 && (
              <div className="individual-charts-container">
                 <h3 className="header">Individual Strategy Performance</h3>
-                {chartResults.individuals.map((result, index) => (
+                {backtestResults.individuals.map((result, index) => (
                     <div key={index} className="chart-card">
                         <h4>{result.name}</h4>
+                        <MetricsDisplay metrics={result.metrics} />
                         <ResponsiveContainer width="100%" height={250}>
-                            <LineChart data={result.data}>
+                            <LineChart data={result.equityCurve}>
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="date" />
                                 <YAxis />
