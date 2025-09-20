@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import * as backtestApi from "../api/backtest.js";
-import { setAuthToken } from '../api/apiClient.js';
+// No longer need to import setAuthToken here if it's only called in App.jsx
+// However, it's fine to leave it if other functions might need it later.
 
 export function useBacktest() {
   const [options, setOptions] = useState({
@@ -14,11 +15,11 @@ export function useBacktest() {
   const [pastBacktests, setPastBacktests] = useState({ results: [], total: 0 });
   const [initialLoading, setInitialLoading] = useState(true);
   const [singleLoading, setSingleLoading] = useState(false);
-  const [batchLoading, setBatchLoading] = useState(false); // Can be used for combo tests
+  const [batchLoading, setBatchLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // ✅ REMOVED setAuthToken from all functions below
   const getOptions = useCallback(async () => {
-    setAuthToken(localStorage.getItem("userToken"));
     setError(null);
     try {
       const fetchedOptions = await backtestApi.fetchOptions();
@@ -29,7 +30,6 @@ export function useBacktest() {
   }, []);
 
   const getPastBacktests = useCallback(async (page = 1) => {
-    setAuthToken(localStorage.getItem("userToken"));
     setError(null);
     try {
       const data = await backtestApi.fetchAll(page);
@@ -40,7 +40,6 @@ export function useBacktest() {
   }, []);
 
   const getBacktestById = useCallback(async (id) => {
-    setAuthToken(localStorage.getItem("userToken"));
     setInitialLoading(true);
     setError(null);
     try {
@@ -54,11 +53,10 @@ export function useBacktest() {
   }, []);
   
   const deleteBacktest = useCallback(async (id) => {
-    setAuthToken(localStorage.getItem("userToken"));
     setError(null);
     try {
       await backtestApi.deleteById(id);
-      await getPastBacktests(); // Refresh the list after deleting
+      await getPastBacktests();
     } catch (err) {
       setError(err.message || "Failed to delete backtest.");
       throw err;
@@ -67,7 +65,6 @@ export function useBacktest() {
 
   const runNewBacktest = useCallback(
     async (payload) => {
-      setAuthToken(localStorage.getItem("userToken"));
       setSingleLoading(true);
       setError(null);
       try {
@@ -86,7 +83,6 @@ export function useBacktest() {
 
   const runComboBacktest = useCallback(
     async (payload) => {
-      setAuthToken(localStorage.getItem("userToken"));
       setBatchLoading(true);
       setError(null);
       try {
@@ -104,7 +100,6 @@ export function useBacktest() {
 
   const previewStrategy = useCallback(
     async (payload) => {
-      setAuthToken(localStorage.getItem("userToken"));
       setSingleLoading(true);
       setError(null);
       try {
@@ -121,6 +116,7 @@ export function useBacktest() {
 
   useEffect(() => {
     setInitialLoading(true);
+    // These functions will now run after the token has been set in App.jsx
     Promise.all([getOptions(), getPastBacktests()]).finally(() => setInitialLoading(false));
   }, [getOptions, getPastBacktests]);
 
@@ -139,3 +135,4 @@ export function useBacktest() {
     previewStrategy,
   };
 }
+
