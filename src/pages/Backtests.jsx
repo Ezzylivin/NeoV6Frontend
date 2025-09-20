@@ -1,4 +1,3 @@
-//snapshot
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import {
@@ -13,43 +12,42 @@ import {
 } from "recharts";
 import "./Backtests.css";
 
-// --- Helper function to format a date as YYYY-MM-DD ---
+// --- Helper functions for dates ---
 const formatDate = (date) => {
   const year = date.getFullYear();
-  // 'padStart' ensures the month and day are two digits (e.g., 09)
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
 
-// --- Calculate the dynamic dates ---
 const getInitialDates = () => {
   const today = new Date();
-  
-  // End Date: Yesterday
   const endDate = new Date(today);
   endDate.setDate(today.getDate() - 1);
-  
-  // Start Date: One year before today
   const startDate = new Date(today);
   startDate.setFullYear(today.getFullYear() - 1);
-  
-  return {
-    startDate: formatDate(startDate),
-    endDate: formatDate(endDate),
-  };
+  return { startDate: formatDate(startDate), endDate: formatDate(endDate) };
 };
 
-
-// --- Initial state for single backtest form ---
+// --- Initial state for forms ---
 const initialFormData = {
   code: "",
   symbol: "",
   timeframe: "",
-  startDate: getInitialDates().startDate, // ✅ Dynamically set
-  endDate: getInitialDates().endDate,     // ✅ Dynamically set
+  startDate: getInitialDates().startDate,
+  endDate: getInitialDates().endDate,
   takeProfit: "",
   stopLoss: "",
+  params: {},
+};
+
+const initialComboData = {
+  strategyCodes: [],
+  combinationRule: 'AND',
+  symbol: "",
+  timeframe: "",
+  startDate: getInitialDates().startDate,
+  endDate: getInitialDates().endDate,
 };
 
 export default function Backtests() {
@@ -57,20 +55,18 @@ export default function Backtests() {
     options,
     initialLoading,
     singleLoading,
+    batchLoading, // For the combo test loading state
     error,
     runNewBacktest,
+    runComboBacktest, // The new function from your hook
   } = useBacktest();
 
   const [formData, setFormData] = useState(initialFormData);
+  const [comboData, setComboData] = useState(initialComboData); // State for the new form
   const [metricsData, setMetricsData] = useState([]);
-  
 
-  // Auto-select first strategy on initial load
   useEffect(() => {
     if (options.strategies?.length > 0 && !formData.code) {
-
-      console.log("Strategies received from backend:", options.strategies);
-      
       const firstStrategy = options.strategies[0];
       setFormData((prev) => ({
         ...prev,
@@ -79,13 +75,18 @@ export default function Backtests() {
         timeframe: firstStrategy.params?.timeframe || options.timeframes[0] || "",
         takeProfit: firstStrategy.params?.takeProfit || options.takeProfits[0] || "",
         stopLoss: firstStrategy.params?.stopLoss || options.stopLosses[0] || "",
-        // Spread strategy-specific params into the form data
         params: firstStrategy.params || {},
       }));
+      // Pre-fill combo form with some defaults
+      setComboData(prev => ({
+        ...prev,
+        symbol: options.symbols[0] || "",
+        timeframe: options.timeframes[0] || "",
+      }));
     }
-  }, [options, formData.code]);
+  }, [options.strategies, options.symbols, options.timeframes, formData.code]);
 
-  // --- Handlers ---
+  // --- Handlers for Single Backtest Form ---
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === "code") {
@@ -101,43 +102,57 @@ export default function Backtests() {
           params: selectedStrategy.params || {},
         }));
       } else {
-        setFormData((prev) => ({ ...prev, code: "", symbol: "", timeframe: "", takeProfit: "", stopLoss: "" }));
+        setFormData((prev) => ({ ...prev, code: "", symbol: "", timeframe: "", takeProfit: "", stopLoss: "", params: {} }));
       }
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
   };
 
+  // --- Handlers for new Combo Backtest Form ---
+  const handleComboChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    if (name === "strategyCodes") {
+      setComboData(prev => ({
+        ...prev,
+        strategyCodes: checked
+          ? [...prev.strategyCodes, value]
+          : prev.strategyCodes.filter(code => code !== value)
+      }));
+    } else {
+      setComboData(prev => ({ ...prev, [name]: value }));
+    }
+  };
+
   const handleSingleSubmit = async (e) => {
     e.preventDefault();
     setMetricsData([]);
-
-     console.log("Current formData state:", formData); 
-
     try {
-      const payload = {
-        code: formData.code,
-        symbol: formData.symbol,
-        timeframe: formData.timeframe,
-        startDate: formData.startDate,
-        endDate: formData.endDate,
-        tp: parseFloat(formData.takeProfit) || 0,
-        sl: parseFloat(formData.stopLoss) || 0,
-        params: formData.params, // ✅ Ensures strategy-specific rules are included
-      };
-
-      console.log("Payload created in Backtests.jsx:", payload);
+      const payload = { ...formData };
       const result = await runNewBacktest(payload);
-      console.log("Backend Response:", result);
-
-      // ✅ Correctly finds equityCurve and checks if it has data
       if (result?.equityCurve && result.equityCurve.length > 0) {
         setMetricsData(result.equityCurve);
       } else {
-        console.log("Chart data is empty. The backtest may have produced no trades.");
+        console.log("Chart data is empty. Single backtest may have produced no trades.");
       }
     } catch (err) {
       console.error("Single backtest failed:", err);
+    }
+  };
+
+  const handleComboSubmit = async (e) => {
+    e.preventDefault();
+    setMetricsData([]);
+    try {
+      const result = await runComboBacktest(comboData);
+      console.log("Combo Backtest Response:", result);
+      if (result?.metrics?.equityCurve && result.metrics.equityCurve.length > 0) {
+        setMetricsData(result.metrics.equityCurve);
+      } else {
+        alert("Combo test ran successfully but produced no trades. Check console for details.");
+      }
+    } catch (err) {
+      console.error("Combo backtest failed:", err);
     }
   };
 
@@ -148,68 +163,49 @@ export default function Backtests() {
     <div className="dashboard-container">
       <h2 className="header">Backtests</h2>
       {error && <div className="error-banner">{error}</div>}
-      <form className="card-row" onSubmit={handleSingleSubmit}>
-        <div className="metric-card">
-          <h3 className="card-title">Single Backtest</h3>
-          {/* Form elements remain the same */}
-          <label>
-            Strategy
-            <select name="code" value={formData.code} onChange={handleChange} required>
-              <option value="">Select strategy</option>
-              {options.strategies.map((s) => (
-                <option key={s.code} value={s.code}>{s.name}</option>
+      
+      <div className="forms-container">
+        {/* --- Single Backtest Form --- */}
+        <form className="card-row" onSubmit={handleSingleSubmit}>
+          <div className="metric-card">
+            <h3 className="card-title">Single Backtest</h3>
+            <label>Strategy<select name="code" value={formData.code} onChange={handleChange} required><option value="">Select strategy</option>{options.strategies.map(s => (<option key={s.code} value={s.code}>{s.name}</option>))}</select></label>
+            <label>Symbol<select name="symbol" value={formData.symbol} onChange={handleChange} required><option value="">Select symbol</option>{options.symbols.map(s => (<option key={s} value={s}>{s}</option>))}</select></label>
+            <label>Timeframe<select name="timeframe" value={formData.timeframe} onChange={handleChange} required><option value="">Select timeframe</option>{options.timeframes.map(t => (<option key={t} value={t}>{t}</option>))}</select></label>
+            <label>Start Date<input type="date" name="startDate" value={formData.startDate} onChange={handleChange} required /></label>
+            <label>End Date<input type="date" name="endDate" value={formData.endDate} onChange={handleChange} required /></label>
+            <button type="submit" disabled={singleLoading}>{singleLoading ? "Running..." : "Run Backtest"}</button>
+          </div>
+        </form>
+
+        {/* --- NEW: Combo Backtest Form --- */}
+        <form className="card-row" onSubmit={handleComboSubmit}>
+          <div className="metric-card">
+            <h3 className="card-title">Combo Backtest</h3>
+            <div className="strategy-checkbox-group">
+              <h4>Select Strategies</h4>
+              {options.strategies.map(s => (
+                <label key={s.code} className="checkbox-label">
+                  <input type="checkbox" name="strategyCodes" value={s.code} checked={comboData.strategyCodes.includes(s.code)} onChange={handleComboChange} />
+                  {s.name}
+                </label>
               ))}
-            </select>
-          </label>
-          <label>
-            Symbol
-            <select name="symbol" value={formData.symbol} onChange={handleChange} required>
-              <option value="">Select symbol</option>
-              {options.symbols.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Timeframe
-            <select name="timeframe" value={formData.timeframe} onChange={handleChange} required>
-              <option value="">Select timeframe</option>
-              {options.timeframes.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Start Date
-            <input type="date" name="startDate" value={formData.startDate} onChange={handleChange} required />
-          </label>
-          <label>
-            End Date
-            <input type="date" name="endDate" value={formData.endDate} onChange={handleChange} required />
-          </label>
-          <label>
-            Take Profit %
-            <select name="takeProfit" value={formData.takeProfit} onChange={handleChange}>
-              <option value="">Select TP</option>
-              {options.takeProfits.map((val) => (
-                <option key={val} value={val}>{val * 100}%</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Stop Loss %
-            <select name="stopLoss" value={formData.stopLoss} onChange={handleChange}>
-              <option value="">Select SL</option>
-              {options.stopLosses.map((val) => (
-                <option key={val} value={val}>{val * 100}%</option>
-              ))}
-            </select>
-          </label>
-          <button type="submit" disabled={singleLoading}>
-            {singleLoading ? "Running..." : "Run Backtest"}
-          </button>
-        </div>
-      </form>
+            </div>
+            <label>Combination Rule
+              <select name="combinationRule" value={comboData.combinationRule} onChange={handleComboChange} required>
+                <option value="AND">AND (All must agree)</option>
+                <option value="OR">OR (Any can trigger)</option>
+              </select>
+            </label>
+            <label>Symbol<select name="symbol" value={comboData.symbol} onChange={handleComboChange} required><option value="">Select symbol</option>{options.symbols.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
+            <label>Timeframe<select name="timeframe" value={comboData.timeframe} onChange={handleComboChange} required><option value="">Select timeframe</option>{options.timeframes.map(t => <option key={t} value={t}>{t}</option>)}</select></label>
+            <label>Start Date<input type="date" name="startDate" value={comboData.startDate} onChange={handleComboChange} required /></label>
+            <label>End Date<input type="date" name="endDate" value={comboData.endDate} onChange={handleComboChange} required /></label>
+            <button type="submit" disabled={batchLoading}>{batchLoading ? "Running..." : "Run Combo Test"}</button>
+          </div>
+        </form>
+      </div>
+
       {metricsData.length > 0 && (
         <div className="chart-card">
           <h3>Equity Curve</h3>
