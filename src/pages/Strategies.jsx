@@ -1,7 +1,61 @@
 import React, { useState, useEffect } from 'react';
 import api, { setAuthToken } from '../api/apiClient.js';
 
-// Define the initial state for a new strategy, including its parameters
+// --- Data for Strategy Guides ---
+const strategyGuides = {
+    'ATR': {
+        whatItIs: "ATR measures market volatility. Higher ATR = bigger price swings, lower ATR = calmer market. ATR itself isn’t a signal generator—it tells you how much a price typically moves.",
+        howItWorks: "Long Entry: Price breaks above previous close + (ATR × multiplier) → a volatility breakout. Long Exit: Price drops below entry - (ATR × multiplier) → stop-loss.",
+        combineWith: "Combine With: Momentum or trend indicators (SMA, MACD) to filter false breakouts."
+    },
+    'Bollinger Bands': {
+        whatItIs: "Bollinger Bands use a moving average + standard deviations to show price volatility.",
+        howItWorks: "Long Entry: Price touches or drops below the lower band (oversold). Long Exit: Price touches or crosses the upper band.",
+        combineWith: "Combine With: RSI or ATR for confirmation of oversold/overbought conditions."
+    },
+    'CCI': {
+        whatItIs: "CCI measures deviation from the average price; identifies overbought/oversold levels.",
+        howItWorks: "Long Entry: CCI crosses below oversold threshold (e.g., -100). Long Exit: CCI crosses above overbought threshold (e.g., 100).",
+        combineWith: "Combine With: Trend indicators to avoid counter-trend trades."
+    },
+    'Ichimoku Cloud': {
+        whatItIs: "Ichimoku combines multiple lines and a “cloud” to show trend, support/resistance, and momentum.",
+        howItWorks: "Long Entry: Price above cloud + conversion line crosses above base line. Long Exit: Price drops below cloud or conversion crosses below base.",
+        combineWith: "Combine With: Oscillators (RSI, Stochastic) to confirm entries in ranging markets."
+    },
+    'MACD': {
+        whatItIs: "MACD shows momentum and trend direction using fast & slow EMA differences.",
+        howItWorks: "Long Entry: MACD line crosses above signal line. Long Exit: MACD line crosses below signal line.",
+        combineWith: "Combine With: ATR or Bollinger Bands to avoid whipsaws in sideways markets."
+    },
+    'On-Balance Volume': {
+        whatItIs: "OBV tracks cumulative buying/selling pressure via volume. Divergence signals potential trend reversal.",
+        howItWorks: "Long Entry: OBV crosses below its moving average → buy before trend rises. Long Exit: OBV crosses above MA.",
+        combineWith: "Combine With: SMA or MACD to confirm price trend aligns with volume."
+    },
+    'Parabolic SAR': {
+        whatItIs: "Parabolic SAR (Stop and Reverse) generates trend-based signals. Dots above price → downtrend, dots below → uptrend.",
+        howItWorks: "Long Entry: Price closes above SAR dot. Long Exit: Price closes below SAR dot.",
+        combineWith: "Combine With: ATR to manage stop-loss dynamically."
+    },
+    'RSI': {
+        whatItIs: "RSI measures overbought and oversold conditions.",
+        howItWorks: "Long Entry: RSI crosses below oversold threshold (30). Long Exit: RSI crosses above overbought threshold (70).",
+        combineWith: "Combine With: Trend indicators like SMA or Ichimoku to avoid counter-trend trades."
+    },
+    'Moving Average Crossover': {
+        whatItIs: "Simple Moving Average crossover strategy uses fast and slow MA lines.",
+        howItWorks: "Long Entry: Fast MA crosses above slow MA. Long Exit: Fast MA crosses below slow MA.",
+        combineWith: "Combine With: ATR for volatility filter or RSI for oversold/overbought confirmation."
+    },
+    'Stochastic Oscillator': {
+        whatItIs: "Stochastic measures momentum relative to recent high/low.",
+        howItWorks: "Long Entry: %K crosses above %D in oversold zone (<20). Long Exit: %K crosses below %D in overbought zone (>80).",
+        combineWith: "Combine With: Trend indicators like SMA or MACD to filter false signals during strong trends."
+    }
+};
+
+// --- Initial state for a new strategy ---
 const initialStrategyState = {
   name: '',
   description: '',
@@ -26,20 +80,17 @@ const Strategies = () => {
         setAuthToken(token);
       }
       const response = await api.get("/strategy");
-
-      let data = response.data;
+      const data = response.data;
       
       if (Array.isArray(data)) {
         setStrategies(data);
       } else if (data && Array.isArray(data.strategies)) {
         setStrategies(data.strategies);
       } else {
-        console.warn("API response format was unexpected.");
         setStrategies([]);
       }
     } catch (e) {
       setError(e.response?.data?.message || e.message);
-      console.error("Failed to fetch strategies:", e);
     } finally {
       setIsLoading(false);
     }
@@ -75,16 +126,10 @@ const Strategies = () => {
     } else if (Object.keys(newStrategy.params).includes(name)) {
         setNewStrategy(prev => ({
             ...prev,
-            params: {
-                ...prev.params,
-                [name]: value,
-            },
+            params: { ...prev.params, [name]: value },
         }));
     } else {
-        setNewStrategy(prev => ({
-            ...prev,
-            [name]: value,
-        }));
+        setNewStrategy(prev => ({ ...prev, [name]: value }));
     }
   };
 
@@ -93,98 +138,69 @@ const Strategies = () => {
     e.preventDefault();
     try {
       const response = await api.post("/strategy", newStrategy);
-      const createdStrategy = response.data;
-      setStrategies([...strategies, createdStrategy]);
+      setStrategies([...strategies, response.data]);
       setNewStrategy(initialStrategyState);
-      console.log("Strategy created successfully:", createdStrategy);
     } catch (e) {
       setError(e.response?.data?.message || e.message);
-      console.error("Failed to create strategy:", e);
     }
   };
 
   // Function to handle deleting a strategy
   const handleDelete = async (strategyId) => {
-    if (!window.confirm("Are you sure you want to delete this strategy?")) {
-      return;
-    }
+    if (!window.confirm("Are you sure you want to delete this strategy?")) return;
     try {
       await api.delete(`/strategy/${strategyId}`);
       setStrategies(strategies.filter(s => s._id !== strategyId));
-      console.log(`Strategy ${strategyId} deleted successfully.`);
     } catch (e) {
       setError(e.response?.data?.message || e.message);
-      console.error("Failed to delete strategy:", e);
     }
   };
   
-  // A helper function to render dynamic parameters based on the strategy type
+  // A helper function to render dynamic parameters and guides
   const renderStrategyParameters = () => {
     const p = newStrategy.params;
+    const guide = strategyGuides[p.strategyType];
+    
+    let parameterInputs = null;
+
     switch (p.strategyType) {
-      case 'Moving Average Crossover':
-        return (
-          <>
-            <label>
-              Short Period:
-              <input type="number" name="shortPeriod" value={p.shortPeriod} onChange={handleChange} required style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} />
-              <p style={{ fontSize: '12px', color: '#aaa', marginTop: '5px' }}>
-                This is the **"fast"** moving average. A smaller number reacts faster to new price changes.
-              </p>
-            </label>
-            <label>
-              Long Period:
-              <input type="number" name="longPeriod" value={p.longPeriod} onChange={handleChange} required style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} />
-              <p style={{ fontSize: '12px', color: '#aaa', marginTop: '5px' }}>
-                This is the **"slow"** moving average. This line shows the long-term trend.
-              </p>
-            </label>
-            <p style={{ marginTop: '10px', fontStyle: 'italic', fontSize: '14px', color: '#ddd' }}>
-              **The rule:** Buy when the fast line crosses above the slow line, and sell when it crosses below. 
-            </p>
-          </>
-        );
-      case 'RSI':
-        return (
-          <>
-            <label>
-              RSI Period:
-              <input type="number" name="rsiPeriod" value={p.rsiPeriod} onChange={handleChange} required style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} />
-              <p style={{ fontSize: '12px', color: '#aaa', marginTop: '5px' }}>
-                The RSI measures if an asset is overbought or oversold based on the last **{p.rsiPeriod}** periods.
-              </p>
-            </label>
-            <p style={{ marginTop: '10px', fontStyle: 'italic', fontSize: '14px', color: '#ddd' }}>
-              **The rule:** Buy when RSI is low (e.g., below 30) and sell when it is high (e.g., above 70).
-            </p>
-          </>
-        );
-      case 'Bollinger Bands':
-        return (
-          <>
-            <label>
-              Period:
-              <input type="number" name="period" value={p.period} onChange={handleChange} required style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} />
-              <p style={{ fontSize: '12px', color: '#aaa', marginTop: '5px' }}>
-                The length for the central moving average line of the bands.
-              </p>
-            </label>
-            <label>
-              Standard Deviations:
-              <input type="number" name="numStdDev" value={p.numStdDev} onChange={handleChange} required style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} />
-               <p style={{ fontSize: '12px', color: '#aaa', marginTop: '5px' }}>
-                Sets how wide the bands are. A bigger number makes the bands wider.
-              </p>
-            </label>
-            <p style={{ marginTop: '10px', fontStyle: 'italic', fontSize: '14px', color: '#ddd' }}>
-              **The rule:** Buy when the price touches the lower band and sell when it touches the upper band. 
-            </p>
-          </>
-        );
-      // ... other cases for other strategies
-      default:
-        return null;
+        case 'Moving Average Crossover':
+            parameterInputs = (
+              <>
+                <label>Short Period:<input type="number" name="shortPeriod" value={p.shortPeriod} onChange={handleChange} required style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} /></label>
+                <label>Long Period:<input type="number" name="longPeriod" value={p.longPeriod} onChange={handleChange} required style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} /></label>
+              </>
+            );
+            break;
+        case 'RSI':
+            parameterInputs = <label>RSI Period:<input type="number" name="rsiPeriod" value={p.rsiPeriod} onChange={handleChange} required style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} /></label>;
+            break;
+        case 'Bollinger Bands':
+             parameterInputs = (
+              <>
+                <label>Period:<input type="number" name="period" value={p.period} onChange={handleChange} required style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} /></label>
+                <label>Standard Deviations:<input type="number" name="numStdDev" value={p.numStdDev} onChange={handleChange} required style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} /></label>
+              </>
+            );
+            break;
+        // ... other cases for other strategies
+        default:
+            parameterInputs = null;
     }
+
+    return (
+        <div>
+            {parameterInputs}
+            {guide && (
+                <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '1px solid #3e4e60', color: '#cbd5e1' }}>
+                    <h4 style={{ fontWeight: '600', color: '#94a3b8' }}>Strategy Guide</h4>
+                    <p style={{ fontSize: '12px', marginTop: '8px' }}><strong>What it is:</strong> {guide.whatItIs}</p>
+                    <p style={{ fontSize: '12px', marginTop: '4px' }}><strong>How it works:</strong> {guide.howItWorks}</p>
+                    <p style={{ fontSize: '12px', marginTop: '4px' }}><strong>Combine With:</strong> {guide.combineWith}</p>
+                </div>
+            )}
+        </div>
+    );
   };
 
   if (isLoading) return <div style={{ color: '#eee' }}>Loading strategies...</div>;
@@ -198,16 +214,11 @@ const Strategies = () => {
       </p>
 
       <div style={{ padding: '20px', border: '1px solid #3e4e60', borderRadius: '8px', marginBottom: '40px', backgroundColor: '#1e2b3c' }}>
-        <h2>Step 1: Create a New Trading Strategy</h2>
-        <p style={{ fontStyle: 'italic', marginBottom: '20px', color: '#aaa' }}>
-          A strategy is a set of rules for your backtest. Give it a name and choose the rules that tell it when to buy or sell.
-        </p>
-
+        <h2>Create a New Trading Strategy</h2>
         <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
           {/* LEFT COLUMN */}
           <div>
-            <h3>Configure Your Strategy</h3>
-            {/* ✅ MOVED: Strategy Type is now at the top */}
+            <h3>Configuration</h3>
             <label>
               Strategy Type:
               <select name="strategyType" value={newStrategy.params.strategyType} onChange={handleChange} style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}>
@@ -222,29 +233,20 @@ const Strategies = () => {
                 <option value="ATR">Average True Range (ATR)</option>
                 <option value="Ichimoku Cloud">Ichimoku Cloud</option>
               </select>
-              <p style={{ fontSize: '12px', color: '#aaa', marginTop: '5px' }}>
-                Pick one of the most popular trading rules.
-              </p>
             </label>
             <label>
               Strategy Name:
               <input type="text" name="name" value={newStrategy.name} onChange={handleChange} required placeholder="e.g., The MACD Power Play" style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} />
-              <p style={{ fontSize: '12px', color: '#aaa', marginTop: '5px' }}>
-                Choose a unique and memorable name for your strategy.
-              </p>
             </label>
             <label>
               Description:
               <textarea name="description" value={newStrategy.description} onChange={handleChange} placeholder="e.g., This strategy looks for trends using MACD." style={{ width: '100%', minHeight: '80px', padding: '8px', boxSizing: 'border-box', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} />
-              <p style={{ fontSize: '12px', color: '#aaa', marginTop: '5px' }}>
-                A brief summary of what this strategy is designed to do.
-              </p>
             </label>
           </div>
 
           {/* RIGHT COLUMN */}
           <div>
-            <h3>Set the Strategy's Rules</h3>
+            <h3>Parameters & Guide</h3>
             {renderStrategyParameters()}
           </div>
           
@@ -255,10 +257,7 @@ const Strategies = () => {
       </div>
 
       <div style={{ padding: '20px', border: '1px solid #3e4e60', borderRadius: '8px', backgroundColor: '#1e2b3c' }}>
-        <h2>Step 2: My Saved Strategies</h2>
-        <p style={{ fontStyle: 'italic', marginBottom: '20px', color: '#aaa' }}>
-          Here are all the strategies you have saved. You can use these to run backtests.
-        </p>
+        <h2>My Saved Strategies</h2>
         {strategies.length > 0 ? (
           <ul style={{ listStyle: 'none', padding: 0 }}>
             {strategies.map((strategy) => (
@@ -275,9 +274,7 @@ const Strategies = () => {
             ))}
           </ul>
         ) : (
-          <div>
-            <p style={{ color: '#aaa' }}>You haven't created any strategies yet. Get started by using the form above!</p>
-          </div>
+          <p style={{ color: '#aaa' }}>You haven't created any strategies yet. Get started by using the form above!</p>
         )}
       </div>
     </div>
