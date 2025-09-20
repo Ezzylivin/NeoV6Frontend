@@ -39,6 +39,32 @@ export function useBacktest() {
     }
   }, []);
 
+  const getBacktestById = useCallback(async (id) => {
+    setAuthToken(localStorage.getItem("userToken"));
+    setInitialLoading(true);
+    setError(null);
+    try {
+      return await backtestApi.fetchById(id);
+    } catch (err) {
+      setError(err.message || "Failed to fetch backtest.");
+      throw err;
+    } finally {
+      setInitialLoading(false);
+    }
+  }, []);
+  
+  const deleteBacktest = useCallback(async (id) => {
+    setAuthToken(localStorage.getItem("userToken"));
+    setError(null);
+    try {
+      await backtestApi.deleteById(id);
+      await getPastBacktests(); // Refresh the list after deleting
+    } catch (err) {
+      setError(err.message || "Failed to delete backtest.");
+      throw err;
+    }
+  }, [getPastBacktests]);
+
   const runNewBacktest = useCallback(
     async (payload) => {
       setAuthToken(localStorage.getItem("userToken"));
@@ -58,15 +84,13 @@ export function useBacktest() {
     [getPastBacktests]
   );
 
-  // ✅ --- NEW: Function to run a combined strategy backtest ---
   const runComboBacktest = useCallback(
     async (payload) => {
       setAuthToken(localStorage.getItem("userToken"));
-      setBatchLoading(true); // Reuse batchLoading for combo tests
+      setBatchLoading(true);
       setError(null);
       try {
         const result = await backtestApi.runComboBacktest(payload);
-        // You may want to handle the results of a combo test differently
         return result;
       } catch (err) {
         setError(err.message || "Failed to run combo backtest.");
@@ -108,8 +132,10 @@ export function useBacktest() {
     batchLoading,
     error,
     getPastBacktests,
+    getBacktestById,
+    deleteBacktest,
     runNewBacktest,
-    runComboBacktest, // Export the new function
+    runComboBacktest,
     previewStrategy,
   };
 }
