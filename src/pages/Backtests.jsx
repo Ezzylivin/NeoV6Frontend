@@ -38,7 +38,7 @@ const initialComboData = {
   endDate: getInitialDates().endDate,
 };
 
-// --- ✅ UPGRADED: Metrics Display Component ---
+// --- Metrics Display Component (no change) ---
 const MetricsDisplay = ({ metrics }) => {
     if (!metrics || Object.keys(metrics).length === 0) {
         return <p className="no-metrics">No performance metrics available.</p>;
@@ -46,7 +46,6 @@ const MetricsDisplay = ({ metrics }) => {
 
     const formatValue = (key, value) => {
         if (typeof value !== 'number') return String(value);
-        // FIXED: Win Rate is now formatted correctly without being multiplied by 100.
         if (key.toLowerCase().includes('win rate')) return `${value.toFixed(2)}%`;
         if (key.toLowerCase().includes('factor')) return `${(value * 100).toFixed(2)}%`;
         if (key.toLowerCase().includes('profit') || key.toLowerCase().includes('drawdown') || key.toLowerCase().includes('balance')) return `$${value.toFixed(2)}`;
@@ -132,14 +131,13 @@ export default function Backtests() {
   const addStrategyToCombo = () => setComboData(prev => ({ ...prev, strategyConfigs: [...prev.strategyConfigs, { code: "" }] }));
   const removeStrategyFromCombo = (index) => setComboData(prev => ({ ...prev, strategyConfigs: comboData.strategyConfigs.filter((_, i) => i !== index) }));
 
-  // --- Submit Handlers ---
+  // --- Submit Handlers (no change) ---
   const handleSingleSubmit = async (e) => {
     e.preventDefault();
     setBacktestResults(null);
     try {
       const result = await runNewBacktest(formData);
       if (result?.equityCurve?.length > 0) {
-        // ✅ FIXED: Assembles the metrics object correctly for display.
         setBacktestResults({
           combined: { 
             metrics: { ...result.metrics, totalProfit: result.profit, finalBalance: result.finalBalance }, 
@@ -197,59 +195,113 @@ export default function Backtests() {
       <div className="forms-container">
         {/* --- Single Backtest Form --- */}
         <form className="card-row" onSubmit={handleSingleSubmit}>
-          {/* ... form content ... */}
+           <div className="metric-card">
+             <h3 className="card-title">Single Backtest</h3>
+             <label>Strategy
+               <select name="code" value={formData.code} onChange={handleChange} required>
+                 <option value="">Select strategy</option>
+                 {options.strategies.map(s => (<option key={s.code} value={s.code}>{s.name}</option>))}
+               </select>
+             </label>
+             <label>Symbol
+               <select name="symbol" value={formData.symbol} onChange={handleChange} required>
+                 <option value="">Select symbol</option>
+                 {options.symbols.map(s => (<option key={s} value={s}>{s}</option>))}
+               </select>
+             </label>
+             <label>Timeframe
+               <select name="timeframe" value={formData.timeframe} onChange={handleChange} required>
+                 <option value="">Select timeframe</option>
+                 {options.timeframes.map(t => (<option key={t} value={t}>{t}</option>))}
+               </select>
+             </label>
+             <label>Start Date<input type="date" name="startDate" value={formData.startDate} onChange={handleChange} required /></label>
+             <label>End Date<input type="date" name="endDate" value={formData.endDate} onChange={handleChange} required /></label>
+             <button type="submit" disabled={singleLoading}>{singleLoading ? "Running..." : "Run Backtest"}</button>
+           </div>
         </form>
 
-        {/* --- Combo Strategy Builder --- */}
+        {/* // --- DEBUGGING: Combo Strategy Builder Temporarily Disabled ---
         <form className="card-row" onSubmit={handleComboSubmit}>
-          {/* ... form content ... */}
-       </form> 
+          <div className="metric-card">
+            <h3 className="card-title">Combo Strategy Builder</h3>
+            <div className="combo-strategies-list">
+              <h4>Strategies to Combine</h4>
+              {comboData.strategyConfigs.map((strategy, index) => (
+                <div key={index} className="combo-strategy-item">
+                  <select name="strategyCode" value={strategy.code} onChange={(e) => handleComboChange(e, index)} required>
+                    <option value="">Select Strategy {index + 1}</option>
+                    {options.strategies.map(s => (<option key={s.code} value={s.code}>{s.name}</option>))}
+                  </select>
+                  {comboData.strategyConfigs.length > 1 && (
+                    <button type="button" onClick={() => removeStrategyFromCombo(index)} className="button-remove">X</button>
+                  )}
+                </div>
+              ))}
+              <button type="button" onClick={addStrategyToCombo} className="button-add">+ Add Strategy</button>
+            </div>
+            <label>Combination Rule
+              <select name="combinationRule" value={comboData.combinationRule} onChange={handleComboChange} required>
+                <option value="AND">AND (All must agree)</option>
+                <option value="OR">OR (Any can trigger)</option>
+              </select>
+            </label>
+            <label>Symbol<select name="symbol" value={comboData.symbol} onChange={handleComboChange} required><option value="">Select symbol</option>{options.symbols.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
+            <label>Timeframe<select name="timeframe" value={comboData.timeframe} onChange={handleComboChange} required><option value="">Select timeframe</option>{options.timeframes.map(t => <option key={t} value={t}>{t}</option>)}</select></label>
+            <label>Start Date<input type="date" name="startDate" value={comboData.startDate} onChange={handleComboChange} required /></label>
+            <label>End Date<input type="date" name="endDate" value={comboData.endDate} onChange={handleComboChange} required /></label>
+            <button type="submit" disabled={batchLoading}>{batchLoading ? "Running..." : "Run Combo Test"}</button>
+          </div>
+        </form> 
+        */}
       </div>
 
-      {/* --- Results Display --- */}
-      {backtestResults && (
-        <>
-          {backtestResults.combined?.equityCurve?.length > 0 && (
-            <div className="chart-card">
-              <h3>Combined Strategy Performance</h3>
-              <MetricsDisplay metrics={backtestResults.combined.metrics} />
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={backtestResults.combined.equityCurve}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="timestamp" name="Time" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="balance" name="Equity" stroke="#8884d8" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+      {/*
+        // --- DEBUGGING: Results Display Temporarily Disabled ---
+        {backtestResults && (
+          <>
+            {backtestResults.combined?.equityCurve?.length > 0 && (
+              <div className="chart-card">
+                <h3>Combined Strategy Performance</h3>
+                <MetricsDisplay metrics={backtestResults.combined.metrics} />
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={backtestResults.combined.equityCurve}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="timestamp" name="Time" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Line type="monotone" dataKey="balance" name="Equity" stroke="#8884d8" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
 
-          {backtestResults.individuals?.length > 0 && (
-             <div className="individual-charts-container">
-                <h3 className="header">Individual Strategy Performance</h3>
-                {backtestResults.individuals.map((result, index) => (
-                  result.equityCurve?.length > 0 && (
-                    <div key={index} className="chart-card">
-                        <h4>{result.name}</h4>
-                        <MetricsDisplay metrics={result.metrics} />
-                        <ResponsiveContainer width="100%" height={250}>
-                            <LineChart data={result.equityCurve}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="timestamp" name="Time" />
-                                <YAxis />
-                                <Tooltip />
-                                <Line type="monotone" dataKey="balance" name={result.name} stroke="#82ca9d" />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
-                  )
-                ))}
-            </div>
-          )}
-        </>
-      )}
+            {backtestResults.individuals?.length > 0 && (
+               <div className="individual-charts-container">
+                  <h3 className="header">Individual Strategy Performance</h3>
+                  {backtestResults.individuals.map((result, index) => (
+                    result.equityCurve?.length > 0 && (
+                      <div key={index} className="chart-card">
+                          <h4>{result.name}</h4>
+                          <MetricsDisplay metrics={result.metrics} />
+                          <ResponsiveContainer width="100%" height={250}>
+                              <LineChart data={result.equityCurve}>
+                                  <CartesianGrid strokeDasharray="3 3" />
+                                  <XAxis dataKey="timestamp" name="Time" />
+                                  <YAxis />
+                                  <Tooltip />
+                                  <Line type="monotone" dataKey="balance" name={result.name} stroke="#82ca9d" />
+                              </LineChart>
+                          </ResponsiveContainer>
+                      </div>
+                    )
+                  ))}
+              </div>
+            )}
+          </>
+        )}
+      */}
     </div>
   );
 }
