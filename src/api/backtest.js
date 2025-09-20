@@ -1,4 +1,4 @@
-import api, { setAuthToken } from "./apiClient.js";
+import api from "./apiClient.js";
 
 // --- Helpers to normalize API responses ---
 const normalizeOptions = (raw) => ({
@@ -16,7 +16,7 @@ const normalizePastBacktests = (raw) => ({
 
 // --- Fetch backtest options ---
 export async function fetchOptions() {
-  setAuthToken(localStorage.getItem('userToken'));
+  // REMOVED: setAuthToken is now handled in App.jsx
   try {
     const response = await api.get("/backtest/options");
     return normalizeOptions(response.data);
@@ -28,7 +28,7 @@ export async function fetchOptions() {
 
 // --- Fetch paginated past backtests ---
 export async function fetchAll(page = 1) {
-  setAuthToken(localStorage.getItem('userToken'));
+  // REMOVED: setAuthToken is now handled in App.jsx
   try {
     const response = await api.get(`/backtest?page=${page}`);
     return normalizePastBacktests(response.data);
@@ -38,9 +38,9 @@ export async function fetchAll(page = 1) {
   }
 }
 
-// --- ADDED: Fetch a single backtest by its ID ---
+// --- Fetch a single backtest by its ID ---
 export async function fetchById(id) {
-  setAuthToken(localStorage.getItem('userToken'));
+  // REMOVED: setAuthToken is now handled in App.jsx
   try {
     const { data } = await api.get(`/backtest/${id}`);
     return data;
@@ -50,9 +50,9 @@ export async function fetchById(id) {
   }
 }
 
-// --- ADDED: Delete a single backtest by its ID ---
+// --- Delete a single backtest by its ID ---
 export async function deleteById(id) {
-  setAuthToken(localStorage.getItem('userToken'));
+  // REMOVED: setAuthToken is now handled in App.jsx
   try {
     const { data } = await api.delete(`/backtest/${id}`);
     return data;
@@ -64,7 +64,7 @@ export async function deleteById(id) {
 
 // --- Run single backtest ---
 export async function runBacktest(payload) {
-  setAuthToken(localStorage.getItem('userToken'));
+  // REMOVED: setAuthToken is now handled in App.jsx
   if (!payload.code) throw new Error("strategy 'code' is required for backtest");
   try {
     const { data } = await api.post("/backtest/run", payload);
@@ -77,7 +77,7 @@ export async function runBacktest(payload) {
 
 // --- Preview a strategy without saving ---
 export async function previewStrategy(payload) {
-  setAuthToken(localStorage.getItem('userToken'));
+  // REMOVED: setAuthToken is now handled in App.jsx
   if (!payload.code) throw new Error("strategy 'code' is required for preview");
   try {
     const { data } = await api.post("/backtest/preview", payload);
@@ -90,7 +90,7 @@ export async function previewStrategy(payload) {
 
 // --- Run a combined strategy backtest ---
 export async function runComboBacktest(payload) {
-  setAuthToken(localStorage.getItem('userToken'));
+  // REMOVED: setAuthToken is now handled in App.jsx
   try {
     const { data } = await api.post("/backtest/combo", payload);
     return data;
