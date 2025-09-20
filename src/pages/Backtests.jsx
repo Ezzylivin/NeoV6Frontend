@@ -222,11 +222,39 @@ export default function Backtests() {
           </div>
         </form>
 
-        {/* // --- DEBUGGING: Combo Strategy Builder Temporarily Disabled ---
-          <form className="card-row" onSubmit={handleComboSubmit}>
-              ...
-          </form> 
-        */}
+        {/* --- DEBUGGING: Combo Strategy Builder RE-ENABLED --- */}
+        <form className="card-row" onSubmit={handleComboSubmit}>
+         <div className="metric-card">
+           <h3 className="card-title">Combo Strategy Builder</h3>
+           <div className="combo-strategies-list">
+             <h4>Strategies to Combine</h4>
+             {comboData.strategyConfigs.map((strategy, index) => (
+               <div key={index} className="combo-strategy-item">
+                 <select name="strategyCode" value={strategy.code} onChange={(e) => handleComboChange(e, index)} required>
+                   <option value="">Select Strategy {index + 1}</option>
+                   {options.strategies.map(s => (<option key={s.code} value={s.code}>{s.name}</option>))}
+                 </select>
+                 {comboData.strategyConfigs.length > 1 && (
+                   <button type="button" onClick={() => removeStrategyFromCombo(index)} className="button-remove">X</button>
+                 )}
+               </div>
+             ))}
+             <button type="button" onClick={addStrategyToCombo} className="button-add">+ Add Strategy</button>
+           </div>
+
+           <label>Combination Rule
+             <select name="combinationRule" value={comboData.combinationRule} onChange={handleComboChange} required>
+               <option value="AND">AND (All must agree)</option>
+               <option value="OR">OR (Any can trigger)</option>
+             </select>
+           </label>
+           <label>Symbol<select name="symbol" value={comboData.symbol} onChange={handleComboChange} required><option value="">Select symbol</option>{options.symbols.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
+           <label>Timeframe<select name="timeframe" value={comboData.timeframe} onChange={handleComboChange} required><option value="">Select timeframe</option>{options.timeframes.map(t => <option key={t} value={t}>{t}</option>)}</select></label>
+           <label>Start Date<input type="date" name="startDate" value={comboData.startDate} onChange={handleComboChange} required /></label>
+           <label>End Date<input type="date" name="endDate" value={comboData.endDate} onChange={handleComboChange} required /></label>
+           <button type="submit" disabled={batchLoading}>{batchLoading ? "Running..." : "Run Combo Test"}</button>
+         </div>
+       </form> 
       </div>
 
       {/*
