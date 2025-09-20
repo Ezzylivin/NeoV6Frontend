@@ -48,33 +48,21 @@ const initialComboData = {
   endDate: getInitialDates().endDate,
 };
 
-// ✅ --- NEW: Component to display performance metrics ---
+// --- MetricsDisplay Component (no change) ---
 const MetricsDisplay = ({ metrics }) => {
     if (!metrics || Object.keys(metrics).length === 0) {
         return <p className="no-metrics">No performance metrics available.</p>;
     }
-
     const formatValue = (key, value) => {
         if (typeof value !== 'number') return value;
-        if (key.toLowerCase().includes('rate') || key.toLowerCase().includes('factor')) {
-            return `${(value * 100).toFixed(2)}%`;
-        }
-        if (key.toLowerCase().includes('profit') || key.toLowerCase().includes('drawdown') || key.toLowerCase().includes('balance')) {
-            return `$${value.toFixed(2)}`;
-        }
+        if (key.toLowerCase().includes('rate') || key.toLowerCase().includes('factor')) return `${(value * 100).toFixed(2)}%`;
+        if (key.toLowerCase().includes('profit') || key.toLowerCase().includes('drawdown') || key.toLowerCase().includes('balance')) return `$${value.toFixed(2)}`;
         return value;
     };
-    
-    // Select a subset of key metrics to display
     const keyMetrics = {
-        "Total Profit": metrics.totalProfit,
-        "Total Trades": metrics.totalTrades,
-        "Win Rate": metrics.winRate,
-        "Max Drawdown": metrics.maxDrawdown,
-        "Profit Factor": metrics.profitFactor,
-        "Final Balance": metrics.finalBalance,
+        "Total Profit": metrics.totalProfit, "Total Trades": metrics.totalTrades, "Win Rate": metrics.winRate,
+        "Max Drawdown": metrics.maxDrawdown, "Profit Factor": metrics.profitFactor, "Final Balance": metrics.finalBalance,
     };
-
     return (
         <div className="metrics-grid">
             {Object.entries(keyMetrics).map(([key, value]) => (
@@ -87,22 +75,13 @@ const MetricsDisplay = ({ metrics }) => {
     );
 };
 
-
 export default function Backtests() {
   const {
-    options,
-    initialLoading,
-    singleLoading,
-    batchLoading,
-    error,
-    runNewBacktest,
-    runComboBacktest,
+    options, initialLoading, singleLoading, batchLoading, error, runNewBacktest, runComboBacktest,
   } = useBacktest();
 
   const [formData, setFormData] = useState(initialFormData);
   const [comboData, setComboData] = useState(initialComboData);
-  
-  // ✅ UPGRADED: State to hold full results (metrics + equity curve)
   const [backtestResults, setBacktestResults] = useState(null);
 
   useEffect(() => {
@@ -124,7 +103,7 @@ export default function Backtests() {
     }
   }, [options.strategies, options.symbols, options.timeframes, formData.code]);
 
-  // --- Handlers (no change to logic) ---
+  // --- Handlers (no change) ---
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === "code") {
@@ -148,36 +127,26 @@ export default function Backtests() {
   const handleComboChange = (e, index) => {
     const { name, value } = e.target;
     if (name === "strategyCode") {
-      const newStrategyConfigs = [...comboData.strategyConfigs];
-      newStrategyConfigs[index] = { ...newStrategyConfigs[index], code: value };
-      setComboData(prev => ({ ...prev, strategyConfigs: newStrategyConfigs }));
+      const newConfigs = [...comboData.strategyConfigs];
+      newConfigs[index] = { ...newConfigs[index], code: value };
+      setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
     } else {
       setComboData(prev => ({ ...prev, [name]: value }));
     }
   };
 
-  const addStrategyToCombo = () => {
-    setComboData(prev => ({ ...prev, strategyConfigs: [...prev.strategyConfigs, { code: "" }] }));
-  };
+  const addStrategyToCombo = () => setComboData(prev => ({ ...prev, strategyConfigs: [...prev.strategyConfigs, { code: "" }] }));
+  const removeStrategyFromCombo = (index) => setComboData(prev => ({ ...prev, strategyConfigs: comboData.strategyConfigs.filter((_, i) => i !== index) }));
 
-  const removeStrategyFromCombo = (index) => {
-    const newStrategyConfigs = comboData.strategyConfigs.filter((_, i) => i !== index);
-    setComboData(prev => ({ ...prev, strategyConfigs: newStrategyConfigs }));
-  };
-
-  // --- Submit Handlers ---
+  // --- Submit Handlers (no change) ---
   const handleSingleSubmit = async (e) => {
     e.preventDefault();
-    setBacktestResults(null); // Reset results
+    setBacktestResults(null);
     try {
       const result = await runNewBacktest(formData);
-      if (result?.equityCurve && result.equityCurve.length > 0) {
-        // ✅ UPGRADED: Set full results in the new format
+      if (result?.equityCurve?.length > 0) {
         setBacktestResults({
-          combined: {
-            metrics: { ...result.metrics, finalBalance: result.finalBalance },
-            equityCurve: result.equityCurve,
-          },
+          combined: { metrics: { ...result.metrics, finalBalance: result.finalBalance }, equityCurve: result.equityCurve },
           individuals: []
         });
       } else {
@@ -190,28 +159,18 @@ export default function Backtests() {
 
   const handleComboSubmit = async (e) => {
     e.preventDefault();
-    setBacktestResults(null); // Reset results
+    setBacktestResults(null);
     try {
-      const payload = {
-        ...comboData,
-        strategyCodes: comboData.strategyConfigs.map(s => s.code).filter(code => code !== ""),
-      };
+      const payload = { ...comboData, strategyCodes: comboData.strategyConfigs.map(s => s.code).filter(Boolean) };
       delete payload.strategyConfigs;
-
       if (payload.strategyCodes.length < 2) {
         alert("Please select at least two strategies for a combo backtest.");
         return;
       }
-
       const result = await runComboBacktest(payload);
-
-      if (result && result.combinedResult?.metrics?.equityCurve) {
-        // ✅ UPGRADED: Set full results for combo test
+      if (result?.combinedResult?.metrics?.equityCurve) {
         setBacktestResults({
-          combined: {
-             metrics: result.combinedResult.metrics,
-             equityCurve: result.combinedResult.metrics.equityCurve
-          },
+          combined: { metrics: result.combinedResult.metrics, equityCurve: result.combinedResult.metrics.equityCurve },
           individuals: result.individualResults.map(res => ({
             name: res.strategyName,
             metrics: res.metrics,
@@ -236,54 +195,46 @@ export default function Backtests() {
       
       <div className="forms-container">
         {/* --- Single Backtest Form --- */}
-        <form className="card-row" onSubmit={handleSingleSubmit}>{/* ... form fields ... */}</form>
+        <form className="card-row" onSubmit={handleSingleSubmit}>
+          <div className="metric-card">
+            <h3 className="card-title">Single Backtest</h3>
+            <label>Strategy
+              <select name="code" value={formData.code} onChange={handleChange} required>
+                <option value="">Select strategy</option>
+                {options.strategies.map(s => (<option key={s.code} value={s.code}>{s.name}</option>))}
+              </select>
+            </label>
+            <label>Symbol
+              <select name="symbol" value={formData.symbol} onChange={handleChange} required>
+                <option value="">Select symbol</option>
+                {options.symbols.map(s => (<option key={s} value={s}>{s}</option>))}
+              </select>
+            </label>
+            <label>Timeframe
+              <select name="timeframe" value={formData.timeframe} onChange={handleChange} required>
+                <option value="">Select timeframe</option>
+                {options.timeframes.map(t => (<option key={t} value={t}>{t}</option>))}
+              </select>
+            </label>
+            <label>Start Date<input type="date" name="startDate" value={formData.startDate} onChange={handleChange} required /></label>
+            <label>End Date<input type="date" name="endDate" value={formData.endDate} onChange={handleChange} required /></label>
+            <button type="submit" disabled={singleLoading}>{singleLoading ? "Running..." : "Run Backtest"}</button>
+          </div>
+        </form>
 
-        {/* --- Combo Strategy Builder --- */}
-        <form className="card-row" onSubmit={handleComboSubmit}>{/* ... form fields ... */}</form>
+        {/* // --- DEBUGGING: Combo Strategy Builder Temporarily Disabled ---
+          <form className="card-row" onSubmit={handleComboSubmit}>
+              ...
+          </form> 
+        */}
       </div>
 
-      {/* --- ✅ UPGRADED: Multi-Chart and Metrics Display --- */}
-      {backtestResults && (
-        <>
-          {/* Combined Chart & Metrics */}
-          <div className="chart-card">
-            <h3>Combined Strategy Performance</h3>
-            <MetricsDisplay metrics={backtestResults.combined.metrics} />
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={backtestResults.combined.equityCurve}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="equity" name="Combined Equity" stroke="#8884d8" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Individual Charts & Metrics */}
-          {backtestResults.individuals.length > 0 && (
-             <div className="individual-charts-container">
-                <h3 className="header">Individual Strategy Performance</h3>
-                {backtestResults.individuals.map((result, index) => (
-                    <div key={index} className="chart-card">
-                        <h4>{result.name}</h4>
-                        <MetricsDisplay metrics={result.metrics} />
-                        <ResponsiveContainer width="100%" height={250}>
-                            <LineChart data={result.equityCurve}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="date" />
-                                <YAxis />
-                                <Tooltip />
-                                <Line type="monotone" dataKey="equity" name={result.name} stroke="#82ca9d" />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
-                ))}
-            </div>
-          )}
-        </>
-      )}
+      {/*
+        // --- DEBUGGING: Results Display Temporarily Disabled ---
+        {backtestResults && (
+          ...
+        )}
+      */}
     </div>
   );
 }
