@@ -131,7 +131,7 @@ export default function Backtests() {
   const addStrategyToCombo = () => setComboData(prev => ({ ...prev, strategyConfigs: [...prev.strategyConfigs, { code: "" }] }));
   const removeStrategyFromCombo = (index) => setComboData(prev => ({ ...prev, strategyConfigs: comboData.strategyConfigs.filter((_, i) => i !== index) }));
 
-  // --- Submit Handlers (no change) ---
+  // --- Submit Handlers ---
   const handleSingleSubmit = async (e) => {
     e.preventDefault();
     setBacktestResults(null);
@@ -221,7 +221,7 @@ export default function Backtests() {
            </div>
         </form>
 
-        {/* // --- DEBUGGING: Combo Strategy Builder Temporarily Disabled ---
+        {/* --- Combo Strategy Builder --- */}
         <form className="card-row" onSubmit={handleComboSubmit}>
           <div className="metric-card">
             <h3 className="card-title">Combo Strategy Builder</h3>
@@ -252,56 +252,55 @@ export default function Backtests() {
             <label>End Date<input type="date" name="endDate" value={comboData.endDate} onChange={handleComboChange} required /></label>
             <button type="submit" disabled={batchLoading}>{batchLoading ? "Running..." : "Run Combo Test"}</button>
           </div>
-        </form> 
-        */}
+        </form>
       </div>
 
-      {/*
-        // --- DEBUGGING: Results Display Temporarily Disabled ---
-        {backtestResults && (
-          <>
-            {backtestResults.combined?.equityCurve?.length > 0 && (
-              <div className="chart-card">
-                <h3>Combined Strategy Performance</h3>
-                <MetricsDisplay metrics={backtestResults.combined.metrics} />
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={backtestResults.combined.equityCurve}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="timestamp" name="Time" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="balance" name="Equity" stroke="#8884d8" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
+      {/* ✅ UPGRADED: Results Display now has robust safety checks */}
+      {backtestResults && (
+        <>
+          {/* Combined Chart & Metrics */}
+          {backtestResults.combined?.equityCurve && Array.isArray(backtestResults.combined.equityCurve) && backtestResults.combined.equityCurve.length > 0 && (
+            <div className="chart-card">
+              <h3>Combined Strategy Performance</h3>
+              <MetricsDisplay metrics={backtestResults.combined.metrics} />
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={backtestResults.combined.equityCurve}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="timestamp" name="Time" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="balance" name="Equity" stroke="#8884d8" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
 
-            {backtestResults.individuals?.length > 0 && (
-               <div className="individual-charts-container">
-                  <h3 className="header">Individual Strategy Performance</h3>
-                  {backtestResults.individuals.map((result, index) => (
-                    result.equityCurve?.length > 0 && (
-                      <div key={index} className="chart-card">
-                          <h4>{result.name}</h4>
-                          <MetricsDisplay metrics={result.metrics} />
-                          <ResponsiveContainer width="100%" height={250}>
-                              <LineChart data={result.equityCurve}>
-                                  <CartesianGrid strokeDasharray="3 3" />
-                                  <XAxis dataKey="timestamp" name="Time" />
-                                  <YAxis />
-                                  <Tooltip />
-                                  <Line type="monotone" dataKey="balance" name={result.name} stroke="#82ca9d" />
-                              </LineChart>
-                          </ResponsiveContainer>
-                      </div>
-                    )
-                  ))}
-              </div>
-            )}
-          </>
-        )}
-      */}
+          {/* Individual Charts & Metrics */}
+          {backtestResults.individuals?.length > 0 && (
+             <div className="individual-charts-container">
+                <h3 className="header">Individual Strategy Performance</h3>
+                {backtestResults.individuals.map((result, index) => (
+                  result?.equityCurve && Array.isArray(result.equityCurve) && result.equityCurve.length > 0 && (
+                    <div key={index} className="chart-card">
+                        <h4>{result.name}</h4>
+                        <MetricsDisplay metrics={result.metrics} />
+                        <ResponsiveContainer width="100%" height={250}>
+                            <LineChart data={result.equityCurve}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="timestamp" name="Time" />
+                                <YAxis />
+                                <Tooltip />
+                                <Line type="monotone" dataKey="balance" name={result.name} stroke="#82ca9d" />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                  )
+                ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
