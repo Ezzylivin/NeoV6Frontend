@@ -36,13 +36,11 @@ const initialFormData = {
   timeframe: "",
   startDate: getInitialDates().startDate,
   endDate: getInitialDates().endDate,
-  takeProfit: "",
-  stopLoss: "",
   params: {},
 };
 
 const initialComboData = {
-  strategyCodes: [],
+  strategyConfigs: [{ code: "" }], // Start with one empty strategy selector
   combinationRule: 'AND',
   symbol: "",
   timeframe: "",
@@ -55,14 +53,14 @@ export default function Backtests() {
     options,
     initialLoading,
     singleLoading,
-    batchLoading, // For the combo test loading state
+    batchLoading,
     error,
     runNewBacktest,
-    runComboBacktest, // The new function from your hook
+    runComboBacktest,
   } = useBacktest();
 
   const [formData, setFormData] = useState(initialFormData);
-  const [comboData, setComboData] = useState(initialComboData); // State for the new form
+  const [comboData, setComboData] = useState(initialComboData);
   const [metricsData, setMetricsData] = useState([]);
 
   useEffect(() => {
@@ -73,15 +71,13 @@ export default function Backtests() {
         code: firstStrategy.code,
         symbol: firstStrategy.params?.symbol || options.symbols[0] || "",
         timeframe: firstStrategy.params?.timeframe || options.timeframes[0] || "",
-        takeProfit: firstStrategy.params?.takeProfit || options.takeProfits[0] || "",
-        stopLoss: firstStrategy.params?.stopLoss || options.stopLosses[0] || "",
         params: firstStrategy.params || {},
       }));
-      // Pre-fill combo form with some defaults
       setComboData(prev => ({
         ...prev,
         symbol: options.symbols[0] || "",
         timeframe: options.timeframes[0] || "",
+        strategyConfigs: [{ code: options.strategies[0]?.code || "" }]
       }));
     }
   }, [options.strategies, options.symbols, options.timeframes, formData.code]);
@@ -97,43 +93,50 @@ export default function Backtests() {
           code: selectedStrategy.code,
           symbol: selectedStrategy.params?.symbol || options.symbols[0] || "",
           timeframe: selectedStrategy.params?.timeframe || options.timeframes[0] || "",
-          takeProfit: selectedStrategy.params?.takeProfit || options.takeProfits[0] || "",
-          stopLoss: selectedStrategy.params?.stopLoss || options.stopLosses[0] || "",
           params: selectedStrategy.params || {},
         }));
       } else {
-        setFormData((prev) => ({ ...prev, code: "", symbol: "", timeframe: "", takeProfit: "", stopLoss: "", params: {} }));
+        setFormData((prev) => ({ ...prev, code: "", symbol: "", timeframe: "", params: {} }));
       }
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
   };
 
-  // --- Handlers for new Combo Backtest Form ---
-  const handleComboChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    if (name === "strategyCodes") {
-      setComboData(prev => ({
-        ...prev,
-        strategyCodes: checked
-          ? [...prev.strategyCodes, value]
-          : prev.strategyCodes.filter(code => code !== value)
-      }));
+  // --- Handlers for new Combo Strategy Builder ---
+  const handleComboChange = (e, index) => {
+    const { name, value } = e.target;
+    if (name === "strategyCode") {
+      const newStrategyConfigs = [...comboData.strategyConfigs];
+      newStrategyConfigs[index] = { ...newStrategyConfigs[index], code: value };
+      setComboData(prev => ({ ...prev, strategyConfigs: newStrategyConfigs }));
     } else {
       setComboData(prev => ({ ...prev, [name]: value }));
     }
   };
 
+  const addStrategyToCombo = () => {
+    setComboData(prev => ({
+      ...prev,
+      strategyConfigs: [...prev.strategyConfigs, { code: "" }]
+    }));
+  };
+
+  const removeStrategyFromCombo = (index) => {
+    const newStrategyConfigs = comboData.strategyConfigs.filter((_, i) => i !== index);
+    setComboData(prev => ({ ...prev, strategyConfigs: newStrategyConfigs }));
+  };
+
+  // --- Submit Handlers ---
   const handleSingleSubmit = async (e) => {
     e.preventDefault();
     setMetricsData([]);
     try {
-      const payload = { ...formData };
-      const result = await runNewBacktest(payload);
+      const result = await runNewBacktest(formData);
       if (result?.equityCurve && result.equityCurve.length > 0) {
         setMetricsData(result.equityCurve);
       } else {
-        console.log("Chart data is empty. Single backtest may have produced no trades.");
+        console.log("Single backtest ran but produced no trades.");
       }
     } catch (err) {
       console.error("Single backtest failed:", err);
@@ -144,12 +147,25 @@ export default function Backtests() {
     e.preventDefault();
     setMetricsData([]);
     try {
-      const result = await runComboBacktest(comboData);
-      console.log("Combo Backtest Response:", result);
+      // Filter out empty strategy selections and get the codes
+      const payload = {
+        ...comboData,
+        strategyCodes: comboData.strategyConfigs
+          .map(s => s.code)
+          .filter(code => code !== ""),
+      };
+      delete payload.strategyConfigs; // Clean up payload for the backend
+
+      if (payload.strategyCodes.length < 2) {
+        alert("Please select at least two strategies for a combo backtest.");
+        return;
+      }
+
+      const result = await runComboBacktest(payload);
       if (result?.metrics?.equityCurve && result.metrics.equityCurve.length > 0) {
         setMetricsData(result.metrics.equityCurve);
       } else {
-        alert("Combo test ran successfully but produced no trades. Check console for details.");
+        alert("Combo backtest ran successfully but produced no trades.");
       }
     } catch (err) {
       console.error("Combo backtest failed:", err);
@@ -167,30 +183,37 @@ export default function Backtests() {
       <div className="forms-container">
         {/* --- Single Backtest Form --- */}
         <form className="card-row" onSubmit={handleSingleSubmit}>
-          <div className="metric-card">
-            <h3 className="card-title">Single Backtest</h3>
-            <label>Strategy<select name="code" value={formData.code} onChange={handleChange} required><option value="">Select strategy</option>{options.strategies.map(s => (<option key={s.code} value={s.code}>{s.name}</option>))}</select></label>
-            <label>Symbol<select name="symbol" value={formData.symbol} onChange={handleChange} required><option value="">Select symbol</option>{options.symbols.map(s => (<option key={s} value={s}>{s}</option>))}</select></label>
-            <label>Timeframe<select name="timeframe" value={formData.timeframe} onChange={handleChange} required><option value="">Select timeframe</option>{options.timeframes.map(t => (<option key={t} value={t}>{t}</option>))}</select></label>
-            <label>Start Date<input type="date" name="startDate" value={formData.startDate} onChange={handleChange} required /></label>
-            <label>End Date<input type="date" name="endDate" value={formData.endDate} onChange={handleChange} required /></label>
-            <button type="submit" disabled={singleLoading}>{singleLoading ? "Running..." : "Run Backtest"}</button>
-          </div>
+           <div className="metric-card">
+             <h3 className="card-title">Single Backtest</h3>
+             <label>Strategy<select name="code" value={formData.code} onChange={handleChange} required><option value="">Select strategy</option>{options.strategies.map(s => (<option key={s.code} value={s.code}>{s.name}</option>))}</select></label>
+             <label>Symbol<select name="symbol" value={formData.symbol} onChange={handleChange} required><option value="">Select symbol</option>{options.symbols.map(s => (<option key={s} value={s}>{s}</option>))}</select></label>
+             <label>Timeframe<select name="timeframe" value={formData.timeframe} onChange={handleChange} required><option value="">Select timeframe</option>{options.timeframes.map(t => (<option key={t} value={t}>{t}</option>))}</select></label>
+             <label>Start Date<input type="date" name="startDate" value={formData.startDate} onChange={handleChange} required /></label>
+             <label>End Date<input type="date" name="endDate" value={formData.endDate} onChange={handleChange} required /></label>
+             <button type="submit" disabled={singleLoading}>{singleLoading ? "Running..." : "Run Backtest"}</button>
+           </div>
         </form>
 
-        {/* --- NEW: Combo Backtest Form --- */}
+        {/* --- UPGRADED: Combo Strategy Builder --- */}
         <form className="card-row" onSubmit={handleComboSubmit}>
           <div className="metric-card">
-            <h3 className="card-title">Combo Backtest</h3>
-            <div className="strategy-checkbox-group">
-              <h4>Select Strategies</h4>
-              {options.strategies.map(s => (
-                <label key={s.code} className="checkbox-label">
-                  <input type="checkbox" name="strategyCodes" value={s.code} checked={comboData.strategyCodes.includes(s.code)} onChange={handleComboChange} />
-                  {s.name}
-                </label>
+            <h3 className="card-title">Combo Strategy Builder</h3>
+            <div className="combo-strategies-list">
+              <h4>Strategies to Combine</h4>
+              {comboData.strategyConfigs.map((strategy, index) => (
+                <div key={index} className="combo-strategy-item">
+                  <select name="strategyCode" value={strategy.code} onChange={(e) => handleComboChange(e, index)} required>
+                    <option value="">Select Strategy {index + 1}</option>
+                    {options.strategies.map(s => (<option key={s.code} value={s.code}>{s.name}</option>))}
+                  </select>
+                  {comboData.strategyConfigs.length > 1 && (
+                    <button type="button" onClick={() => removeStrategyFromCombo(index)} className="button-remove">X</button>
+                  )}
+                </div>
               ))}
+              <button type="button" onClick={addStrategyToCombo} className="button-add">+ Add Strategy</button>
             </div>
+
             <label>Combination Rule
               <select name="combinationRule" value={comboData.combinationRule} onChange={handleComboChange} required>
                 <option value="AND">AND (All must agree)</option>
