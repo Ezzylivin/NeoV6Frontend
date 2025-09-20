@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
 } from "recharts";
 import "./Backtests.css";
 
@@ -24,7 +31,9 @@ const getInitialDates = () => {
 
 // --- Initial state for forms (no change) ---
 const initialFormData = {
-  code: "", symbol: "", timeframe: "",
+  code: "",
+  symbol: "",
+  timeframe: "",
   startDate: getInitialDates().startDate,
   endDate: getInitialDates().endDate,
   params: {},
@@ -33,7 +42,8 @@ const initialFormData = {
 const initialComboData = {
   strategyConfigs: [{ code: "" }],
   combinationRule: 'AND',
-  symbol: "", timeframe: "",
+  symbol: "",
+  timeframe: "",
   startDate: getInitialDates().startDate,
   endDate: getInitialDates().endDate,
 };
@@ -43,20 +53,17 @@ const MetricsDisplay = ({ metrics }) => {
     if (!metrics || Object.keys(metrics).length === 0) {
         return <p className="no-metrics">No performance metrics available.</p>;
     }
-
     const formatValue = (key, value) => {
         if (typeof value !== 'number') return String(value);
         if (key.toLowerCase().includes('win rate')) return `${value.toFixed(2)}%`;
-        if (key.toLowerCase().includes('factor')) return `${(value * 100).toFixed(2)}%`;
+        if (key.toLowerCase().includes('factor')) return value.toFixed(2);
         if (key.toLowerCase().includes('profit') || key.toLowerCase().includes('drawdown') || key.toLowerCase().includes('balance')) return `$${value.toFixed(2)}`;
         return value;
     };
-    
     const keyMetrics = {
         "Total Profit": metrics.totalProfit, "Total Trades": metrics.totalTrades, "Win Rate": metrics.winRate,
         "Max Drawdown": metrics.maxDrawdown, "Profit Factor": metrics.profitFactor, "Final Balance": metrics.finalBalance,
     };
-
     return (
         <div className="metrics-grid">
             {Object.entries(keyMetrics).map(([key, value]) => (
@@ -77,7 +84,7 @@ export default function Backtests() {
   const [formData, setFormData] = useState(initialFormData);
   const [comboData, setComboData] = useState(initialComboData);
   const [backtestResults, setBacktestResults] = useState(null);
-  const [activeTestType, setActiveTestType] = useState(null); // ✅ NEW: Track which test was run
+  const [activeTestType, setActiveTestType] = useState(null);
 
   useEffect(() => {
     if (options.strategies?.length > 0 && !formData.code) {
@@ -136,7 +143,7 @@ export default function Backtests() {
   const handleSingleSubmit = async (e) => {
     e.preventDefault();
     setBacktestResults(null);
-    setActiveTestType('single'); // ✅ NEW: Set the active test type
+    setActiveTestType('single');
     try {
       const result = await runNewBacktest(formData);
       if (result?.equityCurve?.length > 0) {
@@ -158,25 +165,27 @@ export default function Backtests() {
   const handleComboSubmit = async (e) => {
     e.preventDefault();
     setBacktestResults(null);
-    setActiveTestType('combo'); // ✅ NEW: Set the active test type
+    setActiveTestType('combo');
     try {
       const payload = { ...comboData, strategyCodes: comboData.strategyConfigs.map(s => s.code).filter(Boolean) };
       delete payload.strategyConfigs;
-      if (payload.strategyCodes.length < 2) {
-        alert("Please select at least two strategies for a combo backtest.");
+      if (payload.strategyCodes.length < 1) { // Allow single strategy "combo" for comparison
+        alert("Please select at least one strategy for the backtest.");
         return;
       }
       const result = await runComboBacktest(payload);
-      if (result?.combinedResult?.metrics?.equityCurve) {
+      
+      // ✅ FIXED: This check now correctly matches the backend response structure.
+      if (result?.combinedResult?.equityCurve?.length > 0) {
         setBacktestResults({
           main: { 
             metrics: result.combinedResult.metrics, 
-            equityCurve: result.combinedResult.metrics.equityCurve 
+            equityCurve: result.combinedResult.equityCurve 
           },
           individuals: result.individualResults.map(res => ({
             name: res.strategyName,
             metrics: res.metrics,
-            equityCurve: res.metrics.equityCurve
+            equityCurve: res.equityCurve
           }))
         });
       } else {
@@ -258,11 +267,10 @@ export default function Backtests() {
         </form>
       </div>
 
-      {/* ✅ UPGRADED: Results Display now has robust safety checks and dynamic titles */}
+      {/* --- Results Display --- */}
       {backtestResults && (
         <>
-          {/* Main Chart & Metrics */}
-          {backtestResults.main?.equityCurve && Array.isArray(backtestResults.main.equityCurve) && backtestResults.main.equityCurve.length > 0 && (
+          {backtestResults.main?.equityCurve?.length > 0 && (
             <div className="chart-card">
               <h3>{activeTestType === 'combo' ? 'Combined Strategy Performance' : 'Backtest Results'}</h3>
               <MetricsDisplay metrics={backtestResults.main.metrics} />
@@ -270,7 +278,7 @@ export default function Backtests() {
                 <LineChart data={backtestResults.main.equityCurve}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="timestamp" name="Time" />
-                  <YAxis />
+                  <YAxis domain={['dataMin', 'dataMax']} />
                   <Tooltip />
                   <Legend />
                   <Line type="monotone" dataKey="balance" name="Equity" stroke="#8884d8" />
@@ -279,12 +287,11 @@ export default function Backtests() {
             </div>
           )}
 
-          {/* Individual Charts & Metrics */}
           {backtestResults.individuals?.length > 0 && (
              <div className="individual-charts-container">
                 <h3 className="header">Individual Strategy Performance</h3>
                 {backtestResults.individuals.map((result, index) => (
-                  result?.equityCurve && Array.isArray(result.equityCurve) && result.equityCurve.length > 0 && (
+                  result?.equityCurve?.length > 0 && (
                     <div key={index} className="chart-card">
                         <h4>{result.name}</h4>
                         <MetricsDisplay metrics={result.metrics} />
@@ -292,7 +299,7 @@ export default function Backtests() {
                             <LineChart data={result.equityCurve}>
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="timestamp" name="Time" />
-                                <YAxis />
+                                <YAxis domain={['dataMin', 'dataMax']} />
                                 <Tooltip />
                                 <Line type="monotone" dataKey="balance" name={result.name} stroke="#82ca9d" />
                             </LineChart>
@@ -307,3 +314,4 @@ export default function Backtests() {
     </div>
   );
 }
+
