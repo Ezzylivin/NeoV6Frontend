@@ -51,7 +51,7 @@ const MetricsDisplay = ({ metrics }) => {
 // --- Main Component ---
 export default function Backtests() {
   const { options, initialLoading, singleLoading, batchLoading, error, runNewBacktest, runComboBacktest } = useBacktest();
-  const { createSetup, loading: isSaving, error: saveError } = useBacktestSetup(); // ✅ 2. Use the new hook
+  const { createSetup, loading: isSaving, error: saveError } = useBacktestSetupFunction(); // ✅ 2. Use the new hook
   
   const [formData, setFormData] = useState(initialFormData);
   const [comboData, setComboData] = useState(initialComboData);
