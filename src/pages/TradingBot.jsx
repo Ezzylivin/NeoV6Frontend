@@ -32,7 +32,7 @@ const MetricsDisplay = ({ metrics }) => {
 export default function TradingBot() {
     // --- Hooks ---
     const { botStatus, logs, loading, error, startBot, stopBot, refreshBotData } = useBot();
-    const { setups, loading: setupsLoading } = useBacktestSetup();
+    const { setups, loading: setupsLoading } = useBacktestSetupFunction();
     const { options: backtestOptions, initialLoading: optionsLoading } = useBacktest();
 
     // --- State for the unified configuration form ---
