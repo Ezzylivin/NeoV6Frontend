@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
-import { useBacktestSetup } from "../hooks/useBacktestSetup.js"; // ✅ 1. Import the new hook
+import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.js"; // ✅ 1. Import the new hook
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer,
 } from "recharts";
