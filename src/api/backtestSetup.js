@@ -20,7 +20,7 @@ export const createSetup = async (setupData) => {
 /**
  * Fetches all saved backtest setups for the current user.
  */
-export const fetchSetups = async () => {
+export const getSetups = async () => {
   try {
     const { data } = await apiClient.get('/backtestSetups');
     return data;
@@ -43,3 +43,15 @@ export const deleteSetup = async (id) => {
     throw error;
   }
 };
+
+/**
+ * Get a specific backtest setup by its ID.
+ * @param {string} id - The ID of the setup to delete.
+ */
+export const getSetupById = async (id) => {
+  try {
+    const { data } = await apiClient.get(`/backtestSetups/${id}`);
+    return data;
+  } catch (error) {
+    console.error(`getSetup(${id}): failed`, error);
+    throw error;
