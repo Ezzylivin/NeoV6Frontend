@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useBot } from '../hooks/useBot.js';
-import { useBacktestSetup } from "../hooks/useBacktestSetup.js"; // For loading saved "blueprints"
+import { useBacktestSetup } from "../hooks/useBacktestSetup.jsx"; // For loading saved "blueprints"
 import { useBacktest } from "../hooks/useBacktest.js"; 
 import "./TradingBot.css";
 
