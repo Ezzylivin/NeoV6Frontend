@@ -81,6 +81,6 @@ export function useBacktestSetupFunction() {
     error, 
     createSetup, 
     deleteSetup,
-    refreshSetups: fetchSetups // Expose a manual refresh function
+    refreshSetups: getSetups // Expose a manual refresh function
   };
 }
