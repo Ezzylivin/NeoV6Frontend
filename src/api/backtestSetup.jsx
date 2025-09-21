@@ -1,5 +1,5 @@
 // File: src/api/backtestSetup.js
-// NEW: This file provides the frontend functions to interact with the backtest setup API.
+// UPGRADED: Added the missing 'fetchSetupById' function to complete the file.
 
 import apiClient from './apiClient.js';
 
@@ -20,7 +20,7 @@ export const createSetup = async (setupData) => {
 /**
  * Fetches all saved backtest setups for the current user.
  */
-export const getSetups = async () => {
+export const fetchSetups = async () => {
   try {
     const { data } = await apiClient.get('/backtestSetups');
     return data;
@@ -28,6 +28,20 @@ export const getSetups = async () => {
     console.error("fetchSetups(): failed", error);
     throw error;
   }
+};
+
+/**
+ * Fetches a single backtest setup by its ID.
+ * @param {string} id - The ID of the setup to fetch.
+ */
+export const fetchSetupById = async (id) => {
+    try {
+        const { data } = await apiClient.get(`/backtestSetups/${id}`);
+        return data;
+    } catch (error) {
+        console.error(`fetchSetupById(${id}): failed`, error);
+        throw error;
+    }
 };
 
 /**
@@ -44,14 +58,3 @@ export const deleteSetup = async (id) => {
   }
 };
 
-/**
- * Get a specific backtest setup by its ID.
- * @param {string} id - The ID of the setup to delete.
- */
-export const getSetupById = async (id) => {
-  try {
-    const { data } = await apiClient.get(`/backtestSetups/${id}`);
-    return data;
-  } catch (error) {
-    console.error(`getSetup(${id}): failed`, error);
-    throw error;
