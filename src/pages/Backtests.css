@@ -173,3 +173,16 @@ tr:hover {
   background-color: #1e1e2f;
   color: #ffffff;
 }
+
+/* --- No Trades / Warning Message --- */
+.no-trades-reason {
+  color: #f87171;               /* Light red to match theme */
+  font-weight: 600;             /* Slightly bold */
+  background-color: #7f1d1d22;  /* Transparent dark red background */
+  border-left: 4px solid #f87171;
+  padding: 8px 12px;
+  margin: 8px 0;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  display: inline-block;
+}
