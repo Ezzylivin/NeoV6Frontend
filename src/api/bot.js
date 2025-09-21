@@ -1,7 +1,7 @@
 // File: src/api/bot.js
 // UPGRADED: This file is now fully synchronized with the backend bot routes and services.
 
-import api from './apiClient.js';
+import apiClient from './apiClient.js';
 
 /**
  * Starts the trading bot with a specific configuration.
