@@ -9,7 +9,7 @@ import apiClient from './apiClient.js';
  */
 export const createSetup = async (setupData) => {
   try {
-    const { data } = await apiClient.post('/backtest-setup', setupData);
+    const { data } = await apiClient.post('/backtestSetup', setupData);
     return data;
   } catch (error) {
     console.error("createSetup(): failed", error);
@@ -22,7 +22,7 @@ export const createSetup = async (setupData) => {
  */
 export const fetchSetups = async () => {
   try {
-    const { data } = await apiClient.get('/backtest-setup');
+    const { data } = await apiClient.get('/backtestSetup');
     return data;
   } catch (error) {
     console.error("fetchSetups(): failed", error);
@@ -36,7 +36,7 @@ export const fetchSetups = async () => {
  */
 export const deleteSetup = async (id) => {
   try {
-    const { data } = await apiClient.delete(`/backtest-setup/${id}`);
+    const { data } = await apiClient.delete(`/backtestSetup/${id}`);
     return data;
   } catch (error) {
     console.error(`deleteSetup(${id}): failed`, error);
