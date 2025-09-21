@@ -2,7 +2,7 @@
 // NEW: This hook manages the state and logic for fetching, creating, and deleting saved backtest setups.
 
 import { useState, useEffect, useCallback } from "react";
-import * as backtestSetupApi from '../api/backtestSetup.js'; // Import the new API service
+import * as backtestSetupApi from '../api/backtestSetup.jsx'; // Import the new API service
 
 export function useBacktestSetupFunction() {
   const [setups, setSetups] = useState([]);
