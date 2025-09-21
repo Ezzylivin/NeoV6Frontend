@@ -39,8 +39,8 @@ export function useBacktestSetupFunction() {
 
   // --- Initial data load when the hook is first used ---
   useEffect(() => {
-    fetchSetups();
-  }, [fetchSetups]);
+    getSetups();
+  }, [getSetups]);
 
   // --- Creates a new backtest setup ---
   const createSetup = async (setupData) => {
