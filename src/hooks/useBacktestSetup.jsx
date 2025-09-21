@@ -10,11 +10,25 @@ export function useBacktestSetupFunction() {
   const [error, setError] = useState(null);
 
   // --- Fetches all saved backtest setups ---
-  const fetchSetups = useCallback(async () => {
+  const getSetups = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await backtestSetupApi.fetchSetups();
+      const data = await backtestSetupApi.getSetups();
+      setSetups(data);
+    } catch (err) {
+      setError(err.message || "Failed to fetch setups.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+
+    const getSetupById = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await backtestSetupApi.getSetupById();
       setSetups(data);
     } catch (err) {
       setError(err.message || "Failed to fetch setups.");
