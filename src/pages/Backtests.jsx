@@ -1,14 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer,
 } from "recharts";
 import "./Backtests.css";
 
@@ -31,9 +24,7 @@ const getInitialDates = () => {
 
 // --- Initial state for forms (no change) ---
 const initialFormData = {
-  code: "",
-  symbol: "",
-  timeframe: "",
+  code: "", symbol: "", timeframe: "",
   startDate: getInitialDates().startDate,
   endDate: getInitialDates().endDate,
   params: {},
@@ -42,8 +33,7 @@ const initialFormData = {
 const initialComboData = {
   strategyConfigs: [{ code: "" }],
   combinationRule: 'AND',
-  symbol: "",
-  timeframe: "",
+  symbol: "", timeframe: "",
   startDate: getInitialDates().startDate,
   endDate: getInitialDates().endDate,
 };
@@ -54,7 +44,7 @@ const MetricsDisplay = ({ metrics }) => {
         return <p className="no-metrics">No performance metrics available.</p>;
     }
     const formatValue = (key, value) => {
-        if (typeof value !== 'number') return String(value);
+        if (typeof value !== 'number') return String(value || 'N/A');
         if (key.toLowerCase().includes('win rate')) return `${value.toFixed(2)}%`;
         if (key.toLowerCase().includes('factor')) return value.toFixed(2);
         if (key.toLowerCase().includes('profit') || key.toLowerCase().includes('drawdown') || key.toLowerCase().includes('balance')) return `$${value.toFixed(2)}`;
@@ -83,8 +73,12 @@ export default function Backtests() {
 
   const [formData, setFormData] = useState(initialFormData);
   const [comboData, setComboData] = useState(initialComboData);
-  const [backtestResults, setBacktestResults] = useState(null);
-  const [activeTestType, setActiveTestType] = useState(null);
+  
+  // ✅ UPGRADED: A flexible state to hold any type of result
+  const [backtestResults, setBacktestResults] = useState({
+      main: null,
+      individuals: [],
+  });
 
   useEffect(() => {
     if (options.strategies?.length > 0 && !formData.code) {
@@ -142,17 +136,17 @@ export default function Backtests() {
   // --- Submit Handlers ---
   const handleSingleSubmit = async (e) => {
     e.preventDefault();
-    setBacktestResults(null);
-    setActiveTestType('single');
+    setBacktestResults({ main: null, individuals: [] });
     try {
       const result = await runNewBacktest(formData);
       if (result?.equityCurve?.length > 0) {
         setBacktestResults({
-          main: { 
+          main: {
+            name: `${result.strategy.name} Performance`,
             metrics: { ...result.metrics, totalProfit: result.profit, finalBalance: result.finalBalance }, 
             equityCurve: result.equityCurve 
           },
-          individuals: []
+          individuals: [] // No individuals for a single run
         });
       } else {
         alert("Backtest ran successfully but produced no trades.");
@@ -164,21 +158,20 @@ export default function Backtests() {
 
   const handleComboSubmit = async (e) => {
     e.preventDefault();
-    setBacktestResults(null);
-    setActiveTestType('combo');
+    setBacktestResults({ main: null, individuals: [] });
     try {
       const payload = { ...comboData, strategyCodes: comboData.strategyConfigs.map(s => s.code).filter(Boolean) };
       delete payload.strategyConfigs;
-      if (payload.strategyCodes.length < 1) { // Allow single strategy "combo" for comparison
-        alert("Please select at least one strategy for the backtest.");
+      if (payload.strategyCodes.length < 1) {
+        alert("Please select at least one strategy.");
         return;
       }
       const result = await runComboBacktest(payload);
       
-      // ✅ FIXED: This check now correctly matches the backend response structure.
       if (result?.combinedResult?.equityCurve?.length > 0) {
         setBacktestResults({
-          main: { 
+          main: {
+            name: 'Combined Strategy Performance',
             metrics: result.combinedResult.metrics, 
             equityCurve: result.combinedResult.equityCurve 
           },
@@ -267,49 +260,45 @@ export default function Backtests() {
         </form>
       </div>
 
-      {/* --- Results Display --- */}
-      {backtestResults && (
-        <>
-          {backtestResults.main?.equityCurve?.length > 0 && (
-            <div className="chart-card">
-              <h3>{activeTestType === 'combo' ? 'Combined Strategy Performance' : 'Backtest Results'}</h3>
-              <MetricsDisplay metrics={backtestResults.main.metrics} />
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={backtestResults.main.equityCurve}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="timestamp" name="Time" />
-                  <YAxis domain={['dataMin', 'dataMax']} />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="balance" name="Equity" stroke="#8884d8" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+      {/* --- ✅ UPGRADED: Smart Results Display --- */}
+      {backtestResults.main && (
+        <div className="chart-card">
+          <h3>{backtestResults.main.name}</h3>
+          <MetricsDisplay metrics={backtestResults.main.metrics} />
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={backtestResults.main.equityCurve}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="timestamp" name="Time" />
+              <YAxis domain={['dataMin', 'dataMax']} />
+              <Tooltip />
+              <Legend />
+              <Line type="monotone" dataKey="balance" name="Equity" stroke="#8884d8" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
-          {backtestResults.individuals?.length > 0 && (
-             <div className="individual-charts-container">
-                <h3 className="header">Individual Strategy Performance</h3>
-                {backtestResults.individuals.map((result, index) => (
-                  result?.equityCurve?.length > 0 && (
-                    <div key={index} className="chart-card">
-                        <h4>{result.name}</h4>
-                        <MetricsDisplay metrics={result.metrics} />
-                        <ResponsiveContainer width="100%" height={250}>
-                            <LineChart data={result.equityCurve}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="timestamp" name="Time" />
-                                <YAxis domain={['dataMin', 'dataMax']} />
-                                <Tooltip />
-                                <Line type="monotone" dataKey="balance" name={result.name} stroke="#82ca9d" />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
-                  )
-                ))}
-            </div>
-          )}
-        </>
+      {backtestResults.individuals.length > 0 && (
+         <div className="individual-charts-container">
+            <h3 className="header">Individual Strategy Performance</h3>
+            {backtestResults.individuals.map((result, index) => (
+              result?.equityCurve?.length > 0 && (
+                <div key={index} className="chart-card">
+                    <h4>{result.name}</h4>
+                    <MetricsDisplay metrics={result.metrics} />
+                    <ResponsiveContainer width="100%" height={250}>
+                        <LineChart data={result.equityCurve}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="timestamp" name="Time" />
+                            <YAxis domain={['dataMin', 'dataMax']} />
+                            <Tooltip />
+                            <Line type="monotone" dataKey="balance" name={result.name} stroke="#82ca9d" />
+                        </LineChart>
+                    </ResponsiveContainer>
+                </div>
+              )
+            ))}
+        </div>
       )}
     </div>
   );
