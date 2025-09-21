@@ -149,14 +149,66 @@ export default function Backtests() {
     }
   };
 
-  const chartData = useMemo(() => {
-    if (!backtestResults?.main?.equityCurve?.length) return null;
-    if (activeTestType === "single") {
-        return {
-            data: backtestResults.main.equityCurve.map(p => ({ ...p, date: formatDate(p.timestamp), Equity: p.balance })),
-            series: [{ name: "Equity", color: "#8884d8" }]
-        };
-    }
+const chartData = useMemo(() => {
+  if (!backtestResults?.main?.equityCurve?.length) return null;
+
+  // --- Helper to map a series to chart-friendly format ---
+  const mapSeriesToPoints = (seriesData) => seriesData.map(p => ({
+    date: formatDate(p.timestamp),
+    Equity: p.balance
+  }));
+
+  // --- Single backtest ---
+  if (activeTestType === "single") {
+    return {
+      data: mapSeriesToPoints(backtestResults.main.equityCurve),
+      series: [{ name: "Equity", color: "#8884d8", dataKey: "Equity" }]
+    };
+  }
+
+  // --- Combo backtest ---
+  if (activeTestType === "combo") {
+    // Filter out individual strategies with no trades
+    const individualSeries = backtestResults.individuals
+      .filter(r => r.metrics?.totalTrades > 0)
+      .map(r => ({ name: r.name, data: r.equityCurve }));
+
+    // Include combined series first
+    const allSeries = [{ name: "Combined", data: backtestResults.main.equityCurve }, ...individualSeries];
+
+    // Gather all unique timestamps
+    const allTimestamps = [...new Set(allSeries.flatMap(s => s.data.map(p => new Date(p.timestamp).getTime())))].sort((a, b) => a - b);
+
+    // Build a map for quick lookup
+    const dataMap = {};
+    allSeries.forEach(s => {
+      dataMap[s.name] = s.data.reduce((acc, p) => {
+        acc[new Date(p.timestamp).getTime()] = p.balance;
+        return acc;
+      }, {});
+    });
+
+    // Track last known balance to fill gaps
+    const lastBalances = {};
+    allSeries.forEach(s => { lastBalances[s.name] = s.data[0]?.balance || 1000; });
+
+    // Merge data points
+    const mergedData = allTimestamps.map(ts => {
+      const point = { date: formatDate(ts) };
+      allSeries.forEach(s => {
+        if (dataMap[s.name][ts] !== undefined) lastBalances[s.name] = dataMap[s.name][ts];
+        point[s.name] = lastBalances[s.name];
+      });
+      return point;
+    });
+
+    const colors = ["#8884d8","#82ca9d","#ffc658","#ff8042","#0088FE","#00C49F","#FFBB28"];
+    return { data: mergedData, series: allSeries.map((s,i) => ({ name: s.name, color: colors[i % colors.length], dataKey: s.name })) };
+  }
+
+  return null;
+}, [backtestResults, activeTestType]);
+
     if (activeTestType === "combo") {
         const allSeries = [{ name: "Combined", data: backtestResults.main.equityCurve }, ...backtestResults.individuals.filter(r => r.metrics?.totalTrades > 0).map(r => ({ name: r.name, data: r.equityCurve }))];
         const allTimestamps = [...new Set(allSeries.flatMap(s => s.data.map(p => new Date(p.timestamp).getTime())))].sort((a, b) => a - b);
