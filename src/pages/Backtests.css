@@ -35,7 +35,7 @@
 /* --- Forms --- */
 .forms-container {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column; /* stacked vertically */
   gap: 20px;
 }
 
@@ -43,7 +43,7 @@
   background-color: #1e1e2f;
   padding: 15px;
   border-radius: 8px;
-  flex: 1 1 300px;
+  flex: 1 1 100%;
   display: flex;
   flex-direction: column;
   margin-bottom: 15px;
@@ -277,6 +277,7 @@ tr:hover {
   font-size: 18px;
   font-weight: 600;
   margin-bottom: 15px;
+  color: #ffffff;
 }
 
 .modal-actions {
@@ -286,8 +287,15 @@ tr:hover {
   margin-top: 15px;
 }
 
+.modal-content input,
+.modal-content textarea {
+  color: #000000; /* User input text is now black */
+}
+
+/* Buttons inside modal */
 .button-save {
   background-color: #4f46e5;
+  color: #ffffff;
 }
 
 .button-save:hover {
@@ -296,6 +304,7 @@ tr:hover {
 
 .button-secondary {
   background-color: #6b7280;
+  color: #ffffff;
 }
 
 .button-secondary:hover {
