@@ -1,89 +1,77 @@
 // File: src/hooks/useBot.js
-import { useState } from "react";
-import { useAuth } from "../context/AuthContext.jsx";
+// UPGRADED: This hook now correctly uses the bot API service and manages all related state.
+
+import { useState, useEffect, useCallback } from "react";
+import * as botApi from '../api/bot.js'; // Import your new API service
 
 export function useBot() {
-  const { user } = useAuth();
-  const [status, setStatus] = useState(null);
+  const [botStatus, setBotStatus] = useState(null);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const startBot = async ({ symbol, timeframes, amount, strategy, risk }) => {
+  // --- Fetches both status and logs, and updates state ---
+  const fetchBotData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
-
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/bots/start`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user.id,
-          symbol,
-          timeframes,
-          amount,
-          strategy,
-          risk,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to start bot");
-
-      await getBotStatus();
+      const statusData = await botApi.getStatus();
+      const logsData = await botApi.getLogs();
+      setBotStatus(statusData);
+      setLogs(logsData);
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Failed to fetch bot data.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // --- Initial data load when the hook is first used ---
+  useEffect(() => {
+    fetchBotData();
+  }, [fetchBotData]);
+
+  // --- Starts the trading bot ---
+  const startBot = async (config) => {
+    setLoading(true);
+    setError(null);
+    try {
+      await botApi.start(config);
+      // Refresh status and logs after starting
+      await fetchBotData();
+    } catch (err) {
+      setError(err.message || "Failed to start the bot.");
+      // Re-throw the error so the component can handle it if needed
+      throw err;
     } finally {
       setLoading(false);
     }
   };
 
+  // --- Stops the trading bot ---
   const stopBot = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
-
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/bots/stop`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to stop bot");
-
-      await getBotStatus();
+      await botApi.stop();
+      // Refresh status and logs after stopping
+      await fetchBotData();
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Failed to stop the bot.");
+      throw err;
     } finally {
       setLoading(false);
     }
   };
 
-  const getBotStatus = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const url = new URL(`${import.meta.env.VITE_API_URL}/bots/status`);
-      url.searchParams.set("userId", user.id);
-
-      const res = await fetch(url.toString());
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to get bot status");
-
-      setStatus(data.status);
-      // Also display important info in logs
-      setLogs((prev) => [
-        ...prev,
-        `[${new Date().toLocaleTimeString()}] Bot status: ${data.status.isRunning ? "Running" : "Stopped"}, Symbol: ${data.status.symbol || "-"}, Balance: $${data.status.amount || 0}, Strategy: ${data.status.strategy || "-"}, Risk: ${data.status.risk || "-"}`
-      ]);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+  // --- Return all state and functions needed by the UI ---
+  return { 
+    botStatus, 
+    logs, 
+    loading, 
+    error, 
+    startBot, 
+    stopBot,
+    refreshBotData: fetchBotData // Expose a manual refresh function
   };
-
-  return { status, logs, loading, error, startBot, stopBot, getBotStatus };
 }
