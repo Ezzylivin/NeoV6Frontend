@@ -1,0 +1,244 @@
+/* File: src/pages/TradingBot.css */
+/* This file provides the styles for the live trading bot dashboard. */
+
+/* --- Main Container --- */
+.trading-bot-container {
+    padding: 20px;
+    font-family: 'Inter', sans-serif;
+    max-width: 1200px;
+    margin: auto;
+    color: #e2e8f0; /* slate-200 */
+}
+
+.header {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+    color: #f8fafc; /* slate-50 */
+    border-bottom: 1px solid #334155; /* slate-700 */
+    padding-bottom: 10px;
+}
+
+/* --- General Card Layout --- */
+.bot-card {
+    background-color: #1e2b3c; /* slate-800 */
+    border: 1px solid #334155; /* slate-700 */
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
+
+.card-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: #f8fafc; /* slate-50 */
+}
+
+.no-strategies-warning {
+    color: #f59e0b; /* amber-500 */
+    background-color: rgba(245, 158, 11, 0.1);
+    padding: 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+/* --- Control Panel & Form --- */
+.bot-form .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.bot-form label {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #94a3b8; /* slate-400 */
+}
+
+.bot-form select,
+.bot-form input {
+    background-color: #334155; /* slate-700 */
+    border: 1px solid #475569; /* slate-600 */
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-top: 4px;
+    color: #f8fafc; /* slate-50 */
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.bot-form select:focus,
+.bot-form input:focus {
+    outline: none;
+    border-color: #38bdf8; /* sky-400 */
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.4);
+}
+
+.bot-form select:disabled,
+.bot-form input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.form-actions {
+    margin-top: 24px;
+    display: flex;
+    justify-content: center;
+}
+
+.button-start, .button-stop {
+    padding: 10px 24px;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.button-start {
+    background-color: #16a34a; /* green-600 */
+    color: white;
+}
+
+.button-start:hover {
+    background-color: #15803d; /* green-700 */
+}
+
+.button-stop {
+    background-color: #dc2626; /* red-600 */
+    color: white;
+}
+
+.button-stop:hover {
+    background-color: #b91c1c; /* red-700 */
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+
+/* --- Status Dashboard --- */
+.status-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.status-indicator {
+    padding: 4px 12px;
+    border-radius: 9999px;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+}
+
+.status-indicator.running {
+    background-color: rgba(34, 197, 94, 0.2);
+    color: #4ade80; /* green-400 */
+}
+
+.status-indicator.stopped {
+    background-color: rgba(245, 158, 11, 0.2);
+    color: #facc15; /* yellow-400 */
+}
+
+.status-indicator.error {
+    background-color: rgba(239, 68, 68, 0.2);
+    color: #f87171; /* red-400 */
+}
+
+.status-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+    color: #cbd5e1; /* slate-300 */
+}
+
+
+/* --- Metrics Display (Shared with Backtests.css) --- */
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #334155; /* slate-700 */
+}
+
+.metric-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.metric-label {
+    font-size: 0.8rem;
+    color: #94a3b8; /* slate-400 */
+    font-weight: 500;
+}
+
+.metric-value {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #f8fafc; /* slate-50 */
+}
+
+
+/* --- Activity Log --- */
+.logs-container {
+    background-color: #0f172a; /* slate-900 */
+    border-radius: 6px;
+    padding: 16px;
+    height: 300px;
+    overflow-y: auto;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+.log-entry {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 8px;
+    font-size: 0.875rem;
+}
+
+.log-timestamp {
+    color: #64748b; /* slate-500 */
+}
+
+.log-message {
+    color: #cbd5e1; /* slate-300 */
+}
+
+.log-buy .log-message {
+    color: #4ade80; /* green-400 */
+}
+
+.log-sell .log-message {
+    color: #f87171; /* red-400 */
+}
+
+.log-error .log-message {
+    color: #fb923c; /* orange-400 */
+    font-weight: bold;
+}
+
+.no-logs {
+    color: #64748b; /* slate-500 */
+    text-align: center;
+    padding-top: 20px;
+}
+
+.loading-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    font-size: 1.2rem;
+    color: #94a3b8; /* slate-400 */
+}
