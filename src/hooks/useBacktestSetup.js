@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from "react";
 import * as backtestSetupApi from '../api/backtestSetup.js'; // Import the new API service
 
-export function useBacktestSetup() {
+export function useBacktestSetupFunction() {
   const [setups, setSetups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
