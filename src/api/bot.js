@@ -1,7 +1,7 @@
 // File: src/api/bot.js
 // UPGRADED: This file is now fully synchronized with the backend bot routes and services.
 
-import apiClient, { setAuthToken } from './apiClient.js';
+import api from './apiClient.js';
 
 /**
  * Starts the trading bot with a specific configuration.
@@ -12,8 +12,6 @@ import apiClient, { setAuthToken } from './apiClient.js';
  * @param {number} config.capitalAllocation - The amount of capital to allocate.
  */
 export const start = async (config) => {
-  // Ensure the request is authenticated
-  setAuthToken(localStorage.getItem('userToken'));
   // Send the correct payload to the backend
   const { data } = await apiClient.post('/bot/start', config);
   return data; // The backend returns the full bot object on success
@@ -23,7 +21,6 @@ export const start = async (config) => {
  * Stops the user's currently running trading bot.
  */
 export const stop = async () => {
-  setAuthToken(localStorage.getItem('userToken'));
   const { data } = await apiClient.post('/bot/stop');
   return data;
 };
@@ -32,7 +29,6 @@ export const stop = async () => {
  * Gets the current status and configuration of the user's trading bot.
  */
 export const getStatus = async () => {
-  setAuthToken(localStorage.getItem('userToken'));
   const { data } = await apiClient.get('/bot/status');
   return data;
 };
@@ -42,7 +38,6 @@ export const getStatus = async () => {
  * ✅ RENAMED and UPGRADED to match the backend.
  */
 export const getLogs = async () => {
-  setAuthToken(localStorage.getItem('userToken'));
   // Calls the correct '/bot/logs' endpoint
   const { data } = await apiClient.get('/bot/logs');
   return data;
