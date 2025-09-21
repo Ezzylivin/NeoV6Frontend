@@ -1,8 +1,8 @@
 // File: src/hooks/useBot.js
-// UPGRADED: This hook now correctly uses the bot API service and manages all related state.
+// UPGRADED: This hook now calls the API service functions with the new, consistent naming convention.
 
 import { useState, useEffect, useCallback } from "react";
-import * as botApi from '../api/bot.js'; // Import your new API service
+import * as botApi from '../api/bot.js'; // Import your API service
 
 export function useBot() {
   const [botStatus, setBotStatus] = useState(null);
@@ -15,8 +15,9 @@ export function useBot() {
     setLoading(true);
     setError(null);
     try {
-      const statusData = await botApi.getStatus();
-      const logsData = await botApi.getLogs();
+      // ✅ Calls the correctly named functions from the API service
+      const statusData = await botApi.fetchBotStatus();
+      const logsData = await botApi.fetchBotLogs();
       setBotStatus(statusData);
       setLogs(logsData);
     } catch (err) {
@@ -36,12 +37,12 @@ export function useBot() {
     setLoading(true);
     setError(null);
     try {
-      await botApi.start(config);
+      // ✅ Calls the correctly named function
+      await botApi.startBot(config);
       // Refresh status and logs after starting
       await fetchBotData();
     } catch (err) {
       setError(err.message || "Failed to start the bot.");
-      // Re-throw the error so the component can handle it if needed
       throw err;
     } finally {
       setLoading(false);
@@ -53,7 +54,8 @@ export function useBot() {
     setLoading(true);
     setError(null);
     try {
-      await botApi.stop();
+      // ✅ Calls the correctly named function
+      await botApi.stopBot();
       // Refresh status and logs after stopping
       await fetchBotData();
     } catch (err) {
@@ -75,3 +77,4 @@ export function useBot() {
     refreshBotData: fetchBotData // Expose a manual refresh function
   };
 }
+
