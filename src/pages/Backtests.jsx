@@ -228,7 +228,7 @@ const chartData = useMemo(() => {
         return { data: mergedData, series: allSeries.map((s,i) => ({ name: s.name, color: colors[i % colors.length] })) };
     }
     return null;
-  } [backtestResults, activeTestType]);
+  }; [backtestResults, activeTestType]);
 
   if (initialLoading) return <div>Loading...</div>;
   if (error) return <div style={{ color: 'red' }}>Error: {error}</div>;
