@@ -6,7 +6,7 @@ import apiClient from './apiClient.js';
  * @param {object} userData - { username, email, password }
  */
 export const register = async (userData) => {
-  const { data } = await apiClient.post('/user/register', userData);
+  const { data } = await apiClient.post('/users/register', userData);
   return data; // Returns { token, user }
 };
 
@@ -15,7 +15,7 @@ export const register = async (userData) => {
  * @param {object} credentials - { identifier, password }
  */
 export const login = async (credentials) => {
-  const { data } = await apiClient.post('/user/login', credentials);
+  const { data } = await apiClient.post('/users/login', credentials);
   return data; // Returns { token, user }
 };
 
@@ -23,7 +23,7 @@ export const login = async (credentials) => {
  * Get the current authenticated user's profile.
  */
 export const getMe = async () => {
-  const { data } = await apiClient.get('/user/me');
+  const { data } = await apiClient.get('/users/me');
   return data; // Returns { user }
 };
 
@@ -32,6 +32,6 @@ export const getMe = async () => {
  * @param {object} keyData - { exchange, apiKey, apiSecret }
  */
 export const updateApiKeys = async (keyData) => {
-    const { data } = await apiClient.post('/user/keys', keyData);
+    const { data } = await apiClient.post('/users/keys', keyData);
     return data; // Returns { message, keys }
 };
