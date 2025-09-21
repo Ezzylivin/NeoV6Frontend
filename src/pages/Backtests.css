@@ -123,6 +123,55 @@ button:disabled {
   margin-top: 20px;
 }
 
+/* --- Metrics Grid --- */
+.metrics-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-top: 15px;
+}
+
+.metric-item {
+  background-color: #2a2a3b;
+  padding: 10px 15px;
+  border-radius: 6px;
+  flex: 1 1 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.metric-label {
+  font-size: 0.85rem;
+  color: #cfcfcf;
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.metric-value {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #ffffff;
+  text-align: center;
+}
+
+/* --- Individual Combo Strategy Results --- */
+.individual-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.individual-result-card {
+  background-color: #1e1e2f;
+  padding: 15px;
+  border-radius: 8px;
+  flex: 1 1 300px;
+  display: flex;
+  flex-direction: column;
+}
+
 /* --- Tables --- */
 table {
   width: 100%;
