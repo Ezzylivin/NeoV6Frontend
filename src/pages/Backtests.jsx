@@ -49,17 +49,17 @@ const MetricsDisplay = ({ metrics }) => {
 };
 
 // --- Main Component ---
-export default function Backtests() {
+export default function Backtests({ onSetupSaved }) { // ✅ Accept callback prop
   const { options, initialLoading, singleLoading, batchLoading, error, runNewBacktest, runComboBacktest } = useBacktest();
   const { createSetup, loading: isSaving, error: saveError } = useBacktestSetupFunction();
-  
+
   const [formData, setFormData] = useState(initialFormData);
   const [comboData, setComboData] = useState(initialComboData);
   const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
   const [activeTestType, setActiveTestType] = useState(null);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [setupDetails, setSetupDetails] = useState({ name: '', description: '' });
-  const [savedSetup, setSavedSetup] = useState(null); // ✅ Track saved setup
+  const [savedSetup, setSavedSetup] = useState(null); 
   const [resultKey, setResultKey] = useState(Date.now());
 
   // --- Initialize default strategy selection ---
@@ -127,7 +127,7 @@ export default function Backtests() {
       }
     } catch (err) { alert(err.response?.data?.message || "Error running combo backtest"); }
   };
-  
+
   const openSaveModal = () => setIsSaveModalOpen(true);
   const closeSaveModal = () => setIsSaveModalOpen(false);
   const handleSetupDetailChange = (e) => setSetupDetails({ ...setupDetails, [e.target.name]: e.target.value });
@@ -139,25 +139,26 @@ export default function Backtests() {
 
     let setupPayload;
     if (activeTestType === 'single') {
-        const strategy = options.strategies.find(s => s.code === source.code);
-        setupPayload = { name: setupDetails.name, description: setupDetails.description, symbol: source.symbol, timeframe: source.timeframe, isCombo: false, strategyId: strategy?._id };
+      const strategy = options.strategies.find(s => s.code === source.code);
+      setupPayload = { name: setupDetails.name, description: setupDetails.description, symbol: source.symbol, timeframe: source.timeframe, isCombo: false, strategyId: strategy?._id };
     } else {
-        setupPayload = { name: setupDetails.name, description: setupDetails.description, symbol: source.symbol, timeframe: source.timeframe, isCombo: true, comboConfig: { strategyCodes: source.strategyConfigs.map(s => s.code).filter(Boolean), combinationRule: source.combinationRule } };
+      setupPayload = { name: setupDetails.name, description: setupDetails.description, symbol: source.symbol, timeframe: source.timeframe, isCombo: true, comboConfig: { strategyCodes: source.strategyConfigs.map(s => s.code).filter(Boolean), combinationRule: source.combinationRule } };
     }
     try {
-        await createSetup(setupPayload);
-        setSavedSetup(setupPayload); // ✅ Save for display above chart
-        alert("Setup saved successfully!");
-        closeSaveModal();
+      await createSetup(setupPayload);
+      setSavedSetup(setupPayload);
+      alert("Setup saved successfully!");
+      closeSaveModal();
+      // ✅ Trigger auto-refresh in Strategies page
+      if (onSetupSaved) onSetupSaved();
     } catch (err) {
-        alert(err.response?.data?.message || "Failed to save setup.");
+      alert(err.response?.data?.message || "Failed to save setup.");
     }
   };
 
   // --- Chart data memoization ---
   const chartData = useMemo(() => {
     if (!backtestResults?.main?.equityCurve?.length) return null;
-
     const mapSeriesToPoints = (seriesData) => seriesData.map(p => ({ date: formatDate(p.timestamp), Equity: p.balance }));
 
     if (activeTestType === "single") {
@@ -178,10 +179,8 @@ export default function Backtests() {
       allSeries.forEach(s => {
         dataMap[s.name] = s.data.reduce((acc, p) => { acc[new Date(p.timestamp).getTime()] = p.balance; return acc; }, {});
       });
-
       const lastBalances = {};
       allSeries.forEach(s => { lastBalances[s.name] = s.data[0]?.balance || 1000; });
-
       const mergedData = allTimestamps.map(ts => {
         const point = { date: formatDate(ts) };
         allSeries.forEach(s => {
@@ -190,7 +189,6 @@ export default function Backtests() {
         });
         return point;
       });
-
       const colors = ["#8884d8","#82ca9d","#ffc658","#ff8042","#0088FE","#00C49F","#FFBB28"];
       return { data: mergedData, series: allSeries.map((s,i) => ({ name: s.name, color: colors[i % colors.length], dataKey: s.name })) };
     }
@@ -262,7 +260,7 @@ export default function Backtests() {
         </form>
       </div>
 
-      {/* --- Saved Setup Display --- */}
+      {/* Saved Setup Display */}
       {savedSetup && (
         <div className="saved-setup-card">
           <h3>Saved Setup: {savedSetup.name}</h3>
@@ -272,7 +270,7 @@ export default function Backtests() {
         </div>
       )}
 
-      {/* --- Chart & Metrics --- */}
+      {/* Chart & Metrics */}
       {backtestResults?.main && (
         <div key={resultKey} className="chart-card">
           <div className="results-header">
@@ -296,7 +294,7 @@ export default function Backtests() {
         </div>
       )}
 
-      {/* --- Save Modal --- */}
+      {/* Save Modal */}
       {isSaveModalOpen && (
         <div className="modal-overlay">
           <div className="modal-content">
