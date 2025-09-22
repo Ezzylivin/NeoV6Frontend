@@ -1,37 +1,39 @@
-// File: src/context/StrategyContext.jsx
-import React, { createContext, useState, useEffect } from "react";
-import api, { setAuthToken } from "../api/apiClient.js";
+// src/context/StrategyContext.jsx
+import React, { createContext, useState, useEffect, useContext } from 'react';
+import api from '../api/apiClient.js';
+import { useAuth } from './AuthContext.jsx';
 
 export const StrategyContext = createContext();
 
 export const StrategyProvider = ({ children }) => {
+  const { user, isAuthenticated } = useAuth(); // ✅ useAuth hook
   const [strategies, setStrategies] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
-  const fetchStrategies = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem("userToken");
-      if (token) setAuthToken(token);
+  useEffect(() => {
+    const fetchStrategies = async () => {
+      if (!isAuthenticated || !user?.token) {
+        setLoading(false);
+        return;
+      }
 
-      const response = await api.get("/strategy");
-      setStrategies(Array.isArray(response.data) ? response.data : []);
-    } catch (e) {
-      setError(e.response?.data?.message || e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+      try {
+        const response = await api.get('/strategy', {
+          headers: { Authorization: `Bearer ${user.token}` }
+        });
+        setStrategies(Array.isArray(response.data) ? response.data : []);
+      } catch (err) {
+        console.error('Failed to fetch strategies:', err.response?.data?.message || err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const addStrategy = (strategy) => setStrategies(prev => [...prev, strategy]);
-  const removeStrategy = (strategyId) =>
-    setStrategies(prev => prev.filter(s => s._id !== strategyId));
-
-  useEffect(() => { fetchStrategies(); }, []);
+    fetchStrategies();
+  }, [isAuthenticated, user]);
 
   return (
-    <StrategyContext.Provider value={{ strategies, loading, error, fetchStrategies, addStrategy, removeStrategy }}>
+    <StrategyContext.Provider value={{ strategies, setStrategies, loading }}>
       {children}
     </StrategyContext.Provider>
   );
