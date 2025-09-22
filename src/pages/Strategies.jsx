@@ -1,5 +1,5 @@
 // src/pages/Strategies.jsx
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import api from "../api/apiClient.js";
 import { StrategyContext } from "../context/StrategyContext.jsx";
 
@@ -26,8 +26,22 @@ const initialStrategyState = {
 
 const Strategies = () => {
   const { strategies, setStrategies, loading: contextLoading } = useContext(StrategyContext);
+  const [comboStrategies, setComboStrategies] = useState([]);
   const [error, setError] = useState(null);
   const [newStrategy, setNewStrategy] = useState(initialStrategyState);
+
+  // --- Fetch combo strategies separately ---
+  useEffect(() => {
+    const fetchComboStrategies = async () => {
+      try {
+        const { data } = await api.get("/strategy/combo"); // ✅ Backend endpoint for combo strategies
+        setComboStrategies(Array.isArray(data) ? data : []);
+      } catch (e) {
+        console.error("Failed to fetch combo strategies:", e.response?.data?.message || e.message);
+      }
+    };
+    fetchComboStrategies();
+  }, []);
 
   // --- Handle form input changes ---
   const handleChange = (e) => {
@@ -60,9 +74,11 @@ const Strategies = () => {
 
     try {
       await api.post("/strategies", newStrategy);
-      // ✅ Refresh all strategies after save
+      // ✅ Refresh all strategies including combos
       const { data } = await api.get("/strategies");
       setStrategies(Array.isArray(data) ? data : []);
+      const { data: comboData } = await api.get("/strategy/combo");
+      setComboStrategies(Array.isArray(comboData) ? comboData : []);
       setNewStrategy(initialStrategyState);
     } catch (e) {
       setError(e.response?.data?.message || e.message);
@@ -76,6 +92,7 @@ const Strategies = () => {
     try {
       await api.delete(`/strategies/${id}`);
       setStrategies((prev) => prev.filter((s) => s?._id !== id));
+      setComboStrategies((prev) => prev.filter((s) => s?._id !== id));
     } catch (e) {
       setError(e.response?.data?.message || e.message);
     }
@@ -269,7 +286,7 @@ const Strategies = () => {
         }}
       >
         <h2>My Saved Strategies</h2>
-        {strategies?.length > 0 ? (
+        {strategies?.length + comboStrategies?.length > 0 ? (
           <ul style={{ listStyle: "none", padding: 0 }}>
             {strategies.map(
               (s) =>
@@ -286,6 +303,43 @@ const Strategies = () => {
                   >
                     <span>
                       <strong>{s.name || "Unnamed Strategy"}</strong>
+                      <br />
+                      <span style={{ fontSize: "12px", color: "#888" }}>
+                        Type: {s.params?.strategyType || "Unknown"}
+                      </span>
+                    </span>
+                    <button
+                      onClick={() => handleDelete(s._id)}
+                      style={{
+                        padding: "8px 16px",
+                        backgroundColor: "#dc3545",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "5px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </li>
+                )
+            )}
+            {comboStrategies.map(
+              (s) =>
+                s && (
+                  <li
+                    key={s._id || Math.random()}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "15px",
+                      borderBottom: "1px solid #333",
+                      backgroundColor: "#24344f",
+                    }}
+                  >
+                    <span>
+                      <strong>{s.name || "Unnamed Combo Strategy"} (Combo)</strong>
                       <br />
                       <span style={{ fontSize: "12px", color: "#888" }}>
                         Type: {s.params?.strategyType || "Unknown"}
