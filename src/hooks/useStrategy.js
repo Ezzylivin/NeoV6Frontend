@@ -37,7 +37,7 @@ export function useStrategy() {
         try {
             // FIX: The endpoint is just the base URL. The body contains the new strategy data.
             // The userId is not needed in the payload.
-            const response = await api.post(API_BE, strategyData);
+            const response = await api.post(API_BASE, strategyData);
             
             // Add the new strategy to the local state to update the UI instantly
             setStrategies(prevStrategies => [...prevStrategies, response.data]);
