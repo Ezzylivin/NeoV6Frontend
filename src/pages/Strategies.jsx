@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import api from '../api/apiClient.js';
 import { StrategyContext } from '../context/StrategyContext.jsx';
+import { AuthContext } from '../context/AuthContext.jsx';
 
 // --- Strategy Guides ---
 const strategyGuides = {
@@ -17,6 +18,7 @@ const strategyGuides = {
   "Stochastic Oscillator": { title: "Stochastic Oscillator", whatItIs: "Momentum indicator comparing closing price to range...", howItWorks: "Long entry when %K crosses %D below 20...", combineWith: "Use with MACD to filter false signals in strong trends" }
 };
 
+// --- Default new strategy ---
 const initialStrategyState = {
   name: '',
   description: '',
@@ -24,24 +26,23 @@ const initialStrategyState = {
 };
 
 const Strategies = () => {
-  const { strategies, setStrategies } = useContext(StrategyContext); // ✅ global strategies
+  const { strategies, setStrategies } = useContext(StrategyContext);
+  const { user, isAuthenticated } = useContext(AuthContext); // ✅ wait for auth context
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [newStrategy, setNewStrategy] = useState(initialStrategyState);
 
-  // --- Fetch strategies safely with token in headers ---
+  // --- Fetch strategies after auth is ready ---
   useEffect(() => {
     const fetchStrategies = async () => {
-      const token = localStorage.getItem('userToken');
-      if (!token) {
-        setError('User not authenticated.');
+      if (!isAuthenticated || !user?.token) {
         setIsLoading(false);
         return;
       }
 
       try {
         const response = await api.get('/strategy', {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${user.token}` }
         });
         setStrategies(Array.isArray(response.data) ? response.data : []);
       } catch (e) {
@@ -52,9 +53,9 @@ const Strategies = () => {
     };
 
     fetchStrategies();
-  }, [setStrategies]);
+  }, [isAuthenticated, user, setStrategies]);
 
-  // --- Handle form changes ---
+  // --- Handle form input changes ---
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === 'strategyType') {
@@ -78,13 +79,14 @@ const Strategies = () => {
     }
   };
 
-  // --- Create a new strategy ---
+  // --- Create strategy ---
   const handleCreate = async (e) => {
     e.preventDefault();
-    const token = localStorage.getItem('userToken');
+    if (!user?.token) return setError('User not authenticated.');
+
     try {
       const response = await api.post('/strategy', newStrategy, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${user.token}` }
       });
       setStrategies(prev => [...prev, response.data]);
       setNewStrategy(initialStrategyState);
@@ -93,12 +95,15 @@ const Strategies = () => {
     }
   };
 
-  // --- Delete a strategy ---
+  // --- Delete strategy ---
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this strategy?")) return;
-    const token = localStorage.getItem('userToken');
+    if (!user?.token) return setError('User not authenticated.');
+
     try {
-      await api.delete(`/strategy/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      await api.delete(`/strategy/${id}`, {
+        headers: { Authorization: `Bearer ${user.token}` }
+      });
       setStrategies(prev => prev.filter(s => s._id !== id));
     } catch (e) {
       setError(e.response?.data?.message || e.message);
@@ -114,8 +119,14 @@ const Strategies = () => {
         {Object.keys(p).filter(k => k !== 'strategyType').map(key => (
           <label key={key} style={{ display: 'block', marginBottom: '10px' }}>
             {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:
-            <input type="number" name={key} value={p[key]} onChange={handleChange} required
-              style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60', width: '100%', padding: '6px', marginTop: '4px' }} />
+            <input
+              type="number"
+              name={key}
+              value={p[key]}
+              onChange={handleChange}
+              required
+              style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60', width: '100%', padding: '6px', marginTop: '4px' }}
+            />
           </label>
         ))}
         {guide && (
