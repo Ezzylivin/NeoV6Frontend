@@ -1,107 +1,53 @@
 // File: src/pages/Strategies.jsx
-import React, { useState, useEffect, useCallback } from 'react';
-import api, { setAuthToken } from '../api/apiClient.js';
+import React, { useState, useEffect, useContext } from 'react';
+import api from '../api/apiClient.js';
+import { StrategyContext } from '../context/StrategyContext.jsx';
 
 // --- Strategy Guides ---
 const strategyGuides = {
-  ATR: {
-    title: "ATR (Average True Range)",
-    whatItIs: "ATR measures market volatility...",
-    howItWorks: "A common use is setting a stop-loss...",
-    combineWith: "Combine with trend indicators like SMA or MACD..."
-  },
-  "Bollinger Bands": {
-    title: "Bollinger Bands",
-    whatItIs: "These bands use a moving average...",
-    howItWorks: "The main idea is 'mean reversion'...",
-    combineWith: "Combine with RSI or a Stochastic Oscillator..."
-  },
-  CCI: {
-    title: "CCI (Commodity Channel Index)",
-    whatItIs: "CCI measures deviation from statistical average...",
-    howItWorks: "Long entry when CCI crosses up from below oversold...",
-    combineWith: "Use with trend indicators (like SMAs)..."
-  },
-  "Ichimoku Cloud": {
-    title: "Ichimoku Cloud",
-    whatItIs: "Shows trend, support/resistance, momentum...",
-    howItWorks: "Long entry when price above cloud and conversion line crosses base line...",
-    combineWith: "Pair with RSI to confirm entries in ranging markets"
-  },
-  MACD: {
-    title: "MACD (Moving Average Convergence Divergence)",
-    whatItIs: "Shows trend direction and momentum...",
-    howItWorks: "Long entry when MACD line crosses above Signal line...",
-    combineWith: "Combine with ATR or Bollinger Bands to avoid false signals"
-  },
-  "On-Balance Volume": {
-    title: "On-Balance Volume (OBV)",
-    whatItIs: "Tracks cumulative buying/selling pressure...",
-    howItWorks: "Key signal is divergence with price...",
-    combineWith: "Use with SMA to confirm price action agrees with volume"
-  },
-  "Parabolic SAR": {
-    title: "Parabolic SAR",
-    whatItIs: "Places dots indicating trend direction...",
-    howItWorks: "Long entry when dots flip below price...",
-    combineWith: "Excellent for trend-following. Pair with ATR for stop-loss management"
-  },
-  RSI: {
-    title: "RSI",
-    whatItIs: "Momentum oscillator for overbought/oversold...",
-    howItWorks: "Long entry when RSI crosses up from below 30...",
-    combineWith: "Best in range-bound markets; combine with SMA"
-  },
-  "Moving Average Crossover": {
-    title: "SMA Crossover",
-    whatItIs: "Trend-following using fast/slow moving averages",
-    howItWorks: "Long entry when fast MA crosses above slow MA...",
-    combineWith: "Combine with ATR or RSI for better signals"
-  },
-  "Stochastic Oscillator": {
-    title: "Stochastic Oscillator",
-    whatItIs: "Momentum indicator comparing closing price to range...",
-    howItWorks: "Long entry when %K crosses %D below 20...",
-    combineWith: "Use with MACD to filter false signals in strong trends"
-  }
+  ATR: { title: "ATR (Average True Range)", whatItIs: "ATR measures market volatility...", howItWorks: "A common use is setting a stop-loss...", combineWith: "Combine with trend indicators like SMA or MACD..." },
+  "Bollinger Bands": { title: "Bollinger Bands", whatItIs: "These bands use a moving average...", howItWorks: "The main idea is 'mean reversion'...", combineWith: "Combine with RSI or a Stochastic Oscillator..." },
+  CCI: { title: "CCI (Commodity Channel Index)", whatItIs: "CCI measures deviation from statistical average...", howItWorks: "Long entry when CCI crosses up from below oversold...", combineWith: "Use with trend indicators (like SMAs)..." },
+  "Ichimoku Cloud": { title: "Ichimoku Cloud", whatItIs: "Shows trend, support/resistance, momentum...", howItWorks: "Long entry when price above cloud and conversion line crosses base line...", combineWith: "Pair with RSI to confirm entries in ranging markets" },
+  MACD: { title: "MACD (Moving Average Convergence Divergence)", whatItIs: "Shows trend direction and momentum...", howItWorks: "Long entry when MACD line crosses above Signal line...", combineWith: "Combine with ATR or Bollinger Bands to avoid false signals" },
+  "On-Balance Volume": { title: "On-Balance Volume (OBV)", whatItIs: "Tracks cumulative buying/selling pressure...", howItWorks: "Key signal is divergence with price...", combineWith: "Use with SMA to confirm price action agrees with volume" },
+  "Parabolic SAR": { title: "Parabolic SAR", whatItIs: "Places dots indicating trend direction...", howItWorks: "Long entry when dots flip below price...", combineWith: "Excellent for trend-following. Pair with ATR for stop-loss management" },
+  RSI: { title: "RSI", whatItIs: "Momentum oscillator for overbought/oversold...", howItWorks: "Long entry when RSI crosses up from below 30...", combineWith: "Best in range-bound markets; combine with SMA" },
+  "Moving Average Crossover": { title: "SMA Crossover", whatItIs: "Trend-following using fast/slow moving averages", howItWorks: "Long entry when fast MA crosses above slow MA...", combineWith: "Combine with ATR or RSI for better signals" },
+  "Stochastic Oscillator": { title: "Stochastic Oscillator", whatItIs: "Momentum indicator comparing closing price to range...", howItWorks: "Long entry when %K crosses %D below 20...", combineWith: "Use with MACD to filter false signals in strong trends" }
 };
 
 const initialStrategyState = {
   name: '',
   description: '',
-  params: {
-    strategyType: 'Moving Average Crossover',
-    shortPeriod: 10,
-    longPeriod: 50,
-  },
+  params: { strategyType: 'Moving Average Crossover', shortPeriod: 10, longPeriod: 50 },
 };
 
 const Strategies = () => {
-  const [strategies, setStrategies] = useState([]);
+  const { strategies, setStrategies } = useContext(StrategyContext); // ✅ Use global context
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [newStrategy, setNewStrategy] = useState(initialStrategyState);
 
-  // --- Fetch Strategies ---
-  const fetchStrategies = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const token = localStorage.getItem('userToken');
-      if (token) setAuthToken(token);
-      const response = await api.get("/strategy");
-      setStrategies(Array.isArray(response.data) ? response.data : []);
-    } catch (e) {
-      setError(e.response?.data?.message || e.message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
+  // --- Fetch strategies once on mount ---
   useEffect(() => {
+    const fetchStrategies = async () => {
+      setIsLoading(true);
+      try {
+        const token = localStorage.getItem('userToken');
+        if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        const response = await api.get("/strategy");
+        setStrategies(Array.isArray(response.data) ? response.data : []);
+      } catch (e) {
+        setError(e.response?.data?.message || e.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
     fetchStrategies();
-  }, [fetchStrategies]);
+  }, [setStrategies]);
 
-  // --- Handle Form Change ---
+  // --- Handle form changes ---
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === 'strategyType') {
@@ -125,30 +71,30 @@ const Strategies = () => {
     }
   };
 
-  // --- Create Strategy ---
+  // --- Create a new strategy ---
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
       const response = await api.post("/strategy", newStrategy);
-      setStrategies([...strategies, response.data]);
+      setStrategies(prev => [...prev, response.data]); // ✅ Update global context
       setNewStrategy(initialStrategyState);
     } catch (e) {
       setError(e.response?.data?.message || e.message);
     }
   };
 
-  // --- Delete Strategy ---
+  // --- Delete a strategy ---
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this strategy?")) return;
     try {
       await api.delete(`/strategy/${id}`);
-      setStrategies(strategies.filter(s => s._id !== id));
+      setStrategies(prev => prev.filter(s => s._id !== id)); // ✅ Update global context
     } catch (e) {
       setError(e.response?.data?.message || e.message);
     }
   };
 
-  // --- Render Parameters & Guide ---
+  // --- Render parameters & guide ---
   const renderParameters = () => {
     const p = newStrategy.params;
     const guide = strategyGuides[p.strategyType];
