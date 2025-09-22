@@ -1,21 +1,23 @@
+// src/api/apiClient.js
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://neov6backend.onrender.com/api',
+  baseURL: import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com/api",
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-export const setAuthToken = (token) => {
-  // ✅ ADDED: This log will show the exact token value being used.
-  console.log("Setting auth token:", token);
-
-  if (token) {
-    api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-  } else {
-    delete api.defaults.headers.common["Authorization"];
-  }
-};
+// ✅ Auto-attach token from localStorage
+api.interceptors.request.use(
+  (config) => {
+    const user = JSON.parse(localStorage.getItem("user"));
+    if (user?.token) {
+      config.headers.Authorization = `Bearer ${user.token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 export default api;
