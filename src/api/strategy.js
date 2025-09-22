@@ -6,7 +6,7 @@ import api from "./apiClient.js";
 // Fetch all strategies for the current user
 export const fetchAll = async () => {
   try {
-    const { data } = await api.get("/strategy");
+    const { data } = await api.get("/combos");
     return data;
   } catch (err) {
     console.error("Failed to fetch strategies:", err);
@@ -52,7 +52,7 @@ export const remove = async (code) => {
 // Fetch all combo strategies for the current user
 export const fetchAllCombo = async () => {
   try {
-    const { data } = await api.get("/strategy/combo");
+    const { data } = await api.get("/combos");
     return data;
   } catch (err) {
     console.error("Failed to fetch combo strategies:", err);
@@ -63,7 +63,7 @@ export const fetchAllCombo = async () => {
 // Create a new combo strategy
 export const createCombo = async (comboData) => {
   try {
-    const { data } = await api.post("/strategy/combo", comboData);
+    const { data } = await api.post("/combos/combo", comboData);
     return data;
   } catch (err) {
     console.error("Failed to create combo strategy:", err);
@@ -74,7 +74,7 @@ export const createCombo = async (comboData) => {
 // Update a combo strategy by ID
 export const updateCombo = async (id, comboData) => {
   try {
-    const { data } = await api.put(`/strategy/combo/${id}`, comboData);
+    const { data } = await api.put(`/combos/combo/${id}`, comboData);
     return data;
   } catch (err) {
     console.error(`Failed to update combo strategy ${id}:`, err);
@@ -85,7 +85,7 @@ export const updateCombo = async (id, comboData) => {
 // Delete a combo strategy by ID
 export const removeCombo = async (id) => {
   try {
-    const { data } = await api.delete(`/strategy/combo/${id}`);
+    const { data } = await api.delete(`/Combos/combo/${id}`);
     return data;
   } catch (err) {
     console.error(`Failed to delete combo strategy ${id}:`, err);
