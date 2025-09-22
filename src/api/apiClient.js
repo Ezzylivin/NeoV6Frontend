@@ -1,4 +1,4 @@
-// src/api/apiClient.js
+// File: src/api/apiClient.js
 import axios from "axios";
 
 const api = axios.create({
@@ -8,12 +8,12 @@ const api = axios.create({
   },
 });
 
-// ✅ Auto-attach token from localStorage
+// ✅ Auto-attach token from localStorage.token
 api.interceptors.request.use(
   (config) => {
-    const user = JSON.parse(localStorage.getItem("user"));
-    if (user?.token) {
-      config.headers.Authorization = `Bearer ${user.token}`;
+    const token = localStorage.getItem("token"); // read token directly
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
