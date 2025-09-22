@@ -1,22 +1,32 @@
 // File: src/pages/TradingBot.jsx
-// FINAL VERSION: This is the complete UI for deploying and monitoring both single and combined strategy bots.
-
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useBot } from '../hooks/useBot.js';
-import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx"; // FIXED import for loading saved "blueprints"
+import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { useBacktest } from "../hooks/useBacktest.js"; 
 import "./TradingBot.css";
 
-// --- Metrics Display Component (Re-used from Backtests page) ---
+// --- Metrics Display Component ---
 const MetricsDisplay = ({ metrics }) => {
     if (!metrics || Object.keys(metrics).length === 0) return <p className="no-metrics">No live metrics yet.</p>;
+    
     const formatValue = (key, value) => {
-        if (typeof value !== 'number') return String(value || 'N/A');
-        if (key.toLowerCase().includes('win rate')) return `${value.toFixed(2)}%`;
-        if (key.toLowerCase().includes('profit')) return `$${value.toFixed(2)}`;
+        if (value == null) return "N/A";
+        if (typeof value !== "number") return String(value);
+        if (key.toLowerCase().includes("win rate")) return `${value.toFixed(2)}%`;
+        if (key.toLowerCase().includes("profit") || key.toLowerCase().includes("balance") || key.toLowerCase().includes("drawdown")) return `$${value.toFixed(2)}`;
+        if (key.toLowerCase().includes("profit factor")) return value.toFixed(2);
         return value;
     };
-    const keyMetrics = { "Total Profit": metrics.totalProfit, "Total Trades": metrics.totalTrades, "Win Rate": metrics.winRate };
+
+    const keyMetrics = {
+        "Total Profit": metrics.totalProfit,
+        "Total Trades": metrics.totalTrades,
+        "Win Rate": metrics.winRate,
+        "Max Drawdown": metrics.maxDrawdown,
+        "Profit Factor": metrics.profitFactor,
+        "Current Balance": metrics.currentBalance
+    };
+
     return (
         <div className="metrics-grid">
             {Object.entries(keyMetrics).map(([key, value]) => (
@@ -30,12 +40,10 @@ const MetricsDisplay = ({ metrics }) => {
 };
 
 export default function TradingBot() {
-    // --- Hooks ---
     const { botStatus, logs, loading, error, startBot, stopBot, refreshBotData } = useBot();
-    const { setups, loading: setupsLoading } = useBacktestSetupFunction(); // FIXED hook usage
+    const { setups, loading: setupsLoading } = useBacktestSetupFunction();
     const { options: backtestOptions, initialLoading: optionsLoading } = useBacktest();
 
-    // --- State for the unified configuration form ---
     const [formConfig, setFormConfig] = useState({
         isCombo: false,
         strategyId: '',
@@ -45,9 +53,14 @@ export default function TradingBot() {
         capitalAllocation: 1000,
     });
     const [selectedSetupId, setSelectedSetupId] = useState('');
+    const logsEndRef = useRef(null);
 
-    // --- Effects ---
-    // Pre-fill the form with defaults once options are loaded
+    // Auto-scroll logs
+    useEffect(() => {
+        if (logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }, [logs]);
+
+    // Pre-fill defaults
     useEffect(() => {
         if (backtestOptions.strategies?.length > 0 && !formConfig.strategyId && !selectedSetupId) {
             setFormConfig(prev => ({
@@ -58,51 +71,42 @@ export default function TradingBot() {
         }
     }, [backtestOptions, formConfig.strategyId, selectedSetupId]);
 
-    // Refresh bot data periodically when it's running
+    // Refresh bot data periodically
     useEffect(() => {
         if (botStatus?.status === 'running') {
-            const interval = setInterval(refreshBotData, 30 * 1000);
+            const interval = setInterval(refreshBotData, 30_000);
             return () => clearInterval(interval);
         }
     }, [botStatus?.status, refreshBotData]);
 
-    // --- Handlers ---
     const handleSetupSelect = (setupId) => {
         setSelectedSetupId(setupId);
         const setup = setups.find(s => s._id === setupId);
         if (setup) {
-            // Populate the form with the data from the saved setup "blueprint"
             setFormConfig({
                 isCombo: setup.isCombo,
                 strategyId: setup.strategyId || '',
                 comboConfig: setup.comboConfig || { strategyCodes: [], combinationRule: 'OR' },
                 symbol: setup.symbol,
                 timeframe: setup.timeframe,
-                capitalAllocation: 1000, // Default capital for now
+                capitalAllocation: 1000,
             });
         } else {
-            // Reset to default if "Select a setup" is chosen
             setSelectedSetupId('');
         }
     };
 
     const handleStart = async (e) => {
         e.preventDefault();
-        try {
-            await startBot(formConfig);
-        } catch (err) {
-            alert(`Failed to start bot: ${err.message}`);
-        }
+        try { await startBot(formConfig); } 
+        catch (err) { alert(`Failed to start bot: ${err.message}`); }
     };
 
     const handleStop = async () => {
-        try {
-            await stopBot();
-        } catch (err) {
-            alert(`Failed to stop bot: ${err.message}`);
-        }
+        try { await stopBot(); } 
+        catch (err) { alert(`Failed to stop bot: ${err.message}`); }
     };
-    
+
     if (optionsLoading || setupsLoading) {
         return <div className="loading-container">Loading Bot Configuration...</div>;
     }
@@ -113,23 +117,21 @@ export default function TradingBot() {
         <div className="trading-bot-container">
             <h2 className="header">Live Trading Bot</h2>
 
-            {/* --- Unified Control Panel --- */}
             <div className="bot-card control-panel">
                 <h3 className="card-title">{isRunning ? 'Bot is Live' : 'Deploy a Strategy'}</h3>
                 <form onSubmit={handleStart} className="bot-form">
                     <label className="setup-selector">
                         Load Saved Setup
-                        <select value={selectedSetupId} onChange={(e) => handleSetupSelect(e.target.value)} disabled={isRunning}>
+                        <select value={selectedSetupId} onChange={(e)=>handleSetupSelect(e.target.value)} disabled={isRunning}>
                             <option value="">-- Manual Configuration --</option>
-                            {setups.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+                            {setups.map(s=> <option key={s._id} value={s._id}>{s.name}</option>)}
                         </select>
                     </label>
-                    
-                    {/* The rest of the form is now driven by the selected setup */}
+
                     <div className="form-grid">
                         <label>Symbol<input value={formConfig.symbol} disabled /></label>
                         <label>Timeframe<input value={formConfig.timeframe} disabled /></label>
-                        <label>Capital ($)<input type="number" value={formConfig.capitalAllocation} onChange={(e) => setFormConfig(p=>({...p, capitalAllocation: e.target.value}))} disabled={isRunning} /></label>
+                        <label>Capital ($)<input type="number" value={formConfig.capitalAllocation} onChange={e=>setFormConfig(p=>({...p, capitalAllocation:Number(e.target.value)}))} disabled={isRunning} /></label>
                     </div>
 
                     <div className="strategy-details-display">
@@ -139,11 +141,14 @@ export default function TradingBot() {
                                 <p><strong>Type:</strong> Combined Strategy</p>
                                 <p><strong>Rule:</strong> {formConfig.comboConfig.combinationRule}</p>
                                 <ul>
-                                    {formConfig.comboConfig.strategyCodes.map(code => <li key={code}>{backtestOptions.strategies.find(s=>s.code === code)?.name || code}</li>)}
+                                    {formConfig.comboConfig.strategyCodes.map(code => {
+                                        const s = backtestOptions.strategies.find(s => s.code === code);
+                                        return <li key={code} title={s?.name}>{s?.name || code}</li>;
+                                    })}
                                 </ul>
                             </div>
                         ) : (
-                            <p><strong>Type:</strong> {backtestOptions.strategies.find(s => s._id === formConfig.strategyId)?.name}</p>
+                            <p><strong>Type:</strong> {backtestOptions.strategies.find(s=>s._id===formConfig.strategyId)?.name}</p>
                         )}
                     </div>
 
@@ -154,10 +159,8 @@ export default function TradingBot() {
             </div>
 
             {isRunning && <button onClick={handleStop} className="button-stop-main" disabled={loading}>{loading ? 'Stopping...' : 'Stop Running Bot'}</button>}
-            
             {error && <div className="error-banner">{error}</div>}
 
-            {/* --- Live Status and Activity --- */}
             {botStatus?.isConfigured && (
                 <>
                     <div className="bot-card status-dashboard">
@@ -166,10 +169,11 @@ export default function TradingBot() {
                             <div className={`status-indicator ${botStatus.status}`}>{botStatus.status}</div>
                         </div>
                         <div className="status-details">
-                             <p><strong>Strategy:</strong> {botStatus.isCombo ? `Combo (${botStatus.comboConfig.combinationRule})` : backtestOptions.strategies.find(s => s._id === botStatus.strategyId)?.name}</p>
-                             <p><strong>Symbol:</strong> {botStatus.symbol}</p>
-                             <p><strong>Timeframe:</strong> {botStatus.timeframe}</p>
-                             <p><strong>Current Balance:</strong> ${botStatus.currentBalance?.toFixed(2)}</p>
+                            <p><strong>Strategy:</strong> {botStatus.isCombo ? `Combo (${botStatus.comboConfig.combinationRule})` : backtestOptions.strategies.find(s=>s._id===botStatus.strategyId)?.name}</p>
+                            <p><strong>Symbol:</strong> {botStatus.symbol}</p>
+                            <p><strong>Timeframe:</strong> {botStatus.timeframe}</p>
+                            <p><strong>Current Balance:</strong> ${botStatus.currentBalance?.toFixed(2)}</p>
+                            {botStatus.lastTrade && <p><strong>Last Trade:</strong> {new Date(botStatus.lastTrade).toLocaleTimeString()}</p>}
                         </div>
                         <MetricsDisplay metrics={botStatus.performanceMetrics} />
                     </div>
@@ -177,14 +181,13 @@ export default function TradingBot() {
                     <div className="bot-card logs-panel">
                         <h3 className="card-title">Activity Log</h3>
                         <div className="logs-container">
-                            {logs.length > 0 ? (
-                                logs.map((log, index) => (
-                                    <div key={index} className={`log-entry log-${log.type}`}>
-                                        <span className="log-timestamp">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                                        <span className="log-message">{log.message}</span>
-                                    </div>
-                                ))
-                            ) : (<p className="no-logs">No activity recorded yet.</p>)}
+                            {logs.length>0 ? logs.map((log,i)=>(
+                                <div key={i} className={`log-entry log-${log.type}`}>
+                                    <span className="log-timestamp">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                                    <span className="log-message">{log.message}</span>
+                                </div>
+                            )) : <p className="no-logs">No activity recorded yet.</p>}
+                            <div ref={logsEndRef} />
                         </div>
                     </div>
                 </>
