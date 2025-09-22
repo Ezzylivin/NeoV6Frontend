@@ -1,19 +1,21 @@
 // File: src/hooks/useBacktestSetup.js
-import { useState, useEffect, useCallback } from "react";
-import * as backtestSetupApi from '../api/backtestSetup.js'; // API service
+// FIXED: Properly return setups so they appear in dropdowns
 
-export function useBacktestSetup() { 
+import { useState, useEffect, useCallback } from "react";
+import * as backtestSetupApi from '../api/backtestSetup.js';
+
+export function useBacktestSetupFunction() {
   const [setups, setSetups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // --- Fetch all saved backtest setups ---
+  // --- Fetch all setups for the user
   const getSetups = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const data = await backtestSetupApi.getSetups();
-      setSetups(data); // update state with all setups
+      setSetups(Array.isArray(data) ? data : []); // Ensure array
     } catch (err) {
       setError(err.message || "Failed to fetch setups.");
     } finally {
@@ -21,19 +23,18 @@ export function useBacktestSetup() {
     }
   }, []);
 
-  // --- Initial load ---
+  // --- Initial load
   useEffect(() => {
     getSetups();
   }, [getSetups]);
 
-  // --- Create a new backtest setup ---
+  // --- Create a new setup
   const createSetup = async (setupData) => {
     setLoading(true);
     setError(null);
     try {
       const newSetup = await backtestSetupApi.createSetup(setupData);
-      // Add new setup to top of list
-      setSetups(prev => [newSetup, ...prev]);
+      setSetups(prev => [newSetup, ...prev]); // Add to top
     } catch (err) {
       setError(err.message || "Failed to create setup.");
       throw err;
@@ -42,13 +43,13 @@ export function useBacktestSetup() {
     }
   };
 
-  // --- Delete a backtest setup ---
+  // --- Delete a setup
   const deleteSetup = async (id) => {
     setLoading(true);
     setError(null);
     try {
       await backtestSetupApi.deleteSetup(id);
-      setSetups(prev => prev.filter(setup => setup._id !== id));
+      setSetups(prev => prev.filter(s => s._id !== id));
     } catch (err) {
       setError(err.message || "Failed to delete setup.");
       throw err;
@@ -57,12 +58,12 @@ export function useBacktestSetup() {
     }
   };
 
-  return {
-    setups,
-    loading,
-    error,
-    createSetup,
+  return { 
+    setups, 
+    loading, 
+    error, 
+    createSetup, 
     deleteSetup,
-    refreshSetups: getSetups // manual refresh
+    refreshSetups: getSetups
   };
 }
