@@ -32,7 +32,7 @@ const Strategies = () => {
 
   // --- Fetch combo strategies separately ---
   useEffect(() => {
-    const fetchComboStrategies = async () => {
+    const fetchAllCombo = async () => {
       try {
         const { data } = await api.get("/strategy/combo"); // ✅ Backend endpoint for combo strategies
         setComboStrategies(Array.isArray(data) ? data : []);
@@ -40,7 +40,7 @@ const Strategies = () => {
         console.error("Failed to fetch combo strategies:", e.response?.data?.message || e.message);
       }
     };
-    fetchComboStrategies();
+    fetchAllCombo();
   }, []);
 
   // --- Handle form input changes ---
