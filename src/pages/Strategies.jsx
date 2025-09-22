@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import api from '../api/apiClient.js';
 import { StrategyContext } from '../context/StrategyContext.jsx';
-import { AuthContext } from '../context/AuthContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 
 // --- Strategy Guides ---
 const strategyGuides = {
@@ -27,7 +27,7 @@ const initialStrategyState = {
 
 const Strategies = () => {
   const { strategies, setStrategies } = useContext(StrategyContext);
-  const { user, isAuthenticated } = useContext(AuthContext); // ✅ wait for auth context
+  const { user, isAuthenticated } = useAuth(); // ✅ upgraded to useAuth
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [newStrategy, setNewStrategy] = useState(initialStrategyState);
