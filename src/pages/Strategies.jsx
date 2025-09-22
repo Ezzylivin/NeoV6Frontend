@@ -1,4 +1,4 @@
-// File: src/pages/Strategies.jsx
+// src/pages/Strategies.jsx
 import React, { useState, useEffect, useContext } from 'react';
 import api from '../api/apiClient.js';
 import { StrategyContext } from '../context/StrategyContext.jsx';
@@ -26,38 +26,16 @@ const initialStrategyState = {
 };
 
 const Strategies = () => {
-  const { strategies, setStrategies } = useContext(StrategyContext);
-  const { user, isAuthenticated } = useAuth(); // ✅ useAuth
-  const [isLoading, setIsLoading] = useState(true);
+  const { strategies, setStrategies, loading: contextLoading } = useContext(StrategyContext);
+  const { user, isAuthenticated } = useAuth();
+  const [isLoading, setIsLoading] = useState(contextLoading);
   const [error, setError] = useState(null);
   const [newStrategy, setNewStrategy] = useState(initialStrategyState);
-
-  // --- Fetch strategies after auth is ready ---
-  useEffect(() => {
-    const fetchStrategies = async () => {
-      if (!isAuthenticated || !user?.token) {
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        const response = await api.get('/strategy', {
-          headers: { Authorization: `Bearer ${user.token}` }
-        });
-        setStrategies(Array.isArray(response.data) ? response.data : []);
-      } catch (e) {
-        setError(e.response?.data?.message || e.message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchStrategies();
-  }, [isAuthenticated, user, setStrategies]);
 
   // --- Handle form input changes ---
   const handleChange = (e) => {
     const { name, value } = e.target;
+
     if (name === 'strategyType') {
       const defaultParams = {
         'Moving Average Crossover': { shortPeriod: 10, longPeriod: 50 },
@@ -141,7 +119,7 @@ const Strategies = () => {
     );
   };
 
-  if (isLoading) return <div style={{ color: '#eee' }}>Loading strategies...</div>;
+  if (isLoading || contextLoading) return <div style={{ color: '#eee' }}>Loading strategies...</div>;
   if (error) return <div style={{ color: '#dc3545' }}>Error: {error}</div>;
 
   return (
@@ -190,7 +168,7 @@ const Strategies = () => {
         <h2>My Saved Strategies</h2>
         {strategies?.length > 0 ? (
           <ul style={{ listStyle: 'none', padding: 0 }}>
-            {strategies.filter(s => s).map(s => (
+            {strategies.map(s => s && (
               <li key={s._id || Math.random()} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', borderBottom: '1px solid #333' }}>
                 <span>
                   <strong>{s.name || 'Unnamed Strategy'}</strong><br />
