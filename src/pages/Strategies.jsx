@@ -1,6 +1,6 @@
 // File: src/pages/Strategies.jsx
 import React, { useState, useEffect, useContext } from 'react';
-import api from '../api/apiClient.js';
+import api, { setAuthToken } from '../api/apiClient.js';
 import { StrategyContext } from '../context/StrategyContext.jsx';
 
 // --- Strategy Guides ---
@@ -17,7 +17,6 @@ const strategyGuides = {
   "Stochastic Oscillator": { title: "Stochastic Oscillator", whatItIs: "Momentum indicator comparing closing price to range...", howItWorks: "Long entry when %K crosses %D below 20...", combineWith: "Use with MACD to filter false signals in strong trends" }
 };
 
-// --- Initial Strategy State ---
 const initialStrategyState = {
   name: '',
   description: '',
@@ -25,23 +24,25 @@ const initialStrategyState = {
 };
 
 const Strategies = () => {
-  // ✅ Context
-  const context = useContext(StrategyContext);
-  if (!context) throw new Error("StrategyContext must be used within StrategyProvider");
-  const { strategies, setStrategies } = context;
-
+  const { strategies, setStrategies } = useContext(StrategyContext); // ✅ global strategies
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [newStrategy, setNewStrategy] = useState(initialStrategyState);
 
-  // --- Fetch strategies ---
+  // --- Load token & fetch strategies safely ---
   useEffect(() => {
     const fetchStrategies = async () => {
-      setIsLoading(true);
+      const token = localStorage.getItem('userToken');
+      if (!token) {
+        setError('User not authenticated.');
+        setIsLoading(false);
+        return;
+      }
+
+      setAuthToken(token); // set default header
+
       try {
-        const token = localStorage.getItem('userToken');
-        if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        const response = await api.get("/strategy");
+        const response = await api.get('/strategy');
         setStrategies(Array.isArray(response.data) ? response.data : []);
       } catch (e) {
         setError(e.response?.data?.message || e.message);
@@ -49,6 +50,7 @@ const Strategies = () => {
         setIsLoading(false);
       }
     };
+
     fetchStrategies();
   }, [setStrategies]);
 
@@ -80,7 +82,7 @@ const Strategies = () => {
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      const response = await api.post("/strategy", newStrategy);
+      const response = await api.post('/strategy', newStrategy);
       setStrategies(prev => [...prev, response.data]);
       setNewStrategy(initialStrategyState);
     } catch (e) {
@@ -106,10 +108,10 @@ const Strategies = () => {
     return (
       <div>
         {Object.keys(p).filter(k => k !== 'strategyType').map(key => (
-          <label key={key}>
+          <label key={key} style={{ display: 'block', marginBottom: '10px' }}>
             {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:
             <input type="number" name={key} value={p[key]} onChange={handleChange} required
-              style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60', width: '100%', padding: '6px', marginTop: '4px', marginBottom: '10px' }} />
+              style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60', width: '100%', padding: '6px', marginTop: '4px' }} />
           </label>
         ))}
         {guide && (
@@ -140,17 +142,20 @@ const Strategies = () => {
             <h3>Configuration</h3>
             <label>
               Strategy Type:
-              <select name="strategyType" value={newStrategy.params.strategyType} onChange={handleChange} style={{ width: '100%', padding: '8px', marginTop: '4px', marginBottom: '10px', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}>
+              <select name="strategyType" value={newStrategy.params.strategyType} onChange={handleChange}
+                style={{ width: '100%', padding: '8px', marginTop: '4px', marginBottom: '10px', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}>
                 {Object.keys(strategyGuides).map(t => <option key={t} value={t}>{strategyGuides[t].title}</option>)}
               </select>
             </label>
             <label>
               Strategy Name:
-              <input type="text" name="name" value={newStrategy.name} onChange={handleChange} required placeholder="e.g., My MACD Trend Follower" style={{ width: '100%', padding: '8px', marginTop: '4px', marginBottom: '10px', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} />
+              <input type="text" name="name" value={newStrategy.name} onChange={handleChange} required placeholder="e.g., My MACD Trend Follower"
+                style={{ width: '100%', padding: '8px', marginTop: '4px', marginBottom: '10px', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} />
             </label>
             <label>
               Description:
-              <textarea name="description" value={newStrategy.description} onChange={handleChange} placeholder="Short note" style={{ width: '100%', minHeight: '80px', padding: '8px', marginTop: '4px', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} />
+              <textarea name="description" value={newStrategy.description} onChange={handleChange} placeholder="Short note"
+                style={{ width: '100%', minHeight: '80px', padding: '8px', marginTop: '4px', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} />
             </label>
           </div>
 
