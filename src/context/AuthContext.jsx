@@ -1,7 +1,7 @@
 // File: src/context/AuthContext.jsx
 import React, { createContext, useState, useEffect, useContext } from "react";
-import apiClient, { setAuthToken } from "../api/apiClient.js";
-import * as authApi from '../api/auth.js';
+import apiClient from "../api/apiClient.js";  // ✅ only import apiClient
+import * as authApi from "../api/auth.js";
 
 const AuthContext = createContext();
 
@@ -16,14 +16,14 @@ export const AuthProvider = ({ children }) => {
 
   const saveAuthData = (userData, tokenData) => {
     if (!userData || !tokenData) {
-        console.error("AuthContext: Attempted to save invalid auth data.");
-        return;
+      console.error("AuthContext: Attempted to save invalid auth data.");
+      return;
     }
     setUser(userData);
     setTokenState(tokenData);
     localStorage.setItem("user", JSON.stringify(userData));
     localStorage.setItem("token", tokenData);
-    setAuthToken(tokenData);
+    // ✅ No need to call setAuthToken, interceptor uses localStorage automatically
   };
 
   const clearAuthData = () => {
@@ -31,17 +31,16 @@ export const AuthProvider = ({ children }) => {
     setTokenState(null);
     localStorage.removeItem("user");
     localStorage.removeItem("token");
-    setAuthToken(null);
   };
 
   useEffect(() => {
     const validateToken = async () => {
       if (token) {
         try {
-          setAuthToken(token);
           const { user: refreshedUser } = await authApi.getMe();
           saveAuthData(refreshedUser, token);
         } catch (err) {
+          console.warn("AuthContext: Token invalid, clearing session.");
           clearAuthData();
         }
       }
@@ -65,21 +64,21 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     }
   };
-  
+
   const registerUser = async (userData) => {
-      setLoading(true);
-      setError(null);
-      try {
-          const { token, user } = await authApi.register(userData);
-          saveAuthData(user, token);
-          return { success: true };
-      } catch (err) {
-          const errorMessage = err.response?.data?.message || "Registration failed.";
-          setError(errorMessage);
-          return { success: false, error: errorMessage };
-      } finally {
-          setLoading(false);
-      }
+    setLoading(true);
+    setError(null);
+    try {
+      const { token, user } = await authApi.register(userData);
+      saveAuthData(user, token);
+      return { success: true };
+    } catch (err) {
+      const errorMessage = err.response?.data?.message || "Registration failed.";
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
+    } finally {
+      setLoading(false);
+    }
   };
 
   const logout = () => {
@@ -87,9 +86,20 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, loading, error, initializing, loginUser, registerUser, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated,
+        loading,
+        error,
+        initializing,
+        loginUser,
+        registerUser,
+        logout,
+      }}
+    >
       {children}
-    </AuthContext.Provider> // <-- FIX: Changed the hyphen to a dot
+    </AuthContext.Provider>
   );
 };
 
