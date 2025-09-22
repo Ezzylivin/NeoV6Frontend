@@ -17,6 +17,7 @@ const strategyGuides = {
   "Stochastic Oscillator": { title: "Stochastic Oscillator", whatItIs: "Momentum indicator comparing closing price to range...", howItWorks: "Long entry when %K crosses %D below 20...", combineWith: "Use with MACD to filter false signals in strong trends" }
 };
 
+// --- Initial Strategy State ---
 const initialStrategyState = {
   name: '',
   description: '',
@@ -24,12 +25,16 @@ const initialStrategyState = {
 };
 
 const Strategies = () => {
-  const { strategies, setStrategies } = useContext(StrategyContext); // ✅ Use global context
+  // ✅ Context
+  const context = useContext(StrategyContext);
+  if (!context) throw new Error("StrategyContext must be used within StrategyProvider");
+  const { strategies, setStrategies } = context;
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [newStrategy, setNewStrategy] = useState(initialStrategyState);
 
-  // --- Fetch strategies once on mount ---
+  // --- Fetch strategies ---
   useEffect(() => {
     const fetchStrategies = async () => {
       setIsLoading(true);
@@ -76,7 +81,7 @@ const Strategies = () => {
     e.preventDefault();
     try {
       const response = await api.post("/strategy", newStrategy);
-      setStrategies(prev => [...prev, response.data]); // ✅ Update global context
+      setStrategies(prev => [...prev, response.data]);
       setNewStrategy(initialStrategyState);
     } catch (e) {
       setError(e.response?.data?.message || e.message);
@@ -88,7 +93,7 @@ const Strategies = () => {
     if (!window.confirm("Are you sure you want to delete this strategy?")) return;
     try {
       await api.delete(`/strategy/${id}`);
-      setStrategies(prev => prev.filter(s => s._id !== id)); // ✅ Update global context
+      setStrategies(prev => prev.filter(s => s._id !== id));
     } catch (e) {
       setError(e.response?.data?.message || e.message);
     }
