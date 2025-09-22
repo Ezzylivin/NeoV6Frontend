@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useBot } from '../hooks/useBot.js';
-import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx"; // For loading saved "blueprints"
+import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.js"; // FIXED import for loading saved "blueprints"
 import { useBacktest } from "../hooks/useBacktest.js"; 
 import "./TradingBot.css";
 
@@ -32,7 +32,7 @@ const MetricsDisplay = ({ metrics }) => {
 export default function TradingBot() {
     // --- Hooks ---
     const { botStatus, logs, loading, error, startBot, stopBot, refreshBotData } = useBot();
-    const { setups, loading: setupsLoading } = useBacktestSetupFunction();
+    const { setups, loading: setupsLoading } = useBacktestSetupFunction(); // FIXED hook usage
     const { options: backtestOptions, initialLoading: optionsLoading } = useBacktest();
 
     // --- State for the unified configuration form ---
@@ -192,4 +192,3 @@ export default function TradingBot() {
         </div>
     );
 }
-
