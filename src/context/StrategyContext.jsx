@@ -1,19 +1,19 @@
 // src/context/StrategyContext.jsx
-import React, { createContext, useState, useEffect } from 'react';
-import api from '../api/apiClient.js';
-import { useAuth } from './AuthContext.jsx';
+import React, { createContext, useState, useEffect } from "react";
+import api from "../api/apiClient.js";
+import { useAuth } from "./AuthContext.jsx";
 
 export const StrategyContext = createContext();
 
 export const StrategyProvider = ({ children }) => {
-  const { user, isAuthenticated } = useAuth(); // ✅ wait for auth
+  const { isAuthenticated } = useAuth(); // ✅ no need to pull token directly
   const [strategies, setStrategies] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // --- Fetch strategies when user logs in ---
   useEffect(() => {
     const fetchStrategies = async () => {
-      if (!isAuthenticated || !user?.token) {
+      if (!isAuthenticated) {
         setStrategies([]); // reset strategies if logged out
         setLoading(false);
         return;
@@ -21,15 +21,11 @@ export const StrategyProvider = ({ children }) => {
 
       setLoading(true);
       try {
-        const response = await api.get('/strategy', {
-          headers: { Authorization: `Bearer ${user.token}` }
-        });
-
-        // Ensure we always store an array
+        const response = await api.get("/strategy");
         setStrategies(Array.isArray(response.data) ? response.data : []);
       } catch (err) {
         console.error(
-          'Failed to fetch strategies:',
+          "Failed to fetch strategies:",
           err.response?.data?.message || err.message
         );
         setStrategies([]); // fallback to empty
@@ -39,12 +35,10 @@ export const StrategyProvider = ({ children }) => {
     };
 
     fetchStrategies();
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated]);
 
   return (
-    <StrategyContext.Provider
-      value={{ strategies, setStrategies, loading }}
-    >
+    <StrategyContext.Provider value={{ strategies, setStrategies, loading }}>
       {children}
     </StrategyContext.Provider>
   );
