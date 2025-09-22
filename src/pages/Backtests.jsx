@@ -158,7 +158,7 @@ export default function Backtests() {
   const chartData = useMemo(() => {
     if (!backtestResults?.main?.equityCurve?.length) return null;
 
-    const mapSeriesToPoints = (seriesData) => seriesData.map(p => ({ date: formatDate(p.timestamp), Equity: p.balance }));
+    const mapSeriesToPoints = (seriesData) => seriesData.map(p => ({ date: new Date(p.timestamp), Equity: p.balance }));
 
     if (activeTestType === "single") {
       return {
@@ -183,7 +183,7 @@ export default function Backtests() {
       allSeries.forEach(s => { lastBalances[s.name] = s.data[0]?.balance || 1000; });
 
       const mergedData = allTimestamps.map(ts => {
-        const point = { date: formatDate(ts) };
+        const point = { date: new Date(ts) };
         allSeries.forEach(s => {
           if (dataMap[s.name][ts] !== undefined) lastBalances[s.name] = dataMap[s.name][ts];
           point[s.name] = lastBalances[s.name];
@@ -248,71 +248,4 @@ export default function Backtests() {
             ))}
             <button type="button" onClick={addStrategyToCombo} className="button-add">+ Add Strategy</button>
             <label>Combination Rule
-              <select name="combinationRule" value={comboData.combinationRule} onChange={handleComboChange} required>
-                <option value="AND">AND</option>
-                <option value="OR">OR</option>
-              </select>
-            </label>
-            <label>Symbol<select name="symbol" value={comboData.symbol} onChange={handleComboChange} required>{options.symbols?.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
-            <label>Timeframe<select name="timeframe" value={comboData.timeframe} onChange={handleComboChange} required>{options.timeframes?.map(t => <option key={t} value={t}>{t}</option>)}</select></label>
-            <label>Start Date<input type="date" name="startDate" value={comboData.startDate} onChange={handleComboChange} required /></label>
-            <label>End Date<input type="date" name="endDate" value={comboData.endDate} onChange={handleComboChange} required /></label>
-            <button type="submit" disabled={batchLoading}>{batchLoading ? "Running..." : "Run Combo Test"}</button>
-          </div>
-        </form>
-      </div>
-
-      {/* --- Saved Setup Display --- */}
-      {savedSetup && (
-        <div className="saved-setup-card">
-          <h3>Saved Setup: {savedSetup.name}</h3>
-          <p>{savedSetup.description}</p>
-          <p><strong>Symbol:</strong> {savedSetup.symbol} | <strong>Timeframe:</strong> {savedSetup.timeframe}</p>
-          {savedSetup.isCombo && <p><strong>Combo Strategies:</strong> {savedSetup.comboConfig.strategyCodes.join(", ")} | <strong>Rule:</strong> {savedSetup.comboConfig.combinationRule}</p>}
-        </div>
-      )}
-
-      {/* --- Chart & Metrics --- */}
-      {backtestResults?.main && (
-        <div key={resultKey} className="chart-card">
-          <div className="results-header">
-            <h3>{backtestResults.main.name}</h3>
-            <button onClick={openSaveModal} className="button-save">Save Setup</button>
-          </div>
-          {backtestResults.main.noTradeReason && <p className="no-trades-reason">⚠️ {backtestResults.main.noTradeReason}</p>}
-          <MetricsDisplay metrics={backtestResults.main.metrics} />
-          {chartData?.data?.length > 0 && (
-            <ResponsiveContainer width="100%" height={400}>
-              <LineChart data={chartData.data}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis domain={['auto','auto']} />
-                <Tooltip />
-                <Legend />
-                {chartData.series.map(s => <Line key={s.name} type="monotone" dataKey={s.name} stroke={s.color} dot={false} name={s.name} />)}
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      )}
-
-      {/* --- Save Modal --- */}
-      {isSaveModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h3 className="modal-title">Save Backtest Setup</h3>
-            <form onSubmit={handleSaveSetup}>
-              <label>Setup Name<input type="text" name="name" value={setupDetails.name} onChange={handleSetupDetailChange} required /></label>
-              <label>Description<textarea name="description" value={setupDetails.description} onChange={handleSetupDetailChange} /></label>
-              {saveError && <p className="error-text">{saveError}</p>}
-              <div className="modal-actions">
-                <button type="button" onClick={closeSaveModal} className="button-secondary">Cancel</button>
-                <button type="submit" className="button-save" disabled={isSaving}>{isSaving ? 'Saving...' : 'Save'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+              <select name="combinationRule" value={combo
