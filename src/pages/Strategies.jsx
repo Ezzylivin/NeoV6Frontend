@@ -27,7 +27,7 @@ const initialStrategyState = {
 
 const Strategies = () => {
   const { strategies, setStrategies } = useContext(StrategyContext);
-  const { user, isAuthenticated } = useAuth(); // ✅ upgraded to useAuth
+  const { user, isAuthenticated } = useAuth(); // ✅ useAuth
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [newStrategy, setNewStrategy] = useState(initialStrategyState);
@@ -104,7 +104,7 @@ const Strategies = () => {
       await api.delete(`/strategy/${id}`, {
         headers: { Authorization: `Bearer ${user.token}` }
       });
-      setStrategies(prev => prev.filter(s => s._id !== id));
+      setStrategies(prev => prev.filter(s => s?._id !== id));
     } catch (e) {
       setError(e.response?.data?.message || e.message);
     }
@@ -188,13 +188,15 @@ const Strategies = () => {
       {/* Saved Strategies List */}
       <div style={{ padding: '20px', borderRadius: '8px', backgroundColor: '#1e2b3c', border: '1px solid #3e4e60' }}>
         <h2>My Saved Strategies</h2>
-        {strategies.length > 0 ? (
+        {strategies?.length > 0 ? (
           <ul style={{ listStyle: 'none', padding: 0 }}>
-            {strategies.map(s => (
-              <li key={s._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', borderBottom: '1px solid #333' }}>
+            {strategies.filter(s => s).map(s => (
+              <li key={s._id || Math.random()} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', borderBottom: '1px solid #333' }}>
                 <span>
                   <strong>{s.name || 'Unnamed Strategy'}</strong><br />
-                  <span style={{ fontSize: '12px', color: '#888' }}>Type: {s.params.strategyType}</span>
+                  <span style={{ fontSize: '12px', color: '#888' }}>
+                    Type: {s.params?.strategyType || 'Unknown'}
+                  </span>
                 </span>
                 <button onClick={() => handleDelete(s._id)} style={{ padding: '8px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Delete</button>
               </li>
