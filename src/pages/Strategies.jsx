@@ -59,8 +59,10 @@ const Strategies = () => {
     e.preventDefault();
 
     try {
-      const response = await api.post("/strategy", newStrategy);
-      setStrategies((prev) => [...prev, response.data]);
+      await api.post("/strategies", newStrategy);
+      // ✅ Refresh all strategies after save
+      const { data } = await api.get("/strategies");
+      setStrategies(Array.isArray(data) ? data : []);
       setNewStrategy(initialStrategyState);
     } catch (e) {
       setError(e.response?.data?.message || e.message);
@@ -72,7 +74,7 @@ const Strategies = () => {
     if (!window.confirm("Are you sure you want to delete this strategy?")) return;
 
     try {
-      await api.delete(`/strategy/${id}`);
+      await api.delete(`/strategies/${id}`);
       setStrategies((prev) => prev.filter((s) => s?._id !== id));
     } catch (e) {
       setError(e.response?.data?.message || e.message);
