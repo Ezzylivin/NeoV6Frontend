@@ -1,8 +1,7 @@
 // src/pages/Strategies.jsx
-import React, { useState, useEffect, useContext } from 'react';
-import api from '../api/apiClient.js';
-import { StrategyContext } from '../context/StrategyContext.jsx';
-import { useAuth } from '../context/AuthContext.jsx';
+import React, { useState, useContext } from "react";
+import api from "../api/apiClient.js";
+import { StrategyContext } from "../context/StrategyContext.jsx";
 
 // --- Strategy Guides ---
 const strategyGuides = {
@@ -20,15 +19,13 @@ const strategyGuides = {
 
 // --- Default new strategy ---
 const initialStrategyState = {
-  name: '',
-  description: '',
-  params: { strategyType: 'Moving Average Crossover', shortPeriod: 10, longPeriod: 50 },
+  name: "",
+  description: "",
+  params: { strategyType: "Moving Average Crossover", shortPeriod: 10, longPeriod: 50 },
 };
 
 const Strategies = () => {
   const { strategies, setStrategies, loading: contextLoading } = useContext(StrategyContext);
-  const { user, isAuthenticated } = useAuth();
-  const [isLoading, setIsLoading] = useState(contextLoading);
   const [error, setError] = useState(null);
   const [newStrategy, setNewStrategy] = useState(initialStrategyState);
 
@@ -36,37 +33,34 @@ const Strategies = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    if (name === 'strategyType') {
+    if (name === "strategyType") {
       const defaultParams = {
-        'Moving Average Crossover': { shortPeriod: 10, longPeriod: 50 },
+        "Moving Average Crossover": { shortPeriod: 10, longPeriod: 50 },
         RSI: { rsiPeriod: 14, overbought: 70, oversold: 30 },
-        'Bollinger Bands': { period: 20, numStdDev: 2 },
-        'Stochastic Oscillator': { kPeriod: 14, dPeriod: 3, overbought: 80, oversold: 20 },
+        "Bollinger Bands": { period: 20, numStdDev: 2 },
+        "Stochastic Oscillator": { kPeriod: 14, dPeriod: 3, overbought: 80, oversold: 20 },
         MACD: { fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 },
-        'Parabolic SAR': { start: 0.02, increment: 0.02, max: 0.2 },
-        'On-Balance Volume': { maPeriod: 20 },
+        "Parabolic SAR": { start: 0.02, increment: 0.02, max: 0.2 },
+        "On-Balance Volume": { maPeriod: 20 },
         CCI: { period: 20, overbought: 100, oversold: -100 },
         ATR: { period: 14, multiplier: 2 },
-        'Ichimoku Cloud': { conversionLinePeriod: 9, baseLinePeriod: 26, laggingSpanPeriod: 26, leadingSpanBPeriod: 52 }
+        "Ichimoku Cloud": { conversionLinePeriod: 9, baseLinePeriod: 26, laggingSpanPeriod: 26, leadingSpanBPeriod: 52 },
       };
-      setNewStrategy(prev => ({ ...prev, params: { strategyType: value, ...defaultParams[value] } }));
+      setNewStrategy((prev) => ({ ...prev, params: { strategyType: value, ...defaultParams[value] } }));
     } else if (newStrategy.params.hasOwnProperty(name)) {
-      setNewStrategy(prev => ({ ...prev, params: { ...prev.params, [name]: value } }));
+      setNewStrategy((prev) => ({ ...prev, params: { ...prev.params, [name]: value } }));
     } else {
-      setNewStrategy(prev => ({ ...prev, [name]: value }));
+      setNewStrategy((prev) => ({ ...prev, [name]: value }));
     }
   };
 
   // --- Create strategy ---
   const handleCreate = async (e) => {
     e.preventDefault();
-    if (!user?.token) return setError('User not authenticated.');
 
     try {
-      const response = await api.post('/strategy', newStrategy, {
-        headers: { Authorization: `Bearer ${user.token}` }
-      });
-      setStrategies(prev => [...prev, response.data]);
+      const response = await api.post("/strategy", newStrategy);
+      setStrategies((prev) => [...prev, response.data]);
       setNewStrategy(initialStrategyState);
     } catch (e) {
       setError(e.response?.data?.message || e.message);
@@ -76,13 +70,10 @@ const Strategies = () => {
   // --- Delete strategy ---
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this strategy?")) return;
-    if (!user?.token) return setError('User not authenticated.');
 
     try {
-      await api.delete(`/strategy/${id}`, {
-        headers: { Authorization: `Bearer ${user.token}` }
-      });
-      setStrategies(prev => prev.filter(s => s?._id !== id));
+      await api.delete(`/strategy/${id}`);
+      setStrategies((prev) => prev.filter((s) => s?._id !== id));
     } catch (e) {
       setError(e.response?.data?.message || e.message);
     }
@@ -94,61 +85,150 @@ const Strategies = () => {
     const guide = strategyGuides[p.strategyType];
     return (
       <div>
-        {Object.keys(p).filter(k => k !== 'strategyType').map(key => (
-          <label key={key} style={{ display: 'block', marginBottom: '10px' }}>
-            {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:
-            <input
-              type="number"
-              name={key}
-              value={p[key]}
-              onChange={handleChange}
-              required
-              style={{ backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60', width: '100%', padding: '6px', marginTop: '4px' }}
-            />
-          </label>
-        ))}
+        {Object.keys(p)
+          .filter((k) => k !== "strategyType")
+          .map((key) => (
+            <label key={key} style={{ display: "block", marginBottom: "10px" }}>
+              {key.replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase())}:
+              <input
+                type="number"
+                name={key}
+                value={p[key]}
+                onChange={handleChange}
+                required
+                style={{
+                  backgroundColor: "#2e3d51",
+                  color: "#eee",
+                  border: "1px solid #3e4e60",
+                  width: "100%",
+                  padding: "6px",
+                  marginTop: "4px",
+                }}
+              />
+            </label>
+          ))}
         {guide && (
-          <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '1px solid #3e4e60', fontSize: '13px', color: '#cbd5e1' }}>
-            <h4 style={{ fontWeight: 600, color: '#94a3b8' }}>{guide.title} Guide</h4>
-            <p><strong>What it is:</strong> {guide.whatItIs}</p>
-            <p><strong>How it works:</strong> {guide.howItWorks}</p>
-            <p><strong>Combine With:</strong> {guide.combineWith}</p>
+          <div
+            style={{
+              marginTop: "20px",
+              paddingTop: "15px",
+              borderTop: "1px solid #3e4e60",
+              fontSize: "13px",
+              color: "#cbd5e1",
+            }}
+          >
+            <h4 style={{ fontWeight: 600, color: "#94a3b8" }}>{guide.title} Guide</h4>
+            <p>
+              <strong>What it is:</strong> {guide.whatItIs}
+            </p>
+            <p>
+              <strong>How it works:</strong> {guide.howItWorks}
+            </p>
+            <p>
+              <strong>Combine With:</strong> {guide.combineWith}
+            </p>
           </div>
         )}
       </div>
     );
   };
 
-  if (isLoading || contextLoading) return <div style={{ color: '#eee' }}>Loading strategies...</div>;
-  if (error) return <div style={{ color: '#dc3545' }}>Error: {error}</div>;
+  if (contextLoading) return <div style={{ color: "#eee" }}>Loading strategies...</div>;
+  if (error) return <div style={{ color: "#dc3545" }}>Error: {error}</div>;
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1000px', margin: 'auto', backgroundColor: '#121e2c', color: '#eee', fontFamily: 'sans-serif' }}>
+    <div
+      style={{
+        padding: "20px",
+        maxWidth: "1000px",
+        margin: "auto",
+        backgroundColor: "#121e2c",
+        color: "#eee",
+        fontFamily: "sans-serif",
+      }}
+    >
       <h1>My Trading Strategies</h1>
-      <p style={{ color: '#aaa', fontSize: '16px' }}>Define trading rules to find market opportunities. Pick a strategy type and adjust parameters.</p>
+      <p style={{ color: "#aaa", fontSize: "16px" }}>
+        Define trading rules to find market opportunities. Pick a strategy type and adjust parameters.
+      </p>
 
       {/* Create Strategy Form */}
-      <div style={{ padding: '20px', marginBottom: '40px', borderRadius: '8px', backgroundColor: '#1e2b3c', border: '1px solid #3e4e60' }}>
+      <div
+        style={{
+          padding: "20px",
+          marginBottom: "40px",
+          borderRadius: "8px",
+          backgroundColor: "#1e2b3c",
+          border: "1px solid #3e4e60",
+        }}
+      >
         <h2>Create a New Strategy</h2>
-        <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
+        <form
+          onSubmit={handleCreate}
+          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "30px" }}
+        >
           <div>
             <h3>Configuration</h3>
             <label>
               Strategy Type:
-              <select name="strategyType" value={newStrategy.params.strategyType} onChange={handleChange}
-                style={{ width: '100%', padding: '8px', marginTop: '4px', marginBottom: '10px', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }}>
-                {Object.keys(strategyGuides).map(t => <option key={t} value={t}>{strategyGuides[t].title}</option>)}
+              <select
+                name="strategyType"
+                value={newStrategy.params.strategyType}
+                onChange={handleChange}
+                style={{
+                  width: "100%",
+                  padding: "8px",
+                  marginTop: "4px",
+                  marginBottom: "10px",
+                  backgroundColor: "#2e3d51",
+                  color: "#eee",
+                  border: "1px solid #3e4e60",
+                }}
+              >
+                {Object.keys(strategyGuides).map((t) => (
+                  <option key={t} value={t}>
+                    {strategyGuides[t].title}
+                  </option>
+                ))}
               </select>
             </label>
             <label>
               Strategy Name:
-              <input type="text" name="name" value={newStrategy.name} onChange={handleChange} required placeholder="e.g., My MACD Trend Follower"
-                style={{ width: '100%', padding: '8px', marginTop: '4px', marginBottom: '10px', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} />
+              <input
+                type="text"
+                name="name"
+                value={newStrategy.name}
+                onChange={handleChange}
+                required
+                placeholder="e.g., My MACD Trend Follower"
+                style={{
+                  width: "100%",
+                  padding: "8px",
+                  marginTop: "4px",
+                  marginBottom: "10px",
+                  backgroundColor: "#2e3d51",
+                  color: "#eee",
+                  border: "1px solid #3e4e60",
+                }}
+              />
             </label>
             <label>
               Description:
-              <textarea name="description" value={newStrategy.description} onChange={handleChange} placeholder="Short note"
-                style={{ width: '100%', minHeight: '80px', padding: '8px', marginTop: '4px', backgroundColor: '#2e3d51', color: '#eee', border: '1px solid #3e4e60' }} />
+              <textarea
+                name="description"
+                value={newStrategy.description}
+                onChange={handleChange}
+                placeholder="Short note"
+                style={{
+                  width: "100%",
+                  minHeight: "80px",
+                  padding: "8px",
+                  marginTop: "4px",
+                  backgroundColor: "#2e3d51",
+                  color: "#eee",
+                  border: "1px solid #3e4e60",
+                }}
+              />
             </label>
           </div>
 
@@ -157,31 +237,77 @@ const Strategies = () => {
             {renderParameters()}
           </div>
 
-          <div style={{ gridColumn: 'span 2', textAlign: 'center', marginTop: '20px' }}>
-            <button type="submit" style={{ padding: '12px 24px', fontSize: '16px', fontWeight: 'bold', backgroundColor: '#4CAF50', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Create Strategy</button>
+          <div style={{ gridColumn: "span 2", textAlign: "center", marginTop: "20px" }}>
+            <button
+              type="submit"
+              style={{
+                padding: "12px 24px",
+                fontSize: "16px",
+                fontWeight: "bold",
+                backgroundColor: "#4CAF50",
+                color: "white",
+                border: "none",
+                borderRadius: "5px",
+                cursor: "pointer",
+              }}
+            >
+              Create Strategy
+            </button>
           </div>
         </form>
       </div>
 
       {/* Saved Strategies List */}
-      <div style={{ padding: '20px', borderRadius: '8px', backgroundColor: '#1e2b3c', border: '1px solid #3e4e60' }}>
+      <div
+        style={{
+          padding: "20px",
+          borderRadius: "8px",
+          backgroundColor: "#1e2b3c",
+          border: "1px solid #3e4e60",
+        }}
+      >
         <h2>My Saved Strategies</h2>
         {strategies?.length > 0 ? (
-          <ul style={{ listStyle: 'none', padding: 0 }}>
-            {strategies.map(s => s && (
-              <li key={s._id || Math.random()} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', borderBottom: '1px solid #333' }}>
-                <span>
-                  <strong>{s.name || 'Unnamed Strategy'}</strong><br />
-                  <span style={{ fontSize: '12px', color: '#888' }}>
-                    Type: {s.params?.strategyType || 'Unknown'}
-                  </span>
-                </span>
-                <button onClick={() => handleDelete(s._id)} style={{ padding: '8px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Delete</button>
-              </li>
-            ))}
+          <ul style={{ listStyle: "none", padding: 0 }}>
+            {strategies.map(
+              (s) =>
+                s && (
+                  <li
+                    key={s._id || Math.random()}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "15px",
+                      borderBottom: "1px solid #333",
+                    }}
+                  >
+                    <span>
+                      <strong>{s.name || "Unnamed Strategy"}</strong>
+                      <br />
+                      <span style={{ fontSize: "12px", color: "#888" }}>
+                        Type: {s.params?.strategyType || "Unknown"}
+                      </span>
+                    </span>
+                    <button
+                      onClick={() => handleDelete(s._id)}
+                      style={{
+                        padding: "8px 16px",
+                        backgroundColor: "#dc3545",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "5px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </li>
+                )
+            )}
           </ul>
         ) : (
-          <p style={{ color: '#aaa' }}>No strategies yet. Use the form above to create one.</p>
+          <p style={{ color: "#aaa" }}>No strategies yet. Use the form above to create one.</p>
         )}
       </div>
     </div>
