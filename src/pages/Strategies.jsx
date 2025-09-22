@@ -1,6 +1,6 @@
 // File: src/pages/Strategies.jsx
 import React, { useState, useEffect, useContext } from 'react';
-import api, { setAuthToken } from '../api/apiClient.js';
+import api from '../api/apiClient.js';
 import { StrategyContext } from '../context/StrategyContext.jsx';
 
 // --- Strategy Guides ---
@@ -29,7 +29,7 @@ const Strategies = () => {
   const [error, setError] = useState(null);
   const [newStrategy, setNewStrategy] = useState(initialStrategyState);
 
-  // --- Load token & fetch strategies safely ---
+  // --- Fetch strategies safely with token in headers ---
   useEffect(() => {
     const fetchStrategies = async () => {
       const token = localStorage.getItem('userToken');
@@ -39,10 +39,10 @@ const Strategies = () => {
         return;
       }
 
-      setAuthToken(token); // set default header
-
       try {
-        const response = await api.get('/strategy');
+        const response = await api.get('/strategy', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
         setStrategies(Array.isArray(response.data) ? response.data : []);
       } catch (e) {
         setError(e.response?.data?.message || e.message);
@@ -81,8 +81,11 @@ const Strategies = () => {
   // --- Create a new strategy ---
   const handleCreate = async (e) => {
     e.preventDefault();
+    const token = localStorage.getItem('userToken');
     try {
-      const response = await api.post('/strategy', newStrategy);
+      const response = await api.post('/strategy', newStrategy, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setStrategies(prev => [...prev, response.data]);
       setNewStrategy(initialStrategyState);
     } catch (e) {
@@ -93,8 +96,9 @@ const Strategies = () => {
   // --- Delete a strategy ---
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this strategy?")) return;
+    const token = localStorage.getItem('userToken');
     try {
-      await api.delete(`/strategy/${id}`);
+      await api.delete(`/strategy/${id}`, { headers: { Authorization: `Bearer ${token}` } });
       setStrategies(prev => prev.filter(s => s._id !== id));
     } catch (e) {
       setError(e.response?.data?.message || e.message);
