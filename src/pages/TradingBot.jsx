@@ -62,11 +62,15 @@ export default function TradingBot() {
 
     // Pre-fill defaults
     useEffect(() => {
-        if (backtestOptions.strategies?.length > 0 && !formConfig.strategyId && !selectedSetupId) {
+        if ((backtestOptions.strategies?.length > 0 || backtestOptions.comboStrategies?.length > 0) && !formConfig.strategyId && !selectedSetupId) {
+            // Prefer normal strategies first
+            const firstStrategy = backtestOptions.strategies?.[0] || backtestOptions.comboStrategies?.[0];
             setFormConfig(prev => ({
                 ...prev,
-                strategyId: backtestOptions.strategies[0]._id,
-                symbol: backtestOptions.symbols[0] || 'BTC-USD',
+                strategyId: firstStrategy?._id || '',
+                symbol: backtestOptions.symbols?.[0] || 'BTC-USD',
+                isCombo: firstStrategy?.isCombo || false,
+                comboConfig: firstStrategy?.comboConfig || { strategyCodes: [], combinationRule: 'OR' },
             }));
         }
     }, [backtestOptions, formConfig.strategyId, selectedSetupId]);
@@ -113,6 +117,16 @@ export default function TradingBot() {
 
     const isRunning = botStatus?.status === 'running';
 
+    const findStrategyName = (id, isCombo=false) => {
+        if (isCombo) {
+            const s = backtestOptions.comboStrategies?.find(s => s._id === id);
+            return s?.name || 'Combo Strategy';
+        } else {
+            const s = backtestOptions.strategies?.find(s => s._id === id);
+            return s?.name || 'Unnamed Strategy';
+        }
+    };
+
     return (
         <div className="trading-bot-container">
             <h2 className="header">Live Trading Bot</h2>
@@ -142,13 +156,13 @@ export default function TradingBot() {
                                 <p><strong>Rule:</strong> {formConfig.comboConfig.combinationRule}</p>
                                 <ul>
                                     {formConfig.comboConfig.strategyCodes.map(code => {
-                                        const s = backtestOptions.strategies.find(s => s.code === code);
+                                        const s = [...(backtestOptions.strategies||[]), ...(backtestOptions.comboStrategies||[])].find(s => s.code === code);
                                         return <li key={code} title={s?.name}>{s?.name || code}</li>;
                                     })}
                                 </ul>
                             </div>
                         ) : (
-                            <p><strong>Type:</strong> {backtestOptions.strategies.find(s=>s._id===formConfig.strategyId)?.name}</p>
+                            <p><strong>Type:</strong> {findStrategyName(formConfig.strategyId)}</p>
                         )}
                     </div>
 
@@ -169,7 +183,7 @@ export default function TradingBot() {
                             <div className={`status-indicator ${botStatus.status}`}>{botStatus.status}</div>
                         </div>
                         <div className="status-details">
-                            <p><strong>Strategy:</strong> {botStatus.isCombo ? `Combo (${botStatus.comboConfig.combinationRule})` : backtestOptions.strategies.find(s=>s._id===botStatus.strategyId)?.name}</p>
+                            <p><strong>Strategy:</strong> {botStatus.isCombo ? `Combo (${botStatus.comboConfig.combinationRule})` : findStrategyName(botStatus.strategyId)}</p>
                             <p><strong>Symbol:</strong> {botStatus.symbol}</p>
                             <p><strong>Timeframe:</strong> {botStatus.timeframe}</p>
                             <p><strong>Current Balance:</strong> ${botStatus.currentBalance?.toFixed(2)}</p>
