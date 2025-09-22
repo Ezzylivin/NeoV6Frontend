@@ -24,19 +24,6 @@ export function useBacktestSetupFunction() {
   }, []);
 
 
-    const getSetupById = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await backtestSetupApi.getSetupById();
-      setSetups(data);
-    } catch (err) {
-      setError(err.message || "Failed to fetch setups.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   // --- Initial data load when the hook is first used ---
   useEffect(() => {
     getSetups();
