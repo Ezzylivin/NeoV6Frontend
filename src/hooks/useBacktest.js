@@ -1,5 +1,8 @@
 // File: src/hooks/useBacktest.js
-// FINAL VERSION: This hook is now complete, fully upgraded, and uses the correct centralized authentication pattern.
+// FIXED + UPGRADED VERSION
+// - Strategies are now exposed directly
+// - Strategies page can use getStrategies()
+// - Backtests still work and store as before
 
 import { useState, useEffect, useCallback } from "react";
 import * as backtestApi from "../api/backtest.js";
@@ -13,6 +16,7 @@ export function useBacktest() {
     stopLosses: [],
   });
 
+  const [strategies, setStrategies] = useState([]); // <-- NEW direct state
   const [pastBacktests, setPastBacktests] = useState({ results: [], total: 0 });
   const [initialLoading, setInitialLoading] = useState(true);
   const [singleLoading, setSingleLoading] = useState(false);
@@ -25,10 +29,19 @@ export function useBacktest() {
     try {
       const fetchedOptions = await backtestApi.fetchOptions();
       setOptions(fetchedOptions);
+      setStrategies(fetchedOptions.strategies || []); // keep strategies synced
+      return fetchedOptions;
     } catch (err) {
       setError(err.message || "Failed to fetch options.");
+      return null;
     }
   }, []);
+
+  // --- Fetches only strategies (for Strategies page) ---
+  const getStrategies = useCallback(async () => {
+    const data = await getOptions();
+    return data ? data.strategies : [];
+  }, [getOptions]);
 
   // --- Fetches the list of previously run backtests ---
   const getPastBacktests = useCallback(async (page = 1) => {
@@ -121,22 +134,27 @@ export function useBacktest() {
     []
   );
 
-  // --- This useEffect runs once when the hook is first used ---
-  // It fetches the initial data needed to populate the page.
-  // It relies on the authentication token already being set by App.jsx.
+  // --- Initial fetch (both options + backtests) ---
   useEffect(() => {
     setInitialLoading(true);
-    Promise.all([getOptions(), getPastBacktests()]).finally(() => setInitialLoading(false));
+    Promise.all([getOptions(), getPastBacktests()]).finally(() =>
+      setInitialLoading(false)
+    );
   }, [getOptions, getPastBacktests]);
 
-  // --- Expose all state and functions to the UI component ---
+  // --- Expose everything ---
   return {
     options,
+    strategies, // <-- direct accessor
     pastBacktests,
     initialLoading,
     singleLoading,
     batchLoading,
     error,
+
+    // methods
+    getOptions,
+    getStrategies,   // <-- for Strategies page
     getPastBacktests,
     getBacktestById,
     deleteBacktest,
@@ -145,4 +163,3 @@ export function useBacktest() {
     previewStrategy,
   };
 }
-
