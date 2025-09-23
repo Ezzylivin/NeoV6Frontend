@@ -89,7 +89,7 @@ const Strategies = () => {
     e.preventDefault();
     try {
       await api.post("/strategy", newStrategy);
-      fetchSingleStrategies(); // only update singles
+      fetchSingleStrategies();
       setNewStrategy(initialStrategyState);
     } catch (err) {
       setError(err.response?.data?.message || err.message);
@@ -108,63 +108,72 @@ const Strategies = () => {
     }
   };
 
-  if (loading) return <p style={{ color: "#eee" }}>Loading strategies...</p>;
-  if (error) return <p style={{ color: "#dc3545" }}>Error: {error}</p>;
+  if (loading) return <p className="no-strategies">Loading strategies...</p>;
+  if (error) return <p className="error-banner">Error: {error}</p>;
 
   return (
-    <div style={{ padding: "20px", maxWidth: "1000px", margin: "auto", backgroundColor: "#121e2c", color: "#eee", fontFamily: "sans-serif" }}>
-      <h1>My Trading Strategies</h1>
+    <div className="strategies-container">
+      <h1 className="header">My Trading Strategies</h1>
 
       {/* --- Create Strategy Form --- */}
-      <div style={{ padding: "20px", marginBottom: "40px", borderRadius: "8px", backgroundColor: "#1e2b3c", border: "1px solid #3e4e60" }}>
-        <h2>Create a New Strategy</h2>
+      <div className="strategy-form">
+        <h2 className="card-title">Create a New Strategy</h2>
         <form onSubmit={handleCreate}>
           <label>
             Strategy Type:
-            <select name="strategyType" value={newStrategy.params.strategyType} onChange={handleChange}>
+            <select name="strategyType" value={newStrategy.params.strategyType} onChange={handleChange} className="dashboard-dropdown">
               {Object.keys(strategyGuides).map((t) => <option key={t} value={t}>{strategyGuides[t].title}</option>)}
             </select>
           </label>
+
           <label>
             Strategy Name:
             <input type="text" name="name" value={newStrategy.name} onChange={handleChange} required />
           </label>
+
           <label>
             Description:
             <textarea name="description" value={newStrategy.description} onChange={handleChange} />
           </label>
-          <button type="submit">Create Strategy</button>
+
+          <button type="submit" className="button-add">Create Strategy</button>
         </form>
       </div>
 
       {/* --- Single Strategies --- */}
       <div>
-        <h2>Single Strategies</h2>
+        <h2 className="card-title">Single Strategies</h2>
         {singleStrategies.length > 0 ? (
-          <ul>
+          <ul className="strategy-list">
             {singleStrategies.map(s => (
-              <li key={s._id}>
-                {s.name} ({s.params.strategyType})
-                <button onClick={() => handleDelete(s._id, "strategy")}>Delete</button>
+              <li key={s._id} className="strategy-card">
+                <span>
+                  <span className="strategy-name">{s.name}</span>
+                  <span className="strategy-type">{s.params.strategyType}</span>
+                </span>
+                <button className="button-remove" onClick={() => handleDelete(s._id, "strategy")}>Delete</button>
               </li>
             ))}
           </ul>
-        ) : <p>No single strategies yet.</p>}
+        ) : <p className="no-strategies">No single strategies yet.</p>}
       </div>
 
       {/* --- Combo Strategies --- */}
       <div>
-        <h2>Combo Strategies</h2>
+        <h2 className="card-title">Combo Strategies</h2>
         {comboStrategies.length > 0 ? (
-          <ul>
+          <ul className="strategy-list">
             {comboStrategies.map(c => (
-              <li key={c._id}>
-                {c.name} ({c.params.strategyType})
-                <button onClick={() => handleDelete(c._id, "combos")}>Delete</button>
+              <li key={c._id} className="strategy-card combo">
+                <span>
+                  <span className="strategy-name">{c.name}</span>
+                  <span className="strategy-type">{c.params.strategyType}</span>
+                </span>
+                <button className="button-remove" onClick={() => handleDelete(c._id, "combos")}>Delete</button>
               </li>
             ))}
           </ul>
-        ) : <p>No combo strategies yet.</p>}
+        ) : <p className="no-strategies">No combo strategies yet.</p>}
       </div>
     </div>
   );
