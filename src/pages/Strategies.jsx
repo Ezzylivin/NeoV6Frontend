@@ -34,7 +34,7 @@ const Strategies = () => {
   const fetchAllStrategies = async () => {
     try {
       const [singleRes, comboRes] = await Promise.all([
-        api.get("/strategies"),
+        api.get("/strategy"),
         api.get("/combos")
       ]);
       setStrategies(Array.isArray(singleRes.data) ? singleRes.data : []);
@@ -78,7 +78,7 @@ const Strategies = () => {
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      await api.post("/strategies", newStrategy);
+      await api.post("/strategy", newStrategy);
       fetchAllStrategies();
       setNewStrategy(initialStrategyState);
     } catch (err) {
