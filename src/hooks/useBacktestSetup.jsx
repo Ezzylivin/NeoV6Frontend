@@ -1,6 +1,6 @@
 // File: src/hooks/useBacktestSetup.js
 import { useState, useEffect, useCallback } from "react";
-import { getSetups as apiGetSetups, createSetup as apiCreateSetup, deleteSetup as apiDeleteSetup } from "../api/backtestSetup.js";
+import { fetchSetups as apiGetSetups, createSetup as apiCreateSetup, deleteSetup as apiDeleteSetup } from "../api/backtestSetup.js";
 
 export function useBacktestSetupFunction() {
   const [setups, setSetups] = useState([]);
