@@ -34,7 +34,7 @@ const Strategies = () => {
   useEffect(() => {
     const fetchAllCombo = async () => {
       try {
-        const { data } = await api.get("/strategy/combo"); // ✅ Backend endpoint for combo strategies
+        const { data } = await api.get("/combos/combo"); // ✅ Backend endpoint for combo strategies
         setComboStrategies(Array.isArray(data) ? data : []);
       } catch (e) {
         console.error("Failed to fetch combo strategies:", e.response?.data?.message || e.message);
