@@ -1,4 +1,4 @@
-// File: src/pages/Strategies.jsx
+// File: src/pages/Strategies.jsx 
 import React, { useState, useEffect } from "react";
 import api from "../api/apiClient.js";
 import "./Strategies.css";
@@ -7,63 +7,63 @@ import "./Strategies.css";
 const strategyGuides = {
   ATR: {
     title: "ATR (Average True Range)",
-    whatItIs: "ATR measures market volatility...",
-    howItWorks: "A common use is setting a stop-loss...",
-    combineWith: "Combine with trend indicators like SMA or MACD..."
+    whatItIs: "ATR measures market volatility by analyzing the range of price movement over time.",
+    howItWorks: "Traders often use ATR to set stop-loss levels or position sizing. A higher ATR means more volatility.",
+    combineWith: "Combine with trend indicators like SMA or MACD for better entry/exit decisions."
   },
   "Bollinger Bands": {
     title: "Bollinger Bands",
-    whatItIs: "These bands use a moving average...",
-    howItWorks: "The main idea is 'mean reversion'...",
-    combineWith: "Combine with RSI or a Stochastic Oscillator..."
+    whatItIs: "Bollinger Bands use a moving average and standard deviation to form upper and lower bands.",
+    howItWorks: "Price touching the bands can indicate overbought/oversold conditions. Mean reversion strategies use this.",
+    combineWith: "Combine with RSI or a Stochastic Oscillator to confirm potential reversals."
   },
   CCI: {
     title: "CCI (Commodity Channel Index)",
-    whatItIs: "CCI measures deviation from statistical average...",
-    howItWorks: "Long entry when CCI crosses up from below oversold...",
-    combineWith: "Use with trend indicators (like SMAs)..."
+    whatItIs: "CCI measures deviation of price from its statistical mean.",
+    howItWorks: "Buy signals occur when CCI rises above -100 from oversold conditions. Sell signals occur when CCI falls below 100 from overbought.",
+    combineWith: "Use with trend indicators like SMAs to avoid false signals."
   },
   "Ichimoku Cloud": {
     title: "Ichimoku Cloud",
-    whatItIs: "Shows trend, support/resistance, momentum...",
-    howItWorks: "Long entry when price above cloud and conversion line crosses base line...",
-    combineWith: "Pair with RSI to confirm entries in ranging markets"
+    whatItIs: "A comprehensive indicator showing trend, momentum, and support/resistance.",
+    howItWorks: "Buy when price is above the cloud and conversion line crosses base line upwards. Sell when below cloud and cross downwards.",
+    combineWith: "Pair with RSI to confirm entries in ranging markets."
   },
   MACD: {
     title: "MACD (Moving Average Convergence Divergence)",
-    whatItIs: "Shows trend direction and momentum...",
-    howItWorks: "Long entry when MACD line crosses above Signal line...",
-    combineWith: "Combine with ATR or Bollinger Bands to avoid false signals"
+    whatItIs: "Shows trend direction and momentum using two moving averages and a signal line.",
+    howItWorks: "Buy when MACD line crosses above Signal line. Sell when it crosses below.",
+    combineWith: "Combine with ATR or Bollinger Bands to filter false signals."
   },
   "On-Balance Volume": {
     title: "On-Balance Volume (OBV)",
-    whatItIs: "Tracks cumulative buying/selling pressure...",
-    howItWorks: "Key signal is divergence with price...",
-    combineWith: "Use with SMA to confirm price action agrees with volume"
+    whatItIs: "Tracks cumulative buying and selling pressure by adding/subtracting volume based on price movement.",
+    howItWorks: "Look for divergences between OBV and price to anticipate reversals.",
+    combineWith: "Use with SMA to confirm that price moves align with volume trends."
   },
   "Parabolic SAR": {
     title: "Parabolic SAR",
-    whatItIs: "Places dots indicating trend direction...",
-    howItWorks: "Long entry when dots flip below price...",
-    combineWith: "Excellent for trend-following. Pair with ATR for stop-loss management"
+    whatItIs: "Places dots above/below price to indicate trend direction.",
+    howItWorks: "Buy when dots flip below price, sell when they flip above.",
+    combineWith: "Excellent for trend-following. Combine with ATR to manage stop-loss levels."
   },
   RSI: {
-    title: "RSI",
-    whatItIs: "Momentum oscillator for overbought/oversold...",
-    howItWorks: "Long entry when RSI crosses up from below 30...",
-    combineWith: "Best in range-bound markets; combine with SMA"
+    title: "RSI (Relative Strength Index)",
+    whatItIs: "Momentum oscillator indicating overbought (>70) or oversold (<30) conditions.",
+    howItWorks: "Buy when RSI crosses up from below 30, sell when it crosses down from above 70.",
+    combineWith: "Best used in range-bound markets. Combine with SMA for trend confirmation."
   },
   "Moving Average Crossover": {
     title: "SMA Crossover",
-    whatItIs: "Trend-following using fast/slow moving averages",
-    howItWorks: "Long entry when fast MA crosses above slow MA...",
-    combineWith: "Combine with ATR or RSI for better signals"
+    whatItIs: "Trend-following strategy using a fast and slow moving average.",
+    howItWorks: "Buy when fast MA crosses above slow MA, sell when it crosses below.",
+    combineWith: "Combine with ATR or RSI for more reliable signals."
   },
   "Stochastic Oscillator": {
     title: "Stochastic Oscillator",
-    whatItIs: "Momentum indicator comparing closing price to range...",
-    howItWorks: "Long entry when %K crosses %D below 20...",
-    combineWith: "Use with MACD to filter false signals in strong trends"
+    whatItIs: "Momentum indicator comparing closing price to its recent high-low range.",
+    howItWorks: "Buy when %K line crosses %D below 20, sell when %K crosses %D above 80.",
+    combineWith: "Use with MACD to filter false signals in strong trends."
   }
 };
 
@@ -338,10 +338,22 @@ const Strategies = () => {
           <ul className="strategy-list">
             {comboStrategies.map(c => (
               <li key={c._id} className="strategy-card combo">
-                <span>
+                <div>
                   <span className="strategy-name">{c.name}</span>
                   <span className="strategy-type">Combo ({c.comboConfig.strategyCodes.join(", ")})</span>
-                </span>
+                </div>
+                {/* --- Render each strategy's params for the combo --- */}
+                <div className="combo-params">
+                  {c.params && c.params.map((p, idx) => (
+                    <div key={idx} className="strategy-param-card">
+                      <h4>{p.code}</h4>
+                      {Object.entries(p.params).map(([key, value]) => (
+                        <p key={key}><strong>{key}:</strong> {value}</p>
+                      ))}
+                      <p><strong>Guide:</strong> {strategyGuides[p.code]?.whatItIs}</p>
+                    </div>
+                  ))}
+                </div>
                 <button className="button-remove" onClick={() => handleDelete(c._id, "combos")}>Delete</button>
               </li>
             ))}
