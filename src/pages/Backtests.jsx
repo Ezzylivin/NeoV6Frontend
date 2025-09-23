@@ -138,18 +138,49 @@ export default function Backtests() {
   const closeSaveModal = ()=>setIsSaveModalOpen(false);
   const handleSetupDetailChange = e => setSetupDetails({...setupDetails,[e.target.name]:e.target.value});
 
-  const handleSaveSetup = async e=>{
-    e.preventDefault();
-    const source = backtestResults.main?.sourceData;
-    if(!source) return alert("No backtest results to save.");
-    try{
-      let payload;
-      if(activeTestType==="single"){
-        const strategy = options.strategies.find(s=>s.code===source.code);
-        payload = { name:setupDetails.name, description:setupDetails.description, symbol:source.symbol, timeframe:source.timeframe, isCombo:false, strategyId:strategy?._id };
-      } else {
-        payload = { name:setupDetails.name, description:setupDetails.description, symbol:source.symbol, timeframe:source.timeframe, isCombo:true, comboConfig:{ strategyCodes:source.strategyConfigs.map(s=>s.code).filter(Boolean), combinationRule:source.combinationRule } };
-      }
+  const handleSaveSetup = async e => {
+  e.preventDefault();
+  const source = backtestResults.main?.sourceData;
+  if (!source) return alert("No backtest results to save.");
+
+  try {
+    let payload;
+
+    if (activeTestType === "single") {
+      const strategy = options.strategies.find(s => s.code === source.code);
+      payload = {
+        name: setupDetails.name,
+        description: setupDetails.description,
+        params: strategy?.params || {},
+      };
+    } else if (activeTestType === "combo") {
+      // --- Collect params for all strategies in the combo ---
+      const allParams = source.strategyConfigs
+        .map(cfg => {
+          const s = options.strategies.find(strat => strat.code === cfg.code);
+          return s ? { code: s.code, params: s.params } : null;
+        })
+        .filter(Boolean);
+
+      payload = {
+        name: setupDetails.name,
+        description: setupDetails.description,
+        params: allParams,  // store as array of {code, params}
+      };
+    }
+
+    const saved = await createSetup(payload);
+    alert("Setup saved successfully!");
+    closeSaveModal();
+    setSetupDetails({ name: "", description: "" });
+
+    // Add to context after successful save
+    setStrategies(prev => [...prev, saved]);
+  } catch (err) {
+    alert(err.response?.data?.message || "Failed to save setup.");
+  }
+};
+
 
       const saved = await createSetup(payload);
       alert("Setup saved successfully!");
