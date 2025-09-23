@@ -1,3 +1,4 @@
+// File: src/pages/Strategies.jsx
 import React, { useState, useEffect } from "react";
 import api from "../api/apiClient.js";
 import "./Strategies.css";
@@ -100,6 +101,7 @@ const Strategies = () => {
     }
   };
 
+  // --- Initialize ---
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true);
@@ -108,6 +110,23 @@ const Strategies = () => {
       setLoading(false);
     };
     fetchAll();
+
+    // --- Listen for real-time saved strategies ---
+    const handleStrategySaved = (event) => {
+      const saved = event.detail;
+      if (saved) setSingleStrategies(prev => [...prev, saved]);
+    };
+    const handleComboSaved = (event) => {
+      const saved = event.detail;
+      if (saved) setComboStrategies(prev => [...prev, saved]);
+    };
+    window.addEventListener("strategySaved", handleStrategySaved);
+    window.addEventListener("comboSaved", handleComboSaved);
+
+    return () => {
+      window.removeEventListener("strategySaved", handleStrategySaved);
+      window.removeEventListener("comboSaved", handleComboSaved);
+    };
   }, []);
 
   // --- Handle form changes ---
@@ -126,11 +145,11 @@ const Strategies = () => {
         ATR: { period: 14, multiplier: 2 },
         "Ichimoku Cloud": { conversionLinePeriod: 9, baseLinePeriod: 26, laggingSpanPeriod: 26, leadingSpanBPeriod: 52 }
       };
-      setNewStrategy((prev) => ({ ...prev, params: { strategyType: value, ...defaultParams[value] } }));
+      setNewStrategy(prev => ({ ...prev, params: { strategyType: value, ...defaultParams[value] } }));
     } else if (newStrategy.params.hasOwnProperty(name)) {
-      setNewStrategy((prev) => ({ ...prev, params: { ...prev.params, [name]: value } }));
+      setNewStrategy(prev => ({ ...prev, params: { ...prev.params, [name]: value } }));
     } else {
-      setNewStrategy((prev) => ({ ...prev, [name]: value }));
+      setNewStrategy(prev => ({ ...prev, [name]: value }));
     }
   };
 
@@ -138,8 +157,11 @@ const Strategies = () => {
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      await api.post("/strategy", newStrategy);
-      fetchSingleStrategies();
+      const res = await api.post("/strategy", newStrategy);
+      const saved = res.data;
+      setSingleStrategies(prev => [...prev, saved]);
+      // Dispatch global event
+      window.dispatchEvent(new CustomEvent("strategySaved", { detail: saved }));
       setNewStrategy(initialStrategyState);
     } catch (err) {
       setError(err.response?.data?.message || err.message);
@@ -151,8 +173,8 @@ const Strategies = () => {
     if (!window.confirm("Are you sure you want to delete this strategy?")) return;
     try {
       await api.delete(`/${type}/${id}`);
-      if (type === "strategy") fetchSingleStrategies();
-      if (type === "combos") fetchComboStrategies();
+      if (type === "strategy") setSingleStrategies(prev => prev.filter(s => s._id !== id));
+      if (type === "combos") setComboStrategies(prev => prev.filter(c => c._id !== id));
     } catch (err) {
       setError(err.response?.data?.message || err.message);
     }
@@ -177,24 +199,19 @@ const Strategies = () => {
               onChange={handleChange}
               className="dashboard-dropdown"
             >
-              {Object.keys(strategyGuides).map((t) => (
-                <option key={t} value={t}>
-                  {strategyGuides[t].title}
-                </option>
+              {Object.keys(strategyGuides).map(t => (
+                <option key={t} value={t}>{strategyGuides[t].title}</option>
               ))}
             </select>
           </label>
-
           <label>
             Strategy Name:
             <input type="text" name="name" value={newStrategy.name} onChange={handleChange} required />
           </label>
-
           <label>
             Description:
             <textarea name="description" value={newStrategy.description} onChange={handleChange} />
           </label>
-
           <button type="submit" className="button-add">Create Strategy</button>
         </form>
 
@@ -203,24 +220,16 @@ const Strategies = () => {
           <h3 className="card-title">Parameters & Guide</h3>
           {newStrategy.params.strategyType && (
             <div className="guide-content">
-              {/* Dynamic Parameters Form */}
               <div className="parameters-form">
                 {Object.entries(newStrategy.params)
                   .filter(([key]) => key !== "strategyType")
                   .map(([key, value]) => (
                     <label key={key}>
                       {key}:
-                      <input
-                        type="number"
-                        name={key}
-                        value={value}
-                        onChange={handleChange}
-                      />
+                      <input type="number" name={key} value={value} onChange={handleChange} />
                     </label>
                   ))}
               </div>
-
-              {/* Strategy Guide */}
               <div className="strategy-description">
                 <p><strong>What it is:</strong> {strategyGuides[newStrategy.params.strategyType]?.whatItIs}</p>
                 <p><strong>How it works:</strong> {strategyGuides[newStrategy.params.strategyType]?.howItWorks}</p>
@@ -236,7 +245,7 @@ const Strategies = () => {
         <h2 className="card-title">Single Strategies</h2>
         {singleStrategies.length > 0 ? (
           <ul className="strategy-list">
-            {singleStrategies.map((s) => (
+            {singleStrategies.map(s => (
               <li key={s._id} className="strategy-card">
                 <span>
                   <span className="strategy-name">{s.name}</span>
@@ -246,9 +255,7 @@ const Strategies = () => {
               </li>
             ))}
           </ul>
-        ) : (
-          <p className="no-strategies">No single strategies yet.</p>
-        )}
+        ) : <p className="no-strategies">No single strategies yet.</p>}
       </div>
 
       {/* --- Combo Strategies --- */}
@@ -256,19 +263,17 @@ const Strategies = () => {
         <h2 className="card-title">Combo Strategies</h2>
         {comboStrategies.length > 0 ? (
           <ul className="strategy-list">
-            {comboStrategies.map((c) => (
+            {comboStrategies.map(c => (
               <li key={c._id} className="strategy-card combo">
                 <span>
                   <span className="strategy-name">{c.name}</span>
-                  <span className="strategy-type">{c.params.strategyType}</span>
+                  <span className="strategy-type">{c.params?.strategyType || "Combo"}</span>
                 </span>
                 <button className="button-remove" onClick={() => handleDelete(c._id, "combos")}>Delete</button>
               </li>
             ))}
           </ul>
-        ) : (
-          <p className="no-strategies">No combo strategies yet.</p>
-        )}
+        ) : <p className="no-strategies">No combo strategies yet.</p>}
       </div>
     </div>
   );
