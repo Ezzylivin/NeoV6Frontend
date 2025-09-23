@@ -1,69 +1,82 @@
-// File: src/hooks/useStrategies.js
-import { useState, useEffect, useCallback } from "react";
-import api from "../api/apiClient.js";
+// File: src/hooks/useBacktestSetup.js
+// UPGRADED: Handles fetching, creating, deleting, and refreshing saved backtest setups with optimistic UI updates.
 
-export function useStrategies() {
-  const [strategies, setStrategies] = useState([]);
+import { useState, useEffect, useCallback } from "react";
+import * as backtestSetupApi from '../api/backtestSetup.js';
+
+export function useBacktestSetupFunction() {
+  const [setups, setSetups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // --- Fetch all strategies for the user
-  const getStrategies = useCallback(async () => {
+  // --- Fetch all saved backtest setups from the backend ---
+  const getSetups = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.get("/strategy");
-      setStrategies(Array.isArray(res.data) ? res.data : []);
+      const data = await backtestSetupApi.getSetups();
+      // Ensure we always have an array
+      setSetups(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(err.response?.data?.message || err.message || "Failed to fetch strategies.");
+      console.error("[useBacktestSetup] getSetups error:", err);
+      setError(err.message || "Failed to fetch backtest setups.");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // --- Initial load
+  // --- Initial load ---
   useEffect(() => {
-    getStrategies();
-  }, [getStrategies]);
+    getSetups();
+  }, [getSetups]);
 
-  // --- Create a new strategy
-  const createStrategy = async (strategyData) => {
+  // --- Create a new backtest setup ---
+  const createSetup = async (setupData) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.post("/strategy", strategyData);
-      const newStrategy = res.data;
-      setStrategies(prev => [newStrategy, ...prev]);
-      return newStrategy;
+      const newSetup = await backtestSetupApi.createSetup(setupData);
+
+      // Optimistic UI update: prepend the new setup
+      setSetups(prev => [newSetup, ...prev]);
+      return newSetup; // Return the created setup for immediate use in UI
     } catch (err) {
-      setError(err.response?.data?.message || err.message || "Failed to create strategy.");
+      console.error("[useBacktestSetup] createSetup error:", err);
+      setError(err.message || "Failed to create backtest setup.");
+      throw err; // allow component to handle it (alerts/toasts)
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- Delete a backtest setup ---
+  const deleteSetup = async (id) => {
+    setLoading(true);
+    setError(null);
+    // Optimistically remove it from UI
+    const previousSetups = [...setups];
+    setSetups(prev => prev.filter(s => s._id !== id));
+
+    try {
+      await backtestSetupApi.deleteSetup(id);
+    } catch (err) {
+      console.error("[useBacktestSetup] deleteSetup error:", err);
+      setError(err.message || "Failed to delete backtest setup.");
+      // Rollback in case of failure
+      setSetups(previousSetups);
       throw err;
     } finally {
       setLoading(false);
     }
   };
 
-  // --- Delete a strategy
-  const deleteStrategy = async (id) => {
-    setLoading(true);
-    setError(null);
-    try {
-      await api.delete(`/strategy/${id}`);
-      setStrategies(prev => prev.filter(s => s._id !== id));
-    } catch (err) {
-      setError(err.response?.data?.message || err.message || "Failed to delete strategy.");
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // --- Expose all state and functions for the component ---
   return {
-    strategies,
+    setups,
     loading,
     error,
-    createStrategy,
-    deleteStrategy,
-    refreshStrategies: getStrategies
+    createSetup,
+    deleteSetup,
+    refreshSetups: getSetups
   };
 }
