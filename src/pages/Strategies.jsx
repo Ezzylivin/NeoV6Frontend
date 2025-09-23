@@ -4,23 +4,73 @@ import "./Strategies.css";
 
 // --- Strategy Guides ---
 const strategyGuides = {
-  ATR: { title: "ATR (Average True Range)", whatItIs: "ATR measures market volatility...", howItWorks: "A common use is setting a stop-loss...", combineWith: "Combine with trend indicators like SMA or MACD..." },
-  "Bollinger Bands": { title: "Bollinger Bands", whatItIs: "These bands use a moving average...", howItWorks: "The main idea is 'mean reversion'...", combineWith: "Combine with RSI or a Stochastic Oscillator..." },
-  CCI: { title: "CCI (Commodity Channel Index)", whatItIs: "CCI measures deviation from statistical average...", howItWorks: "Long entry when CCI crosses up from below oversold...", combineWith: "Use with trend indicators (like SMAs)..." },
-  "Ichimoku Cloud": { title: "Ichimoku Cloud", whatItIs: "Shows trend, support/resistance, momentum...", howItWorks: "Long entry when price above cloud and conversion line crosses base line...", combineWith: "Pair with RSI to confirm entries in ranging markets" },
-  MACD: { title: "MACD (Moving Average Convergence Divergence)", whatItIs: "Shows trend direction and momentum...", howItWorks: "Long entry when MACD line crosses above Signal line...", combineWith: "Combine with ATR or Bollinger Bands to avoid false signals" },
-  "On-Balance Volume": { title: "On-Balance Volume (OBV)", whatItIs: "Tracks cumulative buying/selling pressure...", howItWorks: "Key signal is divergence with price...", combineWith: "Use with SMA to confirm price action agrees with volume" },
-  "Parabolic SAR": { title: "Parabolic SAR", whatItIs: "Places dots indicating trend direction...", howItWorks: "Long entry when dots flip below price...", combineWith: "Excellent for trend-following. Pair with ATR for stop-loss management" },
-  RSI: { title: "RSI", whatItIs: "Momentum oscillator for overbought/oversold...", howItWorks: "Long entry when RSI crosses up from below 30...", combineWith: "Best in range-bound markets; combine with SMA" },
-  "Moving Average Crossover": { title: "SMA Crossover", whatItIs: "Trend-following using fast/slow moving averages", howItWorks: "Long entry when fast MA crosses above slow MA...", combineWith: "Combine with ATR or RSI for better signals" },
-  "Stochastic Oscillator": { title: "Stochastic Oscillator", whatItIs: "Momentum indicator comparing closing price to range...", howItWorks: "Long entry when %K crosses %D below 20...", combineWith: "Use with MACD to filter false signals in strong trends" }
+  ATR: {
+    title: "ATR (Average True Range)",
+    whatItIs: "ATR measures market volatility...",
+    howItWorks: "A common use is setting a stop-loss...",
+    combineWith: "Combine with trend indicators like SMA or MACD..."
+  },
+  "Bollinger Bands": {
+    title: "Bollinger Bands",
+    whatItIs: "These bands use a moving average...",
+    howItWorks: "The main idea is 'mean reversion'...",
+    combineWith: "Combine with RSI or a Stochastic Oscillator..."
+  },
+  CCI: {
+    title: "CCI (Commodity Channel Index)",
+    whatItIs: "CCI measures deviation from statistical average...",
+    howItWorks: "Long entry when CCI crosses up from below oversold...",
+    combineWith: "Use with trend indicators (like SMAs)..."
+  },
+  "Ichimoku Cloud": {
+    title: "Ichimoku Cloud",
+    whatItIs: "Shows trend, support/resistance, momentum...",
+    howItWorks: "Long entry when price above cloud and conversion line crosses base line...",
+    combineWith: "Pair with RSI to confirm entries in ranging markets"
+  },
+  MACD: {
+    title: "MACD (Moving Average Convergence Divergence)",
+    whatItIs: "Shows trend direction and momentum...",
+    howItWorks: "Long entry when MACD line crosses above Signal line...",
+    combineWith: "Combine with ATR or Bollinger Bands to avoid false signals"
+  },
+  "On-Balance Volume": {
+    title: "On-Balance Volume (OBV)",
+    whatItIs: "Tracks cumulative buying/selling pressure...",
+    howItWorks: "Key signal is divergence with price...",
+    combineWith: "Use with SMA to confirm price action agrees with volume"
+  },
+  "Parabolic SAR": {
+    title: "Parabolic SAR",
+    whatItIs: "Places dots indicating trend direction...",
+    howItWorks: "Long entry when dots flip below price...",
+    combineWith: "Excellent for trend-following. Pair with ATR for stop-loss management"
+  },
+  RSI: {
+    title: "RSI",
+    whatItIs: "Momentum oscillator for overbought/oversold...",
+    howItWorks: "Long entry when RSI crosses up from below 30...",
+    combineWith: "Best in range-bound markets; combine with SMA"
+  },
+  "Moving Average Crossover": {
+    title: "SMA Crossover",
+    whatItIs: "Trend-following using fast/slow moving averages",
+    howItWorks: "Long entry when fast MA crosses above slow MA...",
+    combineWith: "Combine with ATR or RSI for better signals"
+  },
+  "Stochastic Oscillator": {
+    title: "Stochastic Oscillator",
+    whatItIs: "Momentum indicator comparing closing price to range...",
+    howItWorks: "Long entry when %K crosses %D below 20...",
+    combineWith: "Use with MACD to filter false signals in strong trends"
+  }
 };
 
 // --- Default new strategy ---
 const initialStrategyState = {
   name: "",
   description: "",
-  params: { strategyType: "Moving Average Crossover", shortPeriod: 10, longPeriod: 50 },
+  params: { strategyType: "Moving Average Crossover", shortPeriod: 10, longPeriod: 50 }
 };
 
 const Strategies = () => {
@@ -121,8 +171,17 @@ const Strategies = () => {
         <form onSubmit={handleCreate}>
           <label>
             Strategy Type:
-            <select name="strategyType" value={newStrategy.params.strategyType} onChange={handleChange} className="dashboard-dropdown">
-              {Object.keys(strategyGuides).map((t) => <option key={t} value={t}>{strategyGuides[t].title}</option>)}
+            <select
+              name="strategyType"
+              value={newStrategy.params.strategyType}
+              onChange={handleChange}
+              className="dashboard-dropdown"
+            >
+              {Object.keys(strategyGuides).map((t) => (
+                <option key={t} value={t}>
+                  {strategyGuides[t].title}
+                </option>
+              ))}
             </select>
           </label>
 
@@ -138,6 +197,38 @@ const Strategies = () => {
 
           <button type="submit" className="button-add">Create Strategy</button>
         </form>
+
+        {/* --- Parameters & Guide Section --- */}
+        <div className="strategy-guide">
+          <h3 className="card-title">Parameters & Guide</h3>
+          {newStrategy.params.strategyType && (
+            <div className="guide-content">
+              {/* Dynamic Parameters Form */}
+              <div className="parameters-form">
+                {Object.entries(newStrategy.params)
+                  .filter(([key]) => key !== "strategyType")
+                  .map(([key, value]) => (
+                    <label key={key}>
+                      {key}:
+                      <input
+                        type="number"
+                        name={key}
+                        value={value}
+                        onChange={handleChange}
+                      />
+                    </label>
+                  ))}
+              </div>
+
+              {/* Strategy Guide */}
+              <div className="strategy-description">
+                <p><strong>What it is:</strong> {strategyGuides[newStrategy.params.strategyType]?.whatItIs}</p>
+                <p><strong>How it works:</strong> {strategyGuides[newStrategy.params.strategyType]?.howItWorks}</p>
+                <p><strong>Combine with:</strong> {strategyGuides[newStrategy.params.strategyType]?.combineWith}</p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* --- Single Strategies --- */}
@@ -145,7 +236,7 @@ const Strategies = () => {
         <h2 className="card-title">Single Strategies</h2>
         {singleStrategies.length > 0 ? (
           <ul className="strategy-list">
-            {singleStrategies.map(s => (
+            {singleStrategies.map((s) => (
               <li key={s._id} className="strategy-card">
                 <span>
                   <span className="strategy-name">{s.name}</span>
@@ -155,7 +246,9 @@ const Strategies = () => {
               </li>
             ))}
           </ul>
-        ) : <p className="no-strategies">No single strategies yet.</p>}
+        ) : (
+          <p className="no-strategies">No single strategies yet.</p>
+        )}
       </div>
 
       {/* --- Combo Strategies --- */}
@@ -163,7 +256,7 @@ const Strategies = () => {
         <h2 className="card-title">Combo Strategies</h2>
         {comboStrategies.length > 0 ? (
           <ul className="strategy-list">
-            {comboStrategies.map(c => (
+            {comboStrategies.map((c) => (
               <li key={c._id} className="strategy-card combo">
                 <span>
                   <span className="strategy-name">{c.name}</span>
@@ -173,7 +266,9 @@ const Strategies = () => {
               </li>
             ))}
           </ul>
-        ) : <p className="no-strategies">No combo strategies yet.</p>}
+        ) : (
+          <p className="no-strategies">No combo strategies yet.</p>
+        )}
       </div>
     </div>
   );
