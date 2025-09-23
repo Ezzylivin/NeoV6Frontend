@@ -1,5 +1,4 @@
-// src/pages/Strategies.jsx
-import React, { useState, useContext, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import api from "../api/apiClient.js";
 import { StrategyContext } from "../context/StrategyContext.jsx";
 
@@ -27,26 +26,33 @@ const initialStrategyState = {
 const Strategies = () => {
   const { strategies, setStrategies, loading: contextLoading } = useContext(StrategyContext);
   const [comboStrategies, setComboStrategies] = useState([]);
-  const [error, setError] = useState(null);
   const [newStrategy, setNewStrategy] = useState(initialStrategyState);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // --- Fetch combo strategies separately ---
+  // --- Fetch combos + singles ---
+  const fetchAllStrategies = async () => {
+    try {
+      const [singleRes, comboRes] = await Promise.all([
+        api.get("/strategies"),
+        api.get("/combos")
+      ]);
+      setStrategies(Array.isArray(singleRes.data) ? singleRes.data : []);
+      setComboStrategies(Array.isArray(comboRes.data) ? comboRes.data : []);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchAllCombo = async () => {
-      try {
-        const { data } = await api.get("/combos/combo"); // ✅ Backend endpoint for combo strategies
-        setComboStrategies(Array.isArray(data) ? data : []);
-      } catch (e) {
-        console.error("Failed to fetch combo strategies:", e.response?.data?.message || e.message);
-      }
-    };
-    fetchAllCombo();
+    fetchAllStrategies();
   }, []);
 
-  // --- Handle form input changes ---
+  // --- Handle form changes ---
   const handleChange = (e) => {
     const { name, value } = e.target;
-
     if (name === "strategyType") {
       const defaultParams = {
         "Moving Average Crossover": { shortPeriod: 10, longPeriod: 50 },
@@ -58,7 +64,7 @@ const Strategies = () => {
         "On-Balance Volume": { maPeriod: 20 },
         CCI: { period: 20, overbought: 100, oversold: -100 },
         ATR: { period: 14, multiplier: 2 },
-        "Ichimoku Cloud": { conversionLinePeriod: 9, baseLinePeriod: 26, laggingSpanPeriod: 26, leadingSpanBPeriod: 52 },
+        "Ichimoku Cloud": { conversionLinePeriod: 9, baseLinePeriod: 26, laggingSpanPeriod: 26, leadingSpanBPeriod: 52 }
       };
       setNewStrategy((prev) => ({ ...prev, params: { strategyType: value, ...defaultParams[value] } }));
     } else if (newStrategy.params.hasOwnProperty(name)) {
@@ -71,30 +77,23 @@ const Strategies = () => {
   // --- Create strategy ---
   const handleCreate = async (e) => {
     e.preventDefault();
-
     try {
       await api.post("/strategies", newStrategy);
-      // ✅ Refresh all strategies including combos
-      const { data } = await api.get("/strategies");
-      setStrategies(Array.isArray(data) ? data : []);
-      const { data: comboData } = await api.get("/strategy/combo");
-      setComboStrategies(Array.isArray(comboData) ? comboData : []);
+      fetchAllStrategies();
       setNewStrategy(initialStrategyState);
-    } catch (e) {
-      setError(e.response?.data?.message || e.message);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message);
     }
   };
 
-  // --- Delete strategy ---
-  const handleDelete = async (id) => {
+  // --- Delete ---
+  const handleDelete = async (id, type) => {
     if (!window.confirm("Are you sure you want to delete this strategy?")) return;
-
     try {
-      await api.delete(`/strategies/${id}`);
-      setStrategies((prev) => prev.filter((s) => s?._id !== id));
-      setComboStrategies((prev) => prev.filter((s) => s?._id !== id));
-    } catch (e) {
-      setError(e.response?.data?.message || e.message);
+      await api.delete(`/${type}/${id}`);
+      fetchAllStrategies();
+    } catch (err) {
+      setError(err.response?.data?.message || err.message);
     }
   };
 
@@ -121,133 +120,50 @@ const Strategies = () => {
                   border: "1px solid #3e4e60",
                   width: "100%",
                   padding: "6px",
-                  marginTop: "4px",
+                  marginTop: "4px"
                 }}
               />
             </label>
           ))}
         {guide && (
-          <div
-            style={{
-              marginTop: "20px",
-              paddingTop: "15px",
-              borderTop: "1px solid #3e4e60",
-              fontSize: "13px",
-              color: "#cbd5e1",
-            }}
-          >
+          <div style={{ marginTop: "20px", paddingTop: "15px", borderTop: "1px solid #3e4e60", fontSize: "13px", color: "#cbd5e1" }}>
             <h4 style={{ fontWeight: 600, color: "#94a3b8" }}>{guide.title} Guide</h4>
-            <p>
-              <strong>What it is:</strong> {guide.whatItIs}
-            </p>
-            <p>
-              <strong>How it works:</strong> {guide.howItWorks}
-            </p>
-            <p>
-              <strong>Combine With:</strong> {guide.combineWith}
-            </p>
+            <p><strong>What it is:</strong> {guide.whatItIs}</p>
+            <p><strong>How it works:</strong> {guide.howItWorks}</p>
+            <p><strong>Combine With:</strong> {guide.combineWith}</p>
           </div>
         )}
       </div>
     );
   };
 
-  if (contextLoading) return <div style={{ color: "#eee" }}>Loading strategies...</div>;
-  if (error) return <div style={{ color: "#dc3545" }}>Error: {error}</div>;
+  if (loading || contextLoading) return <p style={{ color: "#eee" }}>Loading strategies...</p>;
+  if (error) return <p style={{ color: "#dc3545" }}>Error: {error}</p>;
 
   return (
-    <div
-      style={{
-        padding: "20px",
-        maxWidth: "1000px",
-        margin: "auto",
-        backgroundColor: "#121e2c",
-        color: "#eee",
-        fontFamily: "sans-serif",
-      }}
-    >
+    <div style={{ padding: "20px", maxWidth: "1000px", margin: "auto", backgroundColor: "#121e2c", color: "#eee", fontFamily: "sans-serif" }}>
       <h1>My Trading Strategies</h1>
-      <p style={{ color: "#aaa", fontSize: "16px" }}>
-        Define trading rules to find market opportunities. Pick a strategy type and adjust parameters.
-      </p>
+      <p style={{ color: "#aaa", fontSize: "16px" }}>Define trading rules to find market opportunities. Pick a strategy type and adjust parameters.</p>
 
-      {/* Create Strategy Form */}
-      <div
-        style={{
-          padding: "20px",
-          marginBottom: "40px",
-          borderRadius: "8px",
-          backgroundColor: "#1e2b3c",
-          border: "1px solid #3e4e60",
-        }}
-      >
+      {/* --- Create Strategy Form --- */}
+      <div style={{ padding: "20px", marginBottom: "40px", borderRadius: "8px", backgroundColor: "#1e2b3c", border: "1px solid #3e4e60" }}>
         <h2>Create a New Strategy</h2>
-        <form
-          onSubmit={handleCreate}
-          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "30px" }}
-        >
+        <form onSubmit={handleCreate} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "30px" }}>
           <div>
             <h3>Configuration</h3>
             <label>
               Strategy Type:
-              <select
-                name="strategyType"
-                value={newStrategy.params.strategyType}
-                onChange={handleChange}
-                style={{
-                  width: "100%",
-                  padding: "8px",
-                  marginTop: "4px",
-                  marginBottom: "10px",
-                  backgroundColor: "#2e3d51",
-                  color: "#eee",
-                  border: "1px solid #3e4e60",
-                }}
-              >
-                {Object.keys(strategyGuides).map((t) => (
-                  <option key={t} value={t}>
-                    {strategyGuides[t].title}
-                  </option>
-                ))}
+              <select name="strategyType" value={newStrategy.params.strategyType} onChange={handleChange} style={{ width: "100%", padding: "8px", marginTop: "4px", marginBottom: "10px", backgroundColor: "#2e3d51", color: "#eee", border: "1px solid #3e4e60" }}>
+                {Object.keys(strategyGuides).map((t) => <option key={t} value={t}>{strategyGuides[t].title}</option>)}
               </select>
             </label>
             <label>
               Strategy Name:
-              <input
-                type="text"
-                name="name"
-                value={newStrategy.name}
-                onChange={handleChange}
-                required
-                placeholder="e.g., My MACD Trend Follower"
-                style={{
-                  width: "100%",
-                  padding: "8px",
-                  marginTop: "4px",
-                  marginBottom: "10px",
-                  backgroundColor: "#2e3d51",
-                  color: "#eee",
-                  border: "1px solid #3e4e60",
-                }}
-              />
+              <input type="text" name="name" value={newStrategy.name} onChange={handleChange} required placeholder="e.g., My MACD Trend Follower" style={{ width: "100%", padding: "8px", marginTop: "4px", marginBottom: "10px", backgroundColor: "#2e3d51", color: "#eee", border: "1px solid #3e4e60" }} />
             </label>
             <label>
               Description:
-              <textarea
-                name="description"
-                value={newStrategy.description}
-                onChange={handleChange}
-                placeholder="Short note"
-                style={{
-                  width: "100%",
-                  minHeight: "80px",
-                  padding: "8px",
-                  marginTop: "4px",
-                  backgroundColor: "#2e3d51",
-                  color: "#eee",
-                  border: "1px solid #3e4e60",
-                }}
-              />
+              <textarea name="description" value={newStrategy.description} onChange={handleChange} placeholder="Short note" style={{ width: "100%", minHeight: "80px", padding: "8px", marginTop: "4px", backgroundColor: "#2e3d51", color: "#eee", border: "1px solid #3e4e60" }} />
             </label>
           </div>
 
@@ -257,114 +173,47 @@ const Strategies = () => {
           </div>
 
           <div style={{ gridColumn: "span 2", textAlign: "center", marginTop: "20px" }}>
-            <button
-              type="submit"
-              style={{
-                padding: "12px 24px",
-                fontSize: "16px",
-                fontWeight: "bold",
-                backgroundColor: "#4CAF50",
-                color: "white",
-                border: "none",
-                borderRadius: "5px",
-                cursor: "pointer",
-              }}
-            >
-              Create Strategy
-            </button>
+            <button type="submit" style={{ padding: "12px 24px", fontSize: "16px", fontWeight: "bold", backgroundColor: "#4CAF50", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" }}>Create Strategy</button>
           </div>
         </form>
       </div>
 
-      {/* Saved Strategies List */}
-      <div
-        style={{
-          padding: "20px",
-          borderRadius: "8px",
-          backgroundColor: "#1e2b3c",
-          border: "1px solid #3e4e60",
-        }}
-      >
-        <h2>My Saved Strategies</h2>
-        {strategies?.length + comboStrategies?.length > 0 ? (
+      {/* --- Single Strategies --- */}
+      <div style={{ padding: "20px", borderRadius: "8px", backgroundColor: "#1e2b3c", border: "1px solid #3e4e60", marginBottom: "30px" }}>
+        <h2>Single Strategies</h2>
+        {strategies?.length > 0 ? (
           <ul style={{ listStyle: "none", padding: 0 }}>
-            {strategies.map(
-              (s) =>
-                s && (
-                  <li
-                    key={s._id || Math.random()}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "15px",
-                      borderBottom: "1px solid #333",
-                    }}
-                  >
-                    <span>
-                      <strong>{s.name || "Unnamed Strategy"}</strong>
-                      <br />
-                      <span style={{ fontSize: "12px", color: "#888" }}>
-                        Type: {s.params?.strategyType || "Unknown"}
-                      </span>
-                    </span>
-                    <button
-                      onClick={() => handleDelete(s._id)}
-                      style={{
-                        padding: "8px 16px",
-                        backgroundColor: "#dc3545",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "5px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </li>
-                )
-            )}
-            {comboStrategies.map(
-              (s) =>
-                s && (
-                  <li
-                    key={s._id || Math.random()}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "15px",
-                      borderBottom: "1px solid #333",
-                      backgroundColor: "#24344f",
-                    }}
-                  >
-                    <span>
-                      <strong>{s.name || "Unnamed Combo Strategy"} (Combo)</strong>
-                      <br />
-                      <span style={{ fontSize: "12px", color: "#888" }}>
-                        Type: {s.params?.strategyType || "Unknown"}
-                      </span>
-                    </span>
-                    <button
-                      onClick={() => handleDelete(s._id)}
-                      style={{
-                        padding: "8px 16px",
-                        backgroundColor: "#dc3545",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "5px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </li>
-                )
-            )}
+            {strategies.map(s => s && (
+              <li key={s._id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px", borderBottom: "1px solid #333" }}>
+                <span>
+                  <strong>{s.name}</strong>
+                  <br />
+                  <span style={{ fontSize: "12px", color: "#888" }}>Type: {s.params?.strategyType}</span>
+                </span>
+                <button onClick={() => handleDelete(s._id, "strategies")} style={{ padding: "8px 16px", backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" }}>Delete</button>
+              </li>
+            ))}
           </ul>
-        ) : (
-          <p style={{ color: "#aaa" }}>No strategies yet. Use the form above to create one.</p>
-        )}
+        ) : <p style={{ color: "#aaa" }}>No single strategies yet.</p>}
+      </div>
+
+      {/* --- Combo Strategies --- */}
+      <div style={{ padding: "20px", borderRadius: "8px", backgroundColor: "#1e2b3c", border: "1px solid #3e4e60" }}>
+        <h2>Combo Strategies</h2>
+        {comboStrategies?.length > 0 ? (
+          <ul style={{ listStyle: "none", padding: 0 }}>
+            {comboStrategies.map(s => s && (
+              <li key={s._id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px", borderBottom: "1px solid #333", backgroundColor: "#24344f" }}>
+                <span>
+                  <strong>{s.name} (Combo)</strong>
+                  <br />
+                  <span style={{ fontSize: "12px", color: "#888" }}>Type: {s.params?.strategyType}</span>
+                </span>
+                <button onClick={() => handleDelete(s._id, "combos")} style={{ padding: "8px 16px", backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" }}>Delete</button>
+              </li>
+            ))}
+          </ul>
+        ) : <p style={{ color: "#aaa" }}>No combo strategies yet.</p>}
       </div>
     </div>
   );
