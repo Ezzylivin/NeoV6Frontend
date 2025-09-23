@@ -71,8 +71,7 @@ const strategyGuides = {
 const initialStrategyState = {
   name: "",
   description: "",
-  params: { strategyType: "Moving Average Crossover", shortPeriod: 10, longPeriod: 50 },
-  addToCombo: false // New flag for adding to combo
+  params: { strategyType: "Moving Average Crossover", shortPeriod: 10, longPeriod: 50 }
 };
 
 const Strategies = () => {
@@ -103,7 +102,7 @@ const Strategies = () => {
 
   // --- Handle single strategy form changes ---
   const handleStrategyChange = (e) => {
-    const { name, value, type, checked } = e.target;
+    const { name, value } = e.target;
     if (name === "strategyType") {
       const defaultParams = {
         "Moving Average Crossover": { shortPeriod: 10, longPeriod: 50 },
@@ -118,8 +117,6 @@ const Strategies = () => {
         "Ichimoku Cloud": { conversionLinePeriod: 9, baseLinePeriod: 26, laggingSpanPeriod: 26, leadingSpanBPeriod: 52 }
       };
       setNewStrategy(prev => ({ ...prev, params: { strategyType: value, ...defaultParams[value] } }));
-    } else if (name === "addToCombo") {
-      setNewStrategy(prev => ({ ...prev, addToCombo: checked }));
     } else if (newStrategy.params.hasOwnProperty(name)) {
       setNewStrategy(prev => ({ ...prev, params: { ...prev.params, [name]: value } }));
     } else {
@@ -131,9 +128,7 @@ const Strategies = () => {
   const handleCreateStrategy = async (e) => {
     e.preventDefault();
     try {
-      const payload = { ...newStrategy };
-      if (!payload.addToCombo) delete payload.addToCombo; // optional field
-      const res = await api.post("/strategy", payload);
+      const res = await api.post("/strategy", newStrategy);
       const saved = res.data;
       setSingleStrategies(prev => [...prev, saved]);
       setNewStrategy(initialStrategyState);
@@ -175,17 +170,6 @@ const Strategies = () => {
             <textarea name="description" value={newStrategy.description} onChange={handleStrategyChange} />
           </label>
 
-          {/* --- Add to Combo Checkbox --- */}
-          <label>
-            <input
-              type="checkbox"
-              name="addToCombo"
-              checked={newStrategy.addToCombo}
-              onChange={handleStrategyChange}
-            />
-            Add to Combo
-          </label>
-
           {/* --- Parameters Section --- */}
           <div className="parameters-form">
             {Object.entries(newStrategy.params)
@@ -200,6 +184,18 @@ const Strategies = () => {
 
           <button type="submit" className="button-add">Create Strategy</button>
         </form>
+
+        {/* --- Strategy Guide --- */}
+        {newStrategy.params.strategyType && (
+          <div className="strategy-guide">
+            <h3 className="card-title">Parameters & Guide</h3>
+            <div className="strategy-description">
+              <p><strong>What it is:</strong> {strategyGuides[newStrategy.params.strategyType]?.whatItIs}</p>
+              <p><strong>How it works:</strong> {strategyGuides[newStrategy.params.strategyType]?.howItWorks}</p>
+              <p><strong>Combine with:</strong> {strategyGuides[newStrategy.params.strategyType]?.combineWith}</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* --- Single Strategies List --- */}
@@ -212,7 +208,6 @@ const Strategies = () => {
                 <span>
                   <span className="strategy-name">{s.name}</span>
                   <span className="strategy-type">{s.params.strategyType}</span>
-                  {s.addToCombo && <span className="combo-flag">[Add to Combo]</span>}
                 </span>
               </li>
             ))}
