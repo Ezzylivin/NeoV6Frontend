@@ -1,4 +1,4 @@
-// File: src/pages/Strategies.jsx 
+// File: src/pages/Strategies.jsx
 import React, { useState, useEffect } from "react";
 import api from "../api/apiClient.js";
 import "./Strategies.css";
@@ -81,7 +81,11 @@ const initialComboState = {
   symbol: "BTC-USD",
   timeframe: "1m",
   isCombo: true,
-  comboConfig: { strategyCodes: [], combinationRule: "OR" }
+  comboConfig: {
+    strategyCodes: [], // human-friendly selection
+    params: [], // array [{ code, params }]
+    combinationRule: "OR"
+  }
 };
 
 const Strategies = () => {
@@ -122,7 +126,6 @@ const Strategies = () => {
     };
     fetchAll();
 
-    // --- Listen for real-time saved strategies ---
     const handleStrategySaved = (event) => {
       const saved = event.detail;
       if (saved) setSingleStrategies(prev => [...prev, saved]);
@@ -170,12 +173,35 @@ const Strategies = () => {
     setNewCombo(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleComboConfigChange = (e) => {
-    const { name, value } = e.target;
-    setNewCombo(prev => ({
-      ...prev,
-      comboConfig: { ...prev.comboConfig, [name]: name === "strategyCodes" ? value.split(",") : value }
-    }));
+  const handleComboStrategySelection = (code) => {
+    setNewCombo(prev => {
+      const exists = prev.comboConfig.strategyCodes.includes(code);
+      let strategyCodes, params;
+      if (exists) {
+        strategyCodes = prev.comboConfig.strategyCodes.filter(c => c !== code);
+        params = prev.comboConfig.params.filter(p => p.code !== code);
+      } else {
+        strategyCodes = [...prev.comboConfig.strategyCodes, code];
+        const defaultParams = { strategyType: code };
+        params = [...prev.comboConfig.params, { code, params: defaultParams }];
+      }
+      return {
+        ...prev,
+        comboConfig: { ...prev.comboConfig, strategyCodes, params }
+      };
+    });
+  };
+
+  const handleComboParamChange = (code, key, value) => {
+    setNewCombo(prev => {
+      const updatedParams = prev.comboConfig.params.map(p => {
+        if (p.code === code) {
+          return { ...p, params: { ...p.params, [key]: value } };
+        }
+        return p;
+      });
+      return { ...prev, comboConfig: { ...prev.comboConfig, params: updatedParams } };
+    });
   };
 
   // --- Create single strategy ---
@@ -192,11 +218,37 @@ const Strategies = () => {
     }
   };
 
-  // --- Create combo strategy ---
+  // --- Create combo strategy (matches backend schema) ---
   const handleCreateCombo = async (e) => {
     e.preventDefault();
     try {
-      const res = await api.post("/combos", newCombo);
+      // Map codes to backend strategy IDs
+      const strategyIdMap = {};
+      singleStrategies.forEach(s => {
+        strategyIdMap[s.params.strategyType] = s._id;
+      });
+
+      const strategies = newCombo.comboConfig.strategyCodes
+        .map(code => strategyIdMap[code])
+        .filter(Boolean);
+
+      const params = {};
+      newCombo.comboConfig.params.forEach(p => {
+        const strategyId = strategyIdMap[p.code];
+        if (strategyId) params[strategyId] = p.params;
+      });
+
+      const payload = {
+        name: newCombo.name,
+        description: newCombo.description,
+        symbol: newCombo.symbol,
+        timeframe: newCombo.timeframe,
+        isCombo: true,
+        strategies,
+        params
+      };
+
+      const res = await api.post("/combos", payload);
       const saved = res.data;
       setComboStrategies(prev => [...prev, saved]);
       window.dispatchEvent(new CustomEvent("comboSaved", { detail: saved }));
@@ -225,7 +277,7 @@ const Strategies = () => {
     <div className="strategies-container">
       <h1 className="header">My Trading Strategies</h1>
 
-      {/* --- Create Single Strategy Form --- */}
+      {/* --- Single Strategy Form --- */}
       <div className="strategy-form">
         <h2 className="card-title">Create a New Strategy</h2>
         <form onSubmit={handleCreateStrategy}>
@@ -253,7 +305,6 @@ const Strategies = () => {
           <button type="submit" className="button-add">Create Strategy</button>
         </form>
 
-        {/* --- Parameters & Guide Section --- */}
         <div className="strategy-guide">
           <h3 className="card-title">Parameters & Guide</h3>
           {newStrategy.params.strategyType && (
@@ -278,7 +329,7 @@ const Strategies = () => {
         </div>
       </div>
 
-      {/* --- Create Combo Strategy Form --- */}
+      {/* --- Combo Strategy Form --- */}
       <div className="strategy-form">
         <h2 className="card-title">Create a Combo Strategy</h2>
         <form onSubmit={handleCreateCombo}>
@@ -298,22 +349,62 @@ const Strategies = () => {
             Timeframe:
             <input type="text" name="timeframe" value={newCombo.timeframe} onChange={handleComboChange} required />
           </label>
-          <label>
-            Strategy Codes (comma separated):
-            <input type="text" name="strategyCodes" value={newCombo.comboConfig.strategyCodes.join(",")} onChange={handleComboConfigChange} required />
-          </label>
+
+          {/* --- Strategy selection checkboxes --- */}
+          <div className="combo-strategy-selection">
+            {Object.keys(strategyGuides).map(code => (
+              <label key={code}>
+                <input
+                  type="checkbox"
+                  checked={newCombo.comboConfig.strategyCodes.includes(code)}
+                  onChange={() => handleComboStrategySelection(code)}
+                />
+                {strategyGuides[code].title}
+              </label>
+            ))}
+          </div>
+
+          {/* --- Editable params for selected strategies --- */}
+          <div className="combo-parameters">
+            {newCombo.comboConfig.params.map(p => (
+              <div key={p.code} className="strategy-param-card">
+                <h4>{p.code}</h4>
+                {Object.entries(p.params).map(([key, value]) => (
+                  <label key={key}>
+                    {key}:
+                    <input
+                      type="number"
+                      value={value}
+                      onChange={e => handleComboParamChange(p.code, key, e.target.value)}
+                    />
+                  </label>
+                ))}
+              </div>
+            ))}
+          </div>
+
           <label>
             Combination Rule:
-            <select name="combinationRule" value={newCombo.comboConfig.combinationRule} onChange={handleComboConfigChange}>
+            <select
+              name="combinationRule"
+              value={newCombo.comboConfig.combinationRule}
+              onChange={e =>
+                setNewCombo(prev => ({
+                  ...prev,
+                  comboConfig: { ...prev.comboConfig, combinationRule: e.target.value }
+                }))
+              }
+            >
               <option value="AND">AND</option>
               <option value="OR">OR</option>
             </select>
           </label>
+
           <button type="submit" className="button-add">Create Combo Strategy</button>
         </form>
       </div>
 
-      {/* --- Single Strategies --- */}
+      {/* --- Single Strategies List --- */}
       <div>
         <h2 className="card-title">Single Strategies</h2>
         {singleStrategies.length > 0 ? (
@@ -331,7 +422,7 @@ const Strategies = () => {
         ) : <p className="no-strategies">No single strategies yet.</p>}
       </div>
 
-      {/* --- Combo Strategies --- */}
+      {/* --- Combo Strategies List --- */}
       <div>
         <h2 className="card-title">Combo Strategies</h2>
         {comboStrategies.length > 0 ? (
@@ -340,19 +431,22 @@ const Strategies = () => {
               <li key={c._id} className="strategy-card combo">
                 <div>
                   <span className="strategy-name">{c.name}</span>
-                  <span className="strategy-type">Combo ({c.comboConfig.strategyCodes.join(", ")})</span>
+                  <span className="strategy-type">Combo ({c.strategies.length} strategies)</span>
                 </div>
-                {/* --- Render each strategy's params for the combo --- */}
                 <div className="combo-params">
-                  {c.params && c.params.map((p, idx) => (
-                    <div key={idx} className="strategy-param-card">
-                      <h4>{p.code}</h4>
-                      {Object.entries(p.params).map(([key, value]) => (
-                        <p key={key}><strong>{key}:</strong> {value}</p>
-                      ))}
-                      <p><strong>Guide:</strong> {strategyGuides[p.code]?.whatItIs}</p>
-                    </div>
-                  ))}
+                  {c.params && Object.entries(c.params).map(([strategyId, params]) => {
+                    const s = singleStrategies.find(s => s._id === strategyId);
+                    const code = s?.params?.strategyType || "Unknown";
+                    return (
+                      <div key={strategyId} className="strategy-param-card">
+                        <h4>{code}</h4>
+                        {Object.entries(params).map(([k, v]) => (
+                          <p key={k}><strong>{k}:</strong> {v}</p>
+                        ))}
+                        <p><strong>Guide:</strong> {strategyGuides[code]?.whatItIs}</p>
+                      </div>
+                    );
+                  })}
                 </div>
                 <button className="button-remove" onClick={() => handleDelete(c._id, "combos")}>Delete</button>
               </li>
