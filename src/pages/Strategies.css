@@ -1,0 +1,203 @@
+/* File: src/styles/Strategies.css */
+
+/* --- Container --- */
+.strategies-container {
+  padding: 20px;
+  background-color: #1b1b2b;
+  color: #ffffff;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  max-width: 1000px;
+  margin: auto;
+}
+
+/* --- Headers --- */
+.header {
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+.card-title {
+  font-size: 20px;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.card-value {
+  font-size: 16px;
+  margin-bottom: 5px;
+}
+
+/* --- Forms --- */
+.strategy-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px;
+  background-color: #1e1e2f;
+  border-radius: 8px;
+  border: 1px solid #3e4e60;
+  margin-bottom: 40px;
+}
+
+.strategy-form label {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.strategy-form input[type="text"],
+.strategy-form select,
+.strategy-form textarea,
+.strategy-form input[type="number"] {
+  background-color: #1e1e2f;
+  color: #ffffff;
+  border: 1px solid #444;
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin-top: 5px;
+  font-size: 14px;
+  appearance: none;
+}
+
+.strategy-form select option {
+  background-color: #1e1e2f;
+  color: #ffffff;
+}
+
+.strategy-form input:focus,
+.strategy-form select:focus,
+.strategy-form textarea:focus {
+  border-color: #4f46e5;
+  outline: none;
+}
+
+/* --- Buttons --- */
+button {
+  background-color: #4f46e5;
+  color: #ffffff;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-top: 5px;
+  transition: background 0.2s;
+}
+
+button:hover:not(:disabled) {
+  background-color: #6366f1;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.button-add {
+  background-color: #10b981;
+  margin-top: 10px;
+}
+
+.button-add:hover {
+  background-color: #059669;
+}
+
+.button-remove {
+  background-color: #ef4444;
+  margin-left: 10px;
+}
+
+.button-remove:hover {
+  background-color: #b91c1c;
+}
+
+/* --- Error banner --- */
+.error-banner {
+  background-color: #b91c1c;
+  color: #fff;
+  padding: 10px 15px;
+  border-radius: 6px;
+  margin-bottom: 15px;
+}
+
+/* --- Strategy Cards --- */
+.strategy-card {
+  background-color: #1e1e2f;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.strategy-card span {
+  display: flex;
+  flex-direction: column;
+}
+
+.strategy-card .strategy-name {
+  font-weight: 600;
+}
+
+.strategy-card .strategy-type {
+  font-size: 12px;
+  color: #888;
+}
+
+/* --- Parameters & Guides --- */
+.strategy-parameters {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #3e4e60;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.strategy-parameters h4 {
+  font-weight: 600;
+  color: #94a3b8;
+  margin-bottom: 5px;
+}
+
+.strategy-parameters p {
+  margin-bottom: 5px;
+}
+
+/* --- Combo & Single Strategy Lists --- */
+.strategy-list {
+  list-style: none;
+  padding: 0;
+}
+
+.strategy-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  border-bottom: 1px solid #333;
+}
+
+.strategy-list li.combo {
+  background-color: #24344f;
+}
+
+/* --- No Strategies --- */
+.no-strategies {
+  color: #aaa;
+  font-style: italic;
+}
+
+/* --- Responsive Adjustments --- */
+@media (max-width: 768px) {
+  .strategy-form {
+    flex-direction: column;
+  }
+
+  .strategy-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
