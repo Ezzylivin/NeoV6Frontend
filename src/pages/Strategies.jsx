@@ -74,10 +74,21 @@ const initialStrategyState = {
   params: { strategyType: "Moving Average Crossover", shortPeriod: 10, longPeriod: 50 }
 };
 
+// --- Default new combo ---
+const initialComboState = {
+  name: "",
+  description: "",
+  symbol: "BTC-USD",
+  timeframe: "1m",
+  isCombo: true,
+  comboConfig: { strategyCodes: [], combinationRule: "OR" }
+};
+
 const Strategies = () => {
   const [singleStrategies, setSingleStrategies] = useState([]);
   const [comboStrategies, setComboStrategies] = useState([]);
   const [newStrategy, setNewStrategy] = useState(initialStrategyState);
+  const [newCombo, setNewCombo] = useState(initialComboState);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -129,8 +140,8 @@ const Strategies = () => {
     };
   }, []);
 
-  // --- Handle form changes ---
-  const handleChange = (e) => {
+  // --- Handle single strategy form changes ---
+  const handleStrategyChange = (e) => {
     const { name, value } = e.target;
     if (name === "strategyType") {
       const defaultParams = {
@@ -153,16 +164,43 @@ const Strategies = () => {
     }
   };
 
-  // --- Create strategy ---
-  const handleCreate = async (e) => {
+  // --- Handle combo form changes ---
+  const handleComboChange = (e) => {
+    const { name, value } = e.target;
+    setNewCombo(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleComboConfigChange = (e) => {
+    const { name, value } = e.target;
+    setNewCombo(prev => ({
+      ...prev,
+      comboConfig: { ...prev.comboConfig, [name]: name === "strategyCodes" ? value.split(",") : value }
+    }));
+  };
+
+  // --- Create single strategy ---
+  const handleCreateStrategy = async (e) => {
     e.preventDefault();
     try {
       const res = await api.post("/strategy", newStrategy);
       const saved = res.data;
       setSingleStrategies(prev => [...prev, saved]);
-      // Dispatch global event
       window.dispatchEvent(new CustomEvent("strategySaved", { detail: saved }));
       setNewStrategy(initialStrategyState);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message);
+    }
+  };
+
+  // --- Create combo strategy ---
+  const handleCreateCombo = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await api.post("/combos", newCombo);
+      const saved = res.data;
+      setComboStrategies(prev => [...prev, saved]);
+      window.dispatchEvent(new CustomEvent("comboSaved", { detail: saved }));
+      setNewCombo(initialComboState);
     } catch (err) {
       setError(err.response?.data?.message || err.message);
     }
@@ -187,16 +225,16 @@ const Strategies = () => {
     <div className="strategies-container">
       <h1 className="header">My Trading Strategies</h1>
 
-      {/* --- Create Strategy Form --- */}
+      {/* --- Create Single Strategy Form --- */}
       <div className="strategy-form">
         <h2 className="card-title">Create a New Strategy</h2>
-        <form onSubmit={handleCreate}>
+        <form onSubmit={handleCreateStrategy}>
           <label>
             Strategy Type:
             <select
               name="strategyType"
               value={newStrategy.params.strategyType}
-              onChange={handleChange}
+              onChange={handleStrategyChange}
               className="dashboard-dropdown"
             >
               {Object.keys(strategyGuides).map(t => (
@@ -206,11 +244,11 @@ const Strategies = () => {
           </label>
           <label>
             Strategy Name:
-            <input type="text" name="name" value={newStrategy.name} onChange={handleChange} required />
+            <input type="text" name="name" value={newStrategy.name} onChange={handleStrategyChange} required />
           </label>
           <label>
             Description:
-            <textarea name="description" value={newStrategy.description} onChange={handleChange} />
+            <textarea name="description" value={newStrategy.description} onChange={handleStrategyChange} />
           </label>
           <button type="submit" className="button-add">Create Strategy</button>
         </form>
@@ -226,7 +264,7 @@ const Strategies = () => {
                   .map(([key, value]) => (
                     <label key={key}>
                       {key}:
-                      <input type="number" name={key} value={value} onChange={handleChange} />
+                      <input type="number" name={key} value={value} onChange={handleStrategyChange} />
                     </label>
                   ))}
               </div>
@@ -238,6 +276,41 @@ const Strategies = () => {
             </div>
           )}
         </div>
+      </div>
+
+      {/* --- Create Combo Strategy Form --- */}
+      <div className="strategy-form">
+        <h2 className="card-title">Create a Combo Strategy</h2>
+        <form onSubmit={handleCreateCombo}>
+          <label>
+            Combo Name:
+            <input type="text" name="name" value={newCombo.name} onChange={handleComboChange} required />
+          </label>
+          <label>
+            Description:
+            <textarea name="description" value={newCombo.description} onChange={handleComboChange} />
+          </label>
+          <label>
+            Symbol:
+            <input type="text" name="symbol" value={newCombo.symbol} onChange={handleComboChange} required />
+          </label>
+          <label>
+            Timeframe:
+            <input type="text" name="timeframe" value={newCombo.timeframe} onChange={handleComboChange} required />
+          </label>
+          <label>
+            Strategy Codes (comma separated):
+            <input type="text" name="strategyCodes" value={newCombo.comboConfig.strategyCodes.join(",")} onChange={handleComboConfigChange} required />
+          </label>
+          <label>
+            Combination Rule:
+            <select name="combinationRule" value={newCombo.comboConfig.combinationRule} onChange={handleComboConfigChange}>
+              <option value="AND">AND</option>
+              <option value="OR">OR</option>
+            </select>
+          </label>
+          <button type="submit" className="button-add">Create Combo Strategy</button>
+        </form>
       </div>
 
       {/* --- Single Strategies --- */}
@@ -267,7 +340,7 @@ const Strategies = () => {
               <li key={c._id} className="strategy-card combo">
                 <span>
                   <span className="strategy-name">{c.name}</span>
-                  <span className="strategy-type">{c.params?.strategyType || "Combo"}</span>
+                  <span className="strategy-type">Combo ({c.comboConfig.strategyCodes.join(", ")})</span>
                 </span>
                 <button className="button-remove" onClick={() => handleDelete(c._id, "combos")}>Delete</button>
               </li>
