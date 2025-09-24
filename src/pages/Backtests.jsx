@@ -4,7 +4,14 @@ import { useBacktest } from "../hooks/useBacktest.js";
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { StrategyContext } from "../context/StrategyContext.jsx";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
 } from "recharts";
 import "./Backtests.css";
 
@@ -217,7 +224,7 @@ export default function Backtests() {
         timeframe: comboData.timeframe,
         startDate: comboData.startDate,
         endDate: comboData.endDate,
-        strategies, // ✅ correct key for backend
+        strategies,
       };
 
       const result = await runComboBacktest(payload);
@@ -311,15 +318,15 @@ export default function Backtests() {
       const individualSeries = backtestResults.individuals
         .filter((r) => r.metrics?.totalTrades > 0)
         .map((r) => ({ name: r.name, data: r.equityCurve }));
+
       const allSeries = [
         { name: "Combined", data: backtestResults.main.equityCurve },
         ...individualSeries,
       ];
+
       const allTimestamps = [
         ...new Set(
-          allSeries.flatMap((s) =>
-            s.data.map((p) => new Date(p.timestamp).getTime())
-          )
+          allSeries.flatMap((s) => s.data.map((p) => new Date(p.timestamp).getTime()))
         ),
       ].sort((a, b) => a - b);
 
@@ -333,7 +340,7 @@ export default function Backtests() {
 
       const lastBalances = {};
       allSeries.forEach((s) => {
-        lastBalances[s.name] = s.data[0]?.balance || 1000;
+        lastBalances[s.name] = s.data[0]?.balance ?? 1000;
       });
 
       const mergedData = allTimestamps.map((ts) => {
@@ -355,6 +362,7 @@ export default function Backtests() {
         "#00C49F",
         "#FFBB28",
       ];
+
       return {
         data: mergedData,
         series: allSeries.map((s, i) => ({
@@ -460,7 +468,7 @@ export default function Backtests() {
             {comboData.strategyConfigs.map((s, idx) => (
               <div key={idx} className="combo-strategy-item">
                 <select
-                  name="strategies"
+                  name="strategyCode"
                   value={s.code}
                   onChange={(e) => handleComboChange(e, idx)}
                   required
@@ -568,18 +576,15 @@ export default function Backtests() {
               Save Setup
             </button>
           </div>
-          {backtestResults.main.noTradeReason && (
-            <p className="no-trades-reason">
-              ⚠️ {backtestResults.main.noTradeReason}
-            </p>
-          )}
+
           <MetricsDisplay metrics={backtestResults.main.metrics} />
-          {chartData?.data?.length > 0 && (
+
+          {chartData && (
             <ResponsiveContainer width="100%" height={400}>
               <LineChart data={chartData.data}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
-                <YAxis domain={["auto", "auto"]} />
+                <YAxis />
                 <Tooltip />
                 <Legend />
                 {chartData.series.map((s) => (
@@ -589,7 +594,6 @@ export default function Backtests() {
                     dataKey={s.dataKey}
                     stroke={s.color}
                     dot={false}
-                    name={s.name}
                   />
                 ))}
               </LineChart>
@@ -602,10 +606,10 @@ export default function Backtests() {
       {isSaveModalOpen && (
         <div className="modal-overlay">
           <div className="modal-content">
-            <h3 className="modal-title">Save Backtest Setup</h3>
+            <h3>Save Backtest Setup</h3>
             <form onSubmit={handleSaveSetup}>
               <label>
-                Setup Name
+                Name
                 <input
                   type="text"
                   name="name"
@@ -622,24 +626,16 @@ export default function Backtests() {
                   onChange={handleSetupDetailChange}
                 />
               </label>
-              {saveError && <p className="error-text">{saveError}</p>}
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  onClick={closeSaveModal}
-                  className="button-secondary"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="button-save"
-                  disabled={isSaving}
-                >
+              <div className="modal-buttons">
+                <button type="submit" disabled={isSaving}>
                   {isSaving ? "Saving..." : "Save"}
+                </button>
+                <button type="button" onClick={closeSaveModal}>
+                  Cancel
                 </button>
               </div>
             </form>
+            {saveError && <p className="error">{saveError}</p>}
           </div>
         </div>
       )}
