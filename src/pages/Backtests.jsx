@@ -22,6 +22,7 @@ const formatDate = (date) => {
     d.getDate()
   ).padStart(2, "0")}`;
 };
+
 const getInitialDates = () => {
   const today = new Date();
   const start = new Date(today);
@@ -40,6 +41,7 @@ const initialFormData = {
   endDate: getInitialDates().endDate,
   params: {},
 };
+
 const initialComboData = {
   strategyConfigs: [{ code: "" }],
   combinationRule: "AND",
@@ -96,17 +98,14 @@ export default function Backtests() {
     runNewBacktest,
     runComboBacktest,
   } = useBacktest();
-  const { createSetup, loading: isSaving, error: saveError } = useBacktestSetupFunction();
+  const { createSetup } = useBacktestSetupFunction();
 
   const [formData, setFormData] = useState(initialFormData);
   const [comboData, setComboData] = useState(initialComboData);
   const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
   const [activeTestType, setActiveTestType] = useState(null);
-  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [setupDetails, setSetupDetails] = useState({ name: "", description: "" });
   const [resultKey, setResultKey] = useState(Date.now());
-
-  console.log("Backtests.jsx: Payload before sending combo backtest", comboPayload);
 
   // --- Initialize default strategy selection ---
   useEffect(() => {
@@ -154,10 +153,7 @@ export default function Backtests() {
   };
 
   const addStrategyToCombo = () =>
-    setComboData((prev) => ({
-      ...prev,
-      strategyConfigs: [...prev.strategyConfigs, { code: "" }],
-    }));
+    setComboData((prev) => ({ ...prev, strategyConfigs: [...prev.strategyConfigs, { code: "" }] }));
 
   const removeStrategyFromCombo = (i) =>
     setComboData((prev) => ({
@@ -214,6 +210,8 @@ export default function Backtests() {
         strategies: strategiesList,
       };
 
+      console.log("Backtests.jsx: Payload before sending combo backtest", payload);
+
       const result = await runComboBacktest(payload);
       if (result?.combinedResult?.equityCurve?.length > 0) {
         setBacktestResults({
@@ -237,8 +235,6 @@ export default function Backtests() {
   };
 
   // --- Save Setup ---
-  const openSaveModal = () => setIsSaveModalOpen(true);
-  const closeSaveModal = () => setIsSaveModalOpen(false);
   const handleSetupDetailChange = (e) =>
     setSetupDetails({ ...setupDetails, [e.target.name]: e.target.value });
 
@@ -254,29 +250,18 @@ export default function Backtests() {
         payload = {
           name: setupDetails.name,
           description: setupDetails.description,
-          strategies: [
-            {
-              code: strategy?.code || source.code,
-              params: strategy?.params || {},
-            },
-          ],
+          strategies: [{ code: strategy?.code || source.code, params: strategy?.params || {} }],
         };
       } else {
         const allParams = source.strategies.map((code) => {
           const s = options.strategies.find((strat) => strat.code === code);
           return s ? { code: s.code, params: s.params } : { code, params: {} };
         });
-
-        payload = {
-          name: setupDetails.name,
-          description: setupDetails.description,
-          strategies: allParams,
-        };
+        payload = { name: setupDetails.name, description: setupDetails.description, strategies: allParams };
       }
 
       const saved = await createSetup(payload);
       alert("Setup saved successfully!");
-      closeSaveModal();
       setSetupDetails({ name: "", description: "" });
       setStrategies((prev) => [...prev, saved]);
     } catch (err) {
@@ -290,27 +275,18 @@ export default function Backtests() {
     if (!backtestResults?.main?.equityCurve?.length) return null;
 
     const mapSeriesToPoints = (seriesData) =>
-      seriesData.map((p) => ({
-        date: formatDate(p.timestamp),
-        Equity: p.balance,
-      }));
+      seriesData.map((p) => ({ date: formatDate(p.timestamp), Equity: p.balance }));
 
     if (activeTestType === "single")
-      return {
-        data: mapSeriesToPoints(backtestResults.main.equityCurve),
-        series: [{ name: "Equity", color: "#8884d8", dataKey: "Equity" }],
-      };
+      return { data: mapSeriesToPoints(backtestResults.main.equityCurve), series: [{ name: "Equity", color: "#8884d8", dataKey: "Equity" }] };
 
     if (activeTestType === "combo") {
       const individualSeries = backtestResults.individuals
         .filter((r) => r.metrics?.totalTrades > 0)
         .map((r) => ({ name: r.name, data: r.equityCurve }));
       const allSeries = [{ name: "Combined", data: backtestResults.main.equityCurve }, ...individualSeries];
-      const allTimestamps = [
-        ...new Set(
-          allSeries.flatMap((s) => s.data.map((p) => new Date(p.timestamp).getTime()))
-        ),
-      ].sort((a, b) => a - b);
+      const allTimestamps = [...new Set(allSeries.flatMap((s) => s.data.map((p) => new Date(p.timestamp).getTime())))]
+        .sort((a, b) => a - b);
 
       const dataMap = {};
       allSeries.forEach((s) => {
@@ -321,9 +297,7 @@ export default function Backtests() {
       });
 
       const lastBalances = {};
-      allSeries.forEach((s) => {
-        lastBalances[s.name] = s.data[0]?.balance || 1000;
-      });
+      allSeries.forEach((s) => { lastBalances[s.name] = s.data[0]?.balance || 1000; });
 
       const mergedData = allTimestamps.map((ts) => {
         const point = { date: formatDate(ts) };
@@ -335,10 +309,7 @@ export default function Backtests() {
       });
 
       const colors = ["#8884d8", "#82ca9d", "#ffc658", "#ff8042", "#0088FE", "#00C49F", "#FFBB28"];
-      return {
-        data: mergedData,
-        series: allSeries.map((s, i) => ({ name: s.name, color: colors[i % colors.length], dataKey: s.name })),
-      };
+      return { data: mergedData, series: allSeries.map((s, i) => ({ name: s.name, color: colors[i % colors.length], dataKey: s.name })) };
     }
 
     return null;
@@ -360,78 +331,39 @@ export default function Backtests() {
 
             <label>
               Strategy
-              <select
-                name="code"
-                value={formData.code}
-                onChange={handleChange}
-                required
-              >
+              <select name="code" value={formData.code} onChange={handleChange} required>
                 <option value="">-- Select a strategy --</option>
                 {options.strategies.map((s) => (
-                  <option key={s.code} value={s.code}>
-                    {s.name}
-                  </option>
+                  <option key={s.code} value={s.code}>{s.name}</option>
                 ))}
               </select>
             </label>
 
             <label>
               Symbol
-              <select
-                name="symbol"
-                value={formData.symbol}
-                onChange={handleChange}
-                required
-              >
-                {options.symbols.map((sym) => (
-                  <option key={sym} value={sym}>
-                    {sym}
-                  </option>
-                ))}
+              <select name="symbol" value={formData.symbol} onChange={handleChange} required>
+                {options.symbols.map((sym) => <option key={sym} value={sym}>{sym}</option>)}
               </select>
             </label>
 
             <label>
               Timeframe
-              <select
-                name="timeframe"
-                value={formData.timeframe}
-                onChange={handleChange}
-                required
-              >
-                {options.timeframes.map((tf) => (
-                  <option key={tf} value={tf}>
-                    {tf}
-                  </option>
-                ))}
+              <select name="timeframe" value={formData.timeframe} onChange={handleChange} required>
+                {options.timeframes.map((tf) => <option key={tf} value={tf}>{tf}</option>)}
               </select>
             </label>
 
             <label>
               Start Date
-              <input
-                type="date"
-                name="startDate"
-                value={formData.startDate}
-                onChange={handleChange}
-                required
-              />
+              <input type="date" name="startDate" value={formData.startDate} onChange={handleChange} required />
             </label>
 
             <label>
               End Date
-              <input
-                type="date"
-                name="endDate"
-                value={formData.endDate}
-                onChange={handleChange}
-                required
-              />
+              <input type="date" name="endDate" value={formData.endDate} onChange={handleChange} required />
             </label>
 
-            <button type="submit" disabled={singleLoading}>
-              {singleLoading ? "Running..." : "Run Backtest"}
-            </button>
+            <button type="submit" disabled={singleLoading}>{singleLoading ? "Running..." : "Run Backtest"}</button>
           </div>
         </form>
 
@@ -444,39 +376,20 @@ export default function Backtests() {
               <div key={idx} className="combo-strategy-row">
                 <label>
                   Strategy {idx + 1}
-                  <select
-                    name="strategyCode"
-                    value={cfg.code}
-                    onChange={(e) => handleComboChange(e, idx)}
-                    required
-                  >
+                  <select name="strategyCode" value={cfg.code} onChange={(e) => handleComboChange(e, idx)} required>
                     <option value="">-- Select a strategy --</option>
-                    {options.strategies.map((s) => (
-                      <option key={s.code} value={s.code}>
-                        {s.name}
-                      </option>
-                    ))}
+                    {options.strategies.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
                   </select>
                 </label>
-                {idx > 0 && (
-                  <button type="button" onClick={() => removeStrategyFromCombo(idx)}>
-                    Remove
-                  </button>
-                )}
+                {idx > 0 && <button type="button" onClick={() => removeStrategyFromCombo(idx)}>Remove</button>}
               </div>
             ))}
 
-            <button type="button" onClick={addStrategyToCombo}>
-              Add Strategy
-            </button>
+            <button type="button" onClick={addStrategyToCombo}>Add Strategy</button>
 
             <label>
               Combination Rule
-              <select
-                name="combinationRule"
-                value={comboData.combinationRule}
-                onChange={(e) => handleComboChange(e, 0)}
-              >
+              <select name="combinationRule" value={comboData.combinationRule} onChange={(e) => handleComboChange(e, 0)}>
                 <option value="AND">AND</option>
                 <option value="OR">OR</option>
               </select>
@@ -484,61 +397,29 @@ export default function Backtests() {
 
             <label>
               Symbol
-              <select
-                name="symbol"
-                value={comboData.symbol}
-                onChange={(e) => handleComboChange(e, 0)}
-                required
-              >
-                {options.symbols.map((sym) => (
-                  <option key={sym} value={sym}>
-                    {sym}
-                  </option>
-                ))}
+              <select name="symbol" value={comboData.symbol} onChange={(e) => handleComboChange(e, 0)} required>
+                {options.symbols.map((sym) => <option key={sym} value={sym}>{sym}</option>)}
               </select>
             </label>
 
             <label>
               Timeframe
-              <select
-                name="timeframe"
-                value={comboData.timeframe}
-                onChange={(e) => handleComboChange(e, 0)}
-                required
-              >
-                {options.timeframes.map((tf) => (
-                  <option key={tf} value={tf}>
-                    {tf}
-                  </option>
-                ))}
+              <select name="timeframe" value={comboData.timeframe} onChange={(e) => handleComboChange(e, 0)} required>
+                {options.timeframes.map((tf) => <option key={tf} value={tf}>{tf}</option>)}
               </select>
             </label>
 
             <label>
               Start Date
-              <input
-                type="date"
-                name="startDate"
-                value={comboData.startDate}
-                onChange={(e) => handleComboChange(e, 0)}
-                required
-              />
+              <input type="date" name="startDate" value={comboData.startDate} onChange={(e) => handleComboChange(e, 0)} required />
             </label>
 
             <label>
               End Date
-              <input
-                type="date"
-                name="endDate"
-                value={comboData.endDate}
-                onChange={(e) => handleComboChange(e, 0)}
-                required
-              />
+              <input type="date" name="endDate" value={comboData.endDate} onChange={(e) => handleComboChange(e, 0)} required />
             </label>
 
-            <button type="submit" disabled={batchLoading}>
-              {batchLoading ? "Running..." : "Run Combo Backtest"}
-            </button>
+            <button type="submit" disabled={batchLoading}>{batchLoading ? "Running..." : "Run Combo Backtest"}</button>
           </div>
         </form>
       </div>
@@ -557,14 +438,7 @@ export default function Backtests() {
                 <Tooltip />
                 <Legend />
                 {chartData.series.map((s) => (
-                  <Line
-                    key={s.name}
-                    type="monotone"
-                    dataKey={s.dataKey}
-                    stroke={s.color}
-                    strokeWidth={2}
-                    dot={false}
-                  />
+                  <Line key={s.name} type="monotone" dataKey={s.dataKey} stroke={s.color} strokeWidth={2} dot={false} />
                 ))}
               </LineChart>
             </ResponsiveContainer>
