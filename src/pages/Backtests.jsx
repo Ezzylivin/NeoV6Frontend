@@ -106,6 +106,8 @@ export default function Backtests() {
   const [setupDetails, setSetupDetails] = useState({ name: "", description: "" });
   const [resultKey, setResultKey] = useState(Date.now());
 
+  console.log("Backtests.jsx: Payload before sending combo backtest", comboPayload);
+
   // --- Initialize default strategy selection ---
   useEffect(() => {
     if (options && options.strategies?.length > 0 && !formData.code) {
