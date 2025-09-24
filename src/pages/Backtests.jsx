@@ -460,7 +460,7 @@ export default function Backtests() {
             {comboData.strategyConfigs.map((s, idx) => (
               <div key={idx} className="combo-strategy-item">
                 <select
-                  name="strategyCode"
+                  name="strategies"
                   value={s.code}
                   onChange={(e) => handleComboChange(e, idx)}
                   required
