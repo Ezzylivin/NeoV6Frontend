@@ -4,14 +4,7 @@ import { useBacktest } from "../hooks/useBacktest.js";
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { StrategyContext } from "../context/StrategyContext.jsx";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer,
 } from "recharts";
 import "./Backtests.css";
 
@@ -211,11 +204,15 @@ export default function Backtests() {
     setResultKey(Date.now());
 
     try {
-      const strategies = comboData.strategyConfigs
-        .map((s) => s.code)
+      const strategiesPayload = comboData.strategyConfigs
+        .map((s) => {
+          const strat = options.strategies.find((opt) => opt.code === s.code);
+          if (!strat) return null;
+          return { _id: strat._id, code: strat.code, params: strat.params || {} };
+        })
         .filter(Boolean);
 
-      if (strategies.length < 2)
+      if (strategiesPayload.length < 2)
         return alert("Select at least 2 strategies for a combo test.");
 
       const payload = {
@@ -224,7 +221,7 @@ export default function Backtests() {
         timeframe: comboData.timeframe,
         startDate: comboData.startDate,
         endDate: comboData.endDate,
-        strategies,
+        strategies: strategiesPayload,
       };
 
       const result = await runComboBacktest(payload);
@@ -318,15 +315,15 @@ export default function Backtests() {
       const individualSeries = backtestResults.individuals
         .filter((r) => r.metrics?.totalTrades > 0)
         .map((r) => ({ name: r.name, data: r.equityCurve }));
-
       const allSeries = [
         { name: "Combined", data: backtestResults.main.equityCurve },
         ...individualSeries,
       ];
-
       const allTimestamps = [
         ...new Set(
-          allSeries.flatMap((s) => s.data.map((p) => new Date(p.timestamp).getTime()))
+          allSeries.flatMap((s) =>
+            s.data.map((p) => new Date(p.timestamp).getTime())
+          )
         ),
       ].sort((a, b) => a - b);
 
@@ -340,7 +337,7 @@ export default function Backtests() {
 
       const lastBalances = {};
       allSeries.forEach((s) => {
-        lastBalances[s.name] = s.data[0]?.balance ?? 1000;
+        lastBalances[s.name] = s.data[0]?.balance || 1000;
       });
 
       const mergedData = allTimestamps.map((ts) => {
@@ -362,7 +359,6 @@ export default function Backtests() {
         "#00C49F",
         "#FFBB28",
       ];
-
       return {
         data: mergedData,
         series: allSeries.map((s, i) => ({
@@ -397,248 +393,4 @@ export default function Backtests() {
                 onChange={handleChange}
                 required
               >
-                <option value="">Select strategy</option>
-                {options.strategies?.map((s) => (
-                  <option key={s.code} value={s.code}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Symbol
-              <select
-                name="symbol"
-                value={formData.symbol}
-                onChange={handleChange}
-                required
-              >
-                {options.symbols?.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Timeframe
-              <select
-                name="timeframe"
-                value={formData.timeframe}
-                onChange={handleChange}
-                required
-              >
-                {options.timeframes?.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Start Date
-              <input
-                type="date"
-                name="startDate"
-                value={formData.startDate}
-                onChange={handleChange}
-                required
-              />
-            </label>
-            <label>
-              End Date
-              <input
-                type="date"
-                name="endDate"
-                value={formData.endDate}
-                onChange={handleChange}
-                required
-              />
-            </label>
-            <button type="submit" disabled={singleLoading}>
-              {singleLoading ? "Running..." : "Run Backtest"}
-            </button>
-          </div>
-        </form>
-
-        {/* Combo Backtest Form */}
-        <form className="card-row" onSubmit={handleComboSubmit}>
-          <div className="metric-card">
-            <h3 className="card-title">Combo Strategy Builder</h3>
-            {comboData.strategyConfigs.map((s, idx) => (
-              <div key={idx} className="combo-strategy-item">
-                <select
-                  name="strategyCode"
-                  value={s.code}
-                  onChange={(e) => handleComboChange(e, idx)}
-                  required
-                >
-                  <option value="">Select Strategy {idx + 1}</option>
-                  {options.strategies?.map((opt) => (
-                    <option key={opt.code} value={opt.code}>
-                      {opt.name}
-                    </option>
-                  ))}
-                </select>
-                {comboData.strategyConfigs.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeStrategyFromCombo(idx)}
-                    className="button-remove"
-                  >
-                    X
-                  </button>
-                )}
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={addStrategyToCombo}
-              className="button-add"
-            >
-              + Add Strategy
-            </button>
-            <label>
-              Combination Rule
-              <select
-                name="combinationRule"
-                value={comboData.combinationRule}
-                onChange={handleComboChange}
-                required
-              >
-                <option value="AND">AND</option>
-                <option value="OR">OR</option>
-              </select>
-            </label>
-            <label>
-              Symbol
-              <select
-                name="symbol"
-                value={comboData.symbol}
-                onChange={handleComboChange}
-                required
-              >
-                {options.symbols?.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Timeframe
-              <select
-                name="timeframe"
-                value={comboData.timeframe}
-                onChange={handleComboChange}
-                required
-              >
-                {options.timeframes?.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Start Date
-              <input
-                type="date"
-                name="startDate"
-                value={comboData.startDate}
-                onChange={handleComboChange}
-                required
-              />
-            </label>
-            <label>
-              End Date
-              <input
-                type="date"
-                name="endDate"
-                value={comboData.endDate}
-                onChange={handleComboChange}
-                required
-              />
-            </label>
-            <button type="submit" disabled={batchLoading}>
-              {batchLoading ? "Running..." : "Run Combo Test"}
-            </button>
-          </div>
-        </form>
-      </div>
-
-      {/* Chart & Metrics */}
-      {backtestResults?.main && (
-        <div key={resultKey} className="chart-card">
-          <div className="results-header">
-            <h3>{backtestResults.main.name}</h3>
-            <button onClick={openSaveModal} className="button-save">
-              Save Setup
-            </button>
-          </div>
-
-          <MetricsDisplay metrics={backtestResults.main.metrics} />
-
-          {chartData && (
-            <ResponsiveContainer width="100%" height={400}>
-              <LineChart data={chartData.data}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                {chartData.series.map((s) => (
-                  <Line
-                    key={s.name}
-                    type="monotone"
-                    dataKey={s.dataKey}
-                    stroke={s.color}
-                    dot={false}
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      )}
-
-      {/* Save Modal */}
-      {isSaveModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h3>Save Backtest Setup</h3>
-            <form onSubmit={handleSaveSetup}>
-              <label>
-                Name
-                <input
-                  type="text"
-                  name="name"
-                  value={setupDetails.name}
-                  onChange={handleSetupDetailChange}
-                  required
-                />
-              </label>
-              <label>
-                Description
-                <textarea
-                  name="description"
-                  value={setupDetails.description}
-                  onChange={handleSetupDetailChange}
-                />
-              </label>
-              <div className="modal-buttons">
-                <button type="submit" disabled={isSaving}>
-                  {isSaving ? "Saving..." : "Save"}
-                </button>
-                <button type="button" onClick={closeSaveModal}>
-                  Cancel
-                </button>
-              </div>
-            </form>
-            {saveError && <p className="error">{saveError}</p>}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+                <option value="">
