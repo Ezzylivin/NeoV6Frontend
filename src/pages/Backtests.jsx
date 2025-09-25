@@ -213,30 +213,31 @@ const handleComboSubmit = async (e) => {
   setResultKey(Date.now());
 
   try {
-    // Filter only selected strategies
+    // --- Filter only selected strategies with code ---
     const selectedStrategies = comboData.strategyConfigs
       .filter((s) => s.code)
       .map((s) => {
         const strat = options.strategies.find((opt) => opt.code === s.code);
         return {
-          strategyId: strat?._id || s.code, // use MongoDB _id or fallback code
-          params: strat?.params || {},
+          strategyId: strat?._id || s.code, // MongoDB _id fallback to code
+          params: strat?.params || s.params || {}, // allow per-strategy custom params
         };
       });
 
+    // --- Frontend validation: at least 2 strategies ---
     if (selectedStrategies.length < 2) {
-      return alert("Select at least 2 unique strategies for a combo test.");
+      return alert("Select at least 2 unique strategies for a combined backtest.");
     }
 
-    // --- Correct payload for backend schema ---
+    // --- Normalize payload to match backend comboStrategy schema ---
     const payload = {
       params: {
-        combinationRule: comboData.combinationRule,
+        combinationRule: comboData.combinationRule, // "AND" or "OR"
         symbol: comboData.symbol,
         timeframe: comboData.timeframe,
         startDate: comboData.startDate,
         endDate: comboData.endDate,
-        strategyParams: selectedStrategies,
+        strategyParams: selectedStrategies, // array of {strategyId, params}
       },
     };
 
@@ -244,6 +245,7 @@ const handleComboSubmit = async (e) => {
 
     const result = await runComboBacktest(payload);
 
+    // --- Check if combined backtest returned equity curve ---
     if (result?.combinedResult?.equityCurve?.length > 0) {
       setBacktestResults({
         main: {
@@ -264,9 +266,13 @@ const handleComboSubmit = async (e) => {
     }
   } catch (err) {
     console.error("Combo backtest failed:", err);
-    alert(err.response?.data?.message || "Error running combo backtest");
+    alert(
+      err.response?.data?.message ||
+      "Error running combo backtest. Make sure at least 2 strategies are selected and params are valid."
+    );
   }
 };
+
 
 
   // --- Save Setup (FIXED Payload) ---
