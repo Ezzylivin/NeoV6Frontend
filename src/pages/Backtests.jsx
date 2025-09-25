@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
-import { useBacktestSetup } from "../hooks/useBacktestSetup.jsx";
+import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell,
 } from "recharts";
@@ -51,7 +51,7 @@ const MetricsDisplay = ({ metrics }) => {
 // --- Main Component ---
 export default function Backtests() {
   const { options, initialLoading, singleLoading, batchLoading, error, runNewBacktest, runComboBacktest } = useBacktest();
-  const { createSetup, loading: isSaving, error: saveError } = useBacktestSetup();
+  const { createSetup, loading: isSaving, error: saveError } = useBacktestSetupFunction();
   
   const [formData, setFormData] = useState(initialFormData);
   const [comboData, setComboData] = useState(initialComboData);
