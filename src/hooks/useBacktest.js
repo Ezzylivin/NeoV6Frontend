@@ -1,85 +1,137 @@
-// File: src/hooks/useBacktest.js
-import { useState } from "react";
-import api from "../api/apiClient.js"; // Axios instance
+import { useState, useEffect, useCallback } from "react";
+import * as backtestApi from "../api/backtest.js";
+// No longer need to import setAuthToken here if it's only called in App.jsx
+// However, it's fine to leave it if other functions might need it later.
 
-export const useBacktest = () => {
-  const [loading, setLoading] = useState(false);
+export function useBacktest() {
+  const [options, setOptions] = useState({
+    strategies: [],
+    symbols: [],
+    timeframes: [],
+    takeProfits: [],
+    stopLosses: [],
+  });
+
+  const [pastBacktests, setPastBacktests] = useState({ results: [], total: 0 });
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [singleLoading, setSingleLoading] = useState(false);
+  const [batchLoading, setBatchLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [result, setResult] = useState(null);
 
-  // --- Single backtest ---
-  const runSingleBacktest = async ({ strategyId, symbol, timeframe, startDate, endDate }) => {
-    setLoading(true);
+  // ✅ REMOVED setAuthToken from all functions below
+  const getOptions = useCallback(async () => {
     setError(null);
     try {
-      if (!strategyId || !symbol || !timeframe || !startDate || !endDate) {
-        throw new Error("Missing required parameters for single backtest");
-      }
-
-      const response = await api.post("/api/backtest/single", {
-        strategyId,
-        symbol,
-        timeframe,
-        startDate,
-        endDate,
-      });
-
-      setResult(response.data);
-      return response.data;
+      const fetchedOptions = await backtestApi.fetchOptions();
+      setOptions(fetchedOptions);
     } catch (err) {
-      console.error("runSingleBacktest error:", err);
-      setError(err);
-      throw err;
-    } finally {
-      setLoading(false);
+      setError(err.message || "Failed to fetch options.");
     }
-  };
+  }, []);
 
-  // --- Combo backtest ---
-  const runComboBacktest = async ({ combinationRule, symbol, timeframe, startDate, endDate, strategyParams }) => {
-    setLoading(true);
+  const getPastBacktests = useCallback(async (page = 1) => {
     setError(null);
     try {
-      if (!combinationRule || !symbol || !timeframe || !startDate || !endDate) {
-        throw new Error("Missing required parameters for combo backtest");
-      }
-      if (!Array.isArray(strategyParams) || strategyParams.length < 2) {
-        throw new Error("At least 2 strategies are required for a combined backtest");
-      }
-
-      // --- Prepare payload exactly for backend ---
-      const payload = {
-        params: {
-          combinationRule,
-          symbol,
-          timeframe,
-          startDate,
-          endDate,
-          strategyParams: strategyParams.map((s) => ({
-            strategyId: s._id || s.strategyId,
-            params: s.params || {},
-          })),
-        },
-      };
-
-      const response = await api.post("/api/backtest/combo", payload);
-
-      setResult(response.data);
-      return response.data;
+      const data = await backtestApi.fetchAll(page);
+      setPastBacktests({ results: data.backtests, total: data.total });
     } catch (err) {
-      console.error("runComboBacktest() failed", err);
-      setError(err);
+      setError(err.message || "Failed to load past backtests.");
+    }
+  }, []);
+
+  const getBacktestById = useCallback(async (id) => {
+    setInitialLoading(true);
+    setError(null);
+    try {
+      return await backtestApi.fetchById(id);
+    } catch (err) {
+      setError(err.message || "Failed to fetch backtest.");
       throw err;
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
     }
-  };
+  }, []);
+  
+  const deleteBacktest = useCallback(async (id) => {
+    setError(null);
+    try {
+      await backtestApi.deleteById(id);
+      await getPastBacktests();
+    } catch (err) {
+      setError(err.message || "Failed to delete backtest.");
+      throw err;
+    }
+  }, [getPastBacktests]);
+
+  const runNewBacktest = useCallback(
+    async (payload) => {
+      setSingleLoading(true);
+      setError(null);
+      try {
+        const result = await backtestApi.runBacktest(payload);
+        await getPastBacktests();
+        return result;
+      } catch (err) {
+        setError(err.message || "Failed to run backtest.");
+        throw err;
+      } finally {
+        setSingleLoading(false);
+      }
+    },
+    [getPastBacktests]
+  );
+
+  const runComboBacktest = useCallback(
+    async (payload) => {
+      setBatchLoading(true);
+      setError(null);
+      try {
+        const result = await backtestApi.runComboBacktest(payload);
+        return result;
+      } catch (err) {
+        setError(err.message || "Failed to run combo backtest.");
+        throw err;
+      } finally {
+        setBatchLoading(false);
+      }
+    },
+    []
+  );
+
+  const previewStrategy = useCallback(
+    async (payload) => {
+      setSingleLoading(true);
+      setError(null);
+      try {
+        return await backtestApi.previewStrategy(payload);
+      } catch (err) {
+        setError(err.message || "Failed to preview strategy.");
+        throw err;
+      } finally {
+        setSingleLoading(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    setInitialLoading(true);
+    // These functions will now run after the token has been set in App.jsx
+    Promise.all([getOptions(), getPastBacktests()]).finally(() => setInitialLoading(false));
+  }, [getOptions, getPastBacktests]);
 
   return {
-    loading,
+    options,
+    pastBacktests,
+    initialLoading,
+    singleLoading,
+    batchLoading,
     error,
-    result,
-    runSingleBacktest,
+    getPastBacktests,
+    getBacktestById,
+    deleteBacktest,
+    runNewBacktest,
     runComboBacktest,
+    previewStrategy,
   };
-};
+}
