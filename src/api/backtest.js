@@ -88,15 +88,17 @@ export async function runComboBacktest(payload) {
   try {
     // Normalize payload to match backend comboStrategy schema
     const normalized = {
-      combinationRule: payload.combinationRule,
-      symbol: payload.symbol,
-      timeframe: payload.timeframe,
-      startDate: payload.startDate,
-      endDate: payload.endDate,
-      strategies: (payload.strategies || []).map((s) => ({
-        strategyId: s.strategyId,
-        params: s.params || {},
-      })),
+      params: {
+        combinationRule: payload.combinationRule,
+        symbol: payload.symbol,
+        timeframe: payload.timeframe,
+        startDate: payload.startDate,
+        endDate: payload.endDate,
+        strategyParams: (payload.strategies || []).map((s) => ({
+          strategyId: s.strategyId,
+          params: s.params || {},
+        })),
+      },
     };
 
     const { data } = await api.post("/backtest/combo", normalized);
