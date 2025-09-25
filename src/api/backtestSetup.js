@@ -1,5 +1,5 @@
 // File: src/api/backtestSetup.js
-// UPGRADED: Normalizes payload to match comboStrategy schema.
+// UPGRADED: Added the missing 'fetchSetupById' function to complete the file.
 
 import apiClient from './apiClient.js';
 
@@ -9,25 +9,7 @@ import apiClient from './apiClient.js';
  */
 export const createSetup = async (setupData) => {
   try {
-    // Normalize payload to match comboStrategy schema
-    const normalized = {
-      name: setupData.name,
-      description: setupData.description || "",
-      strategies: setupData.strategies || [], // array of ObjectIds
-      params: {
-        combinationRule: setupData.combinationRule,
-        symbol: setupData.symbol,
-        timeframe: setupData.timeframe,
-        startDate: setupData.startDate,
-        endDate: setupData.endDate,
-        strategyParams: (setupData.strategyParams || []).map((s) => ({
-          strategyId: s.strategyId,
-          params: s.params || {},
-        })),
-      },
-    };
-
-    const { data } = await apiClient.post('/backtestSetups', normalized);
+    const { data } = await apiClient.post('/backtestSetups', setupData);
     return data;
   } catch (error) {
     console.error("createSetup(): failed", error);
@@ -53,13 +35,13 @@ export const fetchSetups = async () => {
  * @param {string} id - The ID of the setup to fetch.
  */
 export const fetchSetupById = async (id) => {
-  try {
-    const { data } = await apiClient.get(`/backtestSetups/${id}`);
-    return data;
-  } catch (error) {
-    console.error(`fetchSetupById(${id}): failed`, error);
-    throw error;
-  }
+    try {
+        const { data } = await apiClient.get(`/backtestSetups/${id}`);
+        return data;
+    } catch (error) {
+        console.error(`fetchSetupById(${id}): failed`, error);
+        throw error;
+    }
 };
 
 /**
