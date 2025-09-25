@@ -145,8 +145,10 @@ export default function Backtests() {
 
   const handleComboChange = (e, index) => {
     const { name, value } = e.target;
+
     setComboData((prev) => {
       const configs = [...prev.strategyConfigs];
+
       if (name === "strategyCode") {
         const duplicate = configs.some((c, i) => c.code === value && i !== index);
         if (duplicate) return prev;
@@ -154,6 +156,7 @@ export default function Backtests() {
       } else {
         return { ...prev, [name]: value };
       }
+
       return { ...prev, strategyConfigs: configs };
     });
   };
@@ -201,7 +204,7 @@ export default function Backtests() {
     }
   };
 
-  // --- Combo Backtest ---
+  // --- Combo Backtest (Fully Upgraded) ---
   const handleComboSubmit = async (e) => {
     e.preventDefault();
     setBacktestResults({ main: null, individuals: [] });
@@ -209,15 +212,16 @@ export default function Backtests() {
     setResultKey(Date.now());
 
     try {
+      // Map only valid strategies
       const selectedStrategies = comboData.strategyConfigs
-        .filter((s) => s.code)
         .map((s) => {
+          if (!s.code) return null;
           const strat = options.strategies.find((opt) => opt.code === s.code);
-          return {
-            strategyId: strat?._id || s.code,
-            params: strat?.params || s.params || {},
-          };
-        });
+          return strat
+            ? { strategyId: strat._id || s.code, params: strat.params || {} }
+            : null;
+        })
+        .filter(Boolean); // remove nulls
 
       if (selectedStrategies.length < 2) {
         return alert("Select at least 2 unique strategies for a combined backtest.");
@@ -296,8 +300,8 @@ export default function Backtests() {
         payload = {
           name: setupDetails.name,
           description: setupDetails.description,
-          strategies: source.strategyParams?.map((s) => s.strategyId) || [],
-          params: source,
+          strategies: source.strategies || selectedStrategies,
+          params: source.params,
         };
       }
 
@@ -455,11 +459,7 @@ export default function Backtests() {
                 )}
               </div>
             ))}
-            <button
-              type="button"
-              onClick={addStrategyToCombo}
-              disabled={comboData.strategyConfigs.length >= options.strategies.length}
-            >
+            <button type="button" onClick={addStrategyToCombo} disabled={comboData.strategyConfigs.length >= options.strategies.length}>
               Add Strategy
             </button>
 
