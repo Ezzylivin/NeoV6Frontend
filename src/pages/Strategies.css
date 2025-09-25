@@ -53,8 +53,7 @@
 }
 
 /* --- Forms --- */
-.strategy-form,
-.combo-form {
+.strategy-form {
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -65,8 +64,7 @@
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
-.strategy-form label,
-.combo-form label {
+.strategy-form label {
   display: flex;
   flex-direction: column;
   font-size: 14px;
@@ -77,11 +75,7 @@
 .strategy-form input[type="text"],
 .strategy-form select,
 .strategy-form textarea,
-.strategy-form input[type="number"],
-.combo-form input[type="text"],
-.combo-form select,
-.combo-form textarea,
-.combo-form input[type="number"] {
+.strategy-form input[type="number"] {
   background-color: #1f2136;
   color: #ffffff;
   border: 1px solid #444c63;
@@ -93,18 +87,14 @@
   appearance: none;
 }
 
-.strategy-form select option,
-.combo-form select option {
+.strategy-form select option {
   background-color: #1f2136;
   color: #ffffff;
 }
 
 .strategy-form input:focus,
 .strategy-form select:focus,
-.strategy-form textarea:focus,
-.combo-form input:focus,
-.combo-form select:focus,
-.combo-form textarea:focus {
+.strategy-form textarea:focus {
   border-color: #6366f1;
   box-shadow: 0 0 6px rgba(99, 102, 241, 0.5);
   outline: none;
