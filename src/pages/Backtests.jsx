@@ -145,21 +145,35 @@ export default function Backtests() {
 
   const handleComboChange = (e, index) => {
     const { name, value } = e.target;
-    if (name === "strategyCode") {
-      const arr = [...comboData.strategyConfigs];
-      arr[index] = { ...arr[index], code: value };
-      setComboData((prev) => ({ ...prev, strategyConfigs: arr }));
-    } else setComboData((prev) => ({ ...prev, [name]: value }));
+
+    setComboData((prev) => {
+      const configs = [...prev.strategyConfigs];
+
+      if (name === "strategyCode") {
+        const duplicate = configs.some((c, i) => c.code === value && i !== index);
+        if (duplicate) return prev; // ignore duplicates
+        configs[index] = { ...configs[index], code: value };
+      } else {
+        return { ...prev, [name]: value };
+      }
+
+      return { ...prev, strategyConfigs: configs };
+    });
   };
 
-  const addStrategyToCombo = () =>
-    setComboData((prev) => ({ ...prev, strategyConfigs: [...prev.strategyConfigs, { code: "" }] }));
+  const addStrategyToCombo = () => {
+    setComboData((prev) => {
+      if (prev.strategyConfigs.length >= options.strategies.length) return prev;
+      return { ...prev, strategyConfigs: [...prev.strategyConfigs, { code: "" }] };
+    });
+  };
 
-  const removeStrategyFromCombo = (i) =>
+  const removeStrategyFromCombo = (idx) => {
     setComboData((prev) => ({
       ...prev,
-      strategyConfigs: comboData.strategyConfigs.filter((_, idx) => idx !== i),
+      strategyConfigs: prev.strategyConfigs.filter((_, i) => i !== idx),
     }));
+  };
 
   // --- Single Backtest ---
   const handleSingleSubmit = async (e) => {
@@ -198,8 +212,16 @@ export default function Backtests() {
     setResultKey(Date.now());
 
     try {
-      const strategiesList = comboData.strategyConfigs.map((s) => s.code).filter(Boolean);
-      if (strategiesList.length < 2) return alert("Select at least 2 strategies for a combo test.");
+      const selectedStrategies = comboData.strategyConfigs
+        .filter((s) => s.code)
+        .map((s) => {
+          const strat = options.strategies.find((opt) => opt.code === s.code);
+          return { code: s.code, params: strat?.params || {} };
+        });
+
+      if (selectedStrategies.length < 2) {
+        return alert("Select at least 2 unique strategies for a combo test.");
+      }
 
       const payload = {
         combinationRule: comboData.combinationRule,
@@ -207,12 +229,13 @@ export default function Backtests() {
         timeframe: comboData.timeframe,
         startDate: comboData.startDate,
         endDate: comboData.endDate,
-        strategies: strategiesList,
+        strategies: selectedStrategies,
       };
 
-      console.log("Backtests.jsx: Payload before sending combo backtest", payload);
+      console.log("Combo Backtest Payload:", payload);
 
       const result = await runComboBacktest(payload);
+
       if (result?.combinedResult?.equityCurve?.length > 0) {
         setBacktestResults({
           main: {
@@ -228,8 +251,11 @@ export default function Backtests() {
             noTradeReason: r.noTradeReason,
           })),
         });
-      } else alert("Combo backtest ran successfully but produced no trades.");
+      } else {
+        alert("Combo backtest ran successfully but produced no trades.");
+      }
     } catch (err) {
+      console.error("Combo backtest failed:", err);
       alert(err.response?.data?.message || "Error running combo backtest");
     }
   };
@@ -253,11 +279,7 @@ export default function Backtests() {
           strategies: [{ code: strategy?.code || source.code, params: strategy?.params || {} }],
         };
       } else {
-        const allParams = source.strategies.map((code) => {
-          const s = options.strategies.find((strat) => strat.code === code);
-          return s ? { code: s.code, params: s.params } : { code, params: {} };
-        });
-        payload = { name: setupDetails.name, description: setupDetails.description, strategies: allParams };
+        payload = { name: setupDetails.name, description: setupDetails.description, strategies: source.strategies };
       }
 
       const saved = await createSetup(payload);
@@ -284,9 +306,9 @@ export default function Backtests() {
       const individualSeries = backtestResults.individuals
         .filter((r) => r.metrics?.totalTrades > 0)
         .map((r) => ({ name: r.name, data: r.equityCurve }));
+
       const allSeries = [{ name: "Combined", data: backtestResults.main.equityCurve }, ...individualSeries];
-      const allTimestamps = [...new Set(allSeries.flatMap((s) => s.data.map((p) => new Date(p.timestamp).getTime())))]
-        .sort((a, b) => a - b);
+      const allTimestamps = [...new Set(allSeries.flatMap((s) => s.data.map((p) => new Date(p.timestamp).getTime())))].sort((a, b) => a - b);
 
       const dataMap = {};
       allSeries.forEach((s) => {
@@ -328,41 +350,33 @@ export default function Backtests() {
         <form className="card-row" onSubmit={handleSingleSubmit}>
           <div className="metric-card">
             <h3 className="card-title">Single Strategy Backtest</h3>
-
             <label>
               Strategy
               <select name="code" value={formData.code} onChange={handleChange} required>
                 <option value="">-- Select a strategy --</option>
-                {options.strategies.map((s) => (
-                  <option key={s.code} value={s.code}>{s.name}</option>
-                ))}
+                {options.strategies.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
               </select>
             </label>
-
             <label>
               Symbol
               <select name="symbol" value={formData.symbol} onChange={handleChange} required>
                 {options.symbols.map((sym) => <option key={sym} value={sym}>{sym}</option>)}
               </select>
             </label>
-
             <label>
               Timeframe
               <select name="timeframe" value={formData.timeframe} onChange={handleChange} required>
                 {options.timeframes.map((tf) => <option key={tf} value={tf}>{tf}</option>)}
               </select>
             </label>
-
             <label>
               Start Date
               <input type="date" name="startDate" value={formData.startDate} onChange={handleChange} required />
             </label>
-
             <label>
               End Date
               <input type="date" name="endDate" value={formData.endDate} onChange={handleChange} required />
             </label>
-
             <button type="submit" disabled={singleLoading}>{singleLoading ? "Running..." : "Run Backtest"}</button>
           </div>
         </form>
@@ -371,21 +385,30 @@ export default function Backtests() {
         <form className="card-row" onSubmit={handleComboSubmit}>
           <div className="metric-card">
             <h3 className="card-title">Combined Strategy Backtest</h3>
-
             {comboData.strategyConfigs.map((cfg, idx) => (
               <div key={idx} className="combo-strategy-row">
                 <label>
                   Strategy {idx + 1}
-                  <select name="strategyCode" value={cfg.code} onChange={(e) => handleComboChange(e, idx)} required>
+                  <select
+                    name="strategyCode"
+                    value={cfg.code}
+                    onChange={(e) => handleComboChange(e, idx)}
+                    required
+                  >
                     <option value="">-- Select a strategy --</option>
-                    {options.strategies.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
+                    {options.strategies
+                      .filter((s) => !comboData.strategyConfigs.some((c, i) => c.code === s.code && i !== idx))
+                      .map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
                   </select>
                 </label>
-                {idx > 0 && <button type="button" onClick={() => removeStrategyFromCombo(idx)}>Remove</button>}
+                {comboData.strategyConfigs.length > 1 && (
+                  <button type="button" onClick={() => removeStrategyFromCombo(idx)}>Remove</button>
+                )}
               </div>
             ))}
-
-            <button type="button" onClick={addStrategyToCombo}>Add Strategy</button>
+            <button type="button" onClick={addStrategyToCombo} disabled={comboData.strategyConfigs.length >= options.strategies.length}>
+              Add Strategy
+            </button>
 
             <label>
               Combination Rule
@@ -424,7 +447,7 @@ export default function Backtests() {
         </form>
       </div>
 
-      {/* Metrics Display */}
+      {/* Metrics Display & Chart */}
       {backtestResults.main && (
         <div className="chart-container">
           <h3>{backtestResults.main.name}</h3>
