@@ -1,6 +1,7 @@
 // File: src/pages/Strategies.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import api from "../api/apiClient.js";
+import { StrategyContext } from "../context/StrategyContext.jsx"; // <-- new shared context
 import "./Strategies.css";
 
 // --- Strategy Guides ---
@@ -75,59 +76,33 @@ const initialStrategyState = {
 };
 
 const Strategies = () => {
-  const [singleStrategies, setSingleStrategies] = useState([]);
-  const [comboStrategies, setComboStrategies] = useState([]);
+  // --- State ---
   const [newStrategy, setNewStrategy] = useState(initialStrategyState);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // --- Fetch single strategies ---
-  const fetchSingleStrategies = async () => {
-    try {
-      const res = await api.get("/strategy");
-      console.log("📊 Single strategies response:", res.data);
-      if (Array.isArray(res.data)) {
-        setSingleStrategies(res.data);
-      } else if (res.data?.strategies) {
-        setSingleStrategies(res.data.strategies);
-      } else {
-        console.warn("⚠️ Unexpected single strategies format:", res.data);
-        setSingleStrategies([]);
-      }
-    } catch (err) {
-      console.error("❌ Error fetching single strategies:", err);
-      setError(err.response?.data?.message || err.message);
-    }
-  };
+  // --- Shared context for strategies ---
+  const { singleStrategies, setSingleStrategies, comboStrategies, setComboStrategies } = useContext(StrategyContext);
 
-  // --- Fetch combo strategies ---
-  const fetchComboStrategies = async () => {
+  // --- Fetch strategies from backend ---
+  const fetchStrategies = async () => {
     try {
-      const res = await api.get("/combos");
-      console.log("📊 Combo strategies response:", res.data);
-      if (Array.isArray(res.data)) {
-        setComboStrategies(res.data);
-      } else if (res.data?.combos) {
-        setComboStrategies(res.data.combos);
-      } else {
-        console.warn("⚠️ Unexpected combo strategies format:", res.data);
-        setComboStrategies([]);
-      }
+      setLoading(true);
+      const [singleRes, comboRes] = await Promise.all([api.get("/strategy"), api.get("/combos")]);
+
+      setSingleStrategies(singleRes.data?.strategies || singleRes.data || []);
+      setComboStrategies(comboRes.data?.combos || comboRes.data || []);
     } catch (err) {
-      console.error("❌ Error fetching combo strategies:", err);
+      console.error("❌ Error fetching strategies:", err);
       setError(err.response?.data?.message || err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    const fetchAll = async () => {
-      setLoading(true);
-      await fetchSingleStrategies();
-      await fetchComboStrategies();
-      setLoading(false);
-    };
-    fetchAll();
+    fetchStrategies();
   }, []);
 
   // --- Handle form changes ---
@@ -144,34 +119,26 @@ const Strategies = () => {
         "On-Balance Volume": { maPeriod: 20 },
         CCI: { period: 20, overbought: 100, oversold: -100 },
         ATR: { period: 14, multiplier: 2 },
-        "Ichimoku Cloud": {
-          conversionLinePeriod: 9,
-          baseLinePeriod: 26,
-          laggingSpanPeriod: 26,
-          leadingSpanBPeriod: 52
-        }
+        "Ichimoku Cloud": { conversionLinePeriod: 9, baseLinePeriod: 26, laggingSpanPeriod: 26, leadingSpanBPeriod: 52 }
       };
-      setNewStrategy((prev) => ({
-        ...prev,
-        params: { strategyType: value, ...defaultParams[value] }
-      }));
+      setNewStrategy((prev) => ({ ...prev, params: { strategyType: value, ...defaultParams[value] } }));
     } else if (newStrategy.params.hasOwnProperty(name)) {
-      setNewStrategy((prev) => ({
-        ...prev,
-        params: { ...prev.params, [name]: value }
-      }));
+      setNewStrategy((prev) => ({ ...prev, params: { ...prev.params, [name]: value } }));
     } else {
       setNewStrategy((prev) => ({ ...prev, [name]: value }));
     }
   };
 
-  // --- Create strategy ---
+  // --- Create new strategy ---
   const handleCreateStrategy = async (e) => {
     e.preventDefault();
     try {
       const res = await api.post("/strategy", newStrategy);
       const saved = res.data;
+
+      // ✅ Automatically add to Strategies context (so page updates immediately)
       setSingleStrategies((prev) => [...prev, saved]);
+
       setNewStrategy(initialStrategyState);
       setError(null);
       setSuccess("Strategy created successfully!");
@@ -183,11 +150,8 @@ const Strategies = () => {
     }
   };
 
-  // --- Helpers ---
-  const formatLabel = (key) =>
-    key
-      .replace(/([A-Z])/g, " $1")
-      .replace(/^./, (s) => s.toUpperCase());
+  // --- Format label ---
+  const formatLabel = (key) => key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase());
 
   if (loading) return <p className="loading-banner">⏳ Loading strategies...</p>;
 
@@ -195,22 +159,17 @@ const Strategies = () => {
     <div className="strategies-container">
       <h1 className="header">My Trading Strategies</h1>
 
-      {/* --- Alerts --- */}
+      {/* Alerts */}
       {error && <p className="error-banner">⚠️ {error}</p>}
       {success && <p className="success-banner">✅ {success}</p>}
 
-      {/* --- Create Strategy Form --- */}
+      {/* Create Strategy Form */}
       <div className="strategy-form">
         <h2 className="card-title">Create a New Strategy</h2>
         <form onSubmit={handleCreateStrategy}>
           <label>
             Strategy Type:
-            <select
-              name="strategyType"
-              value={newStrategy.params.strategyType}
-              onChange={handleStrategyChange}
-              className="dashboard-dropdown"
-            >
+            <select name="strategyType" value={newStrategy.params.strategyType} onChange={handleStrategyChange} className="dashboard-dropdown">
               {Object.keys(strategyGuides)
                 .sort()
                 .map((t) => (
@@ -223,37 +182,22 @@ const Strategies = () => {
 
           <label>
             Strategy Name:
-            <input
-              type="text"
-              name="name"
-              value={newStrategy.name}
-              onChange={handleStrategyChange}
-              required
-            />
+            <input type="text" name="name" value={newStrategy.name} onChange={handleStrategyChange} required />
           </label>
 
           <label>
             Description:
-            <textarea
-              name="description"
-              value={newStrategy.description}
-              onChange={handleStrategyChange}
-            />
+            <textarea name="description" value={newStrategy.description} onChange={handleStrategyChange} />
           </label>
 
-          {/* --- Parameters --- */}
+          {/* Parameters */}
           <div className="parameters-form">
             {Object.entries(newStrategy.params)
               .filter(([key]) => key !== "strategyType")
               .map(([key, value]) => (
                 <label key={key}>
                   {formatLabel(key)}:
-                  <input
-                    type="number"
-                    name={key}
-                    value={value}
-                    onChange={handleStrategyChange}
-                  />
+                  <input type="number" name={key} value={value} onChange={handleStrategyChange} />
                 </label>
               ))}
           </div>
@@ -263,29 +207,26 @@ const Strategies = () => {
           </button>
         </form>
 
-        {/* --- Strategy Guide --- */}
+        {/* Strategy Guide */}
         {newStrategy.params.strategyType && (
           <div className="strategy-guide">
             <h3 className="card-title">Parameters & Guide</h3>
             <div className="strategy-description">
               <p>
-                <strong>What it is:</strong>{" "}
-                {strategyGuides[newStrategy.params.strategyType]?.whatItIs}
+                <strong>What it is:</strong> {strategyGuides[newStrategy.params.strategyType]?.whatItIs}
               </p>
               <p>
-                <strong>How it works:</strong>{" "}
-                {strategyGuides[newStrategy.params.strategyType]?.howItWorks}
+                <strong>How it works:</strong> {strategyGuides[newStrategy.params.strategyType]?.howItWorks}
               </p>
               <p>
-                <strong>Combine with:</strong>{" "}
-                {strategyGuides[newStrategy.params.strategyType]?.combineWith}
+                <strong>Combine with:</strong> {strategyGuides[newStrategy.params.strategyType]?.combineWith}
               </p>
             </div>
           </div>
         )}
       </div>
 
-      {/* --- Single Strategies List --- */}
+      {/* Single Strategies */}
       <div>
         <h2 className="card-title">Saved Single Strategies</h2>
         {singleStrategies.length > 0 ? (
@@ -302,7 +243,7 @@ const Strategies = () => {
         )}
       </div>
 
-      {/* --- Combo Strategies List --- */}
+      {/* Combo Strategies */}
       <div>
         <h2 className="card-title">Saved Combo Strategies</h2>
         {comboStrategies.length > 0 ? (
@@ -310,9 +251,7 @@ const Strategies = () => {
             {comboStrategies.map((c) => {
               let strategyNames = "No strategies";
               if (Array.isArray(c.strategies)) {
-                strategyNames = c.strategies
-                  .map((s) => s.params?.strategyType || s.name || "Unknown")
-                  .join(" + ");
+                strategyNames = c.strategies.map((s) => s.params?.strategyType || s.name || "Unknown").join(" + ");
               } else if (c.comboConfig?.strategyCodes) {
                 strategyNames = c.comboConfig.strategyCodes.join(" + ");
               } else if (c.strategyIds) {
