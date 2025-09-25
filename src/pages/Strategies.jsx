@@ -175,7 +175,6 @@ const Strategies = () => {
     <div className="strategies-container">
       <h1 className="header">My Trading Strategies</h1>
 
-      {/* --- Alerts --- */}
       {error && <p className="error-banner">⚠️ {error}</p>}
       {success && <p className="success-banner">✅ {success}</p>}
 
@@ -221,7 +220,6 @@ const Strategies = () => {
             />
           </label>
 
-          {/* --- Parameters --- */}
           <div className="parameters-form">
             {Object.entries(newStrategy.params)
               .filter(([key]) => key !== "strategyType")
@@ -243,7 +241,6 @@ const Strategies = () => {
           </button>
         </form>
 
-        {/* --- Strategy Guide --- */}
         {newStrategy.params.strategyType && (
           <div className="strategy-guide">
             <h3 className="card-title">Parameters & Guide</h3>
@@ -265,10 +262,43 @@ const Strategies = () => {
         )}
       </div>
 
-      {/* --- Single Strategies List --- */}
+      {/* --- Single Strategies --- */}
       <div>
         <h2 className="card-title">Saved Single Strategies</h2>
         {singleStrategies.length > 0 ? (
           <ul className="strategy-list">
             {singleStrategies.map((s) => (
-              <li key={s._id} class
+              <li key={s._id} className="strategy-card">
+                <span className="strategy-name">{s.name}</span>
+                <span className="strategy-type">{s.params.strategyType}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="no-strategies">No strategies yet. Create your first one above!</p>
+        )}
+      </div>
+
+      {/* --- Combo Strategies --- */}
+      <div>
+        <h2 className="card-title">Saved Combo Strategies</h2>
+        {comboStrategies.length > 0 ? (
+          <ul className="strategy-list">
+            {comboStrategies.map((c) => (
+              <li key={c._id} className="strategy-card">
+                <span className="strategy-name">{c.name}</span>
+                <span className="strategy-type">
+                  {c.strategies.map((s) => s.params.strategyType).join(" + ")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="no-strategies">No combo strategies yet.</p>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Strategies;
