@@ -86,8 +86,17 @@ const Strategies = () => {
   const fetchSingleStrategies = async () => {
     try {
       const res = await api.get("/strategy");
-      setSingleStrategies(Array.isArray(res.data) ? res.data : []);
+      console.log("📊 Single strategies response:", res.data);
+      if (Array.isArray(res.data)) {
+        setSingleStrategies(res.data);
+      } else if (res.data?.strategies) {
+        setSingleStrategies(res.data.strategies);
+      } else {
+        console.warn("⚠️ Unexpected single strategies format:", res.data);
+        setSingleStrategies([]);
+      }
     } catch (err) {
+      console.error("❌ Error fetching single strategies:", err);
       setError(err.response?.data?.message || err.message);
     }
   };
@@ -96,9 +105,17 @@ const Strategies = () => {
   const fetchComboStrategies = async () => {
     try {
       const res = await api.get("/combos");
-      console.log("Fetched combo strategies:", res.data); // ✅ Debug log
-      setComboStrategies(Array.isArray(res.data) ? res.data : []);
+      console.log("📊 Combo strategies response:", res.data);
+      if (Array.isArray(res.data)) {
+        setComboStrategies(res.data);
+      } else if (res.data?.combos) {
+        setComboStrategies(res.data.combos);
+      } else {
+        console.warn("⚠️ Unexpected combo strategies format:", res.data);
+        setComboStrategies([]);
+      }
     } catch (err) {
+      console.error("❌ Error fetching combo strategies:", err);
       setError(err.response?.data?.message || err.message);
     }
   };
@@ -160,6 +177,7 @@ const Strategies = () => {
       setSuccess("Strategy created successfully!");
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
+      console.error("❌ Error creating strategy:", err);
       setSuccess(null);
       setError(err.response?.data?.message || err.message);
     }
@@ -289,16 +307,24 @@ const Strategies = () => {
         <h2 className="card-title">Saved Combo Strategies</h2>
         {comboStrategies.length > 0 ? (
           <ul className="strategy-list">
-            {comboStrategies.map((c) => (
-              <li key={c._id} className="strategy-card">
-                <span className="strategy-name">{c.name}</span>
-                <span className="strategy-type">
-                  {Array.isArray(c.strategies)
-                    ? c.strategies.map((s) => s.params?.strategyType || s.name || "Unknown").join(" + ")
-                    : "No strategies"}
-                </span>
-              </li>
-            ))}
+            {comboStrategies.map((c) => {
+              let strategyNames = "No strategies";
+              if (Array.isArray(c.strategies)) {
+                strategyNames = c.strategies
+                  .map((s) => s.params?.strategyType || s.name || "Unknown")
+                  .join(" + ");
+              } else if (c.comboConfig?.strategyCodes) {
+                strategyNames = c.comboConfig.strategyCodes.join(" + ");
+              } else if (c.strategyIds) {
+                strategyNames = c.strategyIds.join(" + ");
+              }
+              return (
+                <li key={c._id} className="strategy-card">
+                  <span className="strategy-name">{c.name}</span>
+                  <span className="strategy-type">{strategyNames}</span>
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <p className="no-strategies">No combo strategies yet.</p>
