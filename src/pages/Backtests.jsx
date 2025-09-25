@@ -360,11 +360,150 @@ export default function Backtests() {
   if (initialLoading) return <div>Loading...</div>;
   if (error) return <div style={{ color: "red" }}>Error: {error}</div>;
 
-  return (
+    return (
     <div className="dashboard-container">
       <h2 className="header">Backtests</h2>
-      {/* Forms & Charts remain unchanged */}
-      {/* ...rest of JSX */}
+
+      {/* Forms */}
+      <div className="forms-container">
+        {/* Single Backtest Form */}
+        <form className="card-row" onSubmit={handleSingleSubmit}>
+          <div className="metric-card">
+            <h3 className="card-title">Single Strategy Backtest</h3>
+            <label>
+              Strategy
+              <select name="code" value={formData.code} onChange={handleChange} required>
+                <option value="">-- Select a strategy --</option>
+                {options.strategies.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
+              </select>
+            </label>
+            <label>
+              Symbol
+              <select name="symbol" value={formData.symbol} onChange={handleChange} required>
+                {options.symbols.map((sym) => <option key={sym} value={sym}>{sym}</option>)}
+              </select>
+            </label>
+            <label>
+              Timeframe
+              <select name="timeframe" value={formData.timeframe} onChange={handleChange} required>
+                {options.timeframes.map((tf) => <option key={tf} value={tf}>{tf}</option>)}
+              </select>
+            </label>
+            <label>
+              Start Date
+              <input type="date" name="startDate" value={formData.startDate} onChange={handleChange} required />
+            </label>
+            <label>
+              End Date
+              <input type="date" name="endDate" value={formData.endDate} onChange={handleChange} required />
+            </label>
+            <button type="submit" disabled={singleLoading}>{singleLoading ? "Running..." : "Run Backtest"}</button>
+          </div>
+        </form>
+
+        {/* Combo Backtest Form */}
+        <form className="card-row" onSubmit={handleComboSubmit}>
+          <div className="metric-card">
+            <h3 className="card-title">Combined Strategy Backtest</h3>
+            {comboData.strategyConfigs.map((cfg, idx) => (
+              <div key={idx} className="combo-strategy-row">
+                <label>
+                  Strategy {idx + 1}
+                  <select
+                    name="strategyCode"
+                    value={cfg.code}
+                    onChange={(e) => handleComboChange(e, idx)}
+                    required
+                  >
+                    <option value="">-- Select a strategy --</option>
+                    {options.strategies
+                      .filter((s) => !comboData.strategyConfigs.some((c, i) => c.code === s.code && i !== idx))
+                      .map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
+                  </select>
+                </label>
+                {comboData.strategyConfigs.length > 1 && (
+                  <button type="button" onClick={() => removeStrategyFromCombo(idx)}>Remove</button>
+                )}
+              </div>
+            ))}
+            <button type="button" onClick={addStrategyToCombo} disabled={comboData.strategyConfigs.length >= options.strategies.length}>
+              Add Strategy
+            </button>
+
+            <label>
+              Combination Rule
+              <select name="combinationRule" value={comboData.combinationRule} onChange={(e) => handleComboChange(e, 0)}>
+                <option value="AND">AND</option>
+                <option value="OR">OR</option>
+              </select>
+            </label>
+
+            <label>
+              Symbol
+              <select name="symbol" value={comboData.symbol} onChange={(e) => handleComboChange(e, 0)} required>
+                {options.symbols.map((sym) => <option key={sym} value={sym}>{sym}</option>)}
+              </select>
+            </label>
+
+            <label>
+              Timeframe
+              <select name="timeframe" value={comboData.timeframe} onChange={(e) => handleComboChange(e, 0)} required>
+                {options.timeframes.map((tf) => <option key={tf} value={tf}>{tf}</option>)}
+              </select>
+            </label>
+
+            <label>
+              Start Date
+              <input type="date" name="startDate" value={comboData.startDate} onChange={(e) => handleComboChange(e, 0)} required />
+            </label>
+
+            <label>
+              End Date
+              <input type="date" name="endDate" value={comboData.endDate} onChange={(e) => handleComboChange(e, 0)} required />
+            </label>
+
+            <button type="submit" disabled={batchLoading}>{batchLoading ? "Running..." : "Run Combo Backtest"}</button>
+          </div>
+        </form>
+      </div>
+
+      {/* Save Setup Form */}
+      {backtestResults.main && (
+        <form className="save-setup-form" onSubmit={handleSaveSetup}>
+          <h3>Save Backtest Setup</h3>
+          <label>
+            Name
+            <input type="text" name="name" value={setupDetails.name} onChange={handleSetupDetailChange} required />
+          </label>
+          <label>
+            Description
+            <textarea name="description" value={setupDetails.description} onChange={handleSetupDetailChange} />
+          </label>
+          <button type="submit">Save Setup</button>
+        </form>
+      )}
+
+      {/* Metrics Display & Chart */}
+      {backtestResults.main && (
+        <div className="chart-container">
+          <h3>{backtestResults.main.name}</h3>
+          <MetricsDisplay metrics={backtestResults.main.metrics} />
+          {chartData && (
+            <ResponsiveContainer width="100%" height={400}>
+              <LineChart data={chartData.data}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                {chartData.series.map((s) => (
+                  <Line key={s.name} type="monotone" dataKey={s.dataKey} stroke={s.color} strokeWidth={2} dot={false} />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      )}
     </div>
   );
 }
