@@ -82,7 +82,7 @@ const Strategies = () => {
   const [success, setSuccess] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // --- Fetch strategies ---
+  // --- Fetch single strategies ---
   const fetchSingleStrategies = async () => {
     try {
       const res = await api.get("/strategy");
@@ -92,9 +92,11 @@ const Strategies = () => {
     }
   };
 
+  // --- Fetch combo strategies ---
   const fetchComboStrategies = async () => {
     try {
       const res = await api.get("/combos");
+      console.log("Fetched combo strategies:", res.data); // ✅ Debug log
       setComboStrategies(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       setError(err.response?.data?.message || err.message);
@@ -175,6 +177,7 @@ const Strategies = () => {
     <div className="strategies-container">
       <h1 className="header">My Trading Strategies</h1>
 
+      {/* --- Alerts --- */}
       {error && <p className="error-banner">⚠️ {error}</p>}
       {success && <p className="success-banner">✅ {success}</p>}
 
@@ -220,6 +223,7 @@ const Strategies = () => {
             />
           </label>
 
+          {/* --- Parameters --- */}
           <div className="parameters-form">
             {Object.entries(newStrategy.params)
               .filter(([key]) => key !== "strategyType")
@@ -241,6 +245,7 @@ const Strategies = () => {
           </button>
         </form>
 
+        {/* --- Strategy Guide --- */}
         {newStrategy.params.strategyType && (
           <div className="strategy-guide">
             <h3 className="card-title">Parameters & Guide</h3>
@@ -262,7 +267,7 @@ const Strategies = () => {
         )}
       </div>
 
-      {/* --- Single Strategies --- */}
+      {/* --- Single Strategies List --- */}
       <div>
         <h2 className="card-title">Saved Single Strategies</h2>
         {singleStrategies.length > 0 ? (
@@ -279,7 +284,7 @@ const Strategies = () => {
         )}
       </div>
 
-      {/* --- Combo Strategies --- */}
+      {/* --- Combo Strategies List --- */}
       <div>
         <h2 className="card-title">Saved Combo Strategies</h2>
         {comboStrategies.length > 0 ? (
@@ -288,7 +293,9 @@ const Strategies = () => {
               <li key={c._id} className="strategy-card">
                 <span className="strategy-name">{c.name}</span>
                 <span className="strategy-type">
-                  {c.strategies.map((s) => s.params.strategyType).join(" + ")}
+                  {Array.isArray(c.strategies)
+                    ? c.strategies.map((s) => s.params?.strategyType || s.name || "Unknown").join(" + ")
+                    : "No strategies"}
                 </span>
               </li>
             ))}
