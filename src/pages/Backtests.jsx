@@ -205,34 +205,39 @@ export default function Backtests() {
   };
 
   // --- Combo Backtest (FIXED Payload) ---
- const handleComboSubmit = async (e) => {
+// --- Combo Backtest ---
+const handleComboSubmit = async (e) => {
   e.preventDefault();
   setBacktestResults({ main: null, individuals: [] });
   setActiveTestType("combo");
   setResultKey(Date.now());
 
   try {
+    // Filter only selected strategies
     const selectedStrategies = comboData.strategyConfigs
       .filter((s) => s.code)
       .map((s) => {
         const strat = options.strategies.find((opt) => opt.code === s.code);
-        return { strategyId: strat?._id, params: strat?.params || {} };
+        return {
+          strategyId: strat?._id || s.code, // use MongoDB _id or fallback code
+          params: strat?.params || {},
+        };
       });
 
     if (selectedStrategies.length < 2) {
       return alert("Select at least 2 unique strategies for a combo test.");
     }
 
-    // ✅ Correct payload
+    // --- Correct payload for backend schema ---
     const payload = {
-      name: "Combo Backtest",
-      description: "",
-      strategies: selectedStrategies, // each has { strategyId, params }
-      combinationRule: comboData.combinationRule,
-      symbol: comboData.symbol,
-      timeframe: comboData.timeframe,
-      startDate: comboData.startDate,
-      endDate: comboData.endDate,
+      params: {
+        combinationRule: comboData.combinationRule,
+        symbol: comboData.symbol,
+        timeframe: comboData.timeframe,
+        startDate: comboData.startDate,
+        endDate: comboData.endDate,
+        strategyParams: selectedStrategies,
+      },
     };
 
     console.log("Combo Backtest Payload:", payload);
@@ -262,6 +267,7 @@ export default function Backtests() {
     alert(err.response?.data?.message || "Error running combo backtest");
   }
 };
+
 
   // --- Save Setup (FIXED Payload) ---
   const handleSetupDetailChange = (e) =>
