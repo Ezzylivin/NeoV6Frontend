@@ -447,6 +447,22 @@ export default function Backtests() {
         </form>
       </div>
 
+      {/* Save Setup Form */}
+      {backtestResults.main && (
+        <form className="save-setup-form" onSubmit={handleSaveSetup}>
+          <h3>Save Backtest Setup</h3>
+          <label>
+            Name
+            <input type="text" name="name" value={setupDetails.name} onChange={handleSetupDetailChange} required />
+          </label>
+          <label>
+            Description
+            <textarea name="description" value={setupDetails.description} onChange={handleSetupDetailChange} />
+          </label>
+          <button type="submit">Save Setup</button>
+        </form>
+      )}
+
       {/* Metrics Display & Chart */}
       {backtestResults.main && (
         <div className="chart-container">
