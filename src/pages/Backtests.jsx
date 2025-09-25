@@ -205,66 +205,63 @@ export default function Backtests() {
   };
 
   // --- Combo Backtest (FIXED Payload) ---
-  const handleComboSubmit = async (e) => {
-    e.preventDefault();
-    setBacktestResults({ main: null, individuals: [] });
-    setActiveTestType("combo");
-    setResultKey(Date.now());
+ const handleComboSubmit = async (e) => {
+  e.preventDefault();
+  setBacktestResults({ main: null, individuals: [] });
+  setActiveTestType("combo");
+  setResultKey(Date.now());
 
-    try {
-      // Map selected strategies to backend expected format
-      const selectedStrategies = comboData.strategyConfigs
-        .filter((s) => s.code)
-        .map((s) => {
-          const strat = options.strategies.find((opt) => opt.code === s.code);
-          return { strategyId: strat?._id, params: strat?.params || {} };
-        });
+  try {
+    const selectedStrategies = comboData.strategyConfigs
+      .filter((s) => s.code)
+      .map((s) => {
+        const strat = options.strategies.find((opt) => opt.code === s.code);
+        return { strategyId: strat?._id, params: strat?.params || {} };
+      });
 
-      if (selectedStrategies.length < 2) {
-        return alert("Select at least 2 unique strategies for a combo test.");
-      }
-
-      const payload = {
-        name: "Combo Backtest",
-        description: "",
-        strategies: selectedStrategies.map((s) => s.strategyId),
-        params: {
-          combinationRule: comboData.combinationRule,
-          symbol: comboData.symbol,
-          timeframe: comboData.timeframe,
-          startDate: comboData.startDate,
-          endDate: comboData.endDate,
-          strategyParams: selectedStrategies,
-        },
-      };
-
-      console.log("Combo Backtest Payload:", payload);
-
-      const result = await runComboBacktest(payload);
-
-      if (result?.combinedResult?.equityCurve?.length > 0) {
-        setBacktestResults({
-          main: {
-            name: "Combined Strategy Performance",
-            metrics: result.combinedResult.metrics,
-            equityCurve: result.combinedResult.equityCurve,
-            sourceData: payload,
-          },
-          individuals: result.individualResults.map((r) => ({
-            name: r.strategyName,
-            metrics: r.metrics,
-            equityCurve: r.equityCurve,
-            noTradeReason: r.noTradeReason,
-          })),
-        });
-      } else {
-        alert("Combo backtest ran successfully but produced no trades.");
-      }
-    } catch (err) {
-      console.error("Combo backtest failed:", err);
-      alert(err.response?.data?.message || "Error running combo backtest");
+    if (selectedStrategies.length < 2) {
+      return alert("Select at least 2 unique strategies for a combo test.");
     }
-  };
+
+    // ✅ Correct payload
+    const payload = {
+      name: "Combo Backtest",
+      description: "",
+      strategies: selectedStrategies, // each has { strategyId, params }
+      combinationRule: comboData.combinationRule,
+      symbol: comboData.symbol,
+      timeframe: comboData.timeframe,
+      startDate: comboData.startDate,
+      endDate: comboData.endDate,
+    };
+
+    console.log("Combo Backtest Payload:", payload);
+
+    const result = await runComboBacktest(payload);
+
+    if (result?.combinedResult?.equityCurve?.length > 0) {
+      setBacktestResults({
+        main: {
+          name: "Combined Strategy Performance",
+          metrics: result.combinedResult.metrics,
+          equityCurve: result.combinedResult.equityCurve,
+          sourceData: payload,
+        },
+        individuals: result.individualResults.map((r) => ({
+          name: r.strategyName,
+          metrics: r.metrics,
+          equityCurve: r.equityCurve,
+          noTradeReason: r.noTradeReason,
+        })),
+      });
+    } else {
+      alert("Combo backtest ran successfully but produced no trades.");
+    }
+  } catch (err) {
+    console.error("Combo backtest failed:", err);
+    alert(err.response?.data?.message || "Error running combo backtest");
+  }
+};
 
   // --- Save Setup (FIXED Payload) ---
   const handleSetupDetailChange = (e) =>
