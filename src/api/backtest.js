@@ -86,14 +86,14 @@ export async function previewStrategy(payload) {
 // --- Run a combined strategy backtest ---
 export async function runComboBacktest(payload) {
   try {
-    // Normalize payload to match comboStrategy schema
+    // Normalize payload to match backend comboStrategy schema
     const normalized = {
+      combinationRule: payload.combinationRule,
       symbol: payload.symbol,
       timeframe: payload.timeframe,
       startDate: payload.startDate,
       endDate: payload.endDate,
-      combinationRule: payload.combinationRule,
-      strategyParams: (payload.strategyParams || []).map((s) => ({
+      strategies: (payload.strategies || []).map((s) => ({
         strategyId: s.strategyId,
         params: s.params || {},
       })),
