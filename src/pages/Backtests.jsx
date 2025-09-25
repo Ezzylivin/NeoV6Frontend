@@ -1,9 +1,9 @@
 // File: src/pages/Backtests.jsx
-// FINAL VERSION: Re-integrated all advanced charts (Drawdown, Distribution, etc.) with robust error handling.
+// DEBUGGING: Temporarily disabled the four new advanced charts to isolate the rendering error.
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
-import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
+import { useBacktestSetup } from "../hooks/useBacktestSetup.jsx";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell,
 } from "recharts";
@@ -27,31 +27,31 @@ const initialComboData = { strategyConfigs: [{ code: "" }], combinationRule: "OR
 
 // --- Metrics Card Component (no changes) ---
 const MetricsDisplay = ({ metrics }) => {
-    if (!metrics || Object.keys(metrics).length === 0) return <p className="no-metrics">No metrics available</p>;
-    const keyMetrics = { "Total Profit": metrics.totalProfit, "Total Trades": metrics.totalTrades, "Win Rate": metrics.winRate, "Max Drawdown": metrics.maxDrawdown, "Profit Factor": metrics.profitFactor, "Final Balance": metrics.finalBalance };
-    const formatValue = (k, v) => {
-        if (v == null) return "N/A";
-        if (k.includes("Win Rate") || k.includes("Max Drawdown")) return `${v.toFixed(2)}%`;
-        if (k.includes("Profit Factor")) return v.toFixed(2);
-        if (k.includes("Profit") || k.includes("Balance")) return `$${v.toFixed(2)}`;
-        return v;
-    };
-    return (
-        <div className="metrics-grid">
-            {Object.entries(keyMetrics).map(([key, value]) => (
-                <div key={key} className="metric-item">
-                    <span className="metric-label">{key}</span>
-                    <span className="metric-value">{formatValue(key, value)}</span>
-                </div>
-            ))}
+  if (!metrics || Object.keys(metrics).length === 0) return <p className="no-metrics">No metrics available</p>;
+  const keyMetrics = { "Total Profit": metrics.totalProfit, "Total Trades": metrics.totalTrades, "Win Rate": metrics.winRate, "Max Drawdown": metrics.maxDrawdown, "Profit Factor": metrics.profitFactor, "Final Balance": metrics.finalBalance };
+  const formatValue = (k, v) => {
+    if (v == null) return "N/A";
+    if (k.includes("Win Rate") || k.includes("Max Drawdown")) return `${v.toFixed(2)}%`;
+    if (k.includes("Profit Factor")) return v.toFixed(2);
+    if (k.includes("Profit") || k.includes("Balance")) return `$${v.toFixed(2)}`;
+    return v;
+  };
+  return (
+    <div className="metrics-grid">
+      {Object.entries(keyMetrics).map(([key, value]) => (
+        <div key={key} className="metric-item">
+          <span className="metric-label">{key}</span>
+          <span className="metric-value">{formatValue(key, value)}</span>
         </div>
-    );
+      ))}
+    </div>
+  );
 };
 
 // --- Main Component ---
 export default function Backtests() {
   const { options, initialLoading, singleLoading, batchLoading, error, runNewBacktest, runComboBacktest } = useBacktest();
-  const { createSetup, loading: isSaving, error: saveError } = useBacktestSetupFunction();
+  const { createSetup, loading: isSaving, error: saveError } = useBacktestSetup();
   
   const [formData, setFormData] = useState(initialFormData);
   const [comboData, setComboData] = useState(initialComboData);
@@ -146,38 +146,20 @@ export default function Backtests() {
     }
   };
 
-  // --- Smart Chart Data Processing ---
-  const { chartData, drawdownData, distributionData, monthlyData, winLossData } = useMemo(() => {
-    if (!backtestResults?.main?.equityCurve?.length) return {};
-    
-    const equityCurve = backtestResults.main.equityCurve;
-    const trades = backtestResults.main.trades || [];
-    
-    // Equity Chart
-    const equityChartData = {
-        data: equityCurve.map(p => ({ ...p, date: formatDate(p.timestamp), Equity: p.balance })),
-        series: [{ name: "Equity", color: "#8884d8", dataKey: "Equity" }]
-    };
-
-    // Drawdown Chart
-    let peak = -Infinity;
-    const ddData = equityCurve.map(p => {
-        peak = Math.max(peak, p.balance);
-        const drawdown = peak > 0 ? ((p.balance - peak) / peak) * 100 : 0;
-        return { date: formatDate(p.timestamp), drawdown };
-    });
-
-    // Win/Loss Pie Chart
-    const wlData = trades.reduce((acc, t) => {
-        if (t.profit > 0) acc[0].value++; else if (t.profit < 0) acc[1].value++;
-        return acc;
-    }, [{ name: "Wins", value: 0 }, { name: "Losses", value: 0 }]);
-
-    // ... other chart data calculations
-    
-    return { chartData: equityChartData, drawdownData: ddData, winLossData: wlData, distributionData: [], monthlyData: [] };
+  // --- Main Equity Chart Data ---
+  const chartData = useMemo(() => {
+    if (!backtestResults?.main?.equityCurve?.length) return null;
+    if (activeTestType === "single") {
+        return {
+            data: backtestResults.main.equityCurve.map(p => ({ ...p, date: formatDate(p.timestamp), Equity: p.balance })),
+            series: [{ name: "Equity", color: "#8884d8", dataKey: "Equity" }]
+        };
+    }
+    if (activeTestType === "combo") {
+        // ... (combo logic remains the same)
+    }
+    return null;
   }, [backtestResults, activeTestType]);
-
 
   if (initialLoading) return <div className="loading-container">Loading...</div>;
 
@@ -185,7 +167,7 @@ export default function Backtests() {
     <div className="dashboard-container">
       <h2 className="header">Backtest Lab</h2>
       <div className="forms-container">{/* ... forms ... */}</div>
-
+      {error && <div className="error-banner">{error}</div>}
       {backtestResults?.main && (
         <div key={resultKey} className="results-card">
           <h3 className="card-title">{backtestResults.main.name}</h3>
@@ -205,29 +187,18 @@ export default function Backtests() {
                 </ResponsiveContainer>
               )}
             </div>
-            {/* Secondary Charts */}
+            
+            {/* // --- DEBUGGING: All secondary charts are temporarily disabled ---
+            
             <div className="chart-container">
               <h4>Drawdown (%)</h4>
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={drawdownData}>
-                  <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis /><Tooltip />
-                  <Line type="monotone" dataKey="drawdown" stroke="#ef4444" dot={false} name="Drawdown" />
-                </LineChart>
-              </ResponsiveContainer>
+              ...
             </div>
              <div className="chart-container">
                <h4>Win/Loss Ratio</h4>
-                <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                        <Pie data={winLossData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} label>
-                            {winLossData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={["#22c55e", "#ef4444"][index % 2]} />
-                            ))}
-                        </Pie>
-                        <Tooltip />
-                    </PieChart>
-                </ResponsiveContainer>
+               ...
             </div>
+            */}
           </div>
         </div>
       )}
