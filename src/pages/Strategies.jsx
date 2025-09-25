@@ -1,7 +1,7 @@
 // File: src/pages/Strategies.jsx
 import React, { useState, useEffect, useContext } from "react";
 import api from "../api/apiClient.js";
-import { StrategyContext } from "../context/StrategyContext.jsx"; // <-- new shared context
+import { StrategyContext } from "../context/StrategyContext.jsx";
 import "./Strategies.css";
 
 // --- Strategy Guides ---
@@ -76,13 +76,11 @@ const initialStrategyState = {
 };
 
 const Strategies = () => {
-  // --- State ---
   const [newStrategy, setNewStrategy] = useState(initialStrategyState);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // --- Shared context for strategies ---
   const { singleStrategies, setSingleStrategies, comboStrategies, setComboStrategies } = useContext(StrategyContext);
 
   // --- Fetch strategies from backend ---
@@ -90,7 +88,6 @@ const Strategies = () => {
     try {
       setLoading(true);
       const [singleRes, comboRes] = await Promise.all([api.get("/strategy"), api.get("/combos")]);
-
       setSingleStrategies(singleRes.data?.strategies || singleRes.data || []);
       setComboStrategies(comboRes.data?.combos || comboRes.data || []);
     } catch (err) {
@@ -104,6 +101,16 @@ const Strategies = () => {
   useEffect(() => {
     fetchStrategies();
   }, []);
+
+  // --- Listen for saved backtests in StrategyContext ---
+  const handleNewBacktest = (backtest) => {
+    // Determine if single or combo
+    if (backtest.type === "single") {
+      setSingleStrategies((prev) => [...prev, backtest]);
+    } else if (backtest.type === "combo") {
+      setComboStrategies((prev) => [...prev, backtest]);
+    }
+  };
 
   // --- Handle form changes ---
   const handleStrategyChange = (e) => {
@@ -135,10 +142,7 @@ const Strategies = () => {
     try {
       const res = await api.post("/strategy", newStrategy);
       const saved = res.data;
-
-      // ✅ Automatically add to Strategies context (so page updates immediately)
       setSingleStrategies((prev) => [...prev, saved]);
-
       setNewStrategy(initialStrategyState);
       setError(null);
       setSuccess("Strategy created successfully!");
@@ -150,7 +154,6 @@ const Strategies = () => {
     }
   };
 
-  // --- Format label ---
   const formatLabel = (key) => key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase());
 
   if (loading) return <p className="loading-banner">⏳ Loading strategies...</p>;
@@ -159,74 +162,53 @@ const Strategies = () => {
     <div className="strategies-container">
       <h1 className="header">My Trading Strategies</h1>
 
-      {/* Alerts */}
       {error && <p className="error-banner">⚠️ {error}</p>}
       {success && <p className="success-banner">✅ {success}</p>}
 
-      {/* Create Strategy Form */}
+      {/* --- Create Strategy Form --- */}
       <div className="strategy-form">
         <h2 className="card-title">Create a New Strategy</h2>
         <form onSubmit={handleCreateStrategy}>
           <label>
             Strategy Type:
             <select name="strategyType" value={newStrategy.params.strategyType} onChange={handleStrategyChange} className="dashboard-dropdown">
-              {Object.keys(strategyGuides)
-                .sort()
-                .map((t) => (
-                  <option key={t} value={t}>
-                    {strategyGuides[t].title}
-                  </option>
-                ))}
+              {Object.keys(strategyGuides).sort().map((t) => (
+                <option key={t} value={t}>{strategyGuides[t].title}</option>
+              ))}
             </select>
           </label>
-
           <label>
             Strategy Name:
             <input type="text" name="name" value={newStrategy.name} onChange={handleStrategyChange} required />
           </label>
-
           <label>
             Description:
             <textarea name="description" value={newStrategy.description} onChange={handleStrategyChange} />
           </label>
-
-          {/* Parameters */}
           <div className="parameters-form">
-            {Object.entries(newStrategy.params)
-              .filter(([key]) => key !== "strategyType")
-              .map(([key, value]) => (
-                <label key={key}>
-                  {formatLabel(key)}:
-                  <input type="number" name={key} value={value} onChange={handleStrategyChange} />
-                </label>
-              ))}
+            {Object.entries(newStrategy.params).filter(([key]) => key !== "strategyType").map(([key, value]) => (
+              <label key={key}>
+                {formatLabel(key)}:
+                <input type="number" name={key} value={value} onChange={handleStrategyChange} />
+              </label>
+            ))}
           </div>
-
-          <button type="submit" className="button-add">
-            ➕ Create Strategy
-          </button>
+          <button type="submit" className="button-add">➕ Create Strategy</button>
         </form>
 
-        {/* Strategy Guide */}
         {newStrategy.params.strategyType && (
           <div className="strategy-guide">
             <h3 className="card-title">Parameters & Guide</h3>
             <div className="strategy-description">
-              <p>
-                <strong>What it is:</strong> {strategyGuides[newStrategy.params.strategyType]?.whatItIs}
-              </p>
-              <p>
-                <strong>How it works:</strong> {strategyGuides[newStrategy.params.strategyType]?.howItWorks}
-              </p>
-              <p>
-                <strong>Combine with:</strong> {strategyGuides[newStrategy.params.strategyType]?.combineWith}
-              </p>
+              <p><strong>What it is:</strong> {strategyGuides[newStrategy.params.strategyType]?.whatItIs}</p>
+              <p><strong>How it works:</strong> {strategyGuides[newStrategy.params.strategyType]?.howItWorks}</p>
+              <p><strong>Combine with:</strong> {strategyGuides[newStrategy.params.strategyType]?.combineWith}</p>
             </div>
           </div>
         )}
       </div>
 
-      {/* Single Strategies */}
+      {/* --- Single Strategies --- */}
       <div>
         <h2 className="card-title">Saved Single Strategies</h2>
         {singleStrategies.length > 0 ? (
@@ -238,12 +220,10 @@ const Strategies = () => {
               </li>
             ))}
           </ul>
-        ) : (
-          <p className="no-strategies">No strategies yet. Create your first one above!</p>
-        )}
+        ) : <p className="no-strategies">No strategies yet. Create your first one above!</p>}
       </div>
 
-      {/* Combo Strategies */}
+      {/* --- Combo Strategies --- */}
       <div>
         <h2 className="card-title">Saved Combo Strategies</h2>
         {comboStrategies.length > 0 ? (
@@ -265,9 +245,7 @@ const Strategies = () => {
               );
             })}
           </ul>
-        ) : (
-          <p className="no-strategies">No combo strategies yet.</p>
-        )}
+        ) : <p className="no-strategies">No combo strategies yet.</p>}
       </div>
     </div>
   );
