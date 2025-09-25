@@ -145,10 +145,8 @@ export default function Backtests() {
 
   const handleComboChange = (e, index) => {
     const { name, value } = e.target;
-
     setComboData((prev) => {
       const configs = [...prev.strategyConfigs];
-
       if (name === "strategyCode") {
         const duplicate = configs.some((c, i) => c.code === value && i !== index);
         if (duplicate) return prev;
@@ -156,7 +154,6 @@ export default function Backtests() {
       } else {
         return { ...prev, [name]: value };
       }
-
       return { ...prev, strategyConfigs: configs };
     });
   };
@@ -204,78 +201,71 @@ export default function Backtests() {
     }
   };
 
-  // --- Combo Backtest (FIXED Payload) ---
-// --- Combo Backtest ---
-const handleComboSubmit = async (e) => {
-  e.preventDefault();
-  setBacktestResults({ main: null, individuals: [] });
-  setActiveTestType("combo");
-  setResultKey(Date.now());
+  // --- Combo Backtest ---
+  const handleComboSubmit = async (e) => {
+    e.preventDefault();
+    setBacktestResults({ main: null, individuals: [] });
+    setActiveTestType("combo");
+    setResultKey(Date.now());
 
-  try {
-    // --- Filter only selected strategies with code ---
-    const selectedStrategies = comboData.strategyConfigs
-      .filter((s) => s.code)
-      .map((s) => {
-        const strat = options.strategies.find((opt) => opt.code === s.code);
-        return {
-          strategyId: strat?._id || s.code, // MongoDB _id fallback to code
-          params: strat?.params || s.params || {}, // allow per-strategy custom params
-        };
-      });
+    try {
+      const selectedStrategies = comboData.strategyConfigs
+        .filter((s) => s.code)
+        .map((s) => {
+          const strat = options.strategies.find((opt) => opt.code === s.code);
+          return {
+            strategyId: strat?._id || s.code,
+            params: strat?.params || s.params || {},
+          };
+        });
 
-    // --- Frontend validation: at least 2 strategies ---
-    if (selectedStrategies.length < 2) {
-      return alert("Select at least 2 unique strategies for a combined backtest.");
-    }
+      if (selectedStrategies.length < 2) {
+        return alert("Select at least 2 unique strategies for a combined backtest.");
+      }
 
-    // --- Normalize payload to match backend comboStrategy schema ---
-    const payload = {
-      params: {
-        combinationRule: comboData.combinationRule, // "AND" or "OR"
-        symbol: comboData.symbol,
-        timeframe: comboData.timeframe,
-        startDate: comboData.startDate,
-        endDate: comboData.endDate,
-        strategyParams: selectedStrategies, // array of {strategyId, params}
-      },
-    };
-
-    console.log("Combo Backtest Payload:", payload);
-
-    const result = await runComboBacktest(payload);
-
-    // --- Check if combined backtest returned equity curve ---
-    if (result?.combinedResult?.equityCurve?.length > 0) {
-      setBacktestResults({
-        main: {
-          name: "Combined Strategy Performance",
-          metrics: result.combinedResult.metrics,
-          equityCurve: result.combinedResult.equityCurve,
-          sourceData: payload,
+      const payload = {
+        params: {
+          combinationRule: comboData.combinationRule,
+          symbol: comboData.symbol,
+          timeframe: comboData.timeframe,
+          startDate: comboData.startDate,
+          endDate: comboData.endDate,
+          strategyParams: selectedStrategies,
         },
-        individuals: result.individualResults.map((r) => ({
-          name: r.strategyName,
-          metrics: r.metrics,
-          equityCurve: r.equityCurve,
-          noTradeReason: r.noTradeReason,
-        })),
-      });
-    } else {
-      alert("Combo backtest ran successfully but produced no trades.");
+      };
+
+      console.log("Combo Backtest Payload:", payload);
+
+      const result = await runComboBacktest(payload);
+
+      if (result?.combinedResult?.equityCurve?.length > 0) {
+        setBacktestResults({
+          main: {
+            name: "Combined Strategy Performance",
+            metrics: result.combinedResult.metrics,
+            equityCurve: result.combinedResult.equityCurve,
+            sourceData: payload,
+          },
+          individuals: result.individualResults.map((r) => ({
+            name: r.strategyName,
+            metrics: r.metrics,
+            equityCurve: r.equityCurve,
+            noTradeReason: r.noTradeReason,
+          })),
+        });
+      } else {
+        alert("Combo backtest ran successfully but produced no trades.");
+      }
+    } catch (err) {
+      console.error("Combo backtest failed:", err);
+      alert(
+        err.response?.data?.message ||
+          "Error running combo backtest. Make sure at least 2 strategies are selected and params are valid."
+      );
     }
-  } catch (err) {
-    console.error("Combo backtest failed:", err);
-    alert(
-      err.response?.data?.message ||
-      "Error running combo backtest. Make sure at least 2 strategies are selected and params are valid."
-    );
-  }
-};
+  };
 
-
-
-  // --- Save Setup (FIXED Payload) ---
+  // --- Save Setup ---
   const handleSetupDetailChange = (e) =>
     setSetupDetails({ ...setupDetails, [e.target.name]: e.target.value });
 
@@ -306,8 +296,8 @@ const handleComboSubmit = async (e) => {
         payload = {
           name: setupDetails.name,
           description: setupDetails.description,
-          strategies: source.strategies,
-          params: source.params,
+          strategies: source.strategyParams?.map((s) => s.strategyId) || [],
+          params: source,
         };
       }
 
@@ -321,7 +311,7 @@ const handleComboSubmit = async (e) => {
     }
   };
 
-  // --- Chart Data (unchanged) ---
+  // --- Chart Data ---
   const chartData = useMemo(() => {
     if (!backtestResults?.main?.equityCurve?.length) return null;
 
@@ -329,7 +319,10 @@ const handleComboSubmit = async (e) => {
       seriesData.map((p) => ({ date: formatDate(p.timestamp), Equity: p.balance }));
 
     if (activeTestType === "single")
-      return { data: mapSeriesToPoints(backtestResults.main.equityCurve), series: [{ name: "Equity", color: "#8884d8", dataKey: "Equity" }] };
+      return {
+        data: mapSeriesToPoints(backtestResults.main.equityCurve),
+        series: [{ name: "Equity", color: "#8884d8", dataKey: "Equity" }],
+      };
 
     if (activeTestType === "combo") {
       const individualSeries = backtestResults.individuals
@@ -337,7 +330,9 @@ const handleComboSubmit = async (e) => {
         .map((r) => ({ name: r.name, data: r.equityCurve }));
 
       const allSeries = [{ name: "Combined", data: backtestResults.main.equityCurve }, ...individualSeries];
-      const allTimestamps = [...new Set(allSeries.flatMap((s) => s.data.map((p) => new Date(p.timestamp).getTime())))].sort((a, b) => a - b);
+      const allTimestamps = [...new Set(allSeries.flatMap((s) => s.data.map((p) => new Date(p.timestamp).getTime())))].sort(
+        (a, b) => a - b
+      );
 
       const dataMap = {};
       allSeries.forEach((s) => {
@@ -348,7 +343,9 @@ const handleComboSubmit = async (e) => {
       });
 
       const lastBalances = {};
-      allSeries.forEach((s) => { lastBalances[s.name] = s.data[0]?.balance || 1000; });
+      allSeries.forEach((s) => {
+        lastBalances[s.name] = s.data[0]?.balance || 1000;
+      });
 
       const mergedData = allTimestamps.map((ts) => {
         const point = { date: formatDate(ts) };
@@ -360,7 +357,10 @@ const handleComboSubmit = async (e) => {
       });
 
       const colors = ["#8884d8", "#82ca9d", "#ffc658", "#ff8042", "#0088FE", "#00C49F", "#FFBB28"];
-      return { data: mergedData, series: allSeries.map((s, i) => ({ name: s.name, color: colors[i % colors.length], dataKey: s.name })) };
+      return {
+        data: mergedData,
+        series: allSeries.map((s, i) => ({ name: s.name, color: colors[i % colors.length], dataKey: s.name })),
+      };
     }
 
     return null;
@@ -369,7 +369,7 @@ const handleComboSubmit = async (e) => {
   if (initialLoading) return <div>Loading...</div>;
   if (error) return <div style={{ color: "red" }}>Error: {error}</div>;
 
-    return (
+  return (
     <div className="dashboard-container">
       <h2 className="header">Backtests</h2>
 
@@ -383,19 +383,31 @@ const handleComboSubmit = async (e) => {
               Strategy
               <select name="code" value={formData.code} onChange={handleChange} required>
                 <option value="">-- Select a strategy --</option>
-                {options.strategies.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
+                {options.strategies.map((s) => (
+                  <option key={s.code} value={s.code}>
+                    {s.name}
+                  </option>
+                ))}
               </select>
             </label>
             <label>
               Symbol
               <select name="symbol" value={formData.symbol} onChange={handleChange} required>
-                {options.symbols.map((sym) => <option key={sym} value={sym}>{sym}</option>)}
+                {options.symbols.map((sym) => (
+                  <option key={sym} value={sym}>
+                    {sym}
+                  </option>
+                ))}
               </select>
             </label>
             <label>
               Timeframe
               <select name="timeframe" value={formData.timeframe} onChange={handleChange} required>
-                {options.timeframes.map((tf) => <option key={tf} value={tf}>{tf}</option>)}
+                {options.timeframes.map((tf) => (
+                  <option key={tf} value={tf}>
+                    {tf}
+                  </option>
+                ))}
               </select>
             </label>
             <label>
@@ -406,7 +418,9 @@ const handleComboSubmit = async (e) => {
               End Date
               <input type="date" name="endDate" value={formData.endDate} onChange={handleChange} required />
             </label>
-            <button type="submit" disabled={singleLoading}>{singleLoading ? "Running..." : "Run Backtest"}</button>
+            <button type="submit" disabled={singleLoading}>
+              {singleLoading ? "Running..." : "Run Backtest"}
+            </button>
           </div>
         </form>
 
@@ -427,15 +441,25 @@ const handleComboSubmit = async (e) => {
                     <option value="">-- Select a strategy --</option>
                     {options.strategies
                       .filter((s) => !comboData.strategyConfigs.some((c, i) => c.code === s.code && i !== idx))
-                      .map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
+                      .map((s) => (
+                        <option key={s.code} value={s.code}>
+                          {s.name}
+                        </option>
+                      ))}
                   </select>
                 </label>
                 {comboData.strategyConfigs.length > 1 && (
-                  <button type="button" onClick={() => removeStrategyFromCombo(idx)}>Remove</button>
+                  <button type="button" onClick={() => removeStrategyFromCombo(idx)}>
+                    Remove
+                  </button>
                 )}
               </div>
             ))}
-            <button type="button" onClick={addStrategyToCombo} disabled={comboData.strategyConfigs.length >= options.strategies.length}>
+            <button
+              type="button"
+              onClick={addStrategyToCombo}
+              disabled={comboData.strategyConfigs.length >= options.strategies.length}
+            >
               Add Strategy
             </button>
 
@@ -450,14 +474,22 @@ const handleComboSubmit = async (e) => {
             <label>
               Symbol
               <select name="symbol" value={comboData.symbol} onChange={(e) => handleComboChange(e, 0)} required>
-                {options.symbols.map((sym) => <option key={sym} value={sym}>{sym}</option>)}
+                {options.symbols.map((sym) => (
+                  <option key={sym} value={sym}>
+                    {sym}
+                  </option>
+                ))}
               </select>
             </label>
 
             <label>
               Timeframe
               <select name="timeframe" value={comboData.timeframe} onChange={(e) => handleComboChange(e, 0)} required>
-                {options.timeframes.map((tf) => <option key={tf} value={tf}>{tf}</option>)}
+                {options.timeframes.map((tf) => (
+                  <option key={tf} value={tf}>
+                    {tf}
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -471,7 +503,9 @@ const handleComboSubmit = async (e) => {
               <input type="date" name="endDate" value={comboData.endDate} onChange={(e) => handleComboChange(e, 0)} required />
             </label>
 
-            <button type="submit" disabled={batchLoading}>{batchLoading ? "Running..." : "Run Combo Backtest"}</button>
+            <button type="submit" disabled={batchLoading}>
+              {batchLoading ? "Running..." : "Run Combo Backtest"}
+            </button>
           </div>
         </form>
       </div>
