@@ -147,6 +147,7 @@ button:disabled {
   gap: 30px;
   flex-wrap: wrap;
   margin-top: 25px;
+  justify-content: space-between;
 }
 
 .strategy-section,
@@ -154,11 +155,56 @@ button:disabled {
   flex: 1 1 500px;
   background-color: #1e2033;
   border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  padding: 25px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  transition: transform 0.2s, box-shadow 0.2s;
 }
 
-/* --- Strategy Cards --- */
+.strategy-section:hover,
+.combo-section:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+
+/* --- Section Headers --- */
+.strategy-section h2,
+.combo-section h2 {
+  font-size: 22px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  color: #f1f5f9;
+  border-bottom: 1px solid #3b445e;
+  padding-bottom: 8px;
+}
+
+/* --- Scrollable Strategy Lists --- */
+.strategy-list,
+.combo-list {
+  max-height: 500px;
+  overflow-y: auto;
+  margin-top: 15px;
+  padding-right: 5px;
+}
+
+/* --- Scrollbar Styling --- */
+.strategy-list::-webkit-scrollbar,
+.combo-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.strategy-list::-webkit-scrollbar-thumb,
+.combo-list::-webkit-scrollbar-thumb {
+  background-color: #6366f1;
+  border-radius: 4px;
+}
+
+.strategy-list::-webkit-scrollbar-track,
+.combo-list::-webkit-scrollbar-track {
+  background-color: #1e2033;
+  border-radius: 4px;
+}
+
+/* --- Strategy & Combo Cards --- */
 .strategy-card,
 .combo-card {
   background-color: #1f2136;
@@ -196,7 +242,7 @@ button:disabled {
   color: #94a3b8;
 }
 
-/* --- Collapsible Guide Panels --- */
+/* --- Collapsible Guides --- */
 .strategy-guide,
 .combo-guide {
   margin-top: 15px;
@@ -225,7 +271,6 @@ button:disabled {
   padding-top: 10px;
 }
 
-/* --- Parameters & Guides Text --- */
 .strategy-parameters p,
 .combo-parameters p {
   margin: 6px 0;
@@ -243,6 +288,13 @@ button:disabled {
 }
 
 /* --- Responsive --- */
+@media (max-width: 1024px) {
+  .strategy-section,
+  .combo-section {
+    flex: 1 1 45%;
+  }
+}
+
 @media (max-width: 768px) {
   .strategies-flex {
     flex-direction: column;
