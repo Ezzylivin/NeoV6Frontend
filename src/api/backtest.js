@@ -1,4 +1,3 @@
-// File: src/api/backtest.js
 import api from "./apiClient.js";
 
 // --- Helpers to normalize API responses ---
@@ -17,6 +16,7 @@ const normalizePastBacktests = (raw) => ({
 
 // --- Fetch backtest options ---
 export async function fetchOptions() {
+  // REMOVED: setAuthToken is now handled in App.jsx
   try {
     const response = await api.get("/backtest/options");
     return normalizeOptions(response.data);
@@ -28,6 +28,7 @@ export async function fetchOptions() {
 
 // --- Fetch paginated past backtests ---
 export async function fetchAll(page = 1) {
+  // REMOVED: setAuthToken is now handled in App.jsx
   try {
     const response = await api.get(`/backtest?page=${page}`);
     return normalizePastBacktests(response.data);
@@ -39,6 +40,7 @@ export async function fetchAll(page = 1) {
 
 // --- Fetch a single backtest by its ID ---
 export async function fetchById(id) {
+  // REMOVED: setAuthToken is now handled in App.jsx
   try {
     const { data } = await api.get(`/backtest/${id}`);
     return data;
@@ -50,6 +52,7 @@ export async function fetchById(id) {
 
 // --- Delete a single backtest by its ID ---
 export async function deleteById(id) {
+  // REMOVED: setAuthToken is now handled in App.jsx
   try {
     const { data } = await api.delete(`/backtest/${id}`);
     return data;
@@ -61,6 +64,7 @@ export async function deleteById(id) {
 
 // --- Run single backtest ---
 export async function runBacktest(payload) {
+  // REMOVED: setAuthToken is now handled in App.jsx
   if (!payload.code) throw new Error("strategy 'code' is required for backtest");
   try {
     const { data } = await api.post("/backtest/run", payload);
@@ -73,6 +77,7 @@ export async function runBacktest(payload) {
 
 // --- Preview a strategy without saving ---
 export async function previewStrategy(payload) {
+  // REMOVED: setAuthToken is now handled in App.jsx
   if (!payload.code) throw new Error("strategy 'code' is required for preview");
   try {
     const { data } = await api.post("/backtest/preview", payload);
@@ -85,23 +90,9 @@ export async function previewStrategy(payload) {
 
 // --- Run a combined strategy backtest ---
 export async function runComboBacktest(payload) {
+  // REMOVED: setAuthToken is now handled in App.jsx
   try {
-    // Normalize payload to match backend comboStrategy schema
-    const normalized = {
-      params: {
-        combinationRule: payload.combinationRule,
-        symbol: payload.symbol,
-        timeframe: payload.timeframe,
-        startDate: payload.startDate,
-        endDate: payload.endDate,
-        strategyParams: (payload.strategies || []).map((s) => ({
-          strategyId: s.strategyId,
-          params: s.params || {},
-        })),
-      },
-    };
-
-    const { data } = await api.post("/backtest/combo", normalized);
+    const { data } = await api.post("/backtest/combo", payload);
     return data;
   } catch (error) {
     console.error("runComboBacktest(): failed", error);
