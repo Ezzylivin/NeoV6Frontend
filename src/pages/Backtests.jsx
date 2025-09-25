@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useContext } from "react"; 
+// File: Backtests.jsx
+import React, { useState, useEffect, useMemo, useContext } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { StrategyContext } from "../context/StrategyContext.jsx";
@@ -19,12 +20,10 @@ import {
 } from "recharts";
 import "./Backtests.css";
 
-// --- Helper functions for dates ---
+// --- Helper functions ---
 const formatDate = (date) => {
   const d = new Date(date);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate()
-  ).padStart(2, "0")}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 const getInitialDates = () => {
   const today = new Date();
@@ -55,8 +54,7 @@ const initialComboData = {
 
 // --- Metrics Display ---
 const MetricsDisplay = ({ metrics }) => {
-  if (!metrics || Object.keys(metrics).length === 0)
-    return <p className="no-metrics">No metrics available</p>;
+  if (!metrics || Object.keys(metrics).length === 0) return <p className="no-metrics">No metrics available</p>;
 
   const keyMetrics = {
     "Total Profit": metrics.totalProfit,
@@ -71,8 +69,7 @@ const MetricsDisplay = ({ metrics }) => {
     if (v == null) return "N/A";
     if (k.includes("Win Rate")) return `${v.toFixed(2)}%`;
     if (k.includes("Profit Factor")) return v.toFixed(2);
-    if (k.includes("Profit") || k.includes("Drawdown") || k.includes("Balance"))
-      return `$${v.toFixed(2)}`;
+    if (k.includes("Profit") || k.includes("Drawdown") || k.includes("Balance")) return `$${v.toFixed(2)}`;
     return v;
   };
 
@@ -91,15 +88,7 @@ const MetricsDisplay = ({ metrics }) => {
 // --- Main Component ---
 export default function Backtests() {
   const { strategies, setStrategies } = useContext(StrategyContext);
-  const {
-    options,
-    initialLoading,
-    singleLoading,
-    batchLoading,
-    error,
-    runNewBacktest,
-    runComboBacktest,
-  } = useBacktest();
+  const { options, initialLoading, singleLoading, batchLoading, error, runNewBacktest, runComboBacktest } = useBacktest();
   const { createSetup, loading: isSaving, error: saveError } = useBacktestSetupFunction();
 
   const [formData, setFormData] = useState(initialFormData);
@@ -184,9 +173,7 @@ export default function Backtests() {
           },
           individuals: [],
         });
-      } else {
-        alert("Backtest ran successfully but produced no trades.");
-      }
+      } else alert("Backtest ran successfully but produced no trades.");
     } catch (err) {
       alert(err.response?.data?.message || "Error running backtest");
     }
@@ -212,10 +199,7 @@ export default function Backtests() {
         strategyCodes,
       };
 
-      console.log("Combo Backtest Payload:", payload);
-
       const result = await runComboBacktest(payload);
-
       if (result?.combinedResult?.equityCurve?.length > 0) {
         setBacktestResults({
           main: {
@@ -232,9 +216,7 @@ export default function Backtests() {
             trades: r.trades || [],
           })),
         });
-      } else {
-        alert("Combo backtest ran successfully but produced no trades.");
-      }
+      } else alert("Combo backtest ran successfully but produced no trades.");
     } catch (err) {
       console.error("Combo backtest failed:", err);
       alert(err.response?.data?.message || "Error running combo backtest");
@@ -295,53 +277,13 @@ export default function Backtests() {
     }
   };
 
-  // --- Chart Data ---
-  const chartData = useMemo(() => {
-    if (!backtestResults?.main?.equityCurve?.length) return null;
-
-    const mapSeriesToPoints = (seriesData) => seriesData.map((p) => ({ date: formatDate(p.timestamp), Equity: p.balance }));
-
-    if (activeTestType === "single")
-      return { data: mapSeriesToPoints(backtestResults.main.equityCurve), series: [{ name: "Equity", color: "#8884d8", dataKey: "Equity" }] };
-
-    if (activeTestType === "combo") {
-      const individualSeries = backtestResults.individuals.filter((r) => r.metrics?.totalTrades > 0).map((r) => ({ name: r.name, data: r.equityCurve }));
-      const allSeries = [{ name: "Combined", data: backtestResults.main.equityCurve }, ...individualSeries];
-      const allTimestamps = [...new Set(allSeries.flatMap((s) => s.data.map((p) => new Date(p.timestamp).getTime())))].sort((a, b) => a - b);
-
-      const dataMap = {};
-      allSeries.forEach((s) => {
-        dataMap[s.name] = s.data.reduce((acc, p) => { acc[new Date(p.timestamp).getTime()] = p.balance; return acc; }, {});
-      });
-
-      const lastBalances = {};
-      allSeries.forEach((s) => { lastBalances[s.name] = s.data[0]?.balance || 1000; });
-
-      const mergedData = allTimestamps.map((ts) => {
-        const point = { date: formatDate(ts) };
-        allSeries.forEach((s) => {
-          if (dataMap[s.name][ts] !== undefined) lastBalances[s.name] = dataMap[s.name][ts];
-          point[s.name] = lastBalances[s.name];
-        });
-        return point;
-      });
-
-      const colors = ["#8884d8", "#82ca9d", "#ffc658", "#ff8042", "#0088FE", "#00C49F", "#FFBB28"];
-      return { data: mergedData, series: allSeries.map((s, i) => ({ name: s.name, color: colors[i % colors.length], dataKey: s.name })) };
-    }
-
-    return null;
-  }, [backtestResults, activeTestType]);
-
+  // --- Chart / Trade Computations ---
   const equityCurve = backtestResults?.main?.equityCurve || [];
-
   const trades = useMemo(() => {
     const mTrades = backtestResults?.main?.metrics?.trades;
     if (Array.isArray(mTrades)) return mTrades;
-
     const indTrades = backtestResults?.individuals?.flatMap((r) => r.trades || []) || [];
     if (indTrades.length > 0) return indTrades;
-
     return [];
   }, [backtestResults]);
 
@@ -397,139 +339,111 @@ export default function Backtests() {
       if (pnl > 0) wins += 1;
       else losses += 1;
     });
-    return [{ name: "Wins", value: wins }, { name: "Losses", value: losses }];
+    return [
+      { name: "Wins", value: wins },
+      { name: "Losses", value: losses },
+    ];
   }, [trades]);
 
   const COLORS = ["#0088FE", "#FF8042"];
+
+  if (initialLoading) return <div>Loading...</div>;
+  if (error) return <div style={{ color: "red" }}>Error: {error}</div>;
 
   return (
     <div className="backtests-page">
       <h2>Backtests</h2>
 
-      {/* --- Single Backtest Form --- */}
+      {/* Single Backtest Form */}
       <form className="backtest-form" onSubmit={handleSingleSubmit}>
         <h3>Single Strategy Backtest</h3>
-        {/* Form fields for single backtest */}
-        <button type="submit" disabled={singleLoading}>{singleLoading ? "Running..." : "Run Backtest"}</button>
+        <button type="submit" disabled={singleLoading}>
+          {singleLoading ? "Running..." : "Run Backtest"}
+        </button>
       </form>
 
-      {/* --- Combo Backtest Form --- */}
+      {/* Combo Backtest Form */}
       <form className="backtest-form" onSubmit={handleComboSubmit}>
         <h3>Combo Strategy Backtest</h3>
-        {/* Form fields for combo backtest */}
-        <button type="submit" disabled={batchLoading}>{batchLoading ? "Running..." : "Run Combo Backtest"}</button>
+        <button type="submit" disabled={batchLoading}>
+          {batchLoading ? "Running..." : "Run Combo Backtest"}
+        </button>
       </form>
 
-      {error && <p className="error">{error}</p>}
-
-      {/* --- Main Backtest Results --- */}
       {backtestResults.main && (
         <div key={resultKey} className="backtest-results">
           <h3>{backtestResults.main.name}</h3>
-
-          {/* Metrics */}
           <MetricsDisplay metrics={backtestResults.main.metrics} />
 
-          {/* --- Equity / Combined Strategy Chart --- */}
-          <h4>Main Equity / Combined Strategy Chart</h4>
-          <p className="chart-description">
-            This chart shows how your account balance changes over time. 
-            For single strategies, it shows one line. For combined strategies, 
-            multiple lines show each strategy’s performance plus the combined result.
-          </p>
-          {chartData && (
-            <ResponsiveContainer width="100%" height={400}>
-              <LineChart data={chartData.data}>
+          {/* Equity Chart */}
+          {equityCurve.length > 0 && (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={equityCurve.map((p) => ({ date: formatDate(p.timestamp), Equity: p.balance }))}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                {chartData.series.map((s) => (
-                  <Line key={s.name} type="monotone" dataKey={s.dataKey} stroke={s.color} dot={false} />
-                ))}
+                <Line type="monotone" dataKey="Equity" stroke="#8884d8" dot={false} />
               </LineChart>
             </ResponsiveContainer>
           )}
 
-          {/* --- Drawdown Chart --- */}
-          <h4>Drawdown Curve</h4>
-          <p className="chart-description">
-            This chart shows the percentage drop from the peak balance at each point in time. 
-            A lower line means more loss. It helps you understand the risk of your strategy.
-          </p>
-          {drawdownData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
+          {/* Drawdown Chart */}
+          {drawdownData.length > 0 && (
+            <ResponsiveContainer width="100%" height={250}>
               <LineChart data={drawdownData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis />
                 <Tooltip />
+                <Legend />
                 <Line type="monotone" dataKey="drawdown" stroke="#FF0000" dot={false} />
               </LineChart>
             </ResponsiveContainer>
-          ) : (
-            <p className="no-strategies">Not enough equity data to compute drawdown.</p>
           )}
 
-          {/* --- Trade Return Distribution --- */}
-          <h4>Trade Return Distribution</h4>
-          <p className="chart-description">
-            This bar chart shows how individual trades performed, grouped in return ranges. 
-            Taller bars mean more trades in that range.
-          </p>
-          {distributionData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
+          {/* Distribution Chart */}
+          {distributionData.length > 0 && (
+            <ResponsiveContainer width="100%" height={250}>
               <BarChart data={distributionData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="label" />
                 <YAxis />
                 <Tooltip />
+                <Legend />
                 <Bar dataKey="count" fill="#82ca9d" />
               </BarChart>
             </ResponsiveContainer>
-          ) : (
-            <p className="no-strategies">No trade-level data available to show distribution.</p>
           )}
 
-          {/* --- Monthly Returns --- */}
-          <h4>Monthly Returns</h4>
-          <p className="chart-description">
-            This chart shows how much your account grew or shrank each month. 
-            Positive bars mean profit, negative bars mean loss.
-          </p>
-          {monthlyData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
+          {/* Monthly Profit Chart */}
+          {monthlyData.length > 0 && (
+            <ResponsiveContainer width="100%" height={250}>
               <BarChart data={monthlyData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
                 <Tooltip />
+                <Legend />
                 <Bar dataKey="profit" fill="#ffc658" />
               </BarChart>
             </ResponsiveContainer>
-          ) : (
-            <p className="no-strategies">Not enough data to compute monthly returns.</p>
           )}
 
-          {/* --- Win / Loss Breakdown --- */}
-          <h4>Win / Loss Breakdown</h4>
-          <p className="chart-description">
-            This pie chart shows the percentage of trades that were winning versus losing. 
-            It helps you quickly see your strategy’s overall success rate.
-          </p>
-          {winLossData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
+          {/* Win/Loss Pie Chart */}
+          {winLossData.length > 0 && (
+            <ResponsiveContainer width="100%" height={250}>
               <PieChart>
-                <Pie data={winLossData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                <Pie data={winLossData} dataKey="value" nameKey="name" outerRadius={80} fill="#8884d8" label>
                   {winLossData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
+                <Tooltip />
+                <Legend />
               </PieChart>
             </ResponsiveContainer>
-          ) : (
-            <p className="no-strategies">No trades to compute win/loss breakdown.</p>
           )}
         </div>
       )}
