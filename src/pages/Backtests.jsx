@@ -247,43 +247,46 @@ export default function Backtests() {
   const closeSaveModal = () => setIsSaveModalOpen(false);
   const handleSetupDetailChange = (e) => setSetupDetails({ ...setupDetails, [e.target.name]: e.target.value });
 
-  const handleSaveSetup = async (e) => {
-    e.preventDefault();
-    const source = backtestResults.main?.sourceData;
-    if (!source) return alert("No backtest results to save.");
+ const handleSaveSetup = async e => {
+  e.preventDefault();
+  const source = backtestResults.main?.sourceData;
+  if (!source) return alert("No source data found to save.");
 
-    try {
-      let payload;
-      if (activeTestType === "single") {
-        const strategy = options.strategies?.find((s) => s.code === source.code);
-        payload = {
-          name: setupDetails.name,
-          description: setupDetails.description,
-          strategies: [strategy?._id || source.code],
-          params: {
-            symbol: source.symbol,
-            timeframe: source.timeframe,
-            startDate: source.startDate,
-            endDate: source.endDate,
-            strategyParams: [{ strategyId: strategy?._id || source.code, params: strategy?.params || {} }],
-          },
-        };
-      } else {
-        // source is payload used for combo test
-        payload = {
-          name: setupDetails.name,
-          description: setupDetails.description,
-          strategies: source.strategyCodes || [], // use codes array
-          params: {
-            symbol: source.symbol,
-            timeframe: source.timeframe,
-            startDate: source.startDate,
-            endDate: source.endDate,
-            strategyParams: (source.strategyCodes || []).map((code) => ({ strategyId: code, params: {} })),
-            combinationRule: source.combinationRule,
-          },
-        };
-      }
+  let setupPayload;
+  if (activeTestType === "single") {
+    const strategy = options.strategies.find(s => s.code === source.code);
+    setupPayload = { 
+      name: setupDetails.name,
+      description: setupDetails.description,
+      symbol: source.symbol,
+      timeframe: source.timeframe,
+      isCombo: false,
+      strategyId: strategy?._id
+    };
+  } else {
+    setupPayload = { 
+      name: setupDetails.name,
+      description: setupDetails.description,
+      symbol: source.symbol,
+      timeframe: source.timeframe,
+      isCombo: true,
+      comboConfig: { strategyCodes: source.strategyConfigs.map(s => s.code).filter(Boolean), combinationRule: source.combinationRule }
+    };
+  }
+
+  try {
+    const saved = await createSetup(setupPayload);
+    setSavedSetup(setupPayload);
+    alert("Setup saved successfully!");
+    closeSaveModal();
+
+    // ✅ Add the saved setup to Strategies context
+    setStrategies(prev => [saved, ...prev]); // Add on top of existing strategies
+  } catch(err){
+    alert(err.response?.data?.message || "Failed to save setup.");
+  }
+};
+
 
       const saved = await createSetup(payload);
       alert("Setup saved successfully!");
