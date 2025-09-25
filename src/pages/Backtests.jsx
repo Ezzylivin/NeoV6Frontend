@@ -51,7 +51,7 @@ const initialComboData = {
   endDate: getInitialDates().endDate,
 };
 
-// --- Metrics Display Component ---
+// --- Metrics Display ---
 const MetricsDisplay = ({ metrics }) => {
   if (!metrics || Object.keys(metrics).length === 0)
     return <p className="no-metrics">No metrics available</p>;
@@ -90,7 +90,7 @@ const MetricsDisplay = ({ metrics }) => {
 export default function Backtests() {
   const { strategies, setStrategies } = useContext(StrategyContext);
   const {
-    options,
+    options = { strategies: [], symbols: [], timeframes: [] },
     initialLoading,
     singleLoading,
     batchLoading,
@@ -107,22 +107,25 @@ export default function Backtests() {
   const [setupDetails, setSetupDetails] = useState({ name: "", description: "" });
   const [resultKey, setResultKey] = useState(Date.now());
 
-  // --- Initialize default strategy selection ---
+  // --- Initialize default strategy selection safely ---
   useEffect(() => {
-    if (options && options.strategies?.length > 0 && !formData.code) {
+    if (options.strategies.length && !formData.code) {
       const s = options.strategies[0];
       setFormData((prev) => ({
         ...prev,
         code: s.code,
-        symbol: options.symbols[0],
-        timeframe: options.timeframes[0],
+        symbol: options.symbols[0] || "",
+        timeframe: options.timeframes[0] || "",
         params: s.params || {},
       }));
       setComboData((prev) => ({
         ...prev,
-        symbol: options.symbols[0],
-        timeframe: options.timeframes[0],
-        strategyConfigs: [{ code: s.code }, { code: options.strategies[1]?.code || "" }],
+        symbol: options.symbols[0] || "",
+        timeframe: options.timeframes[0] || "",
+        strategyConfigs: [
+          { code: s.code },
+          { code: options.strategies[1]?.code || "" },
+        ],
       }));
     }
   }, [options]);
@@ -136,26 +139,25 @@ export default function Backtests() {
         setFormData((prev) => ({
           ...prev,
           code: s.code,
-          symbol: s.params?.symbol || options.symbols[0],
-          timeframe: s.params?.timeframe || options.timeframes[0],
+          symbol: s.params?.symbol || options.symbols[0] || "",
+          timeframe: s.params?.timeframe || options.timeframes[0] || "",
           params: s.params || {},
         }));
     } else setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleComboChange = (e, index) => {
+  const handleComboChange = (e, index = null) => {
     const { name, value } = e.target;
-
     setComboData((prev) => {
-      const configs = [...prev.strategyConfigs];
-      if (name === "strategyCode") {
+      if (name === "strategyCode" && index !== null) {
+        const configs = [...prev.strategyConfigs];
         const duplicate = configs.some((c, i) => c.code === value && i !== index);
-        if (duplicate) return prev; // prevent duplicates
+        if (duplicate) return prev;
         configs[index] = { ...configs[index], code: value };
+        return { ...prev, strategyConfigs: configs };
       } else {
         return { ...prev, [name]: value };
       }
-      return { ...prev, strategyConfigs: configs };
     });
   };
 
@@ -179,24 +181,19 @@ export default function Backtests() {
     setBacktestResults({ main: null, individuals: [] });
     setActiveTestType("single");
     setResultKey(Date.now());
-
     try {
       const result = await runNewBacktest(formData);
-      if (result?.equityCurve?.length > 0) {
+      if (result?.equityCurve?.length) {
         setBacktestResults({
           main: {
             name: "Backtest Results",
-            metrics: {
-              ...result.metrics,
-              totalProfit: result.profit,
-              finalBalance: result.finalBalance,
-            },
+            metrics: { ...result.metrics, totalProfit: result.profit, finalBalance: result.finalBalance },
             equityCurve: result.equityCurve,
             sourceData: formData,
           },
           individuals: [],
         });
-      } else alert("Backtest ran successfully but produced no trades.");
+      } else alert("Backtest ran but produced no trades.");
     } catch (err) {
       alert(err.response?.data?.message || "Error running backtest");
     }
@@ -210,20 +207,14 @@ export default function Backtests() {
     setResultKey(Date.now());
 
     try {
-      // Filter only valid strategies
       const selectedStrategies = comboData.strategyConfigs
         .filter((s) => s.code)
         .map((s) => {
           const strat = options.strategies.find((opt) => opt.code === s.code);
-          return {
-            strategyId: strat?._id || s.code,
-            params: strat?.params || {},
-          };
+          return { strategyId: strat?._id || s.code, params: strat?.params || {} };
         });
 
-      if (selectedStrategies.length < 2) {
-        return alert("Select at least 2 unique strategies for a combined backtest.");
-      }
+      if (selectedStrategies.length < 2) return alert("Select at least 2 unique strategies.");
 
       const payload = {
         params: {
@@ -236,11 +227,9 @@ export default function Backtests() {
         },
       };
 
-      console.log("Combo Backtest Payload:", payload);
-
       const result = await runComboBacktest(payload);
 
-      if (result?.combinedResult?.equityCurve?.length > 0) {
+      if (result?.combinedResult?.equityCurve?.length) {
         setBacktestResults({
           main: {
             name: "Combined Strategy Performance",
@@ -248,21 +237,19 @@ export default function Backtests() {
             equityCurve: result.combinedResult.equityCurve,
             sourceData: payload,
           },
-          individuals: result.individualResults.map((r) => ({
+          individuals: result.individualResults?.map((r) => ({
             name: r.strategyName,
             metrics: r.metrics,
             equityCurve: r.equityCurve,
             noTradeReason: r.noTradeReason,
-          })),
+          })) || [],
         });
-      } else {
-        alert("Combo backtest ran successfully but produced no trades.");
-      }
+      } else alert("Combo backtest ran but produced no trades.");
     } catch (err) {
       console.error("Combo backtest failed:", err);
       alert(
         err.response?.data?.message ||
-          "Error running combo backtest. Make sure at least 2 strategies are selected and params are valid."
+          "Error running combo backtest. Ensure at least 2 strategies are selected."
       );
     }
   };
@@ -289,9 +276,7 @@ export default function Backtests() {
             timeframe: source.timeframe,
             startDate: source.startDate,
             endDate: source.endDate,
-            strategyParams: [
-              { strategyId: strategy?._id || source.code, params: strategy?.params || {} },
-            ],
+            strategyParams: [{ strategyId: strategy?._id || source.code, params: strategy?.params || {} }],
           },
         };
       } else {
@@ -332,7 +317,10 @@ export default function Backtests() {
         .map((r) => ({ name: r.name, data: r.equityCurve }));
 
       const allSeries = [{ name: "Combined", data: backtestResults.main.equityCurve }, ...individualSeries];
-      const allTimestamps = [...new Set(allSeries.flatMap((s) => s.data.map((p) => new Date(p.timestamp).getTime())))].sort((a, b) => a - b);
+
+      const allTimestamps = [
+        ...new Set(allSeries.flatMap((s) => s.data.map((p) => new Date(p.timestamp).getTime()))),
+      ].sort((a, b) => a - b);
 
       const dataMap = {};
       allSeries.forEach((s) => {
@@ -343,7 +331,7 @@ export default function Backtests() {
       });
 
       const lastBalances = {};
-      allSeries.forEach((s) => { lastBalances[s.name] = s.data[0]?.balance || 1000; });
+      allSeries.forEach((s) => (lastBalances[s.name] = s.data[0]?.balance || 1000));
 
       const mergedData = allTimestamps.map((ts) => {
         const point = { date: formatDate(ts) };
@@ -430,17 +418,11 @@ export default function Backtests() {
                 )}
               </div>
             ))}
-            <button
-              type="button"
-              onClick={addStrategyToCombo}
-              disabled={comboData.strategyConfigs.length >= options.strategies.length}
-            >
-              Add Strategy
-            </button>
+            <button type="button" onClick={addStrategyToCombo} disabled={comboData.strategyConfigs.length >= options.strategies.length}>Add Strategy</button>
 
             <label>
               Combination Rule
-              <select name="combinationRule" value={comboData.combinationRule} onChange={(e) => handleComboChange(e, 0)}>
+              <select name="combinationRule" value={comboData.combinationRule} onChange={(e) => handleComboChange(e)}>
                 <option value="AND">AND</option>
                 <option value="OR">OR</option>
               </select>
@@ -448,32 +430,29 @@ export default function Backtests() {
 
             <label>
               Symbol
-              <select name="symbol" value={comboData.symbol} onChange={(e) => handleComboChange(e, 0)} required>
+              <select name="symbol" value={comboData.symbol} onChange={(e) => handleComboChange(e)} required>
                 {options.symbols.map((sym) => <option key={sym} value={sym}>{sym}</option>)}
               </select>
             </label>
 
             <label>
               Timeframe
-              <select name="timeframe" value={comboData.timeframe} onChange={(e) => handleComboChange(e, 0)} required>
+              <select name="timeframe" value={comboData.timeframe} onChange={(e) => handleComboChange(e)} required>
                 {options.timeframes.map((tf) => <option key={tf} value={tf}>{tf}</option>)}
               </select>
             </label>
 
             <label>
               Start Date
-              <input type="date" name="startDate" value={comboData.startDate} onChange={(e) => handleComboChange(e, 0)} required />
+              <input type="date" name="startDate" value={comboData.startDate} onChange={(e) => handleComboChange(e)} required />
             </label>
 
             <label>
               End Date
-              <input type="date" name="endDate" value={comboData.endDate} onChange={(e) => handleComboChange(e, 0)} required />
+              <input type="date" name="endDate" value={comboData.endDate} onChange={(e) => handleComboChange(e)} required />
             </label>
 
-            <button
-              type="submit"
-              disabled={batchLoading || comboData.strategyConfigs.filter(s => s.code).length < 2}
-            >
+            <button type="submit" disabled={batchLoading || comboData.strategyConfigs.filter(s => s.code).length < 2}>
               {batchLoading ? "Running..." : "Run Combo Backtest"}
             </button>
           </div>
@@ -496,7 +475,7 @@ export default function Backtests() {
         </form>
       )}
 
-      {/* Metrics Display & Chart */}
+      {/* Metrics & Chart */}
       {backtestResults.main && (
         <div className="chart-container">
           <h3>{backtestResults.main.name}</h3>
