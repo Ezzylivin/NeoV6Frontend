@@ -5,13 +5,15 @@ import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { StrategyContext } from "../context/StrategyContext.jsx";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell,
+  PieChart, Pie, Cell, BarChart, Bar,
 } from "recharts";
 import "./Backtests.css";
 
+const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b"];
+
 const formatDate = (date) => {
   const d = new Date(date);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 };
 
 const getDefaultDates = () => {
@@ -22,26 +24,15 @@ const getDefaultDates = () => {
 };
 
 const initialFormData = {
-  code: "",
-  symbol: "",
-  timeframe: "",
-  startDate: getDefaultDates().startDate,
-  endDate: getDefaultDates().endDate,
-  params: {},
-  initialBalance: 1000,
+  code: "", symbol: "", timeframe: "", startDate: getDefaultDates().startDate,
+  endDate: getDefaultDates().endDate, params: {}, initialBalance: 1000,
 };
 
 const initialComboData = {
-  strategyConfigs: [{ code: "" }, { code: "" }],
-  combinationRule: "AND",
-  symbol: "",
-  timeframe: "",
-  startDate: getDefaultDates().startDate,
-  endDate: getDefaultDates().endDate,
-  initialBalance: 1000,
+  strategyConfigs: [{ code: "" }],
+  combinationRule: "AND", symbol: "", timeframe: "", startDate: getDefaultDates().startDate,
+  endDate: getDefaultDates().endDate, initialBalance: 1000,
 };
-
-const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b"];
 
 const MetricsDisplay = ({ metrics }) => {
   if (!metrics) return null;
@@ -53,10 +44,9 @@ const MetricsDisplay = ({ metrics }) => {
     { label: "Profit Factor", value: metrics.profitFactor },
     { label: "Final Balance", value: metrics.finalBalance },
   ];
-
   return (
     <div className="metrics-grid">
-      {items.map((m) => (
+      {items.map(m => (
         <div key={m.label} className="metric-item">
           <span className="metric-label">{m.label}</span>
           <span className="metric-value">
@@ -70,7 +60,7 @@ const MetricsDisplay = ({ metrics }) => {
 
 export default function Backtests() {
   const { strategies: availableStrategies, setStrategies } = useContext(StrategyContext);
-  const { options, initialLoading, singleLoading, batchLoading, runNewBacktest, runComboBacktest } = useBacktest();
+  const { options, singleLoading, batchLoading, runNewBacktest, runComboBacktest } = useBacktest();
   const { createSetup } = useBacktestSetupFunction();
 
   const [formData, setFormData] = useState(initialFormData);
@@ -86,23 +76,20 @@ export default function Backtests() {
 
   useEffect(() => {
     if (strategyOptions.length && !formData.code) {
-      setFormData(prev => ({
-        ...prev,
-        code: strategyOptions[0].code,
-        symbol: symbolOptions[0] || "",
-        timeframe: timeframeOptions[0] || "",
-        params: strategyOptions[0].params,
+      setFormData(prev => ({ 
+        ...prev, 
+        code: strategyOptions[0].code, 
+        symbol: symbolOptions[0]||"", 
+        timeframe: timeframeOptions[0]||"", 
+        params: strategyOptions[0].params 
       }));
     }
     if (strategyOptions.length && comboData.strategyConfigs[0].code === "") {
       setComboData(prev => ({
         ...prev,
-        symbol: symbolOptions[0] || "",
-        timeframe: timeframeOptions[0] || "",
-        strategyConfigs: [
-          { code: strategyOptions[0].code },
-          { code: strategyOptions[1]?.code || strategyOptions[0].code },
-        ],
+        symbol: symbolOptions[0]||"",
+        timeframe: timeframeOptions[0]||"",
+        strategyConfigs: [{ code: strategyOptions[0].code }],
       }));
     }
   }, [strategyOptions, symbolOptions, timeframeOptions]);
@@ -122,6 +109,17 @@ export default function Backtests() {
       newConfigs[idx] = { ...newConfigs[idx], code: value };
       setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
     } else setComboData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const addStrategyToCombo = () => {
+    setComboData(prev => ({ ...prev, strategyConfigs: [...prev.strategyConfigs, { code: strategyOptions[0]?.code || "" }] }));
+  };
+
+  const removeStrategyFromCombo = (idx) => {
+    setComboData(prev => ({
+      ...prev,
+      strategyConfigs: prev.strategyConfigs.filter((_, i) => i !== idx)
+    }));
   };
 
   const handleSingleSubmit = async (e) => {
@@ -175,6 +173,14 @@ export default function Backtests() {
     return backtestResults.main.equityCurve.map(d => ({ date: d.date, equity: d.equity }));
   }, [backtestResults.main?.equityCurve]);
 
+  const individualCharts = useMemo(() => {
+    if (!backtestResults.individuals?.length) return [];
+    return backtestResults.individuals.map(ind => ({
+      code: ind.strategyCode,
+      data: ind.equityCurve?.map(d => ({ date: d.date, equity: d.equity })) || [],
+    }));
+  }, [backtestResults.individuals]);
+
   const pieData = useMemo(() => {
     const metrics = backtestResults.main?.metrics || {};
     if (!metrics.totalTrades) return [];
@@ -187,7 +193,7 @@ export default function Backtests() {
     <div className="dashboard-container">
       <h1>Backtests</h1>
 
-      {/* Single & Combo Forms */}
+      {/* --- Single Strategy Form --- */}
       <form className="backtest-form" onSubmit={handleSingleSubmit}>
         <h2>Single Strategy Backtest</h2>
         <label>Strategy:
@@ -211,6 +217,7 @@ export default function Backtests() {
         <button type="submit" disabled={singleLoading}>{singleLoading ? "Running..." : "Run Backtest"}</button>
       </form>
 
+      {/* --- Combo Strategy Form --- */}
       <form className="backtest-form" onSubmit={handleComboSubmit}>
         <h2>Combo Strategy Backtest</h2>
         <label>Combination Rule:
@@ -232,18 +239,26 @@ export default function Backtests() {
         <label>Start Date: <input type="date" name="startDate" value={comboData.startDate} onChange={e => setComboData(prev => ({ ...prev, startDate: e.target.value }))} /></label>
         <label>End Date: <input type="date" name="endDate" value={comboData.endDate} onChange={e => setComboData(prev => ({ ...prev, endDate: e.target.value }))} /></label>
         <label>Initial Balance: <input type="number" name="initialBalance" value={comboData.initialBalance} onChange={e => setComboData(prev => ({ ...prev, initialBalance: e.target.value }))} /></label>
+
         {comboData.strategyConfigs.map((s, idx) => (
-          <label key={idx}>Strategy {idx + 1}:
-            <select name="strategyCode" value={s.code} onChange={e => handleComboChange(e, idx)}>
-              {strategyOptions.map(st => <option key={st.code} value={st.code}>{st.name}</option>)}
-            </select>
-          </label>
+          <div key={idx} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <label>Strategy {idx+1}:
+              <select name="strategyCode" value={s.code} onChange={e => handleComboChange(e, idx)}>
+                {strategyOptions.map(st => <option key={st.code} value={st.code}>{st.name}</option>)}
+              </select>
+            </label>
+            {comboData.strategyConfigs.length > 1 && <button type="button" onClick={() => removeStrategyFromCombo(idx)} style={{ backgroundColor: "#ef4444", color: "#fff", borderRadius: "6px", padding: "4px 8px" }}>Remove</button>}
+          </div>
         ))}
-        <button type="submit" disabled={batchLoading}>{batchLoading ? "Running..." : "Run Combo Backtest"}</button>
+        <button type="button" onClick={addStrategyToCombo} style={{ marginTop: "10px", backgroundColor: "#3b82f6", color: "#fff", borderRadius: "6px", padding: "6px 12px" }}>Add Strategy</button>
+
+        <button type="submit" disabled={batchLoading} style={{ marginTop: "15px" }}>{batchLoading ? "Running..." : "Run Combo Backtest"}</button>
       </form>
 
-      {/* Metrics & Charts */}
+      {/* --- Metrics --- */}
       {backtestResults.main && <MetricsDisplay metrics={backtestResults.main.metrics} />}
+
+      {/* --- Main Equity Curve --- */}
       {chartData.length > 0 && (
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={chartData}>
@@ -256,6 +271,24 @@ export default function Backtests() {
           </LineChart>
         </ResponsiveContainer>
       )}
+
+      {/* --- Individual Combo Curves --- */}
+      {individualCharts.map((ind, idx) => ind.data.length > 0 && (
+        <div key={idx}>
+          <h4>{ind.code} Equity Curve</h4>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={ind.data}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip />
+              <Line type="monotone" dataKey="equity" stroke={COLORS[idx % COLORS.length]} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      ))}
+
+      {/* --- Win/Loss Pie Chart --- */}
       {pieData.length > 0 && (
         <ResponsiveContainer width="50%" height={250}>
           <PieChart>
@@ -266,7 +299,7 @@ export default function Backtests() {
         </ResponsiveContainer>
       )}
 
-      {/* Save Setup */}
+      {/* --- Save Setup --- */}
       {backtestResults.main && (
         <>
           <button onClick={openSaveModal} className="save-setup-btn">Save Backtest Setup</button>
