@@ -13,7 +13,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import "../styles/Backtests.css";
+import "./Backtests.css";
 
 export default function Backtests() {
   const { runBacktest, results, error } = useBacktest();
