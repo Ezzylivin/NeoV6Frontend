@@ -3,37 +3,36 @@ import React, { useState, useEffect, useMemo, useContext } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { StrategyContext } from "../context/StrategyContext.jsx";
+import runCombinedStrategyService from "../services/strategyEngineService.js"; // ✅ backend service
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer,
   PieChart, Pie, Cell
 } from "recharts";
-import runCombinedStrategyService from "../services/strategyEngineService.js";
 import "./Backtests.css";
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b"];
 
 const formatDate = (date) => {
   const d = new Date(date);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 };
 
 const getDefaultDates = () => {
   const today = new Date();
-  const start = new Date(today); start.setFullYear(today.getFullYear() - 1);
-  const end = new Date(today); end.setDate(today.getDate() - 1);
+  const start = new Date(today); start.setFullYear(today.getFullYear()-1);
+  const end = new Date(today); end.setDate(today.getDate()-1);
   return { startDate: formatDate(start), endDate: formatDate(end) };
 };
 
 const initialFormData = {
   code: "", symbol: "", timeframe: "", startDate: getDefaultDates().startDate,
-  endDate: getDefaultDates().endDate, params: {}, initialBalance: 1000,
+  endDate: getDefaultDates().endDate, initialBalance: 1000, params: {},
 };
 
 const initialComboData = {
   strategyConfigs: [{ code: "" }],
   symbol: "", timeframe: "", startDate: getDefaultDates().startDate,
   endDate: getDefaultDates().endDate, initialBalance: 1000,
-  combinationRule: "AND", // default rule
 };
 
 const MetricsDisplay = ({ metrics }) => {
@@ -78,7 +77,6 @@ export default function Backtests() {
   const symbolOptions = useMemo(() => options?.symbols || [], [options]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
 
-  // Initialize default selections
   useEffect(() => {
     if (strategyOptions.length && !formData.code) {
       setFormData(prev => ({
@@ -99,7 +97,6 @@ export default function Backtests() {
     }
   }, [strategyOptions, symbolOptions, timeframeOptions]);
 
-  // --- Form Handlers ---
   const handleFormChange = (e) => {
     const { name, value } = e.target;
     if (name.startsWith("param_")) {
@@ -114,9 +111,7 @@ export default function Backtests() {
       const newConfigs = [...comboData.strategyConfigs];
       newConfigs[idx] = { ...newConfigs[idx], code: value };
       setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
-    } else {
-      setComboData(prev => ({ ...prev, [name]: value }));
-    }
+    } else setComboData(prev => ({ ...prev, [name]: value }));
   };
 
   const addStrategyToCombo = () => {
@@ -133,55 +128,56 @@ export default function Backtests() {
     }));
   };
 
-  // --- Backtest Submit Handlers ---
+  // --- Single Strategy Backtest ---
   const handleSingleSubmit = async (e) => {
     e.preventDefault();
     setActiveTestType("single");
     try {
-      const result = await runNewBacktest({
+      const payload = {
         strategies: [formData.code],
         symbol: formData.symbol,
         timeframe: formData.timeframe,
-        initial_balance: Number(formData.initialBalance)
-      });
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        initialBalance: Number(formData.initialBalance)
+      };
+      const result = await runNewBacktest(payload);
       setBacktestResults({ main: result, individuals: [] });
     } catch (err) {
       alert(err.message || "Single backtest failed");
     }
   };
 
+  // --- Combo Strategy Backtest ---
   const handleComboSubmit = async (e) => {
     e.preventDefault();
     setActiveTestType("combo");
-
     try {
       const strategyCodes = comboData.strategyConfigs.map(s => s.code).filter(Boolean);
       if (!strategyCodes.length) return alert("Select at least one strategy");
 
       const payload = {
-        strategyCodes,
-        combinationRule: comboData.combinationRule,
+        strategyCodes, // backend expects this key
         symbol: comboData.symbol,
         timeframe: comboData.timeframe,
         startDate: comboData.startDate,
         endDate: comboData.endDate,
         initialBalance: Number(comboData.initialBalance),
+        combinationRule: "AND", // default rule, can add UI later
       };
 
-      const result = await runCombinedStrategyService("CURRENT_USER_ID", payload);
-      if (!result || !result.combinedResult) return alert("No result returned");
-
+      const result = await runCombinedStrategyService("userId-placeholder", payload); // replace with real userId
       setBacktestResults({
         main: result.combinedResult,
         individuals: result.individualResults || []
       });
     } catch (err) {
-      console.error("runCombinedStrategyService failed", err);
+      console.error("runCombinedStrategyService(): failed", err);
       alert(err?.message || "Combo backtest failed");
     }
   };
 
-  // --- Save Setup Handlers ---
+  // --- Save Setup ---
   const openSaveModal = () => setIsSaveModalOpen(true);
   const closeSaveModal = () => { setIsSaveModalOpen(false); setSetupDetails({ name: "", description: "" }); };
   const handleSetupChange = (e) => setSetupDetails(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -207,14 +203,14 @@ export default function Backtests() {
   // --- Chart Data ---
   const chartData = useMemo(() => {
     if (!backtestResults.main?.equityCurve) return [];
-    return backtestResults.main.equityCurve.map(d => ({ date: d.timestamp, equity: d.balance }));
+    return backtestResults.main.equityCurve.map(d => ({ date: d.timestamp || d.date, equity: d.balance || d.equity }));
   }, [backtestResults.main?.equityCurve]);
 
   const individualCharts = useMemo(() => {
     if (!backtestResults.individuals?.length) return [];
     return backtestResults.individuals.map(ind => ({
-      code: ind.strategyName,
-      data: ind.equityCurve?.map(d => ({ date: d.timestamp, equity: d.balance })) || [],
+      code: ind.strategyName || ind.code,
+      data: ind.equityCurve?.map(d => ({ date: d.timestamp || d.date, equity: d.balance || d.equity })) || [],
     }));
   }, [backtestResults.individuals]);
 
@@ -259,12 +255,12 @@ export default function Backtests() {
         <h2>Combo Strategy Backtest</h2>
         {comboData.strategyConfigs.map((config, idx) => (
           <div key={idx} className="combo-strategy-row">
-            <label>Strategy {idx + 1}:
+            <label>Strategy {idx+1}:
               <select value={config.code} name="strategyCode" onChange={(e) => handleComboChange(e, idx)}>
                 {strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
               </select>
             </label>
-            <button type="button" onClick={() => removeStrategyFromCombo(idx)} disabled={comboData.strategyConfigs.length === 1}>Remove</button>
+            <button type="button" onClick={() => removeStrategyFromCombo(idx)} disabled={comboData.strategyConfigs.length===1}>Remove</button>
           </div>
         ))}
         <button type="button" onClick={addStrategyToCombo}>Add Strategy</button>
@@ -281,12 +277,6 @@ export default function Backtests() {
         <label>Start Date: <input type="date" name="startDate" value={comboData.startDate} onChange={(e) => handleComboChange(e, -1)} /></label>
         <label>End Date: <input type="date" name="endDate" value={comboData.endDate} onChange={(e) => handleComboChange(e, -1)} /></label>
         <label>Initial Balance: <input type="number" name="initialBalance" value={comboData.initialBalance} onChange={(e) => handleComboChange(e, -1)} /></label>
-        <label>Combination Rule:
-          <select name="combinationRule" value={comboData.combinationRule} onChange={(e) => handleComboChange(e, -1)}>
-            <option value="AND">AND</option>
-            <option value="OR">OR</option>
-          </select>
-        </label>
         <button type="submit" disabled={batchLoading}>{batchLoading ? "Running..." : "Run Combo Backtest"}</button>
       </form>
 
@@ -302,14 +292,14 @@ export default function Backtests() {
           <YAxis />
           <Tooltip />
           <Legend />
-          {chartData.length > 0 && <Line type="monotone" data={chartData} dataKey="equity" name="Combined" stroke={COLORS[0]} dot={false} />}
+          {chartData.length && <Line type="monotone" data={chartData} dataKey="equity" name="Combined" stroke={COLORS[0]} dot={false} />}
           {individualCharts.map((ind, i) => (
-            <Line key={i} type="monotone" data={ind.data} dataKey="equity" name={ind.code} stroke={COLORS[(i + 1) % COLORS.length]} dot={false} />
+            <Line key={i} type="monotone" data={ind.data} dataKey="equity" name={ind.code} stroke={COLORS[(i+1)%COLORS.length]} dot={false} />
           ))}
         </LineChart>
       </ResponsiveContainer>
 
-      {/* Wins vs Losses Pie */}
+      {/* Win/Loss Pie */}
       {pieData.length > 0 && (
         <>
           <h2>Wins vs Losses</h2>
