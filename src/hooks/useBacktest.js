@@ -1,11 +1,9 @@
-// File: src/hooks/useBacktest.js
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import * as backtestApi from "../api/backtest.js";
+// No longer need to import setAuthToken here if it's only called in App.jsx
+// However, it's fine to leave it if other functions might need it later.
 
 export function useBacktest() {
-  // --- Frontend state ---
-  const [backtestResults, setBacktestResults] = useState(null); // store the latest single backtest
-  const [pastBacktests, setPastBacktests] = useState({ results: [], total: 0 });
   const [options, setOptions] = useState({
     strategies: [],
     symbols: [],
@@ -14,42 +12,64 @@ export function useBacktest() {
     stopLosses: [],
   });
 
+  const [pastBacktests, setPastBacktests] = useState({ results: [], total: 0 });
   const [initialLoading, setInitialLoading] = useState(true);
   const [singleLoading, setSingleLoading] = useState(false);
   const [batchLoading, setBatchLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // --- Fetch available options (symbols, strategies, etc.) ---
-  const fetchOptions = useCallback(async () => {
+  // ✅ REMOVED setAuthToken from all functions below
+  const getOptions = useCallback(async () => {
     setError(null);
     try {
-      const data = await backtestApi.fetchOptions();
-      setOptions(data);
+      const fetchedOptions = await backtestApi.fetchOptions();
+      setOptions(fetchedOptions);
     } catch (err) {
       setError(err.message || "Failed to fetch options.");
     }
   }, []);
 
-  // --- Fetch past backtests ---
-  const fetchPastBacktests = useCallback(async (page = 1) => {
+  const getPastBacktests = useCallback(async (page = 1) => {
     setError(null);
     try {
       const data = await backtestApi.fetchAll(page);
       setPastBacktests({ results: data.backtests, total: data.total });
     } catch (err) {
-      setError(err.message || "Failed to fetch past backtests.");
+      setError(err.message || "Failed to load past backtests.");
     }
   }, []);
 
-  // --- Run a single backtest ---
-  const runSingleBacktest = useCallback(
+  const getBacktestById = useCallback(async (id) => {
+    setInitialLoading(true);
+    setError(null);
+    try {
+      return await backtestApi.fetchById(id);
+    } catch (err) {
+      setError(err.message || "Failed to fetch backtest.");
+      throw err;
+    } finally {
+      setInitialLoading(false);
+    }
+  }, []);
+  
+  const deleteBacktest = useCallback(async (id) => {
+    setError(null);
+    try {
+      await backtestApi.deleteById(id);
+      await getPastBacktests();
+    } catch (err) {
+      setError(err.message || "Failed to delete backtest.");
+      throw err;
+    }
+  }, [getPastBacktests]);
+
+  const runNewBacktest = useCallback(
     async (payload) => {
       setSingleLoading(true);
       setError(null);
       try {
         const result = await backtestApi.runBacktest(payload);
-        setBacktestResults(result); // save results for charts/metrics
-        await fetchPastBacktests(); // refresh past backtests list
+        await getPastBacktests();
         return result;
       } catch (err) {
         setError(err.message || "Failed to run backtest.");
@@ -58,11 +78,10 @@ export function useBacktest() {
         setSingleLoading(false);
       }
     },
-    [fetchPastBacktests]
+    [getPastBacktests]
   );
 
-  // --- Run batch backtest ---
-  const runBatchBacktest = useCallback(
+  const runComboBacktest = useCallback(
     async (payload) => {
       setBatchLoading(true);
       setError(null);
@@ -70,7 +89,7 @@ export function useBacktest() {
         const result = await backtestApi.runComboBacktest(payload);
         return result;
       } catch (err) {
-        setError(err.message || "Failed to run batch backtest.");
+        setError(err.message || "Failed to run combo backtest.");
         throw err;
       } finally {
         setBatchLoading(false);
@@ -79,61 +98,40 @@ export function useBacktest() {
     []
   );
 
-  // --- Delete a backtest ---
-  const deleteBacktest = useCallback(
-    async (id) => {
+  const previewStrategy = useCallback(
+    async (payload) => {
+      setSingleLoading(true);
       setError(null);
       try {
-        await backtestApi.deleteById(id);
-        await fetchPastBacktests();
+        return await backtestApi.previewStrategy(payload);
       } catch (err) {
-        setError(err.message || "Failed to delete backtest.");
-        throw err;
-      }
-    },
-    [fetchPastBacktests]
-  );
-
-  // --- Get a single backtest by ID ---
-  const fetchBacktestById = useCallback(
-    async (id) => {
-      setInitialLoading(true);
-      setError(null);
-      try {
-        const result = await backtestApi.fetchById(id);
-        setBacktestResults(result);
-        return result;
-      } catch (err) {
-        setError(err.message || "Failed to fetch backtest.");
+        setError(err.message || "Failed to preview strategy.");
         throw err;
       } finally {
-        setInitialLoading(false);
+        setSingleLoading(false);
       }
     },
     []
   );
 
-  // --- Initial fetch on mount ---
   useEffect(() => {
     setInitialLoading(true);
-    Promise.all([fetchOptions(), fetchPastBacktests()]).finally(() =>
-      setInitialLoading(false)
-    );
-  }, [fetchOptions, fetchPastBacktests]);
+    // These functions will now run after the token has been set in App.jsx
+    Promise.all([getOptions(), getPastBacktests()]).finally(() => setInitialLoading(false));
+  }, [getOptions, getPastBacktests]);
 
   return {
-    backtestResults,
-    pastBacktests,
     options,
+    pastBacktests,
     initialLoading,
     singleLoading,
     batchLoading,
     error,
-    fetchPastBacktests,
-    fetchBacktestById,
-    runSingleBacktest,
-    runBatchBacktest,
+    getPastBacktests,
+    getBacktestById,
     deleteBacktest,
-    fetchOptions,
+    runNewBacktest,
+    runComboBacktest,
+    previewStrategy,
   };
 }
