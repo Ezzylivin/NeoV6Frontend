@@ -9,7 +9,6 @@ import {
 } from "recharts";
 import "./Backtests.css";
 
-// --- Helper functions ---
 const formatDate = (date) => {
   const d = new Date(date);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -22,7 +21,6 @@ const getDefaultDates = () => {
   return { startDate: formatDate(start), endDate: formatDate(end) };
 };
 
-// --- Initial form data ---
 const initialFormData = {
   code: "",
   symbol: "",
@@ -45,7 +43,6 @@ const initialComboData = {
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b"];
 
-// --- Metrics component ---
 const MetricsDisplay = ({ metrics }) => {
   if (!metrics) return null;
   const items = [
@@ -71,10 +68,9 @@ const MetricsDisplay = ({ metrics }) => {
   );
 };
 
-// --- Main Backtests component ---
 export default function Backtests() {
   const { strategies: availableStrategies, setStrategies } = useContext(StrategyContext);
-  const { options, initialLoading, singleLoading, batchLoading, error, runNewBacktest, runComboBacktest } = useBacktest();
+  const { options, initialLoading, singleLoading, batchLoading, runNewBacktest, runComboBacktest } = useBacktest();
   const { createSetup } = useBacktestSetupFunction();
 
   const [formData, setFormData] = useState(initialFormData);
@@ -84,26 +80,33 @@ export default function Backtests() {
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [setupDetails, setSetupDetails] = useState({ name: "", description: "" });
 
-  // --- Options ---
   const strategyOptions = useMemo(() => options?.strategies || [], [options]);
   const symbolOptions = useMemo(() => options?.symbols || [], [options]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
 
   useEffect(() => {
     if (strategyOptions.length && !formData.code) {
-      setFormData(prev => ({ ...prev, code: strategyOptions[0].code, symbol: symbolOptions[0] || "", timeframe: timeframeOptions[0] || "", params: strategyOptions[0].params }));
+      setFormData(prev => ({
+        ...prev,
+        code: strategyOptions[0].code,
+        symbol: symbolOptions[0] || "",
+        timeframe: timeframeOptions[0] || "",
+        params: strategyOptions[0].params,
+      }));
     }
     if (strategyOptions.length && comboData.strategyConfigs[0].code === "") {
       setComboData(prev => ({
         ...prev,
         symbol: symbolOptions[0] || "",
         timeframe: timeframeOptions[0] || "",
-        strategyConfigs: [{ code: strategyOptions[0].code }, { code: strategyOptions[1]?.code || strategyOptions[0].code }],
+        strategyConfigs: [
+          { code: strategyOptions[0].code },
+          { code: strategyOptions[1]?.code || strategyOptions[0].code },
+        ],
       }));
     }
   }, [strategyOptions, symbolOptions, timeframeOptions]);
 
-  // --- Handlers ---
   const handleFormChange = (e) => {
     const { name, value } = e.target;
     if (name.startsWith("param_")) {
@@ -167,7 +170,6 @@ export default function Backtests() {
     } catch (err) { alert(err.response?.data?.message || "Failed to save setup"); }
   };
 
-  // --- Chart data ---
   const chartData = useMemo(() => {
     if (!backtestResults.main?.equityCurve) return [];
     return backtestResults.main.equityCurve.map(d => ({ date: d.date, equity: d.equity }));
@@ -185,37 +187,63 @@ export default function Backtests() {
     <div className="dashboard-container">
       <h1>Backtests</h1>
 
-      {/* --- Single Backtest Form --- */}
+      {/* Single & Combo Forms */}
       <form className="backtest-form" onSubmit={handleSingleSubmit}>
         <h2>Single Strategy Backtest</h2>
-        <label>Strategy: <select name="code" value={formData.code} onChange={handleFormChange}>{strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}</select></label>
-        <label>Symbol: <select name="symbol" value={formData.symbol} onChange={handleFormChange}>{symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
-        <label>Timeframe: <select name="timeframe" value={formData.timeframe} onChange={handleFormChange}>{timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}</select></label>
+        <label>Strategy:
+          <select name="code" value={formData.code} onChange={handleFormChange}>
+            {strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
+          </select>
+        </label>
+        <label>Symbol:
+          <select name="symbol" value={formData.symbol} onChange={handleFormChange}>
+            {symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </label>
+        <label>Timeframe:
+          <select name="timeframe" value={formData.timeframe} onChange={handleFormChange}>
+            {timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </label>
         <label>Start Date: <input type="date" name="startDate" value={formData.startDate} onChange={handleFormChange} /></label>
         <label>End Date: <input type="date" name="endDate" value={formData.endDate} onChange={handleFormChange} /></label>
         <label>Initial Balance: <input type="number" name="initialBalance" value={formData.initialBalance} onChange={handleFormChange} /></label>
         <button type="submit" disabled={singleLoading}>{singleLoading ? "Running..." : "Run Backtest"}</button>
       </form>
 
-      {/* --- Combo Backtest Form --- */}
       <form className="backtest-form" onSubmit={handleComboSubmit}>
         <h2>Combo Strategy Backtest</h2>
-        <label>Combination Rule: <select name="combinationRule" value={comboData.combinationRule} onChange={e => setComboData(prev => ({ ...prev, combinationRule: e.target.value }))}><option value="AND">AND</option><option value="OR">OR</option></select></label>
-        <label>Symbol: <select name="symbol" value={comboData.symbol} onChange={e => setComboData(prev => ({ ...prev, symbol: e.target.value }))}>{symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
-        <label>Timeframe: <select name="timeframe" value={comboData.timeframe} onChange={e => setComboData(prev => ({ ...prev, timeframe: e.target.value }))}>{timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}</select></label>
+        <label>Combination Rule:
+          <select name="combinationRule" value={comboData.combinationRule} onChange={e => setComboData(prev => ({ ...prev, combinationRule: e.target.value }))}>
+            <option value="AND">AND</option>
+            <option value="OR">OR</option>
+          </select>
+        </label>
+        <label>Symbol:
+          <select name="symbol" value={comboData.symbol} onChange={e => setComboData(prev => ({ ...prev, symbol: e.target.value }))}>
+            {symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </label>
+        <label>Timeframe:
+          <select name="timeframe" value={comboData.timeframe} onChange={e => setComboData(prev => ({ ...prev, timeframe: e.target.value }))}>
+            {timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </label>
         <label>Start Date: <input type="date" name="startDate" value={comboData.startDate} onChange={e => setComboData(prev => ({ ...prev, startDate: e.target.value }))} /></label>
         <label>End Date: <input type="date" name="endDate" value={comboData.endDate} onChange={e => setComboData(prev => ({ ...prev, endDate: e.target.value }))} /></label>
         <label>Initial Balance: <input type="number" name="initialBalance" value={comboData.initialBalance} onChange={e => setComboData(prev => ({ ...prev, initialBalance: e.target.value }))} /></label>
         {comboData.strategyConfigs.map((s, idx) => (
-          <label key={idx}>Strategy {idx + 1}: <select name="strategyCode" value={s.code} onChange={e => handleComboChange(e, idx)}>{strategyOptions.map(st => <option key={st.code} value={st.code}>{st.name}</option>)}</select></label>
+          <label key={idx}>Strategy {idx + 1}:
+            <select name="strategyCode" value={s.code} onChange={e => handleComboChange(e, idx)}>
+              {strategyOptions.map(st => <option key={st.code} value={st.code}>{st.name}</option>)}
+            </select>
+          </label>
         ))}
         <button type="submit" disabled={batchLoading}>{batchLoading ? "Running..." : "Run Combo Backtest"}</button>
       </form>
 
-      {/* --- Metrics --- */}
+      {/* Metrics & Charts */}
       {backtestResults.main && <MetricsDisplay metrics={backtestResults.main.metrics} />}
-
-      {/* --- Equity Curve Chart --- */}
       {chartData.length > 0 && (
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={chartData}>
@@ -228,8 +256,6 @@ export default function Backtests() {
           </LineChart>
         </ResponsiveContainer>
       )}
-
-      {/* --- Trade Distribution Pie --- */}
       {pieData.length > 0 && (
         <ResponsiveContainer width="50%" height={250}>
           <PieChart>
@@ -240,26 +266,31 @@ export default function Backtests() {
         </ResponsiveContainer>
       )}
 
-      {/* --- Save Setup Button / Modal --- */}
-{backtestResults.main && (
-  <>
-    <button onClick={openSaveModal} className="save-setup-btn">Save Backtest Setup</button>
-    <div className={`modal ${isSaveModalOpen ? "modal-open" : ""}`}>
-      <div className="modal-content">
-        <h3>Save Backtest Setup</h3>
-        <form onSubmit={handleSaveSetup}>
-          <label>Name:
-            <input name="name" value={setupDetails.name} onChange={handleSetupChange} required />
-          </label>
-          <label>Description:
-            <input name="description" value={setupDetails.description} onChange={handleSetupChange} />
-          </label>
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: "10px" }}>
-            <button type="submit">Save</button>
-            <button type="button" onClick={closeSaveModal}>Cancel</button>
-          </div>
-        </form>
-      </div>
+      {/* Save Setup */}
+      {backtestResults.main && (
+        <>
+          <button onClick={openSaveModal} className="save-setup-btn">Save Backtest Setup</button>
+          {isSaveModalOpen && (
+            <div className="modal modal-open">
+              <div className="modal-content">
+                <h3>Save Backtest Setup</h3>
+                <form onSubmit={handleSaveSetup}>
+                  <label>Name:
+                    <input name="name" value={setupDetails.name} onChange={handleSetupChange} required />
+                  </label>
+                  <label>Description:
+                    <input name="description" value={setupDetails.description} onChange={handleSetupChange} />
+                  </label>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: "10px" }}>
+                    <button type="submit">Save</button>
+                    <button type="button" onClick={closeSaveModal}>Cancel</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
-  </>
-)}
+  );
+}
