@@ -184,9 +184,10 @@ export default function Backtests() {
     setResultKey(Date.now()); // Reset key to force chart re-render
     try {
       const result = await runNewBacktest(formData);
-      if (result?.equityCurve?.length > 0) {
-        
-        console.log("Single backtest result:", result);
+
+      console.log("Single backtest result:", result);
+      
+      if (result?.equityCurve?.length > 0){
         
         setBacktestResults({
           main: {
@@ -222,10 +223,11 @@ export default function Backtests() {
         strategyCodes,
       };
       const result = await runComboBacktest(payload);
+
+      console.log("Combo backtest result:", result);
+
+      
       if (result?.combinedResult?.equityCurve?.length > 0) {
-        
-        console.log("Combo backtest result:", result);
-        
         setBacktestResults({
           main: {
             name: "Combined Strategy Performance",
