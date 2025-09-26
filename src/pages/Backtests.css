@@ -139,3 +139,28 @@
   background-color: #b91c1c;
 }
 
+/* --- Floating Save Button --- */
+.save-setup-btn {
+  position: sticky;
+  top: 15px;
+  width: 100%;
+  max-width: 200px;
+  background-color: #22c55e;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  z-index: 10;
+  margin-bottom: 15px;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.save-setup-btn:hover {
+  background-color: #16a34a;
+  transform: translateY(-2px);
+}
+
+
