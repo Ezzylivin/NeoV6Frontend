@@ -4,189 +4,178 @@ import { useBacktest } from "../hooks/useBacktest.js";
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { StrategyContext } from "../context/StrategyContext.jsx";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, BarChart, Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
 } from "recharts";
-import "./Backtests.css";
-
-const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b"];
-
-const formatDate = (date) => {
-  const d = new Date(date);
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-};
-
-const getDefaultDates = () => {
-  const today = new Date();
-  const start = new Date(today); start.setFullYear(today.getFullYear()-1);
-  const end = new Date(today); end.setDate(today.getDate()-1);
-  return { startDate: formatDate(start), endDate: formatDate(end) };
-};
-
-const initialFormData = {
-  code: "", symbol: "", timeframe: "", startDate: getDefaultDates().startDate,
-  endDate: getDefaultDates().endDate, params: {}, initialBalance: 1000,
-};
-
-const initialComboData = {
-  strategyConfigs: [{ code: "" }],
-  combinationRule: "AND", symbol: "", timeframe: "", startDate: getDefaultDates().startDate,
-  endDate: getDefaultDates().endDate, initialBalance: 1000,
-};
-
-const MetricsChart = ({ metrics }) => {
-  if (!metrics) return null;
-  const items = [
-    { label: "Total Profit", value: metrics.totalProfit },
-    { label: "Win Rate", value: metrics.winRate },
-    { label: "Max DD", value: metrics.maxDrawdown },
-    { label: "Profit Factor", value: metrics.profitFactor },
-    { label: "Final Balance", value: metrics.finalBalance },
-  ];
-  return (
-    <ResponsiveContainer width="100%" height={200}>
-      <BarChart data={items} layout="vertical" margin={{ left: 40 }}>
-        <XAxis type="number" />
-        <YAxis type="category" dataKey="label" />
-        <Tooltip />
-        <Bar dataKey="value" fill="#3b82f6" />
-      </BarChart>
-    </ResponsiveContainer>
-  );
-};
-
-const WinLossPie = ({ metrics }) => {
-  if (!metrics || !metrics.totalTrades) return null;
-  const wins = metrics.totalTrades * (metrics.winRate / 100);
-  const losses = metrics.totalTrades - wins;
-  const data = [
-    { name: "Win", value: wins, color: COLORS[0] },
-    { name: "Loss", value: losses, color: COLORS[1] },
-  ];
-  return (
-    <ResponsiveContainer width="100%" height={200}>
-      <PieChart>
-        <Pie data={data} dataKey="value" nameKey="name" outerRadius={80} label>
-          {data.map((entry, index) => <Cell key={index} fill={entry.color} />)}
-        </Pie>
-        <Tooltip />
-      </PieChart>
-    </ResponsiveContainer>
-  );
-};
-
-const StrategyCharts = ({ title, curve, metrics }) => (
-  <div className="strategy-charts">
-    <h3>{title}</h3>
-    <div className="charts-grid">
-      {/* Equity Curve */}
-      <ResponsiveContainer width="100%" height={200}>
-        <LineChart data={curve}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="date" />
-          <YAxis />
-          <Tooltip />
-          <Legend />
-          <Line type="monotone" dataKey="equity" stroke="#22c55e" dot={false} />
-        </LineChart>
-      </ResponsiveContainer>
-
-      {/* Metrics */}
-      <MetricsChart metrics={metrics} />
-
-      {/* Win/Loss Pie */}
-      <WinLossPie metrics={metrics} />
-    </div>
-  </div>
-);
+import "../styles/Backtests.css";
 
 export default function Backtests() {
-  const { strategies: availableStrategies, setStrategies } = useContext(StrategyContext);
-  const { options, singleLoading, batchLoading, runNewBacktest, runComboBacktest } = useBacktest();
-  const { createSetup } = useBacktestSetupFunction();
+  const { runBacktest, results, error } = useBacktest();
+  const { setupOptions } = useBacktestSetupFunction();
+  const { strategies } = useContext(StrategyContext);
 
-  const [formData, setFormData] = useState(initialFormData);
-  const [comboData, setComboData] = useState(initialComboData);
-  const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
-  const [activeTestType, setActiveTestType] = useState("single");
+  // selectors state
+  const [selectedSymbol, setSelectedSymbol] = useState("");
+  const [selectedTimeframe, setSelectedTimeframe] = useState("");
+  const [selectedStrategy, setSelectedStrategy] = useState("");
+  const [selectedTP, setSelectedTP] = useState("");
+  const [selectedSL, setSelectedSL] = useState("");
 
-  const strategyOptions = useMemo(() => options?.strategies || [], [options]);
-  const symbolOptions = useMemo(() => options?.symbols || [], [options]);
-  const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
+  // multiple strategies setup
+  const [activeStrategies, setActiveStrategies] = useState([]);
 
   useEffect(() => {
-    if (strategyOptions.length && !formData.code) {
-      setFormData(prev => ({ 
-        ...prev, 
-        code: strategyOptions[0].code, 
-        symbol: symbolOptions[0]||"", 
-        timeframe: timeframeOptions[0]||"", 
-        params: strategyOptions[0].params 
-      }));
+    if (setupOptions) {
+      setSelectedSymbol(setupOptions.symbols?.[0] || "");
+      setSelectedTimeframe(setupOptions.timeframes?.[0] || "");
+      setSelectedStrategy(setupOptions.strategies?.[0] || "");
+      setSelectedTP(setupOptions.takeProfits?.[0] || "");
+      setSelectedSL(setupOptions.stopLosses?.[0] || "");
     }
-    if (strategyOptions.length && comboData.strategyConfigs[0].code === "") {
-      setComboData(prev => ({
-        ...prev,
-        symbol: symbolOptions[0]||"",
-        timeframe: timeframeOptions[0]||"",
-        strategyConfigs: [{ code: strategyOptions[0].code }],
-      }));
-    }
-  }, [strategyOptions, symbolOptions, timeframeOptions]);
+  }, [setupOptions]);
 
-  const handleSingleSubmit = async (e) => {
-    e.preventDefault();
-    setActiveTestType("single");
-    try {
-      const result = await runNewBacktest({ ...formData, initialBalance: Number(formData.initialBalance) });
-      setBacktestResults({ main: { ...result, metrics: { ...result.metrics, initialBalance: Number(formData.initialBalance) } }, individuals: [] });
-    } catch (err) { alert("Single backtest failed"); }
+  // Add strategy configuration
+  const handleAddStrategy = () => {
+    if (!selectedStrategy || !selectedSymbol || !selectedTimeframe) return;
+
+    const newSetup = {
+      symbol: selectedSymbol,
+      timeframe: selectedTimeframe,
+      strategy: selectedStrategy,
+      takeProfit: selectedTP,
+      stopLoss: selectedSL,
+    };
+
+    setActiveStrategies([...activeStrategies, newSetup]);
   };
 
-  const handleComboSubmit = async (e) => {
-    e.preventDefault();
-    setActiveTestType("combo");
-    try {
-      const strategyCodes = comboData.strategyConfigs.map(s => s.code).filter(Boolean);
-      const payload = { ...comboData, strategyCodes, initialBalance: Number(comboData.initialBalance) };
-      const result = await runComboBacktest(payload);
-      setBacktestResults({ main: { ...result.combinedResult, metrics: { ...result.combinedResult.metrics, initialBalance: Number(comboData.initialBalance) } }, individuals: result.individualResults });
-    } catch (err) { alert("Combo backtest failed"); }
+  // Run all backtests
+  const handleRunAll = async () => {
+    if (activeStrategies.length === 0) return;
+    for (const strat of activeStrategies) {
+      await runBacktest(strat);
+    }
   };
+
+  // Prepare combined equity curve
+  const combinedEquity = useMemo(() => {
+    if (!results || Object.keys(results).length === 0) return [];
+    const curves = Object.values(results).map((r) => r?.equityCurve || []);
+    if (curves.length === 0) return [];
+
+    return curves[0].map((_, idx) => {
+      const total = curves.reduce((sum, curve) => sum + (curve[idx]?.equity || 0), 0);
+      return { step: idx, combinedEquity: total };
+    });
+  }, [results]);
 
   return (
-    <div className="dashboard-container">
-      <h1>Backtests</h1>
+    <div className="backtest-dashboard">
+      <h1 className="page-title">Backtesting Dashboard</h1>
 
-      {/* Single Backtest Form */}
-      <form className="backtest-form" onSubmit={handleSingleSubmit}>
-        <h2>Single Strategy</h2>
-        <button type="submit" disabled={singleLoading}>{singleLoading ? "Running..." : "Run Backtest"}</button>
-      </form>
+      {/* --- Setup Controls --- */}
+      <div className="setup-controls">
+        <select value={selectedSymbol} onChange={(e) => setSelectedSymbol(e.target.value)}>
+          {setupOptions?.symbols?.map((sym) => (
+            <option key={sym} value={sym}>{sym}</option>
+          ))}
+        </select>
 
-      {/* Combo Backtest Form */}
-      <form className="backtest-form" onSubmit={handleComboSubmit}>
-        <h2>Combo Strategies</h2>
-        <button type="submit" disabled={batchLoading}>{batchLoading ? "Running..." : "Run Combo Backtest"}</button>
-      </form>
+        <select value={selectedTimeframe} onChange={(e) => setSelectedTimeframe(e.target.value)}>
+          {setupOptions?.timeframes?.map((tf) => (
+            <option key={tf} value={tf}>{tf}</option>
+          ))}
+        </select>
 
-      {/* Results */}
-      {backtestResults.main && (
-        <StrategyCharts
-          title={activeTestType === "combo" ? "Combined Strategy" : "Single Strategy"}
-          curve={backtestResults.main.equityCurve}
-          metrics={backtestResults.main.metrics}
-        />
-      )}
+        <select value={selectedStrategy} onChange={(e) => setSelectedStrategy(e.target.value)}>
+          {setupOptions?.strategies?.map((strat) => (
+            <option key={strat} value={strat}>{strat}</option>
+          ))}
+        </select>
 
-      {backtestResults.individuals.map((ind, idx) => (
-        <StrategyCharts
-          key={idx}
-          title={`Strategy: ${ind.strategyCode}`}
-          curve={ind.equityCurve}
-          metrics={ind.metrics}
-        />
-      ))}
+        <select value={selectedTP} onChange={(e) => setSelectedTP(e.target.value)}>
+          {setupOptions?.takeProfits?.map((tp) => (
+            <option key={tp} value={tp}>{tp}</option>
+          ))}
+        </select>
+
+        <select value={selectedSL} onChange={(e) => setSelectedSL(e.target.value)}>
+          {setupOptions?.stopLosses?.map((sl) => (
+            <option key={sl} value={sl}>{sl}</option>
+          ))}
+        </select>
+
+        <button onClick={handleAddStrategy}>➕ Add Strategy</button>
+        <button onClick={handleRunAll}>🚀 Run Backtests</button>
+      </div>
+
+      {error && <p className="error-text">❌ Error fetching backtest: {error}</p>}
+
+      {/* --- Active Strategies Section --- */}
+      <div className="strategies-grid">
+        {activeStrategies.map((setup, idx) => {
+          const res = results?.[`${setup.symbol}-${setup.strategy}-${idx}`];
+          return (
+            <div key={idx} className="strategy-card">
+              <h3>
+                {setup.symbol} - {setup.strategy} ({setup.timeframe})
+              </h3>
+
+              {res ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={res.equityCurve}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="step" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="equity"
+                      stroke="#82ca9d"
+                      dot={false}
+                      name="Equity Curve"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="placeholder-text">Run backtest to see results.</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* --- Combined Equity Curve --- */}
+      <div className="combined-chart">
+        <h2>📈 Combined Equity Curve</h2>
+        {combinedEquity.length > 0 ? (
+          <ResponsiveContainer width="100%" height={350}>
+            <LineChart data={combinedEquity}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="step" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="combinedEquity"
+                stroke="#8884d8"
+                dot={false}
+                name="Total Equity"
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <p className="placeholder-text">No combined data yet.</p>
+        )}
+      </div>
     </div>
   );
 }
