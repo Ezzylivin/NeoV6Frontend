@@ -49,26 +49,26 @@ const Backtests = () => {
   // === Metrics ===
   const metrics = backtestResults?.main?.metrics || {};
   const keyMetrics = {
-    "Total Profit": metrics.totalProfit,
-    "Total Trades": metrics.totalTrades,
-    "Win Rate": metrics.winRate,
-    "Max Drawdown": metrics.maxDrawdown,
-    "Profit Factor": metrics.profitFactor,
-    "Final Balance": metrics.finalBalance,
+    "Total Profit": metrics.totalProfit ?? "-",
+    "Total Trades": metrics.totalTrades ?? "-",
+    "Win Rate": metrics.winRate ?? "-",
+    "Max Drawdown": metrics.maxDrawdown ?? "-",
+    "Profit Factor": metrics.profitFactor ?? "-",
+    "Final Balance": metrics.finalBalance ?? "-",
   };
 
   // === Equity Curve ===
   const equityCurve = useMemo(() => {
-    if (!backtestResults.main?.equityCurve) return [];
+    if (!backtestResults?.main?.equityCurve) return [];
     return backtestResults.main.equityCurve.map((point, i) => ({
       date: point.date || i,
       equity: point.equity,
     }));
-  }, [backtestResults.main?.equityCurve]);
+  }, [backtestResults?.main?.equityCurve]);
 
-  // === Win/Loss Bar Chart (dynamic) ===
+  // === Win/Loss Bar Chart ===
   const winLossBarChartData = useMemo(() => {
-    if (!backtestResults.main?.trades) return [];
+    if (!backtestResults?.main?.trades) return [];
 
     const buckets = [
       { range: "< -100", min: -Infinity, max: -100, count: 0 },
@@ -84,11 +84,11 @@ const Backtests = () => {
     });
 
     return buckets.filter((b) => b.count > 0);
-  }, [backtestResults.main?.trades]);
+  }, [backtestResults?.main?.trades]);
 
-  // === Monthly Performance (dynamic) ===
+  // === Monthly Performance ===
   const monthlyData = useMemo(() => {
-    if (!backtestResults.main?.trades) return [];
+    if (!backtestResults?.main?.trades) return [];
 
     const monthlyProfits = {};
 
@@ -107,7 +107,7 @@ const Backtests = () => {
       month,
       profit,
     }));
-  }, [backtestResults.main?.trades]);
+  }, [backtestResults?.main?.trades]);
 
   return (
     <div className="dashboard-container">
@@ -204,7 +204,7 @@ const Backtests = () => {
       </form>
 
       {/* === Results === */}
-      {backtestResults.main && (
+      {backtestResults?.main && (
         <div className="results-section">
           <h3>Results</h3>
 
@@ -213,7 +213,7 @@ const Backtests = () => {
             {Object.entries(keyMetrics).map(([label, value]) => (
               <div key={label} className="metric-card">
                 <h4>{label}</h4>
-                <p>{value !== undefined ? value : "-"}</p>
+                <p>{value}</p>
               </div>
             ))}
           </div>
@@ -226,7 +226,7 @@ const Backtests = () => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis />
-                <Tooltip />
+                <Tooltip formatter={(val) => `$${val.toFixed(2)}`} />
                 <Legend />
                 <Line
                   type="monotone"
@@ -246,7 +246,7 @@ const Backtests = () => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="range" />
                 <YAxis />
-                <Tooltip />
+                <Tooltip formatter={(val) => `${val} trades`} />
                 <Bar dataKey="count" fill="#82ca9d" />
               </BarChart>
             </ResponsiveContainer>
@@ -260,7 +260,7 @@ const Backtests = () => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
-                <Tooltip />
+                <Tooltip formatter={(val) => `$${val.toFixed(2)}`} />
                 <Bar dataKey="profit" fill="#8884d8" />
               </BarChart>
             </ResponsiveContainer>
