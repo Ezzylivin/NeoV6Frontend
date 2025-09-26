@@ -7,6 +7,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer,
   PieChart, Pie, Cell
 } from "recharts";
+import runCombinedStrategyService from "../services/strategyEngineService.js"; // ✅ import
 import "./Backtests.css";
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b"];
@@ -32,6 +33,7 @@ const initialComboData = {
   strategyConfigs: [{ code: "" }],
   symbol: "", timeframe: "", startDate: getDefaultDates().startDate,
   endDate: getDefaultDates().endDate, initialBalance: 1000,
+  combinationRule: "AND", // default
 };
 
 const MetricsDisplay = ({ metrics }) => {
@@ -62,7 +64,7 @@ const MetricsDisplay = ({ metrics }) => {
 
 export default function Backtests() {
   const { strategies: availableStrategies } = useContext(StrategyContext);
-  const { options, singleLoading, batchLoading, runNewBacktest, runComboBacktest } = useBacktest();
+  const { options, singleLoading, batchLoading, runNewBacktest } = useBacktest();
   const { setups, createSetup } = useBacktestSetupFunction();
 
   const [formData, setFormData] = useState(initialFormData);
@@ -129,7 +131,7 @@ export default function Backtests() {
     }));
   };
 
-  // --- Backtest Submit Handlers ---
+  // --- Single Backtest ---
   const handleSingleSubmit = async (e) => {
     e.preventDefault();
     setActiveTestType("single");
@@ -146,41 +148,37 @@ export default function Backtests() {
     }
   };
 
- // --- Combo backtest submit handler ---
-const handleComboSubmit = async (e) => {
-  e.preventDefault();
-  setActiveTestType("combo");
+  // --- Combo Backtest ---
+  const handleComboSubmit = async (e) => {
+    e.preventDefault();
+    setActiveTestType("combo");
 
-  try {
-    const strategyCodes = comboData.strategyConfigs.map(s => s.code).filter(Boolean);
-    if (!strategyCodes.length) return alert("Select at least one strategy");
+    try {
+      const strategyCodes = comboData.strategyConfigs.map(s => s.code).filter(Boolean);
+      if (!strategyCodes.length) return alert("Select at least one strategy");
 
-    // Prepare payload matching backend
-    const payload = {
-      strategies: strategyCodes,
-      symbols: [comboData.symbol], // always send as array
-      timeframe: comboData.timeframe,
-      startDate: comboData.startDate,
-      endDate: comboData.endDate,
-      initial_balance: Number(comboData.initialBalance)
-    };
+      const payload = {
+        strategyCodes,
+        combinationRule: comboData.combinationRule,
+        symbol: comboData.symbol,
+        timeframe: comboData.timeframe,
+        startDate: comboData.startDate,
+        endDate: comboData.endDate,
+        initialBalance: Number(comboData.initialBalance)
+      };
 
-    const result = await runComboBacktest(payload);
+      const result = await runCombinedStrategyService("currentUserIdPlaceholder", payload); // 🔥 integrate service
 
-    if (!result || !result.combinedResult) {
-      return alert("No result returned from combo backtest");
+      setBacktestResults({
+        main: result.combinedResult,
+        individuals: result.individualResults || []
+      });
+
+    } catch (err) {
+      console.error("runCombinedStrategyService() failed", err);
+      alert(err?.message || "Combo backtest failed");
     }
-
-    setBacktestResults({
-      main: result.combinedResult,
-      individuals: result.individualResults || []
-    });
-  } catch (err) {
-    console.error("runComboBacktest(): failed", err);
-    alert(err?.message || "Combo backtest failed");
-  }
-};
-
+  };
 
   // --- Save Setup Handlers ---
   const openSaveModal = () => setIsSaveModalOpen(true);
@@ -195,8 +193,8 @@ const handleComboSubmit = async (e) => {
       description: setupDetails.description,
       symbol: backtestResults.main.symbol,
       timeframe: backtestResults.main.timeframe,
-      strategies: backtestResults.main.strategies,
-      initialBalance: backtestResults.main.initial_balance,
+      strategies: backtestResults.individuals.map(i => i.strategyName) || [],
+      initialBalance: backtestResults.main.metrics?.initialBalance || comboData.initialBalance,
     };
     try {
       await createSetup(payload);
@@ -208,14 +206,14 @@ const handleComboSubmit = async (e) => {
   // --- Chart Data ---
   const chartData = useMemo(() => {
     if (!backtestResults.main?.equityCurve) return [];
-    return backtestResults.main.equityCurve.map(d => ({ date: d.date, equity: d.equity }));
+    return backtestResults.main.equityCurve.map(d => ({ date: d.timestamp, equity: d.balance }));
   }, [backtestResults.main?.equityCurve]);
 
   const individualCharts = useMemo(() => {
     if (!backtestResults.individuals?.length) return [];
     return backtestResults.individuals.map(ind => ({
-      code: ind.strategyCode,
-      data: ind.equityCurve?.map(d => ({ date: d.date, equity: d.equity })) || [],
+      code: ind.strategyName,
+      data: ind.equityCurve?.map(d => ({ date: d.timestamp, equity: d.balance })) || [],
     }));
   }, [backtestResults.individuals]);
 
@@ -282,6 +280,12 @@ const handleComboSubmit = async (e) => {
         <label>Start Date: <input type="date" name="startDate" value={comboData.startDate} onChange={(e) => handleComboChange(e, -1)} /></label>
         <label>End Date: <input type="date" name="endDate" value={comboData.endDate} onChange={(e) => handleComboChange(e, -1)} /></label>
         <label>Initial Balance: <input type="number" name="initialBalance" value={comboData.initialBalance} onChange={(e) => handleComboChange(e, -1)} /></label>
+        <label>Combination Rule:
+          <select name="combinationRule" value={comboData.combinationRule} onChange={(e) => setComboData(prev => ({ ...prev, combinationRule: e.target.value }))}>
+            <option value="AND">AND</option>
+            <option value="OR">OR</option>
+          </select>
+        </label>
         <button type="submit" disabled={batchLoading}>{batchLoading ? "Running..." : "Run Combo Backtest"}</button>
       </form>
 
