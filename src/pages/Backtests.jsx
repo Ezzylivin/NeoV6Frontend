@@ -15,7 +15,7 @@ import {
   BarChart,
   Bar,
 } from "recharts";
-import "../styles/Backtests.css";
+import "./Backtests.css";
 
 const Backtests = () => {
   const { strategies } = useContext(StrategyContext);
