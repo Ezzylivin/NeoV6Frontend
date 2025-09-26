@@ -5,7 +5,7 @@ import {
   BarChart, Bar, PieChart, Pie, Cell
 } from "recharts";
 import { useBacktest } from "../hooks/useBacktest.js";
-import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.js";
+import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 
 const colors = [
   "#4f46e5", "#3b82f6", "#22c55e", "#ef4444", "#facc15",
