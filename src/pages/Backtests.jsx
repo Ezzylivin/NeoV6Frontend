@@ -3,7 +3,6 @@ import React, { useState, useEffect, useMemo, useContext } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { StrategyContext } from "../context/StrategyContext.jsx";
-import runCombinedStrategyService from "../services/strategyEngineService.js"; // ✅ backend service
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer,
   PieChart, Pie, Cell
@@ -63,7 +62,7 @@ const MetricsDisplay = ({ metrics }) => {
 
 export default function Backtests() {
   const { strategies: availableStrategies } = useContext(StrategyContext);
-  const { options, singleLoading, batchLoading, runNewBacktest } = useBacktest();
+  const { options, singleLoading, batchLoading, runNewBacktest, runComboBacktest } = useBacktest();
   const { setups, createSetup } = useBacktestSetupFunction();
 
   const [formData, setFormData] = useState(initialFormData);
@@ -135,7 +134,7 @@ export default function Backtests() {
     try {
       const payload = {
         strategies: [formData.code],
-        symbol: formData.symbol,
+        symbol: formData.symbol.replace("/", "-").toUpperCase(),
         timeframe: formData.timeframe,
         startDate: formData.startDate,
         endDate: formData.endDate,
@@ -153,26 +152,26 @@ export default function Backtests() {
     e.preventDefault();
     setActiveTestType("combo");
     try {
-      const strategyCodes = comboData.strategyConfigs.map(s => s.code).filter(Boolean);
-      if (!strategyCodes.length) return alert("Select at least one strategy");
+      const strategies = comboData.strategyConfigs.map(s => s.code).filter(Boolean);
+      if (!strategies.length) return alert("Select at least one strategy");
 
       const payload = {
-        strategyCodes, // backend expects this key
-        symbol: comboData.symbol,
+        strategies, // <-- upgraded to match backend
+        symbol: comboData.symbol.replace("/", "-").toUpperCase(),
         timeframe: comboData.timeframe,
         startDate: comboData.startDate,
         endDate: comboData.endDate,
         initialBalance: Number(comboData.initialBalance),
-        combinationRule: "AND", // default rule, can add UI later
+        combinationRule: "AND",
       };
 
-      const result = await runCombinedStrategyService("userId-placeholder", payload); // replace with real userId
+      const result = await runComboBacktest(payload);
       setBacktestResults({
-        main: result.combinedResult,
+        main: result.combinedResult || result,
         individuals: result.individualResults || []
       });
     } catch (err) {
-      console.error("runCombinedStrategyService(): failed", err);
+      console.error("runComboBacktest(): failed", err);
       alert(err?.message || "Combo backtest failed");
     }
   };
