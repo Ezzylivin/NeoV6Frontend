@@ -1,181 +1,202 @@
-// File: src/pages/Backtests.jsx
-import React, { useState, useEffect, useMemo, useContext } from "react";
+/* File: src/pages/Backtests.jsx */
+import React, { useState, useEffect, useMemo } from "react";
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer,
+  BarChart, Bar, PieChart, Pie, Cell
+} from "recharts";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
-import { StrategyContext } from "../context/StrategyContext.jsx";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
-import "./Backtests.css";
+
+const colors = [
+  "#4f46e5", "#3b82f6", "#22c55e", "#ef4444", "#facc15",
+  "#f97316", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"
+];
 
 export default function Backtests() {
-  const { runBacktest, results, error } = useBacktest();
-  const { setupOptions } = useBacktestSetupFunction();
-  const { strategies } = useContext(StrategyContext);
-
-  // selectors state
-  const [selectedSymbol, setSelectedSymbol] = useState("");
-  const [selectedTimeframe, setSelectedTimeframe] = useState("");
-  const [selectedStrategy, setSelectedStrategy] = useState("");
-  const [selectedTP, setSelectedTP] = useState("");
-  const [selectedSL, setSelectedSL] = useState("");
-
-  // multiple strategies setup
-  const [activeStrategies, setActiveStrategies] = useState([]);
+  const { fetchBacktestData } = useBacktest();
+  const { saveSetup, setupName, setSetupName } = useBacktestSetupFunction();
+  const [backtestData, setBacktestData] = useState(null);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
-    if (setupOptions) {
-      setSelectedSymbol(setupOptions.symbols?.[0] || "");
-      setSelectedTimeframe(setupOptions.timeframes?.[0] || "");
-      setSelectedStrategy(setupOptions.strategies?.[0] || "");
-      setSelectedTP(setupOptions.takeProfits?.[0] || "");
-      setSelectedSL(setupOptions.stopLosses?.[0] || "");
-    }
-  }, [setupOptions]);
+    fetchBacktestData().then((data) => setBacktestData(data));
+  }, []);
 
-  // Add strategy configuration
-  const handleAddStrategy = () => {
-    if (!selectedStrategy || !selectedSymbol || !selectedTimeframe) return;
+  if (!backtestData) return <div>Loading backtest results...</div>;
 
-    const newSetup = {
-      symbol: selectedSymbol,
-      timeframe: selectedTimeframe,
-      strategy: selectedStrategy,
-      takeProfit: selectedTP,
-      stopLoss: selectedSL,
-    };
+  const { combinedResult, individualResults } = backtestData;
 
-    setActiveStrategies([...activeStrategies, newSetup]);
-  };
+  // --- Transform equity curve data ---
+  const transformedCombined = combinedResult.equityCurve.map((p) => ({
+    x: new Date(p.timestamp).toLocaleString(),
+    y: p.balance,
+  }));
 
-  // Run all backtests
-  const handleRunAll = async () => {
-    if (activeStrategies.length === 0) return;
-    for (const strat of activeStrategies) {
-      await runBacktest(strat);
-    }
-  };
+  const transformedStrategies = individualResults.map((s) => ({
+    name: s.strategyName,
+    data: s.equityCurve.map((p) => ({
+      x: new Date(p.timestamp).toLocaleString(),
+      y: p.balance,
+    })),
+    metrics: s.metrics,
+  }));
 
-  // Prepare combined equity curve
-  const combinedEquity = useMemo(() => {
-    if (!results || Object.keys(results).length === 0) return [];
-    const curves = Object.values(results).map((r) => r?.equityCurve || []);
-    if (curves.length === 0) return [];
+  // --- Metrics for combined result ---
+  const combinedMetrics = combinedResult.metrics;
 
-    return curves[0].map((_, idx) => {
-      const total = curves.reduce((sum, curve) => sum + (curve[idx]?.equity || 0), 0);
-      return { step: idx, combinedEquity: total };
-    });
-  }, [results]);
+  // --- Prepare additional chart data ---
+  const profitLossData = individualResults.map((s) => ({
+    name: s.strategyName,
+    profit: s.metrics.totalProfit,
+    trades: s.metrics.totalTrades
+  }));
+
+  const drawdownData = individualResults.map((s) => ({
+    name: s.strategyName,
+    drawdown: s.metrics.maxDrawdown
+  }));
+
+  const winLossData = individualResults.map((s) => ({
+    name: s.strategyName,
+    wins: s.metrics.winningTrades,
+    losses: s.metrics.losingTrades
+  }));
+
+  const tradeReturns = individualResults.flatMap((s) =>
+    s.equityCurve.slice(1).map((p, i) => ({
+      name: s.strategyName,
+      return: (p.balance - s.equityCurve[i].balance)
+    }))
+  );
 
   return (
-    <div className="backtest-dashboard">
-      <h1 className="page-title">Backtesting Dashboard</h1>
+    <div className="dashboard-container">
+      <h2 className="section-title">Backtest Results</h2>
 
-      {/* --- Setup Controls --- */}
-      <div className="setup-controls">
-        <select value={selectedSymbol} onChange={(e) => setSelectedSymbol(e.target.value)}>
-          {setupOptions?.symbols?.map((sym) => (
-            <option key={sym} value={sym}>{sym}</option>
-          ))}
-        </select>
+      {/* --- Save Setup Button & Modal --- */}
+      <button className="save-setup-btn" onClick={() => setShowModal(true)}>
+        Save Backtest Setup
+      </button>
 
-        <select value={selectedTimeframe} onChange={(e) => setSelectedTimeframe(e.target.value)}>
-          {setupOptions?.timeframes?.map((tf) => (
-            <option key={tf} value={tf}>{tf}</option>
-          ))}
-        </select>
-
-        <select value={selectedStrategy} onChange={(e) => setSelectedStrategy(e.target.value)}>
-          {setupOptions?.strategies?.map((strat) => (
-            <option key={strat} value={strat}>{strat}</option>
-          ))}
-        </select>
-
-        <select value={selectedTP} onChange={(e) => setSelectedTP(e.target.value)}>
-          {setupOptions?.takeProfits?.map((tp) => (
-            <option key={tp} value={tp}>{tp}</option>
-          ))}
-        </select>
-
-        <select value={selectedSL} onChange={(e) => setSelectedSL(e.target.value)}>
-          {setupOptions?.stopLosses?.map((sl) => (
-            <option key={sl} value={sl}>{sl}</option>
-          ))}
-        </select>
-
-        <button onClick={handleAddStrategy}>➕ Add Strategy</button>
-        <button onClick={handleRunAll}>🚀 Run Backtests</button>
-      </div>
-
-      {error && <p className="error-text">❌ Error fetching backtest: {error}</p>}
-
-      {/* --- Active Strategies Section --- */}
-      <div className="strategies-grid">
-        {activeStrategies.map((setup, idx) => {
-          const res = results?.[`${setup.symbol}-${setup.strategy}-${idx}`];
-          return (
-            <div key={idx} className="strategy-card">
-              <h3>
-                {setup.symbol} - {setup.strategy} ({setup.timeframe})
-              </h3>
-
-              {res ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={res.equityCurve}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="step" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="equity"
-                      stroke="#82ca9d"
-                      dot={false}
-                      name="Equity Curve"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="placeholder-text">Run backtest to see results.</p>
-              )}
+      {showModal && (
+        <div className="modal modal-open">
+          <div className="modal-content">
+            <h3>Save Backtest Setup</h3>
+            <input
+              type="text"
+              value={setupName}
+              onChange={(e) => setSetupName(e.target.value)}
+              placeholder="Enter setup name"
+            />
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <button type="button" onClick={() => setShowModal(false)}>Cancel</button>
+              <button type="submit" onClick={() => { saveSetup(); setShowModal(false); }}>
+                Save
+              </button>
             </div>
-          );
-        })}
+          </div>
+        </div>
+      )}
+
+      {/* --- Metrics Grid --- */}
+      <div className="metrics-grid">
+        <div className="metric-item">
+          <span className="metric-label">Total Trades</span>
+          <span className="metric-value">{combinedMetrics.totalTrades}</span>
+        </div>
+        <div className="metric-item">
+          <span className="metric-label">Win Rate</span>
+          <span className="metric-value">{combinedMetrics.winRate}%</span>
+        </div>
+        <div className="metric-item">
+          <span className="metric-label">Total Profit</span>
+          <span className="metric-value">${combinedMetrics.totalProfit.toFixed(2)}</span>
+        </div>
+        <div className="metric-item">
+          <span className="metric-label">Final Balance</span>
+          <span className="metric-value">${combinedMetrics.finalBalance.toFixed(2)}</span>
+        </div>
       </div>
 
-      {/* --- Combined Equity Curve --- */}
-      <div className="combined-chart">
-        <h2>📈 Combined Equity Curve</h2>
-        {combinedEquity.length > 0 ? (
-          <ResponsiveContainer width="100%" height={350}>
-            <LineChart data={combinedEquity}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="step" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line
-                type="monotone"
-                dataKey="combinedEquity"
-                stroke="#8884d8"
-                dot={false}
-                name="Total Equity"
-              />
-            </LineChart>
+      {/* --- Equity Curve Chart --- */}
+      <h3 className="section-title">Equity Curves</h3>
+      <ResponsiveContainer width="100%" height={400}>
+        <LineChart>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="x" />
+          <YAxis />
+          <Tooltip />
+          <Legend />
+          <Line type="monotone" data={transformedCombined} dataKey="y" name="Combined" stroke="#00ff00" dot={false} />
+          {transformedStrategies.map((s, i) => (
+            <Line
+              key={i}
+              type="monotone"
+              data={s.data}
+              dataKey="y"
+              name={s.name}
+              stroke={colors[i % colors.length]}
+              dot={false}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+
+      {/* --- Profit/Loss Bar Chart --- */}
+      <h3 className="section-title">Profit/Loss per Strategy</h3>
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={profitLossData}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="name" />
+          <YAxis />
+          <Tooltip />
+          <Legend />
+          <Bar dataKey="profit" fill="#22c55e" />
+          <Bar dataKey="trades" fill="#3b82f6" />
+        </BarChart>
+      </ResponsiveContainer>
+
+      {/* --- Drawdown Chart --- */}
+      <h3 className="section-title">Max Drawdown per Strategy</h3>
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={drawdownData}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="name" />
+          <YAxis />
+          <Tooltip />
+          <Bar dataKey="drawdown" fill="#ef4444" />
+        </BarChart>
+      </ResponsiveContainer>
+
+      {/* --- Win/Loss Pie Charts --- */}
+      <h3 className="section-title">Wins vs Losses per Strategy</h3>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "20px" }}>
+        {winLossData.map((s, i) => (
+          <ResponsiveContainer key={i} width={250} height={250}>
+            <PieChart>
+              <Pie data={[
+                { name: "Wins", value: s.wins },
+                { name: "Losses", value: s.losses }
+              ]} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} fill="#8884d8" label>
+                <Cell key="wins" fill="#22c55e" />
+                <Cell key="losses" fill="#ef4444" />
+              </Pie>
+            </PieChart>
           </ResponsiveContainer>
-        ) : (
-          <p className="placeholder-text">No combined data yet.</p>
-        )}
+        ))}
       </div>
+
+      {/* --- Trade Returns Histogram --- */}
+      <h3 className="section-title">Individual Trade Returns</h3>
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={tradeReturns}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="name" />
+          <YAxis />
+          <Tooltip />
+          <Bar dataKey="return" fill="#facc15" />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
