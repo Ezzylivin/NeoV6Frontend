@@ -76,6 +76,7 @@ export default function Backtests() {
   const symbolOptions = useMemo(() => options?.symbols || [], [options]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
 
+  // --- Initialize default selections ---
   useEffect(() => {
     if (strategyOptions.length && !formData.code) {
       setFormData(prev => ({
@@ -96,6 +97,7 @@ export default function Backtests() {
     }
   }, [strategyOptions, symbolOptions, timeframeOptions]);
 
+  // --- Form Handlers ---
   const handleFormChange = (e) => {
     const { name, value } = e.target;
     if (name.startsWith("param_")) {
@@ -114,12 +116,20 @@ export default function Backtests() {
   };
 
   const addStrategyToCombo = () => {
-    setComboData(prev => ({ ...prev, strategyConfigs: [...prev.strategyConfigs, { code: strategyOptions[0]?.code || "" }] }));
-  };
-  const removeStrategyFromCombo = (idx) => {
-    setComboData(prev => ({ ...prev, strategyConfigs: prev.strategyConfigs.filter((_, i) => i !== idx) }));
+    setComboData(prev => ({
+      ...prev,
+      strategyConfigs: [...prev.strategyConfigs, { code: strategyOptions[0]?.code || "" }]
+    }));
   };
 
+  const removeStrategyFromCombo = (idx) => {
+    setComboData(prev => ({
+      ...prev,
+      strategyConfigs: prev.strategyConfigs.filter((_, i) => i !== idx)
+    }));
+  };
+
+  // --- Backtest Submit Handlers ---
   const handleSingleSubmit = async (e) => {
     e.preventDefault();
     setActiveTestType("single");
@@ -154,6 +164,7 @@ export default function Backtests() {
     }
   };
 
+  // --- Save Setup Handlers ---
   const openSaveModal = () => setIsSaveModalOpen(true);
   const closeSaveModal = () => { setIsSaveModalOpen(false); setSetupDetails({ name: "", description: "" }); };
   const handleSetupChange = (e) => setSetupDetails(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -176,6 +187,7 @@ export default function Backtests() {
     } catch (err) { alert(err.message || "Failed to save setup"); }
   };
 
+  // --- Chart Data ---
   const chartData = useMemo(() => {
     if (!backtestResults.main?.equityCurve) return [];
     return backtestResults.main.equityCurve.map(d => ({ date: d.date, equity: d.equity }));
@@ -225,6 +237,36 @@ export default function Backtests() {
         <button type="submit" disabled={singleLoading}>{singleLoading ? "Running..." : "Run Backtest"}</button>
       </form>
 
+      {/* --- Combo Strategy Form --- */}
+      <form className="backtest-form" onSubmit={handleComboSubmit}>
+        <h2>Combo Strategy Backtest</h2>
+        {comboData.strategyConfigs.map((config, idx) => (
+          <div key={idx} className="combo-strategy-row">
+            <label>Strategy {idx+1}:
+              <select value={config.code} name="strategyCode" onChange={(e) => handleComboChange(e, idx)}>
+                {strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
+              </select>
+            </label>
+            <button type="button" onClick={() => removeStrategyFromCombo(idx)} disabled={comboData.strategyConfigs.length===1}>Remove</button>
+          </div>
+        ))}
+        <button type="button" onClick={addStrategyToCombo}>Add Strategy</button>
+        <label>Symbol:
+          <select name="symbol" value={comboData.symbol} onChange={(e) => handleComboChange(e, -1)}>
+            {symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </label>
+        <label>Timeframe:
+          <select name="timeframe" value={comboData.timeframe} onChange={(e) => handleComboChange(e, -1)}>
+            {timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </label>
+        <label>Start Date: <input type="date" name="startDate" value={comboData.startDate} onChange={(e) => handleComboChange(e, -1)} /></label>
+        <label>End Date: <input type="date" name="endDate" value={comboData.endDate} onChange={(e) => handleComboChange(e, -1)} /></label>
+        <label>Initial Balance: <input type="number" name="initialBalance" value={comboData.initialBalance} onChange={(e) => handleComboChange(e, -1)} /></label>
+        <button type="submit" disabled={batchLoading}>{batchLoading ? "Running..." : "Run Combo Backtest"}</button>
+      </form>
+
       {/* --- Metrics --- */}
       <MetricsDisplay metrics={backtestResults.main?.metrics} />
 
@@ -272,6 +314,7 @@ export default function Backtests() {
           </div>
         </div>
       )}
+
       <button className="save-setup-btn" onClick={openSaveModal}>Save Backtest Setup</button>
     </div>
   );
