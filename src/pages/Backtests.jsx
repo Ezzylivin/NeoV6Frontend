@@ -319,10 +319,6 @@ export default function Backtests() {
   // Calculate the precise number of winning trades (as a decimal)
     const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b"]; // Green, Red, Blue, Yellow
 
-    const winningTrades = totalTrades * (winRate / 100);
-
-    // Calculate the precise number of losing trades (as a decimal)
-    const losingTrades = totalTrades - winningTrades;
 
 const distributionData = useMemo(() => {
     const { 
@@ -335,7 +331,10 @@ const distributionData = useMemo(() => {
     }
   
 
-    
+     const winningTrades = totalTrades * (winRate / 100);
+
+    // Calculate the precise number of losing trades (as a decimal)
+    const losingTrades = totalTrades - winningTrades;
 
     return [
         { name: "Win", value: winningTrades, color: COLORS[0] }, // Green
