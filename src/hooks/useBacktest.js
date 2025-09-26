@@ -81,22 +81,41 @@ export function useBacktest() {
     [getPastBacktests]
   );
 
-  const runComboBacktest = useCallback(
-    async (payload) => {
-      setBatchLoading(true);
-      setError(null);
-      try {
-        const result = await backtestApi.runComboBacktest(payload);
-        return result;
-      } catch (err) {
-        setError(err.message || "Failed to run combo backtest.");
-        throw err;
-      } finally {
-        setBatchLoading(false);
+ const runComboBacktest = useCallback(
+  async ({ strategies, combinationRule = "AND", symbol, timeframe, startDate, endDate, initialBalance = 1000 }) => {
+    setBatchLoading(true);
+    setError(null);
+
+    try {
+      if (!strategies || strategies.length === 0) {
+        throw new Error("At least one strategy must be selected for combo backtest.");
       }
-    },
-    []
-  );
+
+      // Normalize symbol to backend format: ETH/USD -> ETH-USD
+      const normSymbol = symbol.replace("/", "-").toUpperCase();
+
+      const payload = {
+        strategyCodes: strategies,   // <-- backend expects 'strategyCodes'
+        combinationRule,             // "AND" or "OR"
+        symbol: normSymbol,
+        timeframe,
+        startDate,
+        endDate,
+        initialBalance
+      };
+
+      const result = await backtestApi.runComboBacktest(payload);
+      return result;
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || "Failed to run combo backtest.");
+      throw err;
+    } finally {
+      setBatchLoading(false);
+    }
+  },
+  []
+);
+
 
   const previewStrategy = useCallback(
     async (payload) => {
