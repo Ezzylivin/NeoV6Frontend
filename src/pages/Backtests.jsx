@@ -38,16 +38,9 @@ export default function Backtests() {
 
   // === Run Backtest Handler ===
   const handleRunBacktest = async () => {
-    if (!symbol || !timeframe || !strategy)
-      return alert("Select symbol, timeframe, and strategy");
+    if (!symbol || !timeframe || !strategy) return alert("Select symbol, timeframe, and strategy");
     try {
-      const result = await runNewBacktest({
-        symbol,
-        timeframe,
-        strategy,
-        takeProfit,
-        stopLoss,
-      });
+      const result = await runNewBacktest({ symbol, timeframe, strategy, takeProfit, stopLoss });
       setBacktestResults(result);
     } catch (err) {
       console.error("Backtest failed:", err);
@@ -90,17 +83,11 @@ export default function Backtests() {
     if (!backtestResults?.main?.trades) return [];
     const monthlyMap = {};
     backtestResults.main.trades.forEach((t) => {
-      const month = new Date(t.date).toLocaleString("default", {
-        month: "short",
-        year: "numeric",
-      });
+      const month = new Date(t.date).toLocaleString("default", { month: "short", year: "numeric" });
       if (!monthlyMap[month]) monthlyMap[month] = 0;
       monthlyMap[month] += t.profit;
     });
-    return Object.entries(monthlyMap).map(([month, profit]) => ({
-      month,
-      profit,
-    }));
+    return Object.entries(monthlyMap).map(([month, profit]) => ({ month, profit }));
   }, [backtestResults?.main?.trades]);
 
   if (initialLoading) return <div>Loading options and past backtests...</div>;
@@ -110,15 +97,13 @@ export default function Backtests() {
       <h2 className="section-title">Backtest Dashboard</h2>
 
       {/* --- Backtest Setup Form --- */}
-      <div className="backtest-form">
+      <div className="setup-form">
         <label>
           Symbol:
           <select value={symbol} onChange={(e) => setSymbol(e.target.value)}>
             <option value="">Select Symbol</option>
             {(options?.symbols || []).map((sym) => (
-              <option key={sym} value={sym}>
-                {sym}
-              </option>
+              <option key={sym} value={sym}>{sym}</option>
             ))}
           </select>
         </label>
@@ -128,9 +113,7 @@ export default function Backtests() {
           <select value={timeframe} onChange={(e) => setTimeframe(e.target.value)}>
             <option value="">Select Timeframe</option>
             {(options?.timeframes || []).map((tf) => (
-              <option key={tf} value={tf}>
-                {tf}
-              </option>
+              <option key={tf} value={tf}>{tf}</option>
             ))}
           </select>
         </label>
@@ -140,9 +123,7 @@ export default function Backtests() {
           <select value={strategy} onChange={(e) => setStrategy(e.target.value)}>
             <option value="">Select Strategy</option>
             {(options?.strategies || []).map((strat) => (
-              <option key={strat._id} value={strat.code}>
-                {strat.name}
-              </option>
+              <option key={strat} value={strat}>{strat}</option>
             ))}
           </select>
         </label>
@@ -152,9 +133,7 @@ export default function Backtests() {
           <select value={takeProfit} onChange={(e) => setTakeProfit(e.target.value)}>
             <option value="">Select TP</option>
             {(options?.takeProfits || []).map((tp) => (
-              <option key={tp} value={tp}>
-                {tp}
-              </option>
+              <option key={tp} value={tp}>{tp}</option>
             ))}
           </select>
         </label>
@@ -164,9 +143,7 @@ export default function Backtests() {
           <select value={stopLoss} onChange={(e) => setStopLoss(e.target.value)}>
             <option value="">Select SL</option>
             {(options?.stopLosses || []).map((sl) => (
-              <option key={sl} value={sl}>
-                {sl}
-              </option>
+              <option key={sl} value={sl}>{sl}</option>
             ))}
           </select>
         </label>
@@ -201,12 +178,7 @@ export default function Backtests() {
                 <YAxis />
                 <Tooltip formatter={(val) => `$${val.toFixed(2)}`} />
                 <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="equity"
-                  stroke="#4f46e5"
-                  dot={false}
-                />
+                <Line type="monotone" dataKey="equity" stroke="#4f46e5" dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
