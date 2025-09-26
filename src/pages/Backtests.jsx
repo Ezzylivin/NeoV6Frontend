@@ -241,24 +241,25 @@ export default function Backtests() {
       )}
 
       {/* --- Save Setup Button / Modal --- */}
-      {backtestResults.main && (
-        <>
-          <button onClick={openSaveModal}>Save Backtest Setup</button>
-          {isSaveModalOpen && (
-            <div className="modal">
-              <div className="modal-content">
-                <h3>Save Backtest Setup</h3>
-                <form onSubmit={handleSaveSetup}>
-                  <label>Name: <input name="name" value={setupDetails.name} onChange={handleSetupChange} required /></label>
-                  <label>Description: <input name="description" value={setupDetails.description} onChange={handleSetupChange} /></label>
-                  <button type="submit">Save</button>
-                  <button type="button" onClick={closeSaveModal}>Cancel</button>
-                </form>
-              </div>
-            </div>
-          )}
-        </>
-      )}
+{backtestResults.main && (
+  <>
+    <button onClick={openSaveModal} className="save-setup-btn">Save Backtest Setup</button>
+    <div className={`modal ${isSaveModalOpen ? "modal-open" : ""}`}>
+      <div className="modal-content">
+        <h3>Save Backtest Setup</h3>
+        <form onSubmit={handleSaveSetup}>
+          <label>Name:
+            <input name="name" value={setupDetails.name} onChange={handleSetupChange} required />
+          </label>
+          <label>Description:
+            <input name="description" value={setupDetails.description} onChange={handleSetupChange} />
+          </label>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: "10px" }}>
+            <button type="submit">Save</button>
+            <button type="button" onClick={closeSaveModal}>Cancel</button>
+          </div>
+        </form>
+      </div>
     </div>
-  );
-}
+  </>
+)}
