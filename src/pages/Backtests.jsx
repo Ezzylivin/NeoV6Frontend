@@ -5,7 +5,7 @@ import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { StrategyContext } from "../context/StrategyContext.jsx";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, BarChart, Bar,
+  PieChart, Pie, Cell,
 } from "recharts";
 import "./Backtests.css";
 
@@ -260,49 +260,59 @@ export default function Backtests() {
 
       {/* --- Main Equity Curve --- */}
       {chartData.length > 0 && (
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" />
-            <YAxis />
-            <Tooltip />
-            <Legend />
-            <Line type="monotone" dataKey="equity" stroke="#22c55e" dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      )}
-
-      {/* --- Individual Combo Curves --- */}
-      {individualCharts.map((ind, idx) => ind.data.length > 0 && (
-        <div key={idx}>
-          <h4>{ind.code} Equity Curve</h4>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={ind.data}>
+        <div style={{ marginTop: "20px" }}>
+          <h3>{activeTestType === "single" ? "Equity Curve" : "Combined Equity Curve"}</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
               <Tooltip />
-              <Line type="monotone" dataKey="equity" stroke={COLORS[idx % COLORS.length]} dot={false} />
+              <Legend />
+              <Line type="monotone" dataKey="equity" stroke="#22c55e" dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
-      ))}
+      )}
+
+      {/* --- Individual Combo Curves --- */}
+      {activeTestType === "combo" && individualCharts.length > 0 && (
+        <div style={{ marginTop: "20px", display: "flex", flexDirection: "column", gap: "20px" }}>
+          {individualCharts.map((ind, idx) => ind.data.length > 0 && (
+            <div key={idx}>
+              <h4>{ind.code} Equity Curve</h4>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={ind.data}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="equity" stroke={COLORS[idx % COLORS.length]} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* --- Win/Loss Pie Chart --- */}
       {pieData.length > 0 && (
-        <ResponsiveContainer width="50%" height={250}>
-          <PieChart>
-            <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={80} label>
-              {pieData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
-            </Pie>
-          </PieChart>
-        </ResponsiveContainer>
+        <div style={{ marginTop: "20px" }}>
+          <h3>Win / Loss Ratio</h3>
+          <ResponsiveContainer width="50%" height={250}>
+            <PieChart>
+              <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={80} label>
+                {pieData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
       )}
 
       {/* --- Save Setup --- */}
       {backtestResults.main && (
         <>
-          <button onClick={openSaveModal} className="save-setup-btn">Save Backtest Setup</button>
+          <button onClick={openSaveModal} className="save-setup-btn" style={{ marginTop: "20px" }}>Save Backtest Setup</button>
           {isSaveModalOpen && (
             <div className="modal modal-open">
               <div className="modal-content">
