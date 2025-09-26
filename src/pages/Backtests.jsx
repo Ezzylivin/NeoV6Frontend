@@ -17,34 +17,20 @@ import {
 } from "recharts";
 import "./Backtests.css";
 
-const Backtests = () => {
-  const { strategies } = useContext(StrategyContext);
-  const { backtestResults, runBacktest, loading } = useBacktest();
-  const { fetchOptions, options } = useBacktestSetupFunction();
+export default function Backtests() {
+  const { backtestResults, runSingleBacktest } = useBacktest();
+  const { options, fetchOptions } = useBacktestSetupFunction();
+  const { strategy, setStrategy } = useContext(StrategyContext);
 
-  const [formData, setFormData] = useState({
-    symbol: "",
-    timeframe: "",
-    strategy: "",
-    takeProfit: "",
-    stopLoss: "",
-  });
+  const [symbol, setSymbol] = useState("");
+  const [timeframe, setTimeframe] = useState("");
+  const [takeProfit, setTakeProfit] = useState("");
+  const [stopLoss, setStopLoss] = useState("");
 
+  // Fetch setup options on mount
   useEffect(() => {
     fetchOptions();
-  }, [fetchOptions]);
-
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    await runBacktest(formData);
-  };
+  }, []);
 
   // === Metrics ===
   const metrics = backtestResults?.main?.metrics || {};
@@ -66,65 +52,48 @@ const Backtests = () => {
     }));
   }, [backtestResults?.main?.equityCurve]);
 
-  // === Win/Loss Bar Chart ===
+  // === Win/Loss Bar Chart (dynamic) ===
   const winLossBarChartData = useMemo(() => {
     if (!backtestResults?.main?.trades) return [];
-
-    const buckets = [
-      { range: "< -100", min: -Infinity, max: -100, count: 0 },
-      { range: "-100 to 0", min: -100, max: 0, count: 0 },
-      { range: "0 to 100", min: 0, max: 100, count: 0 },
-      { range: "100+", min: 100, max: Infinity, count: 0 },
+    const wins = backtestResults.main.trades.filter((t) => t.profit > 0).length;
+    const losses = backtestResults.main.trades.filter((t) => t.profit <= 0).length;
+    return [
+      { name: "Wins", value: wins },
+      { name: "Losses", value: losses },
     ];
-
-    backtestResults.main.trades.forEach((trade) => {
-      const profit = trade.profit || 0;
-      const bucket = buckets.find((b) => profit >= b.min && profit < b.max);
-      if (bucket) bucket.count += 1;
-    });
-
-    return buckets.filter((b) => b.count > 0);
   }, [backtestResults?.main?.trades]);
 
-  // === Monthly Performance ===
+  // === Monthly Performance (dynamic) ===
   const monthlyData = useMemo(() => {
     if (!backtestResults?.main?.trades) return [];
-
-    const monthlyProfits = {};
-
-    backtestResults.main.trades.forEach((trade) => {
-      const d = new Date(trade.date);
-      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
-        2,
-        "0"
-      )}`;
-
-      if (!monthlyProfits[monthKey]) monthlyProfits[monthKey] = 0;
-      monthlyProfits[monthKey] += trade.profit || 0;
+    const monthlyMap = {};
+    backtestResults.main.trades.forEach((t) => {
+      const month = new Date(t.date).toLocaleString("default", { month: "short", year: "numeric" });
+      if (!monthlyMap[month]) monthlyMap[month] = 0;
+      monthlyMap[month] += t.profit;
     });
-
-    return Object.entries(monthlyProfits).map(([month, profit]) => ({
+    return Object.entries(monthlyMap).map(([month, profit]) => ({
       month,
       profit,
     }));
   }, [backtestResults?.main?.trades]);
 
+  // === Handlers ===
+  const handleRunBacktest = () => {
+    runSingleBacktest({ symbol, timeframe, strategy, takeProfit, stopLoss });
+  };
+
   return (
     <div className="dashboard-container">
-      <h2 className="dashboard-title">Backtest</h2>
+      <h2 className="section-title">Backtest Dashboard</h2>
 
-      {/* === Setup Form === */}
-      <form onSubmit={handleSubmit} className="backtest-form">
+      {/* --- Backtest Setup Form --- */}
+      <div className="setup-form">
         <label>
           Symbol:
-          <select
-            name="symbol"
-            value={formData.symbol}
-            onChange={handleChange}
-            required
-          >
+          <select value={symbol} onChange={(e) => setSymbol(e.target.value)}>
             <option value="">Select Symbol</option>
-            {options.symbols?.map((sym) => (
+            {(options?.symbols || []).map((sym) => (
               <option key={sym} value={sym}>
                 {sym}
               </option>
@@ -134,14 +103,9 @@ const Backtests = () => {
 
         <label>
           Timeframe:
-          <select
-            name="timeframe"
-            value={formData.timeframe}
-            onChange={handleChange}
-            required
-          >
+          <select value={timeframe} onChange={(e) => setTimeframe(e.target.value)}>
             <option value="">Select Timeframe</option>
-            {options.timeframes?.map((tf) => (
+            {(options?.timeframes || []).map((tf) => (
               <option key={tf} value={tf}>
                 {tf}
               </option>
@@ -151,16 +115,11 @@ const Backtests = () => {
 
         <label>
           Strategy:
-          <select
-            name="strategy"
-            value={formData.strategy}
-            onChange={handleChange}
-            required
-          >
+          <select value={strategy} onChange={(e) => setStrategy(e.target.value)}>
             <option value="">Select Strategy</option>
-            {strategies.map((s) => (
-              <option key={s} value={s}>
-                {s}
+            {(options?.strategies || []).map((strat) => (
+              <option key={strat} value={strat}>
+                {strat}
               </option>
             ))}
           </select>
@@ -168,13 +127,9 @@ const Backtests = () => {
 
         <label>
           Take Profit:
-          <select
-            name="takeProfit"
-            value={formData.takeProfit}
-            onChange={handleChange}
-          >
+          <select value={takeProfit} onChange={(e) => setTakeProfit(e.target.value)}>
             <option value="">Select TP</option>
-            {options.takeProfits?.map((tp) => (
+            {(options?.takeProfits || []).map((tp) => (
               <option key={tp} value={tp}>
                 {tp}
               </option>
@@ -184,13 +139,9 @@ const Backtests = () => {
 
         <label>
           Stop Loss:
-          <select
-            name="stopLoss"
-            value={formData.stopLoss}
-            onChange={handleChange}
-          >
+          <select value={stopLoss} onChange={(e) => setStopLoss(e.target.value)}>
             <option value="">Select SL</option>
-            {options.stopLosses?.map((sl) => (
+            {(options?.stopLosses || []).map((sl) => (
               <option key={sl} value={sl}>
                 {sl}
               </option>
@@ -198,27 +149,25 @@ const Backtests = () => {
           </select>
         </label>
 
-        <button type="submit" disabled={loading}>
-          {loading ? "Running..." : "Run Backtest"}
-        </button>
-      </form>
+        <button onClick={handleRunBacktest}>Run Backtest</button>
+      </div>
 
-      {/* === Results === */}
+      {/* --- Results Section --- */}
       {backtestResults?.main && (
         <div className="results-section">
-          <h3>Results</h3>
+          <h3 className="section-title">Backtest Results</h3>
 
-          {/* Metrics */}
+          {/* Key Metrics */}
           <div className="metrics-grid">
             {Object.entries(keyMetrics).map(([label, value]) => (
               <div key={label} className="metric-card">
-                <h4>{label}</h4>
-                <p>{value}</p>
+                <span className="metric-label">{label}</span>
+                <span className="metric-value">{value}</span>
               </div>
             ))}
           </div>
 
-          {/* Equity Curve */}
+          {/* Equity Curve Chart */}
           <div className="chart-container">
             <h4>Equity Curve</h4>
             <ResponsiveContainer width="100%" height={300}>
@@ -228,12 +177,7 @@ const Backtests = () => {
                 <YAxis />
                 <Tooltip formatter={(val) => `$${val.toFixed(2)}`} />
                 <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="equity"
-                  stroke="#8884d8"
-                  dot={false}
-                />
+                <Line type="monotone" dataKey="equity" stroke="#4f46e5" dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -241,13 +185,14 @@ const Backtests = () => {
           {/* Win/Loss Distribution */}
           <div className="chart-container">
             <h4>Win/Loss Distribution</h4>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={250}>
               <BarChart data={winLossBarChartData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="range" />
-                <YAxis />
+                <XAxis dataKey="name" />
+                <YAxis allowDecimals={false} />
                 <Tooltip formatter={(val) => `${val} trades`} />
-                <Bar dataKey="count" fill="#82ca9d" />
+                <Legend />
+                <Bar dataKey="value" fill="#4f46e5" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -255,13 +200,14 @@ const Backtests = () => {
           {/* Monthly Performance */}
           <div className="chart-container">
             <h4>Monthly Performance</h4>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={250}>
               <BarChart data={monthlyData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
                 <Tooltip formatter={(val) => `$${val.toFixed(2)}`} />
-                <Bar dataKey="profit" fill="#8884d8" />
+                <Legend />
+                <Bar dataKey="profit" fill="#10b981" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -269,6 +215,4 @@ const Backtests = () => {
       )}
     </div>
   );
-};
-
-export default Backtests;
+}
