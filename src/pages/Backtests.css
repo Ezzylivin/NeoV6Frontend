@@ -119,6 +119,28 @@
   color: #fff;
 }
 
+/* --- Chart Containers --- */
+.chart-container {
+  width: 100%;
+  height: 300px; /* Fixed height for ResponsiveContainer */
+  margin-bottom: 25px;
+}
+
+/* --- Individual Chart Containers (smaller) --- */
+.individual-chart-container {
+  width: 100%;
+  height: 200px;
+  margin-bottom: 20px;
+}
+
+/* --- Pie Chart Container --- */
+.pie-chart-container {
+  width: 50%;
+  max-width: 400px;
+  height: 250px;
+  margin: 25px auto;
+}
+
 /* --- Save Setup Modal --- */
 .modal {
   position: fixed;
