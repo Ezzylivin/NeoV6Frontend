@@ -5,7 +5,7 @@ import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { StrategyContext } from "../context/StrategyContext.jsx";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer,
-  BarChart, Bar, PieChart, Pie, Cell
+  BarChart, Bar, PieChart, Pie, Cell,
 } from "recharts";
 import "./Backtests.css";
 
@@ -76,19 +76,19 @@ export default function Backtests() {
 
   useEffect(() => {
     if (strategyOptions.length && !formData.code) {
-      setFormData(prev => ({ 
-        ...prev, 
-        code: strategyOptions[0].code, 
-        symbol: symbolOptions[0]||"", 
-        timeframe: timeframeOptions[0]||"", 
-        params: strategyOptions[0].params 
+      setFormData(prev => ({
+        ...prev,
+        code: strategyOptions[0].code,
+        symbol: symbolOptions[0] || "",
+        timeframe: timeframeOptions[0] || "",
+        params: strategyOptions[0].params,
       }));
     }
     if (strategyOptions.length && comboData.strategyConfigs[0].code === "") {
       setComboData(prev => ({
         ...prev,
-        symbol: symbolOptions[0]||"",
-        timeframe: timeframeOptions[0]||"",
+        symbol: symbolOptions[0] || "",
+        timeframe: timeframeOptions[0] || "",
         strategyConfigs: [{ code: strategyOptions[0].code }],
       }));
     }
@@ -126,16 +126,15 @@ export default function Backtests() {
     e.preventDefault();
     setActiveTestType("single");
     try {
-      const result = await runNewBacktest({ 
-        code: formData.code,
+      const result = await runNewBacktest({
+        strategies: [formData.code],
         symbol: formData.symbol,
         timeframe: formData.timeframe,
-        initial_balance: Number(formData.initialBalance), // backend expects snake_case
+        initial_balance: Number(formData.initialBalance)
       });
-      setBacktestResults({ main: { ...result, metrics: { ...result.metrics, initialBalance: Number(formData.initialBalance) } }, individuals: [] });
-    } catch (err) { 
-      console.error("❌ Error running single backtest:", err);
-      alert(err.response?.data?.message || "Single backtest failed"); 
+      setBacktestResults({ main: result, individuals: [] });
+    } catch (err) {
+      alert(err.message || "Single backtest failed");
     }
   };
 
@@ -144,17 +143,16 @@ export default function Backtests() {
     setActiveTestType("combo");
     try {
       const strategyCodes = comboData.strategyConfigs.map(s => s.code).filter(Boolean);
-      const payload = { 
+      const payload = {
         strategies: strategyCodes,
         symbol: comboData.symbol,
         timeframe: comboData.timeframe,
-        initial_balance: Number(comboData.initialBalance), // backend expects snake_case
+        initial_balance: Number(comboData.initialBalance)
       };
       const result = await runComboBacktest(payload);
-      setBacktestResults({ main: { ...result.combinedResult, metrics: { ...result.combinedResult.metrics, initialBalance: Number(comboData.initialBalance) } }, individuals: result.individualResults });
-    } catch (err) { 
-      console.error("❌ Error running combo backtest:", err);
-      alert(err.response?.data?.message || "Combo backtest failed"); 
+      setBacktestResults({ main: result.combinedResult, individuals: result.individualResults });
+    } catch (err) {
+      alert(err.message || "Combo backtest failed");
     }
   };
 
@@ -165,25 +163,21 @@ export default function Backtests() {
   const handleSaveSetup = async (e) => {
     e.preventDefault();
     if (!backtestResults.main) return alert("No backtest to save");
-    const source = backtestResults.main.sourceData || {};
     const payload = {
       name: setupDetails.name,
       description: setupDetails.description,
-      symbol: source.symbol,
-      timeframe: source.timeframe,
-      isCombo: activeTestType === "combo",
-      strategyId: activeTestType === "single" ? availableStrategies.find(s => s.code === source.code)?._id : undefined,
-      comboConfig: activeTestType === "combo" ? { strategyCodes: source.strategyCodes, combinationRule: source.combinationRule, initialBalance: source.initialBalance } : undefined,
-      initialBalance: source.initialBalance,
+      symbol: backtestResults.main.symbol,
+      timeframe: backtestResults.main.timeframe,
+      strategies: backtestResults.main.strategies,
+      initialBalance: backtestResults.main.initial_balance,
     };
     try {
       const saved = await createSetup(payload);
       alert("Setup saved successfully!");
       closeSaveModal();
-    } catch (err) { alert(err.response?.data?.message || "Failed to save setup"); }
+    } catch (err) { alert(err.message || "Failed to save setup"); }
   };
 
-  // --- Chart Data ---
   const chartData = useMemo(() => {
     if (!backtestResults.main?.equityCurve) return [];
     return backtestResults.main.equityCurve.map(d => ({ date: d.date, equity: d.equity }));
@@ -230,4 +224,93 @@ export default function Backtests() {
         <label>Start Date: <input type="date" name="startDate" value={formData.startDate} onChange={handleFormChange} /></label>
         <label>End Date: <input type="date" name="endDate" value={formData.endDate} onChange={handleFormChange} /></label>
         <label>Initial Balance: <input type="number" name="initialBalance" value={formData.initialBalance} onChange={handleFormChange} /></label>
-        <button type="submit" disabled={singleLoading}>{singleLoading ? "Running
+        <button type="submit" disabled={singleLoading}>
+          {singleLoading ? "Running..." : "Run Backtest"}
+        </button>
+      </form>
+
+      {/* --- Combo Strategy Form --- */}
+      <form className="backtest-form" onSubmit={handleComboSubmit}>
+        <h2>Combo Strategy Backtest</h2>
+        <label>Symbol:
+          <select name="symbol" value={comboData.symbol} onChange={e => setComboData(prev => ({ ...prev, symbol: e.target.value }))}>
+            {symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </label>
+        <label>Timeframe:
+          <select name="timeframe" value={comboData.timeframe} onChange={e => setComboData(prev => ({ ...prev, timeframe: e.target.value }))}>
+            {timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </label>
+        <label>Initial Balance: <input type="number" name="initialBalance" value={comboData.initialBalance} onChange={e => setComboData(prev => ({ ...prev, initialBalance: e.target.value }))} /></label>
+
+        {comboData.strategyConfigs.map((s, idx) => (
+          <div key={idx} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <label>Strategy:
+              <select value={s.code} onChange={e => handleComboChange({ target: { name: "strategyCode", value: e.target.value } }, idx)}>
+                {strategyOptions.map(opt => <option key={opt.code} value={opt.code}>{opt.name}</option>)}
+              </select>
+            </label>
+            <button type="button" onClick={() => removeStrategyFromCombo(idx)}>Remove</button>
+          </div>
+        ))}
+        <button type="button" onClick={addStrategyToCombo}>Add Strategy</button>
+        <button type="submit" disabled={batchLoading}>
+          {batchLoading ? "Running..." : "Run Combo Backtest"}
+        </button>
+      </form>
+
+      {/* --- Metrics --- */}
+      <MetricsDisplay metrics={backtestResults.main?.metrics} />
+
+      {/* --- Equity Curves --- */}
+      <h2>Equity Curves</h2>
+      <ResponsiveContainer width="100%" height={400}>
+        <LineChart>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="date" />
+          <YAxis />
+          <Tooltip />
+          <Legend />
+          {chartData.length && <Line type="monotone" data={chartData} dataKey="equity" name="Combined" stroke={COLORS[0]} dot={false} />}
+          {individualCharts.map((ind, i) => (
+            <Line key={i} type="monotone" data={ind.data} dataKey="equity" name={ind.code} stroke={COLORS[(i+1)%COLORS.length]} dot={false} />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+
+      {/* --- Win/Loss Pie --- */}
+      {pieData.length > 0 && (
+        <>
+          <h2>Wins vs Losses</h2>
+          <div style={{ display: "flex", gap: "20px" }}>
+            <ResponsiveContainer width={250} height={250}>
+              <PieChart>
+                <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                  {pieData.map((entry, idx) => <Cell key={idx} fill={entry.color} />)}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </>
+      )}
+
+      {/* --- Save Setup Modal --- */}
+      {isSaveModalOpen && (
+        <div className="modal modal-open">
+          <div className="modal-content">
+            <h3>Save Backtest Setup</h3>
+            <label>Name: <input type="text" name="name" value={setupDetails.name} onChange={handleSetupChange} /></label>
+            <label>Description: <input type="text" name="description" value={setupDetails.description} onChange={handleSetupChange} /></label>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <button type="button" onClick={closeSaveModal}>Cancel</button>
+              <button type="button" onClick={handleSaveSetup}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <button className="save-setup-btn" onClick={openSaveModal}>Save Backtest Setup</button>
+    </div>
+  );
+}
