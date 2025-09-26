@@ -1,6 +1,7 @@
 // File: src/pages/Backtests.jsx
 import React, { useState, useEffect, useMemo, useContext } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
+import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { StrategyContext } from "../context/StrategyContext.jsx";
 import {
   LineChart,
@@ -17,16 +18,8 @@ import {
 import "./Backtests.css";
 
 export default function Backtests() {
-  const {
-    options,
-    pastBacktests,
-    initialLoading,
-    singleLoading,
-    batchLoading,
-    error,
-    runNewBacktest,
-  } = useBacktest();
-
+  const { backtestResults, runSingleBacktest } = useBacktest();
+  const { options, fetchOptions } = useBacktestSetupFunction();
   const { strategy, setStrategy } = useContext(StrategyContext);
 
   const [symbol, setSymbol] = useState("");
@@ -34,18 +27,10 @@ export default function Backtests() {
   const [takeProfit, setTakeProfit] = useState("");
   const [stopLoss, setStopLoss] = useState("");
 
-  const [backtestResults, setBacktestResults] = useState(null);
-
-  // === Run Backtest Handler ===
-  const handleRunBacktest = async () => {
-    if (!symbol || !timeframe || !strategy) return alert("Select symbol, timeframe, and strategy");
-    try {
-      const result = await runNewBacktest({ symbol, timeframe, strategy, takeProfit, stopLoss });
-      setBacktestResults(result);
-    } catch (err) {
-      console.error("Backtest failed:", err);
-    }
-  };
+  // Fetch setup options on mount
+  useEffect(() => {
+    fetchOptions();
+  }, []);
 
   // === Metrics ===
   const metrics = backtestResults?.main?.metrics || {};
@@ -67,7 +52,7 @@ export default function Backtests() {
     }));
   }, [backtestResults?.main?.equityCurve]);
 
-  // === Win/Loss Bar Chart ===
+  // === Win/Loss Bar Chart (dynamic) ===
   const winLossBarChartData = useMemo(() => {
     if (!backtestResults?.main?.trades) return [];
     const wins = backtestResults.main.trades.filter((t) => t.profit > 0).length;
@@ -78,7 +63,7 @@ export default function Backtests() {
     ];
   }, [backtestResults?.main?.trades]);
 
-  // === Monthly Performance ===
+  // === Monthly Performance (dynamic) ===
   const monthlyData = useMemo(() => {
     if (!backtestResults?.main?.trades) return [];
     const monthlyMap = {};
@@ -87,10 +72,16 @@ export default function Backtests() {
       if (!monthlyMap[month]) monthlyMap[month] = 0;
       monthlyMap[month] += t.profit;
     });
-    return Object.entries(monthlyMap).map(([month, profit]) => ({ month, profit }));
+    return Object.entries(monthlyMap).map(([month, profit]) => ({
+      month,
+      profit,
+    }));
   }, [backtestResults?.main?.trades]);
 
-  if (initialLoading) return <div>Loading options and past backtests...</div>;
+  // === Handlers ===
+  const handleRunBacktest = () => {
+    runSingleBacktest({ symbol, timeframe, strategy, takeProfit, stopLoss });
+  };
 
   return (
     <div className="dashboard-container">
@@ -103,7 +94,9 @@ export default function Backtests() {
           <select value={symbol} onChange={(e) => setSymbol(e.target.value)}>
             <option value="">Select Symbol</option>
             {(options?.symbols || []).map((sym) => (
-              <option key={sym} value={sym}>{sym}</option>
+              <option key={sym} value={sym}>
+                {sym}
+              </option>
             ))}
           </select>
         </label>
@@ -113,7 +106,9 @@ export default function Backtests() {
           <select value={timeframe} onChange={(e) => setTimeframe(e.target.value)}>
             <option value="">Select Timeframe</option>
             {(options?.timeframes || []).map((tf) => (
-              <option key={tf} value={tf}>{tf}</option>
+              <option key={tf} value={tf}>
+                {tf}
+              </option>
             ))}
           </select>
         </label>
@@ -123,7 +118,9 @@ export default function Backtests() {
           <select value={strategy} onChange={(e) => setStrategy(e.target.value)}>
             <option value="">Select Strategy</option>
             {(options?.strategies || []).map((strat) => (
-              <option key={strat} value={strat}>{strat}</option>
+              <option key={strat} value={strat}>
+                {strat}
+              </option>
             ))}
           </select>
         </label>
@@ -133,7 +130,9 @@ export default function Backtests() {
           <select value={takeProfit} onChange={(e) => setTakeProfit(e.target.value)}>
             <option value="">Select TP</option>
             {(options?.takeProfits || []).map((tp) => (
-              <option key={tp} value={tp}>{tp}</option>
+              <option key={tp} value={tp}>
+                {tp}
+              </option>
             ))}
           </select>
         </label>
@@ -143,14 +142,14 @@ export default function Backtests() {
           <select value={stopLoss} onChange={(e) => setStopLoss(e.target.value)}>
             <option value="">Select SL</option>
             {(options?.stopLosses || []).map((sl) => (
-              <option key={sl} value={sl}>{sl}</option>
+              <option key={sl} value={sl}>
+                {sl}
+              </option>
             ))}
           </select>
         </label>
 
-        <button onClick={handleRunBacktest} disabled={singleLoading}>
-          {singleLoading ? "Running..." : "Run Backtest"}
-        </button>
+        <button onClick={handleRunBacktest}>Run Backtest</button>
       </div>
 
       {/* --- Results Section --- */}
@@ -168,7 +167,7 @@ export default function Backtests() {
             ))}
           </div>
 
-          {/* Equity Curve */}
+          {/* Equity Curve Chart */}
           <div className="chart-container">
             <h4>Equity Curve</h4>
             <ResponsiveContainer width="100%" height={300}>
