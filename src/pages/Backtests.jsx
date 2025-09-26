@@ -1,5 +1,5 @@
 /* File: src/pages/Backtests.jsx */
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer,
   BarChart, Bar, PieChart, Pie, Cell
@@ -10,6 +10,14 @@ import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 const colors = [
   "#4f46e5", "#3b82f6", "#22c55e", "#ef4444", "#facc15",
   "#f97316", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"
+];
+
+const gradientColors = [
+  { start: "#4f46e5", end: "#3b82f6" },
+  { start: "#22c55e", end: "#16a34a" },
+  { start: "#ef4444", end: "#b91c1c" },
+  { start: "#facc15", end: "#eab308" },
+  { start: "#f97316", end: "#ea580c" },
 ];
 
 export default function Backtests() {
@@ -41,10 +49,8 @@ export default function Backtests() {
     metrics: s.metrics,
   }));
 
-  // --- Metrics for combined result ---
   const combinedMetrics = combinedResult.metrics;
 
-  // --- Prepare additional chart data ---
   const profitLossData = individualResults.map((s) => ({
     name: s.strategyName,
     profit: s.metrics.totalProfit,
@@ -68,6 +74,29 @@ export default function Backtests() {
       return: (p.balance - s.equityCurve[i].balance)
     }))
   );
+
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div style={{
+          background: "#1b1b2b",
+          color: "#fff",
+          padding: "10px",
+          borderRadius: "8px",
+          fontSize: "0.9rem",
+          boxShadow: "0 0 10px rgba(0,0,0,0.5)"
+        }}>
+          <p>{label}</p>
+          {payload.map((p, i) => (
+            <p key={i} style={{ color: p.color }}>
+              {p.name}: {typeof p.value === "number" ? p.value.toFixed(2) : p.value}
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="dashboard-container">
@@ -122,12 +151,12 @@ export default function Backtests() {
       <h3 className="section-title">Equity Curves</h3>
       <ResponsiveContainer width="100%" height={400}>
         <LineChart>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="x" />
-          <YAxis />
-          <Tooltip />
-          <Legend />
-          <Line type="monotone" data={transformedCombined} dataKey="y" name="Combined" stroke="#00ff00" dot={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+          <XAxis dataKey="x" tick={{ fill: "#aaa" }} />
+          <YAxis tick={{ fill: "#aaa" }} />
+          <Tooltip content={<CustomTooltip />} />
+          <Legend wrapperStyle={{ color: "#fff" }} />
+          <Line type="monotone" data={transformedCombined} dataKey="y" name="Combined" stroke="#00ff88" dot={false} strokeWidth={2} />
           {transformedStrategies.map((s, i) => (
             <Line
               key={i}
@@ -137,6 +166,8 @@ export default function Backtests() {
               name={s.name}
               stroke={colors[i % colors.length]}
               dot={false}
+              strokeWidth={2}
+              activeDot={{ r: 5 }}
             />
           ))}
         </LineChart>
@@ -146,13 +177,13 @@ export default function Backtests() {
       <h3 className="section-title">Profit/Loss per Strategy</h3>
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={profitLossData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="name" />
-          <YAxis />
-          <Tooltip />
-          <Legend />
-          <Bar dataKey="profit" fill="#22c55e" />
-          <Bar dataKey="trades" fill="#3b82f6" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+          <XAxis dataKey="name" tick={{ fill: "#aaa" }} />
+          <YAxis tick={{ fill: "#aaa" }} />
+          <Tooltip content={<CustomTooltip />} />
+          <Legend wrapperStyle={{ color: "#fff" }} />
+          <Bar dataKey="profit" fill="#22c55e" radius={[5,5,0,0]} />
+          <Bar dataKey="trades" fill="#3b82f6" radius={[5,5,0,0]} />
         </BarChart>
       </ResponsiveContainer>
 
@@ -160,11 +191,11 @@ export default function Backtests() {
       <h3 className="section-title">Max Drawdown per Strategy</h3>
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={drawdownData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="name" />
-          <YAxis />
-          <Tooltip />
-          <Bar dataKey="drawdown" fill="#ef4444" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+          <XAxis dataKey="name" tick={{ fill: "#aaa" }} />
+          <YAxis tick={{ fill: "#aaa" }} />
+          <Tooltip content={<CustomTooltip />} />
+          <Bar dataKey="drawdown" fill="#ef4444" radius={[5,5,0,0]} />
         </BarChart>
       </ResponsiveContainer>
 
@@ -174,10 +205,18 @@ export default function Backtests() {
         {winLossData.map((s, i) => (
           <ResponsiveContainer key={i} width={250} height={250}>
             <PieChart>
-              <Pie data={[
-                { name: "Wins", value: s.wins },
-                { name: "Losses", value: s.losses }
-              ]} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} fill="#8884d8" label>
+              <Pie
+                data={[
+                  { name: "Wins", value: s.wins },
+                  { name: "Losses", value: s.losses }
+                ]}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                outerRadius={80}
+                label
+              >
                 <Cell key="wins" fill="#22c55e" />
                 <Cell key="losses" fill="#ef4444" />
               </Pie>
@@ -190,11 +229,11 @@ export default function Backtests() {
       <h3 className="section-title">Individual Trade Returns</h3>
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={tradeReturns}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="name" />
-          <YAxis />
-          <Tooltip />
-          <Bar dataKey="return" fill="#facc15" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+          <XAxis dataKey="name" tick={{ fill: "#aaa" }} />
+          <YAxis tick={{ fill: "#aaa" }} />
+          <Tooltip content={<CustomTooltip />} />
+          <Bar dataKey="return" fill="#facc15" radius={[5,5,0,0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
