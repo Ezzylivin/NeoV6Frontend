@@ -185,10 +185,14 @@ export default function Backtests() {
     try {
       const result = await runNewBacktest(formData);
       if (result?.equityCurve?.length > 0) {
+        
+        console.log("Single backtest result:", result);
+        
         setBacktestResults({
           main: {
             name: "Backtest Results",
             metrics: { ...result.metrics, totalProfit: result.profit, finalBalance: result.finalBalance },
+            trades: result.trades || [],
             equityCurve: result.equityCurve,
             sourceData: formData,
           },
@@ -219,6 +223,9 @@ export default function Backtests() {
       };
       const result = await runComboBacktest(payload);
       if (result?.combinedResult?.equityCurve?.length > 0) {
+        
+        console.log("Combo backtest result:", result);
+        
         setBacktestResults({
           main: {
             name: "Combined Strategy Performance",
