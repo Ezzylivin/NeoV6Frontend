@@ -146,23 +146,41 @@ export default function Backtests() {
     }
   };
 
-  const handleComboSubmit = async (e) => {
-    e.preventDefault();
-    setActiveTestType("combo");
-    try {
-      const strategyCodes = comboData.strategyConfigs.map(s => s.code).filter(Boolean);
-      const payload = {
-        strategies: strategyCodes,
-        symbol: comboData.symbol,
-        timeframe: comboData.timeframe,
-        initial_balance: Number(comboData.initialBalance)
-      };
-      const result = await runComboBacktest(payload);
-      setBacktestResults({ main: result.combinedResult, individuals: result.individualResults });
-    } catch (err) {
-      alert(err.message || "Combo backtest failed");
+ // --- Combo backtest submit handler ---
+const handleComboSubmit = async (e) => {
+  e.preventDefault();
+  setActiveTestType("combo");
+
+  try {
+    const strategyCodes = comboData.strategyConfigs.map(s => s.code).filter(Boolean);
+    if (!strategyCodes.length) return alert("Select at least one strategy");
+
+    // Prepare payload matching backend
+    const payload = {
+      strategies: strategyCodes,
+      symbols: [comboData.symbol], // always send as array
+      timeframe: comboData.timeframe,
+      startDate: comboData.startDate,
+      endDate: comboData.endDate,
+      initial_balance: Number(comboData.initialBalance)
+    };
+
+    const result = await runComboBacktest(payload);
+
+    if (!result || !result.combinedResult) {
+      return alert("No result returned from combo backtest");
     }
-  };
+
+    setBacktestResults({
+      main: result.combinedResult,
+      individuals: result.individualResults || []
+    });
+  } catch (err) {
+    console.error("runComboBacktest(): failed", err);
+    alert(err?.message || "Combo backtest failed");
+  }
+};
+
 
   // --- Save Setup Handlers ---
   const openSaveModal = () => setIsSaveModalOpen(true);
