@@ -110,7 +110,7 @@ export default function Backtests() {
       <h2 className="section-title">Backtest Dashboard</h2>
 
       {/* --- Backtest Setup Form --- */}
-      <div className="setup-form">
+      <div className="backtest-form">
         <label>
           Symbol:
           <select value={symbol} onChange={(e) => setSymbol(e.target.value)}>
