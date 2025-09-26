@@ -229,36 +229,8 @@ export default function Backtests() {
         </button>
       </form>
 
-      {/* --- Combo Strategy Form --- */}
-      <form className="backtest-form" onSubmit={handleComboSubmit}>
-        <h2>Combo Strategy Backtest</h2>
-        <label>Symbol:
-          <select name="symbol" value={comboData.symbol} onChange={e => setComboData(prev => ({ ...prev, symbol: e.target.value }))}>
-            {symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </label>
-        <label>Timeframe:
-          <select name="timeframe" value={comboData.timeframe} onChange={e => setComboData(prev => ({ ...prev, timeframe: e.target.value }))}>
-            {timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </label>
-        <label>Initial Balance: <input type="number" name="initialBalance" value={comboData.initialBalance} onChange={e => setComboData(prev => ({ ...prev, initialBalance: e.target.value }))} /></label>
-
-        {comboData.strategyConfigs.map((s, idx) => (
-          <div key={idx} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <label>Strategy:
-              <select value={s.code} onChange={e => handleComboChange({ target: { name: "strategyCode", value: e.target.value } }, idx)}>
-                {strategyOptions.map(opt => <option key={opt.code} value={opt.code}>{opt.name}</option>)}
-              </select>
-            </label>
-            <button type="button" onClick={() => removeStrategyFromCombo(idx)}>Remove</button>
-          </div>
-        ))}
-        <button type="button" onClick={addStrategyToCombo}>Add Strategy</button>
-        <button type="submit" disabled={batchLoading}>
-          {batchLoading ? "Running..." : "Run Combo Backtest"}
-        </button>
-      </form>
+     neov6backend.onrender.com/api/backtest/combo:1   Failed to load resource: the server responded with a status of 500 ()
+backtest.js:98  runComboBacktest(): failed re
 
       {/* --- Metrics --- */}
       <MetricsDisplay metrics={backtestResults.main?.metrics} />
