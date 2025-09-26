@@ -1,7 +1,7 @@
 // File: src/pages/Backtests.jsx
 import React, { useState } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
-import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.js";
+import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import {
   LineChart,
   Line,
