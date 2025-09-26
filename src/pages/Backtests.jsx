@@ -316,19 +316,27 @@ export default function Backtests() {
   }, [backtestResults, activeTestType]);
 
 
-  const distributionData = useMemo(() => {
-    const totalTrades = backtestResults.main?.metrics?.totalTrades || 0;
-    const winRate = backtestResults.main?.metrics?.winRate || 0;
-    const losingTrades = totalTrades * (100 - winRate) / 100;
-    const winningTrades = totalTrades - losingTrades;
+const distributionData = useMemo(() => {
+    const { 
+        totalTrades = 0, 
+        winRate = 0 
+    } = backtestResults.main?.metrics || {};
 
-    if (totalTrades === 0) return [];
+    if (totalTrades === 0) {
+        return [];
+    }
+
+    // Calculate the precise number of winning trades (as a decimal)
+    const winningTrades = totalTrades * (winRate / 100);
+
+    // Calculate the precise number of losing trades (as a decimal)
+    const losingTrades = totalTrades - winningTrades;
 
     return [
-      { name: "Win", value: winningTrades, color: COLORS[0] }, // Green
-      { name: "Loss", value: losingTrades, color: COLORS[1] }, // Red
+        { name: "Win", value: winningTrades, color: COLORS[0] }, // Green
+        { name: "Loss", value: losingTrades, color: COLORS[1] }, // Red
     ];
-  }, [backtestResults.main?.metrics]);
+}, [backtestResults.main?.metrics?.totalTrades, backtestResults.main?.metrics?.winRate]);
 
   // Placeholder for winLossBarChartData (replace with real data structure)
   const winLossBarChartData = useMemo(() => {
