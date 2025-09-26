@@ -7,20 +7,20 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer,
   PieChart, Pie, Cell
 } from "recharts";
-import runCombinedStrategyService from "../services/strategyEngineService.js"; // ✅ import
+import runCombinedStrategyService from "../services/strategyEngineService.js";
 import "./Backtests.css";
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b"];
 
 const formatDate = (date) => {
   const d = new Date(date);
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
 const getDefaultDates = () => {
   const today = new Date();
-  const start = new Date(today); start.setFullYear(today.getFullYear()-1);
-  const end = new Date(today); end.setDate(today.getDate()-1);
+  const start = new Date(today); start.setFullYear(today.getFullYear() - 1);
+  const end = new Date(today); end.setDate(today.getDate() - 1);
   return { startDate: formatDate(start), endDate: formatDate(end) };
 };
 
@@ -33,7 +33,7 @@ const initialComboData = {
   strategyConfigs: [{ code: "" }],
   symbol: "", timeframe: "", startDate: getDefaultDates().startDate,
   endDate: getDefaultDates().endDate, initialBalance: 1000,
-  combinationRule: "AND", // default
+  combinationRule: "AND", // default rule
 };
 
 const MetricsDisplay = ({ metrics }) => {
@@ -78,7 +78,7 @@ export default function Backtests() {
   const symbolOptions = useMemo(() => options?.symbols || [], [options]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
 
-  // --- Initialize default selections ---
+  // Initialize default selections
   useEffect(() => {
     if (strategyOptions.length && !formData.code) {
       setFormData(prev => ({
@@ -114,7 +114,9 @@ export default function Backtests() {
       const newConfigs = [...comboData.strategyConfigs];
       newConfigs[idx] = { ...newConfigs[idx], code: value };
       setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
-    } else setComboData(prev => ({ ...prev, [name]: value }));
+    } else {
+      setComboData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const addStrategyToCombo = () => {
@@ -131,7 +133,7 @@ export default function Backtests() {
     }));
   };
 
-  // --- Single Backtest ---
+  // --- Backtest Submit Handlers ---
   const handleSingleSubmit = async (e) => {
     e.preventDefault();
     setActiveTestType("single");
@@ -148,7 +150,6 @@ export default function Backtests() {
     }
   };
 
-  // --- Combo Backtest ---
   const handleComboSubmit = async (e) => {
     e.preventDefault();
     setActiveTestType("combo");
@@ -164,18 +165,18 @@ export default function Backtests() {
         timeframe: comboData.timeframe,
         startDate: comboData.startDate,
         endDate: comboData.endDate,
-        initialBalance: Number(comboData.initialBalance)
+        initialBalance: Number(comboData.initialBalance),
       };
 
-      const result = await runCombinedStrategyService("currentUserIdPlaceholder", payload); // 🔥 integrate service
+      const result = await runCombinedStrategyService("CURRENT_USER_ID", payload);
+      if (!result || !result.combinedResult) return alert("No result returned");
 
       setBacktestResults({
         main: result.combinedResult,
         individuals: result.individualResults || []
       });
-
     } catch (err) {
-      console.error("runCombinedStrategyService() failed", err);
+      console.error("runCombinedStrategyService failed", err);
       alert(err?.message || "Combo backtest failed");
     }
   };
@@ -193,8 +194,8 @@ export default function Backtests() {
       description: setupDetails.description,
       symbol: backtestResults.main.symbol,
       timeframe: backtestResults.main.timeframe,
-      strategies: backtestResults.individuals.map(i => i.strategyName) || [],
-      initialBalance: backtestResults.main.metrics?.initialBalance || comboData.initialBalance,
+      strategies: backtestResults.main.strategies,
+      initialBalance: backtestResults.main.initialBalance,
     };
     try {
       await createSetup(payload);
@@ -229,7 +230,7 @@ export default function Backtests() {
     <div className="dashboard-container">
       <h1>Backtests</h1>
 
-      {/* --- Single Strategy Form --- */}
+      {/* Single Strategy Form */}
       <form className="backtest-form" onSubmit={handleSingleSubmit}>
         <h2>Single Strategy Backtest</h2>
         <label>Strategy:
@@ -253,17 +254,17 @@ export default function Backtests() {
         <button type="submit" disabled={singleLoading}>{singleLoading ? "Running..." : "Run Backtest"}</button>
       </form>
 
-      {/* --- Combo Strategy Form --- */}
+      {/* Combo Strategy Form */}
       <form className="backtest-form" onSubmit={handleComboSubmit}>
         <h2>Combo Strategy Backtest</h2>
         {comboData.strategyConfigs.map((config, idx) => (
           <div key={idx} className="combo-strategy-row">
-            <label>Strategy {idx+1}:
+            <label>Strategy {idx + 1}:
               <select value={config.code} name="strategyCode" onChange={(e) => handleComboChange(e, idx)}>
                 {strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
               </select>
             </label>
-            <button type="button" onClick={() => removeStrategyFromCombo(idx)} disabled={comboData.strategyConfigs.length===1}>Remove</button>
+            <button type="button" onClick={() => removeStrategyFromCombo(idx)} disabled={comboData.strategyConfigs.length === 1}>Remove</button>
           </div>
         ))}
         <button type="button" onClick={addStrategyToCombo}>Add Strategy</button>
@@ -281,7 +282,7 @@ export default function Backtests() {
         <label>End Date: <input type="date" name="endDate" value={comboData.endDate} onChange={(e) => handleComboChange(e, -1)} /></label>
         <label>Initial Balance: <input type="number" name="initialBalance" value={comboData.initialBalance} onChange={(e) => handleComboChange(e, -1)} /></label>
         <label>Combination Rule:
-          <select name="combinationRule" value={comboData.combinationRule} onChange={(e) => setComboData(prev => ({ ...prev, combinationRule: e.target.value }))}>
+          <select name="combinationRule" value={comboData.combinationRule} onChange={(e) => handleComboChange(e, -1)}>
             <option value="AND">AND</option>
             <option value="OR">OR</option>
           </select>
@@ -289,10 +290,10 @@ export default function Backtests() {
         <button type="submit" disabled={batchLoading}>{batchLoading ? "Running..." : "Run Combo Backtest"}</button>
       </form>
 
-      {/* --- Metrics --- */}
+      {/* Metrics */}
       <MetricsDisplay metrics={backtestResults.main?.metrics} />
 
-      {/* --- Equity Curves --- */}
+      {/* Equity Curves */}
       <h2>Equity Curves</h2>
       <ResponsiveContainer width="100%" height={400}>
         <LineChart>
@@ -301,14 +302,14 @@ export default function Backtests() {
           <YAxis />
           <Tooltip />
           <Legend />
-          {chartData.length && <Line type="monotone" data={chartData} dataKey="equity" name="Combined" stroke={COLORS[0]} dot={false} />}
+          {chartData.length > 0 && <Line type="monotone" data={chartData} dataKey="equity" name="Combined" stroke={COLORS[0]} dot={false} />}
           {individualCharts.map((ind, i) => (
-            <Line key={i} type="monotone" data={ind.data} dataKey="equity" name={ind.code} stroke={COLORS[(i+1)%COLORS.length]} dot={false} />
+            <Line key={i} type="monotone" data={ind.data} dataKey="equity" name={ind.code} stroke={COLORS[(i + 1) % COLORS.length]} dot={false} />
           ))}
         </LineChart>
       </ResponsiveContainer>
 
-      {/* --- Win/Loss Pie --- */}
+      {/* Wins vs Losses Pie */}
       {pieData.length > 0 && (
         <>
           <h2>Wins vs Losses</h2>
@@ -322,7 +323,7 @@ export default function Backtests() {
         </>
       )}
 
-      {/* --- Save Setup Modal --- */}
+      {/* Save Setup Modal */}
       {isSaveModalOpen && (
         <div className="modal modal-open">
           <div className="modal-content">
