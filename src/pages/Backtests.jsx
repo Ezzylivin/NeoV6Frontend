@@ -4,16 +4,16 @@ import { useBacktest } from "../hooks/useBacktest.js";
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { StrategyContext } from "../context/StrategyContext.jsx";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell
+  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
+  PieChart, Pie, Cell, ResponsiveContainer
 } from "recharts";
 import "./Backtests.css";
 
-// --- Constants and Helpers ---
+// --- Constants ---
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b"];
 const formatDate = (date) => {
   const d = new Date(date);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 };
 const getDefaultDates = () => {
   const today = new Date();
@@ -24,16 +24,17 @@ const getDefaultDates = () => {
 
 const initialFormData = {
   code: "", symbol: "", timeframe: "", startDate: getDefaultDates().startDate,
-  endDate: getDefaultDates().endDate, initialBalance: 1000, params: { SL: "", TP: "", trailingStop: "" },
+  endDate: getDefaultDates().endDate, initialBalance: 1000,
+  params: { trailingStop: "" } // Only keep trailingStop
 };
 
 const initialComboData = {
-  strategyConfigs: [{ code: "", params: { SL: "", TP: "", trailingStop: "" } }],
+  strategyConfigs: [{ code: "", params: { trailingStop: "" } }],
   symbol: "", timeframe: "", startDate: getDefaultDates().startDate,
   endDate: getDefaultDates().endDate, initialBalance: 1000,
 };
 
-// --- Sub-components ---
+// --- Metrics Component ---
 const MetricsDisplay = ({ metrics }) => {
   if (!metrics) return null;
   const items = [
@@ -71,29 +72,27 @@ export default function Backtests() {
   const [formData, setFormData] = useState(initialFormData);
   const [comboData, setComboData] = useState(initialComboData);
   const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
-  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
-  const [setupDetails, setSetupDetails] = useState({ name: "", description: "" });
 
   const strategyOptions = useMemo(() => options?.strategies || [], [options]);
   const symbolOptions = useMemo(() => options?.symbols || [], [options]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
 
   useEffect(() => {
-    if (options.strategies.length > 0 && formData.code === "") {
+    if (options.strategies.length > 0 && !formData.code) {
       setFormData(prev => ({
         ...prev,
         code: options.strategies[0]?.code || "",
         symbol: options.symbols[0] || "",
         timeframe: options.timeframes[0] || "",
-        params: options.strategies[0]?.params || { SL: "", TP: "", trailingStop: "" },
+        params: { trailingStop: "" }
       }));
     }
-    if (options.strategies.length > 0 && comboData.strategyConfigs[0].code === "") {
+    if (options.strategies.length > 0 && !comboData.strategyConfigs[0].code) {
       setComboData(prev => ({
         ...prev,
         symbol: options.symbols[0] || "",
         timeframe: options.timeframes[0] || "",
-        strategyConfigs: [{ code: options.strategies[0]?.code || "", params: options.strategies[0]?.params || { SL: "", TP: "", trailingStop: "" } }],
+        strategyConfigs: [{ code: options.strategies[0]?.code || "", params: { trailingStop: "" } }]
       }));
     }
   }, [options, formData.code, comboData.strategyConfigs]);
@@ -102,28 +101,25 @@ export default function Backtests() {
     const { name, value } = e.target;
     if (name.startsWith("param_")) {
       const key = name.replace("param_", "");
-      setFormData(prev => ({ ...prev, params: { ...prev.params, [key]: Number(value) || null } }));
+      setFormData(prev => ({ ...prev, params: { ...prev.params, [key]: value ? Number(value) : undefined } }));
     } else setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleComboChange = (e, idx) => {
     const { name, value } = e.target;
-    if (name === "strategyCode") {
-      const newConfigs = [...comboData.strategyConfigs];
-      newConfigs[idx] = { ...newConfigs[idx], code: value };
-      setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
-    } else if (name.startsWith("param_")) {
+    const newConfigs = [...comboData.strategyConfigs];
+    if (name === "strategyCode") newConfigs[idx].code = value;
+    else if (name.startsWith("param_")) {
       const key = name.replace("param_", "");
-      const newConfigs = [...comboData.strategyConfigs];
-      newConfigs[idx] = { ...newConfigs[idx], params: { ...newConfigs[idx].params, [key]: Number(value) || null } };
-      setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
-    } else setComboData(prev => ({ ...prev, [name]: value }));
+      newConfigs[idx].params[key] = value ? Number(value) : undefined;
+    }
+    setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
   };
 
   const addStrategyToCombo = () => {
     setComboData(prev => ({
       ...prev,
-      strategyConfigs: [...prev.strategyConfigs, { code: strategyOptions[0]?.code || "", params: { SL: "", TP: "", trailingStop: "" } }]
+      strategyConfigs: [...prev.strategyConfigs, { code: strategyOptions[0]?.code || "", params: { trailingStop: "" } }]
     }));
   };
 
@@ -131,9 +127,11 @@ export default function Backtests() {
     setComboData(prev => ({ ...prev, strategyConfigs: prev.strategyConfigs.filter((_, i) => i !== idx) }));
   };
 
+  // --- Submitting Single Backtest ---
   const handleSingleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const { trailingStop } = formData.params;
       const payload = {
         code: formData.code,
         symbol: formData.symbol.replace("-", "/").toUpperCase(),
@@ -141,21 +139,25 @@ export default function Backtests() {
         startDate: formData.startDate,
         endDate: formData.endDate,
         initialBalance: Number(formData.initialBalance),
-        params: formData.params
+        params: trailingStop ? { trailingStop } : {} // Only send trailingStop
       };
       const result = await runNewBacktest(payload);
       setBacktestResults({ main: result, individuals: [] });
     } catch (err) {
-      console.error("Single backtest submission failed:", err);
+      console.error("Single backtest failed:", err);
     }
   };
 
+  // --- Submitting Combo Backtest ---
   const handleComboSubmit = async (e) => {
     e.preventDefault();
     try {
       const strategies = comboData.strategyConfigs
-        .filter(config => config.code)
-        .map(config => ({ code: config.code, params: config.params || {} }));
+        .filter(c => c.code)
+        .map(c => {
+          const ts = c.params?.trailingStop;
+          return { code: c.code, params: ts ? { trailingStop: ts } : {} }; // Only send trailingStop
+        });
 
       if (!strategies.length) return alert("Select at least one strategy.");
 
@@ -175,13 +177,14 @@ export default function Backtests() {
         individuals: result.individualResults || []
       });
     } catch (err) {
-      console.error("Combo backtest submission failed:", err);
+      console.error("Combo backtest failed:", err);
     }
   };
 
   // --- Chart Data ---
   const chartData = useMemo(() => {
-    if (!backtestResults.main?.equityCurve?.length) return [{ date: new Date(), equity: backtestResults.main?.metrics?.initialBalance || 1000 }];
+    if (!backtestResults.main?.equityCurve?.length)
+      return [{ date: new Date(), equity: backtestResults.main?.metrics?.initialBalance || 1000 }];
     return backtestResults.main.equityCurve.map(d => ({ date: d.timestamp || d.date, equity: d.balance || d.equity || 0 }));
   }, [backtestResults.main?.equityCurve]);
 
@@ -208,7 +211,7 @@ export default function Backtests() {
       {error && <div className="error-box"><h4>Error</h4><p>{error.message}</p></div>}
 
       <div className="forms-container">
-        {/* Single Strategy */}
+        {/* Single Strategy Form */}
         <form className="backtest-form" onSubmit={handleSingleSubmit}>
           <h2>Single Strategy Backtest</h2>
           <label>Strategy:
@@ -216,96 +219,16 @@ export default function Backtests() {
               {strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
             </select>
           </label>
-          <label>Symbol: <select name="symbol" value={formData.symbol} onChange={handleFormChange}>
-            {symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
-          </select></label>
-          <label>Timeframe: <select name="timeframe" value={formData.timeframe} onChange={handleFormChange}>
-            {timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
-          </select></label>
+          <label>Symbol:
+            <select name="symbol" value={formData.symbol} onChange={handleFormChange}>
+              {symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
+          <label>Timeframe:
+            <select name="timeframe" value={formData.timeframe} onChange={handleFormChange}>
+              {timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </label>
           <label>Start Date: <input type="date" name="startDate" value={formData.startDate} onChange={handleFormChange} /></label>
           <label>End Date: <input type="date" name="endDate" value={formData.endDate} onChange={handleFormChange} /></label>
-          <label>Initial Balance: <input type="number" name="initialBalance" value={formData.initialBalance} onChange={handleFormChange} /></label>
-          <label>Stop Loss ($): <input type="number" name="param_SL" value={formData.params.SL || ""} onChange={handleFormChange} /></label>
-          <label>Take Profit ($): <input type="number" name="param_TP" value={formData.params.TP || ""} onChange={handleFormChange} /></label>
-          <label>Trailing Stop (%): <input type="number" name="param_trailingStop" value={formData.params.trailingStop || ""} onChange={handleFormChange} /></label>
-          <button type="submit">{loading === 'running' ? "Running..." : "Run Single Backtest"}</button>
-        </form>
-
-        {/* Combined Strategy */}
-        <form className="backtest-form" onSubmit={handleComboSubmit}>
-          <h2>Combined Strategy Backtest</h2>
-          {comboData.strategyConfigs.map((config, idx) => (
-            <div key={idx} className="combo-strategy-row">
-              <label>Strategy {idx + 1}:
-                <select name="strategyCode" value={config.code} onChange={(e) => handleComboChange(e, idx)}>
-                  {strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
-                </select>
-              </label>
-              <label>SL ($): <input type="number" name="param_SL" value={config.params.SL || ""} onChange={(e) => handleComboChange(e, idx)} /></label>
-              <label>TP ($): <input type="number" name="param_TP" value={config.params.TP || ""} onChange={(e) => handleComboChange(e, idx)} /></label>
-              <label>Trailing Stop (%): <input type="number" name="param_trailingStop" value={config.params.trailingStop || ""} onChange={(e) => handleComboChange(e, idx)} /></label>
-              {comboData.strategyConfigs.length > 1 && <button type="button" onClick={() => removeStrategyFromCombo(idx)}>Remove</button>}
-            </div>
-          ))}
-          <button type="button" onClick={addStrategyToCombo}>Add Strategy</button>
-          <label>Symbol: <select name="symbol" value={comboData.symbol} onChange={handleComboChange}>
-            {symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
-          </select></label>
-          <label>Timeframe: <select name="timeframe" value={comboData.timeframe} onChange={handleComboChange}>
-            {timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
-          </select></label>
-          <label>Start Date: <input type="date" name="startDate" value={comboData.startDate} onChange={handleComboChange} /></label>
-          <label>End Date: <input type="date" name="endDate" value={comboData.endDate} onChange={handleComboChange} /></label>
-          <label>Initial Balance: <input type="number" name="initialBalance" value={comboData.initialBalance} onChange={handleComboChange} /></label>
-          <button type="submit">{loading === 'running' ? "Running..." : "Run Combined Backtest"}</button>
-        </form>
-      </div>
-
-      {/* Charts */}
-      {backtestResults.main && (
-        <div className="charts-container">
-          <h2>Combined Equity Curve</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Line type="monotone" dataKey="equity" stroke="#22c55e" />
-            </LineChart>
-          </ResponsiveContainer>
-
-          <h3>Win/Loss Distribution</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                {pieData.map((entry, idx) => <Cell key={idx} fill={entry.color} />)}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
-
-          <h3>Combined Metrics</h3>
-          <MetricsDisplay metrics={backtestResults.main.metrics} />
-        </div>
-      )}
-
-      {/* Individual Charts */}
-      {individualCharts.map((c, idx) => (
-        <div key={idx} className="individual-chart">
-          <h3>{c.code} Equity Curve</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={c.data}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Line type="monotone" dataKey="equity" stroke={COLORS[idx % COLORS.length]} />
-            </LineChart>
-          </ResponsiveContainer>
-          <h4>Metrics</h4>
-          <MetricsDisplay metrics={c.metrics} />
-        </div>
-      ))}
-    </div>
-  );
-}
+          <label>Initial Balance: <input type="number" name
