@@ -7,8 +7,12 @@
   color: #e0e0e0; /* Lighter text color */
   font-family: 'Inter', sans-serif; /* Modern font */
   min-height: calc(100vh - 60px); /* Adjust for header height */
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
 }
 
+/* --- Section Titles --- */
 .section-title {
   font-size: 1.5rem;
   font-weight: 600;
@@ -21,6 +25,8 @@
   display: flex;
   margin-bottom: 25px;
   border-bottom: 1px solid #333;
+  flex-wrap: wrap;
+  gap: 5px;
 }
 
 .tab-button {
@@ -51,7 +57,6 @@
   background-color: #1b1b2b;
   padding: 20px;
   border-radius: 12px;
-  margin-bottom: 25px;
   display: flex;
   flex-direction: column;
   gap: 15px;
@@ -104,6 +109,12 @@
   padding: 12px;
   border-radius: 10px;
   text-align: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.metric-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.4);
 }
 
 .metric-label {
@@ -119,18 +130,31 @@
   color: #fff;
 }
 
+/* Color coding for win/loss metrics */
+.metric-win .metric-value { color: #22c55e; }
+.metric-loss .metric-value { color: #ef4444; }
+.metric-neutral .metric-value { color: #fff; }
+
 /* --- Chart Containers --- */
 .chart-container {
   width: 100%;
-  height: 300px; /* Fixed height for ResponsiveContainer */
+  height: 320px; /* Slightly taller */
   margin-bottom: 25px;
+  background-color: #1f1f35;
+  border-radius: 12px;
+  padding: 10px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
 }
 
 /* --- Individual Chart Containers (smaller) --- */
 .individual-chart-container {
   width: 100%;
-  height: 200px;
+  height: 220px;
   margin-bottom: 20px;
+  background-color: #1f1f35;
+  border-radius: 10px;
+  padding: 8px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.2);
 }
 
 /* --- Pie Chart Container --- */
@@ -139,6 +163,10 @@
   max-width: 400px;
   height: 250px;
   margin: 25px auto;
+  background-color: #1f1f35;
+  border-radius: 12px;
+  padding: 10px;
+  box-shadow: 0 5px 12px rgba(0,0,0,0.3);
 }
 
 /* --- Save Setup Modal --- */
@@ -213,7 +241,7 @@
   border: none;
   cursor: pointer;
   font-weight: 600;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s ease, transform 0.2s ease;
 }
 
 .modal-content button[type="submit"] {
@@ -223,6 +251,7 @@
 
 .modal-content button[type="submit"]:hover {
   background-color: #16a34a;
+  transform: translateY(-2px);
 }
 
 .modal-content button[type="button"] {
@@ -232,6 +261,7 @@
 
 .modal-content button[type="button"]:hover {
   background-color: #b91c1c;
+  transform: translateY(-2px);
 }
 
 /* --- Floating Save Button --- */
@@ -256,4 +286,28 @@
 .save-setup-btn:hover {
   background-color: #16a34a;
   transform: translateY(-2px);
+}
+
+/* --- Responsive Enhancements --- */
+@media (max-width: 768px) {
+  .pie-chart-container {
+    width: 90%;
+    margin: 20px auto;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  }
+
+  .chart-container,
+  .individual-chart-container {
+    height: 250px;
+  }
+}
+
+@media (max-width: 480px) {
+  .chart-container,
+  .individual-chart-container {
+    height: 200px;
+  }
 }
