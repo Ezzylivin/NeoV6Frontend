@@ -129,40 +129,48 @@ export function useBacktest() {
     }
   }, []);
 
-  const runComboBacktest = useCallback(async (payload) => {
-    dispatch({ type: "SET_LOADING", payload: "running_combo" });
-    try {
-      if (!payload.strategies || payload.strategies.length === 0) {
-        throw new Error("At least one strategy must be selected.");
-      }
-
-      // 🔑 Normalize strategies
-      const normalizedStrategies = payload.strategies.map((s) => {
-        if (typeof s === "string") {
-          return { code: s, params: {} };
-        }
-        return { code: s.code, params: s.params || {} };
-      });
-
-      const correctedPayload = {
-        ...payload,
-        strategies: normalizedStrategies,
-        initialBalance: payload.initialBalance || 1000,
-      };
-
-      console.log(
-        "👉 Final combo payload sent:",
-        JSON.stringify(correctedPayload, null, 2)
-      );
-
-      return await backtestApi.runComboBacktest(correctedPayload);
-    } catch (err) {
-      dispatch({ type: "SET_ERROR", payload: err });
-      throw err;
-    } finally {
-      dispatch({ type: "SET_LOADING", payload: "idle" });
+ const runComboBacktest = useCallback(async (payload) => {
+  dispatch({ type: 'SET_LOADING', payload: 'running_combo' });
+  try {
+    if (!payload.strategies || payload.strategies.length === 0) {
+      throw new Error("At least one strategy must be selected.");
     }
-  }, []);
+
+    // ✅ Ensure each strategy has a valid strategyType
+    const normalizedStrategies = payload.strategies.map(s => {
+      const params = s.params || {};
+      if (!params.strategyType) {
+        if (s.code === "atrtest1") {
+          params.strategyType = "ATR";
+          params.period = params.period || 14;
+          params.multiplier = params.multiplier || 2;
+        }
+        if (s.code === "test_for_single") {
+          params.strategyType = "Moving Average Crossover";
+          params.shortPeriod = params.shortPeriod || 10;
+          params.longPeriod = params.longPeriod || 50;
+        }
+      }
+      return { code: s.code, params };
+    });
+
+    const correctedPayload = {
+      ...payload,
+      strategies: normalizedStrategies,
+      initialBalance: payload.initialBalance || 1000
+    };
+
+    console.log("👉 Final combo payload sent:", JSON.stringify(correctedPayload, null, 2));
+
+    return await backtestApi.runComboBacktest(correctedPayload);
+  } catch (err) {
+    dispatch({ type: 'SET_ERROR', payload: err });
+    throw err;
+  } finally {
+    dispatch({ type: 'SET_LOADING', payload: 'idle' });
+  }
+}, []);
+
 
   const previewStrategy = useCallback(async (payload) => {
     dispatch({ type: "SET_LOADING", payload: "running" });
