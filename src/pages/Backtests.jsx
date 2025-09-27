@@ -138,14 +138,16 @@ export default function Backtests() {
     const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
 
     useEffect(() => {
+        // This effect runs once when options are loaded to populate the forms with defaults.
         if (strategyOptions.length > 0 && !formData.code) {
             const firstStrategy = strategyOptions[0];
             const firstSymbol = symbolOptions[0] || "";
             const firstTimeframe = timeframeOptions[0] || "";
+
             setFormData(prev => ({ ...prev, code: firstStrategy?.code, params: firstStrategy?.params || {}, symbol: firstSymbol, timeframe: firstTimeframe }));
             setComboData(prev => ({ ...prev, strategyConfigs: [{ code: firstStrategy?.code, params: firstStrategy?.params || {} }], symbol: firstSymbol, timeframe: firstTimeframe }));
         }
-    }, [strategyOptions, symbolOptions, timeframeOptions]);
+    }, [strategyOptions, symbolOptions, timeframeOptions]); // ✅ FIX: Correct dependency array prevents re-renders
 
     const handleFormChange = (e) => {
         const { name, value, type } = e.target;
@@ -181,7 +183,7 @@ export default function Backtests() {
 
     const addStrategyToCombo = () => {
         const firstStrategy = strategyOptions[0] || { code: "", params: {} };
-        setComboData(prev => ({...prev, strategyConfigs: [...prev.strategyConfigs, { code: firstStrategy.code, params: firstStrategy.params }]}));
+        setComboData(prev => ({ ...prev, strategyConfigs: [...prev.strategyConfigs, { code: firstStrategy.code, params: firstStrategy.params }] }));
     };
 
     const removeStrategyFromCombo = (idx) => {
@@ -203,7 +205,13 @@ export default function Backtests() {
                 .filter(config => config.code)
                 .map(config => ({ code: config.code, params: config.params || {} }));
             if (!strategies.length) return alert("Please select at least one strategy.");
-            const payload = { ...comboData, strategies };
+            
+            const payload = { 
+                ...comboData, 
+                strategies, // Override the old strategyConfigs with the cleaned array
+            };
+            delete payload.strategyConfigs; // Clean up the payload
+            
             const result = await runComboBacktest(payload);
             setBacktestResults({ main: result.combinedResult, individuals: result.individualResults || [] });
         } catch (err) { console.error("Combo backtest submission failed:", err); }
@@ -216,12 +224,9 @@ export default function Backtests() {
         e.preventDefault();
         if (!backtestResults.main) return alert("No backtest to save");
         const payload = {
-            name: setupDetails.name,
-            description: setupDetails.description,
-            symbol: backtestResults.main.symbol,
-            timeframe: backtestResults.main.timeframe,
-            strategies: backtestResults.main.strategies,
-            initialBalance: backtestResults.main.initialBalance,
+            name: setupDetails.name, description: setupDetails.description,
+            symbol: backtestResults.main.symbol, timeframe: backtestResults.main.timeframe,
+            strategies: backtestResults.main.strategies, initialBalance: backtestResults.main.initialBalance,
         };
         try {
             await createSetup(payload);
@@ -286,6 +291,7 @@ export default function Backtests() {
         <div className="dashboard-container">
             <h1>Backtests</h1>
             {error && <div className="error-box"><h4>Error</h4><p>{error.status && `Status ${error.status}: `}{error.message}</p></div>}
+
             <div className="forms-container">
                 <form className="backtest-form" onSubmit={handleSingleSubmit}>
                     <h2>Single Strategy Backtest</h2>
@@ -326,6 +332,7 @@ export default function Backtests() {
                 <div className="results-container">
                     <h2>Combined Results</h2>
                     <MetricsDisplay metrics={combinedMetrics} />
+
                     <div className="chart-container">
                         <h2>Combined Equity Curve</h2>
                         <ResponsiveContainer width="100%" height={400}>
@@ -339,6 +346,7 @@ export default function Backtests() {
                             </LineChart>
                         </ResponsiveContainer>
                     </div>
+
                     {pieData.length > 0 && (
                         <div className="chart-container pie-chart-container">
                             <h2>Win/Loss Distribution</h2>
@@ -354,6 +362,7 @@ export default function Backtests() {
                             </ResponsiveContainer>
                         </div>
                     )}
+                    
                     {backtestResults.individuals.length > 0 && <h2>Individual Results</h2>}
                     {backtestResults.individuals.map((ind, idx) => (
                         <div key={ind.strategyCode || idx} className="individual-result-container">
