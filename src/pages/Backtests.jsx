@@ -107,27 +107,22 @@ export default function Backtests() {
         } else setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-   const handleComboChange = (e, idx) => {
-  const { name, value } = e.target;
-  const newConfigs = [...comboData.strategyConfigs];
+  const handleComboChange = (e, idx) => {
+    const { name, value } = e.target;
 
-  if (name === "strategyCode") {
-    // When a new strategy is chosen, preload its default params from options
-    const selected = strategyOptions.find(s => s.code === value);
-    newConfigs[idx] = { 
-      ...newConfigs[idx], 
-      code: value, 
-      params: selected?.params || {} 
-    };
-  } else if (name.startsWith("param_")) {
-    const key = name.replace("param_", "");
-    newConfigs[idx] = {
-      ...newConfigs[idx],
-      params: { ...newConfigs[idx].params, [key]: value }
-    };
-  } else {
-    newConfigs[idx] = { ...newConfigs[idx], [name]: value };
-  }
+    if (name === "strategyCode") {
+        const newConfigs = [...comboData.strategyConfigs];
+        newConfigs[idx] = { ...newConfigs[idx], code: value };
+        setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
+    } else if (name === "initialBalance") {
+        // Make sure it is numeric
+        const numericValue = Number(value);
+        setComboData(prev => ({ ...prev, initialBalance: numericValue }));
+    } else {
+        setComboData(prev => ({ ...prev, [name]: value }));
+    }
+};
+
 
   setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
 };
@@ -321,8 +316,16 @@ export default function Backtests() {
                     </label>
                     <label>Start Date: <input type="date" name="startDate" value={comboData.startDate} onChange={(e) => handleComboChange(e, -1)} /></label>
                     <label>End Date: <input type="date" name="endDate" value={comboData.endDate} onChange={(e) => handleComboChange(e, -1)} /></label>
-                    <label>Initial Balance: <input type="number" name="initialBalance" value={comboData.initialBalance} onChange={(e) => handleComboChange(e, -1)} /></label>
-                    <button type="submit" disabled={loading === 'running_combo'}>
+                    <label>Initial Balance:
+    <input
+        type="number"
+        name="initialBalance"
+        min="1"
+        value={comboData.initialBalance}
+        onChange={(e) => handleComboChange(e, -1)}
+    />
+</label>
+<button type="submit" disabled={loading === 'running_combo'}>
                         {loading === 'running_combo' ? "Running..." : "Run Combo Backtest"}
                     </button>
                 </form>
