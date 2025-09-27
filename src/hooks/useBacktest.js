@@ -123,21 +123,28 @@ export function useBacktest() {
         }
     }, [getPastBacktests]);
 
-    const runComboBacktest = useCallback(async (payload) => {
-        dispatch({ type: 'SET_LOADING', payload: 'running_combo' });
-        try {
-            if (!payload.strategyCodes || payload.strategyCodes.length === 0) {
-                throw new Error("At least one strategy must be selected.");
-            }
-            // The API service now handles renaming `strategyCodes` to `strategies`
-            return await backtestApi.runComboBacktest(payload);
-        } catch (err) {
-            dispatch({ type: 'SET_ERROR', payload: err });
-            throw err;
-        } finally {
-            dispatch({ type: 'SET_LOADING', payload: 'idle' });
+   const runComboBacktest = useCallback(async (payload) => {
+    dispatch({ type: 'SET_LOADING', payload: 'running_combo' });
+    try {
+        // Normalize strategies field
+        if (payload.strategyCodes && !payload.strategies) {
+            payload.strategies = payload.strategyCodes;
+            delete payload.strategyCodes;
         }
-    }, []);
+
+        // Log for debugging
+        console.log("Running combo backtest with payload:", payload);
+
+        const result = await backtestApi.runComboBacktest(payload);
+        await getPastBacktests(); // refresh list if needed
+        return result;
+    } catch (err) {
+        dispatch({ type: 'SET_ERROR', payload: err });
+        throw err;
+    } finally {
+        dispatch({ type: 'SET_LOADING', payload: 'idle' });
+    }
+}, [getPastBacktests]);
 
     const previewStrategy = useCallback(async (payload) => {
         dispatch({ type: 'SET_LOADING', payload: 'running' });
