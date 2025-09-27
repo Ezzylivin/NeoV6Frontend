@@ -1,156 +1,180 @@
-import { useState, useEffect, useCallback } from "react";
+// File: src/hooks/useBacktest.js
+import { useReducer, useCallback, useEffect } from "react";
 import * as backtestApi from "../api/backtest.js";
-// No longer need to import setAuthToken here if it's only called in App.jsx
-// However, it's fine to leave it if other functions might need it later.
 
+// --- State Management with Reducer ---
+
+const initialState = {
+    options: { strategies: [], symbols: [], timeframes: [] },
+    pastBacktests: { results: [], total: 0 },
+    loading: 'idle', // 'idle', 'initial', 'fetching', 'running', 'running_combo'
+    error: null,     // Will store { status, message }
+};
+
+function backtestReducer(state, action) {
+    switch (action.type) {
+        case 'SET_LOADING':
+            return { ...state, loading: action.payload, error: null };
+        case 'SET_ERROR':
+            return { ...state, loading: 'idle', error: action.payload };
+        case 'SET_INITIAL_DATA':
+            return {
+                ...state,
+                options: action.payload.options,
+                pastBacktests: {
+                    results: action.payload.pastBacktests.backtests,
+                    total: action.payload.pastBacktests.total,
+                },
+                loading: 'idle',
+            };
+        case 'SET_PAST_BACKTESTS':
+            return {
+                ...state,
+                pastBacktests: {
+                    results: action.payload.backtests,
+                    total: action.payload.total,
+                },
+                loading: 'idle',
+            };
+        case 'DELETE_BACKTEST_OPTIMISTIC':
+            return {
+                ...state,
+                pastBacktests: {
+                    ...state.pastBacktests,
+                    results: state.pastBacktests.results.filter(b => b._id !== action.payload),
+                },
+            };
+        default:
+            throw new Error(`Unhandled action type: ${action.type}`);
+    }
+}
+
+/**
+ * A comprehensive hook for managing backtest data, execution, and state.
+ * Handles loading, errors, and provides functions for all backtest-related API interactions.
+ *
+ * @returns {{
+ * state: {
+ * options: { strategies: any[], symbols: string[], timeframes: string[] },
+ * pastBacktests: { results: any[], total: number },
+ * loading: 'idle' | 'initial' | 'fetching' | 'running' | 'running_combo',
+ * error: { status: number | null, message: string } | null
+ * },
+ * getPastBacktests: (page?: number) => Promise<void>,
+ * getBacktestById: (id: string) => Promise<any>,
+ * deleteBacktest: (id: string) => Promise<void>,
+ * runNewBacktest: (payload: object) => Promise<any>,
+ * runComboBacktest: (payload: object) => Promise<any>,
+ * previewStrategy: (payload: object) => Promise<any>
+ * }}
+ */
 export function useBacktest() {
-  const [options, setOptions] = useState({
-    strategies: [],
-    symbols: [],
-    timeframes: [],
-    takeProfits: [],
-    stopLosses: [],
-  });
+    const [state, dispatch] = useReducer(backtestReducer, initialState);
 
-  const [pastBacktests, setPastBacktests] = useState({ results: [], total: 0 });
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [singleLoading, setSingleLoading] = useState(false);
-  const [batchLoading, setBatchLoading] = useState(false);
-  const [error, setError] = useState(null);
+    const getPastBacktests = useCallback(async (page = 1) => {
+        dispatch({ type: 'SET_LOADING', payload: 'fetching' });
+        try {
+            const data = await backtestApi.fetchAll(page);
+            dispatch({ type: 'SET_PAST_BACKTESTS', payload: data });
+        } catch (err) {
+            dispatch({ type: 'SET_ERROR', payload: err });
+        }
+    }, []);
 
-  // ✅ REMOVED setAuthToken from all functions below
-  const getOptions = useCallback(async () => {
-    setError(null);
-    try {
-      const fetchedOptions = await backtestApi.fetchOptions();
-      setOptions(fetchedOptions);
-    } catch (err) {
-      setError(err.message || "Failed to fetch options.");
-    }
-  }, []);
+    const getBacktestById = useCallback(async (id) => {
+        dispatch({ type: 'SET_LOADING', payload: 'fetching' });
+        try {
+            return await backtestApi.fetchById(id);
+        } catch (err) {
+            dispatch({ type: 'SET_ERROR', payload: err });
+            throw err;
+        } finally {
+            dispatch({ type: 'SET_LOADING', payload: 'idle' });
+        }
+    }, []);
 
-  const getPastBacktests = useCallback(async (page = 1) => {
-    setError(null);
-    try {
-      const data = await backtestApi.fetchAll(page);
-      setPastBacktests({ results: data.backtests, total: data.total });
-    } catch (err) {
-      setError(err.message || "Failed to load past backtests.");
-    }
-  }, []);
+    const deleteBacktest = useCallback(async (id) => {
+        const originalBacktests = state.pastBacktests;
+        dispatch({ type: 'DELETE_BACKTEST_OPTIMISTIC', payload: id }); // Optimistic update
 
-  const getBacktestById = useCallback(async (id) => {
-    setInitialLoading(true);
-    setError(null);
-    try {
-      return await backtestApi.fetchById(id);
-    } catch (err) {
-      setError(err.message || "Failed to fetch backtest.");
-      throw err;
-    } finally {
-      setInitialLoading(false);
-    }
-  }, []);
-  
-  const deleteBacktest = useCallback(async (id) => {
-    setError(null);
-    try {
-      await backtestApi.deleteById(id);
-      await getPastBacktests();
-    } catch (err) {
-      setError(err.message || "Failed to delete backtest.");
-      throw err;
-    }
-  }, [getPastBacktests]);
+        try {
+            await backtestApi.deleteById(id);
+            // Optional: can re-fetch for ultimate consistency, but often not needed.
+            // await getPastBacktests(); 
+        } catch (err) {
+            // Revert on failure
+            dispatch({ type: 'SET_PAST_BACKTESTS', payload: originalBacktests });
+            dispatch({ type: 'SET_ERROR', payload: err });
+            throw err;
+        }
+    }, [state.pastBacktests]);
 
-  const runNewBacktest = useCallback(
-    async (payload) => {
-      setSingleLoading(true);
-      setError(null);
-      try {
-        const result = await backtestApi.runBacktest(payload);
-        await getPastBacktests();
-        return result;
-      } catch (err) {
-        setError(err.message || "Failed to run backtest.");
-        throw err;
-      } finally {
-        setSingleLoading(false);
-      }
-    },
-    [getPastBacktests]
-  );
+    const runNewBacktest = useCallback(async (payload) => {
+        dispatch({ type: 'SET_LOADING', payload: 'running' });
+        try {
+            const result = await backtestApi.runBacktest(payload);
+            await getPastBacktests(); // Refresh list with the new backtest
+            return result;
+        } catch (err) {
+            dispatch({ type: 'SET_ERROR', payload: err });
+            throw err;
+        } finally {
+            dispatch({ type: 'SET_LOADING', payload: 'idle' });
+        }
+    }, [getPastBacktests]);
 
- const runComboBacktest = useCallback(
-  async ({ strategies, combinationRule = "AND", symbol, timeframe, startDate, endDate, initialBalance = 1000 }) => {
-    setBatchLoading(true);
-    setError(null);
+    const runComboBacktest = useCallback(async (payload) => {
+        dispatch({ type: 'SET_LOADING', payload: 'running_combo' });
+        try {
+            if (!payload.strategyCodes || payload.strategyCodes.length === 0) {
+                throw new Error("At least one strategy must be selected.");
+            }
+            // The API service now handles renaming `strategyCodes` to `strategies`
+            return await backtestApi.runComboBacktest(payload);
+        } catch (err) {
+            dispatch({ type: 'SET_ERROR', payload: err });
+            throw err;
+        } finally {
+            dispatch({ type: 'SET_LOADING', payload: 'idle' });
+        }
+    }, []);
 
-    try {
-      if (!strategies || strategies.length === 0) {
-        throw new Error("At least one strategy must be selected for combo backtest.");
-      }
+    const previewStrategy = useCallback(async (payload) => {
+        dispatch({ type: 'SET_LOADING', payload: 'running' });
+        try {
+            return await backtestApi.previewStrategy(payload);
+        } catch (err) {
+            dispatch({ type: 'SET_ERROR', payload: err });
+            throw err;
+        } finally {
+            dispatch({ type: 'SET_LOADING', payload: 'idle' });
+        }
+    }, []);
 
-      // Normalize symbol to backend format: ETH/USD -> ETH-USD
-      const normSymbol = symbol.replace("/", "-").toUpperCase();
+    // Initial data load effect
+    useEffect(() => {
+        const fetchInitialData = async () => {
+            dispatch({ type: 'SET_LOADING', payload: 'initial' });
+            try {
+                const [options, pastBacktests] = await Promise.all([
+                    backtestApi.fetchOptions(),
+                    backtestApi.fetchAll(1)
+                ]);
+                dispatch({ type: 'SET_INITIAL_DATA', payload: { options, pastBacktests } });
+            } catch (err) {
+                dispatch({ type: 'SET_ERROR', payload: err });
+            }
+        };
+        fetchInitialData();
+    }, []);
 
-      const payload = {
-        strategyCodes: strategies,   // <-- backend expects 'strategyCodes'
-        combinationRule,             // "AND" or "OR"
-        symbol: normSymbol,
-        timeframe,
-        startDate,
-        endDate,
-        initialBalance
-      };
-
-      const result = await backtestApi.runComboBacktest(payload);
-      return result;
-    } catch (err) {
-      setError(err.response?.data?.message || err.message || "Failed to run combo backtest.");
-      throw err;
-    } finally {
-      setBatchLoading(false);
-    }
-  },
-  []
-);
-
-
-  const previewStrategy = useCallback(
-    async (payload) => {
-      setSingleLoading(true);
-      setError(null);
-      try {
-        return await backtestApi.previewStrategy(payload);
-      } catch (err) {
-        setError(err.message || "Failed to preview strategy.");
-        throw err;
-      } finally {
-        setSingleLoading(false);
-      }
-    },
-    []
-  );
-
-  useEffect(() => {
-    setInitialLoading(true);
-    // These functions will now run after the token has been set in App.jsx
-    Promise.all([getOptions(), getPastBacktests()]).finally(() => setInitialLoading(false));
-  }, [getOptions, getPastBacktests]);
-
-  return {
-    options,
-    pastBacktests,
-    initialLoading,
-    singleLoading,
-    batchLoading,
-    error,
-    getPastBacktests,
-    getBacktestById,
-    deleteBacktest,
-    runNewBacktest,
-    runComboBacktest,
-    previewStrategy,
-  };
+    return {
+        state,
+        getPastBacktests,
+        getBacktestById,
+        deleteBacktest,
+        runNewBacktest,
+        runComboBacktest,
+        previewStrategy,
+    };
 }
