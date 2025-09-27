@@ -83,7 +83,6 @@ export function useBacktest() {
       try {
         await backtestApi.deleteById(id);
       } catch (err) {
-        // Revert on failure
         dispatch({ type: "SET_PAST_BACKTESTS", payload: originalBacktests });
         dispatch({ type: "SET_ERROR", payload: err });
         throw err;
@@ -92,26 +91,24 @@ export function useBacktest() {
     [state.pastBacktests]
   );
 
-  // ✅ Added: runNewBacktest for single-strategy execution
+  // --- Single Strategy Backtest ---
   const runNewBacktest = useCallback(async (payload) => {
     dispatch({ type: "SET_LOADING", payload: "running" });
     try {
-      if (!payload.strategy) {
-        throw new Error("A strategy must be provided.");
-      }
+      if (!payload.strategy) throw new Error("A strategy must be provided.");
+
+      const strategyParams = payload.strategy.params || {};
+      const correctedStrategy = {
+        code: typeof payload.strategy === "string" ? payload.strategy : payload.strategy.code,
+        params: {
+          ...strategyParams,
+          strategyType: strategyParams.strategyType || payload.strategy.code, // fallback
+        },
+      };
 
       const correctedPayload = {
         ...payload,
-        strategy: {
-          code:
-            typeof payload.strategy === "string"
-              ? payload.strategy
-              : payload.strategy.code,
-          params:
-            typeof payload.strategy === "string"
-              ? {}
-              : payload.strategy.params || {},
-        },
+        strategy: correctedStrategy,
         initialBalance: payload.initialBalance || 1000,
       };
 
@@ -129,48 +126,54 @@ export function useBacktest() {
     }
   }, []);
 
- const runComboBacktest = useCallback(async (payload) => {
-  dispatch({ type: 'SET_LOADING', payload: 'running_combo' });
-  try {
-    if (!payload.strategies || payload.strategies.length === 0) {
-      throw new Error("At least one strategy must be selected.");
-    }
-
-    // ✅ Ensure each strategy has a valid strategyType
-    const normalizedStrategies = payload.strategies.map(s => {
-      const params = s.params || {};
-      if (!params.strategyType) {
-        if (s.code === "atrtest1") {
-          params.strategyType = "ATR";
-          params.period = params.period || 14;
-          params.multiplier = params.multiplier || 2;
-        }
-        if (s.code === "test_for_single") {
-          params.strategyType = "Moving Average Crossover";
-          params.shortPeriod = params.shortPeriod || 10;
-          params.longPeriod = params.longPeriod || 50;
-        }
+  // --- Combo Strategy Backtest ---
+  const runComboBacktest = useCallback(async (payload) => {
+    dispatch({ type: "SET_LOADING", payload: "running_combo" });
+    try {
+      if (!payload.strategies || payload.strategies.length === 0) {
+        throw new Error("At least one strategy must be selected.");
       }
-      return { code: s.code, params };
-    });
 
-    const correctedPayload = {
-      ...payload,
-      strategies: normalizedStrategies,
-      initialBalance: payload.initialBalance || 1000
-    };
+      // ✅ Auto-fill strategyType based on code if missing
+      const normalizedStrategies = payload.strategies.map((s) => {
+        const params = s.params || {};
 
-    console.log("👉 Final combo payload sent:", JSON.stringify(correctedPayload, null, 2));
+        if (!params.strategyType) {
+          switch (s.code) {
+            case "atrtest1":
+              params.strategyType = "ATR";
+              params.period = params.period || 14;
+              params.multiplier = params.multiplier || 2;
+              break;
+            case "test_for_single":
+              params.strategyType = "Moving Average Crossover";
+              params.shortPeriod = params.shortPeriod || 10;
+              params.longPeriod = params.longPeriod || 50;
+              break;
+            default:
+              params.strategyType = s.code; // fallback
+          }
+        }
 
-    return await backtestApi.runComboBacktest(correctedPayload);
-  } catch (err) {
-    dispatch({ type: 'SET_ERROR', payload: err });
-    throw err;
-  } finally {
-    dispatch({ type: 'SET_LOADING', payload: 'idle' });
-  }
-}, []);
+        return { code: s.code, params };
+      });
 
+      const correctedPayload = {
+        ...payload,
+        strategies: normalizedStrategies,
+        initialBalance: payload.initialBalance || 1000,
+      };
+
+      console.log("👉 Final combo payload sent:", JSON.stringify(correctedPayload, null, 2));
+
+      return await backtestApi.runComboBacktest(correctedPayload);
+    } catch (err) {
+      dispatch({ type: "SET_ERROR", payload: err });
+      throw err;
+    } finally {
+      dispatch({ type: "SET_LOADING", payload: "idle" });
+    }
+  }, []);
 
   const previewStrategy = useCallback(async (payload) => {
     dispatch({ type: "SET_LOADING", payload: "running" });
@@ -184,7 +187,7 @@ export function useBacktest() {
     }
   }, []);
 
-  // Initial data load effect
+  // --- Initial Data Load ---
   useEffect(() => {
     const fetchInitialData = async () => {
       dispatch({ type: "SET_LOADING", payload: "initial" });
@@ -209,7 +212,7 @@ export function useBacktest() {
     getPastBacktests,
     getBacktestById,
     deleteBacktest,
-    runNewBacktest, // ✅ Now properly defined
+    runNewBacktest,
     runComboBacktest,
     previewStrategy,
   };
