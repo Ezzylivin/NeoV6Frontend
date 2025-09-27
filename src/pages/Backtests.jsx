@@ -28,11 +28,11 @@ const getDefaultDates = () => {
 const initialFormData = {
   code: "", symbol: "", timeframe: "", startDate: getDefaultDates().startDate,
   endDate: getDefaultDates().endDate, initialBalance: 1000,
-  params: { SL: "", TP: "", trailingStop: "" },
+  params: { SL: 0, TP: 0, trailingStop: 0 },
 };
 
 const initialComboData = {
-  strategyConfigs: [{ code: "", params: { SL: "", TP: "", trailingStop: "" } }],
+  strategyConfigs: [{ code: "", params: { SL: 0, TP: 0, trailingStop: 0 } }],
   symbol: "", timeframe: "", startDate: getDefaultDates().startDate,
   endDate: getDefaultDates().endDate, initialBalance: 1000,
 };
@@ -85,7 +85,7 @@ export default function Backtests() {
         code: options.strategies[0]?.code || "",
         symbol: options.symbols[0] || "",
         timeframe: options.timeframes[0] || "",
-        params: options.strategies[0]?.params || { SL: "", TP: "", trailingStop: "" },
+        params: options.strategies[0]?.params || { SL: 0, TP: 0, trailingStop: 0 },
       }));
     }
     if (options.strategies.length > 0 && comboData.strategyConfigs[0].code === "") {
@@ -93,7 +93,7 @@ export default function Backtests() {
         ...prev,
         symbol: options.symbols[0] || "",
         timeframe: options.timeframes[0] || "",
-        strategyConfigs: [{ code: options.strategies[0]?.code || "", params: options.strategies[0]?.params || { SL: "", TP: "", trailingStop: "" } }],
+        strategyConfigs: [{ code: options.strategies[0]?.code || "", params: options.strategies[0]?.params || { SL: 0, TP: 0, trailingStop: 0 } }],
       }));
     }
   }, [options]);
@@ -106,15 +106,19 @@ export default function Backtests() {
     } else setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleComboChange = (e, idx) => {
+  const handleComboChange = (e, idx = null) => {
     const { name, value } = e.target;
-    const newConfigs = [...comboData.strategyConfigs];
-    if (name === "strategyCode") newConfigs[idx].code = value;
-    else if (name.startsWith("param_")) {
-      const key = name.replace("param_", "");
-      newConfigs[idx].params[key] = Number(value) || 0;
-    } else newConfigs[idx][name] = value;
-    setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
+    if (idx !== null && ["strategyCode", "param_SL", "param_TP", "param_trailingStop"].includes(name)) {
+      const newConfigs = [...comboData.strategyConfigs];
+      if (name === "strategyCode") newConfigs[idx].code = value;
+      else {
+        const key = name.replace("param_", "");
+        newConfigs[idx].params[key] = Number(value) || 0;
+      }
+      setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
+    } else {
+      setComboData(prev => ({ ...prev, [name]: name === "initialBalance" ? Number(value) : value }));
+    }
   };
 
   const addStrategyToCombo = () => {
@@ -290,15 +294,15 @@ export default function Backtests() {
             </div>
           ))}
           <button type="button" onClick={addStrategyToCombo} disabled={loading === 'running'}>Add Strategy</button>
-          <label>Symbol: <select name="symbol" value={comboData.symbol} onChange={(e) => handleComboChange(e, 0)}>
+          <label>Symbol: <select name="symbol" value={comboData.symbol} onChange={handleComboChange}>
             {symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
           </select></label>
-          <label>Timeframe: <select name="timeframe" value={comboData.timeframe} onChange={(e) => handleComboChange(e, 0)}>
+          <label>Timeframe: <select name="timeframe" value={comboData.timeframe} onChange={handleComboChange}>
             {timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
           </select></label>
-          <label>Start Date: <input type="date" name="startDate" value={comboData.startDate} onChange={(e) => handleComboChange(e, 0)} /></label>
-          <label>End Date: <input type="date" name="endDate" value={comboData.endDate} onChange={(e) => handleComboChange(e, 0)} /></label>
-          <label>Initial Balance: <input type="number" name="initialBalance" value={comboData.initialBalance} onChange={(e) => handleComboChange(e, 0)} /></label>
+          <label>Start Date: <input type="date" name="startDate" value={comboData.startDate} onChange={handleComboChange} /></label>
+          <label>End Date: <input type="date" name="endDate" value={comboData.endDate} onChange={handleComboChange} /></label>
+          <label>Initial Balance: <input type="number" name="initialBalance" value={comboData.initialBalance} onChange={handleComboChange} /></label>
           <button type="submit" disabled={loading === 'running'}>
             {loading === 'running' ? "Running..." : "Run Combined Backtest"}
           </button>
@@ -339,8 +343,9 @@ export default function Backtests() {
       {/* Individual Strategy Charts */}
       {individualCharts.map((ind, idx) => (
         <div key={idx} className="chart-container">
-          <h3>{ind.code} Equity Curve</h3>
-          <ResponsiveContainer width="100%" height={250}>
+          <h3>{ind.code}</h3>
+          <MetricsDisplay metrics={ind.metrics} />
+          <ResponsiveContainer width="100%" height={300}>
             <LineChart data={ind.data}>
               <XAxis dataKey="date" />
               <YAxis />
@@ -351,7 +356,6 @@ export default function Backtests() {
           </ResponsiveContainer>
         </div>
       ))}
-
     </div>
   );
 }
