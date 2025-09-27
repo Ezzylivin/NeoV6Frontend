@@ -1,3 +1,4 @@
+// File: src/pages/Backtests.jsx
 import React, { useState, useEffect, useMemo, useContext } from "react"; 
 import { useBacktest } from "../hooks/useBacktest.js";
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
@@ -79,6 +80,7 @@ export default function Backtests() {
     const symbolOptions = useMemo(() => options?.symbols || [], [options]);
     const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
 
+    // --- Initialize default form values ---
     useEffect(() => {
         if (options.strategies.length > 0 && formData.code === "") {
             setFormData(prev => ({
@@ -94,11 +96,12 @@ export default function Backtests() {
                 ...prev,
                 symbol: options.symbols[0] || "",
                 timeframe: options.timeframes[0] || "",
-                strategyConfigs: [{ code: options.strategies[0]?.code || "" }],
+                strategyConfigs: [{ code: options.strategies[0]?.code, params: options.strategies[0]?.params || {} }],
             }));
         }
     }, [options, formData.code, comboData.strategyConfigs]);
 
+    // --- Handlers ---
     const handleFormChange = (e) => {
         const { name, value } = e.target;
         if (name.startsWith("param_")) {
@@ -107,31 +110,26 @@ export default function Backtests() {
         } else setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-  const handleComboChange = (e, idx) => {
-    const { name, value } = e.target;
-
-    if (name === "strategyCode") {
-        const newConfigs = [...comboData.strategyConfigs];
-        newConfigs[idx] = { ...newConfigs[idx], code: value };
-        setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
-    } else if (name === "initialBalance") {
-        // Make sure it is numeric
-        const numericValue = Number(value);
-        setComboData(prev => ({ ...prev, initialBalance: numericValue }));
-    } else {
-        setComboData(prev => ({ ...prev, [name]: value }));
-    }
-};
-
-
-  setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
-};
-
+    const handleComboChange = (e, idx) => {
+        const { name, value } = e.target;
+        if (name === "strategyCode") {
+            const newConfigs = [...comboData.strategyConfigs];
+            newConfigs[idx] = { ...newConfigs[idx], code: value };
+            // Find default params for this strategy
+            const strategy = strategyOptions.find(s => s.code === value);
+            newConfigs[idx].params = strategy?.params || {};
+            setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
+        } else if (name === "initialBalance") {
+            setComboData(prev => ({ ...prev, initialBalance: Number(value) }));
+        } else {
+            setComboData(prev => ({ ...prev, [name]: value }));
+        }
+    };
 
     const addStrategyToCombo = () => {
         setComboData(prev => ({
             ...prev,
-            strategyConfigs: [...prev.strategyConfigs, { code: strategyOptions[0]?.code || "" }]
+            strategyConfigs: [...prev.strategyConfigs, { code: strategyOptions[0]?.code, params: strategyOptions[0]?.params || {} }]
         }));
     };
 
@@ -142,6 +140,7 @@ export default function Backtests() {
         }));
     };
 
+    // --- Single Backtest Submit ---
     const handleSingleSubmit = async (e) => {
         e.preventDefault();
         try {
@@ -161,23 +160,26 @@ export default function Backtests() {
         }
     };
 
-    // ✅ FIXED COMBO SUBMIT
+    // --- Combo Backtest Submit ---
     const handleComboSubmit = async (e) => {
         e.preventDefault();
 
-        const strategies = comboData.strategyConfigs
-    .filter(s => s.code)
-    .map(s => ({ code: s.code, params: {} }));
+        // Ensure initial balance is valid
+        if (!comboData.initialBalance || Number(comboData.initialBalance) <= 0) {
+            return alert("Please enter a valid initial balance.");
+        }
 
-        
         try {
             const strategies = comboData.strategyConfigs
                 .filter(s => s.code)
-                .map(s => ({ code: s.code, params: {} }));
+                .map(s => {
+                    // Always include params, defaulting from strategyOptions if missing
+                    const strategyDef = strategyOptions.find(opt => opt.code === s.code);
+                    return { code: s.code, params: s.params || strategyDef?.params || {} };
+                });
 
             if (!strategies.length) {
-                alert("Please select at least one strategy.");
-                return;
+                return alert("Please select at least one strategy.");
             }
 
             const payload = {
@@ -201,6 +203,7 @@ export default function Backtests() {
         }
     };
 
+    // --- Save Setup ---
     const openSaveModal = () => setIsSaveModalOpen(true);
     const closeSaveModal = () => { setIsSaveModalOpen(false); setSetupDetails({ name: "", description: "" }); };
     const handleSetupChange = (e) => setSetupDetails(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -225,6 +228,7 @@ export default function Backtests() {
         }
     };
 
+    // --- Chart Data ---
     const chartData = useMemo(() => {
         if (!backtestResults.main?.equityCurve) return [];
         return backtestResults.main.equityCurve.map(d => ({ date: d.timestamp || d.date, equity: d.balance || d.equity }));
@@ -250,6 +254,7 @@ export default function Backtests() {
         return <div className="dashboard-container"><h2>Loading backtest data...</h2></div>;
     }
 
+    // --- Render ---
     return (
         <div className="dashboard-container">
             <h1>Backtests</h1>
@@ -316,16 +321,8 @@ export default function Backtests() {
                     </label>
                     <label>Start Date: <input type="date" name="startDate" value={comboData.startDate} onChange={(e) => handleComboChange(e, -1)} /></label>
                     <label>End Date: <input type="date" name="endDate" value={comboData.endDate} onChange={(e) => handleComboChange(e, -1)} /></label>
-                    <label>Initial Balance:
-    <input
-        type="number"
-        name="initialBalance"
-        min="1"
-        value={comboData.initialBalance}
-        onChange={(e) => handleComboChange(e, -1)}
-    />
-</label>
-<button type="submit" disabled={loading === 'running_combo'}>
+                    <label>Initial Balance: <input type="number" name="initialBalance" value={comboData.initialBalance} onChange={(e) => handleComboChange(e, -1)} min="1" /></label>
+                    <button type="submit" disabled={loading === 'running_combo'}>
                         {loading === 'running_combo' ? "Running..." : "Run Combo Backtest"}
                     </button>
                 </form>
