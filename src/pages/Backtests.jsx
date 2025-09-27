@@ -107,14 +107,31 @@ export default function Backtests() {
         } else setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleComboChange = (e, idx) => {
-        const { name, value } = e.target;
-        if (name === "strategyCode") {
-            const newConfigs = [...comboData.strategyConfigs];
-            newConfigs[idx] = { ...newConfigs[idx], code: value };
-            setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
-        } else setComboData(prev => ({ ...prev, [name]: value }));
+   const handleComboChange = (e, idx) => {
+  const { name, value } = e.target;
+  const newConfigs = [...comboData.strategyConfigs];
+
+  if (name === "strategyCode") {
+    // When a new strategy is chosen, preload its default params from options
+    const selected = strategyOptions.find(s => s.code === value);
+    newConfigs[idx] = { 
+      ...newConfigs[idx], 
+      code: value, 
+      params: selected?.params || {} 
     };
+  } else if (name.startsWith("param_")) {
+    const key = name.replace("param_", "");
+    newConfigs[idx] = {
+      ...newConfigs[idx],
+      params: { ...newConfigs[idx].params, [key]: value }
+    };
+  } else {
+    newConfigs[idx] = { ...newConfigs[idx], [name]: value };
+  }
+
+  setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
+};
+
 
     const addStrategyToCombo = () => {
         setComboData(prev => ({
