@@ -169,6 +169,12 @@ export default function Backtests() {
     // ✅ FIXED COMBO SUBMIT
     const handleComboSubmit = async (e) => {
         e.preventDefault();
+
+        const strategies = comboData.strategyConfigs
+    .filter(s => s.code)
+    .map(s => ({ code: s.code, params: {} }));
+
+        
         try {
             const strategies = comboData.strategyConfigs
                 .filter(s => s.code)
