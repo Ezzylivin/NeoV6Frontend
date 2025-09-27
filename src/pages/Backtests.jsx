@@ -151,44 +151,43 @@ export default function Backtests() {
     };
 
     // ✅ Fully upgraded combo submit
-    const handleComboSubmit = async (e) => {
-        e.preventDefault();
-        try {
-            const strategies = comboData.strategyConfigs
-                .filter(s => s.code)
-                .map(s => {
-                    let params = s.params || {};
-                    // Default params for known strategies
-                    if (s.code === "atrtest1") params = { period: 14, multiplier: 2, strategyType: "ATR", ...params };
-                    if (s.code === "test_for_single") params = { strategyType: "Moving Average Crossover", shortPeriod: 10, longPeriod: 50, ...params };
-                    return { code: s.code, params };
-                });
+    // --- Combo Strategy Backtest ---
+const handleComboSubmit = async (e) => {
+    e.preventDefault();
+    try {
+        // This is the CRITICAL part. It maps the array of objects to an array of strings.
+        const strategyCodes = comboData.strategyConfigs
+            .map(config => config.code)
+            .filter(Boolean); // This ensures no empty codes are sent
 
-            if (!strategies.length) {
-                alert("Please select at least one strategy.");
-                return;
-            }
-
-            const payload = {
-                strategies,
-                symbol: comboData.symbol.replace("-", "/").toUpperCase(),
-                timeframe: comboData.timeframe,
-                startDate: comboData.startDate,
-                endDate: comboData.endDate,
-                initialBalance: Number(comboData.initialBalance) || 1000,
-            };
-
-            console.log("Submitting combo payload:", payload);
-
-            const result = await runComboBacktest(payload);
-            setBacktestResults({
-                main: result.combinedResult || result,
-                individuals: result.individualResults || []
-            });
-        } catch (err) {
-            console.error("Combo backtest submission failed:", err);
+        if (!strategyCodes.length) {
+            alert("Please select at least one valid strategy.");
+            return;
         }
-    };
+
+        // This creates the payload with the correct key (`strategyCodes`) and value (array of strings).
+        const payload = {
+            strategyCodes, 
+            symbol: comboData.symbol,
+            timeframe: comboData.timeframe,
+            startDate: comboData.startDate,
+            endDate: comboData.endDate,
+            initialBalance: Number(comboData.initialBalance),
+        };
+
+        // For debugging, you can check that this new payload is correct.
+        console.log("Sending corrected payload to the hook:", payload);
+
+        const result = await runComboBacktest(payload);
+        setBacktestResults({
+            main: result.combinedResult || result,
+            individuals: result.individualResults || []
+        });
+    } catch (err) {
+        console.error("Combo backtest submission failed:", err);
+        // The error will be displayed in the UI via the hook's state.
+    }
+};
 
     const openSaveModal = () => setIsSaveModalOpen(true);
     const closeSaveModal = () => { setIsSaveModalOpen(false); setSetupDetails({ name: "", description: "" }); };
