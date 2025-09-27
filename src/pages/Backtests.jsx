@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useContext } from "react";
+import React, { useState, useEffect, useMemo, useContext } from "react"; 
 import { useBacktest } from "../hooks/useBacktest.js";
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { StrategyContext } from "../context/StrategyContext.jsx";
@@ -146,27 +146,33 @@ export default function Backtests() {
             setBacktestResults({ main: result, individuals: [] });
         } catch (err) {
             console.error("Single backtest submission failed:", err);
-            // The hook's state will display the error message in the UI
         }
     };
 
+    // ✅ FIXED COMBO SUBMIT
     const handleComboSubmit = async (e) => {
         e.preventDefault();
         try {
-            const strategyCodes = comboData.strategyConfigs.map(s => s.code).filter(Boolean);
-            if (!strategyCodes.length) {
+            const strategies = comboData.strategyConfigs
+                .filter(s => s.code)
+                .map(s => ({ code: s.code, params: {} }));
+
+            if (!strategies.length) {
                 alert("Please select at least one strategy.");
                 return;
             }
 
             const payload = {
-                strategyCodes,
+                strategies,
                 symbol: comboData.symbol.replace("-", "/").toUpperCase(),
                 timeframe: comboData.timeframe,
                 startDate: comboData.startDate,
                 endDate: comboData.endDate,
                 initialBalance: Number(comboData.initialBalance),
             };
+
+            console.log("Submitting combo payload:", payload);
+
             const result = await runComboBacktest(payload);
             setBacktestResults({
                 main: result.combinedResult || result,
@@ -238,6 +244,7 @@ export default function Backtests() {
             )}
 
             <div className="forms-container">
+                {/* Single Strategy */}
                 <form className="backtest-form" onSubmit={handleSingleSubmit}>
                     <h2>Single Strategy Backtest</h2>
                     <label>Strategy:
@@ -263,6 +270,7 @@ export default function Backtests() {
                     </button>
                 </form>
 
+                {/* Combo Strategy */}
                 <form className="backtest-form" onSubmit={handleComboSubmit}>
                     <h2>Combo Strategy Backtest</h2>
                     {comboData.strategyConfigs.map((config, idx) => (
