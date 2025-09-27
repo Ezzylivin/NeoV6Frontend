@@ -80,6 +80,47 @@ const MetricsDisplay = ({ metrics }) => {
     );
 };
 
+const CommonBacktestInputs = ({ data, onChange, options }) => (
+    <>
+        <label>Symbol:
+            <select name="symbol" value={data.symbol} onChange={onChange}>
+                {options.symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+        </label>
+        <label>Timeframe:
+            <select name="timeframe" value={data.timeframe} onChange={onChange}>
+                {options.timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+        </label>
+        <label>Start Date: <input type="date" name="startDate" value={data.startDate} onChange={onChange} /></label>
+        <label>End Date: <input type="date" name="endDate" value={data.endDate} onChange={onChange} /></label>
+        <label>Initial Balance: <input type="number" name="initialBalance" value={data.initialBalance} onChange={onChange} /></label>
+        <fieldset>
+            <legend>Risk Management</legend>
+            <label>Mode:
+                <select name="riskManagementMode" value={data.riskManagementMode} onChange={onChange}>
+                    <option value="standard">Standard Risk %</option>
+                    <option value="dynamic">Dynamic Growth Mode</option>
+                </select>
+            </label>
+            {data.riskManagementMode === 'standard' ? (
+                <label>Risk Per Trade (%):
+                    <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={onChange} step="0.1" />
+                </label>
+            ) : (
+                <>
+                    <label>Growth Capital Target ($):
+                        <input type="number" name="growthCapitalTarget" value={data.growthCapitalTarget} onChange={onChange} />
+                    </label>
+                    <label>Risk % (After Target):
+                        <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={onChange} step="0.1" />
+                    </label>
+                </>
+            )}
+        </fieldset>
+    </>
+);
+
 // --- Main Component ---
 export default function Backtests() {
     const { state, runNewBacktest, runComboBacktest } = useBacktest();
@@ -89,6 +130,8 @@ export default function Backtests() {
     const [formData, setFormData] = useState(initialFormData);
     const [comboData, setComboData] = useState(initialComboData);
     const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
+    const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+    const [setupDetails, setSetupDetails] = useState({ name: "", description: "" });
 
     const strategyOptions = useMemo(() => options?.strategies || [], [options]);
     const symbolOptions = useMemo(() => options?.symbols || [], [options]);
@@ -99,16 +142,14 @@ export default function Backtests() {
             const firstStrategy = strategyOptions[0];
             const firstSymbol = symbolOptions[0] || "";
             const firstTimeframe = timeframeOptions[0] || "";
-
-            setFormData(prev => ({ ...prev, code: firstStrategy?.code, params: firstStrategy?.params, symbol: firstSymbol, timeframe: firstTimeframe }));
-            setComboData(prev => ({ ...prev, strategyConfigs: [{ code: firstStrategy?.code, params: firstStrategy?.params }], symbol: firstSymbol, timeframe: firstTimeframe }));
+            setFormData(prev => ({ ...prev, code: firstStrategy?.code, params: firstStrategy?.params || {}, symbol: firstSymbol, timeframe: firstTimeframe }));
+            setComboData(prev => ({ ...prev, strategyConfigs: [{ code: firstStrategy?.code, params: firstStrategy?.params || {} }], symbol: firstSymbol, timeframe: firstTimeframe }));
         }
-    }, [options, formData.code]);
+    }, [strategyOptions, symbolOptions, timeframeOptions]);
 
     const handleFormChange = (e) => {
         const { name, value, type } = e.target;
         const finalValue = type === 'number' ? Number(value) : value;
-
         if (name === 'code') {
             const selectedStrategy = strategyOptions.find(s => s.code === finalValue);
             setFormData(prev => ({ ...prev, code: finalValue, params: selectedStrategy?.params || {} }));
@@ -123,7 +164,6 @@ export default function Backtests() {
     const handleComboChange = (e, index) => {
         const { name, value, type } = e.target;
         const finalValue = type === 'number' ? Number(value) : value;
-
         if (index !== null) {
             const newConfigs = [...comboData.strategyConfigs];
             if (name === "strategyCode") {
@@ -139,8 +179,14 @@ export default function Backtests() {
         }
     };
 
-    const addStrategyToCombo = () => { /* ... (no changes needed) ... */ };
-    const removeStrategyFromCombo = (idx) => { /* ... (no changes needed) ... */ };
+    const addStrategyToCombo = () => {
+        const firstStrategy = strategyOptions[0] || { code: "", params: {} };
+        setComboData(prev => ({...prev, strategyConfigs: [...prev.strategyConfigs, { code: firstStrategy.code, params: firstStrategy.params }]}));
+    };
+
+    const removeStrategyFromCombo = (idx) => {
+        setComboData(prev => ({ ...prev, strategyConfigs: prev.strategyConfigs.filter((_, i) => i !== idx) }));
+    };
 
     const handleSingleSubmit = async (e) => {
         e.preventDefault();
@@ -156,29 +202,81 @@ export default function Backtests() {
             const strategies = comboData.strategyConfigs
                 .filter(config => config.code)
                 .map(config => ({ code: config.code, params: config.params || {} }));
-
             if (!strategies.length) return alert("Please select at least one strategy.");
-
-            const payload = {
-                strategies,
-                symbol: comboData.symbol,
-                timeframe: comboData.timeframe,
-                startDate: comboData.startDate,
-                endDate: comboData.endDate,
-                initialBalance: comboData.initialBalance,
-                combinationRule: "OR",
-                riskManagementMode: comboData.riskManagementMode,
-                riskPercentage: comboData.riskPercentage,
-                growthCapitalTarget: comboData.growthCapitalTarget,
-            };
-
+            const payload = { ...comboData, strategies };
             const result = await runComboBacktest(payload);
             setBacktestResults({ main: result.combinedResult, individuals: result.individualResults || [] });
         } catch (err) { console.error("Combo backtest submission failed:", err); }
     };
 
-    const { combinedEquityCurve, combinedMetrics } = useMemo(() => { /* ... (no changes needed) ... */ });
-    const pieData = useMemo(() => { /* ... (no changes needed) ... */ });
+    const openSaveModal = () => setIsSaveModalOpen(true);
+    const closeSaveModal = () => { setIsSaveModalOpen(false); setSetupDetails({ name: "", description: "" }); };
+    const handleSetupChange = (e) => setSetupDetails(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    const handleSaveSetup = async (e) => {
+        e.preventDefault();
+        if (!backtestResults.main) return alert("No backtest to save");
+        const payload = {
+            name: setupDetails.name,
+            description: setupDetails.description,
+            symbol: backtestResults.main.symbol,
+            timeframe: backtestResults.main.timeframe,
+            strategies: backtestResults.main.strategies,
+            initialBalance: backtestResults.main.initialBalance,
+        };
+        try {
+            await createSetup(payload);
+            alert("Setup saved successfully!");
+            closeSaveModal();
+        } catch (err) { alert(err.message || "Failed to save setup"); }
+    };
+
+    const { combinedEquityCurve, combinedMetrics } = useMemo(() => {
+        const individuals = backtestResults.individuals;
+        if (!individuals || individuals.length === 0) {
+            const mainMetrics = backtestResults.main?.metrics;
+            const mainCurve = backtestResults.main?.equityCurve?.map(d => ({ timestamp: d.timestamp, balance: d.balance })) || [];
+            return { combinedEquityCurve: mainCurve, combinedMetrics: mainMetrics };
+        }
+        const allTimestamps = [...new Set(individuals.flatMap(ind => ind.equityCurve?.map(d => d.timestamp) || []))].sort();
+        if (allTimestamps.length === 0) return { combinedEquityCurve: [], combinedMetrics: null };
+        const initialBalance = comboData.initialBalance;
+        let lastBalances = individuals.map(ind => ind.metrics.initialBalance);
+        const curve = allTimestamps.map(ts => {
+            let currentTotalBalance = 0;
+            individuals.forEach((ind, idx) => {
+                const pointInTime = ind.equityCurve.find(p => p.timestamp === ts);
+                if (pointInTime) lastBalances[idx] = pointInTime.balance;
+                currentTotalBalance += lastBalances[idx];
+            });
+            return { timestamp: ts, balance: currentTotalBalance };
+        });
+        const finalBalance = curve.length > 0 ? curve[curve.length - 1].balance : initialBalance;
+        const totalProfit = finalBalance - initialBalance;
+        const totalTrades = individuals.reduce((sum, ind) => sum + ind.metrics.totalTrades, 0);
+        const winningTrades = individuals.reduce((sum, ind) => sum + ind.metrics.winningTrades, 0);
+        const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
+        let peak = initialBalance;
+        let maxDrawdownValue = 0;
+        curve.forEach(point => {
+            if (point.balance > peak) peak = point.balance;
+            const drawdown = peak - point.balance;
+            if (drawdown > maxDrawdownValue) maxDrawdownValue = drawdown;
+        });
+        const maxDrawdown = (peak > 0) ? (maxDrawdownValue / peak) * 100 : 0;
+        const grossProfit = individuals.reduce((sum, ind) => sum + (ind.metrics.winningTrades * ind.metrics.averageWin), 0);
+        const grossLoss = individuals.reduce((sum, ind) => sum + (ind.metrics.losingTrades * ind.metrics.averageLoss), 0);
+        const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : Infinity;
+        return {
+            combinedEquityCurve: curve,
+            combinedMetrics: { initialBalance, finalBalance, totalProfit, totalTrades, winRate, maxDrawdown, profitFactor }
+        };
+    }, [backtestResults, comboData.initialBalance]);
+
+    const pieData = useMemo(() => {
+        if (!combinedMetrics || !combinedMetrics.totalTrades) return [];
+        const wins = combinedMetrics.totalTrades * (combinedMetrics.winRate / 100);
+        return [{ name: "Win", value: wins }, { name: "Loss", value: combinedMetrics.totalTrades - wins }];
+    }, [combinedMetrics]);
 
     if (loading === 'initial') {
         return <div className="dashboard-container"><h1>Loading Backtest Environment...</h1></div>;
@@ -188,7 +286,6 @@ export default function Backtests() {
         <div className="dashboard-container">
             <h1>Backtests</h1>
             {error && <div className="error-box"><h4>Error</h4><p>{error.status && `Status ${error.status}: `}{error.message}</p></div>}
-
             <div className="forms-container">
                 <form className="backtest-form" onSubmit={handleSingleSubmit}>
                     <h2>Single Strategy Backtest</h2>
@@ -197,48 +294,10 @@ export default function Backtests() {
                             {strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
                         </select>
                     </label>
-                    <label>Symbol:
-                        <select name="symbol" value={formData.symbol} onChange={handleFormChange}>
-                            {symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                    </label>
-                    <label>Timeframe:
-                        <select name="timeframe" value={formData.timeframe} onChange={handleFormChange}>
-                            {timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
-                        </select>
-                    </label>
-                    <label>Start Date: <input type="date" name="startDate" value={formData.startDate} onChange={handleFormChange} /></label>
-                    <label>End Date: <input type="date" name="endDate" value={formData.endDate} onChange={handleFormChange} /></label>
-                    <label>Initial Balance: <input type="number" name="initialBalance" value={formData.initialBalance} onChange={handleFormChange} /></label>
-
+                    <CommonBacktestInputs data={formData} onChange={handleFormChange} options={{symbolOptions, timeframeOptions}} />
                     {Object.keys(formData.params).map(key => (
                         <label key={key}>{key}: <input type="number" name={`param_${key}`} value={formData.params[key]} onChange={handleFormChange} step="0.1" /></label>
                     ))}
-                    
-                    <fieldset>
-                        <legend>Risk Management</legend>
-                        <label>Mode:
-                            <select name="riskManagementMode" value={formData.riskManagementMode} onChange={handleFormChange}>
-                                <option value="standard">Standard Risk %</option>
-                                <option value="dynamic">Dynamic Growth Mode</option>
-                            </select>
-                        </label>
-                        {formData.riskManagementMode === 'standard' ? (
-                            <label>Risk Per Trade (%):
-                                <input type="number" name="riskPercentage" value={formData.riskPercentage} onChange={handleFormChange} step="0.1" />
-                            </label>
-                        ) : (
-                            <>
-                                <label>Growth Capital Target ($):
-                                    <input type="number" name="growthCapitalTarget" value={formData.growthCapitalTarget} onChange={handleFormChange} />
-                                </label>
-                                <label>Risk % (After Target):
-                                    <input type="number" name="riskPercentage" value={formData.riskPercentage} onChange={handleFormChange} step="0.1" />
-                                </label>
-                            </>
-                        )}
-                    </fieldset>
-                    
                     <button type="submit" disabled={loading === 'running'}>{loading === 'running' ? "Running..." : "Run Single Backtest"}</button>
                 </form>
 
@@ -258,36 +317,7 @@ export default function Backtests() {
                         </div>
                     ))}
                     <button type="button" onClick={addStrategyToCombo}>Add Strategy</button>
-                    <label>Symbol: <select name="symbol" value={comboData.symbol} onChange={(e) => handleComboChange(e, null)}>{symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
-                    <label>Timeframe: <select name="timeframe" value={comboData.timeframe} onChange={(e) => handleComboChange(e, null)}>{timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}</select></label>
-                    <label>Start Date: <input type="date" name="startDate" value={comboData.startDate} onChange={(e) => handleComboChange(e, null)} /></label>
-                    <label>End Date: <input type="date" name="endDate" value={comboData.endDate} onChange={(e) => handleComboChange(e, null)} /></label>
-                    <label>Initial Balance: <input type="number" name="initialBalance" value={comboData.initialBalance} onChange={(e) => handleComboChange(e, null)} /></label>
-                    
-                    <fieldset>
-                        <legend>Risk Management</legend>
-                        <label>Mode:
-                            <select name="riskManagementMode" value={comboData.riskManagementMode} onChange={(e) => handleComboChange(e, null)}>
-                                <option value="standard">Standard Risk %</option>
-                                <option value="dynamic">Dynamic Growth Mode</option>
-                            </select>
-                        </label>
-                        {comboData.riskManagementMode === 'standard' ? (
-                            <label>Risk Per Trade (%):
-                                <input type="number" name="riskPercentage" value={comboData.riskPercentage} onChange={(e) => handleComboChange(e, null)} step="0.1" />
-                            </label>
-                        ) : (
-                            <>
-                                <label>Growth Capital Target ($):
-                                    <input type="number" name="growthCapitalTarget" value={comboData.growthCapitalTarget} onChange={(e) => handleComboChange(e, null)} />
-                                </label>
-                                <label>Risk % (After Target):
-                                    <input type="number" name="riskPercentage" value={comboData.riskPercentage} onChange={(e) => handleComboChange(e, null)} step="0.1" />
-                                </label>
-                            </>
-                        )}
-                    </fieldset>
-                    
+                    <CommonBacktestInputs data={comboData} onChange={(e) => handleComboChange(e, null)} options={{symbolOptions, timeframeOptions}} />
                     <button type="submit" disabled={loading === 'running_combo'}>{loading === 'running_combo' ? "Running..." : "Run Combined Backtest"}</button>
                 </form>
             </div>
@@ -296,7 +326,6 @@ export default function Backtests() {
                 <div className="results-container">
                     <h2>Combined Results</h2>
                     <MetricsDisplay metrics={combinedMetrics} />
-
                     <div className="chart-container">
                         <h2>Combined Equity Curve</h2>
                         <ResponsiveContainer width="100%" height={400}>
@@ -310,7 +339,6 @@ export default function Backtests() {
                             </LineChart>
                         </ResponsiveContainer>
                     </div>
-
                     {pieData.length > 0 && (
                         <div className="chart-container pie-chart-container">
                             <h2>Win/Loss Distribution</h2>
@@ -326,7 +354,6 @@ export default function Backtests() {
                             </ResponsiveContainer>
                         </div>
                     )}
-                    
                     {backtestResults.individuals.length > 0 && <h2>Individual Results</h2>}
                     {backtestResults.individuals.map((ind, idx) => (
                         <div key={ind.strategyCode || idx} className="individual-result-container">
@@ -345,6 +372,21 @@ export default function Backtests() {
                             </div>
                         </div>
                     ))}
+                    <button className="save-setup-btn" onClick={openSaveModal}>Save Backtest Setup</button>
+                </div>
+            )}
+
+            {isSaveModalOpen && (
+                <div className="modal modal-open">
+                    <div className="modal-content">
+                        <h3>Save Backtest Setup</h3>
+                        <label>Name: <input type="text" name="name" value={setupDetails.name} onChange={handleSetupChange} /></label>
+                        <label>Description: <input type="text" name="description" value={setupDetails.description} onChange={handleSetupChange} /></label>
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                            <button type="button" onClick={closeSaveModal}>Cancel</button>
+                            <button type="button" onClick={handleSaveSetup}>Save</button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
