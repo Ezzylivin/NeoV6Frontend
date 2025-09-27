@@ -5,7 +5,7 @@ import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { StrategyContext } from "../context/StrategyContext.jsx";
 import {
     LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer,
-    PieChart, Pie, Cell
+    PieChart, Pie, Cell, BarChart, Bar
 } from "recharts";
 import "./Backtests.css";
 
@@ -35,28 +35,31 @@ const initialComboData = {
     endDate: getDefaultDates().endDate, initialBalance: 1000,
 };
 
-// --- Sub-components ---
-const MetricsDisplay = ({ metrics }) => {
+// --- Metrics Charts Component ---
+const MetricsCharts = ({ metrics }) => {
     if (!metrics) return null;
-    const items = [
-        { label: "Initial Balance", value: metrics.initialBalance || metrics.finalBalance - metrics.totalProfit },
+
+    const chartItems = [
         { label: "Total Profit", value: metrics.totalProfit },
         { label: "Win Rate", value: metrics.winRate },
-        { label: "Total Trades", value: metrics.totalTrades },
         { label: "Max Drawdown", value: metrics.maxDrawdown },
         { label: "Profit Factor", value: metrics.profitFactor },
-        { label: "Final Balance", value: metrics.finalBalance },
     ];
+
     return (
-        <div className="metrics-grid">
-            {items.map(m => (
-                <div key={m.label} className="metric-item">
-                    <span className="metric-label">{m.label}</span>
-                    <span className="metric-value">
-                        {typeof m.value === "number"
-                            ? (m.label.includes("Win Rate") || m.label.includes("Factor") ? `${m.value.toFixed(2)}` : `$${m.value.toFixed(2)}`)
-                            : m.value || "N/A"}
-                    </span>
+        <div className="metrics-charts-container" style={{ display: "flex", gap: "20px", flexWrap: "wrap", marginBottom: "30px" }}>
+            {chartItems.map((m, idx) => (
+                <div key={m.label} style={{ width: "220px", height: "200px", background: "#1b1b2b", padding: "10px", borderRadius: "8px", color: "#fff" }}>
+                    <h4 style={{ textAlign: "center", marginBottom: "10px" }}>{m.label}</h4>
+                    <ResponsiveContainer width="100%" height="80%">
+                        <BarChart data={[m]}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                            <XAxis dataKey="label" hide />
+                            <YAxis />
+                            <Tooltip />
+                            <Bar dataKey="value" fill={COLORS[idx % COLORS.length]} />
+                        </BarChart>
+                    </ResponsiveContainer>
                 </div>
             ))}
         </div>
@@ -100,6 +103,7 @@ export default function Backtests() {
         }
     }, [options, formData.code, comboData.strategyConfigs]);
 
+    // --- Form Handlers ---
     const handleFormChange = (e) => {
         const { name, value } = e.target;
         if (name.startsWith("param_")) {
@@ -131,6 +135,7 @@ export default function Backtests() {
         }));
     };
 
+    // --- Backtest Submission ---
     const handleSingleSubmit = async (e) => {
         e.preventDefault();
         try {
@@ -150,44 +155,35 @@ export default function Backtests() {
         }
     };
 
-    // ✅ Fully upgraded combo submit
-    // --- Combo Strategy Backtest ---
-const handleComboSubmit = async (e) => {
-  e.preventDefault();
-  try {
-    const strategies = comboData.strategyConfigs
-      .filter(config => config.code) // remove blanks
-      .map(config => ({
-        code: config.code,
-        params: config.params || {}
-      }));
+    const handleComboSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            const strategies = comboData.strategyConfigs
+                .filter(config => config.code)
+                .map(config => ({ code: config.code, params: config.params || {} }));
 
-    if (!strategies.length) {
-      alert("Please select at least one valid strategy.");
-      return;
-    }
+            if (!strategies.length) return alert("Please select at least one valid strategy.");
 
-    const payload = {
-      strategies,  // ✅ correct key
-      symbol: comboData.symbol.replace("-", "/").toUpperCase(),
-      timeframe: comboData.timeframe,
-      startDate: comboData.startDate,
-      endDate: comboData.endDate,
-      initialBalance: Number(comboData.initialBalance) || 1000,
+            const payload = {
+                strategies,
+                symbol: comboData.symbol.replace("-", "/").toUpperCase(),
+                timeframe: comboData.timeframe,
+                startDate: comboData.startDate,
+                endDate: comboData.endDate,
+                initialBalance: Number(comboData.initialBalance) || 1000,
+            };
+
+            const result = await runComboBacktest(payload);
+            setBacktestResults({
+                main: result.combinedResult || result,
+                individuals: result.individualResults || []
+            });
+        } catch (err) {
+            console.error("Combo backtest submission failed:", err);
+        }
     };
 
-    console.log("🚀 Submitting corrected combo payload:", payload);
-
-    const result = await runComboBacktest(payload);
-    setBacktestResults({
-      main: result.combinedResult || result,
-      individuals: result.individualResults || []
-    });
-  } catch (err) {
-    console.error("Combo backtest submission failed:", err);
-  }
-};
-
+    // --- Save Setup ---
     const openSaveModal = () => setIsSaveModalOpen(true);
     const closeSaveModal = () => { setIsSaveModalOpen(false); setSetupDetails({ name: "", description: "" }); };
     const handleSetupChange = (e) => setSetupDetails(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -212,6 +208,7 @@ const handleComboSubmit = async (e) => {
         }
     };
 
+    // --- Chart Data ---
     const chartData = useMemo(() => {
         if (!backtestResults.main?.equityCurve) return [];
         return backtestResults.main.equityCurve.map(d => ({ date: d.timestamp || d.date, equity: d.balance || d.equity }));
@@ -233,23 +230,15 @@ const handleComboSubmit = async (e) => {
         return [{ name: "Win", value: wins, color: COLORS[0] }, { name: "Loss", value: losses, color: COLORS[1] }];
     }, [backtestResults.main?.metrics]);
 
-    if (loading === 'initial') {
-        return <div className="dashboard-container"><h2>Loading backtest data...</h2></div>;
-    }
+    if (loading === 'initial') return <div className="dashboard-container"><h2>Loading backtest data...</h2></div>;
 
     return (
         <div className="dashboard-container">
             <h1>Backtests</h1>
-
-            {error && (
-                <div className="error-box">
-                    <h4>An Error Occurred</h4>
-                    <p><strong>{error.status ? `Status ${error.status}: ` : ''}</strong>{error.message || 'Please try again.'}</p>
-                </div>
-            )}
+            {error && <div className="error-box"><h4>An Error Occurred</h4><p>{error.message}</p></div>}
 
             <div className="forms-container">
-                {/* Single Strategy */}
+                {/* Single Strategy Form */}
                 <form className="backtest-form" onSubmit={handleSingleSubmit}>
                     <h2>Single Strategy Backtest</h2>
                     <label>Strategy:
@@ -270,12 +259,10 @@ const handleComboSubmit = async (e) => {
                     <label>Start Date: <input type="date" name="startDate" value={formData.startDate} onChange={handleFormChange} /></label>
                     <label>End Date: <input type="date" name="endDate" value={formData.endDate} onChange={handleFormChange} /></label>
                     <label>Initial Balance: <input type="number" name="initialBalance" value={formData.initialBalance} onChange={handleFormChange} /></label>
-                    <button type="submit" disabled={loading === 'running'}>
-                        {loading === 'running' ? "Running..." : "Run Backtest"}
-                    </button>
+                    <button type="submit" disabled={loading === 'running'}>{loading === 'running' ? "Running..." : "Run Backtest"}</button>
                 </form>
 
-                {/* Combo Strategy */}
+                {/* Combo Strategy Form */}
                 <form className="backtest-form" onSubmit={handleComboSubmit}>
                     <h2>Combo Strategy Backtest</h2>
                     {comboData.strategyConfigs.map((config, idx) => (
@@ -304,16 +291,17 @@ const handleComboSubmit = async (e) => {
                     <label>Start Date: <input type="date" name="startDate" value={comboData.startDate} onChange={(e) => handleComboChange(e, -1)} /></label>
                     <label>End Date: <input type="date" name="endDate" value={comboData.endDate} onChange={(e) => handleComboChange(e, -1)} /></label>
                     <label>Initial Balance: <input type="number" name="initialBalance" value={comboData.initialBalance} onChange={(e) => handleComboChange(e, -1)} /></label>
-                    <button type="submit" disabled={loading === 'running_combo'}>
-                        {loading === 'running_combo' ? "Running..." : "Run Combo Backtest"}
-                    </button>
+                    <button type="submit" disabled={loading === 'running_combo'}>{loading === 'running_combo' ? "Running..." : "Run Combo Backtest"}</button>
                 </form>
             </div>
 
+            {/* Results Section */}
             {backtestResults.main && (
                 <div className="results-container">
-                    <MetricsDisplay metrics={backtestResults.main.metrics} />
+                    {/* Metric Charts */}
+                    <MetricsCharts metrics={backtestResults.main.metrics} />
 
+                    {/* Equity Curves */}
                     <h2>Equity Curves</h2>
                     <ResponsiveContainer width="100%" height={400}>
                         <LineChart>
@@ -329,6 +317,7 @@ const handleComboSubmit = async (e) => {
                         </LineChart>
                     </ResponsiveContainer>
 
+                    {/* Win/Loss Pie */}
                     {pieData.length > 0 && (
                         <div className="pie-container">
                             <h3>Win / Loss Ratio</h3>
