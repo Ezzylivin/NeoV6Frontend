@@ -95,7 +95,7 @@ export async function deleteById(id) {
  * Matches: `runBacktestController`
  * @param {{code: string, symbol: string, timeframe: string, startDate?: string, endDate?: string, tp?: number, sl?: number, params?: object}} payload
  */
-export async function runBacktest(payload) {
+export async function runNewBacktest(payload) {
     if (!payload.code) throw new Error("A strategy 'code' is required.");
     try {
         const { data } = await api.post("/backtest/run", payload);
