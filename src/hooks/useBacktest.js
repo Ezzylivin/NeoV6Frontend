@@ -3,181 +3,206 @@ import { useReducer, useCallback, useEffect } from "react";
 import * as backtestApi from "../api/backtest.js";
 
 // --- State Management with Reducer ---
-
 const initialState = {
-    options: { strategies: [], symbols: [], timeframes: [] },
-    pastBacktests: { results: [], total: 0 },
-    loading: 'idle', // 'idle', 'initial', 'fetching', 'running', 'running_combo'
-    error: null,     // Will store { status, message }
+  options: { strategies: [], symbols: [], timeframes: [] },
+  pastBacktests: { results: [], total: 0 },
+  loading: "idle", // 'idle', 'initial', 'fetching', 'running', 'running_combo'
+  error: null, // Will store { status, message }
 };
 
 function backtestReducer(state, action) {
-    switch (action.type) {
-        case 'SET_LOADING':
-            return { ...state, loading: action.payload, error: null };
-        case 'SET_ERROR':
-            return { ...state, loading: 'idle', error: action.payload };
-        case 'SET_INITIAL_DATA':
-            return {
-                ...state,
-                options: action.payload.options,
-                pastBacktests: {
-                    results: action.payload.pastBacktests.backtests,
-                    total: action.payload.pastBacktests.total,
-                },
-                loading: 'idle',
-            };
-        case 'SET_PAST_BACKTESTS':
-            return {
-                ...state,
-                pastBacktests: {
-                    results: action.payload.backtests,
-                    total: action.payload.total,
-                },
-                loading: 'idle',
-            };
-        case 'DELETE_BACKTEST_OPTIMISTIC':
-            return {
-                ...state,
-                pastBacktests: {
-                    ...state.pastBacktests,
-                    results: state.pastBacktests.results.filter(b => b._id !== action.payload),
-                },
-            };
-        default:
-            throw new Error(`Unhandled action type: ${action.type}`);
-    }
+  switch (action.type) {
+    case "SET_LOADING":
+      return { ...state, loading: action.payload, error: null };
+    case "SET_ERROR":
+      return { ...state, loading: "idle", error: action.payload };
+    case "SET_INITIAL_DATA":
+      return {
+        ...state,
+        options: action.payload.options,
+        pastBacktests: {
+          results: action.payload.pastBacktests.backtests,
+          total: action.payload.pastBacktests.total,
+        },
+        loading: "idle",
+      };
+    case "SET_PAST_BACKTESTS":
+      return {
+        ...state,
+        pastBacktests: {
+          results: action.payload.backtests,
+          total: action.payload.total,
+        },
+        loading: "idle",
+      };
+    case "DELETE_BACKTEST_OPTIMISTIC":
+      return {
+        ...state,
+        pastBacktests: {
+          ...state.pastBacktests,
+          results: state.pastBacktests.results.filter(
+            (b) => b._id !== action.payload
+          ),
+        },
+      };
+    default:
+      throw new Error(`Unhandled action type: ${action.type}`);
+  }
 }
 
-/**
- * A comprehensive hook for managing backtest data, execution, and state.
- * Handles loading, errors, and provides functions for all backtest-related API interactions.
- *
- * @returns {{
- * state: {
- * options: { strategies: any[], symbols: string[], timeframes: string[] },
- * pastBacktests: { results: any[], total: number },
- * loading: 'idle' | 'initial' | 'fetching' | 'running' | 'running_combo',
- * error: { status: number | null, message: string } | null
- * },
- * getPastBacktests: (page?: number) => Promise<void>,
- * getBacktestById: (id: string) => Promise<any>,
- * deleteBacktest: (id: string) => Promise<void>,
- * runNewBacktest: (payload: object) => Promise<any>,
- * runComboBacktest: (payload: object) => Promise<any>,
- * previewStrategy: (payload: object) => Promise<any>
- * }}
- */
 export function useBacktest() {
-    const [state, dispatch] = useReducer(backtestReducer, initialState);
+  const [state, dispatch] = useReducer(backtestReducer, initialState);
 
-    const getPastBacktests = useCallback(async (page = 1) => {
-        dispatch({ type: 'SET_LOADING', payload: 'fetching' });
-        try {
-            const data = await backtestApi.fetchAll(page);
-            dispatch({ type: 'SET_PAST_BACKTESTS', payload: data });
-        } catch (err) {
-            dispatch({ type: 'SET_ERROR', payload: err });
-        }
-    }, []);
-
-    const getBacktestById = useCallback(async (id) => {
-        dispatch({ type: 'SET_LOADING', payload: 'fetching' });
-        try {
-            return await backtestApi.fetchById(id);
-        } catch (err) {
-            dispatch({ type: 'SET_ERROR', payload: err });
-            throw err;
-        } finally {
-            dispatch({ type: 'SET_LOADING', payload: 'idle' });
-        }
-    }, []);
-
-    const deleteBacktest = useCallback(async (id) => {
-        const originalBacktests = state.pastBacktests;
-        dispatch({ type: 'DELETE_BACKTEST_OPTIMISTIC', payload: id }); // Optimistic update
-
-        try {
-            await backtestApi.deleteById(id);
-            // Optional: can re-fetch for ultimate consistency, but often not needed.
-            // await getPastBacktests(); 
-        } catch (err) {
-            // Revert on failure
-            dispatch({ type: 'SET_PAST_BACKTESTS', payload: originalBacktests });
-            dispatch({ type: 'SET_ERROR', payload: err });
-            throw err;
-        }
-    }, [state.pastBacktests]);
-
-    const runComboBacktest = useCallback(async (payload) => {
-  dispatch({ type: 'SET_LOADING', payload: 'running_combo' });
-  try {
-    if (!payload.strategies || payload.strategies.length === 0) {
-      throw new Error("At least one strategy must be selected.");
+  const getPastBacktests = useCallback(async (page = 1) => {
+    dispatch({ type: "SET_LOADING", payload: "fetching" });
+    try {
+      const data = await backtestApi.fetchAll(page);
+      dispatch({ type: "SET_PAST_BACKTESTS", payload: data });
+    } catch (err) {
+      dispatch({ type: "SET_ERROR", payload: err });
     }
+  }, []);
 
-    // 🔑 Normalize strategies: ensure objects, not strings
-    const normalizedStrategies = payload.strategies.map(s => {
-      if (typeof s === "string") {
-        // If backend only got string, wrap it in { code, params: {} }
-        return { code: s, params: {} };
+  const getBacktestById = useCallback(async (id) => {
+    dispatch({ type: "SET_LOADING", payload: "fetching" });
+    try {
+      return await backtestApi.fetchById(id);
+    } catch (err) {
+      dispatch({ type: "SET_ERROR", payload: err });
+      throw err;
+    } finally {
+      dispatch({ type: "SET_LOADING", payload: "idle" });
+    }
+  }, []);
+
+  const deleteBacktest = useCallback(
+    async (id) => {
+      const originalBacktests = state.pastBacktests;
+      dispatch({ type: "DELETE_BACKTEST_OPTIMISTIC", payload: id });
+
+      try {
+        await backtestApi.deleteById(id);
+      } catch (err) {
+        // Revert on failure
+        dispatch({ type: "SET_PAST_BACKTESTS", payload: originalBacktests });
+        dispatch({ type: "SET_ERROR", payload: err });
+        throw err;
       }
-      return { code: s.code, params: s.params || {} };
-    });
+    },
+    [state.pastBacktests]
+  );
 
-    const correctedPayload = {
-      ...payload,
-      strategies: normalizedStrategies,
-      initialBalance: payload.initialBalance || 1000
-    };
+  // ✅ Added: runNewBacktest for single-strategy execution
+  const runNewBacktest = useCallback(async (payload) => {
+    dispatch({ type: "SET_LOADING", payload: "running" });
+    try {
+      if (!payload.strategy) {
+        throw new Error("A strategy must be provided.");
+      }
 
-    console.log("👉 Final combo payload sent:", JSON.stringify(correctedPayload, null, 2));
+      const correctedPayload = {
+        ...payload,
+        strategy: {
+          code:
+            typeof payload.strategy === "string"
+              ? payload.strategy
+              : payload.strategy.code,
+          params:
+            typeof payload.strategy === "string"
+              ? {}
+              : payload.strategy.params || {},
+        },
+        initialBalance: payload.initialBalance || 1000,
+      };
 
-    return await backtestApi.runComboBacktest(correctedPayload);
-  } catch (err) {
-    dispatch({ type: 'SET_ERROR', payload: err });
-    throw err;
-  } finally {
-    dispatch({ type: 'SET_LOADING', payload: 'idle' });
-  }
-}, []);
+      console.log(
+        "👉 Final single backtest payload sent:",
+        JSON.stringify(correctedPayload, null, 2)
+      );
 
-    const previewStrategy = useCallback(async (payload) => {
-        dispatch({ type: 'SET_LOADING', payload: 'running' });
-        try {
-            return await backtestApi.previewStrategy(payload);
-        } catch (err) {
-            dispatch({ type: 'SET_ERROR', payload: err });
-            throw err;
-        } finally {
-            dispatch({ type: 'SET_LOADING', payload: 'idle' });
+      return await backtestApi.runNewBacktest(correctedPayload);
+    } catch (err) {
+      dispatch({ type: "SET_ERROR", payload: err });
+      throw err;
+    } finally {
+      dispatch({ type: "SET_LOADING", payload: "idle" });
+    }
+  }, []);
+
+  const runComboBacktest = useCallback(async (payload) => {
+    dispatch({ type: "SET_LOADING", payload: "running_combo" });
+    try {
+      if (!payload.strategies || payload.strategies.length === 0) {
+        throw new Error("At least one strategy must be selected.");
+      }
+
+      // 🔑 Normalize strategies
+      const normalizedStrategies = payload.strategies.map((s) => {
+        if (typeof s === "string") {
+          return { code: s, params: {} };
         }
-    }, []);
+        return { code: s.code, params: s.params || {} };
+      });
 
-    // Initial data load effect
-    useEffect(() => {
-        const fetchInitialData = async () => {
-            dispatch({ type: 'SET_LOADING', payload: 'initial' });
-            try {
-                const [options, pastBacktests] = await Promise.all([
-                    backtestApi.fetchOptions(),
-                    backtestApi.fetchAll(1)
-                ]);
-                dispatch({ type: 'SET_INITIAL_DATA', payload: { options, pastBacktests } });
-            } catch (err) {
-                dispatch({ type: 'SET_ERROR', payload: err });
-            }
-        };
-        fetchInitialData();
-    }, []);
+      const correctedPayload = {
+        ...payload,
+        strategies: normalizedStrategies,
+        initialBalance: payload.initialBalance || 1000,
+      };
 
-    return {
-        state,
-        getPastBacktests,
-        getBacktestById,
-        deleteBacktest,
-        runNewBacktest,
-        runComboBacktest,
-        previewStrategy,
+      console.log(
+        "👉 Final combo payload sent:",
+        JSON.stringify(correctedPayload, null, 2)
+      );
+
+      return await backtestApi.runComboBacktest(correctedPayload);
+    } catch (err) {
+      dispatch({ type: "SET_ERROR", payload: err });
+      throw err;
+    } finally {
+      dispatch({ type: "SET_LOADING", payload: "idle" });
+    }
+  }, []);
+
+  const previewStrategy = useCallback(async (payload) => {
+    dispatch({ type: "SET_LOADING", payload: "running" });
+    try {
+      return await backtestApi.previewStrategy(payload);
+    } catch (err) {
+      dispatch({ type: "SET_ERROR", payload: err });
+      throw err;
+    } finally {
+      dispatch({ type: "SET_LOADING", payload: "idle" });
+    }
+  }, []);
+
+  // Initial data load effect
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      dispatch({ type: "SET_LOADING", payload: "initial" });
+      try {
+        const [options, pastBacktests] = await Promise.all([
+          backtestApi.fetchOptions(),
+          backtestApi.fetchAll(1),
+        ]);
+        dispatch({
+          type: "SET_INITIAL_DATA",
+          payload: { options, pastBacktests },
+        });
+      } catch (err) {
+        dispatch({ type: "SET_ERROR", payload: err });
+      }
     };
+    fetchInitialData();
+  }, []);
+
+  return {
+    state,
+    getPastBacktests,
+    getBacktestById,
+    deleteBacktest,
+    runNewBacktest, // ✅ Now properly defined
+    runComboBacktest,
+    previewStrategy,
+  };
 }
