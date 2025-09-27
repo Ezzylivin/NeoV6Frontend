@@ -109,42 +109,38 @@ export function useBacktest() {
         }
     }, [state.pastBacktests]);
 
-    const runNewBacktest = useCallback(async (payload) => {
-        dispatch({ type: 'SET_LOADING', payload: 'running' });
-        try {
-            const result = await backtestApi.runBacktest(payload);
-            await getPastBacktests(); // Refresh list with the new backtest
-            return result;
-        } catch (err) {
-            dispatch({ type: 'SET_ERROR', payload: err });
-            throw err;
-        } finally {
-            dispatch({ type: 'SET_LOADING', payload: 'idle' });
-        }
-    }, [getPastBacktests]);
-
-   const runComboBacktest = useCallback(async (payload) => {
-    dispatch({ type: 'SET_LOADING', payload: 'running_combo' });
-    try {
-        // Normalize strategies field
-        if (payload.strategyCodes && !payload.strategies) {
-            payload.strategies = payload.strategyCodes;
-            delete payload.strategyCodes;
-        }
-
-        // Log for debugging
-        console.log("Running combo backtest with payload:", payload);
-
-        const result = await backtestApi.runComboBacktest(payload);
-        await getPastBacktests(); // refresh list if needed
-        return result;
-    } catch (err) {
-        dispatch({ type: 'SET_ERROR', payload: err });
-        throw err;
-    } finally {
-        dispatch({ type: 'SET_LOADING', payload: 'idle' });
+    const runComboBacktest = useCallback(async (payload) => {
+  dispatch({ type: 'SET_LOADING', payload: 'running_combo' });
+  try {
+    if (!payload.strategies || payload.strategies.length === 0) {
+      throw new Error("At least one strategy must be selected.");
     }
-}, [getPastBacktests]);
+
+    // 🔑 Normalize strategies: ensure objects, not strings
+    const normalizedStrategies = payload.strategies.map(s => {
+      if (typeof s === "string") {
+        // If backend only got string, wrap it in { code, params: {} }
+        return { code: s, params: {} };
+      }
+      return { code: s.code, params: s.params || {} };
+    });
+
+    const correctedPayload = {
+      ...payload,
+      strategies: normalizedStrategies,
+      initialBalance: payload.initialBalance || 1000
+    };
+
+    console.log("👉 Final combo payload sent:", JSON.stringify(correctedPayload, null, 2));
+
+    return await backtestApi.runComboBacktest(correctedPayload);
+  } catch (err) {
+    dispatch({ type: 'SET_ERROR', payload: err });
+    throw err;
+  } finally {
+    dispatch({ type: 'SET_LOADING', payload: 'idle' });
+  }
+}, []);
 
     const previewStrategy = useCallback(async (payload) => {
         dispatch({ type: 'SET_LOADING', payload: 'running' });
