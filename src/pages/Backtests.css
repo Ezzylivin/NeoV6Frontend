@@ -1,313 +1,168 @@
 /* File: src/styles/Backtests.css */
 
-/* --- Base & Layout --- */
+/* --- General Container --- */
 .dashboard-container {
-  padding: 20px;
-  background-color: #1a1a2e; /* Darker background */
-  color: #e0e0e0; /* Lighter text color */
-  font-family: 'Inter', sans-serif; /* Modern font */
-  min-height: calc(100vh - 60px); /* Adjust for header height */
-  display: flex;
-  flex-direction: column;
-  gap: 25px;
-}
-
-/* --- Section Titles --- */
-.section-title {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: #ffffff;
-  margin-bottom: 20px;
-}
-
-/* --- Tab Buttons --- */
-.tab-buttons {
-  display: flex;
-  margin-bottom: 25px;
-  border-bottom: 1px solid #333;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.tab-button {
-  background-color: transparent;
-  border: none;
-  padding: 12px 20px;
-  font-size: 1rem;
-  font-weight: 500;
-  color: #999;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: all 0.2s ease-in-out;
-}
-
-.tab-button:hover:not(.active) {
-  color: #fff;
-  border-bottom-color: #555;
-}
-
-.tab-button.active {
-  color: #4f46e5;
-  border-bottom-color: #4f46e5;
-  font-weight: 600;
-}
-
-/* --- Backtest Form --- */
-.backtest-form {
+  padding: 20px 30px;
   background-color: #1b1b2b;
-  padding: 20px;
-  border-radius: 12px;
+  color: #ffffff;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  min-height: 100vh;
+}
+
+/* --- Headings --- */
+.dashboard-container h1 {
+  font-size: 2rem;
+  margin-bottom: 20px;
+  color: #f3f4f6;
+}
+.dashboard-container h2 {
+  font-size: 1.5rem;
+  margin-bottom: 15px;
+  color: #e5e7eb;
+}
+.dashboard-container h3 {
+  font-size: 1.2rem;
+  margin-bottom: 10px;
+  color: #d1d5db;
+}
+
+/* --- Forms --- */
+.forms-container {
   display: flex;
-  flex-direction: column;
-  gap: 15px;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.backtest-form {
+  background-color: #27293d;
+  border-radius: 12px;
+  padding: 20px;
+  flex: 1 1 400px;
+  min-width: 300px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.5);
 }
 
 .backtest-form label {
   display: flex;
   flex-direction: column;
-  font-size: 0.95rem;
-  color: #ccc;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+  color: #e5e7eb;
 }
 
 .backtest-form input,
 .backtest-form select {
-  padding: 8px 12px;
+  margin-top: 6px;
+  padding: 8px 10px;
   border-radius: 6px;
-  border: 1px solid #444;
-  background-color: #2b2b3b;
+  border: 1px solid #555770;
+  background-color: #1b1b2b;
   color: #fff;
-  margin-top: 4px;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
+}
+
+.backtest-form input[type="number"]::-webkit-inner-spin-button,
+.backtest-form input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .backtest-form button {
+  margin-top: 15px;
   padding: 10px 15px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  font-weight: 600;
   background-color: #3b82f6;
   color: #fff;
-  transition: background-color 0.2s ease, transform 0.2s ease;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.2s;
 }
 
-.backtest-form button:hover {
+.backtest-form button:disabled {
+  background-color: #6b7280;
+  cursor: not-allowed;
+}
+
+.backtest-form button:hover:not(:disabled) {
   background-color: #2563eb;
-  transform: translateY(-2px);
+}
+
+/* --- Combo Strategy Row --- */
+.combo-strategy-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #3f3f55;
+  padding-bottom: 10px;
 }
 
 /* --- Metrics Grid --- */
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 15px;
   margin-bottom: 25px;
 }
 
 .metric-item {
-  background-color: #2b2b3b;
+  background-color: #2e2f48;
   padding: 12px;
   border-radius: 10px;
   text-align: center;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.metric-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
 }
 
 .metric-label {
   display: block;
   font-size: 0.85rem;
-  color: #aaa;
   margin-bottom: 5px;
+  color: #d1d5db;
 }
 
 .metric-value {
   font-size: 1.1rem;
   font-weight: 600;
-  color: #fff;
+  color: #f3f4f6;
 }
 
-/* Color coding for win/loss metrics */
-.metric-win .metric-value { color: #22c55e; }
-.metric-loss .metric-value { color: #ef4444; }
-.metric-neutral .metric-value { color: #fff; }
-
-/* --- Chart Containers --- */
+/* --- Charts --- */
 .chart-container {
-  width: 100%;
-  height: 320px; /* Slightly taller */
-  margin-bottom: 25px;
-  background-color: #1f1f35;
+  margin-bottom: 30px;
+  background-color: #27293d;
+  padding: 15px;
   border-radius: 12px;
-  padding: 10px;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
 }
 
-/* --- Individual Chart Containers (smaller) --- */
-.individual-chart-container {
-  width: 100%;
-  height: 220px;
-  margin-bottom: 20px;
-  background-color: #1f1f35;
-  border-radius: 10px;
-  padding: 8px;
-  box-shadow: 0 3px 10px rgba(0,0,0,0.2);
-}
-
-/* --- Pie Chart Container --- */
-.pie-chart-container {
-  width: 50%;
-  max-width: 400px;
-  height: 250px;
-  margin: 25px auto;
-  background-color: #1f1f35;
-  border-radius: 12px;
-  padding: 10px;
-  box-shadow: 0 5px 12px rgba(0,0,0,0.3);
-}
-
-/* --- Save Setup Modal --- */
-.modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0,0,0,0.6);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.25s ease-in-out;
-}
-
-.modal.modal-open {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.modal-content {
-  background-color: #1b1b2b;
-  padding: 25px;
-  border-radius: 12px;
-  width: 90%;
-  max-width: 450px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-  animation: slideDown 0.3s ease-out;
-}
-
-@keyframes slideDown {
-  from { transform: translateY(-20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-.modal-content h3 {
+.chart-container h2,
+.chart-container h3 {
   margin-bottom: 15px;
-  color: #fff;
-  font-size: 1.3rem;
-  text-align: center;
 }
 
-.modal-content form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.modal-content label {
-  display: flex;
-  flex-direction: column;
-  font-size: 0.95rem;
-  color: #ccc;
-}
-
-.modal-content input {
-  padding: 8px 12px;
-  border-radius: 6px;
-  border: 1px solid #444;
-  background-color: #2b2b3b;
-  color: #fff;
-  margin-top: 4px;
-}
-
-.modal-content button {
-  padding: 10px 15px;
-  border-radius: 6px;
-  border: none;
-  cursor: pointer;
-  font-weight: 600;
-  transition: background-color 0.2s ease, transform 0.2s ease;
-}
-
-.modal-content button[type="submit"] {
-  background-color: #22c55e;
-  color: #fff;
-}
-
-.modal-content button[type="submit"]:hover {
-  background-color: #16a34a;
-  transform: translateY(-2px);
-}
-
-.modal-content button[type="button"] {
+/* --- Error Box --- */
+.error-box {
   background-color: #ef4444;
   color: #fff;
+  padding: 12px 15px;
+  border-radius: 10px;
+  margin-bottom: 20px;
 }
 
-.modal-content button[type="button"]:hover {
-  background-color: #b91c1c;
-  transform: translateY(-2px);
+.error-box h4 {
+  margin: 0 0 5px 0;
 }
 
-/* --- Floating Save Button --- */
-.save-setup-btn {
-  position: sticky;
-  top: 15px;
-  width: 100%;
-  max-width: 200px;
-  background-color: #22c55e;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 10px;
-  font-weight: 600;
-  cursor: pointer;
-  text-align: center;
-  z-index: 10;
-  margin-bottom: 15px;
-  transition: background-color 0.2s ease, transform 0.2s ease;
-}
-
-.save-setup-btn:hover {
-  background-color: #16a34a;
-  transform: translateY(-2px);
-}
-
-/* --- Responsive Enhancements --- */
+/* --- Responsive --- */
 @media (max-width: 768px) {
-  .pie-chart-container {
-    width: 90%;
-    margin: 20px auto;
+  .forms-container {
+    flex-direction: column;
   }
-
-  .metrics-grid {
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  }
-
-  .chart-container,
-  .individual-chart-container {
-    height: 250px;
-  }
-}
-
-@media (max-width: 480px) {
-  .chart-container,
-  .individual-chart-container {
-    height: 200px;
+  .combo-strategy-row {
+    flex-direction: column;
+    gap: 6px;
   }
 }
