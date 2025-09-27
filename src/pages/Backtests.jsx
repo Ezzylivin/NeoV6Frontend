@@ -24,7 +24,6 @@ const getDefaultDates = () => {
     return { startDate: formatDate(start), endDate: formatDate(end) };
 };
 
-// --- Initial form states ---
 const initialFormData = {
     code: "", symbol: "", timeframe: "", startDate: getDefaultDates().startDate,
     endDate: getDefaultDates().endDate, initialBalance: 1000, params: {},
@@ -36,7 +35,7 @@ const initialComboData = {
     endDate: getDefaultDates().endDate, initialBalance: 1000,
 };
 
-// --- Metrics display ---
+// --- Sub-components ---
 const MetricsDisplay = ({ metrics }) => {
     if (!metrics) return null;
     const items = [
@@ -115,11 +114,7 @@ export default function Backtests() {
             const newConfigs = [...comboData.strategyConfigs];
             newConfigs[idx] = { ...newConfigs[idx], code: value };
             setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
-        } else if (name === "initialBalance") {
-            setComboData(prev => ({ ...prev, initialBalance: Number(value) || 1000 }));
-        } else {
-            setComboData(prev => ({ ...prev, [name]: value }));
-        }
+        } else setComboData(prev => ({ ...prev, [name]: value }));
     };
 
     const addStrategyToCombo = () => {
@@ -145,7 +140,7 @@ export default function Backtests() {
                 timeframe: formData.timeframe,
                 startDate: formData.startDate,
                 endDate: formData.endDate,
-                initialBalance: Number(formData.initialBalance) || 1000,
+                initialBalance: Number(formData.initialBalance),
                 params: formData.params
             };
             const result = await runNewBacktest(payload);
@@ -155,12 +150,19 @@ export default function Backtests() {
         }
     };
 
+    // ✅ Fully upgraded combo submit
     const handleComboSubmit = async (e) => {
         e.preventDefault();
         try {
             const strategies = comboData.strategyConfigs
                 .filter(s => s.code)
-                .map(s => ({ code: s.code, params: s.params || {} }));
+                .map(s => {
+                    let params = s.params || {};
+                    // Default params for known strategies
+                    if (s.code === "atrtest1") params = { period: 14, multiplier: 2, strategyType: "ATR", ...params };
+                    if (s.code === "test_for_single") params = { strategyType: "Moving Average Crossover", shortPeriod: 10, longPeriod: 50, ...params };
+                    return { code: s.code, params };
+                });
 
             if (!strategies.length) {
                 alert("Please select at least one strategy.");
@@ -322,41 +324,39 @@ export default function Backtests() {
                             <YAxis />
                             <Tooltip />
                             <Legend />
-                            {chartData.length && <Line type="monotone" data={chartData} dataKey="equity" name="Combined" stroke={COLORS[0]} dot={false} />}
-                            {individualCharts.map((ind, i) => (
-                                <Line key={ind.code} type="monotone" data={ind.data} dataKey="equity" name={ind.code} stroke={COLORS[(i + 1) % COLORS.length]} dot={false} />
+                            {chartData.length && <Line type="monotone" data={chartData} dataKey="equity" name="Combined" stroke={COLORS[2]} />}
+                            {individualCharts.map((c, idx) => (
+                                <Line key={c.code} type="monotone" data={c.data} dataKey="equity" name={c.code} stroke={COLORS[idx % COLORS.length]} />
                             ))}
                         </LineChart>
                     </ResponsiveContainer>
 
                     {pieData.length > 0 && (
-                        <>
-                            <h2>Wins vs Losses</h2>
-                            <ResponsiveContainer width={250} height={250}>
-                                <PieChart>
-                                    <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                                        {pieData.map((entry, idx) => <Cell key={idx} fill={entry.color} />)}
-                                    </Pie>
-                                </PieChart>
-                            </ResponsiveContainer>
-                        </>
+                        <div className="pie-container">
+                            <h3>Win / Loss Ratio</h3>
+                            <PieChart width={300} height={300}>
+                                <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100}>
+                                    {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                                </Pie>
+                            </PieChart>
+                        </div>
                     )}
 
-                    <button className="save-setup-btn" onClick={openSaveModal}>Save Backtest Setup</button>
-                </div>
-            )}
+                    <button onClick={openSaveModal}>Save Backtest Setup</button>
 
-            {isSaveModalOpen && (
-                <div className="modal modal-open">
-                    <div className="modal-content">
-                        <h3>Save Backtest Setup</h3>
-                        <label>Name: <input type="text" name="name" value={setupDetails.name} onChange={handleSetupChange} /></label>
-                        <label>Description: <input type="text" name="description" value={setupDetails.description} onChange={handleSetupChange} /></label>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                            <button type="button" onClick={closeSaveModal}>Cancel</button>
-                            <button type="button" onClick={handleSaveSetup}>Save</button>
+                    {isSaveModalOpen && (
+                        <div className="modal-overlay">
+                            <div className="modal-content">
+                                <h3>Save Backtest Setup</h3>
+                                <form onSubmit={handleSaveSetup}>
+                                    <label>Name: <input name="name" value={setupDetails.name} onChange={handleSetupChange} required /></label>
+                                    <label>Description: <input name="description" value={setupDetails.description} onChange={handleSetupChange} /></label>
+                                    <button type="submit">Save Setup</button>
+                                    <button type="button" onClick={closeSaveModal}>Cancel</button>
+                                </form>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
             )}
         </div>
