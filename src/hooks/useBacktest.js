@@ -103,6 +103,8 @@ export function useBacktest() {
         params: {
           ...strategyParams,
           strategyType: strategyParams.strategyType || payload.strategy.code, // fallback
+          stopLoss: payload.stopLoss ?? 0, // ✅ SL integrated
+          takeProfit: payload.takeProfit ?? 0, // ✅ TP integrated
         },
       };
 
@@ -134,7 +136,7 @@ export function useBacktest() {
         throw new Error("At least one strategy must be selected.");
       }
 
-      // ✅ Auto-fill strategyType based on code if missing
+      // ✅ Auto-fill strategyType + inject SL/TP if missing
       const normalizedStrategies = payload.strategies.map((s) => {
         const params = s.params || {};
 
@@ -154,6 +156,10 @@ export function useBacktest() {
               params.strategyType = s.code; // fallback
           }
         }
+
+        // ✅ Always ensure SL & TP are included
+        params.stopLoss = s.stopLoss ?? payload.stopLoss ?? 0;
+        params.takeProfit = s.takeProfit ?? payload.takeProfit ?? 0;
 
         return { code: s.code, params };
       });
