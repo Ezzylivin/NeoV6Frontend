@@ -4,21 +4,24 @@ import { useBacktest } from "../hooks/useBacktest.js";
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { StrategyContext } from "../context/StrategyContext.jsx";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
   PieChart, Pie, Cell
 } from "recharts";
 import "./Backtests.css";
 
-// --- Constants and Helpers ---
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b"];
+
 const formatDate = (date) => {
   const d = new Date(date);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
+
 const getDefaultDates = () => {
   const today = new Date();
-  const start = new Date(today); start.setFullYear(today.getFullYear() - 1);
-  const end = new Date(today); end.setDate(today.getDate() - 1);
+  const start = new Date(today);
+  start.setFullYear(today.getFullYear() - 1);
+  const end = new Date(today);
+  end.setDate(today.getDate() - 1);
   return { startDate: formatDate(start), endDate: formatDate(end) };
 };
 
@@ -34,7 +37,6 @@ const initialComboData = {
   endDate: getDefaultDates().endDate, initialBalance: 1000,
 };
 
-// --- Metrics Sub-component ---
 const MetricsDisplay = ({ metrics }) => {
   if (!metrics) return null;
   const items = [
@@ -62,7 +64,6 @@ const MetricsDisplay = ({ metrics }) => {
   );
 };
 
-// --- Main Component ---
 export default function Backtests() {
   const { strategies: availableStrategies } = useContext(StrategyContext);
   const { state, runNewBacktest, runComboBacktest } = useBacktest();
@@ -129,6 +130,7 @@ export default function Backtests() {
 
   const handleSingleSubmit = async (e) => {
     e.preventDefault();
+    if (loading === 'running') return;
     try {
       const payload = {
         code: formData.code,
@@ -146,6 +148,7 @@ export default function Backtests() {
 
   const handleComboSubmit = async (e) => {
     e.preventDefault();
+    if (loading === 'running') return;
     try {
       const strategies = comboData.strategyConfigs
         .filter(config => config.code)
@@ -179,9 +182,8 @@ export default function Backtests() {
         : [{ date: new Date(), equity: backtestResults.main?.metrics?.initialBalance || 1000 }];
     }
 
-    // Merge individual equity curves by timestamp
     const allTimestamps = [...new Set(backtestResults.individuals.flatMap(ind => ind.equityCurve.map(d => d.timestamp || d.date)))].sort();
-    const merged = allTimestamps.map(ts => {
+    return allTimestamps.map(ts => {
       let totalEquity = 0;
       backtestResults.individuals.forEach(ind => {
         const lastPoint = ind.equityCurve.filter(p => (p.timestamp || p.date) <= ts).slice(-1)[0];
@@ -189,32 +191,18 @@ export default function Backtests() {
       });
       return { date: ts, equity: totalEquity };
     });
-    return merged;
   }, [backtestResults.individuals, backtestResults.main]);
 
-  // --- Dynamic combined metrics ---
   const combinedMetrics = useMemo(() => {
     if (!backtestResults.individuals?.length || !chartData.length) return backtestResults.main?.metrics || {};
 
-    const initialBalance = backtestResults.individuals.reduce(
-      (sum, ind) => sum + (ind.metrics?.initialBalance || 0), 0
-    );
-
+    const initialBalance = backtestResults.individuals.reduce((sum, ind) => sum + (ind.metrics?.initialBalance || 0), 0);
     const finalBalance = chartData[chartData.length - 1].equity;
-
     const totalProfit = finalBalance - initialBalance;
-
-    const totalTrades = backtestResults.individuals.reduce(
-      (sum, ind) => sum + (ind.metrics?.totalTrades || 0), 0
-    );
-
-    const totalWins = backtestResults.individuals.reduce(
-      (sum, ind) => sum + ((ind.metrics?.totalTrades || 0) * ((ind.metrics?.winRate || 0) / 100)), 0
-    );
-
+    const totalTrades = backtestResults.individuals.reduce((sum, ind) => sum + (ind.metrics?.totalTrades || 0), 0);
+    const totalWins = backtestResults.individuals.reduce((sum, ind) => sum + ((ind.metrics?.totalTrades || 0) * ((ind.metrics?.winRate || 0) / 100)), 0);
     const winRate = totalTrades ? (totalWins / totalTrades) * 100 : 0;
 
-    // Max Drawdown calculation
     let peak = chartData[0].equity;
     let maxDrawdown = 0;
     chartData.forEach(point => {
@@ -223,7 +211,6 @@ export default function Backtests() {
       if (dd > maxDrawdown) maxDrawdown = dd;
     });
 
-    // Profit Factor: sum of profits / sum of losses
     let grossProfit = 0, grossLoss = 0;
     backtestResults.individuals.forEach(ind => {
       if ((ind.metrics?.totalProfit || 0) >= 0) grossProfit += ind.metrics.totalProfit;
@@ -234,7 +221,6 @@ export default function Backtests() {
     return { initialBalance, finalBalance, totalProfit, totalTrades, winRate, maxDrawdown, profitFactor };
   }, [backtestResults.individuals, chartData]);
 
-  // --- Individual Charts ---
   const individualCharts = useMemo(() => {
     if (!backtestResults.individuals?.length) return [];
     return backtestResults.individuals.map(ind => ({
@@ -266,12 +252,12 @@ export default function Backtests() {
               {strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
             </select>
           </label>
-          <label>Symbol: 
+          <label>Symbol:
             <select name="symbol" value={formData.symbol} onChange={handleFormChange}>
               {symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </label>
-          <label>Timeframe: 
+          <label>Timeframe:
             <select name="timeframe" value={formData.timeframe} onChange={handleFormChange}>
               {timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
@@ -282,7 +268,9 @@ export default function Backtests() {
           <label>Stop Loss (%): <input type="number" name="param_SL" value={formData.params.SL || 0} onChange={handleFormChange} /></label>
           <label>Take Profit (%): <input type="number" name="param_TP" value={formData.params.TP || 0} onChange={handleFormChange} /></label>
           <label>Trailing Stop (%): <input type="number" name="param_trailingStop" value={formData.params.trailingStop || 0} onChange={handleFormChange} /></label>
-          <button type="submit">{loading === 'running' ? "Running..." : "Run Single Backtest"}</button>
+          <button type="submit" disabled={loading === 'running'}>
+            {loading === 'running' ? "Running..." : "Run Single Backtest"}
+          </button>
         </form>
 
         {/* Combined Strategy */}
@@ -301,7 +289,7 @@ export default function Backtests() {
               {comboData.strategyConfigs.length > 1 && <button type="button" onClick={() => removeStrategyFromCombo(idx)}>Remove</button>}
             </div>
           ))}
-          <button type="button" onClick={addStrategyToCombo}>Add Strategy</button>
+          <button type="button" onClick={addStrategyToCombo} disabled={loading === 'running'}>Add Strategy</button>
           <label>Symbol: <select name="symbol" value={comboData.symbol} onChange={(e) => handleComboChange(e, 0)}>
             {symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
           </select></label>
@@ -311,55 +299,59 @@ export default function Backtests() {
           <label>Start Date: <input type="date" name="startDate" value={comboData.startDate} onChange={(e) => handleComboChange(e, 0)} /></label>
           <label>End Date: <input type="date" name="endDate" value={comboData.endDate} onChange={(e) => handleComboChange(e, 0)} /></label>
           <label>Initial Balance: <input type="number" name="initialBalance" value={comboData.initialBalance} onChange={(e) => handleComboChange(e, 0)} /></label>
-          <button type="submit">{loading === 'running' ? "Running..." : "Run Combined Backtest"}</button>
+          <button type="submit" disabled={loading === 'running'}>
+            {loading === 'running' ? "Running..." : "Run Combined Backtest"}
+          </button>
         </form>
       </div>
 
-      {/* Charts */}
-      {chartData.length > 0 && (
-        <div className="charts-container">
-          <h2>Combined Equity Curve</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Line type="monotone" dataKey="equity" stroke="#22c55e" />
-            </LineChart>
-          </ResponsiveContainer>
+      {/* Metrics */}
+      <MetricsDisplay metrics={combinedMetrics} />
 
-          <h3>Win/Loss Distribution</h3>
-          <ResponsiveContainer width="100%" height={250}>
+      {/* Equity Curve */}
+      <div className="chart-container">
+        <h2>Equity Curve</h2>
+        <ResponsiveContainer width="100%" height={400}>
+          <LineChart data={chartData}>
+            <XAxis dataKey="date" />
+            <YAxis />
+            <CartesianGrid stroke="#ccc" />
+            <Tooltip />
+            <Line type="monotone" dataKey="equity" stroke="#3b82f6" />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Win/Loss Pie */}
+      {pieData.length > 0 && (
+        <div className="chart-container">
+          <h2>Win/Loss Distribution</h2>
+          <ResponsiveContainer width="100%" height={300}>
             <PieChart>
-              <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                {pieData.map((entry, idx) => <Cell key={idx} fill={entry.color} />)}
+              <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={100} label>
+                {pieData.map((entry, idx) => <Cell key={`cell-${idx}`} fill={entry.color} />)}
               </Pie>
             </PieChart>
           </ResponsiveContainer>
-
-          <h3>Combined Metrics</h3>
-          <MetricsDisplay metrics={combinedMetrics} />
         </div>
       )}
 
-      {/* Individual Charts */}
-      {individualCharts.map((c, idx) => (
-        <div key={idx} className="individual-chart">
-          <h3>{c.code} Equity Curve</h3>
+      {/* Individual Strategy Charts */}
+      {individualCharts.map((ind, idx) => (
+        <div key={idx} className="chart-container">
+          <h3>{ind.code} Equity Curve</h3>
           <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={c.data}>
-              <CartesianGrid strokeDasharray="3 3" />
+            <LineChart data={ind.data}>
               <XAxis dataKey="date" />
               <YAxis />
+              <CartesianGrid stroke="#ccc" />
               <Tooltip />
               <Line type="monotone" dataKey="equity" stroke={COLORS[idx % COLORS.length]} />
             </LineChart>
           </ResponsiveContainer>
-          <h4>Metrics</h4>
-          <MetricsDisplay metrics={c.metrics} />
         </div>
       ))}
+
     </div>
   );
 }
