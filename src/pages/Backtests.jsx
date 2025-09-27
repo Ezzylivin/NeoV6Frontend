@@ -112,7 +112,7 @@ export default function Backtests() {
     else if (name.startsWith("param_")) {
       const key = name.replace("param_", "");
       newConfigs[idx].params[key] = Number(value) || 0;
-    }
+    } else newConfigs[idx][name] = value;
     setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
   };
 
@@ -171,11 +171,70 @@ export default function Backtests() {
     } catch (err) { console.error(err); }
   };
 
+  // --- Combined Chart Data ---
   const chartData = useMemo(() => {
-    if (!backtestResults.main?.equityCurve?.length) return [{ date: new Date(), equity: backtestResults.main?.metrics?.initialBalance || 1000 }];
-    return backtestResults.main.equityCurve.map(d => ({ date: d.timestamp || d.date, equity: d.balance || d.equity || 0 }));
-  }, [backtestResults.main?.equityCurve]);
+    if (!backtestResults.individuals?.length) {
+      return backtestResults.main?.equityCurve?.length
+        ? backtestResults.main.equityCurve.map(d => ({ date: d.timestamp || d.date, equity: d.balance || d.equity || 0 }))
+        : [{ date: new Date(), equity: backtestResults.main?.metrics?.initialBalance || 1000 }];
+    }
 
+    // Merge individual equity curves by timestamp
+    const allTimestamps = [...new Set(backtestResults.individuals.flatMap(ind => ind.equityCurve.map(d => d.timestamp || d.date)))].sort();
+    const merged = allTimestamps.map(ts => {
+      let totalEquity = 0;
+      backtestResults.individuals.forEach(ind => {
+        const lastPoint = ind.equityCurve.filter(p => (p.timestamp || p.date) <= ts).slice(-1)[0];
+        totalEquity += lastPoint ? (lastPoint.balance || lastPoint.equity || 0) : 0;
+      });
+      return { date: ts, equity: totalEquity };
+    });
+    return merged;
+  }, [backtestResults.individuals, backtestResults.main]);
+
+  // --- Dynamic combined metrics ---
+  const combinedMetrics = useMemo(() => {
+    if (!backtestResults.individuals?.length || !chartData.length) return backtestResults.main?.metrics || {};
+
+    const initialBalance = backtestResults.individuals.reduce(
+      (sum, ind) => sum + (ind.metrics?.initialBalance || 0), 0
+    );
+
+    const finalBalance = chartData[chartData.length - 1].equity;
+
+    const totalProfit = finalBalance - initialBalance;
+
+    const totalTrades = backtestResults.individuals.reduce(
+      (sum, ind) => sum + (ind.metrics?.totalTrades || 0), 0
+    );
+
+    const totalWins = backtestResults.individuals.reduce(
+      (sum, ind) => sum + ((ind.metrics?.totalTrades || 0) * ((ind.metrics?.winRate || 0) / 100)), 0
+    );
+
+    const winRate = totalTrades ? (totalWins / totalTrades) * 100 : 0;
+
+    // Max Drawdown calculation
+    let peak = chartData[0].equity;
+    let maxDrawdown = 0;
+    chartData.forEach(point => {
+      if (point.equity > peak) peak = point.equity;
+      const dd = peak - point.equity;
+      if (dd > maxDrawdown) maxDrawdown = dd;
+    });
+
+    // Profit Factor: sum of profits / sum of losses
+    let grossProfit = 0, grossLoss = 0;
+    backtestResults.individuals.forEach(ind => {
+      if ((ind.metrics?.totalProfit || 0) >= 0) grossProfit += ind.metrics.totalProfit;
+      else grossLoss += Math.abs(ind.metrics?.totalProfit || 0);
+    });
+    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit;
+
+    return { initialBalance, finalBalance, totalProfit, totalTrades, winRate, maxDrawdown, profitFactor };
+  }, [backtestResults.individuals, chartData]);
+
+  // --- Individual Charts ---
   const individualCharts = useMemo(() => {
     if (!backtestResults.individuals?.length) return [];
     return backtestResults.individuals.map(ind => ({
@@ -186,12 +245,12 @@ export default function Backtests() {
   }, [backtestResults.individuals]);
 
   const pieData = useMemo(() => {
-    const metrics = backtestResults.main?.metrics || {};
+    const metrics = combinedMetrics || {};
     if (!metrics.totalTrades) return [];
     const wins = metrics.totalTrades * (metrics.winRate / 100);
     const losses = metrics.totalTrades - wins;
     return [{ name: "Win", value: wins, color: COLORS[0] }, { name: "Loss", value: losses, color: COLORS[1] }];
-  }, [backtestResults.main?.metrics]);
+  }, [combinedMetrics]);
 
   return (
     <div className="dashboard-container">
@@ -257,7 +316,7 @@ export default function Backtests() {
       </div>
 
       {/* Charts */}
-      {backtestResults.main && (
+      {chartData.length > 0 && (
         <div className="charts-container">
           <h2>Combined Equity Curve</h2>
           <ResponsiveContainer width="100%" height={300}>
@@ -280,7 +339,7 @@ export default function Backtests() {
           </ResponsiveContainer>
 
           <h3>Combined Metrics</h3>
-          <MetricsDisplay metrics={backtestResults.main.metrics} />
+          <MetricsDisplay metrics={combinedMetrics} />
         </div>
       )}
 
