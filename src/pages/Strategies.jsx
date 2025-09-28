@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useContext } from "react";
+import React, { useState, useEffect, useContext, useCallback } from "react";
+import api from "../api/apiClient.js";
 import { StrategyContext } from "../context/StrategyContext.jsx";
 import "./Strategies.css";
 
@@ -16,7 +17,7 @@ const strategyGuides = {
     "Ichimoku Cloud": { title: "Ichimoku Cloud", whatItIs: "A comprehensive, all-in-one indicator showing trend, momentum, and support/resistance.", howItWorks: "A common bullish signal is when the price is above the cloud, and the conversion line crosses above the base line.", combineWith: "It's a complete system, but can be paired with RSI to confirm entries." }
 };
 
-// --- Default new strategy state ---
+// --- Default new strategy ---
 const initialStrategyState = {
     name: "",
     description: "",
@@ -26,18 +27,37 @@ const initialStrategyState = {
 const Strategies = () => {
     const {
         strategies,
+        setStrategies,
         comboStrategies,
-        createStrategy,
-        createComboStrategy,
-        deleteStrategy,
-        deleteComboStrategy,
+        setComboStrategies,
         loading,
+        setLoading,
         error,
+        setError,
         success,
-        fetchStrategies,
+        setSuccess
     } = useContext(StrategyContext);
 
     const [newStrategy, setNewStrategy] = useState(initialStrategyState);
+
+    const fetchStrategies = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const [singleRes, comboRes] = await Promise.all([
+                api.get("/strategy"),
+                api.get("/combos")
+            ]);
+            setStrategies(singleRes.data?.strategies || singleRes.data || []);
+            setComboStrategies(comboRes.data?.combos || comboRes.data || []);
+        } catch (err) {
+            const errorMessage = err.response?.data?.message || err.message;
+            console.error("❌ Error fetching strategies:", errorMessage);
+            setError(errorMessage);
+        } finally {
+            setLoading(false);
+        }
+    }, [setLoading, setError, setStrategies, setComboStrategies]);
 
     useEffect(() => {
         fetchStrategies();
@@ -70,18 +90,29 @@ const Strategies = () => {
 
     const handleCreateStrategy = async (e) => {
         e.preventDefault();
-        const success = await createStrategy(newStrategy);
-        if (success) {
+        setLoading(true);
+        setError(null);
+        setSuccess(null);
+        try {
+            const res = await api.post("/strategy", newStrategy);
+            setStrategies(prev => [...prev, res.data.strategy]);
             setNewStrategy(initialStrategyState);
+            setSuccess("Strategy created successfully!");
+            setTimeout(() => setSuccess(null), 3000);
+        } catch (err) {
+            const errorMessage = err.response?.data?.message || err.message;
+            console.error("❌ Error creating strategy:", errorMessage);
+            setError(errorMessage);
+        } finally {
+            setLoading(false);
         }
     };
 
     const handleAddCombo = () => {
-        // This should ideally open a modal or navigate to a new page for combo creation
         alert("Combo strategy creation UI not yet implemented.");
     };
 
-    const formatLabel = (key) => key.replace(/([A-Z])/g, " $1").replace(/^./, str => str.toUpperCase());
+    const formatLabel = (key) => key.replace(/([A-Z])/g, " $1").replace(/^./, s => s.toUpperCase());
 
     if (loading && strategies.length === 0) return <p className="loading-banner">⏳ Loading strategies...</p>;
 
@@ -109,7 +140,7 @@ const Strategies = () => {
                     <fieldset className="parameters-form">
                         <legend>Parameters</legend>
                         {Object.entries(newStrategy.params).filter(([k]) => k !== "strategyType").map(([k, v]) => (
-                            <label key={k}>{formatLabel(k)}: <input type="number" name={k} value={v} onChange={handleStrategyChange} step="0.1" /></label>
+                            <label key={k}>{formatLabel(k)}: <input type="number" name={k} value={v} onChange={handleStrategyChange} step="0.1"/></label>
                         ))}
                     </fieldset>
                     <button type="submit" className="button-add" disabled={loading}>
@@ -135,11 +166,10 @@ const Strategies = () => {
                             <li key={s._id} className="strategy-card">
                                 <span className="strategy-name">{s.name}</span>
                                 <span className="strategy-type">{s.params?.strategyType}</span>
-                                <button onClick={() => deleteStrategy(s._id)} className="delete-button">🗑️</button>
                             </li>
                         ))}
                     </ul>
-                ) : <p className="no-strategies">No single strategies yet. Create your first one above!</p>}
+                ) : !loading && <p className="no-strategies">No strategies yet. Create your first one above!</p>}
             </div>
 
             <div>
@@ -148,19 +178,18 @@ const Strategies = () => {
                 {comboStrategies.length > 0 ? (
                     <ul className="strategy-list">
                         {comboStrategies.map(c => {
-                             const strategyNames = Array.isArray(c.strategies)
-                                ? c.strategies.map(s => s.name || "Unknown").join(" + ")
+                            const strategyNames = Array.isArray(c.strategies)
+                                ? c.strategies.map(s => s.params?.strategyType || s.name || "Unknown").join(" + ")
                                 : c.comboConfig?.strategyCodes?.join(" + ") || "No strategies";
                             return (
-                                <li key={c._id} className="strategy-card">
+                                <li key={c._id || Math.random()} className="strategy-card">
                                     <span className="strategy-name">{c.name}</span>
                                     <span className="strategy-type">{strategyNames}</span>
-                                    <button onClick={() => deleteComboStrategy(c._id)} className="delete-button">🗑️</button>
                                 </li>
                             );
                         })}
                     </ul>
-                ) : <p className="no-strategies">No combo strategies yet.</p>}
+                ) : !loading && <p className="no-strategies">No combo strategies yet.</p>}
             </div>
         </div>
     );
