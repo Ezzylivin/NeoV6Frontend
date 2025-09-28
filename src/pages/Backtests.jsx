@@ -26,16 +26,28 @@ const getDefaultDates = () => {
 };
 
 const initialFormData = {
-    code: "", symbol: "", timeframe: "", startDate: getDefaultDates().startDate,
-    endDate: getDefaultDates().endDate, initialBalance: 1000, params: {},
-    riskManagementMode: 'standard', riskPercentage: 1, growthCapitalTarget: 2000,
+    code: "",
+    symbol: "",
+    timeframe: "",
+    startDate: getDefaultDates().startDate,
+    endDate: getDefaultDates().endDate,
+    initialBalance: 1000,
+    params: {},
+    riskManagementMode: 'standard',
+    riskPercentage: 1,
+    growthCapitalTarget: 2000,
 };
 
 const initialComboData = {
-    strategyConfigs: [{ code: "", params: {} }], symbol: "", timeframe: "",
-    startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate,
-    initialBalance: 1000, riskManagementMode: 'standard',
-    riskPercentage: 1, growthCapitalTarget: 2000,
+    strategyConfigs: [{ code: "", params: {} }],
+    symbol: "",
+    timeframe: "",
+    startDate: getDefaultDates().startDate,
+    endDate: getDefaultDates().endDate,
+    initialBalance: 1000,
+    riskManagementMode: 'standard',
+    riskPercentage: 1,
+    growthCapitalTarget: 2000,
 };
 
 // --- Sub-components ---
@@ -114,6 +126,7 @@ export default function Backtests() {
     const { state, runNewBacktest, runComboBacktest } = useBacktest();
     const { loading, error, options } = state;
     const { createSetup } = useBacktestSetupFunction();
+    const { strategies: contextStrategies } = useContext(StrategyContext);
 
     const [formData, setFormData] = useState(initialFormData);
     const [comboData, setComboData] = useState(initialComboData);
@@ -121,17 +134,17 @@ export default function Backtests() {
     const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
     const [setupDetails, setSetupDetails] = useState({ name: "", description: "" });
 
-    const strategyOptions = useMemo(() => options?.strategies || [], [options]);
+    const strategyOptions = useMemo(() => contextStrategies || [], [contextStrategies]);
     const symbolOptions = useMemo(() => options?.symbols || [], [options]);
     const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
 
     useEffect(() => {
-        if (strategyOptions.length > 0 && !formData.code) {
+        if (strategyOptions.length > 0 && symbolOptions.length > 0 && !formData.code) {
             const firstStrategy = strategyOptions[0];
-            const firstSymbol = symbolOptions[0] || "";
-            const firstTimeframe = timeframeOptions[0] || "";
-            setFormData(prev => ({ ...prev, code: firstStrategy?.code, params: firstStrategy?.params || {}, symbol: firstSymbol, timeframe: firstTimeframe }));
-            setComboData(prev => ({ ...prev, strategyConfigs: [{ code: firstStrategy?.code, params: firstStrategy?.params || {} }], symbol: firstSymbol, timeframe: firstTimeframe }));
+            const firstSymbol = symbolOptions[0];
+            const firstTimeframe = timeframeOptions[0] || "1m";
+            setFormData(prev => ({ ...prev, code: firstStrategy.code, params: firstStrategy.params || {}, symbol: firstSymbol, timeframe: firstTimeframe }));
+            setComboData(prev => ({ ...prev, strategyConfigs: [{ code: firstStrategy.code, params: firstStrategy.params || {} }], symbol: firstSymbol, timeframe: firstTimeframe }));
         }
     }, [strategyOptions, symbolOptions, timeframeOptions]);
 
@@ -283,26 +296,31 @@ export default function Backtests() {
                         </select>
                     </label>
                     <CommonBacktestInputs data={formData} onChange={handleFormChange} options={{symbolOptions, timeframeOptions}} />
-                    {Object.keys(formData.params).map(key => (
-                        <label key={key}>{key}: <input type="number" name={`param_${key}`} value={formData.params[key]} onChange={handleFormChange} step="0.1" /></label>
-                    ))}
+                    <fieldset><legend>Strategy Parameters</legend>
+                        {Object.keys(formData.params).map(key => (
+                            <label key={key}>{key}: <input type="number" name={`param_${key}`} value={formData.params[key]} onChange={handleFormChange} step="0.1" /></label>
+                        ))}
+                    </fieldset>
                     <button type="submit" disabled={loading === 'running'}>{loading === 'running' ? "Running..." : "Run Single Backtest"}</button>
                 </form>
 
                 <form className="backtest-form" onSubmit={handleComboSubmit}>
                     <h2>Combined Strategy Backtest</h2>
                     {comboData.strategyConfigs.map((config, idx) => (
-                        <div key={idx} className="combo-strategy-row">
-                            <label>Strategy {idx + 1}:
-                                <select name="strategyCode" value={config.code} onChange={(e) => handleComboChange(e, idx)}>
-                                    {strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
-                                </select>
-                            </label>
-                            {Object.keys(config.params).map(key => (
-                                <label key={key}>{key}: <input type="number" name={`param_${key}`} value={config.params[key]} onChange={(e) => handleComboChange(e, idx)} step="0.1" /></label>
-                            ))}
-                            {comboData.strategyConfigs.length > 1 && <button type="button" onClick={() => removeStrategyFromCombo(idx)}>Remove</button>}
-                        </div>
+                        <fieldset key={idx} className="combo-strategy-row">
+                            <legend>Strategy {idx + 1}</legend>
+                            <div className="combo-strategy-inputs">
+                                <label>Strategy:
+                                    <select name="strategyCode" value={config.code} onChange={(e) => handleComboChange(e, idx)}>
+                                        {strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
+                                    </select>
+                                </label>
+                                {Object.keys(config.params).map(key => (
+                                    <label key={key}>{key}: <input type="number" name={`param_${key}`} value={config.params[key]} onChange={(e) => handleComboChange(e, idx)} step="0.1" /></label>
+                                ))}
+                                {comboData.strategyConfigs.length > 1 && <button type="button" onClick={() => removeStrategyFromCombo(idx)}>Remove</button>}
+                            </div>
+                        </fieldset>
                     ))}
                     <button type="button" onClick={addStrategyToCombo}>Add Strategy</button>
                     <CommonBacktestInputs data={comboData} onChange={(e) => handleComboChange(e, null)} options={{symbolOptions, timeframeOptions}} />
