@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext, useCallback } from "react";
 import api from "../api/apiClient.js";
 import { StrategyContext } from "../context/StrategyContext.jsx";
+import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx"; // ✅ 1. Import the hook
 import "./Strategies.css";
 
 // --- Strategy Guides ---
@@ -26,17 +27,12 @@ const initialStrategyState = {
 
 const Strategies = () => {
     const {
-        strategies,
-        setStrategies,
-        comboStrategies,
-        setComboStrategies,
-        loading,
-        setLoading,
-        error,
-        setError,
-        success,
-        setSuccess
+        strategies, setStrategies, comboStrategies, setComboStrategies,
+        loading, setLoading, error, setError, success, setSuccess
     } = useContext(StrategyContext);
+    
+    // ✅ 2. Consume the hook to get the list of saved setups
+    const { setups } = useBacktestSetupFunction();
 
     const [newStrategy, setNewStrategy] = useState(initialStrategyState);
 
@@ -66,7 +62,6 @@ const Strategies = () => {
     const handleStrategyChange = (e) => {
         const { name, value, type } = e.target;
         const finalValue = type === 'number' ? Number(value) : value;
-
         if (name === "strategyType") {
             const defaultParams = {
                 "Moving Average Crossover": { strategyType: value, shortPeriod: 10, longPeriod: 50, SL: 1, TP: 2 },
@@ -190,6 +185,29 @@ const Strategies = () => {
                         })}
                     </ul>
                 ) : !loading && <p className="no-strategies">No combo strategies yet.</p>}
+            </div>
+
+            {/* ✅ 3. Add the new display section for Saved Setups */}
+            <div>
+                <h2 className="card-title">Saved Backtest Setups</h2>
+                {setups.length > 0 ? (
+                    <ul className="strategy-list">
+                        {setups.map(setup => {
+                            const setupType = setup.isCombo ? 'Combo' : 'Single';
+                            const setupStrategies = setup.isCombo
+                                ? setup.comboConfig?.strategyCodes?.join(' + ')
+                                : strategies.find(s => s._id === setup.strategyId)?.name || 'Unknown Strategy';
+                            return (
+                                <li key={setup._id} className="strategy-card">
+                                    <span className="strategy-name">{setup.name} ({setupType})</span>
+                                    <span className="strategy-type">
+                                        {setup.symbol} @ {setup.timeframe} | {setupStrategies}
+                                    </span>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                ) : !loading && <p className="no-strategies">No backtest setups saved yet.</p>}
             </div>
         </div>
     );
