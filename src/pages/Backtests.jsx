@@ -26,28 +26,16 @@ const getDefaultDates = () => {
 };
 
 const initialFormData = {
-    code: "",
-    symbol: "",
-    timeframe: "",
-    startDate: getDefaultDates().startDate,
-    endDate: getDefaultDates().endDate,
-    initialBalance: 1000,
-    params: {},
-    riskManagementMode: 'standard',
-    riskPercentage: 1,
-    growthCapitalTarget: 2000,
+    code: "", symbol: "", timeframe: "", startDate: getDefaultDates().startDate,
+    endDate: getDefaultDates().endDate, initialBalance: 1000, params: {},
+    riskManagementMode: 'standard', riskPercentage: 1, growthCapitalTarget: 2000,
 };
 
 const initialComboData = {
-    strategyConfigs: [{ code: "", params: {} }],
-    symbol: "",
-    timeframe: "",
-    startDate: getDefaultDates().startDate,
-    endDate: getDefaultDates().endDate,
-    initialBalance: 1000,
-    riskManagementMode: 'standard',
-    riskPercentage: 1,
-    growthCapitalTarget: 2000,
+    strategyConfigs: [{ code: "", params: {} }], symbol: "", timeframe: "",
+    startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate,
+    initialBalance: 1000, riskManagementMode: 'standard',
+    riskPercentage: 1, growthCapitalTarget: 2000,
 };
 
 // --- Sub-components ---
