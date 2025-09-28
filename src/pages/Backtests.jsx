@@ -285,7 +285,18 @@ export default function Backtests() {
                     </label>
                     <CommonBacktestInputs data={formData} onChange={handleFormChange} options={{symbolOptions, timeframeOptions}} />
                     <fieldset><legend>Strategy Parameters</legend>
-                        {Object.keys(formData.params).map(key => (
+                        {/* ✅ NEW: Explicit SL/TP/Trailing inputs */}
+                        <label>Stop Loss (%):
+                            <input type="number" name="param_SL" value={formData.params.SL || 0} onChange={handleFormChange} step="0.1" />
+                        </label>
+                        <label>Take Profit (%):
+                            <input type="number" name="param_TP" value={formData.params.TP || 0} onChange={handleFormChange} step="0.1" />
+                        </label>
+                        <label>Trailing Stop (%):
+                            <input type="number" name="param_trailingStop" value={formData.params.trailingStop || 0} onChange={handleFormChange} step="0.1" />
+                        </label>
+                        {/* Filter out the explicit params from the dynamic list */}
+                        {Object.keys(formData.params).filter(key => !['SL', 'TP', 'trailingStop', 'strategyType'].includes(key)).map(key => (
                             <label key={key}>{key}: <input type="number" name={`param_${key}`} value={formData.params[key]} onChange={handleFormChange} step="0.1" /></label>
                         ))}
                     </fieldset>
@@ -303,7 +314,19 @@ export default function Backtests() {
                                         {strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
                                     </select>
                                 </label>
-                                {Object.keys(config.params).map(key => (
+                                
+                                {/* ✅ NEW: Explicit SL/TP/Trailing inputs for each strategy in combo */}
+                                <label>Stop Loss (%):
+                                    <input type="number" name="param_SL" value={config.params.SL || 0} onChange={(e) => handleComboChange(e, idx)} step="0.1" />
+                                </label>
+                                <label>Take Profit (%):
+                                    <input type="number" name="param_TP" value={config.params.TP || 0} onChange={(e) => handleComboChange(e, idx)} step="0.1" />
+                                </label>
+                                <label>Trailing Stop (%):
+                                    <input type="number" name="param_trailingStop" value={config.params.trailingStop || 0} onChange={(e) => handleComboChange(e, idx)} step="0.1" />
+                                </label>
+                                
+                                {Object.keys(config.params).filter(key => !['SL', 'TP', 'trailingStop', 'strategyType'].includes(key)).map(key => (
                                     <label key={key}>{key}: <input type="number" name={`param_${key}`} value={config.params[key]} onChange={(e) => handleComboChange(e, idx)} step="0.1" /></label>
                                 ))}
                                 {comboData.strategyConfigs.length > 1 && <button type="button" onClick={() => removeStrategyFromCombo(idx)}>Remove</button>}
