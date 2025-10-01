@@ -70,7 +70,7 @@ const MetricsDisplay = ({ metrics }) => {
     );
 };
 
-// --- Common Inputs for Symbol, Timeframe, Dates, Balance, Risk, ML ---
+// --- Common Inputs Component ---
 const CommonBacktestInputs = ({ data, onChange, options }) => (
     <>
         <label>Symbol:
@@ -218,8 +218,8 @@ export default function Backtests() {
     const handleComboChange = (e, idx) => {
         const { name, value, type } = e.target;
         const finalValue = type === 'number' ? Number(value) : value;
+        const newConfigs = [...comboData.strategyConfigs];
         if (idx !== null) {
-            const newConfigs = [...comboData.strategyConfigs];
             if (name === "strategyCode") {
                 const selectedStrategy = strategyOptions.find(s => s.code === finalValue);
                 newConfigs[idx] = { code: finalValue, params: selectedStrategy?.params || {} };
@@ -228,7 +228,9 @@ export default function Backtests() {
                 newConfigs[idx].params = { ...newConfigs[idx].params, [key]: finalValue };
             }
             setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
-        } else setComboData(prev => ({ ...prev, [name]: finalValue }));
+        } else {
+            setComboData(prev => ({ ...prev, [name]: finalValue }));
+        }
     };
 
     const addStrategyToCombo = () => {
@@ -291,10 +293,13 @@ export default function Backtests() {
             const mainCurve = backtestResults.main?.equityCurve?.map(d => ({ timestamp: d.timestamp, balance: d.balance })) || [];
             return { combinedEquityCurve: mainCurve, combinedMetrics: mainMetrics };
         }
+
         const allTimestamps = [...new Set(individuals.flatMap(ind => ind.equityCurve?.map(d => d.timestamp) || []))].sort();
         if (!allTimestamps.length) return { combinedEquityCurve: [], combinedMetrics: null };
+
         const initialBalance = comboData.initialBalance;
         let lastBalances = individuals.map(ind => ind.metrics.initialBalance);
+
         const curve = allTimestamps.map(ts => {
             let currentTotal = 0;
             individuals.forEach((ind, idx) => {
@@ -304,17 +309,21 @@ export default function Backtests() {
             });
             return { timestamp: ts, balance: currentTotal };
         });
+
         const finalBalance = curve.length ? curve[curve.length - 1].balance : initialBalance;
         const totalProfit = finalBalance - initialBalance;
         const totalTrades = individuals.reduce((sum, ind) => sum + ind.metrics.totalTrades, 0);
         const winningTrades = individuals.reduce((sum, ind) => sum + ind.metrics.winningTrades, 0);
         const winRate = totalTrades ? (winningTrades / totalTrades) * 100 : 0;
+
         let peak = initialBalance, maxDrawdownValue = 0;
         curve.forEach(p => { if (p.balance > peak) peak = p.balance; const dd = peak - p.balance; if (dd > maxDrawdownValue) maxDrawdownValue = dd; });
         const maxDrawdown = peak ? (maxDrawdownValue / peak) * 100 : 0;
+
         const grossProfit = individuals.reduce((sum, ind) => sum + (ind.metrics.winningTrades * ind.metrics.averageWin), 0);
         const grossLoss = individuals.reduce((sum, ind) => sum + (ind.metrics.losingTrades * ind.metrics.averageLoss), 0);
         const profitFactor = grossLoss ? grossProfit / grossLoss : Infinity;
+
         return { combinedEquityCurve: curve, combinedMetrics: { initialBalance, finalBalance, totalProfit, totalTrades, winRate, maxDrawdown, profitFactor } };
     }, [backtestResults, comboData.initialBalance]);
 
@@ -330,14 +339,9 @@ export default function Backtests() {
             {error && <div className="error-box"><h4>Error</h4><p>{error.status && `Status ${error.status}: `}{error.message}</p></div>}
 
             <div className="forms-container">
-                {/* Single Strategy Backtest */}
+                {/* Single Strategy */}
                 <form className="backtest-form" onSubmit={handleSingleSubmit}>
                     <h2>Single Strategy Backtest</h2>
-                    <label>Strategy:
-                        <select name="code" value={formData.code} onChange={handleFormChange}>
-                            {strategyOptions.length ? strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option>Loading strategies...</option>}
-                        </select>
-                    </label>
                     <CommonBacktestInputs data={formData} onChange={handleFormChange} options={{symbolOptions, timeframeOptions}} />
                     <fieldset>
                         <legend>Strategy Parameters</legend>
@@ -347,7 +351,7 @@ export default function Backtests() {
                     <button type="submit">Run Backtest</button>
                 </form>
 
-                {/* Combo Strategy Backtest */}
+                {/* Combo Strategy */}
                 <form className="backtest-form" onSubmit={handleComboSubmit}>
                     <h2>Combo Strategy Backtest</h2>
                     {comboData.strategyConfigs.map((config, idx) => (
@@ -367,7 +371,7 @@ export default function Backtests() {
                 </form>
             </div>
 
-            {/* Results Section */}
+            {/* Results */}
             <div className="results-section">
                 <h2>Backtest Results</h2>
                 <MetricsDisplay metrics={combinedMetrics} />
