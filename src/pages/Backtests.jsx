@@ -1,3 +1,4 @@
+// File: src/pages/Backtests.jsx
 import React, { useState, useEffect, useMemo, useContext } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
@@ -29,6 +30,7 @@ const initialFormData = {
     code: "", symbol: "", timeframe: "", startDate: getDefaultDates().startDate,
     endDate: getDefaultDates().endDate, initialBalance: 1000, params: {},
     riskManagementMode: 'standard', riskPercentage: 1, growthCapitalTarget: 2000,
+    mlMode: "off", mlModel: "default", mlThreshold: 0.5, mlHorizon: 1
 };
 
 const initialComboData = {
@@ -36,6 +38,7 @@ const initialComboData = {
     startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate,
     initialBalance: 1000, riskManagementMode: 'standard',
     riskPercentage: 1, growthCapitalTarget: 2000,
+    mlMode: "off", mlModel: "default", mlThreshold: 0.5, mlHorizon: 1
 };
 
 // --- Sub-components ---
@@ -83,6 +86,7 @@ const CommonBacktestInputs = ({ data, onChange, options }) => (
         <label>Start Date: <input type="date" name="startDate" value={data.startDate} onChange={onChange} /></label>
         <label>End Date: <input type="date" name="endDate" value={data.endDate} onChange={onChange} /></label>
         <label>Initial Balance: <input type="number" name="initialBalance" value={data.initialBalance} onChange={onChange} /></label>
+
         <fieldset>
             <legend>Risk Management</legend>
             <label>Mode:
@@ -102,6 +106,47 @@ const CommonBacktestInputs = ({ data, onChange, options }) => (
                     </label>
                     <label>Risk % (After Target):
                         <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={onChange} step="0.1" />
+                    </label>
+                </>
+            )}
+        </fieldset>
+
+        <fieldset>
+            <legend>Machine Learning</legend>
+            <label>Mode:
+                <select name="mlMode" value={data.mlMode || "off"} onChange={onChange}>
+                    <option value="off">Off (No ML)</option>
+                    <option value="predictions">Use ML Predictions</option>
+                    <option value="hybrid">Hybrid (Strategy + ML)</option>
+                </select>
+            </label>
+            {data.mlMode !== "off" && (
+                <>
+                    <label>Model:
+                        <select name="mlModel" value={data.mlModel || "default"} onChange={onChange}>
+                            <option value="default">Main Model</option>
+                        </select>
+                    </label>
+                    <label>Confidence Threshold:
+                        <input
+                            type="number"
+                            name="mlThreshold"
+                            value={data.mlThreshold || 0.5}
+                            step="0.01"
+                            min="0"
+                            max="1"
+                            onChange={onChange}
+                        />
+                    </label>
+                    <label>Prediction Horizon:
+                        <input
+                            type="number"
+                            name="mlHorizon"
+                            value={data.mlHorizon || 1}
+                            step="1"
+                            min="1"
+                            onChange={onChange}
+                        />
                     </label>
                 </>
             )}
@@ -275,7 +320,9 @@ export default function Backtests() {
         <div className="dashboard-container">
             <h1>Backtests</h1>
             {error && <div className="error-box"><h4>Error</h4><p>{error.status && `Status ${error.status}: `}{error.message}</p></div>}
+
             <div className="forms-container">
+                {/* Single Strategy Backtest */}
                 <form className="backtest-form" onSubmit={handleSingleSubmit}>
                     <h2>Single Strategy Backtest</h2>
                     <label>Strategy:
@@ -284,8 +331,8 @@ export default function Backtests() {
                         </select>
                     </label>
                     <CommonBacktestInputs data={formData} onChange={handleFormChange} options={{symbolOptions, timeframeOptions}} />
-                    <fieldset><legend>Strategy Parameters</legend>
-                        {/* ✅ NEW: Explicit SL/TP/Trailing inputs */}
+                    <fieldset>
+                        <legend>Strategy Parameters</legend>
                         <label>Stop Loss (%):
                             <input type="number" name="param_SL" value={formData.params.SL || 0} onChange={handleFormChange} step="0.1" />
                         </label>
@@ -295,117 +342,76 @@ export default function Backtests() {
                         <label>Trailing Stop (%):
                             <input type="number" name="param_trailingStop" value={formData.params.trailingStop || 0} onChange={handleFormChange} step="0.1" />
                         </label>
-                        {/* Filter out the explicit params from the dynamic list */}
-                        {Object.keys(formData.params).filter(key => !['SL', 'TP', 'trailingStop', 'strategyType'].includes(key)).map(key => (
-                            <label key={key}>{key}: <input type="number" name={`param_${key}`} value={formData.params[key]} onChange={handleFormChange} step="0.1" /></label>
-                        ))}
                     </fieldset>
-                    <button type="submit" disabled={loading === 'running'}>{loading === 'running' ? "Running..." : "Run Single Backtest"}</button>
+                    <button type="submit">Run Single Backtest</button>
                 </form>
 
+                {/* Combo Backtest */}
                 <form className="backtest-form" onSubmit={handleComboSubmit}>
-                    <h2>Combined Strategy Backtest</h2>
+                    <h2>Combo Backtest</h2>
                     {comboData.strategyConfigs.map((config, idx) => (
-                        <fieldset key={idx} className="combo-strategy-row">
-                            <legend>Strategy {idx + 1}</legend>
-                            <div className="combo-strategy-inputs">
-                                <label>Strategy:
-                                    <select name="strategyCode" value={config.code} onChange={(e) => handleComboChange(e, idx)}>
-                                        {strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
-                                    </select>
-                                </label>
-                                
-                                {/* ✅ NEW: Explicit SL/TP/Trailing inputs for each strategy in combo */}
-                                <label>Stop Loss (%):
-                                    <input type="number" name="param_SL" value={config.params.SL || 0} onChange={(e) => handleComboChange(e, idx)} step="0.1" />
-                                </label>
-                                <label>Take Profit (%):
-                                    <input type="number" name="param_TP" value={config.params.TP || 0} onChange={(e) => handleComboChange(e, idx)} step="0.1" />
-                                </label>
-                                <label>Trailing Stop (%):
-                                    <input type="number" name="param_trailingStop" value={config.params.trailingStop || 0} onChange={(e) => handleComboChange(e, idx)} step="0.1" />
-                                </label>
-                                
-                                {Object.keys(config.params).filter(key => !['SL', 'TP', 'trailingStop', 'strategyType'].includes(key)).map(key => (
-                                    <label key={key}>{key}: <input type="number" name={`param_${key}`} value={config.params[key]} onChange={(e) => handleComboChange(e, idx)} step="0.1" /></label>
-                                ))}
-                                {comboData.strategyConfigs.length > 1 && <button type="button" onClick={() => removeStrategyFromCombo(idx)}>Remove</button>}
-                            </div>
-                        </fieldset>
+                        <div key={idx} className="strategy-config">
+                            <label>Strategy:
+                                <select name="strategyCode" value={config.code} onChange={(e) => handleComboChange(e, idx)}>
+                                    {strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
+                                </select>
+                            </label>
+                            <label>SL (%):<input type="number" name="param_SL" value={config.params.SL || 0} onChange={(e) => handleComboChange(e, idx)} /></label>
+                            <label>TP (%):<input type="number" name="param_TP" value={config.params.TP || 0} onChange={(e) => handleComboChange(e, idx)} /></label>
+                            <label>Trailing Stop (%):<input type="number" name="param_trailingStop" value={config.params.trailingStop || 0} onChange={(e) => handleComboChange(e, idx)} /></label>
+                            {comboData.strategyConfigs.length > 1 && <button type="button" onClick={() => removeStrategyFromCombo(idx)}>Remove</button>}
+                        </div>
                     ))}
                     <button type="button" onClick={addStrategyToCombo}>Add Strategy</button>
                     <CommonBacktestInputs data={comboData} onChange={(e) => handleComboChange(e, null)} options={{symbolOptions, timeframeOptions}} />
-                    <button type="submit" disabled={loading === 'running_combo'}>{loading === 'running_combo' ? "Running..." : "Run Combined Backtest"}</button>
+                    <button type="submit">Run Combo Backtest</button>
                 </form>
             </div>
 
-            {(backtestResults.main || backtestResults.individuals.length > 0) && (
-                <div className="results-container">
-                    <h2>Combined Results</h2>
-                    <MetricsDisplay metrics={combinedMetrics} />
-                    <div className="chart-container">
-                        <h2>Combined Equity Curve</h2>
-                        <ResponsiveContainer width="100%" height={400}>
+            <div className="results-container">
+                {combinedEquityCurve.length > 0 && (
+                    <>
+                        <h2>Equity Curve</h2>
+                        <ResponsiveContainer width="100%" height={300}>
                             <LineChart data={combinedEquityCurve}>
                                 <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="timestamp" tickFormatter={formatDate} angle={-20} textAnchor="end" height={50} />
-                                <YAxis domain={['dataMin', 'dataMax']} allowDataOverflow={true} />
-                                <Tooltip />
-                                <Legend />
-                                <Line type="monotone" dataKey="balance" name="Combined Equity" stroke={COLORS[4]} dot={false} strokeWidth={2} />
+                                <XAxis dataKey="timestamp" tickFormatter={formatDate} />
+                                <YAxis />
+                                <Tooltip labelFormatter={formatDate} />
+                                <Line type="monotone" dataKey="balance" stroke="#3b82f6" dot={false} />
                             </LineChart>
                         </ResponsiveContainer>
-                    </div>
-                    {pieData.length > 0 && (
-                        <div className="chart-container pie-chart-container">
-                            <h2>Win/Loss Distribution</h2>
-                            <ResponsiveContainer width="100%" height={300}>
-                                <PieChart>
-                                    <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={100} label>
-                                        <Cell key="cell-0" fill={COLORS[0]} />
-                                        <Cell key="cell-1" fill={COLORS[1]} />
-                                    </Pie>
-                                    <Tooltip/>
-                                    <Legend />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        </div>
-                    )}
-                    {backtestResults.individuals.length > 0 && <h2>Individual Results</h2>}
-                    {backtestResults.individuals.map((ind, idx) => (
-                        <div key={ind.strategyCode || idx} className="individual-result-container">
-                            <h3>{ind.strategyName || ind.strategyCode}</h3>
-                            <MetricsDisplay metrics={ind.metrics} />
-                            <div className="chart-container">
-                                <ResponsiveContainer width="100%" height={300}>
-                                    <LineChart data={ind.equityCurve}>
-                                        <CartesianGrid strokeDasharray="3 3" />
-                                        <XAxis dataKey="timestamp" tickFormatter={formatDate} />
-                                        <YAxis domain={['auto', 'auto']} />
-                                        <Tooltip />
-                                        <Line type="monotone" dataKey="balance" name={ind.strategyName || ind.strategyCode} stroke={COLORS[idx % COLORS.length]} dot={false} />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
-                    ))}
-                    <button className="save-setup-btn" onClick={openSaveModal}>Save Backtest Setup</button>
-                </div>
-            )}
 
-            {isSaveModalOpen && (
-                <div className="modal modal-open">
-                    <div className="modal-content">
-                        <h3>Save Backtest Setup</h3>
-                        <label>Name: <input type="text" name="name" value={setupDetails.name} onChange={handleSetupChange} /></label>
-                        <label>Description: <input type="text" name="description" value={setupDetails.description} onChange={handleSetupChange} /></label>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                            <button type="button" onClick={closeSaveModal}>Cancel</button>
-                            <button type="button" onClick={handleSaveSetup}>Save</button>
-                        </div>
-                    </div>
-                </div>
-            )}
+                        <h2>Metrics</h2>
+                        <MetricsDisplay metrics={combinedMetrics} />
+
+                        <h2>Win/Loss Distribution</h2>
+                        <ResponsiveContainer width="100%" height={200}>
+                            <PieChart>
+                                <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={80} label>
+                                    {pieData.map((entry, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
+                                </Pie>
+                                <Legend />
+                            </PieChart>
+                        </ResponsiveContainer>
+
+                        <button onClick={openSaveModal}>Save Backtest Setup</button>
+                        {isSaveModalOpen && (
+                            <div className="modal-overlay">
+                                <div className="modal-content">
+                                    <h3>Save Backtest Setup</h3>
+                                    <form onSubmit={handleSaveSetup}>
+                                        <label>Name:<input type="text" name="name" value={setupDetails.name} onChange={handleSetupChange} required /></label>
+                                        <label>Description:<textarea name="description" value={setupDetails.description} onChange={handleSetupChange}></textarea></label>
+                                        <button type="submit">Save</button>
+                                        <button type="button" onClick={closeSaveModal}>Cancel</button>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
         </div>
     );
 }
