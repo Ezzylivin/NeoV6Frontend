@@ -9,14 +9,13 @@ import {
 } from "recharts";
 import "./Backtests.css";
 
-// --- Constants and Helpers ---
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
 
-const formatDate = (dateString) => {
+const formatDate = dateString => {
     if (!dateString) return '';
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return '';
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
 };
 
 const getDefaultDates = () => {
@@ -41,7 +40,7 @@ const initialComboData = {
     mlMode: "off", mlModel: "default", mlThreshold: 0.5, mlHorizon: 1
 };
 
-// --- Sub-components ---
+// --- Metrics Display ---
 const MetricsDisplay = ({ metrics }) => {
     if (!metrics || metrics.totalTrades === undefined) return <div className="metrics-grid-loading">Calculating metrics...</div>;
     const items = [
@@ -71,16 +70,17 @@ const MetricsDisplay = ({ metrics }) => {
     );
 };
 
+// --- Common Inputs for Symbol, Timeframe, Dates, Balance, Risk, ML ---
 const CommonBacktestInputs = ({ data, onChange, options }) => (
     <>
         <label>Symbol:
-            <select name="symbol" value={data.symbol} onChange={onChange}>
-                {options.symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
+            <select name="symbol" value={data.symbol} onChange={onChange} disabled={!options.symbolOptions.length}>
+                {options.symbolOptions.length ? options.symbolOptions.map(s => <option key={s} value={s}>{s}</option>) : <option>Loading symbols...</option>}
             </select>
         </label>
         <label>Timeframe:
-            <select name="timeframe" value={data.timeframe} onChange={onChange}>
-                {options.timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+            <select name="timeframe" value={data.timeframe} onChange={onChange} disabled={!options.timeframeOptions.length}>
+                {options.timeframeOptions.length ? options.timeframeOptions.map(t => <option key={t} value={t}>{t}</option>) : <option>Loading timeframes...</option>}
             </select>
         </label>
         <label>Start Date: <input type="date" name="startDate" value={data.startDate} onChange={onChange} /></label>
@@ -128,31 +128,42 @@ const CommonBacktestInputs = ({ data, onChange, options }) => (
                         </select>
                     </label>
                     <label>Confidence Threshold:
-                        <input
-                            type="number"
-                            name="mlThreshold"
-                            value={data.mlThreshold || 0.5}
-                            step="0.01"
-                            min="0"
-                            max="1"
-                            onChange={onChange}
-                        />
+                        <input type="number" name="mlThreshold" value={data.mlThreshold || 0.5} step="0.01" min="0" max="1" onChange={onChange}/>
                     </label>
                     <label>Prediction Horizon:
-                        <input
-                            type="number"
-                            name="mlHorizon"
-                            value={data.mlHorizon || 1}
-                            step="1"
-                            min="1"
-                            onChange={onChange}
-                        />
+                        <input type="number" name="mlHorizon" value={data.mlHorizon || 1} step="1" min="1" onChange={onChange}/>
                     </label>
                 </>
             )}
         </fieldset>
     </>
 );
+
+// --- Combo Strategy Card ---
+const ComboStrategyCard = ({ idx, config, strategies, onChange, onRemove, disableRemove }) => {
+    const handleChange = (e) => onChange(e, idx);
+    return (
+        <div className="combo-card">
+            <div className="combo-card-header">
+                <strong>Strategy #{idx + 1}</strong>
+                {!disableRemove && <button type="button" onClick={() => onRemove(idx)}>✕</button>}
+            </div>
+            <div className="combo-card-body">
+                <label>Strategy:
+                    <select name="strategyCode" value={config.code} onChange={handleChange} disabled={!strategies.length}>
+                        {strategies.length ? strategies.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option>Loading strategies...</option>}
+                    </select>
+                </label>
+                <label>Stop Loss (%):
+                    <input type="number" name="param_SL" value={config.params.SL || 0} onChange={handleChange} step="0.1" />
+                </label>
+                <label>Take Profit (%):
+                    <input type="number" name="param_TP" value={config.params.TP || 0} onChange={handleChange} step="0.1" />
+                </label>
+            </div>
+        </div>
+    );
+};
 
 // --- Main Component ---
 export default function Backtests() {
@@ -172,16 +183,27 @@ export default function Backtests() {
     const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
 
     useEffect(() => {
-        if (strategyOptions.length > 0 && symbolOptions.length > 0 && !formData.code) {
-            const firstStrategy = strategyOptions[0];
-            const firstSymbol = symbolOptions[0];
-            const firstTimeframe = timeframeOptions[0] || "1m";
-            setFormData(prev => ({ ...prev, code: firstStrategy.code, params: firstStrategy.params || {}, symbol: firstSymbol, timeframe: firstTimeframe }));
-            setComboData(prev => ({ ...prev, strategyConfigs: [{ code: firstStrategy.code, params: firstStrategy.params || {} }], symbol: firstSymbol, timeframe: firstTimeframe }));
+        if (strategyOptions.length && symbolOptions.length) {
+            setFormData(prev => ({
+                ...prev,
+                code: prev.code || strategyOptions[0].code,
+                params: prev.params || strategyOptions[0].params || {},
+                symbol: prev.symbol || symbolOptions[0],
+                timeframe: prev.timeframe || (timeframeOptions[0] || "1m")
+            }));
+            setComboData(prev => ({
+                ...prev,
+                strategyConfigs: prev.strategyConfigs.length ? prev.strategyConfigs : [{ code: strategyOptions[0].code, params: strategyOptions[0].params || {} }],
+                symbol: prev.symbol || symbolOptions[0],
+                timeframe: prev.timeframe || (timeframeOptions[0] || "1m")
+            }));
         }
     }, [strategyOptions, symbolOptions, timeframeOptions]);
 
-    const handleFormChange = (e) => {
+    if (loading === 'initial') return <div className="dashboard-container"><h1>Loading Backtest Environment...</h1></div>;
+
+    // --- Handlers ---
+    const handleFormChange = e => {
         const { name, value, type } = e.target;
         const finalValue = type === 'number' ? Number(value) : value;
         if (name === 'code') {
@@ -190,27 +212,23 @@ export default function Backtests() {
         } else if (name.startsWith("param_")) {
             const key = name.replace("param_", "");
             setFormData(prev => ({ ...prev, params: { ...prev.params, [key]: finalValue } }));
-        } else {
-            setFormData(prev => ({ ...prev, [name]: finalValue }));
-        }
+        } else setFormData(prev => ({ ...prev, [name]: finalValue }));
     };
 
-    const handleComboChange = (e, index) => {
+    const handleComboChange = (e, idx) => {
         const { name, value, type } = e.target;
         const finalValue = type === 'number' ? Number(value) : value;
-        if (index !== null) {
+        if (idx !== null) {
             const newConfigs = [...comboData.strategyConfigs];
             if (name === "strategyCode") {
                 const selectedStrategy = strategyOptions.find(s => s.code === finalValue);
-                newConfigs[index] = { code: finalValue, params: selectedStrategy?.params || {} };
+                newConfigs[idx] = { code: finalValue, params: selectedStrategy?.params || {} };
             } else if (name.startsWith("param_")) {
                 const key = name.replace("param_", "");
-                newConfigs[index].params = { ...newConfigs[index].params, [key]: finalValue };
+                newConfigs[idx].params = { ...newConfigs[idx].params, [key]: finalValue };
             }
             setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
-        } else {
-            setComboData(prev => ({ ...prev, [name]: finalValue }));
-        }
+        } else setComboData(prev => ({ ...prev, [name]: finalValue }));
     };
 
     const addStrategyToCombo = () => {
@@ -218,11 +236,9 @@ export default function Backtests() {
         setComboData(prev => ({...prev, strategyConfigs: [...prev.strategyConfigs, { code: firstStrategy.code, params: firstStrategy.params }]}));
     };
 
-    const removeStrategyFromCombo = (idx) => {
-        setComboData(prev => ({ ...prev, strategyConfigs: prev.strategyConfigs.filter((_, i) => i !== idx) }));
-    };
+    const removeStrategyFromCombo = idx => setComboData(prev => ({ ...prev, strategyConfigs: prev.strategyConfigs.filter((_, i) => i !== idx) }));
 
-    const handleSingleSubmit = async (e) => {
+    const handleSingleSubmit = async e => {
         e.preventDefault();
         try {
             const result = await runNewBacktest(formData);
@@ -230,7 +246,7 @@ export default function Backtests() {
         } catch (err) { console.error("Single backtest submission failed:", err); }
     };
 
-    const handleComboSubmit = async (e) => {
+    const handleComboSubmit = async e => {
         e.preventDefault();
         try {
             const strategies = comboData.strategyConfigs
@@ -248,14 +264,17 @@ export default function Backtests() {
 
     const openSaveModal = () => setIsSaveModalOpen(true);
     const closeSaveModal = () => { setIsSaveModalOpen(false); setSetupDetails({ name: "", description: "" }); };
-    const handleSetupChange = (e) => setSetupDetails(prev => ({ ...prev, [e.target.name]: e.target.value }));
-    const handleSaveSetup = async (e) => {
+    const handleSetupChange = e => setSetupDetails(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    const handleSaveSetup = async e => {
         e.preventDefault();
         if (!backtestResults.main) return alert("No backtest to save");
         const payload = {
-            name: setupDetails.name, description: setupDetails.description,
-            symbol: backtestResults.main.symbol, timeframe: backtestResults.main.timeframe,
-            strategies: backtestResults.main.strategies, initialBalance: backtestResults.main.initialBalance,
+            name: setupDetails.name,
+            description: setupDetails.description,
+            symbol: backtestResults.main.symbol,
+            timeframe: backtestResults.main.timeframe,
+            strategies: backtestResults.main.strategies,
+            initialBalance: backtestResults.main.initialBalance,
         };
         try {
             await createSetup(payload);
@@ -264,6 +283,7 @@ export default function Backtests() {
         } catch (err) { alert(err.message || "Failed to save setup"); }
     };
 
+    // --- Compute Combined Metrics & Equity Curve ---
     const { combinedEquityCurve, combinedMetrics } = useMemo(() => {
         const individuals = backtestResults.individuals;
         if (!individuals || individuals.length === 0) {
@@ -272,38 +292,30 @@ export default function Backtests() {
             return { combinedEquityCurve: mainCurve, combinedMetrics: mainMetrics };
         }
         const allTimestamps = [...new Set(individuals.flatMap(ind => ind.equityCurve?.map(d => d.timestamp) || []))].sort();
-        if (allTimestamps.length === 0) return { combinedEquityCurve: [], combinedMetrics: null };
+        if (!allTimestamps.length) return { combinedEquityCurve: [], combinedMetrics: null };
         const initialBalance = comboData.initialBalance;
         let lastBalances = individuals.map(ind => ind.metrics.initialBalance);
         const curve = allTimestamps.map(ts => {
-            let currentTotalBalance = 0;
+            let currentTotal = 0;
             individuals.forEach((ind, idx) => {
-                const pointInTime = ind.equityCurve.find(p => p.timestamp === ts);
-                if (pointInTime) lastBalances[idx] = pointInTime.balance;
-                currentTotalBalance += lastBalances[idx];
+                const point = ind.equityCurve.find(p => p.timestamp === ts);
+                if (point) lastBalances[idx] = point.balance;
+                currentTotal += lastBalances[idx];
             });
-            return { timestamp: ts, balance: currentTotalBalance };
+            return { timestamp: ts, balance: currentTotal };
         });
-        const finalBalance = curve.length > 0 ? curve[curve.length - 1].balance : initialBalance;
+        const finalBalance = curve.length ? curve[curve.length - 1].balance : initialBalance;
         const totalProfit = finalBalance - initialBalance;
         const totalTrades = individuals.reduce((sum, ind) => sum + ind.metrics.totalTrades, 0);
         const winningTrades = individuals.reduce((sum, ind) => sum + ind.metrics.winningTrades, 0);
-        const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
-        let peak = initialBalance;
-        let maxDrawdownValue = 0;
-        curve.forEach(point => {
-            if (point.balance > peak) peak = point.balance;
-            const drawdown = peak - point.balance;
-            if (drawdown > maxDrawdownValue) maxDrawdownValue = drawdown;
-        });
-        const maxDrawdown = (peak > 0) ? (maxDrawdownValue / peak) * 100 : 0;
+        const winRate = totalTrades ? (winningTrades / totalTrades) * 100 : 0;
+        let peak = initialBalance, maxDrawdownValue = 0;
+        curve.forEach(p => { if (p.balance > peak) peak = p.balance; const dd = peak - p.balance; if (dd > maxDrawdownValue) maxDrawdownValue = dd; });
+        const maxDrawdown = peak ? (maxDrawdownValue / peak) * 100 : 0;
         const grossProfit = individuals.reduce((sum, ind) => sum + (ind.metrics.winningTrades * ind.metrics.averageWin), 0);
         const grossLoss = individuals.reduce((sum, ind) => sum + (ind.metrics.losingTrades * ind.metrics.averageLoss), 0);
-        const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : Infinity;
-        return {
-            combinedEquityCurve: curve,
-            combinedMetrics: { initialBalance, finalBalance, totalProfit, totalTrades, winRate, maxDrawdown, profitFactor }
-        };
+        const profitFactor = grossLoss ? grossProfit / grossLoss : Infinity;
+        return { combinedEquityCurve: curve, combinedMetrics: { initialBalance, finalBalance, totalProfit, totalTrades, winRate, maxDrawdown, profitFactor } };
     }, [backtestResults, comboData.initialBalance]);
 
     const pieData = useMemo(() => {
@@ -311,10 +323,6 @@ export default function Backtests() {
         const wins = combinedMetrics.totalTrades * (combinedMetrics.winRate / 100);
         return [{ name: "Win", value: wins }, { name: "Loss", value: combinedMetrics.totalTrades - wins }];
     }, [combinedMetrics]);
-
-    if (loading === 'initial') {
-        return <div className="dashboard-container"><h1>Loading Backtest Environment...</h1></div>;
-    }
 
     return (
         <div className="dashboard-container">
@@ -327,91 +335,81 @@ export default function Backtests() {
                     <h2>Single Strategy Backtest</h2>
                     <label>Strategy:
                         <select name="code" value={formData.code} onChange={handleFormChange}>
-                            {strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
+                            {strategyOptions.length ? strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option>Loading strategies...</option>}
                         </select>
                     </label>
                     <CommonBacktestInputs data={formData} onChange={handleFormChange} options={{symbolOptions, timeframeOptions}} />
                     <fieldset>
                         <legend>Strategy Parameters</legend>
-                        <label>Stop Loss (%):
-                            <input type="number" name="param_SL" value={formData.params.SL || 0} onChange={handleFormChange} step="0.1" />
-                        </label>
-                        <label>Take Profit (%):
-                            <input type="number" name="param_TP" value={formData.params.TP || 0} onChange={handleFormChange} step="0.1" />
-                        </label>
-                        <label>Trailing Stop (%):
-                            <input type="number" name="param_trailingStop" value={formData.params.trailingStop || 0} onChange={handleFormChange} step="0.1" />
-                        </label>
+                        <label>Stop Loss (%): <input type="number" name="param_SL" value={formData.params.SL || 0} onChange={handleFormChange} step="0.1" /></label>
+                        <label>Take Profit (%): <input type="number" name="param_TP" value={formData.params.TP || 0} onChange={handleFormChange} step="0.1" /></label>
                     </fieldset>
-                    <button type="submit">Run Single Backtest</button>
+                    <button type="submit">Run Backtest</button>
                 </form>
 
-                {/* Combo Backtest */}
+                {/* Combo Strategy Backtest */}
                 <form className="backtest-form" onSubmit={handleComboSubmit}>
-                    <h2>Combo Backtest</h2>
+                    <h2>Combo Strategy Backtest</h2>
                     {comboData.strategyConfigs.map((config, idx) => (
-                        <div key={idx} className="strategy-config">
-                            <label>Strategy:
-                                <select name="strategyCode" value={config.code} onChange={(e) => handleComboChange(e, idx)}>
-                                    {strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
-                                </select>
-                            </label>
-                            <label>SL (%):<input type="number" name="param_SL" value={config.params.SL || 0} onChange={(e) => handleComboChange(e, idx)} /></label>
-                            <label>TP (%):<input type="number" name="param_TP" value={config.params.TP || 0} onChange={(e) => handleComboChange(e, idx)} /></label>
-                            <label>Trailing Stop (%):<input type="number" name="param_trailingStop" value={config.params.trailingStop || 0} onChange={(e) => handleComboChange(e, idx)} /></label>
-                            {comboData.strategyConfigs.length > 1 && <button type="button" onClick={() => removeStrategyFromCombo(idx)}>Remove</button>}
-                        </div>
+                        <ComboStrategyCard
+                            key={idx}
+                            idx={idx}
+                            config={config}
+                            strategies={strategyOptions}
+                            onChange={handleComboChange}
+                            onRemove={removeStrategyFromCombo}
+                            disableRemove={comboData.strategyConfigs.length === 1}
+                        />
                     ))}
-                    <button type="button" onClick={addStrategyToCombo}>Add Strategy</button>
-                    <CommonBacktestInputs data={comboData} onChange={(e) => handleComboChange(e, null)} options={{symbolOptions, timeframeOptions}} />
+                    <button type="button" onClick={addStrategyToCombo}>Add Another Strategy</button>
+                    <CommonBacktestInputs data={comboData} onChange={e => handleComboChange(e, null)} options={{symbolOptions, timeframeOptions}} />
                     <button type="submit">Run Combo Backtest</button>
                 </form>
             </div>
 
-            <div className="results-container">
-                {combinedEquityCurve.length > 0 && (
-                    <>
-                        <h2>Equity Curve</h2>
-                        <ResponsiveContainer width="100%" height={300}>
-                            <LineChart data={combinedEquityCurve}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="timestamp" tickFormatter={formatDate} />
-                                <YAxis />
-                                <Tooltip labelFormatter={formatDate} />
-                                <Line type="monotone" dataKey="balance" stroke="#3b82f6" dot={false} />
-                            </LineChart>
-                        </ResponsiveContainer>
-
-                        <h2>Metrics</h2>
-                        <MetricsDisplay metrics={combinedMetrics} />
-
-                        <h2>Win/Loss Distribution</h2>
-                        <ResponsiveContainer width="100%" height={200}>
-                            <PieChart>
-                                <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={80} label>
-                                    {pieData.map((entry, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
-                                </Pie>
-                                <Legend />
-                            </PieChart>
-                        </ResponsiveContainer>
-
-                        <button onClick={openSaveModal}>Save Backtest Setup</button>
-                        {isSaveModalOpen && (
-                            <div className="modal-overlay">
-                                <div className="modal-content">
-                                    <h3>Save Backtest Setup</h3>
-                                    <form onSubmit={handleSaveSetup}>
-                                        <label>Name:<input type="text" name="name" value={setupDetails.name} onChange={handleSetupChange} required /></label>
-                                        <label>Description:<textarea name="description" value={setupDetails.description} onChange={handleSetupChange}></textarea></label>
-                                        <button type="submit">Save</button>
-                                        <button type="button" onClick={closeSaveModal}>Cancel</button>
-                                    </form>
-                                </div>
-                            </div>
-                        )}
-                    </>
+            {/* Results Section */}
+            <div className="results-section">
+                <h2>Backtest Results</h2>
+                <MetricsDisplay metrics={combinedMetrics} />
+                <ResponsiveContainer width="100%" height={400}>
+                    <LineChart data={combinedEquityCurve} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="timestamp" />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Line type="monotone" dataKey="balance" stroke="#3b82f6" dot={false} />
+                    </LineChart>
+                </ResponsiveContainer>
+                {pieData.length > 0 && (
+                    <ResponsiveContainer width="50%" height={250}>
+                        <PieChart>
+                            <Pie data={pieData} dataKey="value" nameKey="name" label>
+                                {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                            </Pie>
+                            <Legend />
+                        </PieChart>
+                    </ResponsiveContainer>
                 )}
+                {backtestResults.main && <button onClick={openSaveModal}>Save Backtest Setup</button>}
             </div>
+
+            {/* Save Setup Modal */}
+            {isSaveModalOpen && (
+                <div className="modal-overlay">
+                    <div className="modal-content">
+                        <h3>Save Backtest Setup</h3>
+                        <form onSubmit={handleSaveSetup}>
+                            <label>Name: <input type="text" name="name" value={setupDetails.name} onChange={handleSetupChange} required /></label>
+                            <label>Description: <textarea name="description" value={setupDetails.description} onChange={handleSetupChange}></textarea></label>
+                            <div className="modal-buttons">
+                                <button type="submit">Save</button>
+                                <button type="button" onClick={closeSaveModal}>Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
