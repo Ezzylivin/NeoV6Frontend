@@ -3,10 +3,15 @@ import * as backtestApi from "../api/backtest.js";
 
 // --- State Management with Reducer ---
 const initialState = {
-    options: { strategies: [], symbols: [], timeframes: [] },
+    options: {
+        strategies: [],
+        symbols: [],
+        timeframes: [],
+        models: [] // ✅ FIX: Added a place to store the ML models
+    },
     pastBacktests: { results: [], total: 0 },
-    loading: 'idle', // 'idle', 'initial', 'fetching', 'running', 'running_combo'
-    error: null,     // Will store { status, message }
+    loading: 'idle',
+    error: null,
 };
 
 function backtestReducer(state, action) {
@@ -46,7 +51,6 @@ function backtestReducer(state, action) {
             throw new Error(`Unhandled action type: ${action.type}`);
     }
 }
-
 
 export function useBacktest() {
     const [state, dispatch] = useReducer(backtestReducer, initialState);
@@ -91,22 +95,14 @@ export function useBacktest() {
         dispatch({ type: "SET_LOADING", payload: "running" });
         try {
             let finalPayload = { ...payload };
-
             if (payload.mlMode && payload.mlMode !== 'off') {
-                console.log("ML Mode enabled. Fetching predictions from server...");
                 const featuresForML = {
                     symbol: payload.symbol,
-                    features: [
-                        // IMPORTANT: Replace with your actual feature data generation
-                        { "feature_1": 0.5, "feature_2": 120 },
-                        { "feature_1": 0.6, "feature_2": 125 },
-                    ]
+                    features: [/* IMPORTANT: Replace with your actual feature data */]
                 };
                 const mlResult = await backtestApi.getMlPredictions(featuresForML);
-                console.log("Received ML predictions:", mlResult);
                 finalPayload.mlPredictions = mlResult.predictions;
             }
-
             const result = await backtestApi.runBacktest(finalPayload);
             await getPastBacktests(1);
             return result;
@@ -124,19 +120,15 @@ export function useBacktest() {
             if (!payload.strategies || payload.strategies.length === 0) {
                 throw new Error("At least one strategy must be selected.");
             }
-            
             let finalPayload = { ...payload };
-
             if (payload.mlMode && payload.mlMode !== 'off') {
-                console.log("ML Mode enabled for combo. Fetching predictions...");
                 const featuresForML = {
                     symbol: payload.symbol,
-                    features: [ /* IMPORTANT: Replace with your actual feature data */ ]
+                    features: [/* IMPORTANT: Replace with your actual feature data */]
                 };
                 const mlResult = await backtestApi.getMlPredictions(featuresForML);
                 finalPayload.mlPredictions = mlResult.predictions;
             }
-
             const result = await backtestApi.runComboBacktest(finalPayload);
             await getPastBacktests(1);
             return result;
@@ -160,21 +152,18 @@ export function useBacktest() {
         }
     }, []);
 
-    // --- Initial data load effect with resilient fetching ---
     useEffect(() => {
         const fetchInitialData = async () => {
             dispatch({ type: "SET_LOADING", payload: "initial" });
             try {
-                console.log("Attempting to fetch options and past backtests...");
-
-                // Use Promise.allSettled to allow one promise to fail without stopping the other.
                 const results = await Promise.allSettled([
                     backtestApi.fetchOptions(),
                     backtestApi.fetchAll(1),
+                    backtestApi.fetchModels(), // Fetch the models
                 ]);
 
                 const optionsResult = results[0];
-                const options = optionsResult.status === 'fulfilled' ? optionsResult.value : { strategies: [], symbols: [], timeframes: [] };
+                const optionsData = optionsResult.status === 'fulfilled' ? optionsResult.value : { strategies: [], symbols: [], timeframes: [] };
                 if (optionsResult.status === 'rejected') {
                     console.error("Failed to fetch options:", optionsResult.reason);
                 }
@@ -185,10 +174,19 @@ export function useBacktest() {
                     console.error("Failed to fetch past backtests:", pastBacktestsResult.reason);
                 }
 
-                console.log("Dispatching initial data:", { options, pastBacktests });
+                const modelsResult = results[2];
+                const models = modelsResult.status === 'fulfilled' ? modelsResult.value : [];
+                if (modelsResult.status === 'rejected') {
+                    console.error("Failed to fetch ML models:", modelsResult.reason);
+                }
+
                 dispatch({
                     type: "SET_INITIAL_DATA",
-                    payload: { options, pastBacktests },
+                    // ✅ FIX: Combine the fetched models with the other options data
+                    payload: { 
+                        options: { ...optionsData, models }, 
+                        pastBacktests 
+                    },
                 });
 
             } catch (err) {
@@ -198,7 +196,7 @@ export function useBacktest() {
         };
 
         fetchInitialData();
-    }, []); // Empty dependency array ensures this runs only once
+    }, []);
 
     return {
         state,
