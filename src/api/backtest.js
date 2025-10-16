@@ -103,7 +103,20 @@ export async function runComboBacktest(payload) {
     }
 }
 
-// --- NEW: Machine Learning Server API Function ---
+// --- Machine Learning Server API Functions ---
+
+/**
+ * ✅ NEW: Fetches the list of available ML model names from the server.
+ */
+export async function fetchModels() {
+    try {
+        // We use axios to call the ML server, which may be different from the main API.
+        const response = await axios.get(`${ML_API_BASE_URL}/api/models`);
+        return response.data.models || [];
+    } catch (error) {
+        handleError(error, "fetchModels");
+    }
+}
 
 /**
  * Calls the external ML server to get predictions.
@@ -111,11 +124,9 @@ export async function runComboBacktest(payload) {
  */
 export async function getMlPredictions(featuresPayload) {
     try {
-        // We use axios directly here to call the different server URL.
-        const response = await axios.post(`${ML_API_BASE_URL}/predict`, featuresPayload);
-        return response.data; // Axios puts the JSON response directly in `data`
+        const response = await axios.post(`${ML_API_BASE_URL}/api/predict`, featuresPayload);
+        return response.data;
     } catch (error) {
-        // Use the same robust error handler for consistency.
         handleError(error, "getMlPredictions");
     }
 }
