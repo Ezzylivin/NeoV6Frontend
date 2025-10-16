@@ -27,7 +27,7 @@ const initialFormData = {
   code: "", symbol: "", timeframe: "", startDate: getDefaultDates().startDate,
   endDate: getDefaultDates().endDate, initialBalance: 1000, params: {},
   riskManagementMode: 'standard', riskPercentage: 1, growthCapitalTarget: 2000,
-  mlMode: "off", mlModel: "default", mlThreshold: 0.5, mlHorizon: 1
+  mlMode: "off", mlModel: "", mlThreshold: 0.5, mlHorizon: 1
 };
 
 const initialComboData = {
@@ -35,7 +35,7 @@ const initialComboData = {
   startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate,
   initialBalance: 1000, riskManagementMode: 'standard',
   riskPercentage: 1, growthCapitalTarget: 2000,
-  mlMode: "off", mlModel: "default", mlThreshold: 0.5, mlHorizon: 1
+  mlMode: "off", mlModel: "", mlThreshold: 0.5, mlHorizon: 1
 };
 
 // --- Child Components (Full Implementations) ---
@@ -48,6 +48,8 @@ const MetricsDisplay = ({ metrics }) => {
 const CommonBacktestInputs = ({ data, onChange, options }) => {
   const symbolOptions = options.symbolOptions || [];
   const timeframeOptions = options.timeframeOptions || [];
+  const modelOptions = options.modelOptions || [];
+
   return (
     <>
       <label>Symbol:
@@ -71,20 +73,7 @@ const CommonBacktestInputs = ({ data, onChange, options }) => {
             <option value="dynamic">Dynamic Growth Mode</option>
           </select>
         </label>
-        {data.riskManagementMode === 'standard' ? (
-          <label>Risk Per Trade (%):
-            <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={onChange} step="0.1" />
-          </label>
-        ) : (
-          <>
-            <label>Growth Capital Target ($):
-              <input type="number" name="growthCapitalTarget" value={data.growthCapitalTarget} onChange={onChange} />
-            </label>
-            <label>Risk % (After Target):
-              <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={onChange} step="0.1" />
-            </label>
-          </>
-        )}
+        {data.riskManagementMode === 'standard' ? ( <label>Risk Per Trade (%): <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={onChange} step="0.1" /> </label> ) : ( <> <label>Growth Capital Target ($): <input type="number" name="growthCapitalTarget" value={data.growthCapitalTarget} onChange={onChange} /> </label> <label>Risk % (After Target): <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={onChange} step="0.1" /> </label> </> )}
       </fieldset>
       <fieldset>
         <legend>Machine Learning</legend>
@@ -98,16 +87,18 @@ const CommonBacktestInputs = ({ data, onChange, options }) => {
         {data.mlMode !== "off" && (
           <>
             <label>Model:
-              <select name="mlModel" value={data.mlModel || "default"} onChange={onChange}>
-                <option value="default">Main Model</option>
+              <select name="mlModel" value={data.mlModel} onChange={onChange} disabled={!modelOptions.length}>
+                {modelOptions.length > 0 ? (
+                  modelOptions.map(modelName => (
+                    <option key={modelName} value={modelName}>{modelName}</option>
+                  ))
+                ) : (
+                  <option>Loading models...</option>
+                )}
               </select>
             </label>
-            <label>Confidence Threshold:
-              <input type="number" name="mlThreshold" value={data.mlThreshold || 0.5} step="0.01" min="0" max="1" onChange={onChange}/>
-            </label>
-            <label>Prediction Horizon:
-              <input type="number" name="mlHorizon" value={data.mlHorizon || 1} step="1" min="1" onChange={onChange}/>
-            </label>
+            <label>Confidence Threshold: <input type="number" name="mlThreshold" value={data.mlThreshold || 0.5} step="0.01" min="0" max="1" onChange={onChange}/> </label>
+            <label>Prediction Horizon: <input type="number" name="mlHorizon" value={data.mlHorizon || 1} step="1" min="1" onChange={onChange}/> </label>
           </>
         )}
       </fieldset>
@@ -150,20 +141,23 @@ export default function Backtests() {
   const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
   const [activeTab, setActiveTab] = useState('single');
 
-  // ✅ FIX: All dropdown data is now sourced from the 'options' state provided by the useBacktest hook.
   const strategyOptions = useMemo(() => options?.strategies || [], [options]);
   const symbolOptions = useMemo(() => options?.symbols || [], [options]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
+  const modelOptions = useMemo(() => options?.models || [], [options]);
 
   useEffect(() => {
-    if (strategyOptions.length && symbolOptions.length && timeframeOptions.length) {
+    if (strategyOptions.length && symbolOptions.length && timeframeOptions.length && modelOptions.length) {
       const defaultStrategy = strategyOptions[0] || {};
       const defaultSymbol = symbolOptions[0] || "";
       const defaultTimeframe = timeframeOptions[0] || "1m";
-      setFormData(prev => ({ ...prev, code: prev.code || defaultStrategy.code, params: prev.params || defaultStrategy.params || {}, symbol: prev.symbol || defaultSymbol, timeframe: prev.timeframe || defaultTimeframe }));
-      setComboData(prev => ({ ...prev, strategyConfigs: prev.strategyConfigs.length === 1 && !prev.strategyConfigs[0].code ? [{ code: defaultStrategy.code, params: defaultStrategy.params || {} }] : prev.strategyConfigs, symbol: prev.symbol || defaultSymbol, timeframe: prev.timeframe || defaultTimeframe }));
+      const defaultModel = modelOptions[0] || "";
+
+      setFormData(prev => ({ ...prev, code: prev.code || defaultStrategy.code, params: prev.params || defaultStrategy.params || {}, symbol: prev.symbol || defaultSymbol, timeframe: prev.timeframe || defaultTimeframe, mlModel: prev.mlModel || defaultModel }));
+      
+      setComboData(prev => ({ ...prev, strategyConfigs: prev.strategyConfigs.length === 1 && !prev.strategyConfigs[0].code ? [{ code: defaultStrategy.code, params: defaultStrategy.params || {} }] : prev.strategyConfigs, symbol: prev.symbol || defaultSymbol, timeframe: prev.timeframe || defaultTimeframe, mlModel: prev.mlModel || defaultModel }));
     }
-  }, [strategyOptions, symbolOptions, timeframeOptions]);
+  }, [strategyOptions, symbolOptions, timeframeOptions, modelOptions]);
 
   const { combinedEquityCurve, combinedMetrics } = useMemo(() => {
     try {
@@ -280,23 +274,23 @@ export default function Backtests() {
                   {strategyOptions.length ? strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option>Loading...</option>}
                 </select>
               </label>
-              <CommonBacktestInputs data={formData} onChange={handleFormChange} options={{symbolOptions, timeframeOptions}} />
-              <button type="submit" disabled={loading === 'running' || !strategyOptions.length}>
-                {loading === 'running' ? 'Running...' : 'Run Backtest'}
+              <CommonBacktestInputs data={formData} onChange={handleFormChange} options={{symbolOptions, timeframeOptions, modelOptions}} />
+              <button type="submit" disabled={loading.startsWith('running') || !strategyOptions.length}>
+                {loading.startsWith('running') ? 'Running...' : 'Run Backtest'}
               </button>
             </form>
           )}
           {activeTab === 'combo' && (
             <form onSubmit={handleRunComboBacktest} className="backtest-form">
-              <CommonBacktestInputs data={comboData} onChange={handleComboChange} options={{symbolOptions, timeframeOptions}} />
+              <CommonBacktestInputs data={comboData} onChange={handleComboChange} options={{symbolOptions, timeframeOptions, modelOptions}} />
               <div className="combo-strategy-list">
                 {comboData.strategyConfigs.map((config, idx) => (
                   <ComboStrategyCard key={idx} idx={idx} config={config} strategies={strategyOptions} onChange={handleStrategyConfigChange} onRemove={removeStrategyCard} disableRemove={comboData.strategyConfigs.length <= 1} />
                 ))}
               </div>
               <button type="button" onClick={addStrategyCard} disabled={!strategyOptions.length}>Add Strategy</button>
-              <button type="submit" disabled={loading === 'running_combo' || !strategyOptions.length}>
-                {loading === 'running_combo' ? 'Running...' : 'Run Combo Backtest'}
+              <button type="submit" disabled={loading.startsWith('running') || !strategyOptions.length}>
+                {loading.startsWith('running') ? 'Running...' : 'Run Combo Backtest'}
               </button>
             </form>
           )}
