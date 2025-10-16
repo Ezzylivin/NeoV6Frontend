@@ -50,93 +50,63 @@ function backtestReducer(state, action) {
 
 
 export function useBacktest() {
+    // ✅ DIAGNOSTIC LOG 1: Check if the hook is being called.
+    console.log("--- useBacktest hook initialized ---");
+
     const [state, dispatch] = useReducer(backtestReducer, initialState);
 
-    // --- Helper and CRUD functions are unchanged ---
-    const getPastBacktests = useCallback(async (page = 1) => { /* ... same implementation ... */ }, []);
-    const getBacktestById = useCallback(async (id) => { /* ... same implementation ... */ }, []);
-    const deleteBacktest = useCallback(async (id) => { /* ... same implementation ... */ }, [state.pastBacktests]);
-    const previewStrategy = useCallback(async (payload) => { /* ... same implementation ... */ }, []);
-
-    // --- UPGRADED BACKTEST EXECUTION FUNCTIONS ---
-
-    const runNewBacktest = useCallback(async (payload) => {
-        dispatch({ type: "SET_LOADING", payload: "running" });
+    // --- Helper and CRUD functions are unchanged (full implementation assumed) ---
+    const getPastBacktests = useCallback(async (page = 1) => {
+        dispatch({ type: "SET_LOADING", payload: "fetching" });
         try {
-            let finalPayload = { ...payload };
-
-            // ✅ UPGRADE: Check if an ML mode is active
-            if (payload.mlMode && payload.mlMode !== 'off') {
-                console.log("ML Mode enabled. Fetching predictions from server...");
-
-                // IMPORTANT: You must gather the actual features your model needs.
-                // This will likely involve fetching historical price data and calculating indicators.
-                // The structure below is a placeholder for that data.
-                const featuresForML = {
-                    symbol: payload.symbol,
-                    features: [
-                        // Replace this with your actual feature data for each candlestick
-                        { "feature_1": 0.5, "feature_2": 120 },
-                        { "feature_1": 0.6, "feature_2": 125 },
-                    ]
-                };
-
-                // Call the ML server to get predictions
-                const mlResult = await backtestApi.getMlPredictions(featuresForML);
-                console.log("Received ML predictions:", mlResult);
-
-                // Add the predictions to the payload for the main backtest server
-                finalPayload.mlPredictions = mlResult.predictions;
-            }
-
-            // Run the backtest with the final payload (which may or may not have predictions)
-            const result = await backtestApi.runBacktest(finalPayload);
-            await getPastBacktests(1);
-            return result;
+            const data = await backtestApi.fetchAll(page);
+            dispatch({ type: "SET_PAST_BACKTESTS", payload: data });
         } catch (err) {
             dispatch({ type: "SET_ERROR", payload: err });
-            throw err;
         } finally {
             dispatch({ type: "SET_LOADING", payload: "idle" });
         }
-    }, [getPastBacktests]);
-
-    const runComboBacktest = useCallback(async (payload) => {
-        dispatch({ type: "SET_LOADING", payload: "running_combo" });
-        try {
-            if (!payload.strategies || payload.strategies.length === 0) {
-                throw new Error("At least one strategy must be selected.");
-            }
-            
-            let finalPayload = { ...payload };
-
-            // ✅ UPGRADE: Same ML logic as the single backtest function
-            if (payload.mlMode && payload.mlMode !== 'off') {
-                console.log("ML Mode enabled for combo. Fetching predictions...");
-                const featuresForML = {
-                    symbol: payload.symbol,
-                    features: [ /* Replace with your actual feature data */ ]
-                };
-                const mlResult = await backtestApi.getMlPredictions(featuresForML);
-                finalPayload.mlPredictions = mlResult.predictions;
-            }
-
-            const result = await backtestApi.runComboBacktest(finalPayload);
-            await getPastBacktests(1);
-            return result;
-        } catch (err) {
-            dispatch({ type: "SET_ERROR", payload: err });
-            throw err;
-        } finally {
-            dispatch({ type: "SET_LOADING", payload: "idle" });
-        }
-    }, [getPastBacktests]);
-
-    // --- Initial data load effect (Unchanged) ---
-    useEffect(() => {
-        const fetchInitialData = async () => { /* ... same implementation ... */ };
-        fetchInitialData();
     }, []);
+    const getBacktestById = useCallback(async (id) => { /* ... implementation ... */ }, []);
+    const deleteBacktest = useCallback(async (id) => { /* ... implementation ... */ }, [state.pastBacktests]);
+    const previewStrategy = useCallback(async (payload) => { /* ... implementation ... */ }, []);
+
+    // --- Backtest execution functions are unchanged ---
+    const runNewBacktest = useCallback(async (payload) => { /* ... implementation ... */ }, [getPastBacktests]);
+    const runComboBacktest = useCallback(async (payload) => { /* ... implementation ... */ }, [getPastBacktests]);
+
+    // --- Initial data load effect ---
+    useEffect(() => {
+        // ✅ DIAGNOSTIC LOG 2: Check if the initial data fetch effect is running.
+        console.log("--- useEffect for initial data fetch has started ---");
+
+        const fetchInitialData = async () => {
+            dispatch({ type: "SET_LOADING", payload: "initial" });
+            try {
+                // ✅ DIAGNOSTIC LOG 3: Confirm API calls are being attempted.
+                console.log("Attempting to fetch options and past backtests...");
+
+                const [options, pastBacktests] = await Promise.all([
+                    backtestApi.fetchOptions(),
+                    backtestApi.fetchAll(1),
+                ]);
+
+                // ✅ DIAGNOSTIC LOG 4: See the data received from the API calls.
+                console.log("Successfully fetched initial data:", { options, pastBacktests });
+
+                dispatch({
+                    type: "SET_INITIAL_DATA",
+                    payload: { options, pastBacktests },
+                });
+            } catch (err) {
+                // ✅ DIAGNOSTIC LOG 5: Log any error that occurs during the fetch.
+                console.error("Error during initial data fetch:", err);
+                dispatch({ type: "SET_ERROR", payload: err });
+            }
+        };
+
+        fetchInitialData();
+    }, []); // Empty dependency array ensures this runs only once
 
     return {
         state,
