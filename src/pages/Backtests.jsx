@@ -1,8 +1,6 @@
 // File: src/pages/Backtests.jsx
-import React, { useState, useEffect, useMemo, useContext } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
-import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
-import { StrategyContext } from "../context/StrategyContext.jsx";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
@@ -146,13 +144,14 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
 export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest } = useBacktest();
   const { loading, error, options } = state || {};
-  const { createSetup } = useBacktestSetupFunction();
-  const { strategies: contextStrategies } = useContext(StrategyContext) || {};
+
   const [formData, setFormData] = useState(initialFormData);
   const [comboData, setComboData] = useState(initialComboData);
   const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
   const [activeTab, setActiveTab] = useState('single');
-  const strategyOptions = useMemo(() => contextStrategies || [], [contextStrategies]);
+
+  // ✅ FIX: All dropdown data is now sourced from the 'options' state provided by the useBacktest hook.
+  const strategyOptions = useMemo(() => options?.strategies || [], [options]);
   const symbolOptions = useMemo(() => options?.symbols || [], [options]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
 
@@ -168,43 +167,43 @@ export default function Backtests() {
 
   const { combinedEquityCurve, combinedMetrics } = useMemo(() => {
     try {
-        const individuals = backtestResults?.individuals || [];
-        if (!individuals.length) {
-            const mainMetrics = backtestResults?.main?.metrics || null;
-            const mainCurve = backtestResults?.main?.equityCurve?.map(d => ({ timestamp: d.timestamp, balance: d.balance })) || [];
-            return { combinedEquityCurve: mainCurve, combinedMetrics: mainMetrics };
-        }
-        const allTimestamps = [...new Set(individuals.flatMap(ind => ind.equityCurve?.map(d => d.timestamp) || []))].sort();
-        if (!allTimestamps.length) {
-            return { combinedEquityCurve: [], combinedMetrics: null };
-        }
-        const initialBalance = comboData.initialBalance || 1000;
-        let lastBalances = individuals.map(ind => ind.metrics?.initialBalance || 0);
-        const curve = allTimestamps.map(ts => {
-            let currentTotal = 0;
-            individuals.forEach((ind, idx) => {
-                const point = ind.equityCurve?.find(p => p.timestamp === ts);
-                if (point) lastBalances[idx] = point.balance;
-                currentTotal += lastBalances[idx];
-            });
-            return { timestamp: ts, balance: currentTotal };
-        });
-        const finalBalance = curve.length ? curve[curve.length - 1].balance : initialBalance;
-        const totalProfit = finalBalance - initialBalance;
-        const totalTrades = individuals.reduce((sum, ind) => sum + (ind.metrics?.totalTrades || 0), 0);
-        const winningTrades = individuals.reduce((sum, ind) => sum + (ind.metrics?.winningTrades || 0), 0);
-        const winRate = totalTrades ? (winningTrades / totalTrades) * 100 : 0;
-        let peak = initialBalance, maxDrawdownValue = 0;
-        curve.forEach(p => { if (p.balance > peak) peak = p.balance; const dd = peak - p.balance; if (dd > maxDrawdownValue) maxDrawdownValue = dd; });
-        const maxDrawdown = peak > 0 ? (maxDrawdownValue / peak) * 100 : 0;
-        const grossProfit = individuals.reduce((sum, ind) => sum + (ind.metrics?.grossProfit || 0), 0);
-        const grossLoss = individuals.reduce((sum, ind) => sum + (Math.abs(ind.metrics?.grossLoss || 0)), 0);
-        const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : Infinity;
-        const metrics = { initialBalance, finalBalance, totalProfit, totalTrades, winRate, maxDrawdown, profitFactor, winningTrades };
-        return { combinedEquityCurve: curve, combinedMetrics: metrics };
-    } catch (e) {
-        console.error("Error calculating backtest results:", e);
+      const individuals = backtestResults?.individuals || [];
+      if (!individuals.length) {
+        const mainMetrics = backtestResults?.main?.metrics || null;
+        const mainCurve = backtestResults?.main?.equityCurve?.map(d => ({ timestamp: d.timestamp, balance: d.balance })) || [];
+        return { combinedEquityCurve: mainCurve, combinedMetrics: mainMetrics };
+      }
+      const allTimestamps = [...new Set(individuals.flatMap(ind => ind.equityCurve?.map(d => d.timestamp) || []))].sort();
+      if (!allTimestamps.length) {
         return { combinedEquityCurve: [], combinedMetrics: null };
+      }
+      const initialBalance = comboData.initialBalance || 1000;
+      let lastBalances = individuals.map(ind => ind.metrics?.initialBalance || 0);
+      const curve = allTimestamps.map(ts => {
+        let currentTotal = 0;
+        individuals.forEach((ind, idx) => {
+          const point = ind.equityCurve?.find(p => p.timestamp === ts);
+          if (point) lastBalances[idx] = point.balance;
+          currentTotal += lastBalances[idx];
+        });
+        return { timestamp: ts, balance: currentTotal };
+      });
+      const finalBalance = curve.length ? curve[curve.length - 1].balance : initialBalance;
+      const totalProfit = finalBalance - initialBalance;
+      const totalTrades = individuals.reduce((sum, ind) => sum + (ind.metrics?.totalTrades || 0), 0);
+      const winningTrades = individuals.reduce((sum, ind) => sum + (ind.metrics?.winningTrades || 0), 0);
+      const winRate = totalTrades ? (winningTrades / totalTrades) * 100 : 0;
+      let peak = initialBalance, maxDrawdownValue = 0;
+      curve.forEach(p => { if (p.balance > peak) peak = p.balance; const dd = peak - p.balance; if (dd > maxDrawdownValue) maxDrawdownValue = dd; });
+      const maxDrawdown = peak > 0 ? (maxDrawdownValue / peak) * 100 : 0;
+      const grossProfit = individuals.reduce((sum, ind) => sum + (ind.metrics?.grossProfit || 0), 0);
+      const grossLoss = individuals.reduce((sum, ind) => sum + (Math.abs(ind.metrics?.grossLoss || 0)), 0);
+      const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : Infinity;
+      const metrics = { initialBalance, finalBalance, totalProfit, totalTrades, winRate, maxDrawdown, profitFactor, winningTrades };
+      return { combinedEquityCurve: curve, combinedMetrics: metrics };
+    } catch (e) {
+      console.error("Error calculating backtest results:", e);
+      return { combinedEquityCurve: [], combinedMetrics: null };
     }
   }, [backtestResults, comboData.initialBalance]);
 
@@ -224,32 +223,32 @@ export default function Backtests() {
     const isParam = name.startsWith("param_");
     const val = type === 'number' ? parseFloat(value) : value;
     if (isParam) {
-        const paramName = name.substring(6);
-        setFormData(prev => ({ ...prev, params: { ...prev.params, [paramName]: val } }));
+      const paramName = name.substring(6);
+      setFormData(prev => ({ ...prev, params: { ...prev.params, [paramName]: val } }));
     } else {
-        setFormData(prev => ({ ...prev, [name]: val }));
+      setFormData(prev => ({ ...prev, [name]: val }));
     }
   };
 
   const handleComboChange = (e) => {
-      const { name, value, type } = e.target;
-      setComboData(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) : value }));
+    const { name, value, type } = e.target;
+    setComboData(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) : value }));
   };
 
   const handleStrategyConfigChange = (e, index) => {
-      const { name, value, type } = e.target;
-      const isParam = name.startsWith("param_");
-      const val = type === 'number' ? parseFloat(value) : value;
-      const updatedConfigs = [...comboData.strategyConfigs];
-      if (isParam) {
-          const paramName = name.substring(6);
-          updatedConfigs[index].params = { ...updatedConfigs[index].params, [paramName]: val };
-      } else {
-          const selectedStrategy = strategyOptions.find(s => s.code === value);
-          updatedConfigs[index].code = value;
-          updatedConfigs[index].params = selectedStrategy?.params || {};
-      }
-      setComboData(prev => ({ ...prev, strategyConfigs: updatedConfigs }));
+    const { name, value, type } = e.target;
+    const isParam = name.startsWith("param_");
+    const val = type === 'number' ? parseFloat(value) : value;
+    const updatedConfigs = [...comboData.strategyConfigs];
+    if (isParam) {
+      const paramName = name.substring(6);
+      updatedConfigs[index].params = { ...updatedConfigs[index].params, [paramName]: val };
+    } else {
+      const selectedStrategy = strategyOptions.find(s => s.code === value);
+      updatedConfigs[index].code = value;
+      updatedConfigs[index].params = selectedStrategy?.params || {};
+    }
+    setComboData(prev => ({ ...prev, strategyConfigs: updatedConfigs }));
   };
 
   const addStrategyCard = () => {
@@ -266,78 +265,72 @@ export default function Backtests() {
 
   return (
     <div className="dashboard-container">
-        <h1>Backtests</h1>
-        {error && <div className="error-box"><h4>Error</h4><p>{error.message}</p></div>}
-        {strategyOptions.length === 0 && !loading && (
-            <div className="error-box" style={{backgroundColor: '#4a3a24'}}>
-                <h4>Strategies Not Loaded</h4>
-                <p>No strategies were found. Please make sure your <strong>StrategyProvider</strong> is configured correctly elsewhere in your application.</p>
-            </div>
-        )}
-        <div className="backtest-main">
-            <div className="backtest-forms">
-                <div className="tabs">
-                    <button className={activeTab === 'single' ? 'active' : ''} onClick={() => setActiveTab('single')}>Single Strategy</button>
-                    <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo Strategy</button>
-                </div>
-                {activeTab === 'single' && (
-                    <form onSubmit={handleRunBacktest} className="backtest-form">
-                        <label>Strategy:
-                            <select name="code" value={formData.code} onChange={handleFormChange} disabled={!strategyOptions.length}>
-                                {strategyOptions.length ? strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option>Loading...</option>}
-                            </select>
-                        </label>
-                        <CommonBacktestInputs data={formData} onChange={handleFormChange} options={{symbolOptions, timeframeOptions}} />
-                        <button type="submit" disabled={loading === 'backtest' || !strategyOptions.length}>
-                            {loading === 'backtest' ? 'Running...' : 'Run Backtest'}
-                        </button>
-                    </form>
-                )}
-                 {activeTab === 'combo' && (
-                    <form onSubmit={handleRunComboBacktest} className="backtest-form">
-                        <CommonBacktestInputs data={comboData} onChange={handleComboChange} options={{symbolOptions, timeframeOptions}} />
-                        <div className="combo-strategy-list">
-                            {comboData.strategyConfigs.map((config, idx) => (
-                                <ComboStrategyCard key={idx} idx={idx} config={config} strategies={strategyOptions} onChange={handleStrategyConfigChange} onRemove={removeStrategyCard} disableRemove={comboData.strategyConfigs.length <= 1} />
-                            ))}
-                        </div>
-                        <button type="button" onClick={addStrategyCard} disabled={!strategyOptions.length}>Add Strategy</button>
-                        <button type="submit" disabled={loading === 'backtest' || !strategyOptions.length}>
-                            {loading === 'backtest' ? 'Running...' : 'Run Combo Backtest'}
-                        </button>
-                    </form>
-                )}
-            </div>
-            {(loading === 'backtest' || combinedMetrics) && (
-                <div className="results-section">
-                    <h2>Backtest Results</h2>
-                    {loading === 'backtest' && <div className="loading-overlay"><h3>Running backtest...</h3></div>}
-                    {combinedMetrics && (
-                        <>
-                            <MetricsDisplay metrics={combinedMetrics} />
-                            <div className="charts-container">
-                                <div className="chart">
-                                    <h3>Equity Curve</h3>
-                                    {combinedEquityCurve?.length > 0 ? (
-                                        <ResponsiveContainer width="100%" height={300}>
-                                            <LineChart data={combinedEquityCurve}><XAxis dataKey="timestamp" tickFormatter={formatDate}/><YAxis domain={['auto', 'auto']}/><Tooltip/><CartesianGrid stroke="#333"/><Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false}/></LineChart>
-                                        </ResponsiveContainer>
-                                    ) : <p>No equity curve data available.</p>}
-                                </div>
-                                <div className="chart">
-                                    <h3>Win / Loss Distribution</h3>
-                                    {pieData?.length > 0 && pieData.some(d => d.value > 0) ? (
-                                        <ResponsiveContainer width="100%" height={300}>
-                                            <PieChart><Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>{pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}</Pie><Tooltip/><Legend/></PieChart>
-                                        </ResponsiveContainer>
-                                    ) : <p>No win/loss data available.</p>}
-                                </div>
-                            </div>
-                        </>
-                    )}
-                </div>
-            )}
+      <h1>Backtests</h1>
+      {error && <div className="error-box"><h4>Error</h4><p>{error.message}</p></div>}
+      <div className="backtest-main">
+        <div className="backtest-forms">
+          <div className="tabs">
+            <button className={activeTab === 'single' ? 'active' : ''} onClick={() => setActiveTab('single')}>Single Strategy</button>
+            <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo Strategy</button>
+          </div>
+          {activeTab === 'single' && (
+            <form onSubmit={handleRunBacktest} className="backtest-form">
+              <label>Strategy:
+                <select name="code" value={formData.code} onChange={handleFormChange} disabled={!strategyOptions.length}>
+                  {strategyOptions.length ? strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option>Loading...</option>}
+                </select>
+              </label>
+              <CommonBacktestInputs data={formData} onChange={handleFormChange} options={{symbolOptions, timeframeOptions}} />
+              <button type="submit" disabled={loading === 'running' || !strategyOptions.length}>
+                {loading === 'running' ? 'Running...' : 'Run Backtest'}
+              </button>
+            </form>
+          )}
+          {activeTab === 'combo' && (
+            <form onSubmit={handleRunComboBacktest} className="backtest-form">
+              <CommonBacktestInputs data={comboData} onChange={handleComboChange} options={{symbolOptions, timeframeOptions}} />
+              <div className="combo-strategy-list">
+                {comboData.strategyConfigs.map((config, idx) => (
+                  <ComboStrategyCard key={idx} idx={idx} config={config} strategies={strategyOptions} onChange={handleStrategyConfigChange} onRemove={removeStrategyCard} disableRemove={comboData.strategyConfigs.length <= 1} />
+                ))}
+              </div>
+              <button type="button" onClick={addStrategyCard} disabled={!strategyOptions.length}>Add Strategy</button>
+              <button type="submit" disabled={loading === 'running_combo' || !strategyOptions.length}>
+                {loading === 'running_combo' ? 'Running...' : 'Run Combo Backtest'}
+              </button>
+            </form>
+          )}
         </div>
+        {(loading.startsWith('running') || combinedMetrics) && (
+          <div className="results-section">
+            <h2>Backtest Results</h2>
+            {loading.startsWith('running') && <div className="loading-overlay"><h3>Running backtest...</h3></div>}
+            {combinedMetrics && (
+              <>
+                <MetricsDisplay metrics={combinedMetrics} />
+                <div className="charts-container">
+                  <div className="chart">
+                    <h3>Equity Curve</h3>
+                    {combinedEquityCurve?.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={300}>
+                        <LineChart data={combinedEquityCurve}><XAxis dataKey="timestamp" tickFormatter={formatDate}/><YAxis domain={['auto', 'auto']}/><Tooltip/><CartesianGrid stroke="#333"/><Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false}/></LineChart>
+                      </ResponsiveContainer>
+                    ) : <p>No equity curve data available.</p>}
+                  </div>
+                  <div className="chart">
+                    <h3>Win / Loss Distribution</h3>
+                    {pieData?.length > 0 && pieData.some(d => d.value > 0) ? (
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart><Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>{pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}</Pie><Tooltip/><Legend/></PieChart>
+                      </ResponsiveContainer>
+                    ) : <p>No win/loss data available.</p>}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
