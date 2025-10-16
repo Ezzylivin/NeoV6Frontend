@@ -1,4 +1,8 @@
-import api from "./apiClient.js";
+import api from "./apiClient.js"; // Your main configured Axios client
+import axios from "axios";       // Import axios directly for the external ML call
+
+// The URL for your Python ML server, pulled from environment variables
+const ML_API_BASE_URL = process.env.REACT_APP_ML_API_URL || 'http://74.208.28.77:8000/api';
 
 /**
  * Normalizes the API response for backtest options.
@@ -18,18 +22,18 @@ const normalizePastBacktests = (raw) => ({
 });
 
 /**
- * A consistent error handler for API calls.
+ * A consistent error handler for all API calls.
  */
 const handleError = (error, functionName) => {
-    const message = error.response?.data?.message || error.message || "An unknown error occurred.";
+    const message = error.response?.data?.detail || error.response?.data?.message || error.message || "An unknown error occurred.";
     console.error(`${functionName}(): failed`, message);
     throw {
-        status: error.response?.status || null,
+        status: error.response?.status || 500,
         message: message,
     };
 };
 
-// --- API Service Functions ---
+// --- Main Backend API Functions ---
 
 export async function fetchOptions() {
     try {
@@ -67,7 +71,6 @@ export async function deleteById(id) {
     }
 }
 
-// Renamed for consistency with the controller it calls (`runBacktestController`)
 export async function runBacktest(payload) {
     if (!payload.code) throw new Error("A strategy 'code' is required.");
     try {
@@ -88,21 +91,31 @@ export async function previewStrategy(payload) {
     }
 }
 
-/**
- * Runs a combined backtest for multiple strategies.
- * @param {object} payload - The complete configuration from the combo form.
- * The payload MUST contain `strategies: [{code, params}, ...]`.
- */
 export async function runComboBacktest(payload) {
-    // ✅ FIX: The payload from the frontend component is now perfectly shaped.
-    // No transformation is needed. We just pass the payload directly.
+    if (!payload.strategies || payload.strategies.length === 0) {
+        throw new Error("Payload must contain a non-empty 'strategies' array.");
+    }
     try {
-        if (!payload.strategies || payload.strategies.length === 0) {
-            throw new Error("Payload must contain a non-empty 'strategies' array.");
-        }
         const { data } = await api.post("/backtest/combo", payload);
         return data;
     } catch (error) {
         handleError(error, "runComboBacktest");
+    }
+}
+
+// --- NEW: Machine Learning Server API Function ---
+
+/**
+ * Calls the external ML server to get predictions.
+ * @param {object} featuresPayload - The data required by your model (e.g., { symbol, features }).
+ */
+export async function getMlPredictions(featuresPayload) {
+    try {
+        // We use axios directly here to call the different server URL.
+        const response = await axios.post(`${ML_API_BASE_URL}/predict`, featuresPayload);
+        return response.data; // Axios puts the JSON response directly in `data`
+    } catch (error) {
+        // Use the same robust error handler for consistency.
+        handleError(error, "getMlPredictions");
     }
 }
