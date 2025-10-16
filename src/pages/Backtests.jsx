@@ -254,9 +254,38 @@ export default function Backtests() {
     setComboData(prev => ({ ...prev, strategyConfigs: prev.strategyConfigs.filter((_, i) => i !== index) }));
   };
 
-  const handleRunBacktest = async (e) => { e.preventDefault(); setBacktestResults({ main: null, individuals: [] }); const res = await runNewBacktest(formData); if(res) setBacktestResults({ main: res, individuals: [] }); };
-  const handleRunComboBacktest = async (e) => { e.preventDefault(); setBacktestResults({ main: null, individuals: [] }); const res = await runComboBacktest(comboData); if(res) setBacktestResults(res); };
+  const handleRunBacktest = async (e) => {
+    e.preventDefault();
+    setBacktestResults({ main: null, individuals: [] });
+    
+    // ✅ ADD THIS TRY...CATCH BLOCK
+    try {
+        const res = await runNewBacktest(formData);
+        if (res) {
+            setBacktestResults({ main: res, individuals: [] });
+        }
+    } catch (error) {
+        // The error is now caught!
+        // You don't need to do anything here, because the hook already set the error state.
+        console.error("Backtest failed:", error.message); 
+    }
+};
 
+const handleRunComboBacktest = async (e) => {
+    e.preventDefault();
+    setBacktestResults({ main: null, individuals: [] });
+
+    // ✅ ADD THIS TRY...CATCH BLOCK
+    try {
+        const res = await runComboBacktest(comboData);
+        if (res) {
+            setBacktestResults(res);
+        }
+    } catch (error) {
+        console.error("Combo backtest failed:", error.message);
+    }
+};
+  
   return (
     <div className="dashboard-container">
       <h1>Backtests</h1>
