@@ -33,7 +33,7 @@ function backtestReducer(state, action) {
                     results: action.payload.backtests,
                     total: action.payload.total,
                 },
-                loading: 'idle',
+                // Note: Loading state is handled by the calling function's finally block
             };
         case 'DELETE_BACKTEST_OPTIMISTIC':
             return {
@@ -63,6 +63,9 @@ export function useBacktest() {
             dispatch({ type: "SET_PAST_BACKTESTS", payload: data });
         } catch (err) {
             dispatch({ type: "SET_ERROR", payload: err });
+        } finally {
+            // ✅ UPGRADE: Ensures loading state is always reset, even on error.
+            dispatch({ type: "SET_LOADING", payload: "idle" });
         }
     }, []);
 
@@ -84,21 +87,17 @@ export function useBacktest() {
         dispatch({ type: "DELETE_BACKTEST_OPTIMISTIC", payload: id });
         try {
             await backtestApi.deleteById(id);
-            // Optionally, re-fetch to ensure data consistency, especially with pagination.
-            // await getPastBacktests(); 
         } catch (err) {
             // Revert state on failure
             dispatch({ type: "SET_PAST_BACKTESTS", payload: originalBacktests });
             dispatch({ type: "SET_ERROR", payload: err });
             throw err;
         }
-    }, [state.pastBacktests]); // Dependency ensures `originalBacktests` is up-to-date
+    }, [state.pastBacktests]);
 
     const runNewBacktest = useCallback(async (payload) => {
         dispatch({ type: "SET_LOADING", payload: "running" });
         try {
-            // The hook's responsibility is simple: pass the data to the API service.
-            // The service layer should handle any final transformations.
             const result = await backtestApi.runBacktest(payload);
             await getPastBacktests(1); // Refresh the list of past backtests
             return result;
@@ -116,15 +115,17 @@ export function useBacktest() {
             if (!payload.strategies || payload.strategies.length === 0) {
                 throw new Error("At least one strategy must be selected.");
             }
-            // The hook simply passes the payload. The API service will format it for the backend.
-            return await backtestApi.runComboBacktest(payload);
+            const result = await backtestApi.runComboBacktest(payload);
+            // ✅ UPGRADE: Refreshes the backtest list after a combo run for consistency.
+            await getPastBacktests(1);
+            return result;
         } catch (err) {
             dispatch({ type: "SET_ERROR", payload: err });
             throw err;
         } finally {
             dispatch({ type: "SET_LOADING", payload: "idle" });
         }
-    }, []);
+    }, [getPastBacktests]);
 
     const previewStrategy = useCallback(async (payload) => {
         dispatch({ type: "SET_LOADING", payload: "running" });
