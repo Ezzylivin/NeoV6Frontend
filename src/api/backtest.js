@@ -122,11 +122,59 @@ export async function fetchModels() {
  * Calls the external ML server to get predictions.
  * @param {object} featuresPayload - The data required by your model (e.g., { symbol, features }).
  */
-export async function getMlPredictions(featuresPayload) {
+
+
+// backtest.js (or wherever your API call is located)
+
+// Function to safely retrieve the token
+const getAuthToken = () => {
+    // ⚠️ ASSUMPTION: The token is stored in localStorage under the key 'authToken'
+    return localStorage.getItem('authToken'); 
+};
+
+
+export async function getMlPredictions(predictionData) {
+    // --- STEP 1: Get the token ---
+    const token = getAuthToken();
+
+    // --- STEP 2: Check if the token exists ---
+    if (!token) {
+        // If no token, we know we'll get a 401. Log the error and stop the request.
+        console.error("Authentication token not found. User needs to log in.");
+        // This line is crucial, as it matches your existing custom error logging:
+        throw new Error("Not authenticated"); 
+    }
+
+    // --- STEP 3: Define the request configuration ---
+    const config = {
+        method: 'POST',
+        url: 'https://74.208.28.77:8000/api/ml/predict',
+        data: predictionData, // The body of your request
+        // --- STEP 4: Add the Authorization Header ---
+        headers: {
+            'Content-Type': 'application/json',
+            // This is the fix for the 401 error!
+            'Authorization': `Bearer ${token}` 
+        }
+    };
+
     try {
-        const response = await axios.post(`${ML_API_BASE_URL}/api/ml/predict`, featuresPayload);
-        return response.data;
+        // ⚠️ ASSUMPTION: Using Axios or a similar library
+        const response = await axios(config); 
+        
+        // Success: 200 OK
+        return response.data; 
     } catch (error) {
-        handleError(error, "getMlPredictions");
+        // Log a more detailed error for debugging
+        console.error("API call to /api/ml/predict failed:", error);
+
+        // If the error response status is 401, throw the custom message.
+        if (error.response && error.response.status === 401) {
+            // This will trigger the 'Not authenticated' message in backtest.js:29
+            throw new Error("Not authenticated"); 
+        }
+
+        // Re-throw any other errors
+        throw error;
     }
 }
