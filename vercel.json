@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/ml/:path*",
-      "destination": "https://74.208.28.77:8000/api/ML/:path*"
+      "destination": "https://74.208.28.77:8000/api/ml/:path*"
     },
     {
       "source": "/api/:path*",
