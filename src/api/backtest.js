@@ -129,7 +129,7 @@ export async function fetchModels() {
 // Function to safely retrieve the token
 const getAuthToken = () => {
     // ⚠️ ASSUMPTION: The token is stored in localStorage under the key 'authToken'
-    return localStorage.getItem('authToken'); 
+    return localStorage.getItem('token'); 
 };
 
 
