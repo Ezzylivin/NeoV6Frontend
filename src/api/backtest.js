@@ -124,7 +124,7 @@ export async function fetchModels() {
  */
 export async function getMlPredictions(featuresPayload) {
     try {
-        const response = await axios.post(`${ML_API_BASE_URL}/api/predict`, featuresPayload);
+        const response = await axios.post(`${ML_API_BASE_URL}/api/ml/predict`, featuresPayload);
         return response.data;
     } catch (error) {
         handleError(error, "getMlPredictions");
