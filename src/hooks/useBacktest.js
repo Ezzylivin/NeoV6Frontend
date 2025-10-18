@@ -7,7 +7,7 @@ const initialState = {
         strategies: [],
         symbols: [],
         timeframes: [],
-        models: [] // ✅ FIX: Added a place to store the ML models
+        models: []
     },
     pastBacktests: { results: [], total: 0 },
     loading: 'idle',
@@ -175,17 +175,26 @@ export function useBacktest() {
                 }
 
                 const modelsResult = results[2];
-                const models = modelsResult.status === 'fulfilled' ? modelsResult.value : [];
+                
+                // --- 🐞 DEBUGGING LOG ---
+                // Log the raw result from the fetchModels() API call.
+                // Check your browser's developer console to see this output.
+                console.log("DEBUG: Raw response from fetchModels():", modelsResult);
+
+                // --- POTENTIAL FIX ---
+                // The API sends back an object like { models: [...] }. We need the array inside.
+                // Check the logged object. The data is in the 'value' property.
+                const models = modelsResult.status === 'fulfilled' ? modelsResult.value.models : [];
+                
                 if (modelsResult.status === 'rejected') {
                     console.error("Failed to fetch ML models:", modelsResult.reason);
                 }
 
                 dispatch({
                     type: "SET_INITIAL_DATA",
-                    // ✅ FIX: Combine the fetched models with the other options data
-                    payload: { 
-                        options: { ...optionsData, models }, 
-                        pastBacktests 
+                    payload: {
+                        options: { ...optionsData, models }, // Use the extracted 'models' array
+                        pastBacktests
                     },
                 });
 
