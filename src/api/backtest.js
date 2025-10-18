@@ -112,7 +112,7 @@ export async function fetchModels() {
     try {
         // We use axios to call the ML server, which may be different from the main API.
         const response = await axios.get(`${ML_API_BASE_URL}/api/ml/models`);
-        return response.data.models || [];
+        return response.data;
     } catch (error) {
         handleError(error, "fetchModels");
     }
