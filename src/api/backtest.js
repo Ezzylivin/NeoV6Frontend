@@ -2,7 +2,7 @@ import api from "./apiClient.js"; // Your main configured Axios client
 import axios from "axios";       // Import axios directly for the external ML call
 
 // The URL for your Python ML server, pulled from environment variables
-const ML_API_BASE_URL = process.env.REACT_APP_ML_API_URL || [https://74.208.28.77:8000] ;
+const ML_API_BASE_URL = process.env.REACT_APP_ML_API_URL ;
 
 /**
  * Normalizes the API response for backtest options.
