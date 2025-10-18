@@ -184,7 +184,7 @@ export function useBacktest() {
                 // --- POTENTIAL FIX ---
                 // The API sends back an object like { models: [...] }. We need the array inside.
                 // Check the logged object. The data is in the 'value' property.
-                const models = modelsResult.status === 'fulfilled' ? modelsResult.value : [];
+                const models = modelsResult.status === 'fulfilled' ? modelsResult.value :{ models: [] };
                 
                 if (modelsResult.status === 'rejected') {
                     console.error("Failed to fetch ML models:", modelsResult.reason);
