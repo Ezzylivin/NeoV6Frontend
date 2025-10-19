@@ -337,6 +337,7 @@ const handleRunComboBacktest = async (e) => {
                       <ResponsiveContainer width="100%" height={300}>
                         <LineChart data={combinedEquityCurve}><XAxis dataKey="timestamp" tickFormatter={formatDate}/><YAxis domain={['auto', 'auto']}/><Tooltip/><CartesianGrid stroke="#333"/><Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false}/></LineChart>
                       </ResponsiveContainer>
+                    ) : <p>No equity curve data available.</p>}
                   </div>
                   <div className="chart">
                     <h3>Win / Loss Distribution</h3>
@@ -344,6 +345,7 @@ const handleRunComboBacktest = async (e) => {
                       <ResponsiveContainer width="100%" height={300}>
                         <PieChart><Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>{pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}</Pie><Tooltip/><Legend/></PieChart>
                       </ResponsiveContainer>
+                    ) : <p>No win/loss data available.</p>}
                   </div>
                 </div>
               </>
