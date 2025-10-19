@@ -133,8 +133,8 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
 
 // --- Main Component ---
 export default function Backtests() {
-  const backtestFunctions = useBacktest();
-  const { state, runNewBacktest, runComboBacktest } = backtestFunctions;
+  // 🚨 FIX 1: Direct destructuring (safer pattern)
+  const { state, runNewBacktest, runComboBacktest } = useBacktest();
   const { loading, error, options } = state || {};
 
   const [formData, setFormData] = useState(initialFormData);
@@ -259,18 +259,13 @@ export default function Backtests() {
     e.preventDefault();
     setBacktestResults({ main: null, individuals: [] });
     
-    // Check if the function is defined before calling it
-    if (!runNewBacktest) {
-        console.error("Backtest failed: runNewBacktest function is not loaded/available.");
-        return;
-    }
     try {
-        const res = await runNewBacktest(formData);
+        // 🚨 FIX: Optional chaining on the function call
+        const res = await runNewBacktest?.(formData);
         if (res) {
             setBacktestResults({ main: res, individuals: [] });
         }
     } catch (error) {
-        // The error is now caught and the hook has set the error state.
         console.error("Backtest failed:", error.message); 
     }
 };
@@ -279,14 +274,9 @@ const handleRunComboBacktest = async (e) => {
     e.preventDefault();
     setBacktestResults({ main: null, individuals: [] });
 
-    // 🚨 FIX: Safety check for undefined function before calling
-    if (!runComboBacktest) {
-        console.error("Combo backtest failed: runComboBacktest function is not loaded/available from hook.");
-        return;
-    }
-
     try {
-        const res = await runComboBacktest(comboData);
+        // 🚨 FIX: Optional chaining on the function call
+        const res = await runComboBacktest?.(comboData);
         if (res) {
             setBacktestResults(res);
         }
@@ -355,7 +345,6 @@ const handleRunComboBacktest = async (e) => {
                       <ResponsiveContainer width="100%" height={300}>
                         <PieChart><Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>{pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}</Pie><Tooltip/><Legend/></PieChart>
                       </ResponsiveContainer>
-                    ) : <p>No win/loss data available.</p>}
                   </div>
                 </div>
               </>
