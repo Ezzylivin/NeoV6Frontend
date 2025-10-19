@@ -1,6 +1,6 @@
 import { useReducer, useCallback, useEffect } from "react";
 import * as backtestApi from "../api/backtest.js";
-// 🚨 Removed: import Papa from "papaparse";
+// Removed Papa dependency
 
 
 // --- CSV Parsing Utility (Final Native JS Version) ---
@@ -253,7 +253,8 @@ export function useBacktest() {
             dispatch({ type: "SET_ERROR", payload: err });
             throw err;
         } finally {
-            dispatch({ type: "SET_LOADING", payload: "idle") }
+            // 🚨 FIX: Corrected the missing curly brace here (position 256:59 in the error trace)
+            dispatch({ type: "SET_LOADING", payload: "idle" }); 
         }
     }, []);
 
