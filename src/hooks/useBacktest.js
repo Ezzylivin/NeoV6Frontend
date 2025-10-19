@@ -1,10 +1,23 @@
 import { useReducer, useCallback, useEffect } from "react";
 import * as backtestApi from "../api/backtest.js";
-import Papa from "papaparse";
+import Papa from "papaparse"; // ✅ Correct import for build systems
 
-// 🚨 PREREQUISITE: You must install a CSV parser like Papaparse (e.g., 'npm install papaparse')
-// and ensure it is available, e.g., by importing or accessing it globally (window.Papa).
-// Note: You may need to add 'import Papa from "papaparse";' at the top if using module imports.
+
+// --- CSV Parsing Utility ---
+// This function parses the CSV text, treating the first row as headers.
+const parseCsvText = (csvText) => {
+    // Assuming Papaparse is available globally or imported.
+    if (typeof Papa === 'undefined' && typeof window.Papa === 'undefined') {
+        throw new Error("CSV parser (e.g., Papaparse) is required but not found.");
+    }
+    const Papa = window.Papa || global.Papa; // Access the library
+
+    return Papa.parse(csvText, {
+        header: true, // Crucial: returns data as an array of objects (column names are keys)
+        skipEmptyLines: true,
+        dynamicTyping: true 
+    }).data;
+};
 
 
 // --- State Management with Reducer ---
@@ -53,6 +66,12 @@ function backtestReducer(state, action) {
                     total: state.pastBacktests.total - 1,
                 },
             };
+        case 'ROLLBACK_BACKTESTS':
+            // Rollback to the previous state (requires passing original data in payload)
+            return {
+                ...state,
+                pastBacktests: action.payload,
+            };
         default:
             throw new Error(`Unhandled action type: ${action.type}`);
     }
@@ -86,27 +105,28 @@ export function useBacktest() {
         }
     }, []);
 
-   const deleteBacktest = useCallback(async (id) => {
-    // We can remove the local 'originalBacktests' variable and its dependency
+    // 🚨 FIX: Cleaned up the dependency array and rollback logic 
+    const deleteBacktest = useCallback(async (id) => {
+        // Capture original state before dispatching optimistic update
+        const originalBacktests = { ...state.pastBacktests };
+        
+        dispatch({ type: "DELETE_BACKTEST_OPTIMISTIC", payload: id });
+        try {
+            await backtestApi.deleteById(id);
+        } catch (err) {
+            // Rollback state if API fails
+            dispatch({ type: "ROLLBACK_BACKTESTS", payload: originalBacktests });
+            dispatch({ type: "SET_ERROR", payload: err });
+            throw err;
+        }
+    }, [state.pastBacktests]); // Dependency required for accurate rollback
 
-    dispatch({ type: "DELETE_BACKTEST_OPTIMISTIC", payload: id });
-    try {
-        await backtestApi.deleteById(id);
-    } catch (err) {
-        // Here, we would ideally roll back the state via the reducer, 
-        // but since we only need the dispatch function, we remove the dependency.
-        dispatch({ type: "SET_ERROR", payload: err });
-        throw err;
-    }
-}, []); // 🚨 FIX: Removed state.pastBacktests from dependency array
-
-    // --- NEW: Dynamic Feature Fetching Logic ---
+    // --- NEW: Dynamic Feature Fetching Logic (Fixes 500 Error) ---
     const getFeaturesForML = useCallback(async (modelName) => {
-        // --- STEP 1: Fetch Metadata (Provides the file name and required feature names) ---
-        // Assuming backtestApi.fetchModelMetadata is implemented to call the new FastAPI endpoint
+        // --- STEP 1: Fetch Metadata ---
         const metadata = await backtestApi.fetchModelMetadata(modelName); 
         
-        // --- STEP 2: Fetch the Feature Data File from the server's static endpoint ---
+        // --- STEP 2: Fetch the Feature Data File ---
         const dataUrl = `/data/${metadata.source_file}`;
         const response = await fetch(dataUrl);
         
@@ -138,7 +158,7 @@ export function useBacktest() {
             return parseFloat(value);
         }).filter(value => !isNaN(value));
 
-        // --- STEP 4: FINAL VALIDATION (CRITICAL to prevent 500 Crash) ---
+        // --- STEP 4: FINAL VALIDATION ---
         if (featureData.length !== metadata.feature_count) {
             throw new Error(
                 `Data Mismatch: Model expects ${metadata.feature_count} features, but extracted ${featureData.length}.`
@@ -157,7 +177,7 @@ export function useBacktest() {
         try {
             let finalPayload = { ...payload };
             if (payload.mlMode && payload.mlMode !== 'off') {
-                // 🚨 FIX: Call the dynamic feature getter
+                // Call the dynamic feature getter
                 const featuresList = await getFeaturesForML(payload.mlMode); 
 
                 const featuresForML = {
@@ -187,7 +207,7 @@ export function useBacktest() {
             }
             let finalPayload = { ...payload };
             if (payload.mlMode && payload.mlMode !== 'off') {
-                // 🚨 FIX: Call the dynamic feature getter
+                // Call the dynamic feature getter
                 const featuresList = await getFeaturesForML(payload.mlMode); 
 
                 const featuresForML = {
@@ -270,13 +290,12 @@ export function useBacktest() {
     }, []);
 
     return {
-    state,
-    getPastBacktests,
-    getBacktestById,
-    deleteBacktest,
-    runNewBacktest, // <-- Must be defined as a function
-    runComboBacktest, // <-- Must be defined as a function
-    previewStrategy,
-    // getFeaturesForML is internal, so it is not returned
-};
+        state,
+        getPastBacktests,
+        getBacktestById,
+        deleteBacktest,
+        runNewBacktest,
+        runComboBacktest,
+        previewStrategy,
+    };
 }
