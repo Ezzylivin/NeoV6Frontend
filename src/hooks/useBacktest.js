@@ -283,12 +283,13 @@ export function useBacktest() {
     }, []);
 
     return {
-        state,
-        getPastBacktests,
-        getBacktestById,
-        deleteBacktest,
-        runNewBacktest,
-        runComboBacktest,
-        previewStrategy,
-    };
+    state,
+    getPastBacktests,
+    getBacktestById,
+    deleteBacktest,
+    runNewBacktest, // <-- Must be defined as a function
+    runComboBacktest, // <-- Must be defined as a function
+    previewStrategy,
+    // getFeaturesForML is internal, so it is not returned
+};
 }
