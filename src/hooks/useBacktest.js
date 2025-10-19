@@ -1,6 +1,27 @@
 import { useReducer, useCallback, useEffect } from "react";
 import * as backtestApi from "../api/backtest.js";
 
+// 🚨 PREREQUISITE: You must install a CSV parser like Papaparse (e.g., 'npm install papaparse')
+// and ensure it is available, e.g., by importing or accessing it globally (window.Papa).
+// Note: You may need to add 'import Papa from "papaparse";' at the top if using module imports.
+
+// --- CSV Parsing Utility ---
+// This function parses the CSV text, treating the first row as headers.
+const parseCsvText = (csvText) => {
+    // Assuming Papaparse is available globally or imported.
+    if (typeof Papa === 'undefined' && typeof window.Papa === 'undefined') {
+        throw new Error("CSV parser (e.g., Papaparse) is required but not found.");
+    }
+    const Papa = window.Papa || global.Papa; // Access the library
+
+    return Papa.parse(csvText, {
+        header: true, // Crucial: returns data as an array of objects (column names are keys)
+        skipEmptyLines: true,
+        dynamicTyping: true 
+    }).data;
+};
+
+
 // --- State Management with Reducer ---
 const initialState = {
     options: {
@@ -52,6 +73,7 @@ function backtestReducer(state, action) {
     }
 }
 
+
 export function useBacktest() {
     const [state, dispatch] = useReducer(backtestReducer, initialState);
 
@@ -91,15 +113,71 @@ export function useBacktest() {
         }
     }, [state.pastBacktests]);
 
+    // --- NEW: Dynamic Feature Fetching Logic ---
+    const getFeaturesForML = useCallback(async (modelName) => {
+        // --- STEP 1: Fetch Metadata (Provides the file name and required feature names) ---
+        // Assuming backtestApi.fetchModelMetadata is implemented to call the new FastAPI endpoint
+        const metadata = await backtestApi.fetchModelMetadata(modelName); 
+        
+        // --- STEP 2: Fetch the Feature Data File from the server's static endpoint ---
+        const dataUrl = `/data/${metadata.source_file}`;
+        const response = await fetch(dataUrl);
+        
+        if (!response.ok) {
+            throw new Error(`Failed to load source file ${metadata.source_file}. Status: ${response.status}`);
+        }
+        const csvText = await response.text();
+        
+        // --- STEP 3: Parse CSV and Extract Features by Name ---
+        const parsedData = parseCsvText(csvText); 
+        
+        // Use the second-to-last element as the last element can often be an empty row
+        const lastRowObject = parsedData[parsedData.length - 2] || parsedData[parsedData.length - 1]; 
+
+        if (!lastRowObject || !Object.keys(lastRowObject).length) {
+            throw new Error("Could not find a valid data row in the feature CSV.");
+        }
+
+        // Extract Features Dynamically by Name
+        const featureData = metadata.feature_names.map(featureName => {
+            const value = lastRowObject[featureName];
+            
+            if (value === undefined || value === null) {
+                console.error(`Required feature "${featureName}" is missing from the CSV data.`);
+                throw new Error(`Missing feature: ${featureName}`); 
+            }
+            
+            // Convert to float, as required by the Python Pydantic model
+            return parseFloat(value);
+        }).filter(value => !isNaN(value));
+
+        // --- STEP 4: FINAL VALIDATION (CRITICAL to prevent 500 Crash) ---
+        if (featureData.length !== metadata.feature_count) {
+            throw new Error(
+                `Data Mismatch: Model expects ${metadata.feature_count} features, but extracted ${featureData.length}.`
+            );
+        }
+        
+        console.log(`Client Debug: Dynamically generated ${featureData.length} features for ${modelName}.`);
+        return featureData;
+
+    }, []);
+
+    // --- Core Backtest Execution Functions ---
+
     const runNewBacktest = useCallback(async (payload) => {
         dispatch({ type: "SET_LOADING", payload: "running" });
         try {
             let finalPayload = { ...payload };
             if (payload.mlMode && payload.mlMode !== 'off') {
+                // 🚨 FIX: Call the dynamic feature getter
+                const featuresList = await getFeaturesForML(payload.mlMode); 
+
                 const featuresForML = {
                     symbol: payload.symbol,
-                    features: [/* IMPORTANT: Replace with your actual feature data */]
+                    features: featuresList, // Use the dynamically retrieved features
                 };
+                
                 const mlResult = await backtestApi.getMlPredictions(featuresForML);
                 finalPayload.mlPredictions = mlResult.predictions;
             }
@@ -112,7 +190,7 @@ export function useBacktest() {
         } finally {
             dispatch({ type: "SET_LOADING", payload: "idle" });
         }
-    }, [getPastBacktests]);
+    }, [getPastBacktests, getFeaturesForML]);
 
     const runComboBacktest = useCallback(async (payload) => {
         dispatch({ type: "SET_LOADING", payload: "running_combo" });
@@ -122,10 +200,14 @@ export function useBacktest() {
             }
             let finalPayload = { ...payload };
             if (payload.mlMode && payload.mlMode !== 'off') {
+                // 🚨 FIX: Call the dynamic feature getter
+                const featuresList = await getFeaturesForML(payload.mlMode); 
+
                 const featuresForML = {
                     symbol: payload.symbol,
-                    features: [/* IMPORTANT: Replace with your actual feature data */]
+                    features: featuresList, // Use the dynamically retrieved features
                 };
+
                 const mlResult = await backtestApi.getMlPredictions(featuresForML);
                 finalPayload.mlPredictions = mlResult.predictions;
             }
@@ -138,7 +220,7 @@ export function useBacktest() {
         } finally {
             dispatch({ type: "SET_LOADING", payload: "idle" });
         }
-    }, [getPastBacktests]);
+    }, [getPastBacktests, getFeaturesForML]);
 
     const previewStrategy = useCallback(async (payload) => {
         dispatch({ type: "SET_LOADING", payload: "running" });
@@ -175,15 +257,8 @@ export function useBacktest() {
                 }
 
                 const modelsResult = results[2];
-                
-                // --- 🐞 DEBUGGING LOG ---
-                // Log the raw result from the fetchModels() API call.
-                // Check your browser's developer console to see this output.
                 console.log("DEBUG: Raw response from fetchModels():", modelsResult);
 
-                // --- POTENTIAL FIX ---
-                // The API sends back an object like { models: [...] }. We need the array inside.
-                // Check the logged object. The data is in the 'value' property.
                 const models = modelsResult.status === 'fulfilled' ? modelsResult.value.models: [];
                 
                 if (modelsResult.status === 'rejected') {
