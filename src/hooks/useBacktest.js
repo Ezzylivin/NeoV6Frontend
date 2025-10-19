@@ -3,13 +3,12 @@ import * as backtestApi from "../api/backtest.js";
 // Removed Papa dependency
 
 
-// --- CSV Parsing Utility (Final Native JS Version) ---
-// This function is stable and uses only native JavaScript methods.
+// --- CSV Parsing Utility (Native JS Version) ---
 const parseCsvText = (csvText) => {
     // 1. Split text into lines, filter out empty ones, and trim whitespace
     const lines = csvText.trim().split('\n').filter(line => line.trim() !== '');
 
-    if (lines.length <= 1) return []; // Only header or no data
+    if (lines.length <= 1) return [];
 
     // 2. Get the header row and clean column names
     const header = lines[0].split(',').map(h => h.trim());
@@ -27,12 +26,11 @@ const parseCsvText = (csvText) => {
 
             // Attempt to convert to number, falling back to string if necessary
             const numValue = parseFloat(value);
-            // Store as a number if valid, otherwise store the original string/null
             rowObject[key] = isNaN(numValue) ? value : numValue; 
         }
         data.push(rowObject);
     }
-    return data; // Returns array of objects
+    return data; 
 };
 
 
@@ -83,7 +81,6 @@ function backtestReducer(state, action) {
                 },
             };
         case 'ROLLBACK_BACKTESTS':
-            // Although this case is still defined, the logic below no longer uses it.
             return {
                 ...state,
                 pastBacktests: action.payload,
@@ -121,26 +118,25 @@ export function useBacktest() {
         }
     }, []);
 
-    // 🚨 FIX: Removed reliance on state for rollback 
     const deleteBacktest = useCallback(async (id) => {
-        // Optimistically delete the item locally
+        const originalBacktests = { ...state.pastBacktests };
+        
         dispatch({ type: "DELETE_BACKTEST_OPTIMISTIC", payload: id });
         try {
             await backtestApi.deleteById(id);
         } catch (err) {
-            // Rollback by refreshing the state from the server
-            await getPastBacktests(1); 
+            dispatch({ type: "ROLLBACK_BACKTESTS", payload: originalBacktests });
             dispatch({ type: "SET_ERROR", payload: err });
             throw err;
         }
-    }, [getPastBacktests]); // Stable dependency
+    }, [state.pastBacktests]);
 
-    // --- NEW: Dynamic Feature Fetching Logic (Fixes 500 Error) ---
+    // --- Dynamic Feature Fetching Logic (Still present, but unused below) ---
     const getFeaturesForML = useCallback(async (modelName) => {
-        // --- STEP 1: Fetch Metadata ---
+        // This function's definition itself is NOT commented out, 
+        // as the problem lies in the call, not the definition.
         const metadata = await backtestApi.fetchModelMetadata(modelName); 
         
-        // --- STEP 2: Fetch the Feature Data File ---
         const dataUrl = `/data/${metadata.source_file}`;
         const response = await fetch(dataUrl);
         
@@ -149,17 +145,14 @@ export function useBacktest() {
         }
         const csvText = await response.text();
         
-        // --- STEP 3: Parse CSV and Extract Features by Name ---
         const parsedData = parseCsvText(csvText); 
         
-        // Get the last valid data row
         const lastRowObject = parsedData[parsedData.length - 1]; 
 
         if (!lastRowObject || !Object.keys(lastRowObject).length) {
             throw new Error("Could not find a valid data row in the feature CSV.");
         }
 
-        // Extract Features Dynamically by Name
         const featureData = metadata.feature_names.map(featureName => {
             const value = lastRowObject[featureName];
             
@@ -168,11 +161,9 @@ export function useBacktest() {
                 throw new Error(`Missing feature: ${featureName}`); 
             }
             
-            // Convert to float, as required by the Python Pydantic model
             return parseFloat(value);
         }).filter(value => !isNaN(value));
 
-        // --- STEP 4: FINAL VALIDATION ---
         if (featureData.length !== metadata.feature_count) {
             throw new Error(
                 `Data Mismatch: Model expects ${metadata.feature_count} features, but extracted ${featureData.length}.`
@@ -184,27 +175,30 @@ export function useBacktest() {
 
     }, []);
 
-    // --- Core Backtest Execution Functions ---
+    // --- Core Backtest Execution Functions (ISOLATED) ---
 
     const runNewBacktest = useCallback(async (payload) => {
         dispatch({ type: "SET_LOADING", payload: "running" });
         try {
+            // 🚨 ISOLATION START 🚨
+            // return a placeholder to simulate success
+            const result = await backtestApi.runBacktest(payload);
+            await getPastBacktests(1);
+            return result;
+            
+            /*
             let finalPayload = { ...payload };
             if (payload.mlMode && payload.mlMode !== 'off') {
-                // Call the dynamic feature getter
                 const featuresList = await getFeaturesForML(payload.mlMode); 
-
-                const featuresForML = {
-                    symbol: payload.symbol,
-                    features: featuresList, // Use the dynamically retrieved features
-                };
-                
+                const featuresForML = { symbol: payload.symbol, features: featuresList, };
                 const mlResult = await backtestApi.getMlPredictions(featuresForML);
                 finalPayload.mlPredictions = mlResult.predictions;
             }
             const result = await backtestApi.runBacktest(finalPayload);
             await getPastBacktests(1);
             return result;
+            */
+            // 🚨 ISOLATION END 🚨
         } catch (err) {
             dispatch({ type: "SET_ERROR", payload: err });
             throw err;
@@ -219,22 +213,25 @@ export function useBacktest() {
             if (!payload.strategies || payload.strategies.length === 0) {
                 throw new Error("At least one strategy must be selected.");
             }
+            
+            // 🚨 ISOLATION START 🚨
+            const result = await backtestApi.runComboBacktest(payload);
+            await getPastBacktests(1);
+            return result;
+            
+            /*
             let finalPayload = { ...payload };
             if (payload.mlMode && payload.mlMode !== 'off') {
-                // Call the dynamic feature getter
                 const featuresList = await getFeaturesForML(payload.mlMode); 
-
-                const featuresForML = {
-                    symbol: payload.symbol,
-                    features: featuresList, // Use the dynamically retrieved features
-                };
-
+                const featuresForML = { symbol: payload.symbol, features: featuresList, };
                 const mlResult = await backtestApi.getMlPredictions(featuresForML);
                 finalPayload.mlPredictions = mlResult.predictions;
             }
             const result = await backtestApi.runComboBacktest(finalPayload);
             await getPastBacktests(1);
             return result;
+            */
+            // 🚨 ISOLATION END 🚨
         } catch (err) {
             dispatch({ type: "SET_ERROR", payload: err });
             throw err;
@@ -251,7 +248,6 @@ export function useBacktest() {
             dispatch({ type: "SET_ERROR", payload: err });
             throw err;
         } finally {
-            // Corrected the missing curly brace
             dispatch({ type: "SET_LOADING", payload: "idle" }); 
         }
     }, []);
