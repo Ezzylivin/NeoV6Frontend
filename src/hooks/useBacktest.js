@@ -83,7 +83,7 @@ function backtestReducer(state, action) {
                 },
             };
         case 'ROLLBACK_BACKTESTS':
-            // Rollback to the previous state (requires passing original data in payload)
+            // Although this case is still defined, the logic below no longer uses it.
             return {
                 ...state,
                 pastBacktests: action.payload,
@@ -121,21 +121,19 @@ export function useBacktest() {
         }
     }, []);
 
-    // 🚨 FIX: Cleaned up the dependency array and rollback logic 
+    // 🚨 FIX: Removed reliance on state for rollback 
     const deleteBacktest = useCallback(async (id) => {
-        // Capture original state before dispatching optimistic update
-        const originalBacktests = { ...state.pastBacktests };
-        
+        // Optimistically delete the item locally
         dispatch({ type: "DELETE_BACKTEST_OPTIMISTIC", payload: id });
         try {
             await backtestApi.deleteById(id);
         } catch (err) {
-            // Rollback state if API fails
-            dispatch({ type: "ROLLBACK_BACKTESTS", payload: originalBacktests });
+            // Rollback by refreshing the state from the server
+            await getPastBacktests(1); 
             dispatch({ type: "SET_ERROR", payload: err });
             throw err;
         }
-    }, [state.pastBacktests]); // Dependency required for accurate rollback
+    }, [getPastBacktests]); // Stable dependency
 
     // --- NEW: Dynamic Feature Fetching Logic (Fixes 500 Error) ---
     const getFeaturesForML = useCallback(async (modelName) => {
@@ -188,37 +186,62 @@ export function useBacktest() {
 
     // --- Core Backtest Execution Functions ---
 
-   const handleRunBacktest = async (e) => {
-    e.preventDefault();
-    setBacktestResults({ main: null, individuals: [] });
-    
-    // Remove the explicit if (!runNewBacktest) check, as it was ineffective against the crash.
-    // The optional chaining on the call itself provides the ultimate safety.
-    try {
-        // 🚨 FIX: Use optional chaining here to prevent the crash 🚨
-        const res = await runNewBacktest?.(formData);
-        if (res) {
-            setBacktestResults({ main: res, individuals: [] });
-        }
-    } catch (error) {
-        console.error("Backtest failed:", error.message); 
-    }
-};
+    const runNewBacktest = useCallback(async (payload) => {
+        dispatch({ type: "SET_LOADING", payload: "running" });
+        try {
+            let finalPayload = { ...payload };
+            if (payload.mlMode && payload.mlMode !== 'off') {
+                // Call the dynamic feature getter
+                const featuresList = await getFeaturesForML(payload.mlMode); 
 
-const handleRunComboBacktest = async (e) => {
-    e.preventDefault();
-    setBacktestResults({ main: null, individuals: [] });
+                const featuresForML = {
+                    symbol: payload.symbol,
+                    features: featuresList, // Use the dynamically retrieved features
+                };
+                
+                const mlResult = await backtestApi.getMlPredictions(featuresForML);
+                finalPayload.mlPredictions = mlResult.predictions;
+            }
+            const result = await backtestApi.runBacktest(finalPayload);
+            await getPastBacktests(1);
+            return result;
+        } catch (err) {
+            dispatch({ type: "SET_ERROR", payload: err });
+            throw err;
+        } finally {
+            dispatch({ type: "SET_LOADING", payload: "idle" });
+        }
+    }, [getPastBacktests, getFeaturesForML]);
 
-    try {
-        // 🚨 FIX: Use optional chaining here to prevent the crash 🚨
-        const res = await runComboBacktest?.(comboData);
-        if (res) {
-            setBacktestResults(res);
-        }
-    } catch (error) {
-        console.error("Combo backtest failed:", error.message);
-    }
-};
+    const runComboBacktest = useCallback(async (payload) => {
+        dispatch({ type: "SET_LOADING", payload: "running_combo" });
+        try {
+            if (!payload.strategies || payload.strategies.length === 0) {
+                throw new Error("At least one strategy must be selected.");
+            }
+            let finalPayload = { ...payload };
+            if (payload.mlMode && payload.mlMode !== 'off') {
+                // Call the dynamic feature getter
+                const featuresList = await getFeaturesForML(payload.mlMode); 
+
+                const featuresForML = {
+                    symbol: payload.symbol,
+                    features: featuresList, // Use the dynamically retrieved features
+                };
+
+                const mlResult = await backtestApi.getMlPredictions(featuresForML);
+                finalPayload.mlPredictions = mlResult.predictions;
+            }
+            const result = await backtestApi.runComboBacktest(finalPayload);
+            await getPastBacktests(1);
+            return result;
+        } catch (err) {
+            dispatch({ type: "SET_ERROR", payload: err });
+            throw err;
+        } finally {
+            dispatch({ type: "SET_LOADING", payload: "idle" });
+        }
+    }, [getPastBacktests, getFeaturesForML]);
 
     const previewStrategy = useCallback(async (payload) => {
         dispatch({ type: "SET_LOADING", payload: "running" });
@@ -228,7 +251,7 @@ const handleRunComboBacktest = async (e) => {
             dispatch({ type: "SET_ERROR", payload: err });
             throw err;
         } finally {
-            // 🚨 FIX: Corrected the missing curly brace here (position 256:59 in the error trace)
+            // Corrected the missing curly brace
             dispatch({ type: "SET_LOADING", payload: "idle" }); 
         }
     }, []);
