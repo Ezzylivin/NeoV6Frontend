@@ -126,9 +126,6 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
         <label>Take Profit (%):
           <input type="number" name="param_TP" value={config.params?.TP || 0} onChange={handleChange} step="0.1" />
         </label>
-        <label>Take Profit (%):
-          <input type="number" name="param_TP" value={config.params?.TP || 0} onChange={handleChange} step="0.1" />
-        </label>
       </div>
     </div>
   );
@@ -136,7 +133,7 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
 
 // --- Main Component ---
 export default function Backtests() {
-  // 🚨 FIX 1: Ensure direct destructuring for stability
+  // Ensure functions are destructured directly from the hook return
   const { state, runNewBacktest, runComboBacktest } = useBacktest();
   const { loading, error, options } = state || {};
 
@@ -263,7 +260,7 @@ export default function Backtests() {
     setBacktestResults({ main: null, individuals: [] });
     
     try {
-        // 🚨 FIX: Use optional chaining to safely call the function
+        // 🚨 FIX: Optional chaining ensures no crash if runNewBacktest is undefined
         const res = await runNewBacktest?.(formData);
         if (res) {
             setBacktestResults({ main: res, individuals: [] });
@@ -278,7 +275,7 @@ const handleRunComboBacktest = async (e) => {
     setBacktestResults({ main: null, individuals: [] });
 
     try {
-        // 🚨 FIX: Use optional chaining to safely call the function
+        // 🚨 FIX: Optional chaining ensures no crash if runComboBacktest is undefined
         const res = await runComboBacktest?.(comboData);
         if (res) {
             setBacktestResults(res);
@@ -321,7 +318,12 @@ const handleRunComboBacktest = async (e) => {
               </div>
               <button type="button" onClick={addStrategyCard} disabled={!strategyOptions.length}>Add Strategy</button>
               <button type="submit" disabled={loading.startsWith('running') || !strategyOptions.length}>
-                {(loading.startsWith('running') || combinedMetrics) && (
+                {loading.startsWith('running') ? 'Running...' : 'Run Combo Backtest'}
+              </button>
+            </form>
+          )}
+        </div>
+        {(loading.startsWith('running') || combinedMetrics) && (
           <div className="results-section">
             <h2>Backtest Results</h2>
             {loading.startsWith('running') && <div className="loading-overlay"><h3>Running backtest...</h3></div>}
@@ -343,7 +345,6 @@ const handleRunComboBacktest = async (e) => {
                       <ResponsiveContainer width="100%" height={300}>
                         <PieChart><Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>{pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}</Pie><Tooltip/><Legend/></PieChart>
                       </ResponsiveContainer>
-                    ) : <p>No win/loss data available.</p>}
                   </div>
                 </div>
               </>
