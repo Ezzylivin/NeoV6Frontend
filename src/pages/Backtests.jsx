@@ -321,12 +321,7 @@ const handleRunComboBacktest = async (e) => {
               </div>
               <button type="button" onClick={addStrategyCard} disabled={!strategyOptions.length}>Add Strategy</button>
               <button type="submit" disabled={loading.startsWith('running') || !strategyOptions.length}>
-                {loading.startsWith('running') ? 'Running...' : 'Run Combo Backtest'}
-              </button>
-            </form>
-          )}
-        </div>
-        {(loading.startsWith('running') || combinedMetrics) && (
+                {(loading.startsWith('running') || combinedMetrics) && (
           <div className="results-section">
             <h2>Backtest Results</h2>
             {loading.startsWith('running') && <div className="loading-overlay"><h3>Running backtest...</h3></div>}
@@ -348,6 +343,7 @@ const handleRunComboBacktest = async (e) => {
                       <ResponsiveContainer width="100%" height={300}>
                         <PieChart><Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>{pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}</Pie><Tooltip/><Legend/></PieChart>
                       </ResponsiveContainer>
+                    ) : <p>No win/loss data available.</p>}
                   </div>
                 </div>
               </>
