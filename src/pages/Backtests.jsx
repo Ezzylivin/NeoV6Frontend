@@ -126,6 +126,9 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
         <label>Take Profit (%):
           <input type="number" name="param_TP" value={config.params?.TP || 0} onChange={handleChange} step="0.1" />
         </label>
+        <label>Take Profit (%):
+          <input type="number" name="param_TP" value={config.params?.TP || 0} onChange={handleChange} step="0.1" />
+        </label>
       </div>
     </div>
   );
@@ -291,7 +294,7 @@ const handleRunComboBacktest = async (e) => {
       {error && <div className="error-box"><h4>Error</h4><p>{error.message}</p></div>}
       <div className="backtest-main">
         <div className="backtest-forms">
-          <div className="tabs">
+          <div className tabs>
             <button className={activeTab === 'single' ? 'active' : ''} onClick={() => setActiveTab('single')}>Single Strategy</button>
             <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo Strategy</button>
           </div>
@@ -345,7 +348,6 @@ const handleRunComboBacktest = async (e) => {
                       <ResponsiveContainer width="100%" height={300}>
                         <PieChart><Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>{pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}</Pie><Tooltip/><Legend/></PieChart>
                       </ResponsiveContainer>
-                    ) : <p>No win/loss data available.</p>}
                   </div>
                 </div>
               </>
