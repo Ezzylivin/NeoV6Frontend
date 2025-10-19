@@ -291,7 +291,7 @@ const handleRunComboBacktest = async (e) => {
       {error && <div className="error-box"><h4>Error</h4><p>{error.message}</p></div>}
       <div className="backtest-main">
         <div className="backtest-forms">
-          <div className tabs>
+          <div className="tabs">
             <button className={activeTab === 'single' ? 'active' : ''} onClick={() => setActiveTab('single')}>Single Strategy</button>
             <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo Strategy</button>
           </div>
