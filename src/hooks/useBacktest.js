@@ -1,35 +1,22 @@
 import { useReducer, useCallback, useEffect } from "react";
 import * as backtestApi from "../api/backtest.js";
-// 🚨 NO LONGER NEEDED: import Papa from "papaparse";
+import Papa from "papaparse";
 
 
-// --- CSV Parsing Utility (Native JavaScript) ---
-// This function parses the CSV text into an array of objects where keys are headers.
 const parseCsvText = (csvText) => {
-    const lines = csvText.trim().split('\n');
-    if (lines.length === 0) return [];
-
-    // The header is the first line
-    const header = lines[0].split(',').map(h => h.trim());
-
-    // Process all data lines (starting from index 1)
-    const data = [];
-    for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue; // Skip empty lines
-
-        // Split by comma (simple CSV assumption)
-        const values = line.split(',');
-        const rowObject = {};
-
-        // Map values to header names
-        for (let j = 0; j < header.length && j < values.length; j++) {
-            // Use the feature name as the key
-            rowObject[header[j]] = values[j] ? values[j].trim() : null; 
-        }
-        data.push(rowObject);
+    // 🚨 FINAL FIX: Use the imported Papa reference directly and cleanly.
+    // The previous complex logic and global access were the points of failure.
+    
+    // Ensure the input text is not empty before parsing
+    if (!csvText || typeof csvText !== 'string' || csvText.trim() === '') {
+        return [];
     }
-    return data; // Returns array of objects
+
+    return Papa.parse(csvText, {
+        header: true, // Crucial: returns data as an array of objects (column names are keys)
+        skipEmptyLines: true,
+        dynamicTyping: true 
+    }).data;
 };
 
 
