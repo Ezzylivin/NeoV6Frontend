@@ -6,12 +6,8 @@ import Papa from "papaparse"; // ✅ Correct import for build systems
 // --- CSV Parsing Utility ---
 // This function parses the CSV text, treating the first row as headers.
 const parseCsvText = (csvText) => {
-    // Assuming Papaparse is available globally or imported.
-    if (typeof Papa === 'undefined' && typeof window.Papa === 'undefined') {
-        throw new Error("CSV parser (e.g., Papaparse) is required but not found.");
-    }
-    const Papa = window.Papa || global.Papa; // Access the library
-
+    // 🚨 FIX: Remove the complex global access logic. Use the imported 'Papa' object directly.
+    
     return Papa.parse(csvText, {
         header: true, // Crucial: returns data as an array of objects (column names are keys)
         skipEmptyLines: true,
@@ -124,6 +120,7 @@ export function useBacktest() {
     // --- NEW: Dynamic Feature Fetching Logic (Fixes 500 Error) ---
     const getFeaturesForML = useCallback(async (modelName) => {
         // --- STEP 1: Fetch Metadata ---
+        // Assuming backtestApi.fetchModelMetadata is implemented to call the new FastAPI endpoint
         const metadata = await backtestApi.fetchModelMetadata(modelName); 
         
         // --- STEP 2: Fetch the Feature Data File ---
