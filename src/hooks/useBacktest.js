@@ -1,22 +1,38 @@
 import { useReducer, useCallback, useEffect } from "react";
 import * as backtestApi from "../api/backtest.js";
-import Papa from "papaparse";
+// 🚨 Removed: import Papa from "papaparse";
 
 
+// --- CSV Parsing Utility (Final Native JS Version) ---
+// This function is stable and uses only native JavaScript methods.
 const parseCsvText = (csvText) => {
-    // 🚨 FINAL FIX: Use the imported Papa reference directly and cleanly.
-    // The previous complex logic and global access were the points of failure.
-    
-    // Ensure the input text is not empty before parsing
-    if (!csvText || typeof csvText !== 'string' || csvText.trim() === '') {
-        return [];
-    }
+    // 1. Split text into lines, filter out empty ones, and trim whitespace
+    const lines = csvText.trim().split('\n').filter(line => line.trim() !== '');
 
-    return Papa.parse(csvText, {
-        header: true, // Crucial: returns data as an array of objects (column names are keys)
-        skipEmptyLines: true,
-        dynamicTyping: true 
-    }).data;
+    if (lines.length <= 1) return []; // Only header or no data
+
+    // 2. Get the header row and clean column names
+    const header = lines[0].split(',').map(h => h.trim());
+
+    // 3. Process the data rows (starting from the second line)
+    const data = [];
+    for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',');
+        const rowObject = {};
+
+        // Map values to header keys
+        for (let j = 0; j < header.length && j < values.length; j++) {
+            const key = header[j];
+            const value = values[j] ? values[j].trim() : null;
+
+            // Attempt to convert to number, falling back to string if necessary
+            const numValue = parseFloat(value);
+            // Store as a number if valid, otherwise store the original string/null
+            rowObject[key] = isNaN(numValue) ? value : numValue; 
+        }
+        data.push(rowObject);
+    }
+    return data; // Returns array of objects
 };
 
 
@@ -124,7 +140,6 @@ export function useBacktest() {
     // --- NEW: Dynamic Feature Fetching Logic (Fixes 500 Error) ---
     const getFeaturesForML = useCallback(async (modelName) => {
         // --- STEP 1: Fetch Metadata ---
-        // Assuming backtestApi.fetchModelMetadata is implemented to call the new FastAPI endpoint
         const metadata = await backtestApi.fetchModelMetadata(modelName); 
         
         // --- STEP 2: Fetch the Feature Data File ---
@@ -137,10 +152,9 @@ export function useBacktest() {
         const csvText = await response.text();
         
         // --- STEP 3: Parse CSV and Extract Features by Name ---
-        // Use the native parser (parseCsvText)
         const parsedData = parseCsvText(csvText); 
         
-        // The last element is the most recent data point
+        // Get the last valid data row
         const lastRowObject = parsedData[parsedData.length - 1]; 
 
         if (!lastRowObject || !Object.keys(lastRowObject).length) {
@@ -239,7 +253,7 @@ export function useBacktest() {
             dispatch({ type: "SET_ERROR", payload: err });
             throw err;
         } finally {
-            dispatch({ type: "SET_LOADING", payload: "idle" });
+            dispatch({ type: "SET_LOADING", payload: "idle") }
         }
     }, []);
 
