@@ -133,7 +133,7 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
 
 // --- Main Component ---
 export default function Backtests() {
-  // 🚨 FIX 1: Direct destructuring (safer pattern)
+  // 🚨 FIX 1: Ensure direct destructuring for stability
   const { state, runNewBacktest, runComboBacktest } = useBacktest();
   const { loading, error, options } = state || {};
 
@@ -260,7 +260,7 @@ export default function Backtests() {
     setBacktestResults({ main: null, individuals: [] });
     
     try {
-        // 🚨 FIX: Optional chaining on the function call
+        // 🚨 FIX: Use optional chaining to safely call the function
         const res = await runNewBacktest?.(formData);
         if (res) {
             setBacktestResults({ main: res, individuals: [] });
@@ -275,7 +275,7 @@ const handleRunComboBacktest = async (e) => {
     setBacktestResults({ main: null, individuals: [] });
 
     try {
-        // 🚨 FIX: Optional chaining on the function call
+        // 🚨 FIX: Use optional chaining to safely call the function
         const res = await runComboBacktest?.(comboData);
         if (res) {
             setBacktestResults(res);
@@ -337,7 +337,6 @@ const handleRunComboBacktest = async (e) => {
                       <ResponsiveContainer width="100%" height={300}>
                         <LineChart data={combinedEquityCurve}><XAxis dataKey="timestamp" tickFormatter={formatDate}/><YAxis domain={['auto', 'auto']}/><Tooltip/><CartesianGrid stroke="#333"/><Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false}/></LineChart>
                       </ResponsiveContainer>
-                    ) : <p>No equity curve data available.</p>}
                   </div>
                   <div className="chart">
                     <h3>Win / Loss Distribution</h3>
