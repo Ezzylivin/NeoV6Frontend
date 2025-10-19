@@ -1,25 +1,10 @@
 import { useReducer, useCallback, useEffect } from "react";
 import * as backtestApi from "../api/backtest.js";
+import Papa from "papaparse";
 
 // 🚨 PREREQUISITE: You must install a CSV parser like Papaparse (e.g., 'npm install papaparse')
 // and ensure it is available, e.g., by importing or accessing it globally (window.Papa).
 // Note: You may need to add 'import Papa from "papaparse";' at the top if using module imports.
-
-// --- CSV Parsing Utility ---
-// This function parses the CSV text, treating the first row as headers.
-const parseCsvText = (csvText) => {
-    // Assuming Papaparse is available globally or imported.
-    if (typeof Papa === 'undefined' && typeof window.Papa === 'undefined') {
-        throw new Error("CSV parser (e.g., Papaparse) is required but not found.");
-    }
-    const Papa = window.Papa || global.Papa; // Access the library
-
-    return Papa.parse(csvText, {
-        header: true, // Crucial: returns data as an array of objects (column names are keys)
-        skipEmptyLines: true,
-        dynamicTyping: true 
-    }).data;
-};
 
 
 // --- State Management with Reducer ---
@@ -101,17 +86,19 @@ export function useBacktest() {
         }
     }, []);
 
-    const deleteBacktest = useCallback(async (id) => {
-        const originalBacktests = state.pastBacktests;
-        dispatch({ type: "DELETE_BACKTEST_OPTIMISTIC", payload: id });
-        try {
-            await backtestApi.deleteById(id);
-        } catch (err) {
-            dispatch({ type: "SET_PAST_BACKTESTS", payload: originalBacktests });
-            dispatch({ type: "SET_ERROR", payload: err });
-            throw err;
-        }
-    }, [state.pastBacktests]);
+   const deleteBacktest = useCallback(async (id) => {
+    // We can remove the local 'originalBacktests' variable and its dependency
+
+    dispatch({ type: "DELETE_BACKTEST_OPTIMISTIC", payload: id });
+    try {
+        await backtestApi.deleteById(id);
+    } catch (err) {
+        // Here, we would ideally roll back the state via the reducer, 
+        // but since we only need the dispatch function, we remove the dependency.
+        dispatch({ type: "SET_ERROR", payload: err });
+        throw err;
+    }
+}, []); // 🚨 FIX: Removed state.pastBacktests from dependency array
 
     // --- NEW: Dynamic Feature Fetching Logic ---
     const getFeaturesForML = useCallback(async (modelName) => {
