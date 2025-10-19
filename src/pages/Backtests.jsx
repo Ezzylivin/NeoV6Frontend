@@ -133,7 +133,8 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
 
 // --- Main Component ---
 export default function Backtests() {
-  const { state, runNewBacktest, runComboBacktest } = useBacktest();
+  const backtestFunctions = useBacktest();
+  const { state, runNewBacktest, runComboBacktest } = backtestFunctions;
   const { loading, error, options } = state || {};
 
   const [formData, setFormData] = useState(initialFormData);
@@ -254,16 +255,15 @@ export default function Backtests() {
     setComboData(prev => ({ ...prev, strategyConfigs: prev.strategyConfigs.filter((_, i) => i !== index) }));
   };
 
-  const handleRunBacktest = async (e) => {
-    e.preventDefault();
-    setBacktestResults({ main: null, individuals: [] });
-    
-    // 🚨 FIX: Safety check for undefined function before calling (resolves the (void 0) error)
+ const handleRunBacktest = async (e) => {
+    e.preventDefault();
+    setBacktestResults({ main: null, individuals: [] });
+    
+    // Check if the function is defined before calling it
     if (!runNewBacktest) {
-        console.error("Backtest failed: runNewBacktest function is not loaded/available from hook.");
+        console.error("Backtest failed: runNewBacktest function is not loaded/available.");
         return;
     }
-
     try {
         const res = await runNewBacktest(formData);
         if (res) {
