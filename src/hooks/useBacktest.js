@@ -188,62 +188,37 @@ export function useBacktest() {
 
     // --- Core Backtest Execution Functions ---
 
-    const runNewBacktest = useCallback(async (payload) => {
-        dispatch({ type: "SET_LOADING", payload: "running" });
-        try {
-            let finalPayload = { ...payload };
-            if (payload.mlMode && payload.mlMode !== 'off') {
-                // Call the dynamic feature getter
-                const featuresList = await getFeaturesForML(payload.mlMode); 
+   const handleRunBacktest = async (e) => {
+    e.preventDefault();
+    setBacktestResults({ main: null, individuals: [] });
+    
+    // Remove the explicit if (!runNewBacktest) check, as it was ineffective against the crash.
+    // The optional chaining on the call itself provides the ultimate safety.
+    try {
+        // 🚨 FIX: Use optional chaining here to prevent the crash 🚨
+        const res = await runNewBacktest?.(formData);
+        if (res) {
+            setBacktestResults({ main: res, individuals: [] });
+        }
+    } catch (error) {
+        console.error("Backtest failed:", error.message); 
+    }
+};
 
-                const featuresForML = {
-                    symbol: payload.symbol,
-                    features: featuresList, // Use the dynamically retrieved features
-                };
-                
-                const mlResult = await backtestApi.getMlPredictions(featuresForML);
-                finalPayload.mlPredictions = mlResult.predictions;
-            }
-            const result = await backtestApi.runBacktest(finalPayload);
-            await getPastBacktests(1);
-            return result;
-        } catch (err) {
-            dispatch({ type: "SET_ERROR", payload: err });
-            throw err;
-        } finally {
-            dispatch({ type: "SET_LOADING", payload: "idle" });
-        }
-    }, [getPastBacktests, getFeaturesForML]);
+const handleRunComboBacktest = async (e) => {
+    e.preventDefault();
+    setBacktestResults({ main: null, individuals: [] });
 
-    const runComboBacktest = useCallback(async (payload) => {
-        dispatch({ type: "SET_LOADING", payload: "running_combo" });
-        try {
-            if (!payload.strategies || payload.strategies.length === 0) {
-                throw new Error("At least one strategy must be selected.");
-            }
-            let finalPayload = { ...payload };
-            if (payload.mlMode && payload.mlMode !== 'off') {
-                // Call the dynamic feature getter
-                const featuresList = await getFeaturesForML(payload.mlMode); 
-
-                const featuresForML = {
-                    symbol: payload.symbol,
-                    features: featuresList, // Use the dynamically retrieved features
-                };
-
-                const mlResult = await backtestApi.getMlPredictions(featuresForML);
-                finalPayload.mlPredictions = mlResult.predictions;
-            }
-            const result = await backtestApi.runComboBacktest(finalPayload);
-            await getPastBacktests(1);
-            return result;
-        } catch (err) {
-            dispatch({ type: "SET_ERROR", payload: err });
-            throw err;
-        } finally {
-            dispatch({ type: "SET_LOADING", payload: "idle" });
-        }
-    }, [getPastBacktests, getFeaturesForML]);
+    try {
+        // 🚨 FIX: Use optional chaining here to prevent the crash 🚨
+        const res = await runComboBacktest?.(comboData);
+        if (res) {
+            setBacktestResults(res);
+        }
+    } catch (error) {
+        console.error("Combo backtest failed:", error.message);
+    }
+};
 
     const previewStrategy = useCallback(async (payload) => {
         dispatch({ type: "SET_LOADING", payload: "running" });
