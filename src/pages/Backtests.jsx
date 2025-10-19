@@ -134,7 +134,7 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
 // --- Main Component ---
 export default function Backtests() {
   const backtestFunctions = useBacktest();
-  const { state, runNewBacktest, runComboBacktest } = backtestFunctions;
+  const { state, runNewBacktest, runComboBacktest } = backtestFunctions;
   const { loading, error, options } = state || {};
 
   const [formData, setFormData] = useState(initialFormData);
@@ -256,14 +256,14 @@ export default function Backtests() {
   };
 
  const handleRunBacktest = async (e) => {
-    e.preventDefault();
-    setBacktestResults({ main: null, individuals: [] });
-    
-    // Check if the function is defined before calling it
-    if (!runNewBacktest) {
-        console.error("Backtest failed: runNewBacktest function is not loaded/available.");
-        return;
-    }
+    e.preventDefault();
+    setBacktestResults({ main: null, individuals: [] });
+    
+    // Check if the function is defined before calling it
+    if (!runNewBacktest) {
+        console.error("Backtest failed: runNewBacktest function is not loaded/available.");
+        return;
+    }
     try {
         const res = await runNewBacktest(formData);
         if (res) {
@@ -279,11 +279,11 @@ const handleRunComboBacktest = async (e) => {
     e.preventDefault();
     setBacktestResults({ main: null, individuals: [] });
 
-    // 🚨 FIX: Safety check for undefined function before calling
-    if (!runComboBacktest) {
-        console.error("Combo backtest failed: runComboBacktest function is not loaded/available from hook.");
-        return;
-    }
+    // 🚨 FIX: Safety check for undefined function before calling
+    if (!runComboBacktest) {
+        console.error("Combo backtest failed: runComboBacktest function is not loaded/available from hook.");
+        return;
+    }
 
     try {
         const res = await runComboBacktest(comboData);
