@@ -1,18 +1,35 @@
 import { useReducer, useCallback, useEffect } from "react";
 import * as backtestApi from "../api/backtest.js";
-import Papa from "papaparse"; // ✅ Correct import for build systems
+// 🚨 NO LONGER NEEDED: import Papa from "papaparse";
 
 
-// --- CSV Parsing Utility ---
-// This function parses the CSV text, treating the first row as headers.
+// --- CSV Parsing Utility (Native JavaScript) ---
+// This function parses the CSV text into an array of objects where keys are headers.
 const parseCsvText = (csvText) => {
-    // 🚨 FIX: Remove the complex global access logic. Use the imported 'Papa' object directly.
-    
-    return Papa.parse(csvText, {
-        header: true, // Crucial: returns data as an array of objects (column names are keys)
-        skipEmptyLines: true,
-        dynamicTyping: true 
-    }).data;
+    const lines = csvText.trim().split('\n');
+    if (lines.length === 0) return [];
+
+    // The header is the first line
+    const header = lines[0].split(',').map(h => h.trim());
+
+    // Process all data lines (starting from index 1)
+    const data = [];
+    for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue; // Skip empty lines
+
+        // Split by comma (simple CSV assumption)
+        const values = line.split(',');
+        const rowObject = {};
+
+        // Map values to header names
+        for (let j = 0; j < header.length && j < values.length; j++) {
+            // Use the feature name as the key
+            rowObject[header[j]] = values[j] ? values[j].trim() : null; 
+        }
+        data.push(rowObject);
+    }
+    return data; // Returns array of objects
 };
 
 
@@ -133,10 +150,11 @@ export function useBacktest() {
         const csvText = await response.text();
         
         // --- STEP 3: Parse CSV and Extract Features by Name ---
+        // Use the native parser (parseCsvText)
         const parsedData = parseCsvText(csvText); 
         
-        // Use the second-to-last element as the last element can often be an empty row
-        const lastRowObject = parsedData[parsedData.length - 2] || parsedData[parsedData.length - 1]; 
+        // The last element is the most recent data point
+        const lastRowObject = parsedData[parsedData.length - 1]; 
 
         if (!lastRowObject || !Object.keys(lastRowObject).length) {
             throw new Error("Could not find a valid data row in the feature CSV.");
