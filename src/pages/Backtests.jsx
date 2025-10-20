@@ -49,7 +49,7 @@ const getDefaultDates = () => {
 const initialFormData = {
   code: "",
   symbol: "",
-  timeframe: "",
+  timeframe: "1h",
   startDate: getDefaultDates().startDate,
   endDate: getDefaultDates().endDate,
   initialBalance: 1000,
@@ -66,7 +66,7 @@ const initialFormData = {
 const initialComboData = {
   strategyConfigs: [{ code: "", params: {} }],
   symbol: "",
-  timeframe: "",
+  timeframe: "1h",
   startDate: getDefaultDates().startDate,
   endDate: getDefaultDates().endDate,
   initialBalance: 1000,
@@ -268,7 +268,7 @@ export default function Backtests() {
 
   const strategyOptions = useMemo(() => options?.strategies || [], [options]);
   const symbolOptions = useMemo(() => options?.symbols || [], [options]);
-  const timeframeOptions = useMemo(() => options?.timeframes || "1h", [options]);
+  const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
   const modelOptions = useMemo(() => options?.models || [], [options]);
 
   useEffect(() => {
