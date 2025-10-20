@@ -268,7 +268,7 @@ export default function Backtests() {
 
   const strategyOptions = useMemo(() => options?.strategies || [], [options]);
   const symbolOptions = useMemo(() => options?.symbols || [], [options]);
-  const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
+  const timeframeOptions = useMemo(() => options?.timeframes || "1h", [options]);
   const modelOptions = useMemo(() => options?.models || [], [options]);
 
   useEffect(() => {
@@ -280,7 +280,7 @@ export default function Backtests() {
     ) {
       const defaultStrategy = strategyOptions[0] || {};
       const defaultSymbol = symbolOptions[0] || "";
-      const defaultTimeframe = timeframeOptions[0] || "1m";
+      const defaultTimeframe = timeframeOptions[0] || "1h";
       const defaultModel = modelOptions[0] || "";
 
       setFormData((prev) => ({
