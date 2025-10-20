@@ -279,7 +279,7 @@ export default function Backtests() {
       modelOptions.length
     ) {
       const defaultStrategy = strategyOptions[0] || {};
-      const defaultSymbol = symbolOptions[0] || "";
+      const defaultSymbol = symbolOptions[0] || "BTC-USD";
       const defaultTimeframe = timeframeOptions[0] || "1h";
       const defaultModel = modelOptions[0] || "";
 
