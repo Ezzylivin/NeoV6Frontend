@@ -1,7 +1,39 @@
 import { useReducer, useCallback, useEffect } from "react";
 import * as backtestApi from "../api/backtest.js";
-// 🚨 FIX: Import the parser from the new utility file
-import { parseCsvText } from "../utils/csvParser.js"; 
+// Removed Papa dependency
+
+
+// --- CSV Parsing Utility (Native JS Version) ---
+// This function is stable and uses only native JavaScript methods.
+const parseCsvText = (csvText) => {
+    // 1. Split text into lines, filter out empty ones, and trim whitespace
+    const lines = csvText.trim().split('\n').filter(line => line.trim() !== '');
+
+    if (lines.length <= 1) return []; // Only header or no data
+
+    // 2. Get the header row and clean column names
+    const header = lines[0].split(',').map(h => h.trim());
+
+    // 3. Process the data rows (starting from the second line)
+    const data = [];
+    for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',');
+        const rowObject = {};
+
+        // Map values to header keys
+        for (let j = 0; j < header.length && j < values.length; j++) {
+            const key = header[j];
+            const value = values[j] ? values[j].trim() : null;
+
+            // Attempt to convert to number, falling back to string if necessary
+            const numValue = parseFloat(value);
+            // Store as a number if valid, otherwise store the original string/null
+            rowObject[key] = isNaN(numValue) ? value : numValue; 
+        }
+        data.push(rowObject);
+    }
+    return data; // Returns array of objects
+};
 
 
 // --- State Management with Reducer ---
@@ -104,7 +136,7 @@ export function useBacktest() {
         }
     }, [getPastBacktests]); // Clean dependency
 
-    // --- NEW: Dynamic Feature Fetching Logic (Uses imported parser) ---
+    // --- NEW: Dynamic Feature Fetching Logic (Required for ML) ---
     const getFeaturesForML = useCallback(async (modelName) => {
         // --- STEP 1: Fetch Metadata ---
         const metadata = await backtestApi.fetchModelMetadata(modelName); 
@@ -119,7 +151,7 @@ export function useBacktest() {
         const csvText = await response.text();
         
         // --- STEP 3: Parse CSV and Extract Features by Name ---
-        const parsedData = parseCsvText(csvText); // Uses the imported utility
+        const parsedData = parseCsvText(csvText); 
         
         // Get the last valid data row
         const lastRowObject = parsedData[parsedData.length - 1]; 
@@ -156,6 +188,12 @@ export function useBacktest() {
     // --- Core Backtest Execution Functions (ML Logic Re-enabled) ---
 
     const runNewBacktest = useCallback(async (payload) => {
+        
+        // 🚨 FIX 1: Validate payload BEFORE dispatching loading state
+        if (!payload?.code) {
+             throw new Error("A strategy 'code' is required.");
+        }
+        
         dispatch({ type: "SET_LOADING", payload: "running" });
         try {
             let finalPayload = { ...payload };
@@ -183,11 +221,14 @@ export function useBacktest() {
     }, [getPastBacktests, getFeaturesForML]);
 
     const runComboBacktest = useCallback(async (payload) => {
+        // 🚨 FIX 1: Validate payload BEFORE dispatching loading state
+        if (!payload?.strategies || payload.strategies.length === 0) {
+            throw new Error("At least one strategy must be selected.");
+        }
+        
         dispatch({ type: "SET_LOADING", payload: "running_combo" });
         try {
-            if (!payload.strategies || payload.strategies.length === 0) {
-                throw new Error("At least one strategy must be selected.");
-            }
+            
             let finalPayload = { ...payload };
             if (payload.mlMode && payload.mlMode !== 'off') {
                 // Call the dynamic feature getter
