@@ -148,7 +148,7 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
           <input type="number" name="param_TP" value={config.params?.TP || 0} onChange={handleChange} step="0.1" />
         </label>
       </div>
-      </div>
+    </div>
   );
 };
 
@@ -180,9 +180,9 @@ export default function Backtests() {
         ...prev, 
         code: prev.code || defaultStrategy.code, 
         params: { 
-            // Merge existing params, ensuring SL/TP are set if they weren't defined by the strategy
-            SL: 1.0, // Default SL for the form
-            TP: 2.0, // Default TP for the form
+            // Ensure SL/TP parameters are set in params object
+            SL: 1.0, 
+            TP: 2.0, 
             ...prev.params, 
             ...defaultStrategy.params 
         }, 
