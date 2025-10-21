@@ -370,22 +370,25 @@ const handleRunComboBacktest = async (e) => {
             {loading.startsWith('running') && <div className="loading-overlay"><h3>Running backtest...</h3></div>}
             {combinedMetrics && (
               <>
-                <MetricsDisplay metrics={combinedMetrics} />
-                <div className="charts-container">
-                  <div className="chart">
-                    <h3>Equity Curve</h3>
-                    {combinedEquityCurve?.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={combinedEquityCurve}><XAxis dataKey="timestamp" tickFormatter={formatDate}/><YAxis domain={['auto', 'auto']}/><Tooltip/><CartesianGrid stroke="#333"/><Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false}/></LineChart>
-                      </ResponsiveContainer>
-                  </div>
-                  <div className="chart">
-                    <h3>Win / Loss Distribution</h3>
-                    {pieData?.length > 0 && pieData.some(d => d.value > 0) ? (
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart><Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>{pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}</Pie><Tooltip/><Legend/></PieChart>
-                      </ResponsiveContainer>
-                  </div>
+                                <MetricsDisplay metrics={combinedMetrics} />
+<div className="charts-container">
+  <div className="chart">
+    <h3>Equity Curve</h3>
+    {combinedEquityCurve?.length > 0 ? (
+      <ResponsiveContainer width="100%" height={300}>
+        <LineChart data={combinedEquityCurve}><XAxis dataKey="timestamp" tickFormatter={formatDate}/><YAxis domain={['auto', 'auto']}/><Tooltip/><CartesianGrid stroke="#333"/><Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false}/></LineChart>
+      </ResponsiveContainer>
+    ) : null}
+  </div>
+  <div className="chart">
+    <h3>Win / Loss Distribution</h3>
+    {pieData?.length > 0 && pieData.some(d => d.value > 0) ? (
+      <ResponsiveContainer width="100%" height={300}>
+        <PieChart><Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>{pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}</Pie><Tooltip/><Legend/></PieChart>
+      </ResponsiveContainer>
+    ) : null}
+  </div>
+</div> {/* <-- THIS IS THE MISSING LINE! Add this closing tag. */}
                 </div>
               </>
             )}
