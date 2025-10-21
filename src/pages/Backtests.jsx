@@ -38,7 +38,7 @@ const initialComboData = {
   mlMode: "off", mlModel: "", mlThreshold: 0.5, mlHorizon: 1
 };
 
-// --- Child Components (Full Implementations) ---
+// --- Child Components ---
 const MetricsDisplay = ({ metrics }) => {
   if (!metrics) return <div className="metrics-grid-loading">Calculating metrics...</div>;
   const items = [{ label: "Initial Balance", value: metrics.initialBalance, format: 'currency' }, { label: "Final Balance", value: metrics.finalBalance, format: 'currency' }, { label: "Total Profit", value: metrics.totalProfit, format: 'currency' }, { label: "Total Trades", value: metrics.totalTrades, format: 'number' }, { label: "Win Rate", value: metrics.winRate, format: 'percent' }, { label: "Max Drawdown", value: metrics.maxDrawdown, format: 'percent' }, { label: "Profit Factor", value: metrics.profitFactor, format: 'number' },];
@@ -46,375 +46,291 @@ const MetricsDisplay = ({ metrics }) => {
 };
 
 const CommonBacktestInputs = ({ data, onChange, options }) => {
-  const symbolOptions = options.symbolOptions || [];
-  const timeframeOptions = options.timeframeOptions || [];
-  const modelOptions = options.modelOptions || [];
+    const symbolOptions = options.symbolOptions || [];
+    const timeframeOptions = options.timeframeOptions || [];
+    const modelOptions = options.modelOptions || [];
 
-  const handleParamChange = (e) => {
-    const { name, value } = e.target;
-    // Create a synthetic event object for the parent handler
-    const syntheticEvent = {
-        target: {
-            name: `param_${name}`,
-            value: value,
-            type: 'number'
-        }
+    const handleParamChange = (e) => {
+        const { name, value } = e.target;
+        const syntheticEvent = { target: { name: `param_${name}`, value: value, type: 'number' } };
+        onChange(syntheticEvent);
     };
-    onChange(syntheticEvent);
-  };
 
-  return (
-    <>
-      <label>Symbol:
-        <select name="symbol" value={data.symbol} onChange={onChange} disabled={!symbolOptions.length}>
-          {symbolOptions.length ? symbolOptions.map(s => <option key={s} value={s}>{s}</option>) : <option>Loading symbols...</option>}
-        </select>
-      </label>
-      <label>Timeframe:
-        <select name="timeframe" value={data.timeframe} onChange={onChange} disabled={!timeframeOptions.length}>
-          {timeframeOptions.length ? timeframeOptions.map(t => <option key={t} value={t}>{t}</option>) : <option>Loading timeframes...</option>}
-        </select>
-      </label>
-      <label>Start Date: <input type="date" name="startDate" value={data.startDate} onChange={onChange} /></label>
-      <label>End Date: <input type="date" name="endDate" value={data.endDate} onChange={onChange} /></label>
-      <label>Initial Balance: <input type="number" name="initialBalance" value={data.initialBalance} onChange={onChange} /></label>
-      <fieldset>
-        <legend>Risk Management</legend>
-        <label>Mode:
-          <select name="riskManagementMode" value={data.riskManagementMode} onChange={onChange}>
-            <option value="standard">Standard Risk %</option>
-            <option value="dynamic">Dynamic Growth Mode</option>
-          </select>
-        </label>
-        {data.riskManagementMode === 'standard' ? (<label>Risk Per Trade (%): <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={onChange} step="0.1" /> </label>) : (<> <label>Growth Capital Target ($): <input type="number" name="growthCapitalTarget" value={data.growthCapitalTarget} onChange={onChange} /> </label> <label>Risk % (After Target): <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={onChange} step="0.1" /> </label> </>)}
-      </fieldset>
-      <fieldset>
-        <legend>Machine Learning</legend>
-        <label>Mode:
-          <select name="mlMode" value={data.mlMode || "off"} onChange={onChange}>
-            <option value="off">Off (No ML)</option>
-            <option value="predictions">Use ML Predictions</option>
-            <option value="hybrid">Hybrid (Strategy + ML)</option>
-          </select>
-        </label>
-        {data.mlMode !== "off" && (
-          <>
-            <label>Model:
-              <select name="mlModel" value={data.mlModel} onChange={onChange} disabled={!modelOptions.length}>
-                {modelOptions.length > 0 ? (
-                  modelOptions.map(modelName => (
-                    <option key={modelName} value={modelName}>{modelName}</option>
-                  ))
-                ) : (
-                  <option>Loading models...</option>
-                )}
-              </select>
+    return (
+        <>
+            <label>Symbol:
+                <select name="symbol" value={data.symbol} onChange={onChange} disabled={!symbolOptions.length}>
+                    {symbolOptions.length ? symbolOptions.map(s => <option key={s} value={s}>{s}</option>) : <option>Loading...</option>}
+                </select>
             </label>
-            <label>Confidence Threshold: <input type="number" name="mlThreshold" value={data.mlThreshold || 0.5} step="0.01" min="0" max="1" onChange={onChange} /> </label>
-            <label>Prediction Horizon: <input type="number" name="mlHorizon" value={data.mlHorizon || 1} step="1" min="1" onChange={onChange} /> </label>
-          </>
-        )}
-      </fieldset>
-      <label>Stop Loss (%):
-        <input
-          type="number"
-          name="SL" // Use direct name
-          value={data.params?.SL || 1.0}
-          onChange={handleParamChange} // Use specific handler
-          step="0.1"
-          min="0.1"
-        />
-      </label>
-      <label>Take Profit (%):
-        <input
-          type="number"
-          name="TP" // Use direct name
-          value={data.params?.TP || 2.0}
-          onChange={handleParamChange} // Use specific handler
-          step="0.1"
-          min="0.1"
-        />
-      </label>
-    </>
-  );
+            <label>Timeframe:
+                <select name="timeframe" value={data.timeframe} onChange={onChange} disabled={!timeframeOptions.length}>
+                    {timeframeOptions.length ? timeframeOptions.map(t => <option key={t} value={t}>{t}</option>) : <option>Loading...</option>}
+                </select>
+            </label>
+            <label>Start Date: <input type="date" name="startDate" value={data.startDate} onChange={onChange} /></label>
+            <label>End Date: <input type="date" name="endDate" value={data.endDate} onChange={onChange} /></label>
+            <label>Initial Balance: <input type="number" name="initialBalance" value={data.initialBalance} onChange={onChange} /></label>
+            <fieldset>
+                <legend>Risk Management</legend>
+                <label>Mode:
+                    <select name="riskManagementMode" value={data.riskManagementMode} onChange={onChange}>
+                        <option value="standard">Standard Risk %</option>
+                        <option value="dynamic">Dynamic Growth Mode</option>
+                    </select>
+                </label>
+                {data.riskManagementMode === 'standard' ? (<label>Risk Per Trade (%): <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={onChange} step="0.1" /> </label>) : (<> <label>Growth Capital Target ($): <input type="number" name="growthCapitalTarget" value={data.growthCapitalTarget} onChange={onChange} /> </label> <label>Risk % (After Target): <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={onChange} step="0.1" /> </label> </>)}
+            </fieldset>
+            <fieldset>
+                <legend>Machine Learning</legend>
+                <label>Mode:
+                    <select name="mlMode" value={data.mlMode || "off"} onChange={onChange}>
+                        <option value="off">Off</option>
+                        <option value="predictions">Use Predictions</option>
+                        <option value="hybrid">Hybrid</option>
+                    </select>
+                </label>
+                {data.mlMode !== "off" && (
+                    <>
+                        <label>Model:
+                            <select name="mlModel" value={data.mlModel} onChange={onChange} disabled={!modelOptions.length}>
+                                {modelOptions.length ? modelOptions.map(m => <option key={m} value={m}>{m}</option>) : <option>Loading...</option>}
+                            </select>
+                        </label>
+                        <label>Confidence Threshold: <input type="number" name="mlThreshold" value={data.mlThreshold || 0.5} step="0.01" min="0" max="1" onChange={onChange} /> </label>
+                        <label>Prediction Horizon: <input type="number" name="mlHorizon" value={data.mlHorizon || 1} step="1" min="1" onChange={onChange} /> </label>
+                    </>
+                )}
+            </fieldset>
+            <label>Stop Loss (%):
+                <input type="number" name="SL" value={data.params?.SL || 1.0} onChange={handleParamChange} step="0.1" min="0.1" />
+            </label>
+            <label>Take Profit (%):
+                <input type="number" name="TP" value={data.params?.TP || 2.0} onChange={handleParamChange} step="0.1" min="0.1" />
+            </label>
+        </>
+    );
 };
 
-
 const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, disableRemove }) => {
-  const handleChange = (e) => onChange(e, idx);
-  return (
-    <div className="combo-card">
-      <div className="combo-card-header">
-        <strong>Strategy #{idx + 1}</strong>
-        {!disableRemove && <button type="button" onClick={() => onRemove(idx)}>✕</button>}
-      </div>
-      <div className="combo-card-body">
-        <label>Strategy:
-          <select name="code" value={config.code} onChange={handleChange} disabled={!strategies.length}>
-            {strategies.length ? strategies.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option>Loading strategies...</option>}
-          </select>
-        </label>
-        <label>Stop Loss (%):
-          <input type="number" name="param_SL" value={config.params?.SL || 1.0} onChange={handleChange} step="0.1" min="0.1"/>
-        </label>
-        <label>Take Profit (%):
-          <input type="number" name="param_TP" value={config.params?.TP || 2.0} onChange={handleChange} step="0.1" min="0.1"/>
-        </label>
-      </div>
-    </div>
-  );
+    const handleChange = (e) => onChange(e, idx);
+    return (
+        <div className="combo-card">
+            <div className="combo-card-header"><strong>Strategy #{idx + 1}</strong>
+                {!disableRemove && <button type="button" onClick={() => onRemove(idx)}>✕</button>}
+            </div>
+            <div className="combo-card-body">
+                <label>Strategy:
+                    <select name="code" value={config.code} onChange={handleChange} disabled={!strategies.length}>
+                        {strategies.length ? strategies.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option>Loading...</option>}
+                    </select>
+                </label>
+                <label>Stop Loss (%): <input type="number" name="param_SL" value={config.params?.SL || 1.0} onChange={handleChange} step="0.1" min="0.1" /></label>
+                <label>Take Profit (%): <input type="number" name="param_TP" value={config.params?.TP || 2.0} onChange={handleChange} step="0.1" min="0.1" /></label>
+            </div>
+        </div>
+    );
 };
 
 // --- Main Component ---
 export default function Backtests() {
-  const { state, runNewBacktest, runComboBacktest } = useBacktest();
-  // ✅ FIX 2: Provide default values to prevent crashes on initial render
-  const { loading = 'initial', error = null, options = {} } = state || {};
+    const { state, runNewBacktest, runComboBacktest } = useBacktest();
+    const { loading = 'initial', error = null, options = {} } = state || {};
 
-  const [formData, setFormData] = useState(initialFormData);
-  const [comboData, setComboData] = useState(initialComboData);
-  const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
-  const [activeTab, setActiveTab] = useState('single');
+    const [formData, setFormData] = useState(initialFormData);
+    const [comboData, setComboData] = useState(initialComboData);
+    const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
+    const [activeTab, setActiveTab] = useState('single');
 
-  const strategyOptions = useMemo(() => options?.strategies || [], [options]);
-  const symbolOptions = useMemo(() => options?.symbols || [], [options]);
-  const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
-  const modelOptions = useMemo(() => options?.models || [], [options]);
+    const strategyOptions = useMemo(() => options?.strategies || [], [options]);
+    const symbolOptions = useMemo(() => options?.symbols || [], [options]);
+    const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
+    const modelOptions = useMemo(() => options?.models || [], [options]);
 
-  useEffect(() => {
-    if (strategyOptions.length && symbolOptions.length) {
-      const defaultStrategy = strategyOptions[0] || {};
-      const defaultSymbol = symbolOptions[0] || "BTC-USD";
-      
-      const defaultParams = {
-        SL: 1.0,
-        TP: 2.0,
-        ...defaultStrategy.params
-      };
-
-      setFormData(prev => ({
-        ...prev,
-        code: prev.code || defaultStrategy.code,
-        params: { ...defaultParams, ...prev.params },
-        symbol: prev.symbol || defaultSymbol,
-      }));
-
-      setComboData(prev => ({
-        ...prev,
-        strategyConfigs: prev.strategyConfigs.length === 1 && !prev.strategyConfigs[0].code
-          ? [{ code: defaultStrategy.code, params: defaultParams }]
-          : prev.strategyConfigs,
-        symbol: prev.symbol || defaultSymbol,
-      }));
-    }
-  }, [strategyOptions, symbolOptions]);
-
-  const { combinedEquityCurve, combinedMetrics } = useMemo(() => {
-    try {
-      const mainResult = backtestResults?.main;
-      if (mainResult && !backtestResults.individuals.length) {
-        return {
-          combinedEquityCurve: mainResult.equityCurve || [],
-          combinedMetrics: mainResult.metrics || null,
-        };
-      }
-      
-      const individuals = backtestResults?.individuals || [];
-      if (!individuals.length) return { combinedEquityCurve: [], combinedMetrics: null };
-
-      const allTimestamps = [...new Set(individuals.flatMap(ind => ind.equityCurve?.map(d => d.timestamp) || []))].sort();
-      if (!allTimestamps.length) return { combinedEquityCurve: [], combinedMetrics: null };
-
-      const initialBalance = comboData.initialBalance || 1000;
-      let lastBalances = individuals.map(() => 0); // Start at 0, sum up to initialBalance
-      const curve = allTimestamps.map(ts => {
-        let currentTotal = 0;
-        individuals.forEach((ind, idx) => {
-          const point = ind.equityCurve?.find(p => p.timestamp === ts);
-          if (point) lastBalances[idx] = point.balance - (ind.metrics?.initialBalance || 0);
-          currentTotal += lastBalances[idx];
-        });
-        return { timestamp: ts, balance: initialBalance + currentTotal };
-      });
-
-      const metrics = backtestResults?.main?.metrics;
-      if (metrics) {
-        return { combinedEquityCurve: curve, combinedMetrics: metrics };
-      }
-      return { combinedEquityCurve: curve, combinedMetrics: null }; // Fallback
-
-    } catch (e) {
-      console.error("Error calculating backtest results:", e);
-      return { combinedEquityCurve: [], combinedMetrics: null };
-    }
-  }, [backtestResults, comboData.initialBalance]);
-
-  const pieData = useMemo(() => {
-    if (!combinedMetrics || combinedMetrics.winningTrades === undefined) return [];
-    const wins = combinedMetrics.winningTrades;
-    const losses = combinedMetrics.totalTrades - wins;
-    return [{ name: "Wins", value: wins }, { name: "Losses", value: losses }];
-  }, [combinedMetrics]);
-
-  if (loading === 'initial') {
-    return <div className="dashboard-container"><h1>Loading Backtest Environment...</h1></div>;
-  }
-
-  const handleFormChange = (e) => {
-    const { name, value, type } = e.target;
-    const isParam = name.startsWith("param_");
-    const val = type === 'number' && value !== '' ? parseFloat(value) : value;
-
-    if (isParam) {
-      const paramName = name.substring(6);
-      setFormData(prev => ({ ...prev, params: { ...prev.params, [paramName]: val } }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: val }));
-    }
-  };
-
-  const handleComboChange = (e) => {
-    const { name, value, type } = e.target;
-    const val = type === 'number' && value !== '' ? parseFloat(value) : value;
-    setComboData(prev => ({ ...prev, [name]: val }));
-  };
-
-  const handleStrategyConfigChange = (e, index) => {
-    const { name, value, type } = e.target;
-    const isParam = name.startsWith("param_");
-    const val = type === 'number' && value !== '' ? parseFloat(value) : value;
-    const updatedConfigs = [...comboData.strategyConfigs];
+    useEffect(() => {
+        if (strategyOptions.length && !formData.code) {
+            setFormData(prev => ({ ...prev, code: strategyOptions[0].code }));
+        }
+        if (strategyOptions.length && comboData.strategyConfigs.every(c => !c.code)) {
+            setComboData(prev => ({...prev, strategyConfigs: [{ code: strategyOptions[0].code, params: {SL: 1.0, TP: 2.0} }]}));
+        }
+        if (symbolOptions.length && !formData.symbol) {
+            setFormData(prev => ({ ...prev, symbol: symbolOptions[0] }));
+            setComboData(prev => ({ ...prev, symbol: symbolOptions[0] }));
+        }
+    }, [strategyOptions, symbolOptions, formData.code, comboData.strategyConfigs, formData.symbol]);
     
-    if (isParam) {
-      const paramName = name.substring(6);
-      updatedConfigs[index].params = { ...updatedConfigs[index].params, [paramName]: val };
-    } else { // Assumes name is "code"
-      const selectedStrategy = strategyOptions.find(s => s.code === value);
-      updatedConfigs[index].code = value;
-      // Reset params to the new strategy's defaults
-      updatedConfigs[index].params = { SL: 1.0, TP: 2.0, ...selectedStrategy?.params };
-    }
-    setComboData(prev => ({ ...prev, strategyConfigs: updatedConfigs }));
-  };
+    const { combinedEquityCurve, combinedMetrics } = useMemo(() => {
+        try {
+            const mainResult = backtestResults?.main;
+            if (mainResult) {
+                return {
+                    combinedEquityCurve: mainResult.equityCurve || [],
+                    combinedMetrics: mainResult.metrics || null,
+                };
+            }
+            return { combinedEquityCurve: [], combinedMetrics: null };
+        } catch (e) {
+            console.error("Error calculating results:", e);
+            return { combinedEquityCurve: [], combinedMetrics: null };
+        }
+    }, [backtestResults]);
 
-  const addStrategyCard = () => {
-    const defaultStrategy = strategyOptions[0] || {};
-    const newCard = {
-      code: defaultStrategy.code || "",
-      params: { SL: 1.0, TP: 2.0, ...defaultStrategy.params }
+    const pieData = useMemo(() => {
+        if (!combinedMetrics || combinedMetrics.winningTrades === undefined) return [];
+        const wins = combinedMetrics.winningTrades;
+        const losses = combinedMetrics.totalTrades - wins;
+        return [{ name: "Wins", value: wins }, { name: "Losses", value: losses }];
+    }, [combinedMetrics]);
+
+    if (loading === 'initial') {
+        return <div className="dashboard-container"><h1>Loading Backtest Environment...</h1></div>;
+    }
+
+    const handleFormChange = (e) => {
+        const { name, value, type } = e.target;
+        const isParam = name.startsWith("param_");
+        const val = type === 'number' && value !== '' ? parseFloat(value) : value;
+
+        if (isParam) {
+            const paramName = name.substring(6);
+            setFormData(prev => ({ ...prev, params: { ...prev.params, [paramName]: val } }));
+        } else {
+            setFormData(prev => ({ ...prev, [name]: val }));
+        }
     };
-    setComboData(prev => ({ ...prev, strategyConfigs: [...prev.strategyConfigs, newCard] }));
-  };
 
-  const removeStrategyCard = (index) => {
-    if (comboData.strategyConfigs.length <= 1) return; // Prevent removing the last card
-    setComboData(prev => ({ ...prev, strategyConfigs: prev.strategyConfigs.filter((_, i) => i !== index) }));
-  };
+    const handleComboChange = (e) => {
+        const { name, value, type } = e.target;
+        const val = type === 'number' && value !== '' ? parseFloat(value) : value;
+        setComboData(prev => ({ ...prev, [name]: val }));
+    };
 
-  const handleRunBacktest = async (e) => {
-    e.preventDefault();
-    setBacktestResults({ main: null, individuals: [] });
-    const res = await runNewBacktest?.(formData);
-    if (res) {
-      setBacktestResults({ main: res, individuals: [] });
-    }
-  };
+    const handleStrategyConfigChange = (e, index) => {
+        const { name, value, type } = e.target;
+        const isParam = name.startsWith("param_");
+        const val = type === 'number' && value !== '' ? parseFloat(value) : value;
+        const updatedConfigs = [...comboData.strategyConfigs];
 
-  const handleRunComboBacktest = async (e) => {
-    e.preventDefault();
-    setBacktestResults({ main: null, individuals: [] });
-    const res = await runComboBacktest?.(comboData);
-    if (res) {
-      setBacktestResults(res);
-    }
-  };
+        if (isParam) {
+            const paramName = name.substring(6);
+            updatedConfigs[index].params = { ...updatedConfigs[index].params, [paramName]: val };
+        } else {
+            const selectedStrategy = strategyOptions.find(s => s.code === value);
+            updatedConfigs[index].code = value;
+            updatedConfigs[index].params = { SL: 1.0, TP: 2.0, ...selectedStrategy?.params };
+        }
+        setComboData(prev => ({ ...prev, strategyConfigs: updatedConfigs }));
+    };
 
-  return (
-    <div className="dashboard-container">
-      <h1>Backtests</h1>
-      {error && <div className="error-box"><h4>Error</h4><p>{error.message}</p></div>}
+    const addStrategyCard = () => {
+        const defaultStrategy = strategyOptions[0] || {};
+        const newCard = { code: defaultStrategy.code, params: { SL: 1.0, TP: 2.0, ...defaultStrategy.params } };
+        setComboData(prev => ({ ...prev, strategyConfigs: [...prev.strategyConfigs, newCard] }));
+    };
 
-      <div className="backtest-main">
-        <div className="backtest-forms">
-          <div className="tabs">
-            <button className={activeTab === 'single' ? 'active' : ''} onClick={() => setActiveTab('single')}>Single Strategy</button>
-            <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo Strategy</button>
-          </div>
+    const removeStrategyCard = (index) => {
+        if (comboData.strategyConfigs.length <= 1) return;
+        setComboData(prev => ({ ...prev, strategyConfigs: prev.strategyConfigs.filter((_, i) => i !== index) }));
+    };
 
-          {activeTab === 'single' && (
-            <form onSubmit={handleRunBacktest} className="backtest-form">
-              <label>Strategy:
-                <select name="code" value={formData.code} onChange={handleFormChange} disabled={!strategyOptions.length}>
-                  {strategyOptions.length ? strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option>Loading...</option>}
-                </select>
-              </label>
-              <CommonBacktestInputs data={formData} onChange={handleFormChange} options={{ symbolOptions, timeframeOptions, modelOptions }} />
-              <button type="submit" disabled={loading.startsWith('running') || !strategyOptions.length}>
-                {loading.startsWith('running') ? 'Running...' : 'Run Backtest'}
-              </button>
-            </form>
-          )}
+    // ✅ FIX: Added try/catch for proper error handling
+    const handleRunBacktest = async (e) => {
+        e.preventDefault();
+        setBacktestResults({ main: null, individuals: [] });
+        try {
+            const res = await runNewBacktest?.(formData);
+            if (res) {
+                setBacktestResults({ main: res, individuals: [] });
+            }
+        } catch (err) {
+            console.error("Single backtest failed:", err);
+            // The error state is managed in the hook, so we just log it here
+        }
+    };
 
-          {activeTab === 'combo' && (
-            <form onSubmit={handleRunComboBacktest} className="backtest-form">
-              <CommonBacktestInputs data={comboData} onChange={handleComboChange} options={{ symbolOptions, timeframeOptions, modelOptions }} />
-              <div className="combo-strategy-list">
-                {comboData.strategyConfigs.map((config, idx) => (
-                  <ComboStrategyCard key={idx} idx={idx} config={config} strategies={strategyOptions} onChange={handleStrategyConfigChange} onRemove={removeStrategyCard} disableRemove={comboData.strategyConfigs.length <= 1} />
-                ))}
-              </div>
-              <button type="button" onClick={addStrategyCard} disabled={!strategyOptions.length}>Add Strategy</button>
-              <button type="submit" disabled={loading.startsWith('running') || !strategyOptions.length}>
-                {loading.startsWith('running') ? 'Run Combo Backtest' : 'Run Combo Backtest'}
-              </button>
-            </form>
-          )}
-        </div>
+    // ✅ FIX: Added try/catch for proper error handling
+    const handleRunComboBacktest = async (e) => {
+        e.preventDefault();
+        setBacktestResults({ main: null, individuals: [] });
+        try {
+            const res = await runComboBacktest?.(comboData);
+            if (res) {
+                setBacktestResults(res);
+            }
+        } catch (err) {
+            console.error("Combo backtest failed:", err);
+        }
+    };
 
-        {(loading.startsWith('running') || combinedMetrics) && (
-          <div className="results-section">
-            <h2>Backtest Results</h2>
-            {loading.startsWith('running') && <div className="loading-overlay"><h3>Running backtest...</h3></div>}
-            {combinedMetrics && (
-              <>
-                <MetricsDisplay metrics={combinedMetrics} />
-                <div className="charts-container">
-                  <div className="chart">
-                    <h3>Equity Curve</h3>
-                    {combinedEquityCurve?.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={combinedEquityCurve}>
-                          <XAxis dataKey="timestamp" tickFormatter={formatDate} />
-                          <YAxis domain={['auto', 'auto']} />
-                          <Tooltip />
-                          <CartesianGrid stroke="#333" />
-                          <Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    ) : <p>No data available for chart.</p>}
-                  </div>
-                  <div className="chart">
-                    <h3>Win / Loss Distribution</h3>
-                    {pieData?.length > 0 && pieData.some(d => d.value > 0) ? (
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
-                            {pieData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                          <Legend />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    ) : <p>No data available for chart.</p>}
-                  </div>
+    return (
+        <div className="dashboard-container">
+            <h1>Backtests</h1>
+            {error && <div className="error-box"><h4>Error</h4><p>{error.message}</p></div>}
+            <div className="backtest-main">
+                <div className="backtest-forms">
+                    <div className="tabs">
+                        <button className={activeTab === 'single' ? 'active' : ''} onClick={() => setActiveTab('single')}>Single Strategy</button>
+                        <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo Strategy</button>
+                    </div>
+                    {activeTab === 'single' && (
+                        <form onSubmit={handleRunBacktest} className="backtest-form">
+                            <label>Strategy:
+                                <select name="code" value={formData.code} onChange={handleFormChange} disabled={!strategyOptions.length}>
+                                    {strategyOptions.length ? strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option>Loading...</option>}
+                                </select>
+                            </label>
+                            <CommonBacktestInputs data={formData} onChange={handleFormChange} options={{ symbolOptions, timeframeOptions, modelOptions }} />
+                            <button type="submit" disabled={loading.startsWith('running') || !strategyOptions.length}>
+                                {loading.startsWith('running') ? 'Running...' : 'Run Backtest'}
+                            </button>
+                        </form>
+                    )}
+                    {activeTab === 'combo' && (
+                        <form onSubmit={handleRunComboBacktest} className="backtest-form">
+                            <CommonBacktestInputs data={comboData} onChange={handleComboChange} options={{ symbolOptions, timeframeOptions, modelOptions }} />
+                            <div className="combo-strategy-list">
+                                {comboData.strategyConfigs.map((config, idx) => (
+                                    <ComboStrategyCard key={idx} idx={idx} config={config} strategies={strategyOptions} onChange={handleStrategyConfigChange} onRemove={removeStrategyCard} disableRemove={comboData.strategyConfigs.length <= 1} />
+                                ))}
+                            </div>
+                            <button type="button" onClick={addStrategyCard} disabled={!strategyOptions.length}>Add Strategy</button>
+                            <button type="submit" disabled={loading.startsWith('running') || !strategyOptions.length}>
+                                {loading.startsWith('running') ? 'Running...' : 'Run Combo Backtest'}
+                            </button>
+                        </form>
+                    )}
                 </div>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+                {(loading.startsWith('running') || combinedMetrics) && (
+                    <div className="results-section">
+                        <h2>Backtest Results</h2>
+                        {loading.startsWith('running') && <div className="loading-overlay"><h3>Running backtest...</h3></div>}
+                        {combinedMetrics && (
+                            <>
+                                <MetricsDisplay metrics={combinedMetrics} />
+                                <div className="charts-container">
+                                    <div className="chart">
+                                        <h3>Equity Curve</h3>
+                                        {combinedEquityCurve?.length > 0 ? (
+                                            <ResponsiveContainer width="100%" height={300}>
+                                                <LineChart data={combinedEquityCurve}><XAxis dataKey="timestamp" tickFormatter={formatDate} /><YAxis domain={['auto', 'auto']} /><Tooltip /><CartesianGrid stroke="#333" /><Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false} /></LineChart>
+                                            </ResponsiveContainer>
+                                        ) : <p>No data available for chart.</p>}
+                                    </div>
+                                    <div className="chart">
+                                        <h3>Win / Loss Distribution</h3>
+                                        {pieData?.length > 0 && pieData.some(d => d.value > 0) ? (
+                                            <ResponsiveContainer width="100%" height={300}>
+                                                <PieChart><Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>{pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}</Pie><Tooltip /><Legend /></PieChart>
+                                            </ResponsiveContainer>
+                                        ) : <p>No data available for chart.</p>}
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 }
