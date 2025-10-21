@@ -102,13 +102,13 @@ const CommonBacktestInputs = ({ data, onChange, options }) => {
           </>
         )}
       </fieldset>
-      {/* 🚨 ADDITION: Stop Loss and Take Profit Inputs (Required by runSimulation) */}
+      {/* ADDITION: Stop Loss and Take Profit Inputs (Required by runSimulation) */}
       <label>Stop Loss (%):
         <input 
           type="number" 
           name="param_SL" 
-          value={formData.params?.SL || 1.0} // Default to 1.0% if not set
-          onChange={handleFormChange} 
+          value={data.params?.SL || 1.0} // Default to 1.0% if not set
+          onChange={onChange} 
           step="0.1" 
           min="0.1"
         />
@@ -117,8 +117,8 @@ const CommonBacktestInputs = ({ data, onChange, options }) => {
         <input 
           type="number" 
           name="param_TP" 
-          value={formData.params?.TP || 2.0} // Default to 2.0% if not set
-          onChange={handleFormChange} 
+          value={data.params?.TP || 2.0} // Default to 2.0% if not set
+          onChange={onChange} 
           step="0.1" 
           min="0.1"
         />
@@ -148,7 +148,7 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
           <input type="number" name="param_TP" value={config.params?.TP || 0} onChange={handleChange} step="0.1" />
         </label>
       </div>
-    </div>
+      </div>
   );
 };
 
@@ -179,7 +179,13 @@ export default function Backtests() {
       setFormData(prev => ({ 
         ...prev, 
         code: prev.code || defaultStrategy.code, 
-        params: prev.params || defaultStrategy.params || {}, 
+        params: { 
+            // Merge existing params, ensuring SL/TP are set if they weren't defined by the strategy
+            SL: 1.0, // Default SL for the form
+            TP: 2.0, // Default TP for the form
+            ...prev.params, 
+            ...defaultStrategy.params 
+        }, 
         symbol: prev.symbol || defaultSymbol, 
         timeframe: prev.timeframe || defaultTimeframe, 
         mlModel: prev.mlModel || defaultModel 
