@@ -1,4 +1,3 @@
-//
 import { useReducer, useCallback, useEffect } from "react";
 import * as backtestApi from "../api/backtest.js";
 
@@ -117,7 +116,12 @@ export function useBacktest() {
     }, [getPastBacktests]);
 
     const getFeaturesForML = useCallback(async (modelName) => {
-        const metadata = await backtestApi.fetchModelMetadata(modelName);
+        // ✅ ADD THIS LINE to ensure the model name is always lowercase
+        const lowercaseModelName = modelName.toLowerCase();
+    
+        // Use the new lowercase variable in the API call
+        const metadata = await backtestApi.fetchModelMetadata(lowercaseModelName);
+        
         const dataUrl = `/data/${metadata.source_file}`;
         const response = await fetch(dataUrl);
         if (!response.ok) {
@@ -142,11 +146,9 @@ export function useBacktest() {
                 `Data Mismatch: Model expects ${metadata.feature_count} features, but extracted ${featureData.length}.`
             );
         }
-        console.log(`Client Debug: Dynamically generated ${featureData.length} features for ${modelName}.`);
+        console.log(`Client Debug: Dynamically generated ${featureData.length} features for ${lowercaseModelName}.`);
         return featureData;
     }, []);
-
-    // --- MODIFIED SECTION ---
 
     const runNewBacktest = useCallback(async (payload) => {
         if (!payload?.code) {
@@ -165,7 +167,7 @@ export function useBacktest() {
 
                 // 2. Fetch predictions in a separate try/catch to isolate ML errors
                 try {
-                    // FIX: Pass the correct 'mlModel' property, not 'mlMode'
+                    // FIX: Pass the correct 'mlModel' property
                     const featuresList = await getFeaturesForML(payload.mlModel);
                     const mlResult = await backtestApi.getMlPredictions({
                         symbol: payload.symbol,
@@ -214,7 +216,7 @@ export function useBacktest() {
 
                 // 2. Fetch predictions in a separate try/catch to isolate ML errors
                 try {
-                    // FIX: Pass the correct 'mlModel' property, not 'mlMode'
+                    // FIX: Pass the correct 'mlModel' property
                     const featuresList = await getFeaturesForML(payload.mlModel);
                     const mlResult = await backtestApi.getMlPredictions({
                         symbol: payload.symbol,
@@ -245,8 +247,6 @@ export function useBacktest() {
             dispatch({ type: "SET_LOADING", payload: "idle" });
         }
     }, [getPastBacktests, getFeaturesForML]);
-
-    // --- END MODIFIED SECTION ---
 
     const previewStrategy = useCallback(async (payload) => {
         dispatch({ type: "SET_LOADING", payload: "running" });
