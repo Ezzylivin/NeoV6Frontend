@@ -213,16 +213,29 @@ useEffect(() => {
 
   const handleFormChange = (e) => {
     const { name, value, type } = e.target;
-    const isParam = name.startsWith("param_");
     const val = type === 'number' && value !== '' ? parseFloat(value) : value;
 
-    if (isParam) {
-      const paramName = name.substring(6);
-      setFormData(prev => ({ ...prev, params: { ...prev.params, [paramName]: val } }));
+    if (name === 'code') {
+        // If the strategy dropdown is changed...
+        const selectedStrategy = strategyOptions.find(s => s.code === value);
+        setFormData(prev => ({
+            ...prev,
+            code: value,
+            // ...load its default params into the state.
+            params: { ...prev.params, ...selectedStrategy?.params }
+        }));
+    } else if (name.startsWith("param_")) {
+        // Handle individual parameter changes
+        const paramName = name.substring(6);
+        setFormData(prev => ({
+            ...prev,
+            params: { ...prev.params, [paramName]: val }
+        }));
     } else {
-      setFormData(prev => ({ ...prev, [name]: val }));
+        // Handle all other form fields
+        setFormData(prev => ({ ...prev, [name]: val }));
     }
-  };
+};
 
   const handleComboChange = (e) => {
     const { name, value, type } = e.target;
