@@ -294,6 +294,8 @@ useEffect(() => {
                                 !strategyOptions.length ||
                                 comboData.strategyConfigs.filter(s => s.code && s.code.trim() !== "").length < 2;
 
+  console.log('Final comboData for render:', comboData);
+  
   return (
     <div className="dashboard-container">
       <h1>Backtests</h1>
