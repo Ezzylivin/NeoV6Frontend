@@ -151,10 +151,18 @@ export default function Backtests() {
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
   const modelOptions = useMemo(() => options?.models || [], [options]);
 
-  useEffect(() => {
+ // --- NEW, SEPARATED useEffects ---
+
+// Effect 1: Set default for the SINGLE strategy form
+useEffect(() => {
     if (strategyOptions.length && !formData.code) {
-      setFormData(prev => ({ ...prev, code: strategyOptions[0].code }));
+        setFormData(prev => ({ ...prev, code: strategyOptions[0].code }));
     }
+}, [strategyOptions]); // Only depends on the data it needs
+
+// Effect 2: Set defaults for the COMBO strategy form
+useEffect(() => {
+    // This condition ensures we only set defaults if the codes are not already set
     if (strategyOptions.length && comboData.strategyConfigs.every(c => !c.code)) {
         const newConfigs = comboData.strategyConfigs.map((config, index) => {
             const strategy = strategyOptions[index] || strategyOptions[0];
@@ -165,11 +173,16 @@ export default function Backtests() {
         });
         setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
     }
+}, [strategyOptions]); // Only depends on the data it needs
+
+// Effect 3: Set default symbol for BOTH forms
+useEffect(() => {
     if (symbolOptions.length && !formData.symbol) {
-      setFormData(prev => ({ ...prev, symbol: symbolOptions[0] }));
-      setComboData(prev => ({ ...prev, symbol: symbolOptions[0] }));
+        const defaultSymbol = symbolOptions[0];
+        setFormData(prev => ({ ...prev, symbol: defaultSymbol }));
+        setComboData(prev => ({ ...prev, symbol: defaultSymbol }));
     }
-  }, [strategyOptions, symbolOptions, formData.code, comboData.strategyConfigs, formData.symbol]);
+}, [symbolOptions]); // Only depends on the data it needs
   
   const { combinedEquityCurve, combinedMetrics } = useMemo(() => {
       try {
