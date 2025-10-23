@@ -154,11 +154,19 @@ export default function Backtests() {
  // --- NEW, SEPARATED useEffects ---
 
 // Effect 1: Set default for the SINGLE strategy form
+// Effect 1: Set default for the SINGLE strategy form
 useEffect(() => {
+    // Check if options are loaded but the form's code hasn't been set yet
     if (strategyOptions.length && !formData.code) {
-        setFormData(prev => ({ ...prev, code: strategyOptions[0].code }));
+        const defaultStrategy = strategyOptions[0]; // Get the first strategy object
+        setFormData(prev => ({
+            ...prev,
+            code: defaultStrategy.code,
+            // CRITICAL: Load the default params for that strategy into the state
+            params: { SL: 1.0, TP: 2.0, ...defaultStrategy.params }
+        }));
     }
-}, [strategyOptions]); // Only depends on the data it needs
+}, [strategyOptions]); // This dependency array is correct
 
 // Effect 2: Set defaults for the COMBO strategy form
 useEffect(() => {
