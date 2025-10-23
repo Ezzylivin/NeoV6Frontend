@@ -31,7 +31,7 @@ const initialFormData = {
 };
 
 const initialComboData = {
-  strategyConfigs: [
+  strategies: [
     { code: "", params: {} },
     { code: "", params: {} }
   ],
@@ -163,15 +163,15 @@ useEffect(() => {
 // Effect 2: Set defaults for the COMBO strategy form
 useEffect(() => {
     // This condition ensures we only set defaults if the codes are not already set
-    if (strategyOptions.length && comboData.strategyConfigs.every(c => !c.code)) {
-        const newConfigs = comboData.strategyConfigs.map((config, index) => {
+    if (strategyOptions.length && comboData.strategies.every(c => !c.code)) {
+        const newConfigs = comboData.strategies.map((config, index) => {
             const strategy = strategyOptions[index] || strategyOptions[0];
             return {
                 code: strategy.code,
                 params: { SL: 1.0, TP: 2.0, ...strategy.params }
             };
         });
-        setComboData(prev => ({ ...prev, strategyConfigs: newConfigs }));
+        setComboData(prev => ({ ...prev, strategies: newConfigs }));
     }
 }, [strategyOptions]); // Only depends on the data it needs
 
@@ -234,7 +234,7 @@ useEffect(() => {
     const { name, value, type } = e.target;
     const isParam = name.startsWith("param_");
     const val = type === 'number' && value !== '' ? parseFloat(value) : value;
-    const updatedConfigs = [...comboData.strategyConfigs];
+    const updatedConfigs = [...comboData.strategies];
 
     if (isParam) {
       const paramName = name.substring(6);
@@ -244,18 +244,18 @@ useEffect(() => {
       updatedConfigs[index].code = value;
       updatedConfigs[index].params = { SL: 1.0, TP: 2.0, ...selectedStrategy?.params };
     }
-    setComboData(prev => ({ ...prev, strategyConfigs: updatedConfigs }));
+    setComboData(prev => ({ ...prev, strategies: updatedConfigs }));
   };
 
   const addStrategyCard = () => {
     const defaultStrategy = strategyOptions[0] || {};
     const newCard = { code: defaultStrategy.code, params: { SL: 1.0, TP: 2.0, ...defaultStrategy.params } };
-    setComboData(prev => ({ ...prev, strategyConfigs: [...prev.strategyConfigs, newCard] }));
+    setComboData(prev => ({ ...prev, strategies: [...prev.strategies, newCard] }));
   };
 
   const removeStrategyCard = (index) => {
-    if (comboData.strategyConfigs.length <= 2) return;
-    setComboData(prev => ({ ...prev, strategyConfigs: prev.strategyConfigs.filter((_, i) => i !== index) }));
+    if (comboData.strategies.length <= 2) return;
+    setComboData(prev => ({ ...prev, strategies: prev.strategies.filter((_, i) => i !== index) }));
   };
 
   const handleRunBacktest = async (e) => {
@@ -274,7 +274,7 @@ useEffect(() => {
   const handleRunComboBacktest = async (e) => {
     e.preventDefault();
     
-    if (comboData.strategyConfigs.filter(s => s.code && s.code.trim() !== "").length < 2) {
+    if (comboData.strategies.filter(s => s.code && s.code.trim() !== "").length < 2) {
         console.error("Combo backtest validation failed: At least two strategies must be selected.");
         return;
     }
@@ -292,7 +292,7 @@ useEffect(() => {
 
   const isComboSubmitDisabled = loading.startsWith('running') ||
                                 !strategyOptions.length ||
-                                comboData.strategyConfigs.filter(s => s.code && s.code.trim() !== "").length < 2;
+                                comboData.strategies.filter(s => s.code && s.code.trim() !== "").length < 2;
 
   console.log('Final comboData for render:', comboData);
   
@@ -323,7 +323,7 @@ useEffect(() => {
             <form onSubmit={handleRunComboBacktest} className="backtest-form">
               <CommonBacktestInputs data={comboData} onChange={handleComboChange} options={{ symbolOptions, timeframeOptions, modelOptions }} />
               <div className="combo-strategy-list">
-                {comboData.strategyConfigs.map((config, idx) => (
+                {comboData.strategies.map((config, idx) => (
                   <ComboStrategyCard
                     key={idx}
                     idx={idx}
@@ -331,7 +331,7 @@ useEffect(() => {
                     strategies={strategyOptions}
                     onChange={handleStrategyConfigChange}
                     onRemove={removeStrategyCard}
-                    disableRemove={comboData.strategyConfigs.length <= 2}
+                    disableRemove={comboData.strategies.length <= 2}
                   />
                 ))}
               </div>
