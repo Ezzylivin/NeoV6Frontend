@@ -223,7 +223,7 @@ export function useBacktest() {
 
     const runComboBacktest = useCallback(async (payload) => {
         // 🚨 FIX 1: Validate payload BEFORE dispatching loading state
-        if (!payload?.strategyConfigs || payload.strategyConfigs.length === 0) {
+        if (!payload?.strategies || payload.strategies.length === 0) {
             throw new Error("At least one strategy must be selected.");
         }
         
