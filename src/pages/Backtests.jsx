@@ -151,26 +151,22 @@ export default function Backtests() {
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
   const modelOptions = useMemo(() => options?.models || [], [options]);
 
- // --- NEW, SEPARATED useEffects ---
+ // --- SEPARATED useEffects ---
 
 // Effect 1: Set default for the SINGLE strategy form
-// Effect 1: Set default for the SINGLE strategy form
 useEffect(() => {
-    // Check if options are loaded but the form's code hasn't been set yet
     if (strategyOptions.length && !formData.code) {
-        const defaultStrategy = strategyOptions[0]; // Get the first strategy object
+        const defaultStrategy = strategyOptions[0];
         setFormData(prev => ({
             ...prev,
             code: defaultStrategy.code,
-            // CRITICAL: Load the default params for that strategy into the state
             params: { SL: 1.0, TP: 2.0, ...defaultStrategy.params }
         }));
     }
-}, [strategyOptions]); // This dependency array is correct
+}, [strategyOptions]);
 
 // Effect 2: Set defaults for the COMBO strategy form
 useEffect(() => {
-    // This condition ensures we only set defaults if the codes are not already set
     if (strategyOptions.length && comboData.strategies.every(c => !c.code)) {
         const newConfigs = comboData.strategies.map((config, index) => {
             const strategy = strategyOptions[index] || strategyOptions[0];
@@ -181,7 +177,7 @@ useEffect(() => {
         });
         setComboData(prev => ({ ...prev, strategies: newConfigs }));
     }
-}, [strategyOptions]); // Only depends on the data it needs
+}, [strategyOptions]);
 
 // Effect 3: Set default symbol for BOTH forms
 useEffect(() => {
@@ -190,7 +186,17 @@ useEffect(() => {
         setFormData(prev => ({ ...prev, symbol: defaultSymbol }));
         setComboData(prev => ({ ...prev, symbol: defaultSymbol }));
     }
-}, [symbolOptions]); // Only depends on the data it needs
+}, [symbolOptions]);
+
+// --- ✅ ADD THIS EFFECT FOR ML MODELS ---
+// Effect 4: Set default ML Model for BOTH forms
+useEffect(() => {
+    if (modelOptions.length && !formData.mlModel) {
+        const defaultModel = modelOptions[0];
+        setFormData(prev => ({ ...prev, mlModel: defaultModel }));
+        setComboData(prev => ({ ...prev, mlModel: defaultModel }));
+    }
+}, [modelOptions]);
   
   const { combinedEquityCurve, combinedMetrics } = useMemo(() => {
       try {
@@ -224,23 +230,19 @@ useEffect(() => {
     const val = type === 'number' && value !== '' ? parseFloat(value) : value;
 
     if (name === 'code') {
-        // If the strategy dropdown is changed...
         const selectedStrategy = strategyOptions.find(s => s.code === value);
         setFormData(prev => ({
             ...prev,
             code: value,
-            // ...load its default params into the state.
             params: { ...prev.params, ...selectedStrategy?.params }
         }));
     } else if (name.startsWith("param_")) {
-        // Handle individual parameter changes
         const paramName = name.substring(6);
         setFormData(prev => ({
             ...prev,
             params: { ...prev.params, [paramName]: val }
         }));
     } else {
-        // Handle all other form fields
         setFormData(prev => ({ ...prev, [name]: val }));
     }
 };
@@ -281,6 +283,13 @@ useEffect(() => {
 
   const handleRunBacktest = async (e) => {
     e.preventDefault();
+
+    // --- ✅ ADD THIS VALIDATION BLOCK ---
+    if (formData.mlMode !== 'off' && !formData.mlModel) {
+        alert("Please select an ML model before running the backtest.");
+        return; // Stop the submission
+    }
+
     setBacktestResults({ main: null, individuals: [] });
     try {
       const res = await runNewBacktest?.(formData);
@@ -294,6 +303,12 @@ useEffect(() => {
 
   const handleRunComboBacktest = async (e) => {
     e.preventDefault();
+    
+    // --- ✅ ADD THIS VALIDATION BLOCK ---
+    if (comboData.mlMode !== 'off' && !comboData.mlModel) {
+        alert("Please select an ML model before running the combo backtest.");
+        return; // Stop the submission
+    }
     
     if (comboData.strategies.filter(s => s.code && s.code.trim() !== "").length < 2) {
         console.error("Combo backtest validation failed: At least two strategies must be selected.");
@@ -311,12 +326,24 @@ useEffect(() => {
     }
   };
 
-  const isComboSubmitDisabled = loading.startsWith('running') ||
+  const getButtonText = (loadingState) => {
+    switch (loadingState) {
+        case 'running_ml':
+            return 'Fetching ML Predictions...';
+        case 'running_backtest':
+            return 'Running Backtest...';
+        case 'running':
+        case 'running_combo':
+            return 'Processing...';
+        default:
+            return 'Run Backtest';
+    }
+  };
+
+  const isComboSubmitDisabled = loading !== 'idle' ||
                                 !strategyOptions.length ||
                                 comboData.strategies.filter(s => s.code && s.code.trim() !== "").length < 2;
 
-  console.log('Final comboData for render:', comboData);
-  
   return (
     <div className="dashboard-container">
       <h1>Backtests</h1>
@@ -335,8 +362,8 @@ useEffect(() => {
                 </select>
               </label>
               <CommonBacktestInputs data={formData} onChange={handleFormChange} options={{ symbolOptions, timeframeOptions, modelOptions }} />
-              <button type="submit" disabled={loading.startsWith('running') || !strategyOptions.length}>
-                {loading.startsWith('running') ? 'Running...' : 'Run Backtest'}
+              <button type="submit" disabled={loading !== 'idle' || !strategyOptions.length}>
+                {getButtonText(loading)}
               </button>
             </form>
           )}
@@ -356,17 +383,17 @@ useEffect(() => {
                   />
                 ))}
               </div>
-              <button type="button" onClick={addStrategyCard} disabled={!strategyOptions.length}>Add Strategy</button>
+              <button type="button" onClick={addStrategyCard} disabled={loading !== 'idle' || !strategyOptions.length}>Add Strategy</button>
               <button type="submit" disabled={isComboSubmitDisabled}>
-                {loading.startsWith('running') ? 'Running...' : 'Run Combo Backtest'}
+                {loading === 'running_ml' ? 'Fetching ML...' : loading.startsWith('running') ? 'Running...' : 'Run Combo Backtest'}
               </button>
             </form>
           )}
         </div>
-        {(loading.startsWith('running') || combinedMetrics) && (
+        {(loading !== 'idle' || combinedMetrics) && (
           <div className="results-section">
             <h2>Backtest Results</h2>
-            {loading.startsWith('running') && <div className="loading-overlay"><h3>Running backtest...</h3></div>}
+            {loading !== 'idle' && <div className="loading-overlay"><h3>{getButtonText(loading)}</h3></div>}
             {combinedMetrics && (
               <>
                 <MetricsDisplay metrics={combinedMetrics} />
