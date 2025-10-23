@@ -1,41 +1,26 @@
 //
 import { useReducer, useCallback, useEffect } from "react";
 import * as backtestApi from "../api/backtest.js";
-// Removed Papa dependency
-
 
 // --- CSV Parsing Utility (Native JS Version) ---
-// This function is stable and uses only native JavaScript methods.
 const parseCsvText = (csvText) => {
-    // 1. Split text into lines, filter out empty ones, and trim whitespace
     const lines = csvText.trim().split('\n').filter(line => line.trim() !== '');
-
-    if (lines.length <= 1) return []; // Only header or no data
-
-    // 2. Get the header row and clean column names
+    if (lines.length <= 1) return [];
     const header = lines[0].split(',').map(h => h.trim());
-
-    // 3. Process the data rows (starting from the second line)
     const data = [];
     for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',');
         const rowObject = {};
-
-        // Map values to header keys
         for (let j = 0; j < header.length && j < values.length; j++) {
             const key = header[j];
             const value = values[j] ? values[j].trim() : null;
-
-            // Attempt to convert to number, falling back to string if necessary
             const numValue = parseFloat(value);
-            // Store as a number if valid, otherwise store the original string/null
-            rowObject[key] = isNaN(numValue) ? value : numValue; 
+            rowObject[key] = isNaN(numValue) ? value : numValue;
         }
         data.push(rowObject);
     }
-    return data; // Returns array of objects
+    return data;
 };
-
 
 // --- State Management with Reducer ---
 const initialState = {
@@ -93,7 +78,6 @@ function backtestReducer(state, action) {
     }
 }
 
-
 export function useBacktest() {
     const [state, dispatch] = useReducer(backtestReducer, initialState);
 
@@ -121,98 +105,90 @@ export function useBacktest() {
         }
     }, []);
 
-    // 🚨 FIX: Stabilized deleteBacktest logic
     const deleteBacktest = useCallback(async (id) => {
-        // Capture original state before dispatching optimistic update
-        const originalBacktests = { ...state.pastBacktests };
-        
         dispatch({ type: "DELETE_BACKTEST_OPTIMISTIC", payload: id });
         try {
             await backtestApi.deleteById(id);
         } catch (err) {
-            // Rollback by refreshing the state from the server
-            await getPastBacktests(1); 
+            await getPastBacktests(1);
             dispatch({ type: "SET_ERROR", payload: err });
             throw err;
         }
-    }, [getPastBacktests]); // Clean dependency
+    }, [getPastBacktests]);
 
-    // --- NEW: Dynamic Feature Fetching Logic (Required for ML) ---
     const getFeaturesForML = useCallback(async (modelName) => {
-        // --- STEP 1: Fetch Metadata ---
-        const metadata = await backtestApi.fetchModelMetadata(modelName); 
-        
-        // --- STEP 2: Fetch the Feature Data File ---
+        const metadata = await backtestApi.fetchModelMetadata(modelName);
         const dataUrl = `/data/${metadata.source_file}`;
         const response = await fetch(dataUrl);
-        
         if (!response.ok) {
             throw new Error(`Failed to load source file ${metadata.source_file}. Status: ${response.status}`);
         }
         const csvText = await response.text();
-        
-        // --- STEP 3: Parse CSV and Extract Features by Name ---
-        const parsedData = parseCsvText(csvText); 
-        
-        // Get the last valid data row
-        const lastRowObject = parsedData[parsedData.length - 1]; 
-
+        const parsedData = parseCsvText(csvText);
+        const lastRowObject = parsedData[parsedData.length - 1];
         if (!lastRowObject || !Object.keys(lastRowObject).length) {
             throw new Error("Could not find a valid data row in the feature CSV.");
         }
-
-        // Extract Features Dynamically by Name
         const featureData = metadata.feature_names.map(featureName => {
             const value = lastRowObject[featureName];
-            
             if (value === undefined || value === null) {
                 console.error(`Required feature "${featureName}" is missing from the CSV data.`);
-                throw new Error(`Missing feature: ${featureName}`); 
+                throw new Error(`Missing feature: ${featureName}`);
             }
-            
-            // Convert to float, as required by the Python Pydantic model
             return parseFloat(value);
         }).filter(value => !isNaN(value));
-
-        // --- STEP 4: FINAL VALIDATION ---
         if (featureData.length !== metadata.feature_count) {
             throw new Error(
                 `Data Mismatch: Model expects ${metadata.feature_count} features, but extracted ${featureData.length}.`
             );
         }
-        
         console.log(`Client Debug: Dynamically generated ${featureData.length} features for ${modelName}.`);
         return featureData;
-
     }, []);
 
-    // --- Core Backtest Execution Functions (ML Logic Re-enabled) ---
+    // --- MODIFIED SECTION ---
 
     const runNewBacktest = useCallback(async (payload) => {
-        
-        // 🚨 FIX 1: Validate payload BEFORE dispatching loading state
         if (!payload?.code) {
-             throw new Error("A strategy 'code' is required.");
+            throw new Error("A strategy 'code' is required.");
         }
         
         dispatch({ type: "SET_LOADING", payload: "running" });
+
         try {
             let finalPayload = { ...payload };
-            if (payload.mlMode && payload.mlMode !== 'off') {
-                // Call the dynamic feature getter
-                const featuresList = await getFeaturesForML(payload.mlMode); 
 
-                const featuresForML = {
-                    symbol: payload.symbol,
-                    features: featuresList, // Use the dynamically retrieved features
-                };
-                
-                const mlResult = await backtestApi.getMlPredictions(featuresForML);
-                finalPayload.mlPredictions = mlResult.predictions;
+            // --- Safe ML Integration Block ---
+            if (payload.mlMode && payload.mlMode !== 'off') {
+                // 1. Set a specific loading state for user feedback
+                dispatch({ type: "SET_LOADING", payload: "running_ml" });
+
+                // 2. Fetch predictions in a separate try/catch to isolate ML errors
+                try {
+                    // FIX: Pass the correct 'mlModel' property, not 'mlMode'
+                    const featuresList = await getFeaturesForML(payload.mlModel);
+                    const mlResult = await backtestApi.getMlPredictions({
+                        symbol: payload.symbol,
+                        features: featuresList,
+                    });
+                    
+                    // 3. Add predictions to the payload if successful
+                    finalPayload.mlPredictions = mlResult.predictions;
+
+                } catch (mlError) {
+                    // If ML fails, stop the process and show a specific error
+                    console.error("ML Prediction step failed:", mlError);
+                    throw new Error(`ML Prediction failed: ${mlError.message}`);
+                }
             }
+
+            // 4. Proceed with the backtest using the potentially modified payload
+            dispatch({ type: "SET_LOADING", payload: "running_backtest" });
             const result = await backtestApi.runBacktest(finalPayload);
+
             await getPastBacktests(1);
             return result;
+
         } catch (err) {
             dispatch({ type: "SET_ERROR", payload: err });
             throw err;
@@ -222,30 +198,46 @@ export function useBacktest() {
     }, [getPastBacktests, getFeaturesForML]);
 
     const runComboBacktest = useCallback(async (payload) => {
-        // 🚨 FIX 1: Validate payload BEFORE dispatching loading state
         if (!payload?.strategies || payload.strategies.length === 0) {
             throw new Error("At least one strategy must be selected.");
         }
         
-        dispatch({ type: "SET_LOADING", payload: "running_combo" });
+        dispatch({ type: "SET_LOADING", payload: "running" });
+
         try {
-            
             let finalPayload = { ...payload };
+
+            // --- Safe ML Integration Block ---
             if (payload.mlMode && payload.mlMode !== 'off') {
-                // Call the dynamic feature getter
-                const featuresList = await getFeaturesForML(payload.mlMode); 
+                // 1. Set a specific loading state for user feedback
+                dispatch({ type: "SET_LOADING", payload: "running_ml" });
 
-                const featuresForML = {
-                    symbol: payload.symbol,
-                    features: featuresList, // Use the dynamically retrieved features
-                };
+                // 2. Fetch predictions in a separate try/catch to isolate ML errors
+                try {
+                    // FIX: Pass the correct 'mlModel' property, not 'mlMode'
+                    const featuresList = await getFeaturesForML(payload.mlModel);
+                    const mlResult = await backtestApi.getMlPredictions({
+                        symbol: payload.symbol,
+                        features: featuresList,
+                    });
 
-                const mlResult = await backtestApi.getMlPredictions(featuresForML);
-                finalPayload.mlPredictions = mlResult.predictions;
+                    // 3. Add predictions to the payload if successful
+                    finalPayload.mlPredictions = mlResult.predictions;
+                
+                } catch (mlError) {
+                    // If ML fails, stop the process and show a specific error
+                    console.error("ML Prediction step failed:", mlError);
+                    throw new Error(`ML Prediction failed: ${mlError.message}`);
+                }
             }
+            
+            // 4. Proceed with the backtest using the potentially modified payload
+            dispatch({ type: "SET_LOADING", payload: "running_backtest" });
             const result = await backtestApi.runComboBacktest(finalPayload);
+
             await getPastBacktests(1);
             return result;
+
         } catch (err) {
             dispatch({ type: "SET_ERROR", payload: err });
             throw err;
@@ -253,6 +245,8 @@ export function useBacktest() {
             dispatch({ type: "SET_LOADING", payload: "idle" });
         }
     }, [getPastBacktests, getFeaturesForML]);
+
+    // --- END MODIFIED SECTION ---
 
     const previewStrategy = useCallback(async (payload) => {
         dispatch({ type: "SET_LOADING", payload: "running" });
@@ -262,7 +256,7 @@ export function useBacktest() {
             dispatch({ type: "SET_ERROR", payload: err });
             throw err;
         } finally {
-            dispatch({ type: "SET_LOADING", payload: "idle" }); 
+            dispatch({ type: "SET_LOADING", payload: "idle" });
         }
     }, []);
 
@@ -273,7 +267,7 @@ export function useBacktest() {
                 const results = await Promise.allSettled([
                     backtestApi.fetchOptions(),
                     backtestApi.fetchAll(1),
-                    backtestApi.fetchModels(), // Fetch the models
+                    backtestApi.fetchModels(),
                 ]);
 
                 const optionsResult = results[0];
@@ -289,10 +283,7 @@ export function useBacktest() {
                 }
 
                 const modelsResult = results[2];
-                console.log("DEBUG: Raw response from fetchModels():", modelsResult);
-
-                const models = modelsResult.status === 'fulfilled' ? modelsResult.value.models: [];
-                
+                const models = modelsResult.status === 'fulfilled' ? modelsResult.value.models : [];
                 if (modelsResult.status === 'rejected') {
                     console.error("Failed to fetch ML models:", modelsResult.reason);
                 }
@@ -300,7 +291,7 @@ export function useBacktest() {
                 dispatch({
                     type: "SET_INITIAL_DATA",
                     payload: {
-                        options: { ...optionsData, models }, // Use the extracted 'models' array
+                        options: { ...optionsData, models },
                         pastBacktests
                     },
                 });
