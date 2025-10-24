@@ -6,10 +6,12 @@ const parseCsvText = (csvText) => {
     const lines = csvText.trim().split('\n').filter(line => line.trim() !== '');
     if (lines.length <= 1) return [];
     const header = lines[0].split(',').map(h => h.trim());
+    console.log("DEBUG: Parsed CSV Header:", header);
     const data = [];
     for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',');
         const rowObject = {};
+        console.log("DEBUG: Keys in lastRowObject:", Object.keys(lastRowObject)); // Log the keys found
         for (let j = 0; j < header.length && j < values.length; j++) {
             const key = header[j];
             const value = values[j] ? values[j].trim() : null;
