@@ -199,7 +199,7 @@ export function useBacktest() {
                     // FIX: Pass the correct 'mlModel' property
                     const featuresList = await getFeaturesForML(payload.mlModel);
                     const mlResult = await backtestApi.getMlPredictions({
-                        model_name: payload.mlModel
+                        model_name: payload.mlModel,
                         symbol: payload.symbol,
                         features: featuresList,
                     });
@@ -249,7 +249,7 @@ export function useBacktest() {
                     // FIX: Pass the correct 'mlModel' property
                     const featuresList = await getFeaturesForML(payload.mlModel);
                     const mlResult = await backtestApi.getMlPredictions({
-                        model_name: payload.mlModel
+                        model_name: payload.mlModel,
                         symbol: payload.symbol,
                         features: featuresList,
                     });
