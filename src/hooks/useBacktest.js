@@ -2,6 +2,7 @@ import { useReducer, useCallback, useEffect } from "react";
 import * as backtestApi from "../api/backtest.js";
 
 // --- CSV Parsing Utility (Native JS Version) ---
+// This is still needed for getFeaturesForML (the "live bot" feature)
 const parseCsvText = (csvText) => {
     const lines = csvText.trim().split('\n').filter(line => line.trim() !== '');
     if (lines.length <= 1) return [];
@@ -11,11 +12,6 @@ const parseCsvText = (csvText) => {
     for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',');
         const rowObject = {};
-
-        // 🛑 FIX 1: This line caused the ReferenceError.
-        // 'lastRowObject' doesn't exist here. It's now commented out.
-        // console.log("DEBUG: Keys in lastRowObject:", Object.keys(lastRowObject)); 
-
         for (let j = 0; j < header.length && j < values.length; j++) {
             const key = header[j];
             const value = values[j] ? values[j].trim() : null;
@@ -121,39 +117,30 @@ export function useBacktest() {
         }
     }, [getPastBacktests]);
 
+    // This function is still used for your "Live Bot" but NOT for backtesting
     const getFeaturesForML = useCallback(async (modelName) => {
-        // ✅ ADD THIS LINE to ensure the model name is always lowercase
         const lowercaseModelName = modelName.toLowerCase();
-    
-        // Use the new lowercase variable in the API call
         const metadata = await backtestApi.fetchModelMetadata(lowercaseModelName);
         
-        // 🛑 FIX 2: Point to your ML server's IP and port.
-        // We define the base URL for your ML server here.
         const API_BASE_URL = "https://74.208.28.77:8000"; 
-        // We construct the full URL to fetch the CSV file.
         const dataUrl = `${API_BASE_URL}/data/${metadata.source_file}`;
         
         const response = await fetch(dataUrl);
         if (!response.ok) {
-            // Check for 404 specifically
             if (response.status === 404) {
                  throw new Error(`File not found at ${dataUrl}. Check server path and CORS setup.`);
             }
             throw new Error(`Failed to load source file ${metadata.source_file}. Status: ${response.status}`);
         }
         
-        // Check content-type to make sure we got a CSV, not an HTML error page
         const contentType = response.headers.get("content-type");
         if (!contentType || !contentType.includes("text/csv")) {
             console.warn(`Expected text/csv but got ${contentType}.`);
-            // We'll still try to parse it, but this is a good warning.
         }
 
         const csvText = await response.text();
         const parsedData = parseCsvText(csvText);
 
-        // This check is important in case the CSV is empty or parsing failed
         if (!parsedData || parsedData.length === 0) {
             throw new Error("CSV file was empty or could not be parsed.");
         }
@@ -180,43 +167,24 @@ export function useBacktest() {
     }, []);
 
     const runNewBacktest = useCallback(async (payload) => {
-        if (!payload?.code) {
-            throw new Error("A strategy 'code' is required.");
+        // This check is only for TA strategies. ML strategies won't have 'code'.
+        if (payload.mlMode !== 'on' && !payload?.code) {
+            throw new Error("A strategy 'code' is required for non-ML backtests.");
         }
         
         dispatch({ type: "SET_LOADING", payload: "running" });
 
         try {
-            let finalPayload = { ...payload };
-
-            // --- Safe ML Integration Block ---
-            if (payload.mlMode && payload.mlMode !== 'off') {
-                // 1. Set a specific loading state for user feedback
-                dispatch({ type: "SET_LOADING", payload: "running_ml" });
-
-                // 2. Fetch predictions in a separate try/catch to isolate ML errors
-                try {
-                    // FIX: Pass the correct 'mlModel' property
-                    const featuresList = await getFeaturesForML(payload.mlModel);
-                    const mlResult = await backtestApi.getMlPredictions({
-                        model_name: payload.mlModel,
-                        symbol: payload.symbol,
-                        features: featuresList,
-                    });
-                    
-                    // 3. Add predictions to the payload if successful
-                    finalPayload.mlPredictions = mlResult.predictions;
-
-                } catch (mlError) {
-                    // If ML fails, stop the process and show a specific error
-                    console.error("ML Prediction step failed:", mlError);
-                    throw new Error(`ML Prediction failed: ${mlError.message}`);
-                }
-            }
-
-            // 4. Proceed with the backtest using the potentially modified payload
+            // ✅ **THIS IS THE FIX**
+            // We NO LONGER run the "getFeaturesForML" or "/api/ml/predict" logic here.
+            // We simply pass the `payload` directly to the backtest server.
+            // The payload already contains `mlMode: 'on'` and `mlModel: '...'`.
+            // The *server* will see this and know how to run the ML backtest.
+            
             dispatch({ type: "SET_LOADING", payload: "running_backtest" });
-            const result = await backtestApi.runBacktest(finalPayload);
+            
+            // The 'payload' object is all we need to send.
+            const result = await backtestApi.runBacktest(payload);
 
             await getPastBacktests(1);
             return result;
@@ -227,7 +195,7 @@ export function useBacktest() {
         } finally {
             dispatch({ type: "SET_LOADING", payload: "idle" });
         }
-    }, [getPastBacktests, getFeaturesForML]);
+    }, [getPastBacktests]); // Removed getFeaturesForML from dependencies
 
     const runComboBacktest = useCallback(async (payload) => {
         if (!payload?.strategies || payload.strategies.length === 0) {
@@ -237,36 +205,12 @@ export function useBacktest() {
         dispatch({ type: "SET_LOADING", payload: "running" });
 
         try {
-            let finalPayload = { ...payload };
-
-            // --- Safe ML Integration Block ---
-            if (payload.mlMode && payload.mlMode !== 'off') {
-                // 1. Set a specific loading state for user feedback
-                dispatch({ type: "SET_LOADING", payload: "running_ml" });
-
-                // 2. Fetch predictions in a separate try/catch to isolate ML errors
-                try {
-                    // FIX: Pass the correct 'mlModel' property
-                    const featuresList = await getFeaturesForML(payload.mlModel);
-                    const mlResult = await backtestApi.getMlPredictions({
-                        model_name: payload.mlModel,
-                        symbol: payload.symbol,
-                        features: featuresList,
-                    });
-
-                    // 3. Add predictions to the payload if successful
-                    finalPayload.mlPredictions = mlResult.predictions;
-                
-                } catch (mlError) {
-                    // If ML fails, stop the process and show a specific error
-                    console.error("ML Prediction step failed:", mlError);
-                    throw new Error(`ML Prediction failed: ${mlError.message}`);
-                }
-            }
+            // ✅ **THIS IS THE FIX**
+            // Just like in runNewBacktest, we remove all client-side ML logic.
+            // The server will handle the ML predictions for the *combo*.
             
-            // 4. Proceed with the backtest using the potentially modified payload
             dispatch({ type: "SET_LOADING", payload: "running_backtest" });
-            const result = await backtestApi.runComboBacktest(finalPayload);
+            const result = await backtestApi.runComboBacktest(payload);
 
             await getPastBacktests(1);
             return result;
@@ -277,7 +221,7 @@ export function useBacktest() {
         } finally {
             dispatch({ type: "SET_LOADING", payload: "idle" });
         }
-    }, [getPastBacktests, getFeaturesForML]);
+    }, [getPastBacktests]); // Removed getFeaturesForML from dependencies
 
     const previewStrategy = useCallback(async (payload) => {
         dispatch({ type: "SET_LOADING", payload: "running" });
@@ -344,5 +288,7 @@ export function useBacktest() {
         runNewBacktest,
         runComboBacktest,
         previewStrategy,
+        // You can still export this for your "live bot"
+        getFeaturesForML, 
     };
 }
