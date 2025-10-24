@@ -11,7 +11,11 @@ const parseCsvText = (csvText) => {
     for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',');
         const rowObject = {};
-        console.log("DEBUG: Keys in lastRowObject:", Object.keys(lastRowObject)); // Log the keys found
+
+        // 🛑 FIX 1: This line caused the ReferenceError.
+        // 'lastRowObject' doesn't exist here. It's now commented out.
+        // console.log("DEBUG: Keys in lastRowObject:", Object.keys(lastRowObject)); 
+
         for (let j = 0; j < header.length && j < values.length; j++) {
             const key = header[j];
             const value = values[j] ? values[j].trim() : null;
@@ -124,13 +128,36 @@ export function useBacktest() {
         // Use the new lowercase variable in the API call
         const metadata = await backtestApi.fetchModelMetadata(lowercaseModelName);
         
-        const dataUrl = `/data/${metadata.source_file}`;
+        // 🛑 FIX 2: Point to your ML server's IP and port.
+        // We define the base URL for your ML server here.
+        const API_BASE_URL = "https://74.208.28.77:8000"; 
+        // We construct the full URL to fetch the CSV file.
+        const dataUrl = `${API_BASE_URL}/data/${metadata.source_file}`;
+        
         const response = await fetch(dataUrl);
         if (!response.ok) {
+            // Check for 404 specifically
+            if (response.status === 404) {
+                 throw new Error(`File not found at ${dataUrl}. Check server path and CORS setup.`);
+            }
             throw new Error(`Failed to load source file ${metadata.source_file}. Status: ${response.status}`);
         }
+        
+        // Check content-type to make sure we got a CSV, not an HTML error page
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("text/csv")) {
+            console.warn(`Expected text/csv but got ${contentType}.`);
+            // We'll still try to parse it, but this is a good warning.
+        }
+
         const csvText = await response.text();
         const parsedData = parseCsvText(csvText);
+
+        // This check is important in case the CSV is empty or parsing failed
+        if (!parsedData || parsedData.length === 0) {
+            throw new Error("CSV file was empty or could not be parsed.");
+        }
+
         const lastRowObject = parsedData[parsedData.length - 1];
         if (!lastRowObject || !Object.keys(lastRowObject).length) {
             throw new Error("Could not find a valid data row in the feature CSV.");
