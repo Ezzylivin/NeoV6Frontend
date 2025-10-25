@@ -113,12 +113,12 @@ const CommonBacktestInputs = ({ data, onChange, options }) => {
                     </>
                 )}
             </fieldset>
-            <label>Stop Loss (%):
-                <input type="number" name="SL" value={data.params?.SL || 1.0} onChange={handleParamChange} step="0.1" min="0.1" />
-            </label>
-            <label>Take Profit (%):
-                <input type="number" name="TP" value={data.params?.TP || 2.0} onChange={handleParamChange} step="0.1" min="0.1" />
-            </label>
+           <label>Stop Loss (%):
+              <input type="number" name="SL" value={data.params?.SL ?? 1.0} onChange={handleParamChange} step="0.1" min="0" />
+</label>
+          <label>Take Profit (%):
+              <input type="number" name="TP" value={data.params?.TP ?? 2.0} onChange={handleParamChange} step="0.1" min="0" />
+</label>
         </>
     );
 };
@@ -136,8 +136,8 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
                         {strategies.length ? strategies.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option>Loading...</option>}
                     </select>
                 </label>
-                <label>Stop Loss (%): <input type="number" name="param_SL" value={config.params?.SL || 1.0} onChange={handleChange} step="0.1" min="0.1" /></label>
-                <label>Take Profit (%): <input type="number" name="param_TP" value={config.params?.TP || 2.0} onChange={handleChange} step="0.1" min="0.1" /></label>
+              <label>Stop Loss (%): <input type="number" name="param_SL" value={config.params?.SL ?? 1.0} onChange={handleChange} step="0.1" min="0" /></label>
+              <label>Take Profit (%): <input type="number" name="param_TP" value={config.params?.TP ?? 2.0} onChange={handleChange} step="0.1" min="0" /></label>
             </div>
         </div>
     );
@@ -324,7 +324,7 @@ useEffect(() => {
         return;
     }
 
-    setBacktestResults({ main: null, individuals: [] });
+    setBacktestResults({ main: res, individuals: [] });
     try {
       const res = await runComboBacktest?.(comboData);
       if (res) {
