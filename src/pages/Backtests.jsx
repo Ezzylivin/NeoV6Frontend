@@ -180,7 +180,7 @@ useEffect(() => {
             return {
                 code: strategy.code,
                 params: { SL: 1.0, TP: 2.0, ...strategy.params }
-        
+            }
             };
         });
         setComboData(prev => ({ ...prev, strategies: newConfigs }));
