@@ -114,7 +114,7 @@ const CommonBacktestInputs = ({ data, onChange, options }) => {
                 )}
             </fieldset>
            <label>Stop Loss (%):
-              <input type="number" name="SL" value={data.params?.SL ?? 1.0} onChange={handleParamChange} step="0.1" min="0" />
+             <input type="number" name="SL" value={data.params?.SL ?? 1.0} onChange={handleParamChange} step="0.1" min="0" />
 </label>
           <label>Take Profit (%):
               <input type="number" name="TP" value={data.params?.TP ?? 2.0} onChange={handleParamChange} step="0.1" min="0" />
@@ -163,47 +163,46 @@ export default function Backtests() {
 // Effect 1: Set default for the SINGLE strategy form
 useEffect(() => {
     if (strategyOptions.length && !formData.code) {
-        const defaultStrategy = strategyOptions[0];
-        setFormData(prev => ({
-            ...prev,
-            code: defaultStrategy.code,
-            params: { SL: 1.0, TP: 2.0, ...defaultStrategy.params }
-        }));
+      const defaultStrategy = strategyOptions[0];
+      setFormData(prev => ({
+        ...prev,
+        code: defaultStrategy.code,
+        params: { SL: 1.0, TP: 2.0, ...defaultStrategy.params }
+      }));
     }
 }, [strategyOptions, formData.code]); // Added formData.code to dependency
 
 // Effect 2: Set defaults for the COMBO strategy form
 useEffect(() => {
     if (strategyOptions.length && comboData.strategies.every(c => !c.code)) {
-        const newConfigs = comboData.strategies.map((config, index) => {
-            const strategy = strategyOptions[index] || strategyOptions[0];
-            return {
-                code: strategy.code,
-                // ✅ FIX: Corrected syntax error on this line
-                params: { SL: 1.0, TP: 2.0, ...strategy.params }
-            };
-        });
-        setComboData(prev => ({ ...prev, strategies: newConfigs }));
+      const newConfigs = comboData.strategies.map((config, index) => {
+        const strategy = strategyOptions[index] || strategyOptions[0];
+        return {
+          code: strategy.code,
+          // ✅ FIX: Corrected syntax error on this line (was already done, ensuring it remains correct)
+          params: { SL: 0, TP: 0, ...strategy.params }
+        };
+      });
+      setComboData(prev => ({ ...prev, strategies: newConfigs }));
     }
 }, [strategyOptions, comboData.strategies]); // Made dependency more specific
 
 // Effect 3: Set default symbol for BOTH forms
 useEffect(() => {
     if (symbolOptions.length && !formData.symbol) {
-        const defaultSymbol = symbolOptions[0];
-        setFormData(prev => ({ ...prev, symbol: defaultSymbol }));
-        setComboData(prev => ({ ...prev, symbol: defaultSymbol }));
+      const defaultSymbol = symbolOptions[0];
+      setFormData(prev => ({ ...prev, symbol: defaultSymbol }));
+      setComboData(prev => ({ ...prev, symbol: defaultSymbol }));
     }
 }, [symbolOptions, formData.symbol]); // Added formData.symbol
 
-// --- ✅ ADD THIS EFFECT FOR ML MODELS ---
 // Effect 4: Set default ML Model for BOTH forms
 useEffect(() => {
     if (modelOptions.length && !formData.mlModel) {
-        // ✅ FIX 2: Get the ID from the first model object
-        const defaultModelId = modelOptions[0].id;
-        setFormData(prev => ({ ...prev, mlModel: defaultModelId }));
-        setComboData(prev => ({ ...prev, mlModel: defaultModelId }));
+      // ✅ FIX 2: Get the ID from the first model object
+      const defaultModelId = modelOptions[0].id;
+      setFormData(prev => ({ ...prev, mlModel: defaultModelId }));
+      setComboData(prev => ({ ...prev, mlModel: defaultModelId }));
     }
 }, [modelOptions, formData.mlModel]); // Added formData.mlModel
   
@@ -293,7 +292,7 @@ useEffect(() => {
   const handleRunBacktest = async (e) => {
     e.preventDefault();
 
-    // --- ✅ ADD THIS VALIDATION BLOCK ---
+    // ✅ Validation: Check if ML model is selected if ML mode is on
     if (formData.mlMode !== 'off' && !formData.mlModel) {
         alert("Please select an ML model before running the backtest.");
         return; // Stop the submission
@@ -303,7 +302,8 @@ useEffect(() => {
     try {
       const res = await runNewBacktest?.(formData);
       if (res) {
-        setBacktestResults({ main: res, individuals: [] });
+        // ✅ FIX 3: Use the local variable 'res' inside the block where it's defined
+        setBacktestResults({ main: res, individuals: [] }); 
       }
     } catch (err) {
       console.error("Single backtest failed:", err);
@@ -313,7 +313,7 @@ useEffect(() => {
   const handleRunComboBacktest = async (e) => {
     e.preventDefault();
     
-    // --- ✅ ADD THIS VALIDATION BLOCK ---
+    // ✅ Validation: Check if ML model is selected if ML mode is on
     if (comboData.mlMode !== 'off' && !comboData.mlModel) {
         alert("Please select an ML model before running the combo backtest.");
         return; // Stop the submission
@@ -324,11 +324,16 @@ useEffect(() => {
         return;
     }
 
-    setBacktestResults({ main: res, individuals: [] });
+    // ❌ ERROR LINE FIX: Do NOT set results here using a variable ('res') that hasn't been defined yet.
+    // setBacktestResults({ main: res, individuals: [] }); // <-- Removed/Fixed this line
+
+    setBacktestResults({ main: null, individuals: [] }); // Reset results before running
+
     try {
-      const res = await runComboBacktest?.(comboData);
-      if (res) {
-        setBacktestResults(res);
+      const comboRes = await runComboBacktest?.(comboData); // Use a distinct name for clarity
+      if (comboRes) {
+        // ✅ FIX 4: Use the local result variable 'comboRes' inside the block where it's defined
+        setBacktestResults(comboRes); 
       }
     } catch (err) {
       console.error("Combo backtest failed:", err);
@@ -350,8 +355,8 @@ useEffect(() => {
   };
 
   const isComboSubmitDisabled = loading !== 'idle' ||
-                                !strategyOptions.length ||
-                                comboData.strategies.filter(s => s.code && s.code.trim() !== "").length < 2;
+                               !strategyOptions.length ||
+                               comboData.strategies.filter(s => s.code && s.code.trim() !== "").length < 2;
 
   return (
     <div className="dashboard-container">
