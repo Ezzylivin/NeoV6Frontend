@@ -161,8 +161,9 @@ export default function Backtests() {
  // --- SEPARATED useEffects ---
 
 // Effect 1: Set default for the SINGLE strategy form
+// ✅ FIX: Use strategyOptions length and check if code is truly empty.
 useEffect(() => {
-    if (strategyOptions.length && !formData.code) {
+    if (strategyOptions.length > 0 && !formData.code) {
       const defaultStrategy = strategyOptions[0];
       setFormData(prev => ({
         ...prev,
@@ -170,22 +171,21 @@ useEffect(() => {
         params: { SL: 1.0, TP: 2.0, ...defaultStrategy.params }
       }));
     }
-}, [strategyOptions, formData.code]); // Added formData.code to dependency
+}, [strategyOptions]); // Removed formData.code to allow single execution on strategies load
 
 // Effect 2: Set defaults for the COMBO strategy form
 useEffect(() => {
-    if (strategyOptions.length && comboData.strategies.every(c => !c.code)) {
+    if (strategyOptions.length > 0 && comboData.strategies.every(c => !c.code)) {
       const newConfigs = comboData.strategies.map((config, index) => {
         const strategy = strategyOptions[index] || strategyOptions[0];
         return {
           code: strategy.code,
-          // ✅ FIX: Corrected syntax error on this line (was already done, ensuring it remains correct)
-          params: { SL: 0, TP: 0, ...strategy.params }
+          params: { SL: 1.0, TP: 2.0, ...strategy.params }
         };
       });
       setComboData(prev => ({ ...prev, strategies: newConfigs }));
     }
-}, [strategyOptions, comboData.strategies]); // Made dependency more specific
+}, [strategyOptions]); // Simplified dependency
 
 // Effect 3: Set default symbol for BOTH forms
 useEffect(() => {
@@ -194,17 +194,16 @@ useEffect(() => {
       setFormData(prev => ({ ...prev, symbol: defaultSymbol }));
       setComboData(prev => ({ ...prev, symbol: defaultSymbol }));
     }
-}, [symbolOptions, formData.symbol]); // Added formData.symbol
+}, [symbolOptions, formData.symbol]); 
 
 // Effect 4: Set default ML Model for BOTH forms
 useEffect(() => {
     if (modelOptions.length && !formData.mlModel) {
-      // ✅ FIX 2: Get the ID from the first model object
       const defaultModelId = modelOptions[0].id;
       setFormData(prev => ({ ...prev, mlModel: defaultModelId }));
       setComboData(prev => ({ ...prev, mlModel: defaultModelId }));
     }
-}, [modelOptions, formData.mlModel]); // Added formData.mlModel
+}, [modelOptions, formData.mlModel]);
   
   const { combinedEquityCurve, combinedMetrics } = useMemo(() => {
       try {
