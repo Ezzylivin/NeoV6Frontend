@@ -1,480 +1,434 @@
-// File: services/backtestService.js
-// UPGRADED: Full support for Pure TA, Pure ML, and Hybrid (TA+ML) backtesting.
-// FIX: Uses streams for CSV parsing to prevent memory errors (OOM).
-// FIX: Correctly forwards the JWT token to the Python ML server (401 fix).
-// FIX: Corrected metrics calculation to prevent NaN database error (WinRate fix).
+// File: src/pages/Backtests.jsx
+import React, { useState, useEffect, useMemo } from "react";
+import { useBacktest } from "../hooks/useBacktest.js";
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend
+} from "recharts";
+import "./Backtests.css";
 
-import Backtest from "../dbStructure/backtest.js";
-import Strategy from "../dbStructure/strategy.js";
-import { fetchOHLCVMultiSafe } from "./backtestDataService.js";
-import { getStrategy } from "../strategies/strategyManager.js";
-import axios from "axios";
-import { parse } from "csv-parse"; // Use the stream parser
-import https from 'https';
-import { finished } from 'stream/promises'; // For stream handling
+const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
 
-// --- CONFIGURATION ---
-const ML_SERVER_URL = "https://74.208.28.77:8000";
-// Ensure this list exactly matches the feature names your Python model expects
-const FEATURE_NAMES = [
-    'RSI_14', 'MACD_12_26_9', 'MACDh_12_26_9', 'MACDs_12_26_9',
-    'STOCHk_14_3_3', 'STOCHd_14_3_3', 'STOCHh_14_3_3', 'CCI_20_0.015',
-    'BBL_20_2.0_2.0', 'BBM_20_2.0_2.0', 'BBU_20_2.0_2.0', 'BBB_20_2.0_2.0',
-    'BBP_20_2.0_2.0', 'ATRr_14', 'SMA_50', 'SMA_200', 'PSARl_0.02_0.2',
-    'PSARs_0.02_0.2', 'PSARaf_0.02_0.2', 'PSARr_0.02_0.2', 'ISA_9',
-    'ISB_26', 'ITS_9', 'IKS_26', 'ICS_26', 'OBV', 'BBL_5_2.0_2.0',
-    'BBM_5_2.0_2.0', 'BBU_5_2.0_2.0', 'BBB_5_2.0_2.0', 'BBP_5_2.0_2.0',
-    'sma_crossover', 'atr_signal', 'bb_signal', 'cci_signal',
-    'ichimoku_signal', 'macd_signal', 'obv_signal', 'psar_signal',
-    'rsi_signal', 'sma_crossover_signal', 'stoch_signal', 'momentum_strength'
-];
-// --------------------------------------------------------
-
-// Agent to ignore SSL errors for the self-signed certificate on the ML server
-const httpsAgent = new https.Agent({ rejectUnauthorized: false });
-
-
-/**
- * Downloads and parses the feature file using streams to save memory.
- */
-const _getFeatureData = async (symbol, timeframe, startDate, endDate) => {
-    const data_filename = `${symbol}-${timeframe}-features.csv`;
-    const data_url = `${ML_SERVER_URL}/data/${data_filename}`;
-    console.log(`[ML] Streaming feature data from: ${data_url}`);
-
-    const start_dt = new Date(startDate);
-    const end_dt = new Date(endDate);
-    const filteredData = [];
-
-    const parser = parse({
-        columns: true,
-        skip_empty_lines: true,
-        cast: true
-    });
-
-    parser.on('readable', () => {
-        let record;
-        while ((record = parser.read()) !== null) {
-            const row_dt = new Date(record.datetime);
-            if (isNaN(row_dt.getTime())) continue;
-            if (row_dt >= start_dt && row_dt <= end_dt) {
-                filteredData.push(record);
-            }
-        }
-    });
-
-    parser.on('error', (err) => {
-        throw new Error(`Failed to parse CSV data: ${err.message}`);
-    });
-
-    try {
-        const response = await axios.get(data_url, {
-            responseType: 'stream',
-            httpsAgent: httpsAgent
-        });
-
-        response.data.pipe(parser);
-        await finished(parser);
-
-        if (filteredData.length === 0) {
-            throw new Error(`No historical data found for the selected date range (${startDate} to ${endDate}).`);
-        }
-        console.log(`[ML] Found ${filteredData.length} feature rows for the date range.`);
-        return filteredData;
-
-    } catch (error) {
-        let errorMessage = `Failed to stream feature file from ${data_url}.`;
-        if (error.response) {
-            errorMessage += ` Status: ${error.response.status}. ${error.response.data?.detail || error.response.statusText}`;
-        } else if (error.request) {
-            errorMessage += ` No response from ML server. Is it running?`;
-        } else {
-            errorMessage += ` Error: ${error.message}`;
-        }
-        console.error(`[ML] Failed to stream feature file: ${errorMessage}`);
-        throw new Error(errorMessage);
-    }
+const formatDate = dateString => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 };
 
-/**
- * Gets bulk ML predictions, accepting and using the Authorization header.
- */
-const _getBulkPredictions = async (modelName, features, authToken) => {
-    const bulk_url = `${ML_SERVER_URL}/api/ml/predict_bulk`;
-    console.log(`[ML] Getting bulk predictions for ${modelName} (${features.length} samples})...`);
-
-    try {
-        const payload = { model_name: modelName, features: features };
-
-        // --- FIX: Add Authorization Header ---
-        const headers = {};
-        if (authToken) {
-            headers['Authorization'] = `Bearer ${authToken}`;
-        } else {
-            console.warn("[ML] WARNING: No auth token provided for bulk prediction call.");
-        }
-        // --- END FIX ---
-
-        const response = await axios.post(bulk_url, payload, {
-            httpsAgent: httpsAgent,
-            headers: headers // Pass the headers with the token
-        });
-        console.log(`[ML] Received ${response.data.predictions.length} predictions.`);
-        return response.data.predictions;
-
-    } catch (error) {
-        let errorMessage = `Bulk prediction failed for model ${modelName}.`;
-         if (error.response) {
-             errorMessage += ` Status: ${error.response.status}. ${error.response.data?.detail || error.response.statusText}`;
-        } else if (error.request) { errorMessage += ` No response from ML server. Is it running?`; }
-        else { errorMessage += ` Error: ${error.message}`; }
-        console.error(`[ML] Bulk prediction failed: ${errorMessage}`);
-        throw new Error(errorMessage);
-    }
+const getDefaultDates = () => {
+  const today = new Date();
+  const start = new Date(today); start.setFullYear(today.getFullYear() - 1);
+  const end = new Date(today); end.setDate(today.getDate() - 1);
+  return { startDate: formatDate(start), endDate: formatDate(end) };
 };
 
-
-/**
- * --- MODIFIED SIMULATION ENGINE ---
- * Now accepts mlMode and mlPredictions to run all 3 backtest types.
- */
-const runSimulation = (config) => {
-    const {
-        candles,
-        strategyFunction,
-        strategyParams,
-        riskParams,
-        initialBalance,
-        mlMode,
-        mlPredictions
-    } = config;
-
-    console.log(`[Simulation] Starting simulation. Mode: ${mlMode}. Candles: ${candles.length}. Predictions: ${mlPredictions?.length || 0}`);
-
-    let currentBalance = initialBalance;
-    let position = null;
-    const closedTrades = [];
-    const firstTimestamp = candles[0]?.[0];
-    if (typeof firstTimestamp !== 'number' || isNaN(firstTimestamp)) {
-        throw new Error("Invalid timestamp for the first candle.");
-    }
-    const equityCurve = [{ timestamp: firstTimestamp, balance: initialBalance }];
-
-    const {
-        riskManagementMode = 'standard',
-        riskPercentage = 1,
-        growthCapitalTarget = initialBalance * 2,
-    } = riskParams;
-
-    let isInGrowthMode = (riskManagementMode === 'dynamic' && initialBalance < growthCapitalTarget);
-
-    // Main Simulation Loop - Start from 1 to have history for indicators
-    for (let i = 1; i < candles.length; i++) {
-        const [timestamp, open, high, low, close] = candles[i];
-        if ([timestamp, open, high, low, close].some(v => typeof v !== 'number' || isNaN(v))) {
-            console.warn(`[Simulation] Skipping candle ${i} due to invalid data:`, candles[i]);
-            continue;
-        }
-        const historicalCandles = candles.slice(0, i + 1);
-
-        // 1. Check for Exits
-        if (position) {
-            let exitPrice = null;
-            let exitReason = '';
-            const { slPrice, tpPrice, signal } = position;
-
-            if (signal === 'buy') {
-                if (low <= slPrice) { exitPrice = slPrice; exitReason = 'Stop-Loss'; }
-                else if (high >= tpPrice) { exitPrice = tpPrice; exitReason = 'Take-Profit'; }
-            } else if (signal === 'sell') {
-                if (high >= slPrice) { exitPrice = slPrice; exitReason = 'Stop-Loss'; }
-                else if (low <= tpPrice) { exitPrice = tpPrice; exitReason = 'Take-Profit'; }
-            }
-
-            if (exitPrice !== null) {
-                const pnl = (exitPrice - position.entryPrice) * position.size * (signal === 'buy' ? 1 : -1);
-                currentBalance += pnl;
-
-                position.exitTime = new Date(timestamp);
-                position.exitPrice = exitPrice;
-                position.profit = pnl;
-                position.exitReason = exitReason;
-                closedTrades.push({ ...position });
-                equityCurve.push({ timestamp, balance: currentBalance });
-                position = null;
-
-                if (currentBalance <= 0) {
-                    console.warn('[Simulation] Account wiped out. Ending simulation.');
-                    break;
-                }
-            }
-        }
-
-        // 2. Check for Entries
-        if (!position) {
-            let taSignal = 'hold';
-            let mlSignal = 0;
-
-            // A. Get TA Signal (if applicable)
-            if (mlMode === 'off' || mlMode === 'predictions') {
-                if (!strategyFunction) {
-                    console.error("[Simulation] TA mode selected but strategyFunction is missing.");
-                    continue;
-                }
-                try {
-                    taSignal = strategyFunction(historicalCandles, strategyParams)?.signal || 'hold';
-                } catch (strategyError) {
-                    console.error(`[Simulation] Strategy Execution Crash at ${new Date(timestamp).toISOString()}:`, strategyError.message, strategyError.stack);
-                    continue;
-                }
-            }
-
-            // B. Get ML Signal (if applicable)
-            if (mlMode === 'on' || mlMode === 'predictions') {
-                if (!mlPredictions || i >= mlPredictions.length) {
-                    console.warn(`[Simulation] ML mode selected but prediction missing for candle index ${i}.`);
-                    continue;
-                }
-                mlSignal = mlPredictions[i];
-            }
-
-            // C. Determine Final Signal based on Mode
-            let finalSignal = 'hold';
-            if (mlMode === 'off') {
-                finalSignal = taSignal;
-            }
-            else if (mlMode === 'on') {
-                // Pure ML: 1=Buy, 0=Sell/Hold
-                finalSignal = (mlSignal === 1) ? 'buy' : 'hold';
-            }
-            else if (mlMode === 'predictions') {
-                // Hybrid: Only trade if TA signal AND ML prediction agree
-                if (taSignal === 'buy' && mlSignal === 1) {
-                    finalSignal = 'buy';
-                }
-                // Example for sell-side filter:
-                else if (taSignal === 'sell' && mlSignal === 0) {
-                     finalSignal = 'sell';
-                }
-            }
-
-            if (finalSignal === 'buy' || finalSignal === 'sell') {
-                const { SL: slPercent = 1, TP: tpPercent = 2 } = strategyParams || {};
-                if (slPercent <= 0) { continue; }
-
-                let effectiveRiskPercent = riskPercentage;
-                if (isInGrowthMode) {
-                    if (currentBalance >= growthCapitalTarget) {
-                        isInGrowthMode = false;
-                        effectiveRiskPercent = riskPercentage;
-                    } else {
-                        effectiveRiskPercent = 100;
-                    }
-                }
-
-                const riskDecimal = Math.max(0, Math.min(1, effectiveRiskPercent / 100));
-                const stopLossDecimal = slPercent / 100;
-
-                let positionSizeDollars = (currentBalance * riskDecimal) / stopLossDecimal;
-                positionSizeDollars = Math.min(positionSizeDollars, currentBalance);
-                const positionSizeUnits = close > 0 ? positionSizeDollars / close : 0;
-
-                 if (positionSizeUnits > 0) {
-                    position = {
-                        entryPrice: close,
-                        entryTime: new Date(timestamp),
-                        size: positionSizeUnits,
-                        signal: finalSignal,
-                        slPrice: finalSignal === 'buy' ? close * (1 - stopLossDecimal) : close * (1 + stopLossDecimal),
-                        tpPrice: finalSignal === 'buy' ? close * (1 + (tpPercent / 100)) : close * (1 - (tpPercent / 100)),
-                    };
-                 }
-            }
-        }
-    }
-
-    if (candles.length > 0) {
-        const lastTimestamp = candles[candles.length - 1][0];
-        if (equityCurve.length === 0 || equityCurve[equityCurve.length - 1].timestamp !== lastTimestamp) {
-            equityCurve.push({ timestamp: lastTimestamp, balance: currentBalance });
-        }
-    }
-
-    console.log(`[Simulation] Finished. Trades: ${closedTrades.length}. Final Balance: ${currentBalance.toFixed(2)}`);
-    return { closedTrades, equityCurve };
+const initialFormData = {
+  code: "", symbol: "", timeframe: "1h", startDate: getDefaultDates().startDate,
+  endDate: getDefaultDates().endDate, initialBalance: 1000, params: {},
+  riskManagementMode: 'standard', riskPercentage: 1, growthCapitalTarget: 2000,
+  mlMode: "off", mlModel: "", mlThreshold: 0.5, mlHorizon: 1
 };
 
+const initialComboData = {
+  strategies: [
+    { code: "", params: {} },
+    { code: "", params: {} }
+  ],
+  symbol: "", timeframe: "1h",
+  startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate,
+  initialBalance: 1000, riskManagementMode: 'standard',
+  riskPercentage: 1, growthCapitalTarget: 2000,
+  mlMode: "off", mlModel: "", mlThreshold: 0.5, mlHorizon: 1
+};
 
-/**
- * Calculates a comprehensive set of performance metrics from trades.
- */
-const calculateMetrics = (trades, initialBalance, equityCurve) => {
-    // (Unchanged logic for calculating metrics: totalReturn, winRate, drawdown, etc.)
-    
-    if (!equityCurve || equityCurve.length === 0) {
-        return { initialBalance, finalBalance: initialBalance, totalProfit: 0, totalReturn: 0, totalTrades: 0, winningTrades: 0, losingTrades: 0, winRate: 0, averageWin: 0, averageLoss: 0, profitFactor: 0, maxDrawdown: 0 };
-    }
+// --- Child Components ---
+const MetricsDisplay = ({ metrics }) => {
+  if (!metrics) return <div className="metrics-grid-loading">Calculating metrics...</div>;
+  const items = [{ label: "Initial Balance", value: metrics.initialBalance, format: 'currency' }, { label: "Final Balance", value: metrics.finalBalance, format: 'currency' }, { label: "Total Profit", value: metrics.totalProfit, format: 'currency' }, { label: "Total Trades", value: metrics.totalTrades, format: 'number' }, { label: "Win Rate", value: metrics.winRate, format: 'percent' }, { label: "Max Drawdown", value: metrics.maxDrawdown, format: 'percent' }, { label: "Profit Factor", value: metrics.profitFactor, format: 'number' },];
+  return (<div className="metrics-grid"> {items.map(m => (<div key={m.label} className="metric-item"> <span className="metric-label">{m.label}</span> <span className="metric-value"> {typeof m.value === "number" ? (m.format === 'currency' ? `$${m.value.toFixed(2)}` : m.format === 'percent' ? `${m.value.toFixed(2)}%` : m.value.toFixed(2)) : "N/A"} </span> </div>))} </div>);
+};
 
-    const finalBalance = equityCurve[equityCurve.length - 1].balance;
-    const totalProfit = finalBalance - initialBalance;
-    const winningTrades = trades.filter(t => t.profit > 0);
-    const losingTrades = trades.filter(t => t.profit <= 0);
+const CommonBacktestInputs = ({ data, onChange, options }) => {
+    const symbolOptions = options.symbolOptions || [];
+    const timeframeOptions = options.timeframeOptions || [];
+    const modelOptions = options.modelOptions || [];
 
-    const grossProfit = winningTrades.reduce((sum, t) => sum + t.profit, 0);
-    const grossLoss = Math.abs(losingTrades.reduce((sum, t) => sum + t.profit, 0));
-
-    let peakBalance = initialBalance;
-    let maxDrawdownValue = 0;
-    equityCurve.forEach(point => {
-        if (point.balance > peakBalance) peakBalance = point.balance;
-        const drawdown = peakBalance - point.balance;
-        if (drawdown > maxDrawdownValue) maxDrawdownValue = drawdown;
-    });
-    const maxDrawdownPercent = peakBalance > 0 ? (maxDrawdownValue / peakBalance) * 100 : 0;
-
-    // 🛑 FIX APPLIED HERE: Prevent NaN error when totalTrades is 0
-    const totalTrades = trades.length;
-
-    return {
-        initialBalance, finalBalance, totalProfit,
-        totalReturn: (totalProfit / initialBalance) * 100,
-        totalTrades: totalTrades,
-        winningTrades: winningTrades.length,
-        losingTrades: losingTrades.length,
-        // FIX: Ensure winRate is 0 if totalTrades is 0
-        winRate: totalTrades > 0 ? (winningTrades.length / totalTrades) * 100 : 0, 
-        averageWin: winningTrades.length > 0 ? grossProfit / winningTrades.length : 0,
-        averageLoss: losingTrades.length > 0 ? grossLoss / losingTrades.length : 0,
-        profitFactor: grossLoss > 0 ? grossProfit / grossLoss : Infinity,
-        maxDrawdown: maxDrawdownPercent,
+    const handleParamChange = (e) => {
+        const { name, value } = e.target;
+        const syntheticEvent = { target: { name: `param_${name}`, value: value, type: 'number' } };
+        onChange(syntheticEvent);
     };
+
+    return (
+        <>
+            <label>Symbol:
+                <select name="symbol" value={data.symbol} onChange={onChange} disabled={!symbolOptions.length}>
+                    {symbolOptions.length ? symbolOptions.map(s => <option key={s} value={s}>{s}</option>) : <option>Loading...</option>}
+                </select>
+            </label>
+            <label>Timeframe:
+                <select name="timeframe" value={data.timeframe} onChange={onChange} disabled={!timeframeOptions.length}>
+                    {timeframeOptions.length ? timeframeOptions.map(t => <option key={t} value={t}>{t}</option>) : <option>Loading...</option>}
+                </select>
+            </label>
+            <label>Start Date: <input type="date" name="startDate" value={data.startDate} onChange={onChange} /></label>
+            <label>End Date: <input type="date" name="endDate" value={data.endDate} onChange={onChange} /></label>
+            <label>Initial Balance: <input type="number" name="initialBalance" value={data.initialBalance} onChange={onChange} /></label>
+            <fieldset>
+                <legend>Risk Management</legend>
+                <label>Mode:
+                    <select name="riskManagementMode" value={data.riskManagementMode} onChange={onChange}>
+                        <option value="standard">Standard Risk %</option>
+                        <option value="dynamic">Dynamic Growth Mode</option>
+                    </select>
+                </label>
+                {data.riskManagementMode === 'standard' ? (<label>Risk Per Trade (%): <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={onChange} step="0.1" /> </label>) : (<> <label>Growth Capital Target ($): <input type="number" name="growthCapitalTarget" value={data.growthCapitalTarget} onChange={onChange} /> </label> <label>Risk % (After Target): <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={onChange} step="0.1" /> </label> </>)}
+            </fieldset>
+            <fieldset>
+                <legend>Machine Learning</legend>
+                <label>Mode:
+                    <select name="mlMode" value={data.mlMode || "off"} onChange={onChange}>
+                        <option value="off">Off (Pure TA)</option>
+                        <option value="predictions">Hybrid (TA + ML Filter)</option>
+                        <option value="on">On (Pure ML)</option>
+                    </select>
+                </label>
+                {data.mlMode !== "off" && (
+                    <>
+                        <label>Model:
+                            <select name="mlModel" value={data.mlModel} onChange={onChange} disabled={!modelOptions.length}>
+                                {modelOptions.length ? (
+                                    // ✅ FIX 1: Use m.id for the key/value and m.name for the text
+                                    modelOptions.map(m => (
+                                        <option key={m.id} value={m.id}>{m.name}</option>
+                                    ))
+                                ) : (
+                                    <option>Loading...</option>
+                                )}
+                            </select>
+                        </label>
+                        <label>Confidence Threshold: <input type="number" name="mlThreshold" value={data.mlThreshold || 0.5} step="0.01" min="0" max="1" onChange={onChange} /> </label>
+                        <label>Prediction Horizon: <input type="number" name="mlHorizon" value={data.mlHorizon || 1} step="1" min="1" onChange={onChange} /> </label>
+                    </>
+                )}
+            </fieldset>
+            <label>Stop Loss (%):
+                <input type="number" name="SL" value={data.params?.SL || 1.0} onChange={handleParamChange} step="0.1" min="0.1" />
+            </label>
+            <label>Take Profit (%):
+                <input type="number" name="TP" value={data.params?.TP || 2.0} onChange={handleParamChange} step="0.1" min="0.1" />
+            </label>
+        </>
+    );
 };
 
-/**
- * --- HEAVILY MODIFIED ORCHESTRATOR ---
- * Orchestrates a backtest, now handling all 3 ML modes and authentication.
- */
-export const runBacktest = async (config, authToken) => { // ACCEPTS authToken
-    console.log("[runBacktest] Starting orchestrator with config:", config);
-    const {
-        userId, code, symbol, timeframe, startDate, endDate,
-        simulateOnly = true, mlMode = 'off', mlModel, ...riskParams
-    } = config;
+const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, disableRemove }) => {
+    const handleChange = (e) => onChange(e, idx);
+    return (
+        <div className="combo-card">
+            <div className="combo-card-header"><strong>Strategy #{idx + 1}</strong>
+                {!disableRemove && <button type="button" onClick={() => onRemove(idx)}>✕</button>}
+            </div>
+            <div className="combo-card-body">
+                <label>Strategy:
+                    <select name="code" value={config.code} onChange={handleChange} disabled={!strategies.length}>
+                        {strategies.length ? strategies.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option>Loading...</option>}
+                    </select>
+                </label>
+                <label>Stop Loss (%): <input type="number" name="param_SL" value={config.params?.SL || 1.0} onChange={handleChange} step="0.1" min="0.1" /></label>
+                <label>Take Profit (%): <input type="number" name="param_TP" value={config.params?.TP || 2.0} onChange={handleChange} step="0.1" min="0.1" /></label>
+            </div>
+        </div>
+    );
+};
 
-    let candles;
-    let mlPredictions = null;
-    let strategyFunction = null;
-    let strategyParams = { ...(config.params || {}) };
-    let strategyName = 'N/A', strategyType = 'N/A';
+// --- Main Component ---
+export default function Backtests() {
+  const { state, runNewBacktest, runComboBacktest } = useBacktest();
+  const { loading = 'initial', error = null, options = {} } = state || {};
 
-    try {
-        // --- STEP 1: Fetch Strategy (if TA or Hybrid) ---
-        if (mlMode === 'off' || mlMode === 'predictions') {
-            if (!code) throw new Error("Strategy 'code' is required for TA or Hybrid mode.");
-            const strategy = await Strategy.findOne({ userId, code }).lean();
-            if (!strategy) throw new Error(`Strategy with code '${code}' not found.`);
+  const [formData, setFormData] = useState(initialFormData);
+  const [comboData, setComboData] = useState(initialComboData);
+  const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
+  const [activeTab, setActiveTab] = useState('single');
 
-            if (!strategy.params || !strategy.params.strategyType) {
-                 throw new Error(`Strategy '${code}' is missing required parameters (strategyType).`);
-            }
+  const strategyOptions = useMemo(() => options?.strategies || [], [options]);
+  const symbolOptions = useMemo(() => options?.symbols || [], [options]);
+  const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
+  const modelOptions = useMemo(() => options?.models || [], [options]);
 
-            strategyFunction = getStrategy(strategy.params.strategyType);
-            if (!strategyFunction) {
-                 throw new Error(`Could not load strategy function for type: ${strategy.params.strategyType}`);
-            }
-            strategyParams = { ...strategy.params, ...(config.params || {}) };
-            strategyName = strategy.name;
-            strategyType = strategy.params.strategyType;
-        }
+ // --- SEPARATED useEffects ---
 
-        // --- STEP 2: Fetch Data & ML Predictions (if ML or Hybrid) ---
-        if (mlMode === 'on' || mlMode === 'predictions') {
-            if (!mlModel) throw new Error("ML Model name ('mlModel') is required for ML or Hybrid mode.");
-
-            // Use the new feature data downloader (Memory Safe)
-            const fullFeatureData = await _getFeatureData(symbol, timeframe, startDate, endDate);
-
-            // A. Extract candles (required format: [[timestamp, open, high, low, close], ...])
-            candles = fullFeatureData.map(row => {
-                 const timestamp = new Date(row.datetime).getTime();
-                 const { open, high, low, close } = row;
-                 if ([timestamp, open, high, low, close].some(v => typeof v !== 'number' || isNaN(v))) return null;
-                 return [timestamp, open, high, low, close];
-            }).filter(candle => candle !== null);
-
-            if (!candles || candles.length < 2) {
-                 throw new Error("Not enough valid market data found in feature file for the selected period.");
-            }
-
-            // B. Extract features for the model (array of arrays, shape [N, 43])
-            const features = fullFeatureData
-                .filter(row => !isNaN(new Date(row.datetime).getTime()))
-                .map(row => FEATURE_NAMES.map(feature => {
-                    const val = row[feature];
-                    return (typeof val !== 'number' || isNaN(val)) ? 0 : val;
-                }));
-
-            if (features.length !== candles.length) {
-                  throw new Error(`Mismatch between candle count (${candles.length}) and feature set count (${features.length}).`);
-            }
-
-            // C. Get bulk predictions from Python server (FIXED: authToken passed here)
-            mlPredictions = await _getBulkPredictions(mlModel, features, authToken);
-
-            if (mlPredictions.length !== candles.length) {
-                  throw new Error(`Mismatch between candle count (${candles.length}) and prediction count (${mlPredictions.length}).`);
-            }
-
-            if (mlMode === 'on') {
-                strategyName = `ML: ${mlModel}`;
-                strategyType = 'ml';
-                strategyFunction = () => ({ signal: 'hold' });
-            } else {
-                strategyName = `Hybrid: ${strategyName} + ${mlModel}`;
-                strategyType = 'hybrid';
-            }
-
-        } else {
-            // Pure TA mode
-            const data = await fetchOHLCVMultiSafe(symbol, timeframe, startDate, endDate);
-            if (!data.candles || data.candles.length < 2) throw new Error("Not enough market data for the selected period.");
-            candles = data.candles;
-        }
-
-        // --- STEP 3: Run the Simulation ---
-        const initialBalance = config.initialBalance || strategyParams.initialBalance || 1000;
-
-        const { closedTrades, equityCurve } = runSimulation({
-            candles,
-            strategyFunction,
-            strategyParams,
-            riskParams,
-            initialBalance,
-            mlMode,
-            mlPredictions
-        });
-
-        // --- STEP 4: Calculate Final Metrics ---
-        const metrics = calculateMetrics(closedTrades, initialBalance, equityCurve);
-
-        // --- STEP 5: Prepare Result Object ---
-        const backtestData = {
-            userId, symbol, timeframe, initialBalance,
-            finalBalance: metrics.finalBalance, profit: metrics.totalProfit, totalTrades: metrics.totalTrades,
-            startDate: new Date(startDate).toISOString(), endDate: new Date(endDate).toISOString(),
-            candlesTested: candles.length,
-            strategy: { name: strategyName, type: strategyType, params: strategyParams, mlModel: mlModel },
-            metrics,
-            equityCurve: equityCurve.map(p => ({ timestamp: typeof p.timestamp === 'number' ? new Date(p.timestamp).toISOString() : p.timestamp, balance: p.balance })),
-            tradeHistory: closedTrades.map(t => ({ ...t, entryTime: t.entryTime instanceof Date ? t.entryTime.toISOString() : t.entryTime, exitTime: t.exitTime instanceof Date ? t.exitTime.toISOString() : t.exitTime })),
-        };
-
-        // --- STEP 6: Save to DB or Return ---
-        if (!simulateOnly) {
-            return await Backtest.create(backtestData);
-        }
-        return backtestData;
-    } catch (error) {
-        throw error;
+// Effect 1: Set default for the SINGLE strategy form
+useEffect(() => {
+    if (strategyOptions.length && !formData.code) {
+        const defaultStrategy = strategyOptions[0];
+        setFormData(prev => ({
+            ...prev,
+            code: defaultStrategy.code,
+            params: { SL: 1.0, TP: 2.0, ...defaultStrategy.params }
+        }));
     }
-};
+}, [strategyOptions, formData.code]); // Added formData.code to dependency
+
+// Effect 2: Set defaults for the COMBO strategy form
+useEffect(() => {
+    if (strategyOptions.length && comboData.strategies.every(c => !c.code)) {
+        const newConfigs = comboData.strategies.map((config, index) => {
+            const strategy = strategyOptions[index] || strategyOptions[0];
+            return {
+                code: strategy.code,
+                // ✅ FIX: Corrected syntax error on this line
+                params: { SL: 1.0, TP: 2.0, ...strategy.params }
+            };
+        });
+        setComboData(prev => ({ ...prev, strategies: newConfigs }));
+    }
+}, [strategyOptions, comboData.strategies]); // Made dependency more specific
+
+// Effect 3: Set default symbol for BOTH forms
+useEffect(() => {
+    if (symbolOptions.length && !formData.symbol) {
+        const defaultSymbol = symbolOptions[0];
+        setFormData(prev => ({ ...prev, symbol: defaultSymbol }));
+        setComboData(prev => ({ ...prev, symbol: defaultSymbol }));
+    }
+}, [symbolOptions, formData.symbol]); // Added formData.symbol
+
+// --- ✅ ADD THIS EFFECT FOR ML MODELS ---
+// Effect 4: Set default ML Model for BOTH forms
+useEffect(() => {
+    if (modelOptions.length && !formData.mlModel) {
+        // ✅ FIX 2: Get the ID from the first model object
+        const defaultModelId = modelOptions[0].id;
+        setFormData(prev => ({ ...prev, mlModel: defaultModelId }));
+        setComboData(prev => ({ ...prev, mlModel: defaultModelId }));
+    }
+}, [modelOptions, formData.mlModel]); // Added formData.mlModel
+  
+  const { combinedEquityCurve, combinedMetrics } = useMemo(() => {
+      try {
+          const mainResult = backtestResults?.main;
+          if (mainResult) {
+              return {
+                  combinedEquityCurve: mainResult.equityCurve || [],
+                  combinedMetrics: mainResult.metrics || null,
+              };
+          }
+          return { combinedEquityCurve: [], combinedMetrics: null };
+      } catch (e) {
+          console.error("Error calculating results:", e);
+          return { combinedEquityCurve: [], combinedMetrics: null };
+      }
+  }, [backtestResults]);
+
+  const pieData = useMemo(() => {
+      if (!combinedMetrics || combinedMetrics.winningTrades === undefined) return [];
+      const wins = combinedMetrics.winningTrades;
+      const losses = combinedMetrics.totalTrades - wins;
+      return [{ name: "Wins", value: wins }, { name: "Losses", value: losses }];
+  }, [combinedMetrics]);
+
+  if (loading === 'initial') {
+    return <div className="dashboard-container"><h1>Loading Backtest Environment...</h1></div>;
+  }
+
+  const handleFormChange = (e) => {
+    const { name, value, type } = e.target;
+    const val = type === 'number' && value !== '' ? parseFloat(value) : value;
+
+    if (name === 'code') {
+        const selectedStrategy = strategyOptions.find(s => s.code === value);
+        setFormData(prev => ({
+            ...prev,
+            code: value,
+            params: { ...prev.params, ...selectedStrategy?.params }
+        }));
+    } else if (name.startsWith("param_")) {
+        const paramName = name.substring(6);
+        setFormData(prev => ({
+            ...prev,
+            params: { ...prev.params, [paramName]: val }
+        }));
+    } else {
+        setFormData(prev => ({ ...prev, [name]: val }));
+    }
+  };
+
+  const handleComboChange = (e) => {
+    const { name, value, type } = e.target;
+    const val = type === 'number' && value !== '' ? parseFloat(value) : value;
+    setComboData(prev => ({ ...prev, [name]: val }));
+  };
+
+  const handleStrategyConfigChange = (e, index) => {
+    const { name, value, type } = e.target;
+    const isParam = name.startsWith("param_");
+    const val = type === 'number' && value !== '' ? parseFloat(value) : value;
+    const updatedConfigs = [...comboData.strategies];
+
+    if (isParam) {
+      const paramName = name.substring(6);
+      updatedConfigs[index].params = { ...updatedConfigs[index].params, [paramName]: val };
+    } else {
+      const selectedStrategy = strategyOptions.find(s => s.code === value);
+      updatedConfigs[index].code = value;
+      updatedConfigs[index].params = { SL: 1.0, TP: 2.0, ...selectedStrategy?.params };
+    }
+    setComboData(prev => ({ ...prev, strategies: updatedConfigs }));
+  };
+
+  const addStrategyCard = () => {
+    const defaultStrategy = strategyOptions[0] || {};
+    const newCard = { code: defaultStrategy.code, params: { SL: 1.0, TP: 2.0, ...defaultStrategy.params } };
+    setComboData(prev => ({ ...prev, strategies: [...prev.strategies, newCard] }));
+  };
+
+  const removeStrategyCard = (index) => {
+    if (comboData.strategies.length <= 2) return;
+    setComboData(prev => ({ ...prev, strategies: prev.strategies.filter((_, i) => i !== index) }));
+  };
+
+  const handleRunBacktest = async (e) => {
+    e.preventDefault();
+
+    // --- ✅ ADD THIS VALIDATION BLOCK ---
+    if (formData.mlMode !== 'off' && !formData.mlModel) {
+        alert("Please select an ML model before running the backtest.");
+        return; // Stop the submission
+    }
+
+    setBacktestResults({ main: null, individuals: [] });
+    try {
+      const res = await runNewBacktest?.(formData);
+      if (res) {
+        setBacktestResults({ main: res, individuals: [] });
+      }
+    } catch (err) {
+      console.error("Single backtest failed:", err);
+    }
+  };
+
+  const handleRunComboBacktest = async (e) => {
+    e.preventDefault();
+    
+    // --- ✅ ADD THIS VALIDATION BLOCK ---
+    if (comboData.mlMode !== 'off' && !comboData.mlModel) {
+        alert("Please select an ML model before running the combo backtest.");
+        return; // Stop the submission
+    }
+    
+    if (comboData.strategies.filter(s => s.code && s.code.trim() !== "").length < 2) {
+        console.error("Combo backtest validation failed: At least two strategies must be selected.");
+        return;
+    }
+
+    setBacktestResults({ main: null, individuals: [] });
+    try {
+      const res = await runComboBacktest?.(comboData);
+      if (res) {
+        setBacktestResults(res);
+      }
+    } catch (err) {
+      console.error("Combo backtest failed:", err);
+    }
+  };
+
+  const getButtonText = (loadingState) => {
+    switch (loadingState) {
+        case 'running_ml':
+            return 'Fetching ML Predictions...';
+        case 'running_backtest':
+            return 'Running Backtest...';
+        case 'running':
+        case 'running_combo':
+            return 'Processing...';
+        default:
+            return 'Run Backtest';
+    }
+  };
+
+  const isComboSubmitDisabled = loading !== 'idle' ||
+                                !strategyOptions.length ||
+                                comboData.strategies.filter(s => s.code && s.code.trim() !== "").length < 2;
+
+  return (
+    <div className="dashboard-container">
+      <h1>Backtests</h1>
+      {error && <div className="error-box"><h4>Error</h4><p>{error.message}</p></div>}
+      <div className="backtest-main">
+        <div className="backtest-forms">
+          <div className="tabs">
+            <button className={activeTab === 'single' ? 'active' : ''} onClick={() => setActiveTab('single')}>Single Strategy</button>
+            <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo Strategy</button>
+          </div>
+          {activeTab === 'single' && (
+            <form onSubmit={handleRunBacktest} className="backtest-form">
+              <label>Strategy:
+                <select name="code" value={formData.code} onChange={handleFormChange} disabled={!strategyOptions.length}>
+                  {strategyOptions.length ? strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option>Loading...</option>}
+                </select>
+              </label>
+              <CommonBacktestInputs data={formData} onChange={handleFormChange} options={{ symbolOptions, timeframeOptions, modelOptions }} />
+              <button type="submit" disabled={loading !== 'idle' || !strategyOptions.length}>
+                {getButtonText(loading)}
+              </button>
+            </form>
+          )}
+          {activeTab === 'combo' && (
+            <form onSubmit={handleRunComboBacktest} className="backtest-form">
+              <CommonBacktestInputs data={comboData} onChange={handleComboChange} options={{ symbolOptions, timeframeOptions, modelOptions }} />
+              <div className="combo-strategy-list">
+                {comboData.strategies.map((config, idx) => (
+                  <ComboStrategyCard
+                    key={idx}
+                    idx={idx}
+                    config={config}
+                    strategies={strategyOptions}
+                    onChange={handleStrategyConfigChange}
+                    onRemove={removeStrategyCard}
+                    disableRemove={comboData.strategies.length <= 2}
+                  />
+                ))}
+              </div>
+              <button type="button" onClick={addStrategyCard} disabled={loading !== 'idle' || !strategyOptions.length}>Add Strategy</button>
+              <button type="submit" disabled={isComboSubmitDisabled}>
+                {loading === 'running_ml' ? 'Fetching ML...' : loading.startsWith('running') ? 'Running...' : 'Run Combo Backtest'}
+              </button>
+            </form>
+          )}
+        </div>
+        {(loading !== 'idle' || combinedMetrics) && (
+          <div className="results-section">
+            <h2>Backtest Results</h2>
+            {loading !== 'idle' && <div className="loading-overlay"><h3>{getButtonText(loading)}</h3></div>}
+            {combinedMetrics && (
+              <>
+                <MetricsDisplay metrics={combinedMetrics} />
+                <div className="charts-container">
+                  <div className="chart">
+                    <h3>Equity Curve</h3>
+                    {combinedEquityCurve?.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={300}>
+                        <LineChart data={combinedEquityCurve}><XAxis dataKey="timestamp" tickFormatter={formatDate} /><YAxis domain={['auto', 'auto']} /><Tooltip /><CartesianGrid stroke="#333" /><Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false} /></LineChart>
+                      </ResponsiveContainer>
+                    ) : <p>No data available for chart.</p>}
+                  </div>
+                  <div className="chart">
+                    <h3>Win / Loss Distribution</h3>
+                    {pieData?.length > 0 && pieData.some(d => d.value > 0) ? (
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart><Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>{pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}</Pie><Tooltip /><Legend /></PieChart>
+                      </ResponsiveContainer>
+                    ) : <p>No data available for chart.</p>}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
