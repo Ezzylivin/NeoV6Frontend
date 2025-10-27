@@ -128,7 +128,7 @@ export async function runComboBacktest(payload) {
 export async function fetchModels() {
     try {
         // --- UPDATED: Call the Render backend endpoint ---
-        const response = await api.get("/api/ml/available-models");
+        const response = await api.get("/ml/available-models");
         return response.data || []; // Ensure it returns an array even if empty
     } catch (error) {
         handleError(error, "fetchModels");
@@ -145,7 +145,7 @@ export async function fetchModelMetadata(modelName) {
     if (!modelName) throw new Error("A model name is required to fetch metadata.");
     try {
         // This call still goes directly to the ML server
-        const response = await axios.get(`${ML_API_BASE_URL}/api/ml/config/${modelName}`); // Use config endpoint
+        const response = await axios.get(`${ML_API_BASE_URL}/ml/config/${modelName}`); // Use config endpoint
         return response.data; // Expects { features: [...] }
     } catch (error) {
         handleError(error, "fetchModelMetadata");
@@ -173,7 +173,7 @@ export async function getMlPredictions(predictionData) {
     try {
         // This call still goes directly to the ML server
         const response = await axios.post(
-            `${ML_API_BASE_URL}/api/ml/predict_bulk`, // Assuming bulk endpoint can handle single predictions too
+            `${ML_API_BASE_URL}/ml/predict_bulk`, // Assuming bulk endpoint can handle single predictions too
             predictionData,
             {
                 headers: {
