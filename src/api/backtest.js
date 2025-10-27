@@ -12,8 +12,6 @@ const ML_API_BASE_URL_8001 = "https://74.208.28.77:8001";
 const ML_API_BASE_URL_8000 = "https://74.208.28.77:8000";
 // --------------------
 
-// Agent to handle self-signed certificates for direct HTTPS calls
-const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
 /**
  * Normalizes the API response for backtest options.
@@ -199,55 +197,51 @@ export async function runComboBacktest(payload) {
  */
 export async function fetchModels() {
     try {
-        // Correctly calls Render backend endpoint via 'api' client
-        const response = await api.get("/api/ml/available-models");
-        return response.data || []; // Ensure it returns an array
+        const response = await api.get("/api/ml/available-models"); // Calls Render backend
+        return response.data || [];
     } catch (error) {
         handleError(error, "fetchModels");
     }
 }
 
 /**
- * Fetches the metadata (expected features) for a specific ML model via the ML server (HTTPS :8001).
+ * Fetches model metadata.
+ * NOTE: Ideally, proxy this through Render backend too.
+ * If calling directly, browser must trust the cert or CORS must allow.
  */
 export async function fetchModelMetadata(modelName) {
-    if (!modelName) throw new Error("A model name is required to fetch metadata.");
+    if (!modelName) throw new Error("Model name required.");
     try {
-        // ✅ Direct call uses HTTPS and httpsAgent to port 8001
-        const response = await axios.get(`${ML_API_BASE_URL_8001}/api/ml/config/${modelName}`, { httpsAgent: httpsAgent });
-        return response.data; // Expects { features: [...] }
+        // REMOVED httpsAgent
+        const response = await axios.get(`${ML_API_BASE_URL}/api/ml/config/${modelName}`);
+        return response.data;
     } catch (error) {
         handleError(error, "fetchModelMetadata");
     }
 }
 
-
 /**
- * Calls the external ML server (HTTPS :8001) to get LIVE predictions.
- * NOTE: Recommend backend calls this, but function is here if needed directly by frontend.
+ * Gets LIVE predictions.
+ * NOTE: STRONGLY recommend backend calls this, not frontend.
  */
 export async function getMlPredictions(predictionData) {
-    const token = getAuthToken(); // Auth token if ML server requires it
-
-    if (!predictionData || !predictionData.model_name || !predictionData.features) {
-         throw new Error("Prediction data requires 'model_name' and 'features'.");
+    const token = getAuthToken();
+    if (!predictionData?.model_name || !predictionData?.features) {
+         throw new Error("Requires 'model_name' and 'features'.");
      }
-
     try {
-        // ✅ Direct call uses HTTPS and httpsAgent to port 8001
+        // REMOVED httpsAgent
         const response = await axios.post(
-            `${ML_API_BASE_URL_8001}/api/ml/predict_bulk`, // Assuming bulk endpoint handles single prediction inputs too
+            `${ML_API_BASE_URL}/api/ml/predict_bulk`,
             predictionData,
             {
-                httpsAgent: httpsAgent, // <-- Use agent for HTTPS
+                // NO httpsAgent here
                 headers: {
                     'Content-Type': 'application/json',
-                    ...(token && { 'Authorization': `Bearer ${token}` }) // Conditionally add Auth header
+                    ...(token && { 'Authorization': `Bearer ${token}` })
                 }
             }
         );
-        // Assuming the bulk endpoint returns a list like { predictions: [...] }
-        // Return the first prediction object { prediction: X, probability: Y } or null
         return response.data?.predictions?.[0] || null;
     } catch (error) {
         handleError(error, "getMlPredictions");
