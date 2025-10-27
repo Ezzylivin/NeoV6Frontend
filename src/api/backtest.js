@@ -1,19 +1,19 @@
-// File: src/services/backtestApiService.js (or similar)
-// FINAL VERSION V5:
-// - ML_API_BASE_URL set to HTTPS and port 8001.
-// - fetchModels calls the Render backend (correct).
-// - fetchModelMetadata and getMlPredictions call ML server DIRECTLY using HTTPS and httpsAgent.
+// File: src/services/backtestApiService.js
+// FINAL VERSION V5.2: Complete file with separate ML URLs and full function definitions.
 
 import api from "./apiClient.js"; // Your main configured Axios client for Render backend
 import axios from "axios";       // Import axios directly for external calls
-import https from 'https';         // <-- 1. RESTORE HTTPS IMPORT
+import https from 'https';         // For HTTPS calls
 
-// --- UPDATED: Use HTTPS and port 8001 ---
-const ML_API_BASE_URL = "https://74.208.28.77:8001";
+// --- Base URLs ---
+// ✅ URL for the Flask API server (listing models, config, predictions, data files)
+const ML_API_BASE_URL_8001 = "https://74.208.28.77:8001";
+// ✅ URL for the other service running on port 8000 (Usage TBD)
+const ML_API_BASE_URL_8000 = "https://74.208.28.77:8000";
+// --------------------
 
-// ✅ ADDED: Agent to handle self-signed certificates for direct HTTPS calls to ML server
+// Agent to handle self-signed certificates for direct HTTPS calls
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
-
 
 /**
  * Normalizes the API response for backtest options.
@@ -37,8 +37,20 @@ const normalizePastBacktests = (raw) => ({
  * A consistent error handler for all API calls.
  */
 const handleError = (error, functionName) => {
+    // Log detailed error information
+    console.error(`Error in ${functionName}():`, error.message);
+    if (error.response) {
+        console.error('Error Response Data:', error.response.data);
+        console.error('Error Response Status:', error.response.status);
+    } else if (error.request) {
+        console.error('Error Request Data:', error.request); // Log request if no response
+    } else {
+        // Log anything else (e.g., setup errors)
+        console.error('Error Config:', error.config);
+    }
+
     const message = error.response?.data?.detail || error.response?.data?.message || error.message || "An unknown error occurred.";
-    console.error(`${functionName}(): failed`, message);
+    // Throw a standard Error object for better stack traces and handling
     throw new Error(message);
 };
 
@@ -46,28 +58,139 @@ const handleError = (error, functionName) => {
  * Safely retrieves the authentication token from localStorage.
  */
 const getAuthToken = () => {
-    return localStorage.getItem('token');
+    try {
+        // Check if localStorage is available
+        if (typeof window !== 'undefined' && window.localStorage) {
+            return localStorage.getItem('token');
+        }
+    } catch (e) {
+        console.error("localStorage not available or accessible:", e);
+    }
+    return null; // Return null if not found or not accessible
 };
 
 
 // --- Main Backend API Functions (Render Backend - Calls using 'api' client) ---
 
+/**
+ * Fetches initial options for backtesting (strategies, symbols, timeframes, models).
+ */
 export async function fetchOptions() {
     try {
+        // Endpoint in Render backend controller that aggregates options
         const response = await api.get("/backtest/options");
-        return normalizeOptions(response.data);
+        return normalizeOptions(response.data); // Normalize ensures structure
     } catch (error) {
         handleError(error, "fetchOptions");
     }
 }
 
-export async function fetchAll(page = 1) { /* ... unchanged ... */ }
-export async function fetchById(id) { /* ... unchanged ... */ }
-export async function deleteById(id) { /* ... unchanged ... */ }
-export async function runBacktest(payload) { /* ... unchanged ... */ }
-export async function previewStrategy(payload) { /* ... unchanged ... */ }
-export async function runComboBacktest(payload) { /* ... unchanged ... */ }
+/**
+ * Fetches a paginated list of past backtest results.
+ * @param {number} [page=1] - The page number to fetch.
+ */
+export async function fetchAll(page = 1) {
+    try {
+        const response = await api.get(`/backtest?page=${page}`);
+        return normalizePastBacktests(response.data); // Normalize ensures structure
+    } catch (error) {
+        handleError(error, "fetchAll");
+    }
+}
 
+/**
+ * Fetches the detailed results of a specific backtest by its ID.
+ * @param {string} id - The ID of the backtest to fetch.
+ */
+export async function fetchById(id) {
+    if (!id) throw new Error("An ID is required to fetch a backtest.");
+    try {
+        const { data } = await api.get(`/backtest/${id}`);
+        return data; // Assumes backend returns the full backtest object
+    } catch (error) {
+        handleError(error, "fetchById");
+    }
+}
+
+/**
+ * Deletes a specific backtest by its ID.
+ * @param {string} id - The ID of the backtest to delete.
+ */
+export async function deleteById(id) {
+    if (!id) throw new Error("An ID is required to delete a backtest.");
+    try {
+        const { data } = await api.delete(`/backtest/${id}`);
+        return data; // Assumes backend returns { success: true, message: "..." }
+    } catch (error) {
+        handleError(error, "deleteById");
+    }
+}
+
+/**
+ * Submits a configuration to run a new single-strategy backtest.
+ * @param {object} payload - The backtest configuration object.
+ */
+export async function runBacktest(payload) {
+    if (!payload) throw new Error("Backtest payload is required.");
+    // code is not needed for Pure ML, only validate if not Pure ML
+    if (payload.mlMode !== 'on' && !payload.code) {
+        throw new Error("A strategy 'code' is required unless using Pure ML mode.");
+    }
+    if (!payload.symbol || !payload.timeframe || !payload.startDate || !payload.endDate) {
+         throw new Error("Missing required fields in payload (symbol, timeframe, startDate, endDate).");
+     }
+    try {
+        // Calls the endpoint handled by runBacktestController
+        const { data } = await api.post("/backtest/run", payload);
+        return data; // Returns the full backtest result object after saving
+    } catch (error) {
+        handleError(error, "runBacktest");
+    }
+}
+
+/**
+ * Submits a configuration to preview a single strategy (simulate only).
+ * @param {object} payload - The backtest configuration object.
+ */
+export async function previewStrategy(payload) {
+     if (!payload) throw new Error("Preview payload is required.");
+     // code not needed for Pure ML, only validate if not Pure ML
+     if (payload.mlMode !== 'on' && !payload.code) {
+        throw new Error("A strategy 'code' is required unless using Pure ML mode.");
+     }
+     if (!payload.symbol || !payload.timeframe || !payload.startDate || !payload.endDate) {
+         throw new Error("Missing required fields in payload (symbol, timeframe, startDate, endDate).");
+     }
+    try {
+        // Calls the endpoint handled by previewStrategyController
+        const { data } = await api.post("/backtest/preview", payload);
+        return data; // Returns the full backtest result object without saving
+    } catch (error) {
+        handleError(error, "previewStrategy");
+    }
+}
+
+/**
+ * Submits a configuration to run a new combo-strategy backtest.
+ * @param {object} payload - The combo backtest configuration object.
+ */
+export async function runComboBacktest(payload) {
+    // Basic validation
+    if (!payload || !payload.strategies || payload.strategies.filter(s => s.code).length === 0) {
+        throw new Error("Payload must contain at least one strategy with a 'code'.");
+    }
+    if (!payload.symbol || !payload.timeframe || !payload.startDate || !payload.endDate) {
+         throw new Error("Missing required fields in payload (symbol, timeframe, startDate, endDate).");
+     }
+    try {
+        // Calls the endpoint handled by runComboBacktestController
+        const { data } = await api.post("/backtest/combo", payload);
+        // Expects { combinedResult: ..., individualResults: [...] }
+        return data;
+    } catch (error) {
+        handleError(error, "runComboBacktest");
+    }
+}
 
 // --- Machine Learning Server Related Functions ---
 
@@ -78,20 +201,20 @@ export async function fetchModels() {
     try {
         // Correctly calls Render backend endpoint via 'api' client
         const response = await api.get("/api/ml/available-models");
-        return response.data || [];
+        return response.data || []; // Ensure it returns an array
     } catch (error) {
         handleError(error, "fetchModels");
     }
 }
 
 /**
- * Fetches the metadata (expected features) for a specific ML model via the ML server (HTTPS).
+ * Fetches the metadata (expected features) for a specific ML model via the ML server (HTTPS :8001).
  */
 export async function fetchModelMetadata(modelName) {
     if (!modelName) throw new Error("A model name is required to fetch metadata.");
     try {
-        // ✅ Direct call uses HTTPS and httpsAgent
-        const response = await axios.get(`${ML_API_BASE_URL}/api/ml/config/${modelName}`, { httpsAgent: httpsAgent });
+        // ✅ Direct call uses HTTPS and httpsAgent to port 8001
+        const response = await axios.get(`${ML_API_BASE_URL_8001}/api/ml/config/${modelName}`, { httpsAgent: httpsAgent });
         return response.data; // Expects { features: [...] }
     } catch (error) {
         handleError(error, "fetchModelMetadata");
@@ -100,26 +223,32 @@ export async function fetchModelMetadata(modelName) {
 
 
 /**
- * Calls the external ML server (HTTPS) to get LIVE predictions.
- * NOTE: Still recommend backend calls this, but function is here if needed directly.
+ * Calls the external ML server (HTTPS :8001) to get LIVE predictions.
+ * NOTE: Recommend backend calls this, but function is here if needed directly by frontend.
  */
 export async function getMlPredictions(predictionData) {
     const token = getAuthToken(); // Auth token if ML server requires it
 
+    if (!predictionData || !predictionData.model_name || !predictionData.features) {
+         throw new Error("Prediction data requires 'model_name' and 'features'.");
+     }
+
     try {
-        // ✅ Direct call uses HTTPS and httpsAgent
+        // ✅ Direct call uses HTTPS and httpsAgent to port 8001
         const response = await axios.post(
-            `${ML_API_BASE_URL}/api/ml/predict_bulk`, // Assuming bulk handles single
+            `${ML_API_BASE_URL_8001}/api/ml/predict_bulk`, // Assuming bulk endpoint handles single prediction inputs too
             predictionData,
             {
-                httpsAgent: httpsAgent, // <-- ADDED AGENT
+                httpsAgent: httpsAgent, // <-- Use agent for HTTPS
                 headers: {
                     'Content-Type': 'application/json',
-                    ...(token && { 'Authorization': `Bearer ${token}` }) // Conditionally add Auth
+                    ...(token && { 'Authorization': `Bearer ${token}` }) // Conditionally add Auth header
                 }
             }
         );
-        return response.data?.predictions?.[0] || response.data; // Handle single/bulk response
+        // Assuming the bulk endpoint returns a list like { predictions: [...] }
+        // Return the first prediction object { prediction: X, probability: Y } or null
+        return response.data?.predictions?.[0] || null;
     } catch (error) {
         handleError(error, "getMlPredictions");
     }
