@@ -44,7 +44,7 @@ const defaultFilterParams = {
     TP: 10.0,
     minAtrPct: 0, // Volatility filter (0 = off)
     trendFilterPeriod: 200, // Trend filter
-    hybridMode: 'AND' // Hybrid logic
+    //hybridMode: 'AND' // Hybrid logic
 };
 
 // Initial state for the single backtest form
@@ -410,6 +410,19 @@ export default function Backtests() {
     return [{ name: "Wins", value: wins }, { name: "Losses", value: losses }];
   }, [combinedMetrics]);
 
+  // Show initial loading screen if options haven't loaded yet
+  if (loading === 'initial') {
+    return (
+        <div className="dashboard-container">
+            <h1>Backtests</h1>
+            <div className="loading-overlay" style={{ position: 'relative', background: 'none' }}> {/* Style differently for initial load */}
+                <h3>Initializing Backtest Environment...</h3>
+                <div className="spinner"></div>
+            </div>
+        </div>
+    );
+  }
+
 
   // --- Event Handlers ---
 
@@ -417,7 +430,7 @@ export default function Backtests() {
   const handleFormChange = (e) => {
     const { name, value, type } = e.target;
     // Convert numbers, keep others as is
-    const val = type === 'number' && value !== '' ? parseFloat(value) : value;
+    const val = type === 'number' && value !== '' ? parseFloat(value) : (type === 'checkbox' ? e.target.checked : value); // Handle checkbox
 
     if (name === 'code') { // Special handling for strategy selection
       const selectedStrategy = strategyOptions.find(s => s.code === value);
@@ -444,7 +457,7 @@ export default function Backtests() {
   // Handle changes in the global part of the combo form
   const handleComboChange = (e) => {
     const { name, value, type } = e.target;
-    const val = type === 'number' && value !== '' ? parseFloat(value) : value;
+    const val = type === 'number' && value !== '' ? parseFloat(value) : (type === 'checkbox' ? e.target.checked : value);
 
     if (name.startsWith("param_")) { // Global combo params
       const paramName = name.substring(6);
@@ -461,7 +474,7 @@ export default function Backtests() {
   const handleStrategyConfigChange = (e, index) => {
     const { name, value, type } = e.target;
     const isParam = name.startsWith("param_"); // Is it param_SL or param_TP?
-    const val = type === 'number' && value !== '' ? parseFloat(value) : value;
+    const val = type === 'number' && value !== '' ? parseFloat(value) : (type === 'checkbox' ? e.target.checked : value);
 
     const updatedStrategies = [...comboData.strategies]; // Create a copy
     const currentConfig = { ...updatedStrategies[index] }; // Copy the specific strategy config
@@ -509,20 +522,14 @@ export default function Backtests() {
   const handleRunBacktest = async (e) => {
     e.preventDefault(); // Prevent default form submission
     // Basic validation
-    if (formData.mlMode !== 'off' && !formData.mlModel) {
-      alert("Please select an ML model."); return;
-    }
-     if (formData.mlMode === 'off' && !formData.code) {
-      alert("Please select a TA Strategy."); return;
-    }
+    if (formData.mlMode !== 'off' && !formData.mlModel) { alert("Please select an ML model."); return; }
+    if (formData.mlMode === 'off' && !formData.code) { alert("Please select a TA Strategy."); return; }
     setBacktestResults({ main: null, individuals: [] }); // Clear previous results
     try {
       // Call the hook action, which handles loading state and API call
       const res = await runNewBacktest?.(formData);
       // Update local results state if successful
-      if (res) {
-        setBacktestResults({ main: res, individuals: [] });
-      }
+      if (res) { setBacktestResults({ main: res, individuals: [] }); }
     } catch (err) {
       console.error("Single backtest submission failed:", err.message);
       // Error state is set within useBacktest hook and displayed via {error}
@@ -532,21 +539,14 @@ export default function Backtests() {
   // Handle combo backtest submission
   const handleRunComboBacktest = async (e) => {
     e.preventDefault();
-    // Basic validation
-    if (comboData.mlMode !== 'off' && !comboData.mlModel) {
-      alert("Please select an ML model for the combo."); return;
-    }
-    if (comboData.strategies.filter(s => s.code?.trim()).length < 1) {
-      alert("Please select at least one TA strategy for the combo."); return;
-    }
+    if (comboData.mlMode !== 'off' && !comboData.mlModel) { alert("Please select an ML model for the combo."); return; }
+    if (comboData.strategies.filter(s => s.code?.trim()).length < 1) { alert("Please select at least one TA strategy for the combo."); return; }
     setBacktestResults({ main: null, individuals: [] }); // Clear previous
     try {
        // Call the hook action
       const comboRes = await runComboBacktest?.(comboData);
       // Update local results state (expects { combinedResult: ..., individualResults: ... })
-      if (comboRes) {
-        setBacktestResults(comboRes);
-      }
+      if (comboRes) { setBacktestResults(comboRes); }
     } catch (err) {
       console.error("Combo backtest submission failed:", err.message);
        // Error state is set within useBacktest hook
@@ -563,7 +563,7 @@ export default function Backtests() {
       case 'running_combo': return 'Running Combo...';
       case 'fetching': return 'Fetching Data...';
       case 'running': return 'Processing...';
-      case 'initial': return 'Initializing...';
+      // case 'initial': return 'Initializing...'; // Handled by initial loading screen
       case 'idle':
       default: return activeTab === 'single' ? 'Run Backtest' : 'Run Combo Backtest';
     }
@@ -572,28 +572,30 @@ export default function Backtests() {
   // 🚀 Function to get detailed status message based on loading state and form data
   const getStatusMessage = (loadingState, currentFormData) => {
     switch (loadingState) {
-      case 'running_ml':
-        if (currentFormData?.mlMode === 'predictions') return 'Fetching external ML predictions...';
+      case 'running_ml': // Covers Hybrid fetching and Python ML execution
+        if (currentFormData?.mlMode === 'predictions') return 'Fetching external ML features & predictions...';
         if (currentFormData?.mlMode === 'on') return 'Running Python ML backtest (loading data, applying model, simulating)...';
-        return 'Processing Machine Learning task...';
-      case 'running_backtest':
-        if (currentFormData?.mlMode === 'off') return 'Running TA simulation (Node.js)...';
-        if (currentFormData?.mlMode === 'on') return 'Initiating Python ML backtest...';
-        return 'Starting backtest simulation...';
+        return 'Processing Machine Learning...'; // Fallback
+      case 'running_backtest': // Covers TA Node simulation and start of Python ML
+        if (currentFormData?.mlMode === 'off') return 'Running TA simulation in Node.js...';
+        if (currentFormData?.mlMode === 'on') return 'Initiating Python ML backtest... (Checking cache)';
+        return 'Starting backtest simulation...'; // Fallback for single run start
       case 'running_combo':
         return `Running Combo Backtest (${currentFormData?.mlMode === 'predictions' ? 'Hybrid/External' : 'TA/Node'})...`;
-      case 'fetching': return 'Fetching required data...';
-      case 'running': return 'Processing request...';
-      case 'initial': return 'Initializing backtest environment...';
-      case 'idle': return 'Ready.'; // Or null if you don't want a message when idle
-      default: return 'Processing...';
+      case 'fetching': return 'Fetching required data...'; // General fetching state if used
+      case 'running': return 'Processing request...'; // Generic intermediate state if used
+      // case 'initial': return 'Initializing backtest environment...'; // Handled by initial loading screen
+      // case 'idle': return 'Ready.'; // No message needed when idle and results shown
+      default: return 'Processing...'; // Default/fallback message
     }
   };
 
-  // Disable combo submit button if loading or invalid state
+  // Disable buttons based on loading state and form validity
   const isComboSubmitDisabled = loading !== 'idle' || !strategyOptions.length || comboData.strategies.filter(s => s.code?.trim()).length < 1;
-  // Disable single submit button if loading or invalid state
-  const isSingleSubmitDisabled = loading !== 'idle' || !strategyOptions.length || (formData.mlMode === 'off' && !formData.code) || (formData.mlMode !== 'off' && !formData.mlModel);
+  const isSingleSubmitDisabled = loading !== 'idle' ||
+    (!options?.symbols?.length) || // Disable if symbols haven't loaded
+    (formData.mlMode === 'off' && !formData.code) || // TA needs a code
+    (formData.mlMode !== 'off' && !formData.mlModel); // ML/Hybrid need a model
 
   // Determine which form data to pass to getStatusMessage
   const currentFormDataForStatus = activeTab === 'single' ? formData : comboData;
@@ -602,8 +604,8 @@ export default function Backtests() {
   return (
     <div className="dashboard-container">
       <h1>Backtests</h1>
-      {/* Display error if present */}
-      {error && <div className="error-box"><h4>Error</h4><p>{error.message || 'An unknown error occurred.'}</p></div>}
+      {/* Display error prominently at the top */}
+      {error && <div className="error-box"><h4>Backtest Error</h4><p>{error.message || 'An unknown error occurred.'}</p></div>}
 
       <div className="backtest-main">
         {/* --- Forms Section --- */}
@@ -645,25 +647,23 @@ export default function Backtests() {
                 </button>
              </form>
           )}
-        </div>
+        </div> {/* end backtest-forms */}
 
         {/* --- Results Section --- */}
-        {/* Show results container if loading, error occurred, or results are available */}
+        {/* Show results container if loading OR if results exist OR if error occurred */}
         {(loading !== 'idle' || combinedMetrics || error) && (
           <div className="results-section">
             <h2>Backtest Results</h2>
 
-             {/* Loading Overlay with detailed message */}
+             {/* Loading Overlay */}
             {loading !== 'idle' && (
               <div className="loading-overlay">
-                 {/* 🚀 Use getStatusMessage */}
                 <h3>{getStatusMessage(loading, currentFormDataForStatus)}</h3>
-                 {/* Add a simple spinner (CSS needed) */}
-                <div className="spinner"></div>
+                <div className="spinner"></div> {/* Spinner added */}
               </div>
             )}
 
-            {/* Display results only when idle, metrics exist, and no error */}
+            {/* Display results only when idle, metrics exist, AND no active error */}
             {loading === 'idle' && combinedMetrics && !error && (
               <>
                 <MetricsDisplay metrics={combinedMetrics} />
@@ -671,10 +671,22 @@ export default function Backtests() {
                   <div className="chart">
                     <h3>Equity Curve</h3>
                      <ResponsiveContainer width="100%" height={300}>
-                       <LineChart data={combinedEquityCurve}>
-                         <XAxis dataKey="timestamp" tickFormatter={formatChartDate} angle={-30} textAnchor="end" height={50} />
-                         <YAxis domain={['auto', 'auto']} />
-                         <Tooltip />
+                       <LineChart data={combinedEquityCurve} margin={{ top: 5, right: 20, left: 10, bottom: 25 }}>
+                         {/* Adjusted XAxis */}
+                         <XAxis
+                             dataKey="timestamp"
+                             tickFormatter={formatChartDate}
+                             angle={-30}
+                             textAnchor="end"
+                             height={50}
+                             interval="preserveStartEnd" // Show first/last labels
+                         />
+                         <YAxis
+                             domain={['auto', 'auto']}
+                             tickFormatter={(tick) => `$${tick.toLocaleString()}`} // Format Y-axis ticks as currency
+                             allowDataOverflow={true}
+                         />
+                         <Tooltip formatter={(value) => `$${value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} />
                          <CartesianGrid stroke="#555" strokeDasharray="3 3"/>
                          <Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false} strokeWidth={2} />
                        </LineChart>
@@ -684,7 +696,7 @@ export default function Backtests() {
                     <h3>Win / Loss Distribution</h3>
                      <ResponsiveContainer width="100%" height={300}>
                        <PieChart>
-                         <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+                         <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} labelLine={false} label={({ cx, cy, midAngle, innerRadius, outerRadius, value, index }) => { const RADIAN = Math.PI / 180; const radius = innerRadius + (outerRadius - innerRadius) * 0.5; const x = cx + radius * Math.cos(-midAngle * RADIAN); const y = cy + radius * Math.sin(-midAngle * RADIAN); return ( <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" > {`${pieData[index].name}: ${value}`} </text> ); }}>
                            {pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
                          </Pie>
                          <Tooltip />
@@ -696,11 +708,11 @@ export default function Backtests() {
               </>
             )}
 
-             {/* Message if idle and no results (and no error) */}
+             {/* Message if idle, no results, and no error */}
              {loading === 'idle' && !combinedMetrics && !error && (
-                 <p className="no-results-message">Run a backtest to see results.</p>
+                 <p className="no-results-message">Select parameters and run a backtest to see results here.</p>
              )}
-              {/* Error message is displayed at the top */}
+              {/* Error message is now displayed at the top */}
           </div>
         )}
       </div> {/* end backtest-main */}
