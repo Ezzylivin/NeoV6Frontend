@@ -1,249 +1,128 @@
 // File: src/services/backtestApiService.js
-// FINAL VERSION V5.2: Complete file with separate ML URLs and full function definitions.
+//
+// UPGRADED:
+// - All logic now points *directly* to your Python Flask server (ml_server_api.py).
+// - Removed all old, obsolete logic for 'Hybrid' mode, 'predictions', etc.
+// - This file now has ONE job: send the UI config to the Python server and return the result.
 
-import api from "./apiClient.js"; // Your main configured Axios client for Render backend
-import axios from "axios";       // Import axios directly for external calls
-import https from 'https';         // For HTTPS calls
+import axios from "axios";
+import https from 'https_proxy_agent'; // 🚀 Use https_proxy_agent for browser-compatible self-signed certs
 
-// --- Base URLs ---
-// ✅ URL for the Flask API server (listing models, config, predictions, data files)
-const ML_API_BASE_URL_8001 = "https://74.208.28.77:8001";
-// ✅ URL for the other service running on port 8000 (Usage TBD)
-const ML_API_BASE_URL_8000 = "https://74.208.28.77:8000";
-// --------------------
+// --- Configuration ---
+// 🚀 This is the ONLY server we talk to for backtests.
+const ML_SERVER_URL = "https://74.208.28.77:8001"; 
 
-
-/**
- * Normalizes the API response for backtest options.
- */
-const normalizeOptions = (raw) => ({
-    strategies: raw?.strategies || [],
-    symbols: raw?.symbols || [],
-    timeframes: raw?.timeframes || [],
-    models: raw?.models || [], // Ensure models is included
-});
-
-/**
- * Normalizes the API response for a list of past backtests.
- */
-const normalizePastBacktests = (raw) => ({
-    backtests: raw?.backtests || [],
-    total: raw?.total || 0,
+// 🚀 Create an httpsAgent to tell axios to ignore self-signed certificate errors.
+// This is necessary for local/dev HTTPS.
+const httpsAgent = new https.Agent({
+  rejectUnauthorized: false,
 });
 
 /**
  * A consistent error handler for all API calls.
  */
 const handleError = (error, functionName) => {
-    // Log detailed error information
-    console.error(`Error in ${functionName}():`, error.message);
-    if (error.response) {
-        console.error('Error Response Data:', error.response.data);
-        console.error('Error Response Status:', error.response.status);
-    } else if (error.request) {
-        console.error('Error Request Data:', error.request); // Log request if no response
-    } else {
-        // Log anything else (e.g., setup errors)
-        console.error('Error Config:', error.config);
-    }
+  console.error(`Error in ${functionName}():`, error.message);
+  let message = error.message;
 
-    const message = error.response?.data?.detail || error.response?.data?.message || error.message || "An unknown error occurred.";
-    // Throw a standard Error object for better stack traces and handling
-    throw new Error(message);
+  if (error.response) {
+    // The request was made and the server responded with a status code
+    // that falls out of the range of 2xx
+    console.error('Error Response Data:', error.response.data);
+    // The error from our Python server is in `error.response.data.error`
+    message = error.response?.data?.error || error.response?.data?.message || `Server responded with ${error.response.status}`;
+  } else if (error.request) {
+    // The request was made but no response was received
+    console.error('Error Request Data:', error.request);
+    message = "The server did not respond. Is the ML server (ml_server_api.py) running?";
+  } else {
+    // Something happened in setting up the request that triggered an Error
+    console.error('Error Config:', error.config);
+  }
+
+  throw new Error(message);
 };
 
-/**
- * Safely retrieves the authentication token from localStorage.
- */
-const getAuthToken = () => {
-    try {
-        // Check if localStorage is available
-        if (typeof window !== 'undefined' && window.localStorage) {
-            return localStorage.getItem('token');
-        }
-    } catch (e) {
-        console.error("localStorage not available or accessible:", e);
-    }
-    return null; // Return null if not found or not accessible
-};
-
-
-// --- Main Backend API Functions (Render Backend - Calls using 'api' client) ---
+// --- Main API Functions ---
 
 /**
  * Fetches initial options for backtesting (strategies, symbols, timeframes, models).
+ * This data now comes from two places: our Python server and a static list.
  */
 export async function fetchOptions() {
-    try {
-        // Endpoint in Render backend controller that aggregates options
-        const response = await api.get("/backtest/options");
-        return normalizeOptions(response.data); // Normalize ensures structure
-    } catch (error) {
-        handleError(error, "fetchOptions");
-    }
+  try {
+    // 1. Get models from our Python server
+    const response = await axios.get(`${ML_SERVER_URL}/api/ml/models`, { httpsAgent });
+    const models = response.data || [];
+
+    // 2. Define symbols and timeframes statically
+    // This MUST match your train_models.py script
+    const symbols = [
+        'BTC/USD', 'ETH/USD', 'XRP/USD', 'SOL/USD', 'ADA/USD',
+        'DOGE/USD', 'SUI/USD', 'SHIB/USD', 'PEPE/USD'
+    ];
+    const timeframes = ['30m', '1h', '4h', '1d', '1w'];
+
+    // 3. Define TA strategies statically
+    // This MUST match the `generate_ta_signals` function in ml_server_api.py
+    const strategies = [
+      { code: "sma_crossover", name: "SMA Crossover" },
+      { code: "rsi_divergence", name: "RSI Oversold/Overbought" },
+      { code: "macd_crossover", name: "MACD Crossover" },
+      { code: "stochastic_crossover", name: "Stochastic Crossover" },
+      { code: "cci_oversold", name: "CCI Oversold/Overbought" },
+      { code: "bollinger_bands", name: "Bollinger Bands Reversal" },
+      { code: "ichimoku_cloud", name: "Ichimoku Cloud Trend" }
+    ];
+
+    return { strategies, symbols, timeframes, models };
+    
+  } catch (error) {
+    handleError(error, "fetchOptions");
+  }
 }
 
 /**
- * Fetches a paginated list of past backtest results.
- * @param {number} [page=1] - The page number to fetch.
+ * 🚀 THIS IS THE ONLY BACKTEST FUNCTION YOU NOW NEED.
+ * It sends the config to the Python server, which handles ALL logic
+ * (TA, ML, or Hybrid) based on the 'mlMode' in the payload.
+ *
+ * @param {object} payload - The complete backtest configuration from the UI.
  */
-export async function fetchAll(page = 1) {
-    try {
-        const response = await api.get(`/backtest?page=${page}`);
-        return normalizePastBacktests(response.data); // Normalize ensures structure
-    } catch (error) {
-        handleError(error, "fetchAll");
-    }
-}
+export async function runUniversalBacktest(payload) {
+  if (!payload) throw new Error("Backtest payload is required.");
 
-/**
- * Fetches the detailed results of a specific backtest by its ID.
- * @param {string} id - The ID of the backtest to fetch.
- */
-export async function fetchById(id) {
-    if (!id) throw new Error("An ID is required to fetch a backtest.");
-    try {
-        const { data } = await api.get(`/backtest/${id}`);
-        return data; // Assumes backend returns the full backtest object
-    } catch (error) {
-        handleError(error, "fetchById");
-    }
-}
+  // Simple validation
+  if (!payload.symbol || !payload.timeframe || !payload.startDate || !payload.endDate) {
+    throw new Error("Missing required fields (symbol, timeframe, startDate, endDate).");
+  }
+  
+  // Validate mode-specific requirements
+  if (payload.mlMode === 'off' && !payload.code) {
+    throw new Error("A TA Strategy 'code' is required for 'TA Only' mode.");
+  }
+  if (payload.mlMode === 'on' && !payload.mlModel) {
+    throw new Error("An 'mlModel' is required for 'ML Only' mode.");
+  }
+  if (payload.mlMode === 'predictions' && (!payload.code || !payload.mlModel)) {
+    throw new Error("Both a TA 'code' and an 'mlModel' are required for Hybrid mode.");
+  }
 
-/**
- * Deletes a specific backtest by its ID.
- * @param {string} id - The ID of the backtest to delete.
- */
-export async function deleteById(id) {
-    if (!id) throw new Error("An ID is required to delete a backtest.");
-    try {
-        const { data } = await api.delete(`/backtest/${id}`);
-        return data; // Assumes backend returns { success: true, message: "..." }
-    } catch (error) {
-        handleError(error, "deleteById");
-    }
-}
-
-/**
- * Submits a configuration to run a new single-strategy backtest.
- * @param {object} payload - The backtest configuration object.
- */
-export async function runBacktest(payload) {
-    if (!payload) throw new Error("Backtest payload is required.");
-    // code is not needed for Pure ML, only validate if not Pure ML
-    if (payload.mlMode !== 'on' && !payload.code) {
-        throw new Error("A strategy 'code' is required unless using Pure ML mode.");
-    }
-    if (!payload.symbol || !payload.timeframe || !payload.startDate || !payload.endDate) {
-         throw new Error("Missing required fields in payload (symbol, timeframe, startDate, endDate).");
-     }
-    try {
-        // Calls the endpoint handled by runBacktestController
-        const { data } = await api.post("/backtest/run", payload);
-        return data; // Returns the full backtest result object after saving
-    } catch (error) {
-        handleError(error, "runBacktest");
-    }
-}
-
-/**
- * Submits a configuration to preview a single strategy (simulate only).
- * @param {object} payload - The backtest configuration object.
- */
-export async function previewStrategy(payload) {
-     if (!payload) throw new Error("Preview payload is required.");
-     // code not needed for Pure ML, only validate if not Pure ML
-     if (payload.mlMode !== 'on' && !payload.code) {
-        throw new Error("A strategy 'code' is required unless using Pure ML mode.");
-     }
-     if (!payload.symbol || !payload.timeframe || !payload.startDate || !payload.endDate) {
-         throw new Error("Missing required fields in payload (symbol, timeframe, startDate, endDate).");
-     }
-    try {
-        // Calls the endpoint handled by previewStrategyController
-        const { data } = await api.post("/backtest/preview", payload);
-        return data; // Returns the full backtest result object without saving
-    } catch (error) {
-        handleError(error, "previewStrategy");
-    }
-}
-
-/**
- * Submits a configuration to run a new combo-strategy backtest.
- * @param {object} payload - The combo backtest configuration object.
- */
-export async function runComboBacktest(payload) {
-    // Basic validation
-    if (!payload || !payload.strategies || payload.strategies.filter(s => s.code).length === 0) {
-        throw new Error("Payload must contain at least one strategy with a 'code'.");
-    }
-    if (!payload.symbol || !payload.timeframe || !payload.startDate || !payload.endDate) {
-         throw new Error("Missing required fields in payload (symbol, timeframe, startDate, endDate).");
-     }
-    try {
-        // Calls the endpoint handled by runComboBacktestController
-        const { data } = await api.post("/backtest/combo", payload);
-        // Expects { combinedResult: ..., individualResults: [...] }
-        return data;
-    } catch (error) {
-        handleError(error, "runComboBacktest");
-    }
-}
-
-// --- Machine Learning Server Related Functions ---
-
-/**
- * Fetches the list of available ML model names FROM THE RENDER BACKEND.
- */
-export async function fetchModels() {
-    try {
-        const response = await api.get("/api/ml/available-models"); // Calls Render backend
-        return response.data || [];
-    } catch (error) {
-        handleError(error, "fetchModels");
-    }
-}
-
-/**
- * Fetches model metadata.
- * NOTE: Ideally, proxy this through Render backend too.
- * If calling directly, browser must trust the cert or CORS must allow.
- */
-export async function fetchModelMetadata(modelName) {
-    if (!modelName) throw new Error("Model name required.");
-    try {
-        // REMOVED httpsAgent
-        const response = await axios.get(`${ML_API_BASE_URL}/api/ml/config/${modelName}`);
-        return response.data;
-    } catch (error) {
-        handleError(error, "fetchModelMetadata");
-    }
-}
-
-/**
- * Gets LIVE predictions.
- * NOTE: STRONGLY recommend backend calls this, not frontend.
- */
-export async function getMlPredictions(predictionData) {
-    const token = getAuthToken();
-    if (!predictionData?.model_name || !predictionData?.features) {
-         throw new Error("Requires 'model_name' and 'features'.");
-     }
-    try {
-        // REMOVED httpsAgent
-        const response = await axios.post(
-            `${ML_API_BASE_URL}/api/ml/predict_bulk`,
-            predictionData,
-            {
-                // NO httpsAgent here
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token && { 'Authorization': `Bearer ${token}` })
-                }
-            }
-        );
-        return response.data?.predictions?.[0] || null;
-    } catch (error) {
-        handleError(error, "getMlPredictions");
-    }
+  try {
+    // 🚀 Calls the single, powerful endpoint on your Python server
+    const response = await axios.post(
+      `${ML_SERVER_URL}/api/ml/run-backtest-on`, 
+      payload, 
+      { 
+        httpsAgent: httpsAgent,
+        timeout: 1800000 // 30 minute timeout for very long backtests
+      }
+    );
+    
+    // The Python server sends back the complete, final result
+    return response.data;
+    
+  } catch (error) {
+    handleError(error, "runUniversalBacktest");
+  }
 }
