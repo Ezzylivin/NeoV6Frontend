@@ -1,7 +1,7 @@
 // File: src/pages/Backtests.jsx
 // Final Version with Integrated Loading Status Updates
-// 🚀 UPGRADED: Symbol/Timeframe/Model dropdowns are now dynamically
-// filtered and styled based on available models when mlMode is 'on'.
+// UPGRADED: Symbol/Timeframe/Model dropdowns are now dynamically filtered.
+// 🚀 UPGRADED: Start/End dates now dynamically update when ML Mode changes.
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -39,6 +39,12 @@ const getDefaultDates = () => {
   const end = new Date(today); end.setDate(today.getDate() - 1); // Default end date to yesterday
   return { startDate: formatDate(start), endDate: formatDate(end) };
 };
+
+// 🚀 Helper for the ML-specific start date
+const getMLStartDate = () => {
+    // This MUST match the 'START_DATE_DOWNLOAD' in your train_models.py script
+    return '2017-01-01'; 
+}
 
 // Default parameters for filters/strategy
 const defaultFilterParams = {
@@ -97,6 +103,7 @@ const initialComboData = {
 
 // Displays performance metrics
 const MetricsDisplay = ({ metrics }) => {
+  // ... (Component is unchanged) ...
   if (!metrics) return <div className="metrics-grid-loading">Calculating metrics...</div>;
   const formatValue = (value, format) => {
       if (typeof value !== "number" || isNaN(value)) return "N/A";
@@ -216,8 +223,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
     // 3. Filter Model Options (depends on symbol AND timeframe)
     const filteredModelOptions = useMemo(() => {
         if (data.mlMode !== 'on' || !data.symbol || !data.timeframe) {
-            // In hybrid mode, we don't know the symbol/timeframe from the model name
-            // so we show all models.
+            // In hybrid mode, we show all models.
             if (data.mlMode === 'predictions') {
                  return allModelOptions.map(m => ({ ...m, isAvailable: true }));
             }
@@ -231,7 +237,14 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
         return allModelOptions
             .map(m => {
                 const modelId = m.id.toLowerCase();
-                const isAvailable = modelId.includes(symbolBase) && modelId.includes(`_${timeframe}_`);
+                // Model name format: 'btc_1h_xgboost_model'
+                const modelParts = modelId.split('_');
+                if (modelParts.length < 3) return { ...m, isAvailable: false };
+
+                const modelSymbolBase = modelParts[0];
+                const modelTimeframe = modelParts[1];
+                
+                const isAvailable = (modelSymbolBase === symbolBase) && (modelTimeframe === timeframe);
                 return { ...m, isAvailable };
             })
             .filter(m => m.isAvailable); // Only return models that match
@@ -319,7 +332,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                                 name="mlModel" 
                                 value={data.mlModel} 
                                 onChange={handleGlobalChange} 
-                                disabled={data.mlMode === 'on' && !filteredModelOptions.length}
+                                disabled={(data.mlMode === 'on' && !filteredModelOptions.length) || allModelOptions.length === 0}
                             >
                                 <option value="">-- Select Model --</option>
                                 {
@@ -327,7 +340,6 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                                     <option key={m.id} value={m.id}>{m.name}</option>
                                   ))
                                 }
-                                {/* Show a helpful message if no models match in 'on' mode */}
                                 {data.mlMode === 'on' && filteredModelOptions.length === 0 && (
                                      <option disabled>
                                          {(!data.symbol || !data.timeframe) ? "Select symbol & timeframe" : "No models found for this pair"}
@@ -421,8 +433,6 @@ export default function Backtests() {
   const modelOptions = useMemo(() => options?.models || [], [options?.models]);
 
   // 🚀 --- NEW: Parse all models once to create lookup tables --- 🚀
-  // This memo parses all model IDs (e.g., 'btc_1h_xgboost_model')
-  // and creates sets for quick lookup.
   const availableModelData = useMemo(() => {
     const availableSymbols = new Set(); // e.g., 'BTC/USD'
     const availableTimeframes = new Set(); // e.g., '1h'
@@ -433,12 +443,12 @@ export default function Backtests() {
     }
 
     for (const model of modelOptions) {
+        // model.id is 'btc_1h_xgboost_model'
         const parts = model.id.split('_');
-        if (parts.length >= 3) { // e.g., [btc, 1h, xgboost, model]
+        if (parts.length >= 3) {
             const symbolBase = parts[0]; // 'btc'
             const timeframe = parts[1]; // '1h'
             
-            // Find the full symbol (e.g., 'BTC/USD') that matches the base ('btc')
             const fullSymbol = symbolOptions.find(s => s.split('/')[0].toLowerCase() === symbolBase);
             
             if (fullSymbol) {
@@ -449,7 +459,7 @@ export default function Backtests() {
         }
     }
     return { availableSymbols, availableTimeframes, lookup };
-  }, [modelOptions, symbolOptions]); // Depends on the full lists
+  }, [modelOptions, symbolOptions]);
   // 🚀 --- END NEW MEMO --- 🚀
 
 
@@ -473,40 +483,56 @@ export default function Backtests() {
 
   useEffect(() => {
     if (symbolOptions.length && !formData.symbol) {
-      const defaultSymbol = symbolOptions.find(s => s === 'BTC/USD') || symbolOptions[0]; // Prefer BTC
+      const defaultSymbol = symbolOptions.find(s => s === 'BTC/USD') || symbolOptions[0];
       setFormData(prev => ({ ...prev, symbol: defaultSymbol }));
       setComboData(prev => ({ ...prev, symbol: defaultSymbol }));
     }
   }, [symbolOptions]);
 
-  // 🚀 UPDATED: Set default timeframe
   useEffect(() => {
     if (timeframeOptions.length && !formData.timeframe) {
-        const defaultTimeframe = timeframeOptions.find(t => t === '1h') || timeframeOptions[0]; // Prefer '1h'
+        const defaultTimeframe = timeframeOptions.find(t => t === '1h') || timeframeOptions[0];
         setFormData(prev => ({ ...prev, timeframe: defaultTimeframe }));
         setComboData(prev => ({ ...prev, timeframe: defaultTimeframe }));
     }
   }, [timeframeOptions]);
 
-  // 🚀 UPDATED: Set default ML model
+  // 🚀 --- NEW: Effect to dynamically change date range based on ML Mode --- 🚀
   useEffect(() => {
-    // Only set a default model if the lists are loaded and no model is selected
-    if (modelOptions.length && !formData.mlModel && formData.symbol && formData.timeframe) {
+    const { startDate: defaultStart, endDate: defaultEnd } = getDefaultDates();
+    const mlStartDate = getMLStartDate(); // '2017-01-01'
+
+    // --- Handle Single Form ---
+    setFormData(prev => ({
+        ...prev,
+        startDate: prev.mlMode === 'on' ? mlStartDate : defaultStart,
+        endDate: defaultEnd // End date is always yesterday
+    }));
+    
+    // --- Handle Combo Form ---
+    setComboData(prev => ({
+        ...prev,
+        startDate: prev.mlMode === 'on' ? mlStartDate : defaultStart,
+        endDate: defaultEnd
+    }));
+    
+  }, [formData.mlMode, comboData.mlMode]); // 🚀 Rerun when mlMode changes
+  // 🚀 --- END NEW EFFECT --- 🚀
+
+  // Effect to set default ML model
+  useEffect(() => {
+    if (modelOptions.length > 0 && !formData.mlModel && formData.symbol && formData.timeframe) {
         const symbolBase = formData.symbol.split('/')[0].toLowerCase();
         const timeframe = formData.timeframe;
-        // Find the first model that matches the default symbol/timeframe
         const defaultModel = modelOptions.find(m => {
             const modelId = m.id.toLowerCase();
             return modelId.includes(symbolBase) && modelId.includes(`_${timeframe}_`);
         });
-        
-        // If a matching model is found, set it.
-        // Otherwise, set to the first model in the general list.
         const defaultModelId = defaultModel ? defaultModel.id : modelOptions[0].id;
         setFormData(prev => ({ ...prev, mlModel: defaultModelId }));
         setComboData(prev => ({ ...prev, mlModel: defaultModelId }));
     }
-  }, [modelOptions, formData.symbol, formData.timeframe, formData.mlModel]); // Run when deps change
+  }, [modelOptions, formData.symbol, formData.timeframe, formData.mlModel]);
 
 
   // ... (useMemo for combinedEquityCurve, pieData remains unchanged) ...
@@ -651,13 +677,12 @@ export default function Backtests() {
     }
   };
 
-  const isComboSubmitDisabled = loading !== 'idle' || !strategyOptions.length || comboData.strategies.filter(s => s.code?.trim()).length < 1;
   // 🚀 Updated single submit logic
   const isSingleSubmitDisabled = loading !== 'idle' ||
     (!options?.symbols?.length) ||
     (formData.mlMode === 'off' && !formData.code) ||
-    (formData.mlMode === 'predictions' && (!formData.code || !formData.mlModel)) || // Hybrid needs both
-    (formData.mlMode === 'on' && !formData.mlModel); // ML 'on' needs a model
+    (formData.mlMode === 'predictions' && (!formData.code || !formData.mlModel)) ||
+    (formData.mlMode === 'on' && !formData.mlModel);
 
   const currentFormDataForStatus = activeTab === 'single' ? formData : comboData;
 
