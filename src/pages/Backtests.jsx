@@ -1,12 +1,12 @@
 // File: src/pages/Backtests.jsx
 //
 // UPGRADES:
-// - 🚀 FIXED: Cleaned all invalid characters (&nbsp;) to fix the build error.
-// - 🚀 FIXED: Rewrote `availableModelData` (line 316) to correctly
-//   parse models. This fixes the "all symbols are greyed out" bug.
-// - 🚀 FIXED: Added `data.mlMode` dependency to `processedSymbolOptions` and
-//   `processedTimeframeOptions` (lines 166, 188) to fix the "Pure TA" bug.
-// - 🚀 FIXED: Corrected the `useEffect` hooks (line 440) to
+// - 🚀 FIXED (Bug 1 & 2): Rewrote `availableModelData` (line 316) to correctly
+//   parse models *without* depending on `symbolOptions`. This fixes the
+//   "all symbols are greyed out" bug.
+// - 🚀 FIXED (Bug 1 & 2): Re-added `data.mlMode` dependency to `processedSymbolOptions`
+//   and `processedTimeframeOptions` (lines 166, 188) to fix the "Pure TA" bug.
+// - 🚀 FIXED (Bug 3): Corrected the `useEffect` hooks (line 440) to
 //   prevent the "--Select Model --" bug.
 
 import React, { useState, useEffect, useMemo } from "react";
