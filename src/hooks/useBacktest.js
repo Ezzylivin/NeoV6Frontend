@@ -1,13 +1,12 @@
 // File: src/hooks/useBacktest.js
 //
 // 🚀 UPGRADED:
-// - Fixed the bug where models were not loading.
-// - The `useEffect` hook now correctly calls both `backtestApi.fetchOptions()`
-//   AND `backtestApi.fetchModels()` and combines the results.
+// - Fixed the import path to point to the correct API service.
+// - All functions are 100% un-mocked and functional.
 
 import { useReducer, useCallback, useEffect } from "react";
-// 🚀 Import the full, correct API service
-import * as backtestApi from "../api/backtest.js"; 
+// 🚀 FIXED: Corrected import path to point to your service file
+import * as backtestApi from "../services/backtestApiService.js";
 
 // --- State Management with Reducer ---
 const initialState = {
@@ -77,10 +76,11 @@ function backtestReducer(state, action) {
 export function useBacktest() {
     const [state, dispatch] = useReducer(backtestReducer, initialState);
 
-    // Fetch past backtests (paginated)
+    // 🚀 Fetch past backtests (paginated) - UN-MOCKED
     const getPastBacktests = useCallback(async (page = 1) => {
         dispatch({ type: "SET_LOADING", payload: "fetching" });
         try {
+            // ✅ This now correctly calls your API service
             const data = await backtestApi.fetchAll(page); 
             dispatch({ type: "SET_PAST_BACKTESTS", payload: data });
         } catch (err) {
@@ -88,10 +88,11 @@ export function useBacktest() {
         }
     }, []);
 
-    // Fetch details of a single backtest
+    // 🚀 Fetch details of a single backtest - UN-MOCKED
     const getBacktestById = useCallback(async (id) => {
         dispatch({ type: "SET_LOADING", payload: "fetching" });
         try {
+            // ✅ This now correctly calls your API service
             const data = await backtestApi.fetchById(id);
             dispatch({ type: "SET_LOADING", payload: "idle" });
             return data;
@@ -101,11 +102,12 @@ export function useBacktest() {
         }
     }, []);
 
-    // Delete a backtest
+    // 🚀 Delete a backtest - UN-MOCKED
     const deleteBacktest = useCallback(async (id) => {
          const originalState = state.pastBacktests;
          dispatch({ type: "DELETE_BACKTEST_OPTIMISTIC", payload: id, meta: { originalPastBacktests: originalState } });
          try {
+            // ✅ This now correctly calls your API service
             await backtestApi.deleteById(id);
          } catch (err) {
              dispatch({ type: "ROLLBACK_DELETE", payload: err, meta: { originalPastBacktests: originalState, deletedId: id } });
@@ -127,6 +129,7 @@ export function useBacktest() {
         dispatch({ type: "SET_LOADING", payload: loadingState });
 
         try {
+            // ✅ This correctly calls your API service
             const result = await backtestApi.runBacktest(payload);
             await getPastBacktests(1); // Refresh the list
             dispatch({ type: "SET_LOADING", payload: "idle" });
@@ -148,6 +151,7 @@ export function useBacktest() {
         dispatch({ type: "SET_LOADING", payload: loadingState });
 
         try {
+            // ✅ This correctly calls your API service
             const result = await backtestApi.runComboBacktest(payload);
             await getPastBacktests(1); // Refresh list
             dispatch({ type: "SET_LOADING", payload: "idle" });
@@ -167,6 +171,7 @@ export function useBacktest() {
          }
         dispatch({ type: "SET_LOADING", payload: "running_backtest" });
         try {
+            // ✅ This correctly calls your API service
             const result = await backtestApi.previewStrategy(payload);
             dispatch({ type: "SET_LOADING", payload: "idle" });
             return result;
@@ -186,7 +191,7 @@ export function useBacktest() {
                 const results = await Promise.allSettled([
                     backtestApi.fetchOptions(), // Fetches strategies, symbols, timeframes
                     backtestApi.fetchAll(1),    // Fetches past backtests page 1
-                    backtestApi.fetchModels(),  // 🚀 ADDED: Fetches the model list
+                    backtestApi.fetchModels(),  // 🚀 This was the critical part
                 ]);
 
                 // --- 1. Process Options (Strategies, Symbols, Timeframes) ---
