@@ -1,11 +1,10 @@
 // File: src/pages/Backtests.jsx
 //
 // UPGRADES:
-// - Fixed the "--Select Model--" bug by replacing the default model selection
-//   useEffect hook (line 410) with a smarter one.
-// - This new hook checks if the *currently selected* model is valid
-//   whenever the Symbol or Timeframe changes, and auto-selects
-//   a new default if it's not.
+// - 🚀 YOUR REQUEST: The "Model" dropdown will now show ALL models
+//   for both 'predictions' (Hybrid) and 'on' (Pure ML) modes.
+// - Fixed the "--Select Model--" bug with a smarter default-selection hook.
+// - Start/End dates now dynamically update when ML Mode changes.
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -224,34 +223,8 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
         });
     }, [data.mlMode, data.symbol, timeframeOptions, availableModelData]);
 
-    // 3. Filter Model Options (depends on symbol AND timeframe)
-    const filteredModelOptions = useMemo(() => {
-        // In hybrid mode, we show all models.
-        if (data.mlMode === 'predictions') {
-             return allModelOptions.map(m => ({ ...m, isAvailable: true }));
-        }
-        // In 'on' mode, filter strictly
-        if (data.mlMode === 'on' && data.symbol && data.timeframe) {
-            const symbolBase = data.symbol.split('/')[0].toLowerCase();
-            const timeframe = data.timeframe;
-            return allModelOptions
-                .map(m => {
-                    const modelId = m.id.toLowerCase();
-                    // Model name format: 'btc_1h_xgboost_model'
-                    const modelParts = modelId.split('_');
-                    if (modelParts.length < 3) return { ...m, isAvailable: false };
-
-                    const modelSymbolBase = modelParts[0];
-                    const modelTimeframe = modelParts[1];
-                    
-                    const isAvailable = (modelSymbolBase === symbolBase) && (modelTimeframe === timeframe);
-                    return { ...m, isAvailable };
-                })
-                .filter(m => m.isAvailable); // Only return models that match
-        }
-        // Otherwise, show no models (for 'on' mode if symbol/tf not set)
-        return [];
-    }, [data.mlMode, data.symbol, data.timeframe, allModelOptions]);
+    // 3. Filter Model Options (THIS IS NO LONGER USED, per your request)
+    // const filteredModelOptions = useMemo(() => { ... }
 
     // 🚀 --- END NEW LOGIC --- 🚀
 
@@ -334,22 +307,16 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                                 name="mlModel" 
                                 value={data.mlModel} 
                                 onChange={handleGlobalChange} 
-                                // Disable if in 'on' mode and there are no models for this pair
-                                disabled={(data.mlMode === 'on' && !filteredModelOptions.length) || allModelOptions.length === 0}
+                                // 🚀 FIXED: Only disable if no models are loaded at all
+                                disabled={allModelOptions.length === 0}
                             >
                                 <option value="">-- Select Model --</option>
                                 {
-                                  // In 'predictions' mode, show all models. In 'on' mode, show only filtered models.
-                                  (data.mlMode === 'predictions' ? allModelOptions : filteredModelOptions).map(m => (
+                                  // 🚀 FIXED: Always map over 'allModelOptions'
+                                  allModelOptions.map(m => (
                                     <option key={m.id} value={m.id}>{m.name}</option>
                                   ))
                                 }
-                                {/* Show a helpful message if no models match in 'on' mode */}
-                                {data.mlMode === 'on' && filteredModelOptions.length === 0 && (
-                                     <option disabled>
-                                         {(!data.symbol || !data.timeframe) ? "Select symbol & timeframe" : "No models found for this pair"}
-                                     </option>
-                                )}
                             </select>
                         </label>
                         <label>Confidence Threshold: <input type="number" name="mlThreshold" value={data.mlThreshold || 0.5} step="0.01" min="0" max="1" onChange={handleGlobalChange} /> </label>
@@ -542,7 +509,12 @@ export default function Backtests() {
         if (modelParts.length < 3) return false;
         const modelSymbolBase = modelParts[0];
         const modelTimeframe = modelParts[1];
-        return (modelSymbolBase === symbolBase) && (modelTimeframe === timeframe);
+        
+        // In 'on' mode, filter. In 'predictions' mode, don't.
+        if (formData.mlMode === 'on') {
+            return (modelSymbolBase === symbolBase) && (modelTimeframe === timeframe);
+        }
+        return true; // For 'predictions' mode, all models are valid
     });
 
     const firstValidModel = validModels[0]; // Get the first one
@@ -551,12 +523,10 @@ export default function Backtests() {
 
     // --- Apply Logic to Single Form ---
     if (!isCurrentModelValid) {
-      // If the current model is NOT valid (e.g., "btc_1h" when "ETH" is selected)
-      // then reset it.
+      // If the current model is NOT valid, reset it.
       setFormData(prev => ({
         ...prev,
-        // If a new valid model exists, use it. Otherwise, set to "" (placeholder).
-        mlModel: firstValidModelId
+        mlModel: firstValidModelId // Set to first valid model, or "" if none exist
       }));
     }
   }, [modelOptions, formData.symbol, formData.timeframe, formData.mlMode]); // Removed formData.mlModel
@@ -577,7 +547,11 @@ export default function Backtests() {
         if (modelParts.length < 3) return false;
         const modelSymbolBase = modelParts[0];
         const modelTimeframe = modelParts[1];
-        return (modelSymbolBase === symbolBase) && (modelTimeframe === timeframe);
+        
+        if (comboData.mlMode === 'on') {
+            return (modelSymbolBase === symbolBase) && (modelTimeframe === timeframe);
+        }
+        return true; // For 'predictions' mode, all models are valid
     });
 
     const firstValidModel = validModels[0];
