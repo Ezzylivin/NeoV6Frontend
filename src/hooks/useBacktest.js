@@ -6,7 +6,7 @@
 
 import { useReducer, useCallback, useEffect } from "react";
 // 🚀 Import the full, correct API service
-import * as backtestApi from "../api/backtest.js";
+import * as backtestApi from "../services/backtestApiService.js";
 
 // --- State Management with Reducer ---
 const initialState = {
@@ -166,7 +166,7 @@ export function useBacktest() {
     const previewStrategy = useCallback(async (payload) => {
         if (payload.mlMode !== 'on' && !payload?.code) {
              const error = new Error("A strategy 'code' is required for non-ML previews.");
-             dispatch({ type: "SET_ERROR", payload: error });
+             dispatch({ type: "SET_ERROR", payload: err });
              throw error;
          }
         dispatch({ type: "SET_LOADING", payload: "running_backtest" });
