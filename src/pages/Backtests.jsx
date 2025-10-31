@@ -1,11 +1,9 @@
 // File: src/pages/Backtests.jsx
 //
 // UPGRADES:
-// - Fixed the "--Select Model--" bug by replacing the default model selection
-//   useEffect hook with a smarter one (line 410).
-// - This new hook checks if the *currently selected* model is valid
-//   whenever the Symbol or Timeframe changes, and auto-selects
-//   a new default if it's not.
+// - 🚀 UPGRADE: Replaced the single model-selection hook with two separate hooks
+//   (one for single form, one for combo form). This fixes the race condition
+//   that caused the "-- Select Model --" bug.
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -522,17 +520,20 @@ export default function Backtests() {
   
   // 🚀 --- 🚀 🚀 🚀 --- 🚀
   // 🚀 THIS IS THE UPGRADE to fix the "--Select Model--" bug
+  // 🚀 It is now two separate, simpler hooks.
   // 🚀 --- 🚀 🚀 🚀 --- 🚀
+  
+  // This hook auto-selects the default model for the SINGLE form
   useEffect(() => {
-    // Don't do anything if options aren't loaded or forms aren't ready
-    if (modelOptions.length === 0 || !formData.symbol || !formData.timeframe) {
+    // Don't run if options aren't loaded, or form isn't ready
+    if (modelOptions.length === 0 || !formData.symbol || !formData.timeframe || (formData.mlMode !== 'on' && formData.mlMode !== 'predictions')) {
       return; 
     }
 
     const symbolBase = formData.symbol.split('/')[0].toLowerCase();
     const timeframe = formData.timeframe;
 
-    // Find the list of *all* valid models for this pair
+    // Find all valid models for this pair
     const validModels = modelOptions.filter(m => {
         const modelId = m.id.toLowerCase();
         const modelParts = modelId.split('_');
@@ -542,44 +543,49 @@ export default function Backtests() {
         return (modelSymbolBase === symbolBase) && (modelTimeframe === timeframe);
     });
 
-    const firstValidModel = validModels[0]; // Get the first one
+    const firstValidModel = validModels[0];
     const firstValidModelId = firstValidModel ? firstValidModel.id : "";
-
-    // Check if the *currently selected* model is in this valid list
     const isCurrentModelValid = validModels.some(m => m.id === formData.mlModel);
 
-    // --- Apply Logic to Single Form ---
+    // If the currently selected model is NO LONGER valid, reset it.
     if (!isCurrentModelValid) {
-      // If the current model is NOT valid (e.g., "btc_1h" when "ETH" is selected)
-      // then reset it.
       setFormData(prev => ({
         ...prev,
-        // If a new valid model exists, use it. Otherwise, set to "" (placeholder).
+        mlModel: firstValidModelId // Set to first valid model, or "" if none exist
+      }));
+    }
+  }, [modelOptions, formData.symbol, formData.timeframe, formData.mlMode]); // Removed formData.mlModel
+
+
+  // This hook auto-selects the default model for the COMBO form
+  useEffect(() => {
+    if (modelOptions.length === 0 || !comboData.symbol || !comboData.timeframe || (comboData.mlMode !== 'on' && comboData.mlMode !== 'predictions')) {
+      return; 
+    }
+
+    const symbolBase = comboData.symbol.split('/')[0].toLowerCase();
+    const timeframe = comboData.timeframe;
+
+    const validModels = modelOptions.filter(m => {
+        const modelId = m.id.toLowerCase();
+        const modelParts = modelId.split('_');
+        if (modelParts.length < 3) return false;
+        const modelSymbolBase = modelParts[0];
+        const modelTimeframe = modelParts[1];
+        return (modelSymbolBase === symbolBase) && (modelTimeframe === timeframe);
+    });
+
+    const firstValidModel = validModels[0];
+    const firstValidModelId = firstValidModel ? firstValidModel.id : "";
+    const isCurrentModelValid = validModels.some(m => m.id === comboData.mlModel);
+
+    if (!isCurrentModelValid) {
+      setComboData(prev => ({
+        ...prev,
         mlModel: firstValidModelId
       }));
     }
-
-    // --- Apply Same Logic to Combo Form ---
-    const isComboModelValid = validModels.some(m => m.id === comboData.mlModel);
-    if (!isComboModelValid) {
-        setComboData(prev => ({
-            ...prev,
-            mlModel: firstValidModelId
-        }));
-    }
-
-  }, [
-      modelOptions, 
-      formData.symbol, 
-      formData.timeframe, 
-      formData.mlMode,
-      comboData.symbol,
-      comboData.timeframe,
-      comboData.mlMode,
-      // We include these to re-check if the model value is ever reset
-      formData.mlModel, 
-      comboData.mlModel
-  ]);
+  }, [modelOptions, comboData.symbol, comboData.timeframe, comboData.mlMode]);
   // 🚀 --- END OF BUG FIX --- 🚀
 
 
