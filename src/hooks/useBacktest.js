@@ -1,12 +1,13 @@
 // File: src/hooks/useBacktest.js
 //
-// 🚀 UN-MOCKED: This file is now 100% functional.
-// It correctly calls the restored `backtestApiService.js`
-// to fetch, run, and delete backtests from your Node.js backend.
+// 🚀 UPGRADED:
+// - Fixed the bug where models were not loading.
+// - The `useEffect` hook now correctly calls both `backtestApi.fetchOptions()`
+//   AND `backtestApi.fetchModels()` and combines the results.
 
 import { useReducer, useCallback, useEffect } from "react";
 // 🚀 Import the full, correct API service
-import * as backtestApi from "../api/backtest.js";
+import * as backtestApi from "../api/backtest.js"; 
 
 // --- State Management with Reducer ---
 const initialState = {
@@ -76,11 +77,10 @@ function backtestReducer(state, action) {
 export function useBacktest() {
     const [state, dispatch] = useReducer(backtestReducer, initialState);
 
-    // 🚀 Fetch past backtests (paginated) - UN-MOCKED
+    // Fetch past backtests (paginated)
     const getPastBacktests = useCallback(async (page = 1) => {
         dispatch({ type: "SET_LOADING", payload: "fetching" });
         try {
-            // ✅ This now correctly calls your API service
             const data = await backtestApi.fetchAll(page); 
             dispatch({ type: "SET_PAST_BACKTESTS", payload: data });
         } catch (err) {
@@ -88,11 +88,10 @@ export function useBacktest() {
         }
     }, []);
 
-    // 🚀 Fetch details of a single backtest - UN-MOCKED
+    // Fetch details of a single backtest
     const getBacktestById = useCallback(async (id) => {
         dispatch({ type: "SET_LOADING", payload: "fetching" });
         try {
-            // ✅ This now correctly calls your API service
             const data = await backtestApi.fetchById(id);
             dispatch({ type: "SET_LOADING", payload: "idle" });
             return data;
@@ -102,12 +101,11 @@ export function useBacktest() {
         }
     }, []);
 
-    // 🚀 Delete a backtest - UN-MOCKED
+    // Delete a backtest
     const deleteBacktest = useCallback(async (id) => {
          const originalState = state.pastBacktests;
          dispatch({ type: "DELETE_BACKTEST_OPTIMISTIC", payload: id, meta: { originalPastBacktests: originalState } });
          try {
-            // ✅ This now correctly calls your API service
             await backtestApi.deleteById(id);
          } catch (err) {
              dispatch({ type: "ROLLBACK_DELETE", payload: err, meta: { originalPastBacktests: originalState, deletedId: id } });
@@ -129,7 +127,6 @@ export function useBacktest() {
         dispatch({ type: "SET_LOADING", payload: loadingState });
 
         try {
-            // ✅ This correctly calls your API service
             const result = await backtestApi.runBacktest(payload);
             await getPastBacktests(1); // Refresh the list
             dispatch({ type: "SET_LOADING", payload: "idle" });
@@ -151,7 +148,6 @@ export function useBacktest() {
         dispatch({ type: "SET_LOADING", payload: loadingState });
 
         try {
-            // ✅ This correctly calls your API service
             const result = await backtestApi.runComboBacktest(payload);
             await getPastBacktests(1); // Refresh list
             dispatch({ type: "SET_LOADING", payload: "idle" });
@@ -166,12 +162,11 @@ export function useBacktest() {
     const previewStrategy = useCallback(async (payload) => {
         if (payload.mlMode !== 'on' && !payload?.code) {
              const error = new Error("A strategy 'code' is required for non-ML previews.");
-             dispatch({ type: "SET_ERROR", payload: err });
+             dispatch({ type: "SET_ERROR", payload: error });
              throw error;
          }
         dispatch({ type: "SET_LOADING", payload: "running_backtest" });
         try {
-            // ✅ This correctly calls your API service
             const result = await backtestApi.previewStrategy(payload);
             dispatch({ type: "SET_LOADING", payload: "idle" });
             return result;
@@ -187,12 +182,14 @@ export function useBacktest() {
         const fetchInitialData = async () => {
             dispatch({ type: "SET_LOADING", payload: "initial" });
             try {
-                // Fetch options and first page of backtests concurrently
+                // 🚀 FIXED: Fetch options, models, and backtests concurrently
                 const results = await Promise.allSettled([
-                    backtestApi.fetchOptions(), // Fetches strategies, symbols, timeframes, AND models
+                    backtestApi.fetchOptions(), // Fetches strategies, symbols, timeframes
                     backtestApi.fetchAll(1),    // Fetches past backtests page 1
+                    backtestApi.fetchModels(),  // 🚀 ADDED: Fetches the model list
                 ]);
 
+                // --- 1. Process Options (Strategies, Symbols, Timeframes) ---
                 const optionsResult = results[0];
                 let optionsData = { strategies: [], symbols: [], timeframes: [], models: [] };
                 if (optionsResult.status === 'fulfilled' && optionsResult.value) {
@@ -201,6 +198,7 @@ export function useBacktest() {
                     console.error("Failed to fetch options:", optionsResult.reason?.message || optionsResult.reason);
                 }
 
+                // --- 2. Process Past Backtests ---
                 const pastBacktestsResult = results[1];
                 const pastBacktests = pastBacktestsResult.status === 'fulfilled' && pastBacktestsResult.value
                     ? pastBacktestsResult.value
@@ -209,11 +207,20 @@ export function useBacktest() {
                     console.error("Failed to fetch past backtests:", pastBacktestsResult.reason?.message || pastBacktestsResult.reason);
                 }
 
+                // --- 3. 🚀 Process Models ---
+                const modelsResult = results[2];
+                if (modelsResult.status === 'fulfilled' && modelsResult.value) {
+                    optionsData.models = modelsResult.value; // Add models to the options object
+                } else if (modelsResult.status === 'rejected') {
+                    console.error("Failed to fetch models:", modelsResult.reason?.message || modelsResult.reason);
+                }
+                
+                // --- 4. Dispatch all combined data ---
                 dispatch({
                     type: "SET_INITIAL_DATA",
                     payload: {
-                        options: optionsData,
-                        pastBacktests: { // Ensure correct structure for reducer
+                        options: optionsData, // This now includes ...models
+                        pastBacktests: { 
                             backtests: pastBacktests.backtests,
                             total: pastBacktests.total
                         }
