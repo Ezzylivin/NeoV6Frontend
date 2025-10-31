@@ -234,18 +234,63 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
              return allModelOptions.map(m => ({ ...m, isAvailable: true }));
         }
         // In 'on' mode, filter strictly
-        if (data.mlMode === 'on' && data.symbol && data.timeframe) {
-            const symbolBase = data.symbol.split('/')[0].toLowerCase();
-            const timeframe = data.timeframe;
-            return allModelOptions
-                .filter(m => {
-                    // This uses the pre-parsed values from the sorting logic
-                    return m.symbolBase === symbolBase && m.timeframe === timeframe;
-                });
+        const { availableSymbols } = availableModelData;
+        
+        const sortedSymbols = [...symbolOptions].sort((a, b) => {
+            const aHas = availableSymbols.has(a);
+            const bHas = availableSymbols.has(b);
+            return (bHas ? 1 : 0) - (aHas ? 1 : 0); // Sorts `true` (available) to the top
+        });
+        
+        return sortedSymbols.map(s => {
+            const isAvailable = availableSymbols.has(s);
+            return {
+                value: s,
+                name: isAvailable ? s : `${s} (No models)`,
+                isAvailable: isAvailable
+            };
+        });
+    }, [data.mlMode, symbolOptions, availableModelData]); // 🚀 FIXED: data.mlMode is now a dependency
+
+    // 2. Process Timeframe Options (depends on selected symbol)
+    const processedTimeframeOptions = useMemo(() => {
+        // 🚀 FIXED: If mode is 'off' (Pure TA), show all timeframes as available.
+        if (data.mlMode === 'off') {
+            return timeframeOptions.map(t => ({ value: t, name: t, isAvailable: true }));
         }
-        // Otherwise, show no models (for 'on' mode if symbol/tf not set)
-        return [];
-    }, [data.mlMode, data.symbol, data.timeframe, allModelOptions]);
+        
+        // If no symbol is selected yet, grey them all out
+        if (!data.symbol) {
+             return timeframeOptions.map(t => ({
+                value: t,
+                name: `${t} (Select Symbol)`,
+                isAvailable: false
+             }));
+        }
+
+        const { lookup } = availableModelData; // e.g., Set {'BTC/USD_1h', 'ETH/USD_4h'}
+        
+        const sortedTimeframes = [...timeframeOptions].sort((a, b) => {
+            const aHas = lookup.has(`${data.symbol}_${a}`);
+            const bHas = lookup.has(`${data.symbol}_${b}`);
+            return (bHas ? 1 : 0) - (aHas ? 1 : 0);
+        });
+        
+        return sortedTimeframes.map(t => {
+            const isAvailable = lookup.has(`${data.symbol}_${t}`);
+            return {
+                value: t,
+                name: isAvailable ? t : `${t} (No model)`,
+                isAvailable: isAvailable
+            };
+        });
+    }, [data.mlMode, data.symbol, timeframeOptions, availableModelData]); // 🚀 FIXED: data.mlMode is now a dependency
+
+    // 3. Filter Model Options (depends on symbol AND timeframe)
+    const filteredModelOptions = useMemo(() => {
+        // In hybrid mode, we show all models (already sorted).
+        if (data.mlMode === 'predictions') {
+             return allModelOptions.map(m => ({ ...m, isAvailable: true }));
 
     // 🚀 --- END NEW LOGIC --- 🚀
 
