@@ -1,128 +1,158 @@
 // File: src/services/backtestApiService.js
 //
-// UPGRADED:
-// - All logic now points *directly* to your Python Flask server (ml_server_api.py).
-// - Removed all old, obsolete logic for 'Hybrid' mode, 'predictions', etc.
-// - This file now has ONE job: send the UI config to the Python server and return the result.
+// 🚀 RESTORED: This file now correctly talks ONLY to your
+// Node.js backend (via the 'api' client). It no longer
+// calls the Python server directly.
 
-import axios from "axios";
-import https from 'https_proxy_agent'; // 🚀 Use https_proxy_agent for browser-compatible self-signed certs
+import api from "./apiClient.js"; // Your main configured Axios client for your Node.js backend
 
-// --- Configuration ---
-// 🚀 This is the ONLY server we talk to for backtests.
-const ML_SERVER_URL = "https://74.208.28.77:8001"; 
+/**
+ * Normalizes the API response for backtest options.
+ */
+const normalizeOptions = (raw) => ({
+    strategies: raw?.strategies || [],
+    symbols: raw?.symbols || [],
+    timeframes: raw?.timeframes || [],
+    models: raw?.models || [], // Ensure models is included
+});
 
-// 🚀 Create an httpsAgent to tell axios to ignore self-signed certificate errors.
-// This is necessary for local/dev HTTPS.
-const httpsAgent = new https.Agent({
-  rejectUnauthorized: false,
+/**
+ * Normalizes the API response for a list of past backtests.
+ */
+const normalizePastBacktests = (raw) => ({
+    backtests: raw?.backtests || [],
+    total: raw?.total || 0,
 });
 
 /**
  * A consistent error handler for all API calls.
  */
 const handleError = (error, functionName) => {
-  console.error(`Error in ${functionName}():`, error.message);
-  let message = error.message;
-
-  if (error.response) {
-    // The request was made and the server responded with a status code
-    // that falls out of the range of 2xx
-    console.error('Error Response Data:', error.response.data);
-    // The error from our Python server is in `error.response.data.error`
-    message = error.response?.data?.error || error.response?.data?.message || `Server responded with ${error.response.status}`;
-  } else if (error.request) {
-    // The request was made but no response was received
-    console.error('Error Request Data:', error.request);
-    message = "The server did not respond. Is the ML server (ml_server_api.py) running?";
-  } else {
-    // Something happened in setting up the request that triggered an Error
-    console.error('Error Config:', error.config);
-  }
-
-  throw new Error(message);
+    console.error(`Error in ${functionName}():`, error.message);
+    if (error.response) {
+        console.error('Error Response Data:', error.response.data);
+    }
+    const message = error.response?.data?.message || error.message || "An unknown error occurred.";
+    throw new Error(message);
 };
 
-// --- Main API Functions ---
+// --- Main Backend API Functions (All point to your Node.js server) ---
 
 /**
  * Fetches initial options for backtesting (strategies, symbols, timeframes, models).
- * This data now comes from two places: our Python server and a static list.
  */
 export async function fetchOptions() {
-  try {
-    // 1. Get models from our Python server
-    const response = await axios.get(`${ML_SERVER_URL}/api/ml/models`, { httpsAgent });
-    const models = response.data || [];
-
-    // 2. Define symbols and timeframes statically
-    // This MUST match your train_models.py script
-    const symbols = [
-        'BTC/USD', 'ETH/USD', 'XRP/USD', 'SOL/USD', 'ADA/USD',
-        'DOGE/USD', 'SUI/USD', 'SHIB/USD', 'PEPE/USD'
-    ];
-    const timeframes = ['30m', '1h', '4h', '1d', '1w'];
-
-    // 3. Define TA strategies statically
-    // This MUST match the `generate_ta_signals` function in ml_server_api.py
-    const strategies = [
-      { code: "sma_crossover", name: "SMA Crossover" },
-      { code: "rsi_divergence", name: "RSI Oversold/Overbought" },
-      { code: "macd_crossover", name: "MACD Crossover" },
-      { code: "stochastic_crossover", name: "Stochastic Crossover" },
-      { code: "cci_oversold", name: "CCI Oversold/Overbought" },
-      { code: "bollinger_bands", name: "Bollinger Bands Reversal" },
-      { code: "ichimoku_cloud", name: "Ichimoku Cloud Trend" }
-    ];
-
-    return { strategies, symbols, timeframes, models };
-    
-  } catch (error) {
-    handleError(error, "fetchOptions");
-  }
+    try {
+        // Calls your Node.js backend
+        const response = await api.get("/backtest/options");
+        return normalizeOptions(response.data);
+    } catch (error) {
+        handleError(error, "fetchOptions");
+    }
 }
 
 /**
- * 🚀 THIS IS THE ONLY BACKTEST FUNCTION YOU NOW NEED.
- * It sends the config to the Python server, which handles ALL logic
- * (TA, ML, or Hybrid) based on the 'mlMode' in the payload.
- *
- * @param {object} payload - The complete backtest configuration from the UI.
+ * Fetches a paginated list of past backtest results.
+ * @param {number} [page=1] - The page number to fetch.
  */
-export async function runUniversalBacktest(payload) {
-  if (!payload) throw new Error("Backtest payload is required.");
+export async function fetchAll(page = 1) {
+    try {
+        // Calls your Node.js backend
+        const response = await api.get(`/backtest?page=${page}`);
+        return normalizePastBacktests(response.data);
+    } catch (error) {
+        handleError(error, "fetchAll");
+    }
+}
 
-  // Simple validation
-  if (!payload.symbol || !payload.timeframe || !payload.startDate || !payload.endDate) {
-    throw new Error("Missing required fields (symbol, timeframe, startDate, endDate).");
-  }
-  
-  // Validate mode-specific requirements
-  if (payload.mlMode === 'off' && !payload.code) {
-    throw new Error("A TA Strategy 'code' is required for 'TA Only' mode.");
-  }
-  if (payload.mlMode === 'on' && !payload.mlModel) {
-    throw new Error("An 'mlModel' is required for 'ML Only' mode.");
-  }
-  if (payload.mlMode === 'predictions' && (!payload.code || !payload.mlModel)) {
-    throw new Error("Both a TA 'code' and an 'mlModel' are required for Hybrid mode.");
-  }
+/**
+ * Fetches the detailed results of a specific backtest by its ID.
+ * @param {string} id - The ID of the backtest to fetch.
+ */
+export async function fetchById(id) {
+    if (!id) throw new Error("An ID is required to fetch a backtest.");
+    try {
+        // Calls your Node.js backend
+        const { data } = await api.get(`/backtest/${id}`);
+        return data;
+    } catch (error) {
+        handleError(error, "fetchById");
+    }
+}
 
-  try {
-    // 🚀 Calls the single, powerful endpoint on your Python server
-    const response = await axios.post(
-      `${ML_SERVER_URL}/api/ml/run-backtest-on`, 
-      payload, 
-      { 
-        httpsAgent: httpsAgent,
-        timeout: 1800000 // 30 minute timeout for very long backtests
-      }
-    );
-    
-    // The Python server sends back the complete, final result
-    return response.data;
-    
-  } catch (error) {
-    handleError(error, "runUniversalBacktest");
-  }
+/**
+ * Deletes a specific backtest by its ID.
+ * @param {string} id - The ID of the backtest to delete.
+ */
+export async function deleteById(id) {
+    if (!id) throw new Error("An ID is required to delete a backtest.");
+    try {
+        // Calls your Node.js backend
+        const { data } = await api.delete(`/backtest/${id}`);
+        return data;
+    } catch (error) {
+        handleError(error, "deleteById");
+    }
+}
+
+/**
+ * Submits a configuration to run a new single-strategy backtest.
+ * @param {object} payload - The backtest configuration object.
+ */
+export async function runBacktest(payload) {
+    if (!payload) throw new Error("Backtest payload is required.");
+    if (payload.mlMode !== 'on' && !payload.code) {
+         throw new Error("A strategy 'code' is required unless using Pure ML mode.");
+    }
+    if (!payload.symbol || !payload.timeframe || !payload.startDate || !payload.endDate) {
+         throw new Error("Missing required fields in payload (symbol, timeframe, startDate, endDate).");
+     }
+    try {
+        // Calls your Node.js backend
+        const { data } = await api.post("/backtest/run", payload);
+        return data;
+    } catch (error) {
+        handleError(error, "runBacktest");
+    }
+}
+
+/**
+ * Submits a configuration to preview a single strategy (simulate only).
+ * @param {object} payload - The backtest configuration object.
+ */
+export async function previewStrategy(payload) {
+     if (!payload) throw new Error("Preview payload is required.");
+     if (payload.mlMode !== 'on' && !payload.code) {
+         throw new Error("A strategy 'code' is required unless using Pure ML mode.");
+     }
+     if (!payload.symbol || !payload.timeframe || !payload.startDate || !payload.endDate) {
+         throw new Error("Missing required fields in payload (symbol, timeframe, startDate, endDate).");
+     }
+    try {
+        // Calls your Node.js backend
+        const { data } = await api.post("/backtest/preview", payload);
+        return data;
+    } catch (error) {
+        handleError(error, "previewStrategy");
+    }
+}
+
+/**
+ * Submits a configuration to run a new combo-strategy backtest.
+ * @param {object} payload - The combo backtest configuration object.
+ */
+export async function runComboBacktest(payload) {
+    if (!payload || !payload.strategies || payload.strategies.filter(s => s.code).length === 0) {
+        throw new Error("Payload must contain at least one strategy with a 'code'.");
+    }
+    if (!payload.symbol || !payload.timeframe || !payload.startDate || !payload.endDate) {
+         throw new Error("Missing required fields in payload (symbol, timeframe, startDate, endDate).");
+     }
+    try {
+        // Calls your Node.js backend
+        const { data } = await api.post("/backtest/combo", payload);
+        return data;
+    } catch (error) {
+        handleError(error, "runComboBacktest");
+    }
 }
