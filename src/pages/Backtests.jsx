@@ -1,12 +1,13 @@
 // File: src/pages/Backtests.jsx
 //
 // UPGRADES:
-// - 🚀 FIXED (Bug 1 & 2): Rewrote `availableModelData` (line 316) to correctly
-//   parse models *without* depending on `symbolOptions`.
-// - 🚀 FIXED (Bug 1 & 2): Rewrote `processedSymbolOptions` and `processedTimeframeOptions` (lines 166, 188)
-//   to *only* filter when `mlMode` is 'on' or 'predictions'.
-// - 🚀 FIXED (Bug 3): Corrected the `useEffect` hooks (line 440) to
-//   prevent the "-- Select Model --" bug.
+// - 🚀 FIXED (Bug 1): Rewrote `availableModelData` (line 316) to correctly
+//   parse models *without* depending on `symbolOptions`. This fixes the
+//   "all symbols are greyed out" bug.
+// - 🚀 FIXED (Bug 2): Upgraded the `modelOptions` hook (line 309) to
+//   alphabetically sort all models by Symbol, then Timeframe.
+// - 🚀 FIXED (Bug 3): Kept the `useEffect` hook (line 440) to
+//   prevent the "--Select Model --" bug.
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -228,7 +229,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
 
     // 3. Filter Model Options (depends on symbol AND timeframe)
     const filteredModelOptions = useMemo(() => {
-        // In hybrid mode, we show all models.
+        // In hybrid mode, we show all models (already sorted).
         if (data.mlMode === 'predictions') {
              return allModelOptions.map(m => ({ ...m, isAvailable: true }));
         }
@@ -237,19 +238,10 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
             const symbolBase = data.symbol.split('/')[0].toLowerCase();
             const timeframe = data.timeframe;
             return allModelOptions
-                .map(m => {
-                    const modelId = m.id.toLowerCase();
-                    // Model name format: 'btc_1h_xgboost_model'
-                    const modelParts = modelId.split('_');
-                    if (modelParts.length < 3) return { ...m, isAvailable: false };
-
-                    const modelSymbolBase = modelParts[0];
-                    const modelTimeframe = modelParts[1];
-                    
-                    const isAvailable = (modelSymbolBase === symbolBase) && (modelTimeframe === timeframe);
-                    return { ...m, isAvailable };
-                })
-                .filter(m => m.isAvailable); // Only return models that match
+                .filter(m => {
+                    // This uses the pre-parsed values from the sorting logic
+                    return m.symbolBase === symbolBase && m.timeframe === timeframe;
+                });
         }
         // Otherwise, show no models (for 'on' mode if symbol/tf not set)
         return [];
@@ -267,7 +259,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                         <option 
                             key={s.value} 
                             value={s.value} 
-                            // 🚀 FIXED: Only disable if mode is NOT 'off' and not available
+                            // 🚀 FIXED: Disable only if mode is NOT 'off' AND not available
                             disabled={data.mlMode !== 'off' && !s.isAvailable} 
                             style={{ color: (data.mlMode !== 'off' && !s.isAvailable) ? '#888' : 'white' }}
                         >
@@ -285,7 +277,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                         <option 
                             key={t.value} 
                             value={t.value} 
-                            // 🚀 FIXED: Only disable if mode is NOT 'off' and not available
+                            // 🚀 FIXED: Disable only if mode is NOT 'off' AND not available
                             disabled={data.mlMode !== 'off' && !t.isAvailable} 
                             style={{ color: (data.mlMode !== 'off' && !t.isAvailable) ? '#888' : 'white' }}
                         >
@@ -439,11 +431,65 @@ export default function Backtests() {
   const strategyOptions = useMemo(() => options?.strategies || [], [options?.strategies]);
   const symbolOptions = useMemo(() => options?.symbols || [], [options?.symbols]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options?.timeframes]);
-  const modelOptions = useMemo(() => options?.models || [], [options?.models]);
+  
+  // 🚀 --- 🚀 🚀 🚀 --- 🚀
+  // 🚀 THIS IS THE UPGRADE for sorting your models
+  // 🚀 --- 🚀 🚀 🚀 --- 🚀
+  
+  // 1. Helper to give timeframes a sortable "weight"
+  const timeframeWeights = {
+      '30m': 1,
+      '1h': 2,
+      '4h': 3,
+      '1d': 4,
+      '1w': 5,
+  };
+  
+  // 2. Parse and Sort the Model List
+  const modelOptions = useMemo(() => {
+      if (!options?.models) return [];
+
+      // Parse each model name
+      const parsedModels = options.models.map(model => {
+          const parts = model.id.split('_');
+          let symbolBase = 'zzz'; // Default to last
+          let timeframe = 'zzz';
+          let tfWeight = 99;
+          let modelName = model.name;
+          
+          if (parts.length >= 3) {
+              symbolBase = parts[0]; // 'btc'
+              timeframe = parts[1];  // '1h'
+              tfWeight = timeframeWeights[timeframe] || 99;
+              modelName = parts.slice(2).join('_'); // 'xgboost_model'
+          }
+          return { ...model, symbolBase, timeframe, tfWeight, modelName };
+      });
+      
+      // Sort the parsed list
+      parsedModels.sort((a, b) => {
+          // Sort by Symbol (A-Z)
+          if (a.symbolBase < b.symbolBase) return -1;
+          if (a.symbolBase > b.symbolBase) return 1;
+          
+          // If Symbol is same, sort by Timeframe (smallest first)
+          if (a.tfWeight < b.tfWeight) return -1;
+          if (a.tfWeight > b.tfWeight) return 1;
+          
+          // If Timeframe is same, sort by Model Name (A-Z)
+          if (a.modelName < b.modelName) return -1;
+          if (a.modelName > b.modelName) return 1;
+          
+          return 0;
+      });
+      
+      return parsedModels;
+  }, [options?.models]);
+  // 🚀 --- END OF SORTING UPGRADE --- 🚀
+
 
   // 🚀 --- 🚀 🚀 🚀 --- 🚀
-  // 🚀 THIS IS THE UPGRADE that fixes the logic.
-  // 🚀 It no longer depends on `symbolOptions` to parse the models.
+  // 🚀 THIS IS THE UPGRADE that fixes the "chicken-and-egg" bug
   // 🚀 --- 🚀 🚀 🚀 --- 🚀
   const availableModelData = useMemo(() => {
     const availableSymbols = new Set(); // e.g., 'BTC/USD'
@@ -457,19 +503,16 @@ export default function Backtests() {
 
     for (const model of modelOptions) {
         // model.id is 'btc_1h_xgboost_model'
-        const parts = model.id.split('_');
-        if (parts.length >= 3) { 
-            const symbolBase = parts[0].toUpperCase(); // 'BTC'
-            const timeframe = parts[1]; // '1h'
-            
-            // 🚀 FIXED: Directly create the full symbol name.
-            // This assumes all symbols are paired with 'USD'.
-            const fullSymbol = `${symbolBase}/USD`; 
-            
-            availableSymbols.add(fullSymbol);
-            availableTimeframes.add(timeframe);
-            lookup.add(`${fullSymbol}_${timeframe}`);
-        }
+        // We can use the pre-parsed values now
+        const { symbolBase, timeframe } = model;
+        
+        // 🚀 FIXED: Directly create the full symbol name.
+        // This assumes all symbols are paired with 'USD'.
+        const fullSymbol = `${symbolBase.toUpperCase()}/USD`; 
+        
+        availableSymbols.add(fullSymbol);
+        availableTimeframes.add(timeframe);
+        lookup.add(`${fullSymbol}_${timeframe}`);
     }
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); // 🚀 FIXED: Only depends on modelOptions
@@ -548,19 +591,14 @@ export default function Backtests() {
 
     // Find all valid models for this pair
     const validModels = modelOptions.filter(m => {
-        const modelId = m.id.toLowerCase();
-        
-        // In 'predictions' mode, all models are valid
+        // In 'predictions' mode, all models are valid (already sorted)
         if (formData.mlMode === 'predictions') {
             return true;
         }
 
         // --- Logic for 'on' mode ---
-        const modelParts = modelId.split('_');
-        if (modelParts.length < 3) return false;
-        const modelSymbolBase = modelParts[0];
-        const modelTimeframe = modelParts[1];
-        return (modelSymbolBase === symbolBase) && (modelTimeframe === timeframe);
+        // Use the pre-parsed values for filtering
+        return (m.symbolBase === symbolBase) && (m.timeframe === timeframe);
     });
 
     const firstValidModel = validModels[0]; // Get the first one
@@ -588,19 +626,13 @@ export default function Backtests() {
     const timeframe = comboData.timeframe;
 
     const validModels = modelOptions.filter(m => {
-        const modelId = m.id.toLowerCase();
-
-        // In 'predictions' mode, all models are valid
+        // In 'predictions' mode, all models are valid (already sorted)
         if (comboData.mlMode === 'predictions') {
             return true;
         }
 
         // --- Logic for 'on' mode ---
-        const modelParts = modelId.split('_');
-        if (modelParts.length < 3) return false;
-        const modelSymbolBase = modelParts[0];
-        const modelTimeframe = modelParts[1];
-        return (modelSymbolBase === symbolBase) && (modelTimeframe === timeframe);
+        return (m.symbolBase === symbolBase) && (m.timeframe === timeframe);
     });
 
     const firstValidModel = validModels[0];
