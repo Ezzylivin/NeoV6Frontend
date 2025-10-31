@@ -1,10 +1,8 @@
 // File: src/pages/Backtests.jsx
-//
-// UPGRADED:
-// - Fixed the "--Select Model--" bug by adding an advanced useEffect hook.
-// - This hook now checks if the selected model is still valid
-//   whenever the Symbol or Timeframe changes, and auto-selects
-//   a new default if it's not.
+// Final Version with Integrated Loading Status Updates
+// UPGRADED: Symbol/Timeframe/Model dropdowns are now dynamically filtered.
+// UPGRADED: Start/End dates now dynamically update when ML Mode changes.
+// 🚀 UPGRADED: Fixed the "--Select Model--" bug with a smarter default-selection hook.
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -43,7 +41,7 @@ const getDefaultDates = () => {
   return { startDate: formatDate(start), endDate: formatDate(end) };
 };
 
-// Helper for the ML-specific start date
+// 🚀 Helper for the ML-specific start date
 const getMLStartDate = () => {
     // This MUST match the 'START_DATE_DOWNLOAD' in your train_models.py script
     return '2017-01-01'; 
@@ -62,7 +60,7 @@ const defaultFilterParams = {
 const initialFormData = {
   code: "", // TA Strategy code
   symbol: "",
-  timeframe: "", // Will be set by useEffect
+  timeframe: "", // 🚀 Will be set by useEffect
   startDate: getDefaultDates().startDate,
   endDate: getDefaultDates().endDate,
   initialBalance: 1000,
@@ -89,7 +87,7 @@ const initialComboData = {
   },
   // Global settings for the combo backtest
   symbol: "",
-  timeframe: "", // Will be set by useEffect
+  timeframe: "", // 🚀 Will be set by useEffect
   startDate: getDefaultDates().startDate,
   endDate: getDefaultDates().endDate,
   initialBalance: 1000,
@@ -139,7 +137,8 @@ const MetricsDisplay = ({ metrics }) => {
   );
 };
 
-// Common input fields shared between single and combo forms
+// 🚀 Common input fields shared between single and combo forms
+// 🚀 Now accepts availableModelData
 const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isCombo = false }) => {
     // Extract options from props
     const symbolOptions = options.symbolOptions || [];
@@ -161,48 +160,70 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
 
     const params = data.params || {};
 
-    // --- Create Processed Dropdown Lists ---
+    // 🚀 --- NEW: Create Processed Dropdown Lists --- 🚀
     
     // 1. Process Symbol Options
     const processedSymbolOptions = useMemo(() => {
         if (data.mlMode !== 'on') {
+            // Not in ML mode, all symbols are available
             return symbolOptions.map(s => ({ value: s, name: s, isAvailable: true }));
         }
+        // In ML mode, check against the parsed data
         const { availableSymbols } = availableModelData;
+        
         const sortedSymbols = [...symbolOptions].sort((a, b) => {
             const aHas = availableSymbols.has(a);
             const bHas = availableSymbols.has(b);
-            return (bHas ? 1 : 0) - (aHas ? 1 : 0);
+            return (bHas ? 1 : 0) - (aHas ? 1 : 0); // Sorts `true` (available) to the top
         });
+        
         return sortedSymbols.map(s => {
             const isAvailable = availableSymbols.has(s);
-            return { value: s, name: isAvailable ? s : `${s} (No models)`, isAvailable: isAvailable };
+            return {
+                value: s,
+                name: isAvailable ? s : `${s} (No models)`,
+                isAvailable: isAvailable
+            };
         });
     }, [data.mlMode, symbolOptions, availableModelData]);
 
     // 2. Process Timeframe Options (depends on selected symbol)
     const processedTimeframeOptions = useMemo(() => {
         if (data.mlMode !== 'on') {
+            // Not in ML mode, all timeframes are available
             return timeframeOptions.map(t => ({ value: t, name: t, isAvailable: true }));
         }
+        
+        // If no symbol is selected yet, grey them all out
         if (!data.symbol) {
-             return timeframeOptions.map(t => ({ value: t, name: `${t} (Select Symbol)`, isAvailable: false }));
+             return timeframeOptions.map(t => ({
+                value: t,
+                name: `${t} (Select Symbol)`,
+                isAvailable: false
+             }));
         }
-        const { lookup } = availableModelData;
+
+        const { lookup } = availableModelData; // e.g., Set {'BTC/USD_1h', 'ETH/USD_4h'}
+        
         const sortedTimeframes = [...timeframeOptions].sort((a, b) => {
             const aHas = lookup.has(`${data.symbol}_${a}`);
             const bHas = lookup.has(`${data.symbol}_${b}`);
             return (bHas ? 1 : 0) - (aHas ? 1 : 0);
         });
+        
         return sortedTimeframes.map(t => {
             const isAvailable = lookup.has(`${data.symbol}_${t}`);
-            return { value: t, name: isAvailable ? t : `${t} (No model)`, isAvailable: isAvailable };
+            return {
+                value: t,
+                name: isAvailable ? t : `${t} (No model)`,
+                isAvailable: isAvailable
+            };
         });
     }, [data.mlMode, data.symbol, timeframeOptions, availableModelData]);
 
     // 3. Filter Model Options (depends on symbol AND timeframe)
     const filteredModelOptions = useMemo(() => {
-        // In hybrid mode, we show all models
+        // In hybrid mode, we show all models.
         if (data.mlMode === 'predictions') {
              return allModelOptions.map(m => ({ ...m, isAvailable: true }));
         }
@@ -213,22 +234,27 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
             return allModelOptions
                 .map(m => {
                     const modelId = m.id.toLowerCase();
+                    // Model name format: 'btc_1h_xgboost_model'
                     const modelParts = modelId.split('_');
                     if (modelParts.length < 3) return { ...m, isAvailable: false };
+
                     const modelSymbolBase = modelParts[0];
                     const modelTimeframe = modelParts[1];
+                    
                     const isAvailable = (modelSymbolBase === symbolBase) && (modelTimeframe === timeframe);
                     return { ...m, isAvailable };
                 })
-                .filter(m => m.isAvailable);
+                .filter(m => m.isAvailable); // Only return models that match
         }
         // Otherwise, show no models (for 'on' mode if symbol/tf not set)
         return [];
     }, [data.mlMode, data.symbol, data.timeframe, allModelOptions]);
 
+    // 🚀 --- END NEW LOGIC --- 🚀
+
     return (
         <>
-            {/* UPDATED Symbol Dropdown */}
+            {/* 🚀 UPDATED Symbol Dropdown */}
             <label>Symbol:
                 <select name="symbol" value={data.symbol} onChange={handleGlobalChange} disabled={!processedSymbolOptions.length}>
                     <option value="">-- Select Symbol --</option>
@@ -245,7 +271,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 </select>
             </label>
 
-            {/* UPDATED Timeframe Dropdown */}
+            {/* 🚀 UPDATED Timeframe Dropdown */}
             <label>Timeframe:
                 <select name="timeframe" value={data.timeframe} onChange={handleGlobalChange} disabled={!processedTimeframeOptions.length}>
                     <option value="">-- Select Timeframe --</option>
@@ -299,13 +325,14 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 </label>
                 {data.mlMode !== "off" && (
                     <>
-                        {/* UPDATED Model Dropdown */}
+                        {/* 🚀 UPDATED Model Dropdown */}
                         <label>Model:
                             <select 
                                 name="mlModel" 
                                 value={data.mlModel} 
                                 onChange={handleGlobalChange} 
-                                disabled={allModelOptions.length === 0}
+                                // Disable if in 'on' mode and there are no models for this pair
+                                disabled={(data.mlMode === 'on' && !filteredModelOptions.length) || allModelOptions.length === 0}
                             >
                                 <option value="">-- Select Model --</option>
                                 {
@@ -393,7 +420,7 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
 
 // --- Main Page Component ---
 export default function Backtests() {
-  const { state, runNewBacktest, runComboBacktest, getPastBacktests } = useBacktest(); // 🚀 Destructure getPastBacktests
+  const { state, runNewBacktest, runComboBacktest, getPastBacktests } = useBacktest(); // Destructure getPastBacktests
   const { loading = 'initial', error = null, options = {} } = state || {};
 
   const [formData, setFormData] = useState(initialFormData);
@@ -489,6 +516,7 @@ export default function Backtests() {
   }, [formData.mlMode, comboData.mlMode]);
   // 🚀 --- END NEW EFFECT --- 🚀
 
+  
   // 🚀 --- 🚀 🚀 🚀 --- 🚀
   // 🚀 THIS IS THE UPGRADE to fix the "--Select Model--" bug
   // 🚀 --- 🚀 🚀 🚀 --- 🚀
@@ -512,6 +540,7 @@ export default function Backtests() {
     });
 
     const firstValidModel = validModels[0]; // Get the first one
+    const firstValidModelId = firstValidModel ? firstValidModel.id : "";
 
     // Check if the *currently selected* model is in this valid list
     const isCurrentModelValid = validModels.some(m => m.id === formData.mlModel);
@@ -523,7 +552,7 @@ export default function Backtests() {
       setFormData(prev => ({
         ...prev,
         // If a new valid model exists, use it. Otherwise, set to "" (placeholder).
-        mlModel: firstValidModel ? firstValidModel.id : ""
+        mlModel: firstValidModelId
       }));
     }
 
@@ -532,7 +561,7 @@ export default function Backtests() {
     if (!isComboModelValid) {
         setComboData(prev => ({
             ...prev,
-            mlModel: firstValidModel ? firstValidModel.id : ""
+            mlModel: firstValidModelId
         }));
     }
 
@@ -815,3 +844,4 @@ export default function Backtests() {
     </div> // end dashboard-container
   );
 }
+
