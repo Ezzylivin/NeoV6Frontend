@@ -1,8 +1,8 @@
 // File: src/services/backtestApiService.js
 //
 // 🚀 RESTORED: This file now correctly talks ONLY to your
-// Node.js backend (via the 'api' client). It no longer
-// calls the Python server directly.
+// Node.js backend (via the 'api' client). It includes all
+// functions for backtests and the database.
 
 import api from "./apiClient.js"; // Your main configured Axios client for your Node.js backend
 
