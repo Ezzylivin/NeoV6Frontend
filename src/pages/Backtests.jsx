@@ -1,12 +1,12 @@
 // File: src/pages/Backtests.jsx
 //
 // UPGRADES:
-// - 🚀 FIXED (Bug 1): Rewrote `availableModelData` (line 316) to correctly
-//   parse models *without* depending on `symbolOptions`. This fixes the
-//   "all symbols are greyed out" bug.
-// - 🚀 FIXED (Bug 2): Upgraded the `modelOptions` hook (line 309) to
-//   alphabetically sort all models by Symbol, then Timeframe.
-// - 🚀 FIXED (Bug 3): Kept the `useEffect` hook (line 440) to
+// - 🚀 FIXED: Cleaned all invalid characters (&nbsp;) to fix the build error.
+// - 🚀 FIXED: Rewrote `availableModelData` (line 316) to correctly
+//   parse models. This fixes the "all symbols are greyed out" bug.
+// - 🚀 FIXED: Added `data.mlMode` dependency to `processedSymbolOptions` and
+//   `processedTimeframeOptions` (lines 166, 188) to fix the "Pure TA" bug.
+// - 🚀 FIXED: Corrected the `useEffect` hooks (line 440) to
 //   prevent the "--Select Model --" bug.
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -229,36 +229,34 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
 
     // 3. Filter Model Options (depends on symbol AND timeframe)
     const filteredModelOptions = useMemo(() => {
-        // In hybrid mode, we show all models (already sorted).
+        // In hybrid mode, we show all models.
         if (data.mlMode === 'predictions') {
              return allModelOptions.map(m => ({ ...m, isAvailable: true }));
         }
-       
-      // In 'on' mode, filter strictly
-       // 3. Filter Model Options (depends on symbol AND timeframe)
-const filteredModelOptions = useMemo(() => {
-    // In hybrid mode, we show all models (already sorted).
-    if (data.mlMode === 'predictions') {
-         return allModelOptions.map(m => ({ ...m, isAvailable: true }));
-    }
+        // In 'on' mode, filter strictly
+        if (data.mlMode === 'on' && data.symbol && data.timeframe) {
+            const symbolBase = data.symbol.split('/')[0].toLowerCase();
+            const timeframe = data.timeframe;
+            return allModelOptions
+                .map(m => {
+                    const modelId = m.id.toLowerCase();
+                    // Model name format: 'btc_1h_xgboost_model'
+                    const modelParts = modelId.split('_');
+                    if (modelParts.length < 3) return { ...m, isAvailable: false };
 
-    // In 'on' mode, filter strictly
-    const { availableSymbols } = availableModelData;
-    const sortedSymbols = [...symbolOptions].sort((a, b) => {
-        const aHas = availableSymbols.has(a);
-        const bHas = availableSymbols.has(b);
-        return (bHas ? 1 : 0) - (aHas ? 1 : 0);
-    });
+                    const modelSymbolBase = modelParts[0];
+                    const modelTimeframe = modelParts[1];
+                    
+                    const isAvailable = (modelSymbolBase === symbolBase) && (modelTimeframe === timeframe);
+                    return { ...m, isAvailable };
+                })
+                .filter(m => m.isAvailable); // Only return models that match
+        }
+        // Otherwise, show no models (for 'on' mode if symbol/tf not set)
+        return [];
+    }, [data.mlMode, data.symbol, data.timeframe, allModelOptions]);
 
-    return sortedSymbols.map(s => {
-        const isAvailable = availableSymbols.has(s);
-        return {
-            value: s,
-            name: isAvailable ? s : `${s} (No models)`,
-            isAvailable: isAvailable
-        };
-    });
-}, [data.mlMode, symbolOptions, availableModelData]);
+    // 🚀 --- END NEW LOGIC --- 🚀
 
     return (
         <>
