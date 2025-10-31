@@ -222,10 +222,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
             };
         });
     }, [data.mlMode, data.symbol, timeframeOptions, availableModelData]);
-
-    // 3. Filter Model Options (THIS IS NO LONGER USED, per your request)
-    // const filteredModelOptions = useMemo(() => { ... }
-
+    
     // 🚀 --- END NEW LOGIC --- 🚀
 
     return (
@@ -499,6 +496,19 @@ export default function Backtests() {
       return; 
     }
 
+    // 🚀 YOUR CHANGE: If mode is 'predictions', just use the full list
+    if (formData.mlMode === 'predictions') {
+        // If the current model isn't in the list, select the first one
+        if (!modelOptions.some(m => m.id === formData.mlModel)) {
+            setFormData(prev => ({
+                ...prev,
+                mlModel: modelOptions[0]?.id || "" // Set to first model or ""
+            }));
+        }
+        return; // Stop here for 'predictions' mode
+    }
+
+    // --- Logic for 'on' mode ---
     const symbolBase = formData.symbol.split('/')[0].toLowerCase();
     const timeframe = formData.timeframe;
 
@@ -509,12 +519,7 @@ export default function Backtests() {
         if (modelParts.length < 3) return false;
         const modelSymbolBase = modelParts[0];
         const modelTimeframe = modelParts[1];
-        
-        // In 'on' mode, filter. In 'predictions' mode, don't.
-        if (formData.mlMode === 'on') {
-            return (modelSymbolBase === symbolBase) && (modelTimeframe === timeframe);
-        }
-        return true; // For 'predictions' mode, all models are valid
+        return (modelSymbolBase === symbolBase) && (modelTimeframe === timeframe);
     });
 
     const firstValidModel = validModels[0]; // Get the first one
@@ -529,7 +534,7 @@ export default function Backtests() {
         mlModel: firstValidModelId // Set to first valid model, or "" if none exist
       }));
     }
-  }, [modelOptions, formData.symbol, formData.timeframe, formData.mlMode]); // Removed formData.mlModel
+  }, [modelOptions, formData.symbol, formData.timeframe, formData.mlMode, formData.mlModel]); // Added mlModel back
 
 
   // This hook auto-selects the default model for the COMBO form
@@ -538,6 +543,18 @@ export default function Backtests() {
       return; 
     }
 
+    // 🚀 YOUR CHANGE: If mode is 'predictions', just use the full list
+    if (comboData.mlMode === 'predictions') {
+        if (!modelOptions.some(m => m.id === comboData.mlModel)) {
+            setComboData(prev => ({
+                ...prev,
+                mlModel: modelOptions[0]?.id || ""
+            }));
+        }
+        return; // Stop here for 'predictions' mode
+    }
+
+    // --- Logic for 'on' mode ---
     const symbolBase = comboData.symbol.split('/')[0].toLowerCase();
     const timeframe = comboData.timeframe;
 
@@ -547,11 +564,7 @@ export default function Backtests() {
         if (modelParts.length < 3) return false;
         const modelSymbolBase = modelParts[0];
         const modelTimeframe = modelParts[1];
-        
-        if (comboData.mlMode === 'on') {
-            return (modelSymbolBase === symbolBase) && (modelTimeframe === timeframe);
-        }
-        return true; // For 'predictions' mode, all models are valid
+        return (modelSymbolBase === symbolBase) && (modelTimeframe === timeframe);
     });
 
     const firstValidModel = validModels[0];
@@ -564,7 +577,7 @@ export default function Backtests() {
         mlModel: firstValidModelId
       }));
     }
-  }, [modelOptions, comboData.symbol, comboData.timeframe, comboData.mlMode]);
+  }, [modelOptions, comboData.symbol, comboData.timeframe, comboData.mlMode, comboData.mlModel]); // Added mlModel back
   // 🚀 --- END OF BUG FIX --- 🚀
 
 
@@ -832,4 +845,3 @@ export default function Backtests() {
     </div> // end dashboard-container
   );
 }
-
