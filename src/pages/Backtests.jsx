@@ -1,9 +1,11 @@
 // File: src/pages/Backtests.jsx
 //
 // UPGRADES:
-// - 🚀 UPGRADE: Replaced the single model-selection hook with two separate hooks
-//   (one for single form, one for combo form). This fixes the race condition
-//   that caused the "-- Select Model --" bug.
+// - Fixed the "--Select Model--" bug by replacing the default model selection
+//   useEffect hook (line 410) with a smarter one.
+// - This new hook checks if the *currently selected* model is valid
+//   whenever the Symbol or Timeframe changes, and auto-selects
+//   a new default if it's not.
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -543,15 +545,18 @@ export default function Backtests() {
         return (modelSymbolBase === symbolBase) && (modelTimeframe === timeframe);
     });
 
-    const firstValidModel = validModels[0];
+    const firstValidModel = validModels[0]; // Get the first one
     const firstValidModelId = firstValidModel ? firstValidModel.id : "";
     const isCurrentModelValid = validModels.some(m => m.id === formData.mlModel);
 
-    // If the currently selected model is NO LONGER valid, reset it.
+    // --- Apply Logic to Single Form ---
     if (!isCurrentModelValid) {
+      // If the current model is NOT valid (e.g., "btc_1h" when "ETH" is selected)
+      // then reset it.
       setFormData(prev => ({
         ...prev,
-        mlModel: firstValidModelId // Set to first valid model, or "" if none exist
+        // If a new valid model exists, use it. Otherwise, set to "" (placeholder).
+        mlModel: firstValidModelId
       }));
     }
   }, [modelOptions, formData.symbol, formData.timeframe, formData.mlMode]); // Removed formData.mlModel
