@@ -1,12 +1,11 @@
 // File: src/hooks/useBacktest.js
 //
 // 🚀 UPGRADED:
-// - Fixed the import path to point to the correct API service.
-// - All functions are 100% un-mocked and functional.
+// - Reverted the import path to fix the build error.
 
 import { useReducer, useCallback, useEffect } from "react";
-// 🚀 FIXED: Corrected import path to point to your service file
-import * as backtestApi from "../services/backtestApiService.js";
+// 🚀 FIXED: Reverted import path to the correct original
+import * as backtestApi from "../api/backtest.js"; 
 
 // --- State Management with Reducer ---
 const initialState = {
@@ -76,11 +75,10 @@ function backtestReducer(state, action) {
 export function useBacktest() {
     const [state, dispatch] = useReducer(backtestReducer, initialState);
 
-    // 🚀 Fetch past backtests (paginated) - UN-MOCKED
+    // Fetch past backtests (paginated)
     const getPastBacktests = useCallback(async (page = 1) => {
         dispatch({ type: "SET_LOADING", payload: "fetching" });
         try {
-            // ✅ This now correctly calls your API service
             const data = await backtestApi.fetchAll(page); 
             dispatch({ type: "SET_PAST_BACKTESTS", payload: data });
         } catch (err) {
@@ -88,11 +86,10 @@ export function useBacktest() {
         }
     }, []);
 
-    // 🚀 Fetch details of a single backtest - UN-MOCKED
+    // Fetch details of a single backtest
     const getBacktestById = useCallback(async (id) => {
         dispatch({ type: "SET_LOADING", payload: "fetching" });
         try {
-            // ✅ This now correctly calls your API service
             const data = await backtestApi.fetchById(id);
             dispatch({ type: "SET_LOADING", payload: "idle" });
             return data;
@@ -102,12 +99,11 @@ export function useBacktest() {
         }
     }, []);
 
-    // 🚀 Delete a backtest - UN-MOCKED
+    // Delete a backtest
     const deleteBacktest = useCallback(async (id) => {
          const originalState = state.pastBacktests;
          dispatch({ type: "DELETE_BACKTEST_OPTIMISTIC", payload: id, meta: { originalPastBacktests: originalState } });
          try {
-            // ✅ This now correctly calls your API service
             await backtestApi.deleteById(id);
          } catch (err) {
              dispatch({ type: "ROLLBACK_DELETE", payload: err, meta: { originalPastBacktests: originalState, deletedId: id } });
@@ -129,7 +125,6 @@ export function useBacktest() {
         dispatch({ type: "SET_LOADING", payload: loadingState });
 
         try {
-            // ✅ This correctly calls your API service
             const result = await backtestApi.runBacktest(payload);
             await getPastBacktests(1); // Refresh the list
             dispatch({ type: "SET_LOADING", payload: "idle" });
@@ -151,7 +146,6 @@ export function useBacktest() {
         dispatch({ type: "SET_LOADING", payload: loadingState });
 
         try {
-            // ✅ This correctly calls your API service
             const result = await backtestApi.runComboBacktest(payload);
             await getPastBacktests(1); // Refresh list
             dispatch({ type: "SET_LOADING", payload: "idle" });
@@ -171,7 +165,6 @@ export function useBacktest() {
          }
         dispatch({ type: "SET_LOADING", payload: "running_backtest" });
         try {
-            // ✅ This correctly calls your API service
             const result = await backtestApi.previewStrategy(payload);
             dispatch({ type: "SET_LOADING", payload: "idle" });
             return result;
@@ -182,16 +175,16 @@ export function useBacktest() {
     }, []);
 
     
-    // 🚀 Effect to fetch initial dropdown options AND past backtests
+    // Effect to fetch initial dropdown options AND past backtests
     useEffect(() => {
         const fetchInitialData = async () => {
             dispatch({ type: "SET_LOADING", payload: "initial" });
             try {
-                // 🚀 FIXED: Fetch options, models, and backtests concurrently
+                // Fetch options, models, and backtests concurrently
                 const results = await Promise.allSettled([
                     backtestApi.fetchOptions(), // Fetches strategies, symbols, timeframes
                     backtestApi.fetchAll(1),    // Fetches past backtests page 1
-                    backtestApi.fetchModels(),  // 🚀 This was the critical part
+                    backtestApi.fetchModels(),  // Fetches the model list
                 ]);
 
                 // --- 1. Process Options (Strategies, Symbols, Timeframes) ---
@@ -212,7 +205,7 @@ export function useBacktest() {
                     console.error("Failed to fetch past backtests:", pastBacktestsResult.reason?.message || pastBacktestsResult.reason);
                 }
 
-                // --- 3. 🚀 Process Models ---
+                // --- 3. Process Models ---
                 const modelsResult = results[2];
                 if (modelsResult.status === 'fulfilled' && modelsResult.value) {
                     optionsData.models = modelsResult.value; // Add models to the options object
@@ -252,3 +245,4 @@ export function useBacktest() {
         previewStrategy,
     };
 }
+
