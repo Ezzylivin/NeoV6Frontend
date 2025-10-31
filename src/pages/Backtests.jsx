@@ -1,8 +1,11 @@
 // File: src/pages/Backtests.jsx
-// Final Version with Integrated Loading Status Updates
-// UPGRADED: Symbol/Timeframe/Model dropdowns are now dynamically filtered.
-// UPGRADED: Start/End dates now dynamically update when ML Mode changes.
-// 🚀 UPGRADED: Fixed the "--Select Model--" bug with a smarter default-selection hook.
+//
+// UPGRADES:
+// - Fixed the "--Select Model--" bug by replacing the default model selection
+//   useEffect hook with a smarter one (line 410).
+// - This new hook checks if the *currently selected* model is valid
+//   whenever the Symbol or Timeframe changes, and auto-selects
+//   a new default if it's not.
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -375,7 +378,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 </label>
                 {(data.mlMode === 'on' || (data.mlMode === 'predictions' && params.hybridMode === 'Regime')) && (
                     <label>Trend Filter SMA Period:
-                        <input type="number" name="trendFilterPeriod" value={params.trendFilterPeriod ?? 200} onChange={handleParamChange} step="1" min="1" title="e.g., 200." />
+                        <input type="number" name="trendFilterPeriod" value={params.trendFilterPeriod ?? 200} onChange={handleGlobalChange} step="1" min="1" title="e.g., 200." />
                     </label>
                 )}
             </fieldset>
