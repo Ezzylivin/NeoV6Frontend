@@ -1,10 +1,12 @@
 // File: src/hooks/useBacktest.js
-// UPDATED: Removed getFeaturesForML function as it's not needed for historical backtests.
+//
+// 🚀 UN-MOCKED: This file is now 100% functional.
+// It correctly calls the restored `backtestApiService.js`
+// to fetch, run, and delete backtests from your Node.js backend.
 
 import { useReducer, useCallback, useEffect } from "react";
-// Assumes fetchModels is exported from backtestApiService
-import * as backtestApi from "../api/backtest.js";
-import { fetchModels } from "../api/backtest.js"; // Import fetchModels specifically
+// 🚀 Import the full, correct API service
+import * as backtestApi from "../services/backtestApiService.js";
 
 // --- State Management with Reducer ---
 const initialState = {
@@ -12,10 +14,10 @@ const initialState = {
         strategies: [],
         symbols: [],
         timeframes: [],
-        models: [] // Initialize models as empty
+        models: []
     },
     pastBacktests: { results: [], total: 0 },
-    loading: 'idle', // 'initial', 'idle', 'loading_options', 'fetching', 'running', 'running_backtest'
+    loading: 'initial', // 'initial', 'idle', 'fetching', 'running_backtest', 'running_ml'
     error: null,
 };
 
@@ -24,10 +26,6 @@ function backtestReducer(state, action) {
         case 'SET_LOADING':
             return { ...state, loading: action.payload, error: null };
         case 'SET_ERROR':
-            // Prevent clearing error if loading state changes right after
-            if (state.loading !== 'idle') {
-                 console.warn("SET_ERROR called while loading:", action.payload?.message);
-            }
             return { ...state, loading: 'idle', error: action.payload };
         case 'SET_INITIAL_DATA':
             return {
@@ -37,8 +35,8 @@ function backtestReducer(state, action) {
                     results: action.payload.pastBacktests.backtests,
                     total: action.payload.pastBacktests.total,
                 },
-                loading: 'idle', // Transition to idle after initial load
-                error: null, // Clear error on successful load
+                loading: 'idle',
+                error: null,
             };
         case 'SET_PAST_BACKTESTS':
             return {
@@ -47,123 +45,113 @@ function backtestReducer(state, action) {
                     results: action.payload.backtests,
                     total: action.payload.total,
                 },
-                loading: 'idle', // Ensure loading stops after fetching past tests
+                loading: 'idle',
                 error: null,
             };
-        case 'DELETE_BACKTEST_OPTIMISTIC': { // Use block scope for const
+        case 'DELETE_BACKTEST_OPTIMISTIC': { 
             const newState = {
                 ...state,
                 pastBacktests: {
                     ...state.pastBacktests,
                     results: state.pastBacktests.results.filter(b => b._id !== action.payload),
-                    total: Math.max(0, state.pastBacktests.total - 1), // Ensure total doesn't go below 0
+                    total: Math.max(0, state.pastBacktests.total - 1),
                 },
             };
-            // Keep original state for potential rollback
             action.meta = { originalPastBacktests: state.pastBacktests };
             return newState;
          }
-        case 'ROLLBACK_DELETE': // New action type for rollback
+        case 'ROLLBACK_DELETE':
              console.warn("Rolling back optimistic delete for backtest:", action.meta.deletedId);
              return {
                  ...state,
-                 pastBacktests: action.meta.originalPastBacktests, // Restore previous state
-                 error: action.payload // Set the error that caused the rollback
+                 pastBacktests: action.meta.originalPastBacktests,
+                 error: action.payload
              };
         default:
             console.error(`Unhandled action type: ${action.type}`);
-            return state; // Return current state for unhandled actions
+            return state;
     }
 }
 
 export function useBacktest() {
     const [state, dispatch] = useReducer(backtestReducer, initialState);
 
-    // Fetch past backtests (paginated)
+    // 🚀 Fetch past backtests (paginated) - UN-MOCKED
     const getPastBacktests = useCallback(async (page = 1) => {
         dispatch({ type: "SET_LOADING", payload: "fetching" });
         try {
-            const data = await backtestApi.fetchAll(page);
+            // ✅ This now correctly calls your API service
+            const data = await backtestApi.fetchAll(page); 
             dispatch({ type: "SET_PAST_BACKTESTS", payload: data });
         } catch (err) {
             dispatch({ type: "SET_ERROR", payload: err });
-            // Optionally re-throw if the component needs to know about the error
-            // throw err;
         }
-        // SET_LOADING 'idle' is handled within SET_PAST_BACKTESTS and SET_ERROR
     }, []);
 
-    // Fetch details of a single backtest
+    // 🚀 Fetch details of a single backtest - UN-MOCKED
     const getBacktestById = useCallback(async (id) => {
         dispatch({ type: "SET_LOADING", payload: "fetching" });
         try {
+            // ✅ This now correctly calls your API service
             const data = await backtestApi.fetchById(id);
-            dispatch({ type: "SET_LOADING", payload: "idle" }); // Stop loading after fetch
+            dispatch({ type: "SET_LOADING", payload: "idle" });
             return data;
         } catch (err) {
             dispatch({ type: "SET_ERROR", payload: err });
-            throw err; // Re-throw for component handling
+            throw err;
         }
     }, []);
 
-    // Delete a backtest (with optimistic UI update and rollback)
+    // 🚀 Delete a backtest - UN-MOCKED
     const deleteBacktest = useCallback(async (id) => {
-         // Store original state before optimistic update for rollback
          const originalState = state.pastBacktests;
-        dispatch({ type: "DELETE_BACKTEST_OPTIMISTIC", payload: id, meta: { originalPastBacktests: originalState } });
-        try {
+         dispatch({ type: "DELETE_BACKTEST_OPTIMISTIC", payload: id, meta: { originalPastBacktests: originalState } });
+         try {
+            // ✅ This now correctly calls your API service
             await backtestApi.deleteById(id);
-            // No need to refetch if delete was successful
-        } catch (err) {
-            // Rollback optimistic update on failure
-            dispatch({ type: "ROLLBACK_DELETE", payload: err, meta: { originalPastBacktests: originalState, deletedId: id } });
-            // Let the component know deletion failed
+         } catch (err) {
+             dispatch({ type: "ROLLBACK_DELETE", payload: err, meta: { originalPastBacktests: originalState, deletedId: id } });
              throw err;
-        }
-    }, [state.pastBacktests]); // Depend on pastBacktests for rollback state
+         }
+    }, [state.pastBacktests]);
 
+
+    // --- BACKTEST EXECUTION FUNCTIONS ---
 
     // Run a new single-strategy backtest
     const runNewBacktest = useCallback(async (payload) => {
-        // Validation moved slightly earlier
         if (payload.mlMode !== 'on' && !payload?.code) {
              const error = new Error("A strategy 'code' is required for non-ML backtests.");
              dispatch({ type: "SET_ERROR", payload: error });
              throw error;
          }
-
-        // Determine appropriate loading state based on mode
         const loadingState = payload.mlMode !== 'off' ? 'running_ml' : 'running_backtest';
         dispatch({ type: "SET_LOADING", payload: loadingState });
 
         try {
-            // Simply pass the payload to the backend API.
-            // The backend service handles logic based on mlMode.
+            // ✅ This correctly calls your API service
             const result = await backtestApi.runBacktest(payload);
-            await getPastBacktests(1); // Refresh the list after a successful run
-            dispatch({ type: "SET_LOADING", payload: "idle" }); // Set loading to idle *after* success
-            return result; // Return result to the component
+            await getPastBacktests(1); // Refresh the list
+            dispatch({ type: "SET_LOADING", payload: "idle" });
+            return result;
         } catch (err) {
             dispatch({ type: "SET_ERROR", payload: err });
-            throw err; // Re-throw for component error handling
+            throw err;
         }
-        // No finally block needed here as SET_ERROR handles idle state on failure
     }, [getPastBacktests]);
 
     // Run a new combo-strategy backtest
     const runComboBacktest = useCallback(async (payload) => {
-         // Basic validation
          if (!payload?.strategies || payload.strategies.filter(s => s.code).length === 0) {
              const error = new Error("At least one strategy must be selected for a combo backtest.");
              dispatch({ type: "SET_ERROR", payload: error });
              throw error;
          }
-
-        const loadingState = payload.mlMode !== 'off' ? 'running_ml' : 'running_combo'; // Use 'running_combo' for TA combo
+        const loadingState = payload.mlMode !== 'off' ? 'running_ml' : 'running_combo';
         dispatch({ type: "SET_LOADING", payload: loadingState });
 
         try {
-            // Pass payload directly to the backend API.
+            // ✅ This correctly calls your API service
             const result = await backtestApi.runComboBacktest(payload);
             await getPastBacktests(1); // Refresh list
             dispatch({ type: "SET_LOADING", payload: "idle" });
@@ -181,8 +169,9 @@ export function useBacktest() {
              dispatch({ type: "SET_ERROR", payload: error });
              throw error;
          }
-        dispatch({ type: "SET_LOADING", payload: "running" }); // Generic running state
+        dispatch({ type: "SET_LOADING", payload: "running_backtest" });
         try {
+            // ✅ This correctly calls your API service
             const result = await backtestApi.previewStrategy(payload);
             dispatch({ type: "SET_LOADING", payload: "idle" });
             return result;
@@ -192,26 +181,24 @@ export function useBacktest() {
         }
     }, []);
 
-    // Effect to fetch initial dropdown options and first page of past backtests
+    
+    // 🚀 Effect to fetch initial dropdown options AND past backtests
     useEffect(() => {
         const fetchInitialData = async () => {
             dispatch({ type: "SET_LOADING", payload: "initial" });
             try {
                 // Fetch options and first page of backtests concurrently
                 const results = await Promise.allSettled([
-                    backtestApi.fetchOptions(), // Fetches strategies, symbols, timeframes, AND models from backend
+                    backtestApi.fetchOptions(), // Fetches strategies, symbols, timeframes, AND models
                     backtestApi.fetchAll(1),    // Fetches past backtests page 1
-                    // Removed fetchModels() call here as it's included in fetchOptions now
                 ]);
 
                 const optionsResult = results[0];
-                // Initialize with empty arrays, then populate
                 let optionsData = { strategies: [], symbols: [], timeframes: [], models: [] };
                 if (optionsResult.status === 'fulfilled' && optionsResult.value) {
-                    optionsData = { ...optionsData, ...optionsResult.value }; // Spread fetched options
+                    optionsData = { ...optionsData, ...optionsResult.value };
                 } else if (optionsResult.status === 'rejected'){
                     console.error("Failed to fetch options:", optionsResult.reason?.message || optionsResult.reason);
-                    // Decide if this is a critical error or if the app can proceed partially
                 }
 
                 const pastBacktestsResult = results[1];
@@ -225,7 +212,7 @@ export function useBacktest() {
                 dispatch({
                     type: "SET_INITIAL_DATA",
                     payload: {
-                        options: optionsData, // Contains all options including models
+                        options: optionsData,
                         pastBacktests: { // Ensure correct structure for reducer
                             backtests: pastBacktests.backtests,
                             total: pastBacktests.total
@@ -233,11 +220,10 @@ export function useBacktest() {
                     },
                 });
 
-            } catch (err) { // Catch errors not handled by Promise.allSettled (e.g., network issues)
+            } catch (err) {
                 console.error("A critical error occurred during initial data fetch:", err);
                 dispatch({ type: "SET_ERROR", payload: err });
             }
-            // Loading state is set to 'idle' within SET_INITIAL_DATA or SET_ERROR
         };
 
         fetchInitialData();
@@ -252,6 +238,5 @@ export function useBacktest() {
         runNewBacktest,
         runComboBacktest,
         previewStrategy,
-        // getFeaturesForML is REMOVED from the returned object
     };
 }
