@@ -326,7 +326,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                                   )
                                   : ( // --- 'predictions' (Hybrid) Mode: Show ALL models ---
                                       allModelOptions.map(m => (
-            _                             <option key={m.id} value={m.id}>{m.name}</option>
+                                          <option key={m.id} value={m.id}>{m.name}</option>
                                       ))
                                   )
                                 }
@@ -345,7 +345,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                                 </select>
                             </label>
                         )}
-          _           </>
+                      </>
                 )}
             </fieldset>
 
@@ -632,7 +632,7 @@ export default function Backtests() {
         
         // If current model isn't in the full list, select the first one
         if (!isValid) {
-    _         setFormData(prev => ({
+              setFormData(prev => ({
                 ...prev,
                 mlModel: modelOptions[0].id // Default to first *full* list model
             }));
@@ -875,12 +875,12 @@ static };
                 <label>Strategy:
                   <select name="code" value={formData.code} onChange={handleFormChange} disabled={!strategyOptions.length}>
                     <option value="">-- Select TA Strategy --</option>
-          _           {strategyOptions.length ? strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option disabled>Loading...</option>}
+                      {strategyOptions.length ? strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option disabled>Loading...</option>}
                   </select>
                 </label>
               )}
               <CommonBacktestInputs
-source                data={formData}
+                      data={formData}
                  onChange={handleFormChange}
                  options={{ symbolOptions, timeframeOptions, modelOptions, uniqueOnModeModels }}
                  availableModelData={availableModelData}
@@ -898,7 +898,7 @@ source                data={formData}
                 <CommonBacktestInputs
                     data={comboData}
                     onChange={handleComboChange}
-source                     options={{ symbolOptions, timeframeOptions, modelOptions, uniqueOnModeModels }}
+                           options={{ symbolOptions, timeframeOptions, modelOptions, uniqueOnModeModels }}
                     availableModelData={availableModelData}
                     isCombo={true}
                 />
@@ -910,7 +910,7 @@ source                     options={{ symbolOptions, timeframeOptions,
                 <button type="button" onClick={addStrategyCard} disabled={loading !== 'idle' || !strategyOptions.length}>Add Strategy</button>
                 <button type="submit" disabled={isComboSubmitDisabled}>
                    {getButtonText(loading)}
-S               </button>
+                </button>
              </form>
           )}
         </div> {/* end backtest-forms */}
@@ -918,7 +918,7 @@ S               </button>
         {/* --- Results Section --- */}
         {(loading !== 'idle' || combinedMetrics || error) && (
           <div className="results-section">
-    s         <h2>Backtest Results</h2>
+              <h2>Backtest Results</h2>
             {loading !== 'idle' && (
               <div className="loading-overlay">
                 <h3>{getStatusMessage(loading, currentFormDataForStatus)}</h3>
@@ -926,7 +926,7 @@ S               </button>
               </div>
             )}
             {loading === 'idle' && combinedMetrics && !error && (
-          _     <>
+                <>
                 <MetricsDisplay metrics={combinedMetrics} />
                 <div className="charts-container">
                   <div className="chart">
@@ -934,10 +934,10 @@ S               </button>
                      <ResponsiveContainer width="100%" height={300}>
                        <LineChart data={combinedEquityCurve} margin={{ top: 5, right: 20, left: 10, bottom: 25 }}>
                          <XAxis dataKey="timestamp" tickFormatter={formatChartDate} angle={-30} textAnchor="end" height={50} interval="preserveStartEnd" />
-s                         <YAxis domain={['auto', 'auto']} tickFormatter={(tick) => `$${tick.toLocaleString()}`} allowDataOverflow={true} />
+                          <YAxis domain={['auto', 'auto']} tickFormatter={(tick) => `$${tick.toLocaleString()}`} allowDataOverflow={true} />
                          <Tooltip formatter={(value) => `$${value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} />
                          <CartesianGrid stroke="#555" strokeDasharray="3 3"/>
-S                        <Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false} strokeWidth={2} />
+                         <Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false} strokeWidth={2} />
                        </LineChart>
                      </ResponsiveContainer>
                   </div>
@@ -954,7 +954,7 @@ S                        <Line type="monotone" dataKey="balance" str
                      </ResponsiveContainer>
                 </i></div>
                 </div>
-s               </>
+                </>
             )}
              {loading === 'idle' && !combinedMetrics && !error && (
                  <p className="no-results-message">Select parameters and run a backtest to see results here.</p>
