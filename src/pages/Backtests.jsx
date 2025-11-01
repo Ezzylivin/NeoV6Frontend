@@ -406,6 +406,9 @@ export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest, getPastBacktests } = useBacktest(); // Destructure getPastBacktests
   const { loading = 'initial', error = null, options = {} } = state || {};
 
+  // 🚀 DEBUG: STEP 1
+  console.log("STEP 1: Raw options from hook:", options);
+
   const [formData, setFormData] = useState(initialFormData);
   const [comboData, setComboData] = useState(initialComboData);
   const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
