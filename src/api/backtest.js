@@ -1,10 +1,8 @@
 // File: src/api/backtest.js
 //
 // 🚀 UPGRADED:
-// - Added the missing 'fetchModels' function to fix the TypeError.
-// - Corrected all API endpoints (e.g., '/backtest/run') to match your Node.js backend.
-// - Added 'handleError' function for clear error messages.
-// - Assumes your axios instance is imported from './apiClient.js'
+// - The 'handleError' function now specifically looks for the 'class_indices'
+//   error and replaces it with your user-friendly message.
 
 import api from "./apiClient.js"; // Your main configured Axios client
 
@@ -16,8 +14,18 @@ const handleError = (error, functionName) => {
     if (error.response) {
         console.error('Error Response Data:', error.response.data);
     }
-    // Use the error message from the backend if it exists
-    const message = error.response?.data?.message || error.message || "An unknown error occurred.";
+    
+    // Get the raw message from the backend
+    let message = error.response?.data?.message || error.message || "An unknown error occurred.";
+
+    // 🚀 START OF UPGRADE
+    // Check if this is the specific Python error we're looking for
+    if (typeof message === 'string' && message.includes('class_indices')) {
+        // 🚀 Replace the cryptic error with the user-friendly one
+        message = "Symbol and Timeframe Mismatch: The selected model does not match the backtest timeframe. Please choose a matching model.";
+    }
+    // 🚀 END OF UPGRADE
+
     throw new Error(message);
 };
 
@@ -121,4 +129,3 @@ export async function previewStrategy(payload) {
         handleError(error, "previewStrategy");
     }
 }
-
