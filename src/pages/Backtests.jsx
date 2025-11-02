@@ -498,7 +498,7 @@ export default function Backtests() {
         
         // 🚀 FIXED: Directly create the full symbol name.
         // This assumes all symbols are paired with 'USD'.
-        const fullSymbol = `${symbolBase.toUpperCase()}/USD`; 
+        const fullSymbol = `${symbolBase.toUpperCase()}-USD`; 
         
         availableSymbols.add(fullSymbol);
         availableTimeframes.add(timeframe);
