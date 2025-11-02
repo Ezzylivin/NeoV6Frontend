@@ -1,7 +1,10 @@
 // File: src/hooks/useBacktest.js
 //
 // 🚀 UPGRADED:
-// - Reverted the import path to fix the build error.
+// - Simplified loading state logic to match the new "Python-only" backend.
+// - All single backtests now use the 'running_ml' state.
+// - All combo backtests now use the 'running_combo' state.
+// - This fixes the bug that showed an incorrect "Node.js" loading message.
 
 import { useReducer, useCallback, useEffect } from "react";
 // 🚀 FIXED: Reverted import path to the correct original
@@ -16,7 +19,7 @@ const initialState = {
         models: []
     },
     pastBacktests: { results: [], total: 0 },
-    loading: 'initial', // 'initial', 'idle', 'fetching', 'running_backtest', 'running_ml'
+    loading: 'initial', // 'initial', 'idle', 'fetching', 'running_backtest', 'running_ml', 'running_combo'
     error: null,
 };
 
@@ -121,7 +124,10 @@ export function useBacktest() {
              dispatch({ type: "SET_ERROR", payload: error });
              throw error;
          }
-        const loadingState = payload.mlMode !== 'off' ? 'running_ml' : 'running_backtest';
+        
+        // 🚀 FIXED: All single backtests go to Python.
+        // The 'running_ml' state lets the UI show the correct Python-specific message.
+        const loadingState = 'running_ml';
         dispatch({ type: "SET_LOADING", payload: loadingState });
 
         try {
@@ -142,7 +148,10 @@ export function useBacktest() {
              dispatch({ type: "SET_ERROR", payload: error });
              throw error;
          }
-        const loadingState = payload.mlMode !== 'off' ? 'running_ml' : 'running_combo';
+         
+        // 🚀 FIXED: All combo backtests go to Python.
+        // The 'running_combo' state is generic and correct for all combo modes.
+        const loadingState = 'running_combo';
         dispatch({ type: "SET_LOADING", payload: loadingState });
 
         try {
@@ -163,7 +172,9 @@ export function useBacktest() {
              dispatch({ type: "SET_ERROR", payload: error });
              throw error;
          }
-        dispatch({ type: "SET_LOADING", payload: "running_backtest" });
+        
+        // 🚀 FIXED: Use 'running_ml' since previews also go to Python now.
+        dispatch({ type: "SET_LOADING", payload: "running_ml" });
         try {
             const result = await backtestApi.previewStrategy(payload);
             dispatch({ type: "SET_LOADING", payload: "idle" });
@@ -183,8 +194,8 @@ export function useBacktest() {
                 // Fetch options, models, and backtests concurrently
                 const results = await Promise.allSettled([
                     backtestApi.fetchOptions(), // Fetches strategies, symbols, timeframes
-                    backtestApi.fetchAll(1),    // Fetches past backtests page 1
-                    backtestApi.fetchModels(),  // Fetches the model list
+                    backtestApi.fetchAll(1),     // Fetches past backtests page 1
+                    backtestApi.fetchModels(),   // Fetches the model list
                 ]);
 
                 // --- 1. Process Options (Strategies, Symbols, Timeframes) ---
@@ -245,4 +256,3 @@ export function useBacktest() {
         previewStrategy,
     };
 }
-
