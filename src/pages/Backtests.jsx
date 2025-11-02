@@ -1,10 +1,10 @@
 // File: src/pages/Backtests.jsx
 //
 // UPGRADES:
+// - 🚀 [FIXED] Symbol matching logic now uses '-' (e.g., "BTC-USD") instead of "/".
+// - 🚀 [FIXED] 'on' (Pure ML) mode now shows the FULL model list, not a de-duplicated one.
+// - 🚀 [FIXED] 'on' (Pure ML) mode now selects the first alphabetical model by default.
 // - 🚀 [ISSUE #1] The default Symbol is now the first symbol from the sorted model list.
-// - 🚀 [ISSUE #3] The Model dropdown for 'on' mode now shows a de-duplicated list.
-// - 🚀 [ISSUE #2] The default Model for 'on' mode is the first from that new de-duplicated list.
-// - 🚀 [ISSUE #2] The default Model for 'predictions' (Hybrid) mode remains the first alphabetical model from the *full* server list.
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -146,8 +146,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
     const symbolOptions = options.symbolOptions || [];
     const timeframeOptions = options.timeframeOptions || [];
     const allModelOptions = options.modelOptions || []; // Full list of ALL models
-    {/* 🚀 [ISSUE #3] Get the new de-duplicated list for 'on' mode */}
-    const uniqueOnModeModels = options.uniqueOnModeModels || [];
+    // 🚀 uniqueOnModeModels has been removed.
 
     // Handler for global parameters
     const handleParamChange = (e) => {
@@ -208,7 +207,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
              }));
         }
 
-        const { lookup } = availableModelData; // e.g., Set {'BTC/USD_1h', 'ETH/USD_4h'}
+        const { lookup } = availableModelData; // e.g., Set {'BTC-USD_1h', 'ETH-USD_4h'}
         
         const sortedTimeframes = [...timeframeOptions].sort((a, b) => {
             const aHas = lookup.has(`${data.symbol}_${a}`);
@@ -309,26 +308,15 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                                 name="mlModel" 
                                 value={data.mlModel} 
                                 onChange={handleGlobalChange} 
-                                // Disable if the relevant list for the current mode is empty
-                                disabled={
-                                    (data.mlMode === 'on' && uniqueOnModeModels.length === 0) ||
-                                    (data.mlMode === 'predictions' && allModelOptions.length === 0)
-                                }
+                                // 🚀 FIXED: Simplified disable logic
+                                disabled={allModelOptions.length === 0}
                             >
                                 <option value="">-- Select Model --</option>
                                 {
-                                    // 🚀 FIXED: Conditionally render model list
-                                    data.mlMode === 'on' 
-                                    ? ( // --- 'ON' (Pure ML) Mode: Show de-duplicated list ---
-                                        uniqueOnModeModels.map(m => (
-                                            <option key={m.id} value={m.id}>{m.name}</option>
-                                        ))
-                                    )
-                                    : ( // --- 'predictions' (Hybrid) Mode: Show ALL models ---
-                                        allModelOptions.map(m => (
-                                            <option key={m.id} value={m.id}>{m.name}</option>
-                                        ))
-                                    )
+                                    // 🚀 FIXED: Always show all models for 'on' and 'predictions'
+                                    allModelOptions.map(m => (
+                                        <option key={m.id} value={m.id}>{m.name}</option>
+                                    ))
                                 }
                             </select>
                         </label>
@@ -407,7 +395,7 @@ export default function Backtests() {
   const { loading = 'initial', error = null, options = {} } = state || {};
 
   // 🚀 DEBUG: STEP 1
-  console.log("STEP 1: Raw options from hook:", options);
+  // console.log("STEP 1: Raw options from hook:", options);
 
   const [formData, setFormData] = useState(initialFormData);
   const [comboData, setComboData] = useState(initialComboData);
@@ -475,16 +463,16 @@ export default function Backtests() {
   // 🚀 --- END OF SORTING UPGRADE --- 🚀
 
   // 🚀 DEBUG: STEP 2
-  console.log("STEP 2: Full parsed & sorted modelOptions:", modelOptions);
+  // console.log("STEP 2: Full parsed & sorted modelOptions:", modelOptions);
 
 
   // 🚀 --- 🚀 🚀 🚀 --- 🚀
   // 🚀 THIS IS THE UPGRADE that fixes the "chicken-and-egg" bug
   // 🚀 --- 🚀 🚀 🚀 --- 🚀
   const availableModelData = useMemo(() => {
-    const availableSymbols = new Set(); // e.g., 'BTC/USD'
+    const availableSymbols = new Set(); // e.g., 'BTC-USD'
     const availableTimeframes = new Set(); // e.g., '1h'
-    const lookup = new Set(); // e.g., 'BTC/USD_1h'
+    const lookup = new Set(); // e.g., 'BTC-USD_1h'
 
     if (!modelOptions.length) {
         // If models haven't loaded, return empty sets
@@ -496,9 +484,8 @@ export default function Backtests() {
         // We can use the pre-parsed values now
         const { symbolBase, timeframe } = model;
         
-        // 🚀 FIXED: Directly create the full symbol name.
-        // This assumes all symbols are paired with 'USD'.
-        const fullSymbol = `${symbolBase.toUpperCase()}-USD`; 
+        // 🚀 FIXED: Changed "/" to "-" to match your symbol format
+        const fullSymbol = `${model.symbolBase.toUpperCase()}-USD`; 
         
         availableSymbols.add(fullSymbol);
         availableTimeframes.add(timeframe);
@@ -509,39 +496,11 @@ export default function Backtests() {
   // 🚀 --- END OF UPGRADE --- 🚀
 
   // 🚀 DEBUG: STEP 3
-  console.log("STEP 3: Available Model Data (The Sets):", availableModelData);
+  // console.log("STEP 3: Available Model Data (The Sets):", availableModelData);
 
   // 🚀 --- 🚀 🚀 🚀 --- 🚀
-  // 🚀 [ISSUE #3] NEW: Create de-duplicated model list for 'ON' mode
+  // 🚀 [ISSUE #3] DELETED the uniqueOnModeModels hook.
   // 🚀 --- 🚀 🚀 🚀 --- 🚀
-  const uniqueOnModeModels = useMemo(() => {
-      if (!modelOptions.length) return [];
-      
-      const modelKeySet = new Set();
-      const uniqueModels = [];
-      
-      // We iterate the *pre-parsed and sorted* modelOptions
-      // to build the unique list
-      for (const model of modelOptions) {
-          // Key by model name + timeframe
-          // e.g., "xgboost_v2 | 1h"
-          const key = `${model.modelName} | ${model.timeframe}`; 
-          
-          if (!modelKeySet.has(key)) {
-              modelKeySet.add(key);
-              // The ID and Name for the dropdown are this new key
-              uniqueModels.push({ id: key, name: key });
-          }
-      }
-      
-      // Re-sort this new unique list alphabetically by its name
-      // This ensures "Model_A | 1H" comes before "Model_B | 1H"
-      uniqueModels.sort((a, b) => a.name.localeCompare(b.name));
-      
-      return uniqueModels;
-
-  }, [modelOptions]); // Depends on the full, sorted model list
-  // 🚀 --- END OF NEW DE-DUPLICATED LIST --- 🚀
 
 
   // --- Effects to set default form values when options load ---
@@ -571,7 +530,8 @@ export default function Backtests() {
         
         // 1. Get symbol from the first *sorted* model
         const firstModel = modelOptions[0]; // e.g., { symbolBase: 'btc', ... }
-        const firstModelSymbol = `${firstModel.symbolBase.toUpperCase()}/USD`; // e.g., "BTC/USD"
+        // 🚀 FIXED: Changed "/" to "-" to match your symbol format
+        const firstModelSymbol = `${firstModel.symbolBase.toUpperCase()}-USD`; // e.g., "BTC-USD"
         
         let defaultSymbol = "";
         
@@ -579,8 +539,8 @@ export default function Backtests() {
         if (symbolOptions.includes(firstModelSymbol)) {
             defaultSymbol = firstModelSymbol;
         } else {
-            // 3. Fallback: find BTC/USD or use the very first symbol
-            defaultSymbol = symbolOptions.find(s => s === 'BTC/USD') || symbolOptions[0];
+            // 3. Fallback: find BTC-USD or use the very first symbol
+            defaultSymbol = symbolOptions.find(s => s === 'BTC-USD') || symbolOptions[0];
         }
         
         setFormData(prev => ({ ...prev, symbol: defaultSymbol }));
@@ -628,12 +588,12 @@ export default function Backtests() {
   
   // This hook auto-selects the default model for the SINGLE form
   useEffect(() => {
-    // Don't run if options aren't loaded or ML is off
     const mode = formData.mlMode;
-    if (mode === 'off') return; // Do nothing if off
+    // 🚀 FIXED: Don't run if ML is off or models aren't loaded
+    if (mode === 'off' || modelOptions.length === 0) return;
 
-    // --- 'predictions' (Hybrid) Mode ---
-    if (mode === 'predictions' && modelOptions.length > 0) {
+    // 🚀 FIXED: Apply same logic to 'on' AND 'predictions'
+    if (mode === 'on' || mode === 'predictions') {
         const currentModel = formData.mlModel;
         const isValid = modelOptions.some(m => m.id === currentModel);
         
@@ -644,58 +604,29 @@ export default function Backtests() {
                 mlModel: modelOptions[0].id // Default to first *full* list model
             }));
         }
-        return; // Stop here
     }
-
-    // --- 'on' (Pure ML) Mode ---
-    if (mode === 'on' && uniqueOnModeModels.length > 0) {
-        const currentModel = formData.mlModel;
-        // Check against the *de-duplicated* list
-        const isValid = uniqueOnModeModels.some(m => m.id === currentModel);
-        
-        // If current model isn't in the de-duplicated list, select the first one
-        if (!isValid) {
-            setFormData(prev => ({
-                ...prev,
-                // Default to first *de-duplicated* list model
-                mlModel: uniqueOnModeModels[0].id 
-            }));
-        }
-    }
-  }, [modelOptions, uniqueOnModeModels, formData.mlMode, formData.mlModel]); // Added all dependencies
+  }, [modelOptions, formData.mlMode, formData.mlModel]); // 🚀 FIXED: Removed uniqueOnModeModels
 
 
   // This hook auto-selects the default model for the COMBO form
   useEffect(() => {
-    // Don't run if options aren't loaded or ML is off
     const mode = comboData.mlMode;
-    if (mode === 'off') return;
+    // 🚀 FIXED: Don't run if ML is off or models aren't loaded
+    if (mode === 'off' || modelOptions.length === 0) return;
 
-    // --- 'predictions' (Hybrid) Mode ---
-    if (mode === 'predictions' && modelOptions.length > 0) {
+    // 🚀 FIXED: Apply same logic to 'on' AND 'predictions'
+    if (mode === 'on' || mode === 'predictions') {
         const currentModel = comboData.mlModel;
         const isValid = modelOptions.some(m => m.id === currentModel);
-        if (!isValid) {
-            setComboData(prev => ({
-                ...prev,
-                mlModel: modelOptions[0].id
-            }));
-        }
-        return; // Stop here
-    }
 
-    // --- 'on' (Pure ML) Mode ---
-    if (mode === 'on' && uniqueOnModeModels.length > 0) {
-        const currentModel = comboData.mlModel;
-        const isValid = uniqueOnModeModels.some(m => m.id === currentModel);
         if (!isValid) {
             setComboData(prev => ({
                 ...prev,
-                mlModel: uniqueOnModeModels[0].id
+                mlModel: modelOptions[0].id // Default to first *full* list model
             }));
         }
     }
-  }, [modelOptions, uniqueOnModeModels, comboData.mlMode, comboData.mlModel]); // Added all dependencies
+  }, [modelOptions, comboData.mlMode, comboData.mlModel]); // 🚀 FIXED: Removed uniqueOnModeModels
   // 🚀 --- END OF [ISSUE #2] BUG FIX --- 🚀
 
 
@@ -887,7 +818,8 @@ export default function Backtests() {
               <CommonBacktestInputs
                   data={formData}
                   onChange={handleFormChange}
-                  options={{ symbolOptions, timeframeOptions, modelOptions, uniqueOnModeModels }}
+                  // 🚀 FIXED: Removed uniqueOnModeModels from prop
+                  options={{ symbolOptions, timeframeOptions, modelOptions }}
                   availableModelData={availableModelData}
                   isCombo={false}
               />
@@ -903,7 +835,8 @@ export default function Backtests() {
                 <CommonBacktestInputs
                     data={comboData}
                     onChange={handleComboChange}
-                    options={{ symbolOptions, timeframeOptions, modelOptions, uniqueOnModeModels }}
+                    // 🚀 FIXED: Removed uniqueOnModeModels from prop
+                    options={{ symbolOptions, timeframeOptions, modelOptions }}
                     availableModelData={availableModelData}
                     isCombo={true}
                 />
