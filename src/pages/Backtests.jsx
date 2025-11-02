@@ -474,6 +474,9 @@ export default function Backtests() {
   }, [options?.models]);
   // 🚀 --- END OF SORTING UPGRADE --- 🚀
 
+  // 🚀 DEBUG: STEP 2
+  console.log("STEP 2: Full parsed & sorted modelOptions:", modelOptions);
+
 
   // 🚀 --- 🚀 🚀 🚀 --- 🚀
   // 🚀 THIS IS THE UPGRADE that fixes the "chicken-and-egg" bug
@@ -504,6 +507,9 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); // 🚀 FIXED: Only depends on modelOptions
   // 🚀 --- END OF UPGRADE --- 🚀
+
+  // 🚀 DEBUG: STEP 3
+  console.log("STEP 3: Available Model Data (The Sets):", availableModelData);
 
   // 🚀 --- 🚀 🚀 🚀 --- 🚀
   // 🚀 [ISSUE #3] NEW: Create de-duplicated model list for 'ON' mode
