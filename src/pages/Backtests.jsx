@@ -1,10 +1,9 @@
 // File: src/pages/Backtests.jsx
 //
 // UPGRADES:
-// - 🚀 [FIXED] Symbol matching logic now uses '-' (e.g., "BTC-USD") instead of "/".
-// - 🚀 [FIXED] 'on' (Pure ML) mode now shows the FULL model list, not a de-duplicated one.
-// - 🚀 [FIXED] 'on' (Pure ML) mode now selects the first alphabetical model by default.
-// - 🚀 [ISSUE #1] The default Symbol is now the first symbol from the sorted model list.
+// - 🚀 [NEW] Added descriptive 'title' attributes (hover tooltips) to every
+//   input, select, and fieldset for better user experience.
+// - 🚀 [FIXED] Restored the detailed, "revealing" description for the Volatility Filter.
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -231,7 +230,13 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
         <>
             {/* 🚀 UPDATED Symbol Dropdown */}
             <label>Symbol:
-                <select name="symbol" value={data.symbol} onChange={handleGlobalChange} disabled={!processedSymbolOptions.length}>
+                <select 
+                    name="symbol" 
+                    value={data.symbol} 
+                    onChange={handleGlobalChange} 
+                    disabled={!processedSymbolOptions.length}
+                    title="Select the market (e.g., BTC-USD) to run the backtest on."
+                >
                     <option value="">-- Select Symbol --</option>
                     {processedSymbolOptions.map(s => (
                         <option 
@@ -249,7 +254,13 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
 
             {/* 🚀 UPDATED Timeframe Dropdown */}
             <label>Timeframe:
-                <select name="timeframe" value={data.timeframe} onChange={handleGlobalChange} disabled={!processedTimeframeOptions.length}>
+                <select 
+                    name="timeframe" 
+                    value={data.timeframe} 
+                    onChange={handleGlobalChange} 
+                    disabled={!processedTimeframeOptions.length}
+                    title="Select the chart timeframe (e.g., 1h, 4h, 1d) for the backtest."
+                >
                     <option value="">-- Select Timeframe --</option>
                     {processedTimeframeOptions.map(t => (
                         <option 
@@ -266,35 +277,100 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
             </label>
 
             {/* Date Inputs */}
-            <label>Start Date: <input type="date" name="startDate" value={data.startDate} onChange={handleGlobalChange} /></label>
-            <label>End Date: <input type="date" name="endDate" value={data.endDate} onChange={handleGlobalChange} /></label>
-            <label>Initial Balance: <input type="number" name="initialBalance" value={data.initialBalance} onChange={handleGlobalChange} min="1" step="1" /></label>
+            <label>Start Date: 
+                <input 
+                    type="date" 
+                    name="startDate" 
+                    value={data.startDate} 
+                    onChange={handleGlobalChange} 
+                    title="The first day of the backtest period (YYYY-MM-DD)."
+                />
+            </label>
+            <label>End Date: 
+                <input 
+                    type="date" 
+                    name="endDate" 
+                    value={data.endDate} 
+                    onChange={handleGlobalChange} 
+                    title="The last day of the backtest period (YYYY-MM-DD)."
+                />
+            </label>
+            <label>Initial Balance: 
+                <input 
+                    type="number" 
+                    name="initialBalance" 
+                    value={data.initialBalance} 
+                    onChange={handleGlobalChange} 
+                    min="1" 
+                    step="1" 
+                    title="The starting cash balance (e.g., 1000) for the backtest."
+                />
+            </label>
 
             {/* Risk Management Section */}
-            <fieldset>
-                {/* ... (Unchanged) ... */}
+            <fieldset title="Configure how much capital to risk on each trade.">
                 <legend>Risk Management</legend>
                 <label>Mode:
-                    <select name="riskManagementMode" value={data.riskManagementMode} onChange={handleGlobalChange}>
+                    <select 
+                        name="riskManagementMode" 
+                        value={data.riskManagementMode} 
+                        onChange={handleGlobalChange}
+                        title="Select the risk management style. 'Standard Risk %' uses a fixed percentage of your balance for each trade. 'Dynamic Growth Mode' risks more aggressively to reach a target."
+                    >
                         <option value="standard">Standard Risk %</option>
                         <option value="dynamic">Dynamic Growth Mode</option>
                     </select>
                 </label>
                 {data.riskManagementMode === 'standard' ? (
-                    <label>Risk Per Trade (%): <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={handleGlobalChange} step="0.1" min="0.1" /> </label>
+                    <label>Risk Per Trade (%): 
+                        <input 
+                            type="number" 
+                            name="riskPercentage" 
+                            value={data.riskPercentage} 
+                            onChange={handleGlobalChange} 
+                            step="0.1" 
+                            min="0.1" 
+                            title="The percentage of your total equity to risk per trade (e.g., 1 for 1%)."
+                        /> 
+                    </label>
                 ) : (
                     <>
-                        <label>Growth Capital Target ($): <input type="number" name="growthCapitalTarget" value={data.growthCapitalTarget} onChange={handleGlobalChange} min="1" step="1" /> </label>
-                        <label>Risk % (After Target): <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={handleGlobalChange} step="0.1" min="0.1" /> </label>
+                        <label>Growth Capital Target ($): 
+                            <input 
+                                type="number" 
+                                name="growthCapitalTarget" 
+                                value={data.growthCapitalTarget} 
+                                onChange={handleGlobalChange} 
+                                min="1" 
+                                step="1" 
+                                title="In 'Dynamic Growth Mode', this is the equity target. The system will risk aggressively to reach this target, then revert to the 'Risk %' setting."
+                            /> 
+                        </label>
+                        <label>Risk % (After Target): 
+                            <input 
+                                type="number" 
+                                name="riskPercentage" 
+                                value={data.riskPercentage} 
+                                onChange={handleGlobalChange} 
+                                step="0.1" 
+                                min="0.1" 
+                                title="In 'Dynamic Growth Mode', this is the standard risk % to use *after* your equity target has been reached."
+                            /> 
+                        </label>
                     </>
                 )}
             </fieldset>
 
             {/* Machine Learning Section */}
-            <fieldset>
+            <fieldset title="Configure Machine Learning model integration.">
                 <legend>Machine Learning</legend>
                 <label>Mode:
-                    <select name="mlMode" value={data.mlMode || "off"} onChange={handleGlobalChange}>
+                    <select 
+                        name="mlMode" 
+                        value={data.mlMode || "off"} 
+                        onChange={handleGlobalChange}
+                        title="Select the backtest mode. 'Off' uses only TA signals. 'Hybrid' uses TA signals filtered by an ML model. 'On' uses only ML model signals."
+                    >
                         <option value="off">Off (Pure TA)</option>
                         <option value="predictions">Hybrid (TA + ML Filter)</option>
                         <option value="on">On (Pure ML)</option>
@@ -310,6 +386,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                                 onChange={handleGlobalChange} 
                                 // 🚀 FIXED: Simplified disable logic
                                 disabled={allModelOptions.length === 0}
+                                title="Select the pre-trained ML model to use for 'Hybrid' or 'On' modes. The model must match the selected Symbol and Timeframe."
                             >
                                 <option value="">-- Select Model --</option>
                                 {
@@ -320,13 +397,39 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                                 }
                             </select>
                         </label>
-                        <label>Confidence Threshold: <input type="number" name="mlThreshold" value={data.mlThreshold || 0.5} step="0.01" min="0" max="1" onChange={handleGlobalChange} /> </label>
-                        <label>Prediction Horizon: <input type="number" name="mlHorizon" value={data.mlHorizon || 1} step="1" min="1" onChange={handleGlobalChange} /> </label>
+                        <label>Confidence Threshold: 
+                            <input 
+                                type="number" 
+                                name="mlThreshold" 
+                                value={data.mlThreshold || 0.5} 
+                                step="0.01" 
+                                min="0" 
+                                max="1" 
+                                onChange={handleGlobalChange} 
+                                title="The minimum confidence (0.0 to 1.0) from the ML model to consider a signal valid. e.g., 0.65 = 65% confidence."
+                            /> 
+                        </label>
+                        <label>Prediction Horizon: 
+                            <input 
+                                type="number" 
+                                name="mlHorizon" 
+                                value={data.mlHorizon || 1} 
+                                step="1" 
+                                min="1" 
+                                onChange={handleGlobalChange} 
+                                title="The number of bars/candles the model was trained to predict. (e.g., 1 = next bar). This must match the model's training."
+                            /> 
+                        </label>
 
                         {/* Hybrid Logic Selector */}
                         {data.mlMode === 'predictions' && (
                             <label>Hybrid Logic:
-                                <select name="hybridMode" value={params.hybridMode ?? 'AND'} onChange={handleParamChange}>
+                                <select 
+                                    name="hybridMode" 
+                                    value={params.hybridMode ?? 'AND'} 
+                                    onChange={handleParamChange}
+                                    title="How to combine TA and ML signals in 'Hybrid' mode. 'AND' requires both. 'OR' allows either. 'Regime' uses the TA signal as a long-term trend filter."
+                                >
                                     <option value="AND">TA AND ML (Strict Filter)</option>
                                     <option value="OR">TA OR ML (Permissive)</option>
                                     <option value="Regime">TA as Regime Filter</option>
@@ -338,15 +441,30 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
             </fieldset>
 
             {/* Advanced Filters Section */}
-            <fieldset>
-                {/* ... (Unchanged) ... */}
+            <fieldset title="Apply advanced filters to your strategy signals.">
                 <legend>Advanced Filters</legend>
                 <label>Volatility Filter (Min ATR %):
-                    <input type="number" name="minAtrPct" value={params.minAtrPct ?? 0} onChange={handleParamChange} step="0.05" min="0" title="Set to 0 to disable." />
+                    <input 
+                        type="number" 
+                        name="minAtrPct" 
+                        value={params.minAtrPct ?? 0} 
+                        onChange={handleParamChange} 
+                        step="0.05" 
+                        min="0" 
+                        title="A volatility filter. The strategy will ONLY trade if the current ATR (Average True Range) as a percentage of price is *above* this value. e.g., 0.5 = only trade if volatility is at least 0.5% of the price. Set to 0 to disable."
+                    />
                 </label>
                 {(data.mlMode === 'on' || (data.mlMode === 'predictions' && params.hybridMode === 'Regime')) && (
                     <label>Trend Filter SMA Period:
-                        <input type="number" name="trendFilterPeriod" value={params.trendFilterPeriod ?? 200} onChange={handleGlobalChange} step="1" min="1" title="e.g., 200." />
+                        <input 
+                            type="number" 
+                            name="trendFilterPeriod" 
+                            value={params.trendFilterPeriod ?? 200} 
+                            onChange={handleGlobalChange} 
+                            step="1" 
+                            min="1" 
+                            title="A long-term trend filter. The strategy will only take trades in the direction of this SMA. (e.g., 200). Only Longs if Price > SMA, only Shorts if Price < SMA."
+                        />
                     </label>
                 )}
             </fieldset>
@@ -355,10 +473,26 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
             {!isCombo && (
                 <>
                     <label>Stop Loss (%):
-                        <input type="number" name="SL" value={params.SL ?? 5.0} onChange={handleParamChange} step="0.1" min="0" />
+                        <input 
+                            type="number" 
+                            name="SL" 
+                            value={params.SL ?? 5.0} 
+                            onChange={handleParamChange} 
+                            step="0.1" 
+                            min="0" 
+                            title="The Stop Loss for the TA strategy, as a percentage from the entry price (e.g., 5 = 5%)."
+                        />
                     </label>
                     <label>Take Profit (%):
-                        <input type="number" name="TP" value={params.TP ?? 10.0} onChange={handleParamChange} step="0.1" min="0" />
+                        <input 
+                            type="number" 
+                            name="TP" 
+                            value={params.TP ?? 10.0} 
+                            onChange={handleParamChange} 
+                            step="0.1" 
+                            min="0" 
+                            title="The Take Profit for the TA strategy, as a percentage from the entry price (e.g., 10 = 10%)."
+                        />
                     </label>
                 </>
             )}
@@ -376,13 +510,39 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
       </div>
       <div className="combo-card-body">
         <label>Strategy:
-          <select name="code" value={config.code} onChange={handleChange} disabled={!strategies.length}>
+          <select 
+            name="code" 
+            value={config.code} 
+            onChange={handleChange} 
+            disabled={!strategies.length}
+            title="Select the TA strategy for this card in the combo."
+          >
             <option value="">-- Select --</option>
             {strategies.length ? strategies.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option disabled>Loading...</option>}
           </select>
         </label>
-        <label>Stop Loss (%): <input type="number" name="param_SL" value={config.params?.SL ?? 5.0} onChange={handleChange} step="0.1" min="0" /></label>
-        <label>Take Profit (%): <input type="number" name="param_TP" value={config.params?.TP ?? 10.0} onChange={handleChange} step="0.1" min="0" /></label>
+        <label>Stop Loss (%): 
+            <input 
+                type="number" 
+                name="param_SL" 
+                value={config.params?.SL ?? 5.0} 
+                onChange={handleChange} 
+                step="0.1" 
+                min="0" 
+                title="Override the global Stop Loss % for this specific strategy."
+            />
+        </label>
+        <label>Take Profit (%): 
+            <input 
+                type="number" 
+                name="param_TP" 
+                value={config.params?.TP ?? 10.0} 
+                onChange={handleChange} 
+                step="0.1" 
+                min="0" 
+                title="Override the global Take Profit % for this specific strategy."
+            />
+        </label>
       </div>
     </div>
   );
@@ -761,13 +921,16 @@ export default function Backtests() {
       case 'running_ml':
         if (currentFormData?.mlMode === 'predictions') return 'Fetching external ML features & predictions...';
         if (currentFormData?.mlMode === 'on') return 'Running Python ML backtest (loading data, applying model, simulating)...';
-        return 'Processing Machine Learning...';
+        // 🚀 FIXED: This message now correctly applies to 'off' mode too
+        return 'Running Python backtest...';
       case 'running_backtest':
+        // This case is likely no longer used, but we leave the logic
         if (currentFormData?.mlMode === 'off') return 'Running TA simulation in Node.js...';
         if (currentFormData?.mlMode === 'on') return 'Initiating Python ML backtest... (Checking cache)';
         return 'Starting backtest simulation...';
       case 'running_combo':
-        return `Running Combo Backtest (${currentFormData?.mlMode === 'predictions' ? 'Hybrid/External' : 'TA/Node'})...`;
+        // 🚀 FIXED: This message is now generic for all combo modes
+        return 'Running Combo Backtest in Python...';
       case 'fetching': return 'Fetching required data...';
       case 'running': return 'Processing request...';
       default: return 'Processing...';
@@ -809,7 +972,13 @@ export default function Backtests() {
             <form onSubmit={handleRunBacktest} className="backtest-form">
               {(formData.mlMode === 'off' || formData.mlMode === 'predictions') && (
                 <label>Strategy:
-                  <select name="code" value={formData.code} onChange={handleFormChange} disabled={!strategyOptions.length}>
+                  <select 
+                    name="code" 
+                    value={formData.code} 
+                    onChange={handleFormChange} 
+                    disabled={!strategyOptions.length}
+                    title="Select the core Technical Analysis (TA) strategy to run."
+                  >
                     <option value="">-- Select TA Strategy --</option>
                     {strategyOptions.length ? strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option disabled>Loading...</option>}
                   </select>
