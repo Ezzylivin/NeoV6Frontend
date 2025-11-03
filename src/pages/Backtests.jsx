@@ -1,6 +1,8 @@
 // File: src/pages/Backtests.jsx
 //
 // UPGRADES:
+// - 🚀 [NEW FIX] Added a mapping (STRATEGY_TYPE_TO_CODE_MAP) to fix the
+//   "0 trades" bug by mapping the DB strategyType to the Python 'code'.
 // - 🚀 [NEW] Added descriptive 'title' attributes (hover tooltips) to every
 //   input, select, and fieldset for better user experience.
 // - 🚀 [FIXED] Restored the detailed, "revealing" description for the Volatility Filter.
@@ -100,6 +102,21 @@ const initialComboData = {
   mlThreshold: 0.5,
   mlHorizon: 1
 };
+
+
+// 🚀 NEW FIX: This map MUST match the 'signal_map' in your Python server
+// This translates the strategy 'type' from your DB into the 'code' Python expects.
+const STRATEGY_TYPE_TO_CODE_MAP = {
+  "Moving Average Crossover": "sma_crossover",
+  "RSI Divergence": "rsi_divergence",
+  "MACD Crossover": "macd_crossover",
+  "Stochastic Crossover": "stochastic_crossover",
+  "CCI Oversold": "cci_oversold",
+  "Bollinger Bands": "bollinger_bands",
+  "Ichimoku Cloud": "ichimoku_cloud"
+  // Add any other strategies from your Python signal_map here
+};
+
 
 // --- Child Components ---
 
@@ -386,7 +403,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                                 onChange={handleGlobalChange} 
                                 // 🚀 FIXED: Simplified disable logic
                                 disabled={allModelOptions.length === 0}
-                                title="Select the pre-trained ML model to use for 'Hybrid' or 'On' modes. The model must match the selected Symbol and Timeframe."
+                                title="Select the pre-trained ML model to use. The model's name (e.g., 'ada_30m_...') MUST match your selected Symbol (ADA-USD) and Timeframe (30m) to avoid an error."
                             >
                                 <option value="">-- Select Model --</option>
                                 {
@@ -562,8 +579,32 @@ export default function Backtests() {
   const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
   const [activeTab, setActiveTab] = useState('single');
 
-  // Memoize options from hook
-  const strategyOptions = useMemo(() => options?.strategies || [], [options?.strategies]);
+  // 🚀 NEW FIX: This hook transforms the raw strategies from the DB
+  // into the format that the Python server expects.
+  const strategyOptions = useMemo(() => {
+    if (!options?.strategies) return [];
+    
+    // 🚀 Transform the strategies to use the Python-compatible 'code'
+    return options.strategies.map(strategy => {
+      // Find the Python-compatible code from our map
+      const pythonCode = STRATEGY_TYPE_TO_CODE_MAP[strategy.params?.strategyType];
+      
+      if (pythonCode) {
+        // This is a valid, mapped strategy
+        return {
+          ...strategy,
+          code: pythonCode // <-- This is the fix! 'test_for_single' becomes 'sma_crossover'
+        };
+      }
+      
+      // This is an unknown or un-mapped strategy, log it and filter it out
+      console.warn(`Unmapped strategy: ${strategy.name} (type: ${strategy.params?.strategyType}). It will not be available in dropdowns.`);
+      return null; 
+    }).filter(Boolean); // filter(Boolean) removes all null entries
+    
+  }, [options?.strategies]);
+  
+  // Memoize other options
   const symbolOptions = useMemo(() => options?.symbols || [], [options?.symbols]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options?.timeframes]);
   
@@ -665,6 +706,7 @@ export default function Backtests() {
 
   // --- Effects to set default form values when options load ---
   useEffect(() => {
+    // 🚀 This effect now uses the *transformed* strategyOptions
     if (strategyOptions.length > 0 && !formData.code) {
       const defaultStrategy = strategyOptions[0];
       setFormData(prev => ({ ...prev, code: defaultStrategy.code, params: { ...defaultStrategy.params, ...prev.params } }));
@@ -672,6 +714,7 @@ export default function Backtests() {
   }, [strategyOptions, formData.code]); // Added formData.code to dependency
 
   useEffect(() => {
+    // 🚀 This effect now uses the *transformed* strategyOptions
     if (strategyOptions.length > 0 && comboData.strategies.every(c => !c.code)) {
       const newConfigs = comboData.strategies.map((config, index) => {
         const strategy = strategyOptions[index] || strategyOptions[0];
@@ -834,6 +877,7 @@ export default function Backtests() {
     const { name, value, type } = e.target;
     const val = type === 'number' && value !== '' ? parseFloat(value) : (type === 'checkbox' ? e.target.checked : value);
     if (name === 'code') {
+      // 🚀 This now uses the *transformed* strategyOptions
       const selectedStrategy = strategyOptions.find(s => s.code === value);
       setFormData(prev => ({ ...prev, code: value, params: { ...prev.params, ...(selectedStrategy?.params || {}) } }));
     } else if (name.startsWith("param_")) {
@@ -863,6 +907,7 @@ export default function Backtests() {
       const paramName = name.substring(6);
       currentConfig.params = { ...(currentConfig.params || {}), [paramName]: val };
     } else if (name === 'code') {
+      // 🚀 This now uses the *transformed* strategyOptions
       const selectedStrategy = strategyOptions.find(s => s.code === value);
       currentConfig.code = value;
       currentConfig.params = { ...(selectedStrategy?.params || {}), SL: currentConfig.params?.SL ?? 5.0, TP: currentConfig.params?.TP ?? 10.0, };
@@ -871,6 +916,7 @@ export default function Backtests() {
     setComboData(prev => ({ ...prev, strategies: updatedStrategies }));
   };
   const addStrategyCard = () => {
+    // 🚀 This now uses the *transformed* strategyOptions
     const defaultStrategy = strategyOptions[0] || {};
     const newCard = { code: defaultStrategy.code || "", params: { ...(defaultStrategy.params || {}), SL: 5.0, TP: 10.0 } };
     setComboData(prev => ({ ...prev, strategies: [...prev.strategies, newCard] }));
@@ -980,6 +1026,7 @@ export default function Backtests() {
                     title="Select the core Technical Analysis (TA) strategy to run."
                   >
                     <option value="">-- Select TA Strategy --</option>
+                    {/* 🚀 This now maps over the *transformed* strategyOptions */}
                     {strategyOptions.length ? strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option disabled>Loading...</option>}
                   </select>
                 </label>
@@ -1011,6 +1058,7 @@ export default function Backtests() {
                 />
                 <div className="combo-strategy-list">
                    {comboData.strategies.map((config, idx) => (
+                    // 🚀 This now uses the *transformed* strategyOptions
                     <ComboStrategyCard key={idx} idx={idx} config={config} strategies={strategyOptions} onChange={handleStrategyConfigChange} onRemove={removeStrategyCard} disableRemove={comboData.strategies.length <= 1} />
                    ))}
                 </div>
