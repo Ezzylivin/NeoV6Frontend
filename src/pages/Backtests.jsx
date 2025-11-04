@@ -1,11 +1,9 @@
 // File: src/pages/Backtests.jsx
 //
 // UPGRADES:
-// - 🚀 [NEW FIX] Added a mapping (STRATEGY_TYPE_TO_CODE_MAP) to fix the
-//   "0 trades" bug by mapping the DB strategyType to the Python 'code'.
-// - 🚀 [NEW] Added descriptive 'title' attributes (hover tooltips) to every
-//   input, select, and fieldset for better user experience.
-// - 🚀 [FIXED] Restored the detailed, "revealing" description for the Volatility Filter.
+// - 🚀 [FIX] Updated STRATEGY_TYPE_TO_CODE_MAP to match the 'type'
+//   field from your database (e.g., "RSI", "MACD", "ATR").
+//   This will fix the 'Unmapped strategy' warnings and the '0 trades' bug.
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -105,16 +103,21 @@ const initialComboData = {
 
 
 // 🚀 NEW FIX: This map MUST match the 'signal_map' in your Python server
-// This translates the strategy 'type' from your DB into the 'code' Python expects.
+// The KEYS (e.g., "RSI", "MACD") MUST match the 'type' field from your database logs
 const STRATEGY_TYPE_TO_CODE_MAP = {
-  "Moving Average Crossover": "sma_crossover",
-  "RSI Divergence": "rsi_divergence",
-  "MACD Crossover": "macd_crossover",
-  "Stochastic Crossover": "stochastic_crossover",
-  "CCI Oversold": "cci_oversold",
-  "Bollinger Bands": "bollinger_bands",
-  "Ichimoku Cloud": "ichimoku_cloud"
-  // Add any other strategies from your Python signal_map here
+  // --- From your Python signal_map ---
+  "Moving Average Crossover": "sma_crossover", // From previous log
+  "RSI": "rsi_divergence",                     // From log `(type: RSI)`
+  "MACD": "macd_crossover",                    // From log `(type: MACD)`
+  "Stochastic Oscillator": "stochastic_crossover", // From log `(type: Stochastic Oscillator)`
+  "CCI": "cci_oversold",                       // From log `(type: CCI)`
+  "Bollinger Bands": "bollinger_bands",        // (Assuming this is the 'type' in your DB)
+  "Ichimoku Cloud": "ichimoku_cloud",         // (Assuming this is the 'type' in your DB)
+  
+  // --- NEW strategies we are adding to Python ---
+  "ATR": "atr_signal",                        // From log `(type: ATR)`
+  "On-Balance Volume": "obv_signal",           // From log `(type: On-Balance Volume)`
+  "Parabolic SAR": "psar_signal"              // From log `(type: Parabolic SAR)`
 };
 
 
@@ -587,13 +590,14 @@ export default function Backtests() {
     // 🚀 Transform the strategies to use the Python-compatible 'code'
     return options.strategies.map(strategy => {
       // Find the Python-compatible code from our map
+      // e.g., "RSI" -> "rsi_divergence"
       const pythonCode = STRATEGY_TYPE_TO_CODE_MAP[strategy.params?.strategyType];
       
       if (pythonCode) {
         // This is a valid, mapped strategy
         return {
           ...strategy,
-          code: pythonCode // <-- This is the fix! 'test_for_single' becomes 'sma_crossover'
+          code: pythonCode // <-- This is the fix! 'rsitest1' (db code) is replaced with 'rsi_divergence' (python code)
         };
       }
       
