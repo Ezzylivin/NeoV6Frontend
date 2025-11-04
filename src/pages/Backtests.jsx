@@ -1,9 +1,10 @@
 // File: src/pages/Backtests.jsx
 //
 // UPGRADES:
-// - 🚀 [FIX] Updated STRATEGY_TYPE_TO_CODE_MAP to match the 'type'
-//   field from your database (e.g., "RSI", "MACD", "ATR").
-//   This will fix the 'Unmapped strategy' warnings and the '0 trades' bug.
+// - 🚀 [THE FIX] Added .trim() to the strategy mapping (line 448) to
+//   fix the "Unmapped strategy" bug caused by whitespace.
+// - Added descriptive 'title' attributes (hover tooltips)
+// - Restored the detailed description for the Volatility Filter.
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -589,9 +590,10 @@ export default function Backtests() {
     
     // 🚀 Transform the strategies to use the Python-compatible 'code'
     return options.strategies.map(strategy => {
-      // Find the Python-compatible code from our map
-      // e.g., "RSI" -> "rsi_divergence"
-      const pythonCode = STRATEGY_TYPE_TO_CODE_MAP[strategy.params?.strategyType];
+      
+      // 🚀 FIXED: Added .trim() to clean the key before lookup
+      const strategyTypeKey = strategy.params?.strategyType?.trim();
+      const pythonCode = STRATEGY_TYPE_TO_CODE_MAP[strategyTypeKey];
       
       if (pythonCode) {
         // This is a valid, mapped strategy
