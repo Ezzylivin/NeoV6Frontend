@@ -1,706 +1,1126 @@
-# File: /root/Project/ML/ml_server_api.py
-#
-# UPGRADES:
-# - 🚀 [FIX 1] Added 'ml_mode' and 'kwargs' to run_backtest definition to fix crash.
-# - 🚀 [FIX 2] Re-hydrated the final response to match the Mongoose schema.
-# - 🚀 [FIX 3] Fixed KeyError by changing metric filter from .startswith('sell') to == 'sell'.
+// File: src/pages/Backtests.jsx
+//
+// UPGRADES:
+// - 🚀 [FIX] Updated STRATEGY_TYPE_TO_CODE_MAP to match the 'type'
+//   field from your database (e.g., "RSI", "MACD", "ATR").
+//   This will fix the 'Unmapped strategy' warnings and the '0 trades' bug.
 
-import os
-import json
-import pandas as pd
-import numpy as np
-import pandas_ta as ta
-import joblib
-import logging
-import typing
-import math
-from datetime import datetime, timezone
-import time
-import ccxt
-import sys # 🚀 Added sys import
-from flask import Flask, jsonify, request, send_from_directory
-from flask_cors import CORS
-import warnings
+import React, { useState, useEffect, useMemo } from "react";
+import { useBacktest } from "../hooks/useBacktest.js";
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend
+} from "recharts";
+import "./Backtests.css"; // Ensure you have styles for .loading-overlay, .spinner, .error-box, etc.
 
-# --- 🚀 New Imports (Required for new models/metrics) ---
-import lightgbm as lgb
-from sklearn.neural_network import MLPClassifier
-from sklearn.ensemble import RandomForestClassifier
-import xgboost as xgb
-# --- End New Imports ---
+const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
 
-# Suppress warnings
-warnings.filterwarnings('ignore', category=UserWarning)
-warnings.filterwarnings('ignore', category=FutureWarning)
-pd.options.mode.chained_assignment = None
+// Helper to format date strings for display
+const formatDate = dateString => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  // Format as YYYY-MM-DD for input fields and potentially charts
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+};
 
-# --- Configuration ---
-MODEL_DIR = '/root/Project/ML/app/models'
-DATA_DIR = '/root/Project/ML/data'
-LOG_LEVEL = logging.INFO
-EXCHANGES_TO_TRY = ['binanceus', 'coinbase', 'kraken', 'gemini'] 
-SLIPPAGE_PCT = 0.0005  # 🚀 0.05% slippage (adjust as needed)
-RISK_FREE_RATE = 0.02 # 🚀 2% annual risk-free rate for Sharpe
+// Helper to format timestamps (like from equity curve) for charts
+const formatChartDate = timestamp => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return '';
+    // Example: Show Month/Day for charts
+    return `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`;
+};
 
-# --- Setup Logging ---
-logging.basicConfig(level=LOG_LEVEL, format='%(asctime)s [%(levelname)s] %(message)s')
 
-app = Flask(__name__)
-CORS(app)
+// Helper to get default date range (e.g., last year)
+const getDefaultDates = () => {
+  const today = new Date();
+  const start = new Date(today); start.setFullYear(today.getFullYear() - 1);
+  const end = new Date(today); end.setDate(today.getDate() - 1); // Default end date to yesterday
+  return { startDate: formatDate(start), endDate: formatDate(end) };
+};
 
-# --- (Data Download & Save functions are identical to train_models.py) ---
-def fetch_all_historical_data(symbol, timeframe, start_date='2017-01-01'):
-    try: since_timestamp = int(datetime.strptime(start_date, '%Y-%m-%d').replace(tzinfo=timezone.utc).timestamp() * 1000)
-    except ValueError: logging.error(f"Invalid start_date: {start_date}. Using 2017-01-01."); since_timestamp = int(datetime(2017, 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
-    best_data = []; best_exchange_id = None
-    for exchange_id in EXCHANGES_TO_TRY:
-        logging.info(f"[{exchange_id}] Checking download for {symbol} ({timeframe})...")
-        exchange = None; all_candles = []; current_since = since_timestamp
-        try:
-            exchange = getattr(ccxt, exchange_id)();
-            if not exchange.has['fetchOHLCV']: logging.warning(f"[{exchange_id}] skip: no fetchOHLCV."); continue
-            if timeframe not in exchange.timeframes: logging.warning(f"[{exchange_id}] skip: TF '{timeframe}' not supported."); continue
-            limit = 1000; timeframe_ms = exchange.parse_timeframe(timeframe) * 1000
-            while True:
-                current_time_ms = exchange.milliseconds()
-                if current_since >= current_time_ms: logging.info(f"[{exchange_id}] Reached current time."); break
-                new_candles = exchange.fetchOHLCV(symbol, timeframe, since=current_since, limit=limit)
-                if new_candles:
-                    if exchange_id == 'kraken' and len(new_candles) < limit and (current_time_ms - new_candles[-1][0]) > (timeframe_ms * limit):
-                        logging.warning(f"[{exchange_id}] Returned only {len(new_candles)} candles (Kraken bug). Trying next exchange."); all_candles = []; break 
-                    all_candles.extend(new_candles); new_since_timestamp = new_candles[-1][0] + timeframe_ms
-                    if new_since_timestamp <= current_since: logging.warning("Timestamp stalled. Stop."); break
-                    current_since = new_since_timestamp;
-                    time.sleep(exchange.rateLimit / 1000)
-                else: logging.info(f"[{exchange_id}] No more candles returned."); break
-        except Exception as e: logging.warning(f"[{exchange_id}] Download attempt failed: {e}"); continue
-        if all_candles:
-            if len(all_candles) > len(best_data):
-                logging.info(f"[{exchange_id}] Found NEW BEST data: {len(all_candles)} candles (previous best: {len(best_data)}).")
-                best_data = all_candles; best_exchange_id = exchange_id
-            else: logging.info(f"[{exchange_id}] Found {len(all_candles)} candles, but not better than {len(best_data)} from {best_exchange_id}.")
-    if best_data:
-        logging.info(f"--- Selected BEST data from [{best_exchange_id}] with {len(best_data)} candles ---")
-        df = pd.DataFrame(best_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-        df.drop_duplicates(subset=['timestamp'], inplace=True); df.sort_values(by='timestamp', inplace=True)
-        logging.info(f"Total unique candles after de-dupe: {len(df)}"); return df.values.tolist()
-    logging.error(f"Failed to fetch {symbol} {timeframe} from ALL exchanges: {EXCHANGES_TO_TRY}"); return []
-def save_data_to_csv(candles, output_path):
-    if not candles: logging.warning(f"No candles to save {output_path}"); return False
-    try:
-        df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']); df['datetime'] = pd.to_datetime(df['timestamp'], unit='ms', utc=True); df.set_index('datetime', inplace=True)
-        os.makedirs(os.path.dirname(output_path), exist_ok=True); df.to_csv(output_path)
-        logging.info(f"Data saved: {output_path}"); return True
-    except Exception as e: logging.error(f"CSV Save Fail {output_path}: {e}"); return False
+// 🚀 Helper for the ML-specific start date
+const getMLStartDate = () => {
+    // This MUST match the 'START_DATE_DOWNLOAD' in your train_models.py script
+    return '2017-01-01'; 
+}
 
-# --- Helpers ---
-def convert_numpy_types(obj):
-    if isinstance(obj, (np.floating, np.float64)): return float(obj)
-    if isinstance(obj, (np.integer, np.int64)): return int(obj)
-    if isinstance(obj, np.ndarray): return obj.tolist()
-    if isinstance(obj, (pd.Timestamp, datetime)): return obj.isoformat()
-    return obj
-def find_col(df, key, exclude=None):
-    key = key.upper(); exclude = exclude.upper() if exclude else ''
-    for col in df.columns:
-        col_upper = col.upper()
-        if key in col_upper and not (exclude and exclude in col_upper): return col
-    raise KeyError(f"API: Could not find required col for key: {key} in columns: {df.columns.tolist()}")
+// Default parameters for filters/strategy
+const defaultFilterParams = {
+    SL: 5.0,
+    TP: 10.0,
+    minAtrPct: 0, // Volatility filter (0 = off)
+    trendFilterPeriod: 200, // Trend filter
+    //hybridMode: 'AND' // Hybrid logic
+};
 
-# --- 🚀 NEW: TA Signal Generation (for 'off' and 'predictions' modes) ---
-def generate_ta_signals(df: pd.DataFrame, strategy_code: str) -> pd.DataFrame:
-    """ Generates a 'ta_signal' column based on the strategy code. """
-    logging.info(f"Generating TA signal for: {strategy_code}")
-    # (This function needs all the find_col helpers from engineer_features)
-    rsi_col=find_col(df,'RSI_14'); macd_col=find_col(df,'MACD_12_26_9','MACDS'); macd_signal_col=find_col(df,'MACDS_12_26_9')
-    stoch_k_col=find_col(df,'STOCHK_14_3_3'); stoch_d_col=find_col(df,'STOCHD_14_3_3'); cci_col=find_col(df,'CCI_20_0.015')
-    bbl_col=find_col(df,'BBL_20_2.0'); bbu_col=find_col(df,'BBU_20_2.0'); atr_col=find_col(df,'ATR_14')
-    sma10_col=find_col(df,'SMA_10'); sma50_col=find_col(df,'SMA_50'); psar_col=find_col(df,'PSARr')
-    tenkan_col=find_col(df,'ITS_9'); kijun_col=find_col(df,'IKS_26'); spanA_col=find_col(df,'ISA_9'); spanB_col=find_col(df,'ISB_26')
+// Initial state for the single backtest form
+const initialFormData = {
+  code: "", // TA Strategy code
+  symbol: "",
+  timeframe: "", // 🚀 Will be set by useEffect
+  startDate: getDefaultDates().startDate,
+  endDate: getDefaultDates().endDate,
+  initialBalance: 1000,
+  params: { ...defaultFilterParams }, // Global/TA params
+  riskManagementMode: 'standard',
+  riskPercentage: 1,
+  growthCapitalTarget: 2000,
+  mlMode: "off", // 'off', 'on', 'predictions'
+  mlModel: "", // Model ID/name
+  mlThreshold: 0.5,
+  mlHorizon: 1 // Prediction horizon (if applicable)
+};
 
-    # 1. Crossover Signals
-    df['sma_signal'] = np.sign(df[sma10_col].diff()) # Simple 10-period slope
-    df['macd_signal'] = np.sign(df[macd_col] - df[macd_signal_col]).diff()
-    df['stoch_signal'] = np.sign(df[stoch_k_col] - df[stoch_d_col]).diff()
+// Initial state for the combo backtest form
+const initialComboData = {
+  strategies: [ // List of individual strategies in the combo
+    { code: "", params: { SL: 5.0, TP: 10.0 } }, // Per-strategy SL/TP overrides
+    { code: "", params: { SL: 5.0, TP: 10.0 } }
+  ],
+  params: { // Global combo parameters (filters, hybrid logic)
+    minAtrPct: 0,
+    trendFilterPeriod: 200,
+    hybridMode: 'AND'
+  },
+  // Global settings for the combo backtest
+  symbol: "",
+  timeframe: "", // 🚀 Will be set by useEffect
+  startDate: getDefaultDates().startDate,
+  endDate: getDefaultDates().endDate,
+  initialBalance: 1000,
+  riskManagementMode: 'standard',
+  riskPercentage: 1,
+  growthCapitalTarget: 2000,
+  mlMode: "off",
+  mlModel: "",
+  mlThreshold: 0.5,
+  mlHorizon: 1
+};
 
-    # 2. Reversal Signals
-    df['rsi_signal'] = np.select([df[rsi_col] < 30, df[rsi_col] > 70], [1, -1], 0)
-    df['cci_signal'] = np.select([df[cci_col] < -100, df[cci_col] > 100], [1, -1], 0)
-    df['bb_signal'] = np.select([df['close'] < df[bbl_col], df['close'] > df[bbu_col]], [1, -1], 0)
+
+// 🚀 NEW FIX: This map MUST match the 'signal_map' in your Python server
+// The KEYS (e.g., "RSI", "MACD") MUST match the 'type' field from your database logs
+const STRATEGY_TYPE_TO_CODE_MAP = {
+  // --- From your Python signal_map ---
+  "Moving Average Crossover": "sma_crossover", // From previous log
+  "RSI": "rsi_divergence",                     // From log `(type: RSI)`
+  "MACD": "macd_crossover",                    // From log `(type: MACD)`
+  "Stochastic Oscillator": "stochastic_crossover", // From log `(type: Stochastic Oscillator)`
+  "CCI": "cci_oversold",                       // From log `(type: CCI)`
+  "Bollinger Bands": "bollinger_bands",        // (Assuming this is the 'type' in your DB)
+  "Ichimoku Cloud": "ichimoku_cloud",         // (Assuming this is the 'type' in your DB)
+  
+  // --- NEW strategies we are adding to Python ---
+  "ATR": "atr_signal",                        // From log `(type: ATR)`
+  "On-Balance Volume": "obv_signal",           // From log `(type: On-Balance Volume)`
+  "Parabolic SAR": "psar_signal"              // From log `(type: Parabolic SAR)`
+};
+
+
+// --- Child Components ---
+
+// Displays performance metrics
+const MetricsDisplay = ({ metrics }) => {
+  // ... (Component is unchanged) ...
+  if (!metrics) return <div className="metrics-grid-loading">Calculating metrics...</div>;
+  const formatValue = (value, format) => {
+      if (typeof value !== "number" || isNaN(value)) return "N/A";
+      switch (format) {
+          case 'currency': return `$${value.toFixed(2)}`;
+          case 'percent': return `${value.toFixed(2)}%`;
+          case 'number': return value.toFixed(2);
+          default: return value;
+      }
+  };
+  const items = [
+    { label: "Total Return", value: metrics.totalReturn, format: 'percent' },
+    { label: "Profit Factor", value: metrics.profitFactor, format: 'number' },
+    { label: "Max Drawdown", value: metrics.maxDrawdown, format: 'percent' },
+    { label: "Win Rate", value: metrics.winRate, format: 'percent' },
+    { label: "Total Trades", value: metrics.totalTrades, format: null },
+    { label: "Avg. Win", value: metrics.averageWin, format: 'currency' },
+    { label: "Avg. Loss", value: metrics.averageLoss, format: 'currency' },
+    { label: "Final Balance", value: metrics.finalBalance, format: 'currency' }
+  ];
+  return (
+    <div className="metrics-grid">
+      {items.map(m => (
+        <div key={m.label} className="metric-item">
+          <span className="metric-label">{m.label}</span>
+          <span className="metric-value">{formatValue(m.value, m.format)}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// 🚀 Common input fields shared between single and combo forms
+// 🚀 Now accepts availableModelData
+const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isCombo = false }) => {
+    // Extract options from props
+    const symbolOptions = options.symbolOptions || [];
+    const timeframeOptions = options.timeframeOptions || [];
+    const allModelOptions = options.modelOptions || []; // Full list of ALL models
+    // 🚀 uniqueOnModeModels has been removed.
+
+    // Handler for global parameters
+    const handleParamChange = (e) => {
+        const { name, value, type } = e.target;
+        const val = type === 'number' && value !== '' ? parseFloat(value) : value;
+        const syntheticEvent = { target: { name: `param_${name}`, value: val, type: type } };
+        onChange(syntheticEvent);
+    };
+
+    // Handler for top-level properties
+    const handleGlobalChange = (e) => {
+        onChange(e);
+    };
+
+    const params = data.params || {};
+
+    // 🚀 --- NEW: Create Processed Dropdown Lists --- 🚀
     
-    # 3. Trend Signal
-    df['ichimoku_signal'] = np.select([(df['close'] > df[spanA_col]) & (df['close'] > df[spanB_col]), (df['close'] < df[spanA_col]) & (df['close'] < df[spanB_col])], [1, -1], 0)
-    
-    # 🚀 --- NEW SIGNALS --- 🚀
-    df['atr_signal'] = np.sign(df[atr_col].diff()) # 1 = volatility increasing
-    df['obv_signal'] = np.sign(df['OBV'].diff()) # 1 = volume momentum increasing
-    df['psar_signal'] = df[psar_col] # 1 = bullish, -1 = bearish
-    
-    # 4. Map strategy_code to the correct column
-    signal_map = {
-        "sma_crossover": "sma_signal",
-        "rsi_divergence": "rsi_signal",
-        "macd_crossover": "macd_signal",
-        "stochastic_crossover": "stoch_signal",
-        "cci_oversold": "cci_signal",
-        "bollinger_bands": "bb_signal",
-        "ichimoku_cloud": "ichimoku_signal",
-        # 🚀 --- NEW MAPPINGS --- 🚀
-        "atr_signal": "atr_signal",
-        "obv_signal": "obv_signal",
-        "psar_signal": "psar_signal"
-    }
-    
-    if strategy_code in signal_map:
-        df['ta_signal'] = df[signal_map[strategy_code]].fillna(0)
-    else:
-        logging.warning(f"Strategy code '{strategy_code}' not found. Defaulting to 'Hold' (0).")
-        df['ta_signal'] = 0
-        
-    return df
-
-# --- 🚀 SYNCHRONIZED: Feature Engineering (Must match train_models.py) ---
-def generate_all_features(df: pd.DataFrame, trend_filter_period: typing.Optional[int]) -> pd.DataFrame:
-    """ Applies ALL 38+ advanced TA features for ML model prediction. """
-    logging.info(f"Engineering all advanced features for {len(df)} rows...")
-    df = df.copy()
-    if df['close'].isnull().any(): df['close'] = df['close'].fillna(method='ffill')
-    df.replace([np.inf, -np.inf], np.nan, inplace=True)
-
-    # === 1. Base Technical Indicators ===
-    df.ta.rsi(length=14, append=True); df.ta.macd(fast=12, slow=26, signal=9, append=True); df.ta.stoch(k=14, d=3, append=True)
-    df.ta.cci(length=20, append=True); df.ta.bbands(length=20, std=2, append=True); df.ta.atr(length=14, append=True, col_names=('ATR_14'))
-    df.ta.sma(length=10, append=True); df.ta.sma(length=50, append=True); df.ta.sma(length=200, append=True)
-    df.ta.psar(append=True); df.ta.ichimoku(conversion=9, base=26, span=52, append=True)
-    df.ta.obv(append=True); df['OBV_SMA_20'] = df['OBV'].rolling(window=20).mean()
-    df.ta.adx(length=14, append=True)
-    if trend_filter_period and trend_filter_period > 0:
-        sma_trend_col = f'SMA_{trend_filter_period}'; df.ta.sma(length=trend_filter_period, append=True, col_names=(sma_trend_col))
-
-    # === 2. Get Column Names (Error if missing) ===
-    rsi_col=find_col(df,'RSI_14'); macd_col=find_col(df,'MACD_12_26_9','MACDS'); macd_signal_col=find_col(df,'MACDS_12_26_9')
-    stoch_k_col=find_col(df,'STOCHK_14_3_3'); stoch_d_col=find_col(df,'STOCHD_14_3_3'); cci_col=find_col(df,'CCI_20_0.015')
-    bbl_col=find_col(df,'BBL_20_2.0'); bbu_col=find_col(df,'BBU_20_2.0'); bbm_col=find_col(df, 'BBM_20_2.0'); atr_col=find_col(df,'ATR_14')
-    sma10_col=find_col(df,'SMA_10'); sma50_col=find_col(df,'SMA_50'); sma200_col=find_col(df, 'SMA_200')
-    psar_col=find_col(df,'PSARr'); adx_col = find_col(df, 'ADX_14')
-    
-    # === 3. New Relational & Contextual Features ===
-    df['price_vs_sma50'] = (df['close'] - df[sma50_col]) / df[sma50_col]
-    df['price_vs_sma200'] = (df['close'] - df[sma200_col]) / df[sma200_col]
-    df['sma10_vs_sma50'] = (df[sma10_col] - df[sma50_col]) / df[sma50_col]
-    df['sma50_vs_sma200'] = (df[sma50_col] - df[sma200_col]) / df[sma200_col]
-    df['price_vs_bbu'] = (df[bbu_col] - df['close']) / df['close']
-    df['price_vs_bbl'] = (df[bbl_col] - df['close']) / df['close']
-    df['bb_width'] = (df[bbu_col] - df[bbl_col]) / df[bbm_col]
-    df['rsi_state'] = np.select([df[rsi_col] > 70, df[rsi_col] < 30], [1, -1], 0)
-    df['macd_hist_norm'] = (df[macd_col] - df[macd_signal_col]) / df['close']
-    df['stoch_cross'] = np.sign(df[stoch_k_col] - df[stoch_d_col]).diff()
-    df['cci_state'] = np.select([df[cci_col] > 100, df[cci_col] < -100], [1, -1], 0)
-    df['atr_pct'] = (df[atr_col] / df['close']) * 100
-    df['adx_strong_trend'] = (df[adx_col] > 25).astype(int)
-    df['rsi_roc_3'] = df[rsi_col].pct_change(3)
-    df['volume_roc_10'] = df['volume'].pct_change(10)
-    df['price_roc_5'] = df['close'].pct_change(5)
-    
-    # === 4. Create NON-Leaky Lag Features ===
-    lag_features_to_create = [
-        'rsi_state', 'atr_pct', 'price_vs_sma200', 'macd_hist_norm', 'volume_roc_10',
-        'price_roc_5', 'bb_width', 'adx_strong_trend'
-    ]
-    for feat in lag_features_to_create:
-        if feat in df.columns:
-            for lag in [1, 2, 3]:
-                df[f"{feat}_lag{lag}"] = df[feat].shift(lag)
-    
-    return df
-# --- End Feature Engineering ---
-
-# --- 🚀 UPGRADED: Backtest Engine ---
-def run_backtest(
-    df: pd.DataFrame,
-    signal_column: str, # 🚀 Generic signal column ('ta_signal', 'hybrid_signal', etc.)
-    initial_balance: float,
-    fee: float,
-    stop_loss_pct: typing.Optional[float],
-    take_profit_pct: typing.Optional[float],
-    risk_mode: str,
-    risk_percent: float,
-    growth_target: typing.Optional[float],
-    min_atr_pct: typing.Optional[float],
-    trend_filter_period: typing.Optional[int],
-    ml_mode: str, # 🚀 [FIX 1] Added ml_mode to accept the argument
-    max_leverage: float = 2.0, # 🚀 New safety cap
-    **kwargs # 🚀 [FIX 1] Added kwargs to accept any other arguments
-) -> typing.Dict[str, typing.Any]:
-    
-    # 🚀 Log the ml_mode that is now correctly passed in
-    logging.info(f"Starting simulation (mlMode='{ml_mode}'). Risk: {risk_mode}, SL: {stop_loss_pct}%, TP: {take_profit_pct}%")
-
-    # --- 1. Prep ---
-    if signal_column not in df.columns: raise ValueError(f"Signal column '{signal_column}' not found.")
-    if 'ATR_14' not in df.columns and min_atr_pct > 0: raise ValueError("ATR_14 column required for Volatility Filter.")
-    sma_trend_col = f'SMA_{trend_filter_period}' if trend_filter_period else None
-    if sma_trend_col and sma_trend_col not in df.columns: logging.warning(f"Trend Filter column '{sma_trend_col}' not found.") # Changed to warning
-
-    balance = initial_balance
-    position = 0 # 0 = flat, 1 = long, -1 = short
-    position_size = 0.0
-    entry_price = 0.0
-    equity_curve = []
-    trades = []
-    stop_loss_price = 0.0
-    take_profit_price = 0.0
-    current_risk_percent = risk_percent
-    
-    df_signals = df[signal_column].to_numpy()
-    df_low = df["low"].to_numpy()
-    df_high = df["high"].to_numpy()
-    df_close = df["close"].to_numpy()
-    df_open = df["open"].to_numpy()
-    df_atr = df["ATR_14"].to_numpy() if 'ATR_14' in df.columns else np.zeros(len(df))
-    df_trend_sma = df[sma_trend_col].to_numpy() if sma_trend_col else np.zeros(len(df))
-
-    # --- 2. Main Trading Loop ---
-    for i in range(1, len(df) - 1): # Loop from 1 to second-to-last
-        
-        # --- A. Check for Exits (if in a position) ---
-        if position != 0:
-            current_low = df_low[i]; current_high = df_high[i]; current_close = df_close[i]
-            exit_price = 0.0; pnl_reason = "Signal"
-            
-            # 🚀 Pessimistic SL/TP logic
-            if position == 1: # --- In a LONG position ---
-                sl_hit = stop_loss_pct is not None and current_low <= stop_loss_price
-                tp_hit = take_profit_pct is not None and current_high >= take_profit_price
-                signal_exit = (df_signals[i] == -1)
-
-                if sl_hit and tp_hit: # Both hit on same bar
-                    exit_price = stop_loss_price; pnl_reason = "Stop Loss (Pessimistic)"
-                elif sl_hit:
-                    exit_price = stop_loss_price; pnl_reason = "Stop Loss"
-                elif tp_hit:
-                    exit_price = take_profit_price; pnl_reason = "Take Profit"
-                elif signal_exit:
-                    exit_price = df_open[i+1] * (1 - SLIPPAGE_PCT); pnl_reason = "Signal" # Exit on next open
-            
-            elif position == -1: # --- In a SHORT position ---
-                sl_hit = stop_loss_pct is not None and current_high >= stop_loss_price
-                tp_hit = take_profit_pct is not None and current_low <= take_profit_price
-                signal_exit = (df_signals[i] == 1)
-
-                if sl_hit and tp_hit:
-                    exit_price = stop_loss_price; pnl_reason = "Stop Loss (Pessimistic)"
-                elif sl_hit:
-                    exit_price = stop_loss_price; pnl_reason = "Stop Loss"
-                elif tp_hit:
-                    exit_price = take_profit_price; pnl_reason = "Take Profit"
-                elif signal_exit:
-                    exit_price = df_open[i+1] * (1 + SLIPPAGE_PCT); pnl_reason = "Signal" # Cover on next open
-
-            # --- Execute Exit ---
-            if exit_price > 0:
-                if position == 1: # Selling to close long
-                    sell_value = position_size * exit_price; buy_value = position_size * entry_price
-                    net_sell_value = sell_value * (1 - fee); profit_usd = net_sell_value - buy_value
-                    balance += net_sell_value # Add proceeds to balance
-                elif position == -1: # Buying to cover short
-                    buy_value = position_size * exit_price; sell_value = position_size * entry_price
-                    net_buy_value = buy_value * (1 + fee); profit_usd = sell_value - net_buy_value
-                    balance += (sell_value + profit_usd) # Return collateral + profit
-                
-                pnl_pct = (profit_usd / (position_size * entry_price)) * 100 if (position_size * entry_price) != 0 else 0
-                trades.append({"action": "sell" if position == 1 else "cover", "price": exit_price, "time": df.index[i], "size": position_size, "pnl_pct": pnl_pct, "profit_usd": profit_usd, "reason": pnl_reason})
-                position = 0; position_size = 0.0; entry_price = 0.0; stop_loss_price = 0.0; take_profit_price = 0.0
-                if risk_mode == 'dynamic' and growth_target is not None and balance >= growth_target:
-                    current_risk_percent = risk_percent
-
-        # --- B. Check for Entries (if flat) ---
-        if position == 0 and balance > 0:
-            signal = df_signals[i] # Current bar's signal
-            
-            # --- Apply Filters ---
-            passes_vol_filter = True
-            if min_atr_pct is not None and min_atr_pct > 0:
-                atr_percentage = (df_atr[i] / df_close[i]) * 100 if df_close[i] > 0 else 0
-                if atr_percentage < min_atr_pct: passes_vol_filter = False
-            
-            passes_trend_filter = True
-            if sma_trend_col:
-                if signal == 1 and df_close[i] < df_trend_sma[i]: passes_trend_filter = False # Long filter
-                if signal == -1 and df_close[i] > df_trend_sma[i]: passes_trend_filter = False # Short filter
-
-            # --- Calculate Position Size ---
-            if (signal == 1 or signal == -1) and passes_vol_filter and passes_trend_filter:
-                trade_price = df_open[i+1] # Enter on next open
-                if trade_price == 0: continue # Skip if bad data
-                
-                calculated_size = 0
-                if (risk_mode == 'standard' or risk_mode == 'dynamic') and stop_loss_pct is not None and stop_loss_pct > 0:
-                    risk_amount_usd = balance * (current_risk_percent / 100.0)
-                    sl_distance_usd = trade_price * (stop_loss_pct / 100.0)
-                    calculated_size = risk_amount_usd / sl_distance_usd if sl_distance_usd > 0 else 0
-                else:
-                    calculated_size = (balance * (current_risk_percent / 100.0)) / trade_price
-                
-                # 🚀 Apply leverage cap
-                max_size_by_leverage = (balance * max_leverage) / trade_price
-                position_size = min(calculated_size, max_size_by_leverage)
-                
-                if position_size * trade_price > balance: # Final safety check
-                    position_size = balance / trade_price
-                
-                if position_size <= 1e-9: continue # Size too small
-                
-                # --- Execute Entry ---
-                if signal == 1: # --- Enter LONG ---
-                    position = 1
-                    entry_price = trade_price * (1 + SLIPPAGE_PCT) # 🚀 Add slippage
-                    balance -= position_size * entry_price
-                    if stop_loss_pct: stop_loss_price = entry_price * (1 - stop_loss_pct / 100.0)
-                    if take_profit_pct: take_profit_price = entry_price * (1 + take_profit_pct / 100.0)
-                    trades.append({"action": "buy", "price": entry_price, "time": df.index[i+1], "size": position_size})
-                
-                elif signal == -1: # --- Enter SHORT ---
-                    position = -1
-                    entry_price = trade_price * (1 - SLIPPAGE_PCT) # 🚀 Add slippage
-                    # For shorting, we add collateral (entry value) to balance, as if we borrowed
-                    # We are tracking "equity", so balance = equity - (position * price)
-                    balance += position_size * entry_price
-                    if stop_loss_pct: stop_loss_price = entry_price * (1 + stop_loss_pct / 100.0)
-                    if take_profit_pct: take_profit_price = entry_price * (1 - take_profit_pct / 100.0)
-                    trades.append({"action": "sell_short", "price": entry_price, "time": df.index[i+1], "size": position_size})
-
-        # --- C. Update Equity Curve (End of day) ---
-        equity = balance
-        if position == 1:
-            equity += (position_size * df_close[i])
-        elif position == -1:
-            equity -= (position_size * df_close[i]) # Subtract liability
-            
-        equity_curve.append({"timestamp": df.index[i], "balance": equity})
-
-    # --- 5. Calculate Final Metrics ---
-    final_balance = equity_curve[-1]['balance'] if equity_curve else initial_balance
-    total_return = (final_balance / initial_balance - 1) * 100
-    
-    equity_series = pd.Series([e['balance'] for e in equity_curve])
-    daily_returns = equity_series.pct_change().fillna(0)
-    
-    # 🚀 New Metrics
-    peak = equity_series.cummax()
-    drawdown = (equity_series - peak) / peak
-    max_drawdown = abs(drawdown.min() * 100) if not drawdown.empty else 0
-    
-    # Sharpe Ratio (assuming daily returns)
-    trading_days = len(equity_series)
-    annualization_factor = 365 / (trading_days / (equity_series.count() or 1)) # Adjust for data length
-    
-    mean_daily_return = daily_returns.mean()
-    std_daily_return = daily_returns.std()
-    
-    sharpe_ratio = (mean_daily_return * annualization_factor - RISK_FREE_RATE) / (std_daily_return * np.sqrt(annualization_factor)) if std_daily_return > 0 else 0
-    
-    # Sortino Ratio
-    downside_returns = daily_returns[daily_returns < 0]
-    downside_std = downside_returns.std()
-    sortino_ratio = (mean_daily_return * annualization_factor - RISK_FREE_RATE) / (downside_std * np.sqrt(annualization_factor)) if downside_std > 0 else 0
-    
-    # Calmar Ratio
-    calmar_ratio = (total_return / 100) / (max_drawdown / 100) if max_drawdown > 0 else 0
-
-    # 🚀 [FIX 3] This line is now correct. It uses `== 'sell'` instead of `.startswith('sell')`
-    sell_trades = [t for t in trades if t['action'] == 'sell' or t['action'] == 'cover']; total_trades = len(sell_trades)
-    if total_trades > 0:
-        all_pnl=[t['profit_usd'] for t in sell_trades]; win_pnl=[p for p in all_pnl if p>0]; lose_pnl=[p for p in all_pnl if p<=0]
-        win_rate=(len(win_pnl)/total_trades)*100; gross_profit=sum(win_pnl); gross_loss=abs(sum(lose_pnl))
-        profit_factor=gross_profit/gross_loss if gross_loss>0 else float('inf'); avg_win=sum(win_pnl)/len(win_pnl) if win_pnl else 0
-        avg_loss=abs(sum(lose_pnl))/len(lose_pnl) if lose_pnl else 0; win_count=len(win_pnl); lose_count=len(lose_pnl)
-    else: win_rate=0.0; profit_factor=0.0; avg_win=0.0; avg_loss=0.0; win_count=0; lose_count=0
-    
-    logging.info("Simulation complete. Formatting results.")
-    return {
-        "metrics": {
-            "totalReturn": total_return, "profitFactor": profit_factor, "maxDrawdown": max_drawdown, 
-            "winRate": win_rate, "totalTrades": total_trades, "averageWin": avg_win, "averageLoss": avg_loss, 
-            "finalBalance": final_balance, "winningTrades": win_count, "losingTrades": lose_count,
-            "sharpeRatio": sharpe_ratio, "sortinoRatio": sortino_ratio, "calmarRatio": calmar_ratio
-        },
-        "equityCurve": equity_curve, "trades": trades
-    }
-# --- End Backtest Engine ---
-
-# --- 🚀 NEW: Main API Endpoint (Handles ALL modes) ---
-@app.route('/api/ml/run-backtest-on', methods=['POST'])
-def handle_run_backtest_on():
-    """ Handles all backtest modes: 'on', 'off', and 'predictions'. """
-    
-    config = request.get_json();
-    if not config: return jsonify({"error": "Invalid JSON"}), 400
-    
-    # --- 1. Extract Config ---
-    symbol = config.get('symbol')
-    timeframe = config.get('timeframe')
-    start_date = config.get('startDate')
-    end_date = config.get('endDate')
-    ml_mode = config.get('mlMode', 'off')
-    ml_model_name = config.get('mlModel')
-    ml_threshold = float(config.get('mlThreshold', 0.65))
-    
-    # TA Config (for 'off' and 'predictions')
-    ta_strategy_code = config.get('code') # e.g., 'sma_crossover'
-    hybrid_mode = config.get('params', {}).get('hybridMode', 'AND')
-    
-    # Risk Config
-    initial_balance = float(config.get('initialBalance', 1000.0))
-    fee = float(config.get('fee', 0.001))
-    risk_mode = config.get('riskManagementMode','standard')
-    risk_percent = float(config.get('riskPercentage',1.0))
-    growth_target = config.get('growthCapitalTarget')
-    
-    # Param/Filter Config
-    params = config.get('params', {})
-    sl_pct = params.get('SL'); tp_pct = params.get('TP')
-    min_atr_pct = params.get('minAtrPct'); trend_period = params.get('trendFilterPeriod')
-
-    # Convert JS 'null'/'None' to Python None
-    growth_target = float(growth_target) if growth_target is not None else None
-    sl_pct = float(sl_pct) if sl_pct is not None else None
-    tp_pct = float(tp_pct) if tp_pct is not None else None
-    min_atr_pct = float(min_atr_pct) if min_atr_pct is not None else 0.0
-    trend_period = int(trend_period) if trend_period is not None else None
-
-    logging.info(f"--- Received Backtest Request ---")
-    logging.info(f"Mode: {ml_mode} | Symbol: {symbol} | Timeframe: {timeframe}")
-    logging.info(f"Date Range: {start_date} to {end_date}")
-    if ml_mode != 'off': logging.info(f"ML Model: {ml_model_name} | Threshold: {ml_threshold}")
-    if ml_mode != 'on': logging.info(f"TA Strategy: {ta_strategy_code}")
-
-    try:
-        # --- 2. Check/Download Data ---
-        safe_symbol = symbol.replace('/', '-')
-        data_filename = f"{safe_symbol}-{timeframe}.csv"
-        # 🚀 [FIX 2] Fixed typo, was data_.filename
-        data_path = os.path.join(DATA_DIR, data_filename) 
-        if not os.path.exists(data_path):
-            logging.warning(f"Raw data file not found: {data_path}. Attempting download...")
-            candles = fetch_all_historical_data(symbol, timeframe, '2017-01-01')
-            if not candles: raise Exception(f"No candles returned from exchange for {symbol} {timeframe}")
-            if not save_data_to_csv(candles, data_path): raise Exception("Failed to save downloaded data.")
-        else:
-            logging.info(f"Raw data file found at {data_path}")
-
-        # --- 3. Load & Process Data ---
-        df = pd.read_csv(data_path, index_col='datetime', parse_dates=True)
-        if df.index.tz is None: df.index = pd.to_datetime(df.index, utc=True)
-        else: df.index = df.index.tz_convert('UTC')
-        df.rename(columns={'Open':'open','High':'high','Low':'low','Close':'close','Volume':'volume'}, inplace=True, errors='ignore')
-        
-        # --- 4. Engineer ALL Features (for ML/Hybrid/Filters) ---
-        df = generate_all_features(df, trend_period)
-        
-        # --- 5. Generate Signals based on Mode ---
-        signal_column = 'final_signal' # This will be the column we backtest
-        
-        if ml_mode == 'off':
-            logging.info("Mode 'off': Generating TA signals only.")
-            if not ta_strategy_code: raise ValueError("TA Strategy 'code' is required for 'off' mode.")
-            df = generate_ta_signals(df, ta_strategy_code)
-            df[signal_column] = df['ta_signal']
-
-        elif ml_mode == 'on':
-            logging.info("Mode 'on': Generating ML signals only.")
-            if not ml_model_name: raise ValueError("ML Model name is required for 'on' mode.")
-            # Load pipeline and get ML predictions
-            pipeline = joblib.load(os.path.join(MODEL_DIR, f"{ml_model_name}.joblib"))
-            model = pipeline['model']; scaler = pipeline['scaler']; feature_names = pipeline['feature_names']; class_indices = pipeline['class_indices']
-            
-            # Prepare features
-            df_features = df[feature_names].copy().fillna(0)
-            X_scaled = scaler.transform(df_features)
-            
-            # Get 3-class probabilities
-            probabilities = model.predict_proba(X_scaled)
-            df['prob_buy'] = probabilities[:, class_indices['buy']]
-            df['prob_sell'] = probabilities[:, class_indices['sell']]
-            df['prob_hold'] = probabilities[:, class_indices['hold']]
-            
-            # Apply threshold
-            df['high_conf_prediction'] = 0
-            df.loc[(df['prob_buy'] > ml_threshold) & (df['prob_buy'] > df['prob_sell']) & (df['prob_buy'] > df['prob_hold']), 'high_conf_prediction'] = 1
-            df.loc[(df['prob_sell'] > ml_threshold) & (df['prob_sell'] > df['prob_buy']) & (df['prob_sell'] > df['prob_hold']), 'high_conf_prediction'] = -1
-            
-            df[signal_column] = df['high_conf_prediction']
-
-        elif ml_mode == 'predictions': # Hybrid Mode
-            logging.info(f"Mode 'predictions': Generating Hybrid signals (Logic: {hybrid_mode}).")
-            if not ml_model_name: raise ValueError("ML Model name is required for 'predictions' mode.")
-            if not ta_strategy_code: raise ValueError("TA Strategy 'code' is required for 'predictions' mode.")
-
-            # a) Get TA Signal
-            df = generate_ta_signals(df, ta_strategy_code)
-            
-            # b) Get ML Signal
-            pipeline = joblib.load(os.path.join(MODEL_DIR, f"{ml_model_name}.joblib"))
-            model = pipeline['model']; scaler = pipeline['scaler']; feature_names = pipeline['feature_names']; class_indices = pipeline['class_indices']
-            df_features = df[feature_names].copy().fillna(0)
-            X_scaled = scaler.transform(df_features)
-            probabilities = model.predict_proba(X_scaled)
-            df['prob_buy'] = probabilities[:, class_indices['buy']]
-            df['prob_sell'] = probabilities[:, class_indices['sell']]
-            df['prob_hold'] = probabilities[:, class_indices['hold']]
-            
-            df['high_conf_prediction'] = 0
-            df.loc[(df['prob_buy'] > ml_threshold) & (df['prob_buy'] > df['prob_sell']) & (df['prob_buy'] > df['prob_hold']), 'high_conf_prediction'] = 1
-            df.loc[(df['prob_sell'] > ml_threshold) & (df['prob_sell'] > df['prob_buy']) & (df['prob_sell'] > df['prob_hold']), 'high_conf_prediction'] = -1
-
-            # c) Combine Signals
-            df[signal_column] = 0 # Default to 0
-            if hybrid_mode == 'AND':
-                df.loc[(df['ta_signal'] == 1) & (df['high_conf_prediction'] == 1), signal_column] = 1
-                df.loc[(df['ta_signal'] == -1) & (df['high_conf_prediction'] == -1), signal_column] = -1
-            elif hybrid_mode == 'OR':
-                df.loc[(df['ta_signal'] == 1) | (df['high_conf_prediction'] == 1), signal_column] = 1
-                df.loc[(df['ta_signal'] == -1) | (df['high_conf_prediction'] == -1), signal_column] = -1
-            elif hybrid_mode == 'Regime':
-                # Example: TA signal (e.g., trend) acts as filter for ML
-                df.loc[(df['ta_signal'] == 1) & (df['high_conf_prediction'] == 1), signal_column] = 1 # Only Buy if TA agrees
-                df.loc[(df['ta_signal'] == -1) & (df['high_conf_prediction'] == -1), signal_column] = -1 # Only Sell if TA agrees
-            else:
-                df[signal_column] = df['high_conf_prediction'] # Default to ML only
-
-        # --- 6. Shift Final Signal & Slice DataFrame ---
-        df[signal_column] = df[signal_column].shift(1).fillna(0)
-        
-        # Slice *after* all features/signals are calculated
-        df_final = df.loc[start_date:end_date].copy()
-        df_final = df_final.fillna(0) # Fill any remaining NaNs
-        
-        if df_final.empty: raise ValueError("No data for date range after all processing.")
-        
-        # --- 7. Run Backtest ---
-        results = run_backtest(
-                df_final,
-                signal_column=signal_column,
-                initial_balance=initial_balance, fee=fee,
-                stop_loss_pct=sl_pct, take_profit_pct=tp_pct,
-                ml_mode=ml_mode, # 🚀 [FIX 2] Pass mode for logging
-                risk_mode=risk_mode, risk_percent=risk_percent, growth_target=growth_target,
-                min_atr_pct=min_atr_pct, trend_filter_period=trend_period
-                # 🚀 kwargs will catch any other params from config
-            )
-        
-        # 🚀 --- 8. [FIX 3] RE-HYDRATE THE RESPONSE --- 🚀
-        # This is the fix for the Node.js Mongoose validation error.
-        
-        # a) Build the 'strategy' object
-        strategy_name = "Unknown"
-        if ml_mode == 'on':
-            strategy_name = f"ML: {ml_model_name}"
-        elif ml_mode == 'predictions':
-            strategy_name = f"Hybrid: {ta_strategy_code} + {ml_model_name}"
-        else: # 'off'
-            strategy_name = f"TA: {ta_strategy_code or params.get('strategyType', 'Unknown TA')}" # Use code or param
-            
-        strategy_object = {
-            "name": strategy_name,
-            "type": ml_mode,
-            "parameters": params # Send back the params used
-            # These fields are not in your Mongoose 'strategyConfigSchema'
-            # "mlModel": ml_model_name or None, 
-            # "taCode": ta_strategy_code or None
-        }
-
-        # b) Get final balance and profit
-        final_balance = results['metrics']['finalBalance']
-        profit = final_balance - initial_balance
-        
-        # c) Parse start/end dates for ISO formatting
-        # We must send ISO strings for Mongoose Date type
-        start_date_iso = datetime.strptime(start_date, '%Y-%m-%d').isoformat() + "Z"
-        end_date_iso = datetime.strptime(end_date, '%Y-%m-%d').isoformat() + "Z"
-
-        # d) Build the complete response object for Node.js
-        full_response = {
-            "symbol": symbol,
-            "timeframe": timeframe,
-            "startDate": start_date_iso,
-            "endDate": end_date_iso,
-            "initialBalance": initial_balance,
-            "finalBalance": final_balance,
-            "profit": profit,
-            "strategy": strategy_object,
-            "candlesTested": len(results['equityCurve']),
-            "totalTrades": results['metrics']['totalTrades'],
-            "metrics": results['metrics'],
-            "equityCurve": results['equityCurve'],
-            "tradeBreakdown": results.get('trades', []) # Use .get for safety
-            # Note: 'userId' will be added by Node.js
+    // 1. Process Symbol Options
+    const processedSymbolOptions = useMemo(() => {
+        // 🚀 FIXED: If mode is 'off' (Pure TA), show all symbols as available.
+        if (data.mlMode === 'off') {
+            return symbolOptions.map(s => ({ value: s, name: s, isAvailable: true }));
         }
         
-        # --- 9. Dump and Return ---
-        response_data = json.dumps(full_response, default=convert_numpy_types)
-        logging.info(f"OK: Ran backtest for {symbol}/{ml_mode}.")
-        return jsonify(json.loads(response_data)), 200
+        // In ML 'on' or 'hybrid' mode, check against the parsed data
+        const { availableSymbols } = availableModelData;
+        
+        const sortedSymbols = [...symbolOptions].sort((a, b) => {
+            const aHas = availableSymbols.has(a);
+            const bHas = availableSymbols.has(b);
+            return (bHas ? 1 : 0) - (aHas ? 1 : 0); // Sorts `true` (available) to the top
+        });
+        
+        return sortedSymbols.map(s => {
+            const isAvailable = availableSymbols.has(s);
+            return {
+                value: s,
+                name: isAvailable ? s : `${s} (No models)`,
+                isAvailable: isAvailable
+            };
+        });
+    }, [data.mlMode, symbolOptions, availableModelData]); // 🚀 FIXED: data.mlMode is now a dependency
 
-    except FileNotFoundError as e: logging.error(f"Not Found Error: {e}", exc_info=False); return jsonify({"error": str(e)}), 404
-    except ValueError as e: logging.error(f"Value Error: {e}", exc_info=True); return jsonify({"error": str(e)}), 400
-    except KeyError as e: logging.error(f"KeyError: {e}", exc_info=True); return jsonify({"error": f"Data processing error: {e}"}), 400
-    except ccxt.ExchangeError as e: logging.error(f"Exchange Error: {e}", exc_info=True); return jsonify({"error": f"Exchange Error: {e}"}), 502
-    except Exception as e:
-        import traceback; error_details = traceback.format_exc()
-        logging.error(f"General Error: {e}\n{error_details}", exc_info=True)
-        return jsonify({"error": f"Unexpected server error: {e}"}), 500
+    // 2. Process Timeframe Options (depends on selected symbol)
+    const processedTimeframeOptions = useMemo(() => {
+        // 🚀 FIXED: If mode is 'off' (Pure TA), show all timeframes as available.
+        if (data.mlMode === 'off') {
+            return timeframeOptions.map(t => ({ value: t, name: t, isAvailable: true }));
+        }
+        
+        // If no symbol is selected yet, grey them all out
+        if (!data.symbol) {
+             return timeframeOptions.map(t => ({
+                value: t,
+                name: `${t} (Select Symbol)`,
+                isAvailable: false
+             }));
+        }
 
-# --- (Other endpoints: /api/ml/models, /api/ml/config) ---
-@app.route('/api/ml/models', methods=['GET'])
-def list_models():
-    """Lists available models (.joblib)"""
-    logging.info("Request received for /api/ml/models")
-    models = []
-    try:
-        if not os.path.exists(MODEL_DIR): logging.error(f"Model dir not found: {MODEL_DIR}"); return jsonify([]), 500
-        for filename in os.listdir(MODEL_DIR):
-            if filename.endswith('.joblib'):
-                model_id = os.path.splitext(filename)[0]
-                if model_id and not model_id.startswith('.'):
-                    model_name = model_id.replace('_', ' ').title()
-                    models.append({"id": model_id, "name": model_name})
-        logging.info(f"Found {len(models)} models.")
-        return jsonify(models), 200
-    except Exception as e: logging.error(f"Error listing models: {e}", exc_info=True); return jsonify([]), 500
+        const { lookup } = availableModelData; // e.g., Set {'BTC-USD_1h', 'ETH-USD_4h'}
+        
+        const sortedTimeframes = [...timeframeOptions].sort((a, b) => {
+            const aHas = lookup.has(`${data.symbol}_${a}`);
+            const bHas = lookup.has(`${data.symbol}_${b}`);
+            return (bHas ? 1 : 0) - (aHas ? 1 : 0);
+        });
+        
+        return sortedTimeframes.map(t => {
+            const isAvailable = lookup.has(`${data.symbol}_${t}`);
+            return {
+                value: t,
+                name: isAvailable ? t : `${t} (No model)`,
+                isAvailable: isAvailable
+            };
+        });
+    }, [data.mlMode, data.symbol, timeframeOptions, availableModelData]); // 🚀 FIXED: data.mlMode is now a dependency
 
-@app.route('/api/ml/config/<model_name>', methods=['GET'])
-def get_model_config(model_name):
-    logging.info(f"Request for /api/ml/config/{model_name}")
-    model_path = os.path.join(MODEL_DIR, f"{model_name}.joblib")
-    if not os.path.exists(model_path): return jsonify({"error": f"Model '{model_name}.joblib' not found."}), 404
-    try:
-        pipeline = joblib.load(model_path)
-        features = []
-        if 'feature_names' in pipeline: features = pipeline['feature_names']
-        else: logging.warning(f"Cannot auto-detect features for {model_name}.")
-        logging.info(f"Return {len(features)} features"); return jsonify({"features": features})
-    except Exception as e: logging.error(f"Error get config {model_name}: {e}"); return jsonify({"error": f"Failed get config"}), 500
+    // 🚀 --- END NEW LOGIC --- 🚀
 
-# --- (serve_data_file endpoint remains unchanged) ---
-@app.route('/data/<path:filename>', methods=['GET'])
-def serve_data_file(filename):
-    logging.info(f"Request for data file: {filename}")
-    safe_base = os.path.abspath(DATA_DIR); requested_path = os.path.abspath(os.path.join(DATA_DIR, filename))
-    if not requested_path.startswith(safe_base): logging.warning(f"Path block: {filename}"); return jsonify({"error": "Invalid filename"}), 400
-    if not os.path.exists(requested_path): logging.warning(f"Data file not found: {requested_path}"); return jsonify({"error": "Data file not found"}), 404
-    try: return send_from_directory(DATA_DIR, filename, as_attachment=False)
-    except Exception as e: logging.error(f"Error serving {filename}: {e}"); return jsonify({"error": "Could not serve file"}), 500
+    return (
+        <>
+            {/* 🚀 UPDATED Symbol Dropdown */}
+            <label>Symbol:
+                <select 
+                    name="symbol" 
+                    value={data.symbol} 
+                    onChange={handleGlobalChange} 
+                    disabled={!processedSymbolOptions.length}
+                    title="Select the market (e.g., BTC-USD) to run the backtest on."
+                >
+                    <option value="">-- Select Symbol --</option>
+                    {processedSymbolOptions.map(s => (
+                        <option 
+                            key={s.value} 
+                            value={s.value} 
+                            // 🚀 FIXED: Disable only if mode is NOT 'off' AND not available
+                            disabled={data.mlMode !== 'off' && !s.isAvailable} 
+                            style={{ color: (data.mlMode !== 'off' && !s.isAvailable) ? '#888' : 'white' }}
+                        >
+                            {s.name}
+                        </option>
+                    ))}
+                </select>
+            </label>
 
-# --- Main ---
-if __name__ == '__main__':
-    try:
-        import sys # Make sure sys is imported
-        logging.info("Starting Flask server with HTTPS on port 8001...")
-        cert_path='cert.pem'; key_path='key.pem'
-        if not os.path.exists(cert_path) or not os.path.exists(key_path): 
-            logging.error(f"SSL cert/key not found! Cannot start HTTPS.")
-            sys.exit("SSL files missing.")
-        app.run(host='0.0.0.0', port=8001, debug=False, ssl_context=(cert_path, key_path))
-    except Exception as e:
-        logging.error(f"Failed to start Flask server: {e}", exc_info=True)
+            {/* 🚀 UPDATED Timeframe Dropdown */}
+            <label>Timeframe:
+                <select 
+                    name="timeframe" 
+                    value={data.timeframe} 
+                    onChange={handleGlobalChange} 
+                    disabled={!processedTimeframeOptions.length}
+                    title="Select the chart timeframe (e.g., 1h, 4h, 1d) for the backtest."
+                >
+                    <option value="">-- Select Timeframe --</option>
+                    {processedTimeframeOptions.map(t => (
+                        <option 
+                            key={t.value} 
+                            value={t.value} 
+                            // 🚀 FIXED: Disable only if mode is NOT 'off' AND not available
+                            disabled={data.mlMode !== 'off' && !t.isAvailable} 
+                            style={{ color: (data.mlMode !== 'off' && !t.isAvailable) ? '#888' : 'white' }}
+                        >
+                            {t.name}
+                        </option>
+                    ))}
+                </select>
+            </label>
+
+            {/* Date Inputs */}
+            <label>Start Date: 
+                <input 
+                    type="date" 
+                    name="startDate" 
+                    value={data.startDate} 
+                    onChange={handleGlobalChange} 
+                    title="The first day of the backtest period (YYYY-MM-DD)."
+                />
+            </label>
+            <label>End Date: 
+                <input 
+                    type="date" 
+                    name="endDate" 
+                    value={data.endDate} 
+                    onChange={handleGlobalChange} 
+                    title="The last day of the backtest period (YYYY-MM-DD)."
+                />
+            </label>
+            <label>Initial Balance: 
+                <input 
+                    type="number" 
+                    name="initialBalance" 
+                    value={data.initialBalance} 
+                    onChange={handleGlobalChange} 
+                    min="1" 
+                    step="1" 
+                    title="The starting cash balance (e.g., 1000) for the backtest."
+                />
+            </label>
+
+            {/* Risk Management Section */}
+            <fieldset title="Configure how much capital to risk on each trade.">
+                <legend>Risk Management</legend>
+                <label>Mode:
+                    <select 
+                        name="riskManagementMode" 
+                        value={data.riskManagementMode} 
+                        onChange={handleGlobalChange}
+                        title="Select the risk management style. 'Standard Risk %' uses a fixed percentage of your balance for each trade. 'Dynamic Growth Mode' risks more aggressively to reach a target."
+                    >
+                        <option value="standard">Standard Risk %</option>
+                        <option value="dynamic">Dynamic Growth Mode</option>
+                    </select>
+                </label>
+                {data.riskManagementMode === 'standard' ? (
+                    <label>Risk Per Trade (%): 
+                        <input 
+                            type="number" 
+                            name="riskPercentage" 
+                            value={data.riskPercentage} 
+                            onChange={handleGlobalChange} 
+                            step="0.1" 
+                            min="0.1" 
+                            title="The percentage of your total equity to risk per trade (e.g., 1 for 1%)."
+                        /> 
+                    </label>
+                ) : (
+                    <>
+                        <label>Growth Capital Target ($): 
+                            <input 
+                                type="number" 
+                                name="growthCapitalTarget" 
+                                value={data.growthCapitalTarget} 
+                                onChange={handleGlobalChange} 
+                                min="1" 
+                                step="1" 
+                                title="In 'Dynamic Growth Mode', this is the equity target. The system will risk aggressively to reach this target, then revert to the 'Risk %' setting."
+                            /> 
+                        </label>
+                        <label>Risk % (After Target): 
+                            <input 
+                                type="number" 
+                                name="riskPercentage" 
+                                value={data.riskPercentage} 
+                                onChange={handleGlobalChange} 
+                                step="0.1" 
+                                min="0.1" 
+                                title="In 'Dynamic Growth Mode', this is the standard risk % to use *after* your equity target has been reached."
+                            /> 
+                        </label>
+                    </>
+                )}
+            </fieldset>
+
+            {/* Machine Learning Section */}
+            <fieldset title="Configure Machine Learning model integration.">
+                <legend>Machine Learning</legend>
+                <label>Mode:
+                    <select 
+                        name="mlMode" 
+                        value={data.mlMode || "off"} 
+                        onChange={handleGlobalChange}
+                        title="Select the backtest mode. 'Off' uses only TA signals. 'Hybrid' uses TA signals filtered by an ML model. 'On' uses only ML model signals."
+                    >
+                        <option value="off">Off (Pure TA)</option>
+                        <option value="predictions">Hybrid (TA + ML Filter)</option>
+                        <option value="on">On (Pure ML)</option>
+                    </select>
+                </label>
+                {data.mlMode !== "off" && (
+                    <>
+                        {/* 🚀 [ISSUE #3] UPDATED Model Dropdown */}
+                        <label>Model:
+                            <select 
+                                name="mlModel" 
+                                value={data.mlModel} 
+                                onChange={handleGlobalChange} 
+                                // 🚀 FIXED: Simplified disable logic
+                                disabled={allModelOptions.length === 0}
+                                title="Select the pre-trained ML model to use. The model's name (e.g., 'ada_30m_...') MUST match your selected Symbol (ADA-USD) and Timeframe (30m) to avoid an error."
+                            >
+                                <option value="">-- Select Model --</option>
+                                {
+                                    // 🚀 FIXED: Always show all models for 'on' and 'predictions'
+                                    allModelOptions.map(m => (
+                                        <option key={m.id} value={m.id}>{m.name}</option>
+                                    ))
+                                }
+                            </select>
+                        </label>
+                        <label>Confidence Threshold: 
+                            <input 
+                                type="number" 
+                                name="mlThreshold" 
+                                value={data.mlThreshold || 0.5} 
+                                step="0.01" 
+                                min="0" 
+                                max="1" 
+                                onChange={handleGlobalChange} 
+                                title="The minimum confidence (0.0 to 1.0) from the ML model to consider a signal valid. e.g., 0.65 = 65% confidence."
+                            /> 
+                        </label>
+                        <label>Prediction Horizon: 
+                            <input 
+                                type="number" 
+                                name="mlHorizon" 
+                                value={data.mlHorizon || 1} 
+                                step="1" 
+                                min="1" 
+                                onChange={handleGlobalChange} 
+                                title="The number of bars/candles the model was trained to predict. (e.g., 1 = next bar). This must match the model's training."
+                            /> 
+                        </label>
+
+                        {/* Hybrid Logic Selector */}
+                        {data.mlMode === 'predictions' && (
+                            <label>Hybrid Logic:
+                                <select 
+                                    name="hybridMode" 
+                                    value={params.hybridMode ?? 'AND'} 
+                                    onChange={handleParamChange}
+                                    title="How to combine TA and ML signals in 'Hybrid' mode. 'AND' requires both. 'OR' allows either. 'Regime' uses the TA signal as a long-term trend filter."
+                                >
+                                    <option value="AND">TA AND ML (Strict Filter)</option>
+                                    <option value="OR">TA OR ML (Permissive)</option>
+                                    <option value="Regime">TA as Regime Filter</option>
+                                </select>
+                            </label>
+                        )}
+                    </>
+                )}
+            </fieldset>
+
+            {/* Advanced Filters Section */}
+            <fieldset title="Apply advanced filters to your strategy signals.">
+                <legend>Advanced Filters</legend>
+                <label>Volatility Filter (Min ATR %):
+                    <input 
+                        type="number" 
+                        name="minAtrPct" 
+                        value={params.minAtrPct ?? 0} 
+                        onChange={handleParamChange} 
+                        step="0.05" 
+                        min="0" 
+                        title="A volatility filter. The strategy will ONLY trade if the current ATR (Average True Range) as a percentage of price is *above* this value. e.g., 0.5 = only trade if volatility is at least 0.5% of the price. Set to 0 to disable."
+                    />
+                </label>
+                {(data.mlMode === 'on' || (data.mlMode === 'predictions' && params.hybridMode === 'Regime')) && (
+                    <label>Trend Filter SMA Period:
+                        <input 
+                            type="number" 
+                            name="trendFilterPeriod" 
+                            value={params.trendFilterPeriod ?? 200} 
+                            onChange={handleGlobalChange} 
+                            step="1" 
+                            min="1" 
+                            title="A long-term trend filter. The strategy will only take trades in the direction of this SMA. (e.g., 200). Only Longs if Price > SMA, only Shorts if Price < SMA."
+                        />
+                    </label>
+                )}
+            </fieldset>
+
+            {/* SL/TP Inputs (Only for Single mode form) */}
+            {!isCombo && (
+                <>
+                    <label>Stop Loss (%):
+                        <input 
+                            type="number" 
+                            name="SL" 
+                            value={params.SL ?? 5.0} 
+                            onChange={handleParamChange} 
+                            step="0.1" 
+                            min="0" 
+                            title="The Stop Loss for the TA strategy, as a percentage from the entry price (e.g., 5 = 5%)."
+                        />
+                    </label>
+                    <label>Take Profit (%):
+                        <input 
+                            type="number" 
+                            name="TP" 
+                            value={params.TP ?? 10.0} 
+                            onChange={handleParamChange} 
+                            step="0.1" 
+                            min="0" 
+                            title="The Take Profit for the TA strategy, as a percentage from the entry price (e.g., 10 = 10%)."
+                        />
+                    </label>
+                </>
+            )}
+        </>
+    );
+};
+
+// ... (ComboStrategyCard component is unchanged) ...
+const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, disableRemove }) => {
+  const handleChange = (e) => onChange(e, idx);
+  return (
+    <div className="combo-card">
+      <div className="combo-card-header"><strong>Strategy #{idx + 1}</strong>
+        {!disableRemove && <button type="button" onClick={() => onRemove(idx)} className="remove-btn">✕</button>}
+      </div>
+      <div className="combo-card-body">
+        <label>Strategy:
+          <select 
+            name="code" 
+            value={config.code} 
+            onChange={handleChange} 
+            disabled={!strategies.length}
+            title="Select the TA strategy for this card in the combo."
+          >
+            <option value="">-- Select --</option>
+            {strategies.length ? strategies.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option disabled>Loading...</option>}
+          </select>
+        </label>
+        <label>Stop Loss (%): 
+            <input 
+                type="number" 
+                name="param_SL" 
+                value={config.params?.SL ?? 5.0} 
+                onChange={handleChange} 
+                step="0.1" 
+                min="0" 
+                title="Override the global Stop Loss % for this specific strategy."
+            />
+        </label>
+        <label>Take Profit (%): 
+            <input 
+                type="number" 
+                name="param_TP" 
+                value={config.params?.TP ?? 10.0} 
+                onChange={handleChange} 
+                step="0.1" 
+                min="0" 
+                title="Override the global Take Profit % for this specific strategy."
+            />
+        </label>
+      </div>
+    </div>
+  );
+};
+
+
+// --- Main Page Component ---
+export default function Backtests() {
+  const { state, runNewBacktest, runComboBacktest, getPastBacktests } = useBacktest(); // Destructure getPastBacktests
+  const { loading = 'initial', error = null, options = {} } = state || {};
+
+  // 🚀 DEBUG: STEP 1
+  // console.log("STEP 1: Raw options from hook:", options);
+
+  const [formData, setFormData] = useState(initialFormData);
+  const [comboData, setComboData] = useState(initialComboData);
+  const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
+  const [activeTab, setActiveTab] = useState('single');
+
+  // 🚀 NEW FIX: This hook transforms the raw strategies from the DB
+  // into the format that the Python server expects.
+  const strategyOptions = useMemo(() => {
+    if (!options?.strategies) return [];
+    
+    // 🚀 Transform the strategies to use the Python-compatible 'code'
+    return options.strategies.map(strategy => {
+      // Find the Python-compatible code from our map
+      // e.g., "RSI" -> "rsi_divergence"
+      const pythonCode = STRATEGY_TYPE_TO_CODE_MAP[strategy.params?.strategyType];
+      
+      if (pythonCode) {
+        // This is a valid, mapped strategy
+        return {
+          ...strategy,
+          code: pythonCode // <-- This is the fix! 'rsitest1' (db code) is replaced with 'rsi_divergence' (python code)
+        };
+      }
+      
+      // This is an unknown or un-mapped strategy, log it and filter it out
+      console.warn(`Unmapped strategy: ${strategy.name} (type: ${strategy.params?.strategyType}). It will not be available in dropdowns.`);
+      return null; 
+    }).filter(Boolean); // filter(Boolean) removes all null entries
+    
+  }, [options?.strategies]);
+  
+  // Memoize other options
+  const symbolOptions = useMemo(() => options?.symbols || [], [options?.symbols]);
+  const timeframeOptions = useMemo(() => options?.timeframes || [], [options?.timeframes]);
+  
+  // 🚀 --- 🚀 🚀 🚀 --- 🚀
+  // 🚀 THIS IS THE UPGRADE for sorting your models
+  // 🚀 --- 🚀 🚀 🚀 --- 🚀
+  
+  // 1. Helper to give timeframes a sortable "weight"
+  const timeframeWeights = {
+      '30m': 1,
+      '1h': 2,
+      '4h': 3,
+      '1d': 4,
+      '1w': 5,
+  };
+  
+  // 2. Parse and Sort the Model List (Full List)
+  const modelOptions = useMemo(() => {
+      if (!options?.models) return [];
+
+      // Parse each model name
+      const parsedModels = options.models.map(model => {
+          const parts = model.id.split('_');
+          let symbolBase = 'zzz'; // Default to last
+          let timeframe = 'zzz';
+          let tfWeight = 99;
+          let modelName = model.name;
+          
+          if (parts.length >= 3) {
+              symbolBase = parts[0]; // 'btc'
+              timeframe = parts[1];  // '1h'
+              tfWeight = timeframeWeights[timeframe] || 99;
+              modelName = parts.slice(2).join('_'); // 'xgboost_model'
+          }
+          return { ...model, symbolBase, timeframe, tfWeight, modelName };
+      });
+      
+      // Sort the parsed list
+      parsedModels.sort((a, b) => {
+          // Sort by Symbol (A-Z)
+          if (a.symbolBase < b.symbolBase) return -1;
+          if (a.symbolBase > b.symbolBase) return 1;
+          
+          // If Symbol is same, sort by Timeframe (smallest first)
+          if (a.tfWeight < b.tfWeight) return -1;
+          if (a.tfWeight > b.tfWeight) return 1;
+          
+          // If Timeframe is same, sort by Model Name (A-Z)
+          if (a.modelName < b.modelName) return -1;
+          if (a.modelName > b.modelName) return 1;
+          
+          return 0;
+      });
+      
+      return parsedModels;
+  }, [options?.models]);
+  // 🚀 --- END OF SORTING UPGRADE --- 🚀
+
+  // 🚀 DEBUG: STEP 2
+  // console.log("STEP 2: Full parsed & sorted modelOptions:", modelOptions);
+
+
+  // 🚀 --- 🚀 🚀 🚀 --- 🚀
+  // 🚀 THIS IS THE UPGRADE that fixes the "chicken-and-egg" bug
+  // 🚀 --- 🚀 🚀 🚀 --- 🚀
+  const availableModelData = useMemo(() => {
+    const availableSymbols = new Set(); // e.g., 'BTC-USD'
+    const availableTimeframes = new Set(); // e.g., '1h'
+    const lookup = new Set(); // e.g., 'BTC-USD_1h'
+
+    if (!modelOptions.length) {
+        // If models haven't loaded, return empty sets
+        return { availableSymbols, availableTimeframes, lookup };
+    }
+
+    for (const model of modelOptions) {
+        // model.id is 'btc_1h_xgboost_model'
+        // We can use the pre-parsed values now
+        const { symbolBase, timeframe } = model;
+        
+        // 🚀 FIXED: Changed "/" to "-" to match your symbol format
+        const fullSymbol = `${model.symbolBase.toUpperCase()}-USD`; 
+        
+        availableSymbols.add(fullSymbol);
+        availableTimeframes.add(timeframe);
+        lookup.add(`${fullSymbol}_${timeframe}`);
+    }
+    return { availableSymbols, availableTimeframes, lookup };
+  }, [modelOptions]); // 🚀 FIXED: Only depends on modelOptions
+  // 🚀 --- END OF UPGRADE --- 🚀
+
+  // 🚀 DEBUG: STEP 3
+  // console.log("STEP 3: Available Model Data (The Sets):", availableModelData);
+
+  // 🚀 --- 🚀 🚀 🚀 --- 🚀
+  // 🚀 [ISSUE #3] DELETED the uniqueOnModeModels hook.
+  // 🚀 --- 🚀 🚀 🚀 --- 🚀
+
+
+  // --- Effects to set default form values when options load ---
+  useEffect(() => {
+    // 🚀 This effect now uses the *transformed* strategyOptions
+    if (strategyOptions.length > 0 && !formData.code) {
+      const defaultStrategy = strategyOptions[0];
+      setFormData(prev => ({ ...prev, code: defaultStrategy.code, params: { ...defaultStrategy.params, ...prev.params } }));
+    }
+  }, [strategyOptions, formData.code]); // Added formData.code to dependency
+
+  useEffect(() => {
+    // 🚀 This effect now uses the *transformed* strategyOptions
+    if (strategyOptions.length > 0 && comboData.strategies.every(c => !c.code)) {
+      const newConfigs = comboData.strategies.map((config, index) => {
+        const strategy = strategyOptions[index] || strategyOptions[0];
+        return { code: strategy.code, params: { ...strategy.params, SL: 5.0, TP: 10.0 } };
+      });
+      setComboData(prev => ({ ...prev, strategies: newConfigs }));
+    }
+  }, [strategyOptions, comboData.strategies]); // Added comboData.strategies
+
+  // 🚀 --- 🚀 🚀 🚀 --- 🚀
+  // 🚀 [ISSUE #1] Set Default Symbol from Model List
+  // 🚀 --- 🚀 🚀 🚀 --- 🚀
+  useEffect(() => {
+    // Wait for ALL lists to be ready and ensure symbol isn't already set
+    if (symbolOptions.length > 0 && modelOptions.length > 0 && !formData.symbol) {
+        
+        // 1. Get symbol from the first *sorted* model
+        const firstModel = modelOptions[0]; // e.g., { symbolBase: 'btc', ... }
+        // 🚀 FIXED: Changed "/" to "-" to match your symbol format
+        const firstModelSymbol = `${firstModel.symbolBase.toUpperCase()}-USD`; // e.g., "BTC-USD"
+        
+        let defaultSymbol = "";
+        
+        // 2. Check if this symbol actually exists in the main symbol list
+        if (symbolOptions.includes(firstModelSymbol)) {
+            defaultSymbol = firstModelSymbol;
+        } else {
+            // 3. Fallback: find BTC-USD or use the very first symbol
+            defaultSymbol = symbolOptions.find(s => s === 'BTC-USD') || symbolOptions[0];
+        }
+        
+        setFormData(prev => ({ ...prev, symbol: defaultSymbol }));
+        setComboData(prev => ({ ...prev, symbol: defaultSymbol }));
+    }
+  }, [symbolOptions, modelOptions, formData.symbol]); // 🚀 FIXED Dependencies
+  // 🚀 --- END OF [ISSUE #1] --- 🚀
+
+  useEffect(() => {
+    if (timeframeOptions.length && !formData.timeframe) {
+        const defaultTimeframe = timeframeOptions.find(t => t === '1h') || timeframeOptions[0];
+        setFormData(prev => ({ ...prev, timeframe: defaultTimeframe }));
+        setComboData(prev => ({ ...prev, timeframe: defaultTimeframe }));
+    }
+  }, [timeframeOptions, formData.timeframe]); // Added formData.timeframe
+
+  // 🚀 --- NEW: Effect to dynamically change date range based on ML Mode --- 🚀
+  useEffect(() => {
+    const { startDate: defaultStart, endDate: defaultEnd } = getDefaultDates();
+    const mlStartDate = getMLStartDate(); // '2017-01-01'
+
+    const currentForm = activeTab === 'single' ? formData : comboData;
+    const setForm = activeTab === 'single' ? setFormData : setComboData;
+
+    setForm(prev => {
+      // Only update dates if they are DIFFERENT from the ones that should be set
+      const newStartDate = prev.mlMode === 'on' ? mlStartDate : defaultStart;
+      if (prev.startDate !== newStartDate || prev.endDate !== defaultEnd) {
+        return {
+          ...prev,
+          startDate: newStartDate,
+          endDate: defaultEnd
+        };
+      }
+      return prev; // Return previous state if no change is needed
+    });
+    
+  }, [formData.mlMode, comboData.mlMode, activeTab]); // 🚀 FIXED Dependencies
+  // 🚀 --- END NEW EFFECT --- 🚀
+
+  
+  // 🚀 --- 🚀 🚀 🚀 --- 🚀
+  // 🚀 [ISSUE #2] THIS IS THE UPGRADE to fix the default model selection
+  // 🚀 --- 🚀 🚀 🚀 --- 🚀
+  
+  // This hook auto-selects the default model for the SINGLE form
+  useEffect(() => {
+    const mode = formData.mlMode;
+    // 🚀 FIXED: Don't run if ML is off or models aren't loaded
+    if (mode === 'off' || modelOptions.length === 0) return;
+
+    // 🚀 FIXED: Apply same logic to 'on' AND 'predictions'
+    if (mode === 'on' || mode === 'predictions') {
+        const currentModel = formData.mlModel;
+        const isValid = modelOptions.some(m => m.id === currentModel);
+        
+        // If current model isn't in the full list, select the first one
+        if (!isValid) {
+            setFormData(prev => ({
+                ...prev,
+                mlModel: modelOptions[0].id // Default to first *full* list model
+            }));
+        }
+    }
+  }, [modelOptions, formData.mlMode, formData.mlModel]); // 🚀 FIXED: Removed uniqueOnModeModels
+
+
+  // This hook auto-selects the default model for the COMBO form
+  useEffect(() => {
+    const mode = comboData.mlMode;
+    // 🚀 FIXED: Don't run if ML is off or models aren't loaded
+    if (mode === 'off' || modelOptions.length === 0) return;
+
+    // 🚀 FIXED: Apply same logic to 'on' AND 'predictions'
+    if (mode === 'on' || mode === 'predictions') {
+        const currentModel = comboData.mlModel;
+        const isValid = modelOptions.some(m => m.id === currentModel);
+
+        if (!isValid) {
+            setComboData(prev => ({
+                ...prev,
+                mlModel: modelOptions[0].id // Default to first *full* list model
+            }));
+        }
+    }
+  }, [modelOptions, comboData.mlMode, comboData.mlModel]); // 🚀 FIXED: Removed uniqueOnModeModels
+  // 🚀 --- END OF [ISSUE #2] BUG FIX --- 🚀
+
+
+  // ... (useMemo for combinedEquityCurve, pieData remains unchanged) ...
+  const { combinedEquityCurve, combinedMetrics } = useMemo(() => {
+      try {
+        const mainResult = backtestResults?.main || backtestResults?.combinedResult;
+        if (mainResult?.metrics && mainResult?.equityCurve) {
+          return {
+            combinedEquityCurve: (mainResult.equityCurve || []).map(p => ({ ...p, timestamp: new Date(p.timestamp).getTime() })),
+            combinedMetrics: mainResult.metrics || null,
+          };
+        }
+        return { combinedEquityCurve: [], combinedMetrics: null };
+      } catch (e) {
+        console.error("Error processing results:", e);
+        return { combinedEquityCurve: [], combinedMetrics: null };
+      }
+  }, [backtestResults]);
+  const pieData = useMemo(() => {
+    if (!combinedMetrics || typeof combinedMetrics.winningTrades !== 'number' || typeof combinedMetrics.totalTrades !== 'number') return [];
+    const wins = combinedMetrics.winningTrades;
+    const losses = combinedMetrics.totalTrades - wins;
+    if (wins <= 0 && losses <= 0) return [];
+    return [{ name: "Wins", value: wins }, { name: "Losses", value: losses }];
+  }, [combinedMetrics]);
+
+
+  // Initial loading screen
+  if (loading === 'initial') {
+    return (
+        <div className="dashboard-container">
+            <h1>Backtests</h1>
+            <div className="loading-overlay" style={{ position: 'relative', background: 'none' }}>
+                <h3>Initializing Backtest Environment...</h3>
+                <div className="spinner"></div>
+            </div>
+        </div>
+    );
+  }
+
+
+  // --- Event Handlers (handleFormChange, handleComboChange, etc. are unchanged) ---
+  const handleFormChange = (e) => {
+    const { name, value, type } = e.target;
+    const val = type === 'number' && value !== '' ? parseFloat(value) : (type === 'checkbox' ? e.target.checked : value);
+    if (name === 'code') {
+      // 🚀 This now uses the *transformed* strategyOptions
+      const selectedStrategy = strategyOptions.find(s => s.code === value);
+      setFormData(prev => ({ ...prev, code: value, params: { ...prev.params, ...(selectedStrategy?.params || {}) } }));
+    } else if (name.startsWith("param_")) {
+      const paramName = name.substring(6);
+      setFormData(prev => ({ ...prev, params: { ...prev.params, [paramName]: val } }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: val }));
+    }
+  };
+  const handleComboChange = (e) => {
+    const { name, value, type } = e.target;
+    const val = type === 'number' && value !== '' ? parseFloat(value) : (type === 'checkbox' ? e.target.checked : value);
+    if (name.startsWith("param_")) {
+      const paramName = name.substring(6);
+      setComboData(prev => ({ ...prev, params: { ...prev.params, [paramName]: val } }));
+    } else {
+      setComboData(prev => ({ ...prev, [name]: val }));
+    }
+  };
+  const handleStrategyConfigChange = (e, index) => {
+    const { name, value, type } = e.target;
+    const isParam = name.startsWith("param_");
+    const val = type === 'number' && value !== '' ? parseFloat(value) : (type === 'checkbox' ? e.target.checked : value);
+    const updatedStrategies = [...comboData.strategies];
+    const currentConfig = { ...updatedStrategies[index] };
+    if (isParam) {
+      const paramName = name.substring(6);
+      currentConfig.params = { ...(currentConfig.params || {}), [paramName]: val };
+    } else if (name === 'code') {
+      // 🚀 This now uses the *transformed* strategyOptions
+      const selectedStrategy = strategyOptions.find(s => s.code === value);
+      currentConfig.code = value;
+      currentConfig.params = { ...(selectedStrategy?.params || {}), SL: currentConfig.params?.SL ?? 5.0, TP: currentConfig.params?.TP ?? 10.0, };
+    }
+    updatedStrategies[index] = currentConfig;
+    setComboData(prev => ({ ...prev, strategies: updatedStrategies }));
+  };
+  const addStrategyCard = () => {
+    // 🚀 This now uses the *transformed* strategyOptions
+    const defaultStrategy = strategyOptions[0] || {};
+    const newCard = { code: defaultStrategy.code || "", params: { ...(defaultStrategy.params || {}), SL: 5.0, TP: 10.0 } };
+    setComboData(prev => ({ ...prev, strategies: [...prev.strategies, newCard] }));
+  };
+  const removeStrategyCard = (index) => {
+    if (comboData.strategies.length <= 1) return;
+    setComboData(prev => ({ ...prev, strategies: prev.strategies.filter((_, i) => i !== index) }));
+  };
+
+  // --- Submit Handlers (Unchanged) ---
+  const handleRunBacktest = async (e) => {
+    e.preventDefault();
+    if (formData.mlMode !== 'off' && !formData.mlModel) { alert("Please select an ML model."); return; }
+    if (formData.mlMode === 'off' && !formData.code) { alert("Please select a TA Strategy."); return; }
+    setBacktestResults({ main: null, individuals: [] });
+    try {
+      // 🚀 This now calls the correct, un-mocked hook
+      const res = await runNewBacktest?.(formData);
+      if (res) { setBacktestResults({ main: res, individuals: [] }); }
+    } catch (err) { console.error("Single backtest submission failed:", err.message); }
+  };
+  const handleRunComboBacktest = async (e) => {
+    e.preventDefault();
+    if (comboData.mlMode !== 'off' && !comboData.mlModel) { alert("Please select an ML model for the combo."); return; }
+    if (comboData.strategies.filter(s => s.code?.trim()).length < 1) { alert("Please select at least one TA strategy for the combo."); return; }
+    setBacktestResults({ main: null, individuals: [] });
+    try {
+      // 🚀 This now calls the correct, un-mocked hook
+      const comboRes = await runComboBacktest?.(comboData);
+      if (comboRes) { setBacktestResults(comboRes); }
+    } catch (err) { console.error("Combo backtest submission failed:", err.message); }
+  };
+
+  // --- UI Helper Functions (Unchanged) ---
+  const getButtonText = (loadingState) => {
+    switch (loadingState) {
+      case 'running_ml': return 'Processing ML...';
+      case 'running_backtest': return 'Running Backtest...';
+      case 'running_combo': return 'Running Combo...';
+      case 'fetching': return 'Fetching Data...';
+      case 'running': return 'Processing...';
+      case 'idle':
+      default: return activeTab === 'single' ? 'Run Backtest' : 'Run Combo Backtest';
+    }
+  };
+  const getStatusMessage = (loadingState, currentFormData) => {
+    switch (loadingState) {
+      case 'running_ml':
+        if (currentFormData?.mlMode === 'predictions') return 'Fetching external ML features & predictions...';
+        if (currentFormData?.mlMode === 'on') return 'Running Python ML backtest (loading data, applying model, simulating)...';
+        // 🚀 FIXED: This message now correctly applies to 'off' mode too
+        return 'Running Python backtest...';
+      case 'running_backtest':
+        // This case is likely no longer used, but we leave the logic
+        if (currentFormData?.mlMode === 'off') return 'Running TA simulation in Node.js...';
+        if (currentFormData?.mlMode === 'on') return 'Initiating Python ML backtest... (Checking cache)';
+        return 'Starting backtest simulation...';
+      case 'running_combo':
+        // 🚀 FIXED: This message is now generic for all combo modes
+        return 'Running Combo Backtest in Python...';
+      case 'fetching': return 'Fetching required data...';
+      case 'running': return 'Processing request...';
+      default: return 'Processing...';
+    }
+  };
+
+  // Updated single submit logic
+  const isSingleSubmitDisabled = loading !== 'idle' ||
+    (!options?.symbols?.length) ||
+    (formData.mlMode === 'off' && !formData.code) ||
+    (formData.mlMode === 'predictions' && (!formData.code || !formData.mlModel)) ||
+    (formData.mlMode === 'on' && !formData.mlModel);
+
+  // Updated combo submit logic
+  const isComboSubmitDisabled = loading !== 'idle' ||
+    (!options?.symbols?.length) ||
+    (comboData.mlMode === 'predictions' && (!comboData.mlModel)) ||
+    (comboData.mlMode === 'on' && !comboData.mlModel) ||
+    (comboData.strategies.filter(s => s.code?.trim()).length < 1);
+
+  const currentFormDataForStatus = activeTab === 'single' ? formData : comboData;
+
+  // --- Render JSX ---
+  return (
+    <div className="dashboard-container">
+      <h1>Backtests</h1>
+      {error && <div className="error-box"><h4>Backtest Error</h4><p>{error.message || 'An unknown error occurred.'}</p></div>}
+
+      <div className="backtest-main">
+        <div className="backtest-forms">
+          {/* Tabs */}
+          <div className="tabs">
+            <button className={activeTab === 'single' ? 'active' : ''} onClick={() => setActiveTab('single')}>Single Strategy</button>
+            <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo Strategy</button>
+          </div>
+
+          {/* Single Strategy Form */}
+          {activeTab === 'single' && (
+            <form onSubmit={handleRunBacktest} className="backtest-form">
+              {(formData.mlMode === 'off' || formData.mlMode === 'predictions') && (
+                <label>Strategy:
+                  <select 
+                    name="code" 
+                    value={formData.code} 
+                    onChange={handleFormChange} 
+                    disabled={!strategyOptions.length}
+                    title="Select the core Technical Analysis (TA) strategy to run."
+                  >
+                    <option value="">-- Select TA Strategy --</option>
+                    {/* 🚀 This now maps over the *transformed* strategyOptions */}
+                    {strategyOptions.length ? strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option disabled>Loading...</option>}
+                  </select>
+                </label>
+              )}
+              <CommonBacktestInputs
+                  data={formData}
+                  onChange={handleFormChange}
+                  // 🚀 FIXED: Removed uniqueOnModeModels from prop
+                  options={{ symbolOptions, timeframeOptions, modelOptions }}
+                  availableModelData={availableModelData}
+                  isCombo={false}
+              />
+              <button type="submit" disabled={isSingleSubmitDisabled}>
+                {getButtonText(loading)}
+              </button>
+            </form>
+          )}
+
+          {/* Combo Strategy Form */}
+          {activeTab === 'combo' && (
+             <form onSubmit={handleRunComboBacktest} className="backtest-form">
+                <CommonBacktestInputs
+                    data={comboData}
+                    onChange={handleComboChange}
+                    // 🚀 FIXED: Removed uniqueOnModeModels from prop
+                    options={{ symbolOptions, timeframeOptions, modelOptions }}
+                    availableModelData={availableModelData}
+                    isCombo={true}
+                />
+                <div className="combo-strategy-list">
+                   {comboData.strategies.map((config, idx) => (
+                    // 🚀 This now uses the *transformed* strategyOptions
+                    <ComboStrategyCard key={idx} idx={idx} config={config} strategies={strategyOptions} onChange={handleStrategyConfigChange} onRemove={removeStrategyCard} disableRemove={comboData.strategies.length <= 1} />
+                   ))}
+                </div>
+                <button type="button" onClick={addStrategyCard} disabled={loading !== 'idle' || !strategyOptions.length}>Add Strategy</button>
+                <button type="submit" disabled={isComboSubmitDisabled}>
+                   {getButtonText(loading)}
+                </button>
+             </form>
+          )}
+        </div> {/* end backtest-forms */}
+
+        {/* --- Results Section --- */}
+        {(loading !== 'idle' || combinedMetrics || error) && (
+          <div className="results-section">
+            <h2>Backtest Results</h2>
+            {loading !== 'idle' && (
+              <div className="loading-overlay">
+                <h3>{getStatusMessage(loading, currentFormDataForStatus)}</h3>
+                <div className="spinner"></div>
+              </div>
+            )}
+            {loading === 'idle' && combinedMetrics && !error && (
+              <>
+                <MetricsDisplay metrics={combinedMetrics} />
+                <div className="charts-container">
+                  <div className="chart">
+                    <h3>Equity Curve</h3>
+                     <ResponsiveContainer width="100%" height={300}>
+                       <LineChart data={combinedEquityCurve} margin={{ top: 5, right: 20, left: 10, bottom: 25 }}>
+                         <XAxis dataKey="timestamp" tickFormatter={formatChartDate} angle={-30} textAnchor="end" height={50} interval="preserveStartEnd" />
+                         <YAxis domain={['auto', 'auto']} tickFormatter={(tick) => `$${tick.toLocaleString()}`} allowDataOverflow={true} />
+                         <Tooltip formatter={(value) => `$${value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} />
+                         <CartesianGrid stroke="#555" strokeDasharray="3 3"/>
+                         <Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false} strokeWidth={2} />
+                       </LineChart>
+                     </ResponsiveContainer>
+                  </div>
+                  <div className="chart">
+                    <h3>Win / Loss Distribution</h3>
+                     <ResponsiveContainer width="100%" height={300}>
+                       <PieChart>
+                         <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} labelLine={false} label={({ cx, cy, midAngle, innerRadius, outerRadius, value, index }) => { const RADIAN = Math.PI / 180; const radius = innerRadius + (outerRadius - innerRadius) * 0.5; const x = cx + radius * Math.cos(-midAngle * RADIAN); const y = cy + radius * Math.sin(-midAngle * RADIAN); return ( <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" > {`${pieData[index].name}: ${value}`} </text> ); }}>
+                           {pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
+                         </Pie>
+                         <Tooltip />
+                         <Legend />
+                       </PieChart>
+                     </ResponsiveContainer>
+                  </div>
+                </div>
+              </>
+            )}
+             {loading === 'idle' && !combinedMetrics && !error && (
+                 <p className="no-results-message">Select parameters and run a backtest to see results here.</p>
+             )}
+          </div>
+        )}
+      </div> {/* end backtest-main */}
+    </div> // end dashboard-container
+  );
+}
