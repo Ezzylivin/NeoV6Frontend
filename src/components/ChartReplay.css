@@ -1,0 +1,60 @@
+/* File: src/components/ChartReplay.css */
+
+.chart-replay-container {
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 20px;
+  background-color: #1e1e1e; /* Dark background for the chart area */
+}
+
+.playback-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.playback-controls button {
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.playback-controls button:hover {
+  background-color: #2563eb;
+}
+
+.playback-controls label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.playback-controls input[type="range"] {
+  cursor: pointer;
+}
+
+.playback-controls span {
+  font-family: monospace;
+  font-size: 14px;
+  color: #aaa;
+  margin-left: auto;
+}
+
+/* Style recharts tooltips to match */
+.recharts-tooltip-wrapper {
+  background-color: #2a2a2a !important;
+  border: 1px solid #555 !important;
+  border-radius: 4px !important;
+}
+
+.recharts-tooltip-label {
+  color: #eee !important;
+  font-weight: bold;
+}
