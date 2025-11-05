@@ -31,20 +31,20 @@
 
 /* --- Main Layout for Forms and Results --- */
 .backtest-main {
-    display: flex;
-    flex-wrap: wrap; /* Allow wrapping on smaller screens */
-    gap: 30px; /* Space between forms and results */
+  display: flex;
+  flex-wrap: wrap; /* Allow wrapping on smaller screens */
+  gap: 30px; /* Space between forms and results */
 }
 
 /* --- Forms Container --- */
 .backtest-forms {
-    flex: 1 1 450px; /* Allow forms container to grow, base width 450px */
-    min-width: 300px;
-    background-color: #27293d; /* Slightly lighter dark */
-    border-radius: 12px;
-    padding: 25px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-    align-self: flex-start; /* Prevent stretching */
+  flex: 1 1 450px; /* Allow forms container to grow, base width 450px */
+  min-width: 300px;
+  background-color: #27293d; /* Slightly lighter dark */
+  border-radius: 12px;
+  padding: 25px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  align-self: flex-start; /* Prevent stretching */
 }
 
 /* --- Tabs --- */
