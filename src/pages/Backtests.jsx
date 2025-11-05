@@ -1,9 +1,6 @@
 // File: src/pages/Backtests.jsx
 //
-// UPGRADES:
-// - 🚀 [THE FIX] Added .trim() to the strategy mapping (line 448) to
-//   fix the "Unmapped strategy" bug caused by whitespace.
-// - 🚀 [NEW FEATURE] Integrated ChartReplay component for visual backtesting.
+// FINAL VERSION: Includes Strategy Mapping Fix and Chart Replay Integration.
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -11,42 +8,32 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
 } from "recharts";
-import { ChartReplay } from "../components/ChartReplay.jsx"; // 🚀 IMPORT THE NEW COMPONENT
-import "../components/ChartReplay.css"; // 🚀 IMPORT THE NEW CSS
-import "./Backtests.css"; // Ensure you have styles for .loading-overlay, .spinner, .error-box, etc.
+import { ChartReplay } from "../components/ChartReplay.jsx"; // 🚀 CHART IMPORT
+import "../components/ChartReplay.css"; // 🚀 CHART CSS IMPORT
+import "./Backtests.css";
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
 
-// Helper to format date strings for display
+// Helper functions (formatDate, formatChartDate, getDefaultDates, getMLStartDate) remain unchanged...
 const formatDate = dateString => {
   if (!dateString) return '';
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return '';
-  // Format as YYYY-MM-DD for input fields and potentially charts
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 };
-
-// Helper to format timestamps (like from equity curve) for charts
 const formatChartDate = timestamp => {
     if (!timestamp) return '';
     const date = new Date(timestamp);
     if (isNaN(date.getTime())) return '';
-    // Example: Show Month/Day for charts
     return `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`;
 };
-
-
-// Helper to get default date range (e.g., last year)
 const getDefaultDates = () => {
   const today = new Date();
   const start = new Date(today); start.setFullYear(today.getFullYear() - 1);
-  const end = new Date(today); end.setDate(today.getDate() - 1); // Default end date to yesterday
+  const end = new Date(today); end.setDate(today.getDate() - 1);
   return { startDate: formatDate(start), endDate: formatDate(end) };
 };
-
-// 🚀 Helper for the ML-specific start date
 const getMLStartDate = () => {
-    // This MUST match the 'START_DATE_DOWNLOAD' in your train_models.py script
     return '2017-01-01'; 
 }
 
@@ -54,43 +41,41 @@ const getMLStartDate = () => {
 const defaultFilterParams = {
     SL: 5.0,
     TP: 10.0,
-    minAtrPct: 0, // Volatility filter (0 = off)
-    trendFilterPeriod: 200, // Trend filter
-    //hybridMode: 'AND' // Hybrid logic
+    minAtrPct: 0, 
+    trendFilterPeriod: 200, 
 };
 
 // Initial state for the single backtest form
 const initialFormData = {
-  code: "", // TA Strategy code
+  code: "", 
   symbol: "",
-  timeframe: "", // 🚀 Will be set by useEffect
+  timeframe: "",
   startDate: getDefaultDates().startDate,
   endDate: getDefaultDates().endDate,
   initialBalance: 1000,
-  params: { ...defaultFilterParams }, // Global/TA params
+  params: { ...defaultFilterParams },
   riskManagementMode: 'standard',
   riskPercentage: 1,
   growthCapitalTarget: 2000,
-  mlMode: "off", // 'off', 'on', 'predictions'
-  mlModel: "", // Model ID/name
+  mlMode: "off", 
+  mlModel: "", 
   mlThreshold: 0.5,
-  mlHorizon: 1 // Prediction horizon (if applicable)
+  mlHorizon: 1
 };
 
 // Initial state for the combo backtest form
 const initialComboData = {
-  strategies: [ // List of individual strategies in the combo
-    { code: "", params: { SL: 5.0, TP: 10.0 } }, // Per-strategy SL/TP overrides
+  strategies: [ 
+    { code: "", params: { SL: 5.0, TP: 10.0 } },
     { code: "", params: { SL: 5.0, TP: 10.0 } }
   ],
-  params: { // Global combo parameters (filters, hybrid logic)
+  params: { 
     minAtrPct: 0,
     trendFilterPeriod: 200,
     hybridMode: 'AND'
   },
-  // Global settings for the combo backtest
   symbol: "",
-  timeframe: "", // 🚀 Will be set by useEffect
+  timeframe: "", 
   startDate: getDefaultDates().startDate,
   endDate: getDefaultDates().endDate,
   initialBalance: 1000,
@@ -105,29 +90,24 @@ const initialComboData = {
 
 
 // 🚀 NEW FIX: This map MUST match the 'signal_map' in your Python server
-// The KEYS (e.g., "RSI", "MACD") MUST match the 'type' field from your database logs
 const STRATEGY_TYPE_TO_CODE_MAP = {
-  // --- From your Python signal_map ---
-  "Moving Average Crossover": "sma_crossover", // From previous log
-  "RSI": "rsi_divergence",                     // From log `(type: RSI)`
-  "MACD": "macd_crossover",                    // From log `(type: MACD)`
-  "Stochastic Oscillator": "stochastic_crossover", // From log `(type: Stochastic Oscillator)`
-  "CCI": "cci_oversold",                       // From log `(type: CCI)`
-  "Bollinger Bands": "bollinger_bands",        // (Assuming this is the 'type' in your DB)
-  "Ichimoku Cloud": "ichimoku_cloud",         // (Assuming this is the 'type' in your DB)
-  
-  // --- NEW strategies we are adding to Python ---
-  "ATR": "atr_signal",                        // From log `(type: ATR)`
-  "On-Balance Volume": "obv_signal",           // From log `(type: On-Balance Volume)`
-  "Parabolic SAR": "psar_signal"              // From log `(type: Parabolic SAR)`
+  "Moving Average Crossover": "sma_crossover",
+  "RSI": "rsi_divergence",
+  "MACD": "macd_crossover",
+  "Stochastic Oscillator": "stochastic_crossover",
+  "CCI": "cci_oversold",
+  "Bollinger Bands": "bollinger_bands",
+  "Ichimoku Cloud": "ichimoku_cloud",
+  "ATR": "atr_signal",
+  "On-Balance Volume": "obv_signal",
+  "Parabolic SAR": "psar_signal"
 };
 
 
 // --- Child Components ---
 
-// Displays performance metrics
+// Displays performance metrics (unchanged)
 const MetricsDisplay = ({ metrics }) => {
-  // ... (Component is unchanged) ...
   if (!metrics) return <div className="metrics-grid-loading">Calculating metrics...</div>;
   const formatValue = (value, format) => {
       if (typeof value !== "number" || isNaN(value)) return "N/A";
@@ -160,24 +140,18 @@ const MetricsDisplay = ({ metrics }) => {
   );
 };
 
-// 🚀 Common input fields shared between single and combo forms
-// 🚀 Now accepts availableModelData
+// Common input fields (unchanged, just added props and tooltips)
 const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isCombo = false }) => {
-    // Extract options from props
     const symbolOptions = options.symbolOptions || [];
     const timeframeOptions = options.timeframeOptions || [];
-    const allModelOptions = options.modelOptions || []; // Full list of ALL models
-    // 🚀 uniqueOnModeModels has been removed.
+    const allModelOptions = options.modelOptions || []; 
 
-    // Handler for global parameters
     const handleParamChange = (e) => {
         const { name, value, type } = e.target;
         const val = type === 'number' && value !== '' ? parseFloat(value) : value;
         const syntheticEvent = { target: { name: `param_${name}`, value: val, type: type } };
         onChange(syntheticEvent);
     };
-
-    // Handler for top-level properties
     const handleGlobalChange = (e) => {
         onChange(e);
     };
@@ -185,23 +159,16 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
     const params = data.params || {};
 
     // 🚀 --- NEW: Create Processed Dropdown Lists --- 🚀
-    
-    // 1. Process Symbol Options
     const processedSymbolOptions = useMemo(() => {
-        // 🚀 FIXED: If mode is 'off' (Pure TA), show all symbols as available.
         if (data.mlMode === 'off') {
             return symbolOptions.map(s => ({ value: s, name: s, isAvailable: true }));
         }
-        
-        // In ML 'on' or 'hybrid' mode, check against the parsed data
         const { availableSymbols } = availableModelData;
-        
         const sortedSymbols = [...symbolOptions].sort((a, b) => {
             const aHas = availableSymbols.has(a);
             const bHas = availableSymbols.has(b);
-            return (bHas ? 1 : 0) - (aHas ? 1 : 0); // Sorts `true` (available) to the top
+            return (bHas ? 1 : 0) - (aHas ? 1 : 0);
         });
-        
         return sortedSymbols.map(s => {
             const isAvailable = availableSymbols.has(s);
             return {
@@ -210,16 +177,12 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 isAvailable: isAvailable
             };
         });
-    }, [data.mlMode, symbolOptions, availableModelData]); // 🚀 FIXED: data.mlMode is now a dependency
+    }, [data.mlMode, symbolOptions, availableModelData]);
 
-    // 2. Process Timeframe Options (depends on selected symbol)
     const processedTimeframeOptions = useMemo(() => {
-        // 🚀 FIXED: If mode is 'off' (Pure TA), show all timeframes as available.
         if (data.mlMode === 'off') {
             return timeframeOptions.map(t => ({ value: t, name: t, isAvailable: true }));
         }
-        
-        // If no symbol is selected yet, grey them all out
         if (!data.symbol) {
              return timeframeOptions.map(t => ({
                 value: t,
@@ -227,15 +190,12 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 isAvailable: false
              }));
         }
-
-        const { lookup } = availableModelData; // e.g., Set {'BTC-USD_1h', 'ETH-USD_4h'}
-        
+        const { lookup } = availableModelData;
         const sortedTimeframes = [...timeframeOptions].sort((a, b) => {
             const aHas = lookup.has(`${data.symbol}_${a}`);
             const bHas = lookup.has(`${data.symbol}_${b}`);
             return (bHas ? 1 : 0) - (aHas ? 1 : 0);
         });
-        
         return sortedTimeframes.map(t => {
             const isAvailable = lookup.has(`${data.symbol}_${t}`);
             return {
@@ -244,8 +204,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 isAvailable: isAvailable
             };
         });
-    }, [data.mlMode, data.symbol, timeframeOptions, availableModelData]); // 🚀 FIXED: data.mlMode is now a dependency
-
+    }, [data.mlMode, data.symbol, timeframeOptions, availableModelData]);
     // 🚀 --- END NEW LOGIC --- 🚀
 
     return (
@@ -264,7 +223,6 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                         <option 
                             key={s.value} 
                             value={s.value} 
-                            // 🚀 FIXED: Disable only if mode is NOT 'off' AND not available
                             disabled={data.mlMode !== 'off' && !s.isAvailable} 
                             style={{ color: (data.mlMode !== 'off' && !s.isAvailable) ? '#888' : 'white' }}
                         >
@@ -288,7 +246,6 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                         <option 
                             key={t.value} 
                             value={t.value} 
-                            // 🚀 FIXED: Disable only if mode is NOT 'off' AND not available
                             disabled={data.mlMode !== 'off' && !t.isAvailable} 
                             style={{ color: (data.mlMode !== 'off' && !t.isAvailable) ? '#888' : 'white' }}
                         >
@@ -700,7 +657,7 @@ export default function Backtests() {
         lookup.add(`${fullSymbol}_${timeframe}`);
     }
     return { availableSymbols, availableTimeframes, lookup };
-  }, [modelOptions]); // 🚀 FIXED: Only depends on modelOptions
+  }, [modelOptions]); 
 
   // 🚀 DEBUG: STEP 3
   // console.log("STEP 3: Available Model Data (The Sets):", availableModelData);
@@ -1081,6 +1038,12 @@ export default function Backtests() {
           <div className="results-section">
             <h2>Backtest Results</h2>
             {/* ... your loading spinner ... */}
+            {loading !== 'idle' && (
+              <div className="loading-overlay">
+                <h3>{getStatusMessage(loading, currentFormDataForStatus)}</h3>
+                <div className="spinner"></div>
+              </div>
+            )}
             {loading === 'idle' && combinedMetrics && !error && (
               <>
                 <MetricsDisplay metrics={combinedMetrics} />
