@@ -3,8 +3,7 @@
 // UPGRADES:
 // - 🚀 [THE FIX] Added .trim() to the strategy mapping (line 448) to
 //   fix the "Unmapped strategy" bug caused by whitespace.
-// - Added descriptive 'title' attributes (hover tooltips)
-// - Restored the detailed description for the Volatility Filter.
+// - 🚀 [NEW FEATURE] Integrated ChartReplay component for visual backtesting.
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -12,6 +11,8 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
 } from "recharts";
+import { ChartReplay } from "../components/ChartReplay.jsx"; // 🚀 IMPORT THE NEW COMPONENT
+import "../components/ChartReplay.css"; // 🚀 IMPORT THE NEW CSS
 import "./Backtests.css"; // Ensure you have styles for .loading-overlay, .spinner, .error-box, etc.
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
@@ -700,7 +701,6 @@ export default function Backtests() {
     }
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); // 🚀 FIXED: Only depends on modelOptions
-  // 🚀 --- END OF UPGRADE --- 🚀
 
   // 🚀 DEBUG: STEP 3
   // console.log("STEP 3: Available Model Data (The Sets):", availableModelData);
@@ -1080,15 +1080,17 @@ export default function Backtests() {
         {(loading !== 'idle' || combinedMetrics || error) && (
           <div className="results-section">
             <h2>Backtest Results</h2>
-            {loading !== 'idle' && (
-              <div className="loading-overlay">
-                <h3>{getStatusMessage(loading, currentFormDataForStatus)}</h3>
-                <div className="spinner"></div>
-              </div>
-            )}
+            {/* ... your loading spinner ... */}
             {loading === 'idle' && combinedMetrics && !error && (
               <>
                 <MetricsDisplay metrics={combinedMetrics} />
+                
+                {/* 🚀 🚀 🚀 ADD THE REPLAY COMPONENT HERE 🚀 🚀 🚀 */}
+                {backtestResults.main && backtestResults.main.candleData?.length > 0 && (
+                  <ChartReplay results={backtestResults.main} />
+                )}
+                {/* 🚀 🚀 🚀 END OF NEW COMPONENT 🚀 🚀 🚀 */}
+                
                 <div className="charts-container">
                   <div className="chart">
                     <h3>Equity Curve</h3>
