@@ -156,6 +156,13 @@ export const ChartReplay = ({ results }) => {
     return <div>Preparing replay data...</div>;
   }
 
+  const formatChartDate = timestamp => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return '';
+    return `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`;
+};
+
   return (
     <div className="chart-replay-container">
       <h3>Chart Replay</h3>
