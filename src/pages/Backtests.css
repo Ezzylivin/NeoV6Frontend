@@ -2,382 +2,381 @@
 
 /* --- General Container --- */
 .dashboard-container {
-  padding: 20px 30px;
-  background-color: #1b1b2b; /* Dark background */
-  color: #ffffff; /* White text */
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  min-height: 100vh;
+    padding: 20px 30px;
+    background-color: #1b1b2b; /* Dark background */
+    color: #ffffff; /* White text */
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    min-height: 100vh;
 }
 
 /* --- Headings --- */
 .dashboard-container h1 {
-  font-size: 2rem;
-  margin-bottom: 20px;
-  color: #f3f4f6; /* Light gray text */
-  text-align: center; /* Center main heading */
+    font-size: 2rem;
+    margin-bottom: 20px;
+    color: #f3f4f6; /* Light gray text */
+    text-align: center; /* Center main heading */
 }
 .dashboard-container h2 {
-  font-size: 1.5rem;
-  margin-bottom: 15px;
-  color: #e5e7eb; /* Slightly darker gray */
-  border-bottom: 1px solid #3f3f55; /* Add subtle separator */
-  padding-bottom: 8px;
+    font-size: 1.5rem;
+    margin-bottom: 15px;
+    color: #e5e7eb; /* Slightly darker gray */
+    border-bottom: 1px solid #3f3f55; /* Add subtle separator */
+    padding-bottom: 8px;
 }
 .dashboard-container h3 {
-  font-size: 1.2rem;
-  margin-bottom: 10px;
-  color: #d1d5db; /* Even darker gray */
+    font-size: 1.2rem;
+    margin-bottom: 10px;
+    color: #d1d5db; /* Even darker gray */
 }
 
 /* --- Main Layout for Forms and Results --- */
 .backtest-main {
-  display: flex;
-  flex-wrap: wrap; /* Allow wrapping on smaller screens */
-  gap: 30px; /* Space between forms and results */
+    display: flex;
+    flex-wrap: wrap; /* Allow wrapping on smaller screens */
+    gap: 30px; /* Space between forms and results */
 }
 
 /* --- Forms Container --- */
 .backtest-forms {
-  flex: 1 1 450px; /* Allow forms container to grow, base width 450px */
-  min-width: 300px;
-  background-color: #27293d; /* Slightly lighter dark */
-  border-radius: 12px;
-  padding: 25px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-  align-self: flex-start; /* Prevent stretching */
+    flex: 1 1 450px; /* Allow forms container to grow, base width 450px */
+    min-width: 300px;
+    background-color: #27293d; /* Slightly lighter dark */
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    align-self: flex-start; /* Prevent stretching */
 }
 
 /* --- Tabs --- */
 .tabs {
-    display: flex;
-    margin-bottom: 20px;
-    border-bottom: 1px solid #3f3f55;
+    display: flex;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #3f3f55;
 }
 .tabs button {
-    padding: 10px 20px;
-    background-color: transparent;
-    border: none;
-    border-bottom: 3px solid transparent; /* Placeholder for active state */
-    color: #9ca3af; /* Inactive tab color */
-    cursor: pointer;
-    font-size: 1rem;
-    font-weight: 500;
-    transition: color 0.2s, border-color 0.2s;
+    padding: 10px 20px;
+    background-color: transparent;
+    border: none;
+    border-bottom: 3px solid transparent; /* Placeholder for active state */
+    color: #9ca3af; /* Inactive tab color */
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 500;
+    transition: color 0.2s, border-color 0.2s;
 }
 .tabs button:hover {
-    color: #e5e7eb;
+    color: #e5e7eb;
 }
 .tabs button.active {
-    color: #3b82f6; /* Active tab color (blue) */
-    border-bottom-color: #3b82f6;
-    font-weight: 600;
+    color: #3b82f6; /* Active tab color (blue) */
+    border-bottom-color: #3b82f6;
+    font-weight: 600;
 }
 
 
 /* --- General Form Styling --- */
 .backtest-form {
-  /* Removed background, padding is now in backtest-forms */
+    /* Removed background, padding is now in backtest-forms */
 }
 
 .backtest-form label {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 15px; /* Increased spacing */
-  font-size: 0.9rem;
-  color: #e5e7eb; /* Lighter label text */
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 15px; /* Increased spacing */
+    font-size: 0.9rem;
+    color: #e5e7eb; /* Lighter label text */
 }
 
 .backtest-form input,
 .backtest-form select,
 .backtest-form textarea {
-  margin-top: 6px;
-  padding: 10px 12px; /* Slightly larger padding */
-  border-radius: 6px;
-  border: 1px solid #555770; /* Slightly lighter border */
-  background-color: #1f2031; /* Slightly different dark for inputs */
-  color: #fff;
-  font-size: 0.95rem; /* Slightly larger font */
-  width: 100%; /* Ensure inputs fill their container */
-  box-sizing: border-box; /* Include padding and border in width */
+    margin-top: 6px;
+    padding: 10px 12px; /* Slightly larger padding */
+    border-radius: 6px;
+    border: 1px solid #555770; /* Slightly lighter border */
+    background-color: #1f2031; /* Slightly different dark for inputs */
+    color: #fff;
+    font-size: 0.95rem; /* Slightly larger font */
+    width: 100%; /* Ensure inputs fill their container */
+    box-sizing: border-box; /* Include padding and border in width */
 }
 .backtest-form input:focus,
 .backtest-form select:focus,
 .backtest-form textarea:focus {
-    outline: none;
-    border-color: #3b82f6; /* Highlight border on focus */
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3); /* Subtle glow */
+    outline: none;
+    border-color: #3b82f6; /* Highlight border on focus */
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3); /* Subtle glow */
 }
 
 .backtest-form input[type="date"] {
-    color-scheme: dark; /* Improve date picker appearance */
+    color-scheme: dark; /* Improve date picker appearance */
 }
 
 
 .backtest-form textarea {
-  resize: vertical;
-  min-height: 60px;
+    resize: vertical;
+    min-height: 60px;
 }
 
 /* Hide number input spinners */
 .backtest-form input[type="number"]::-webkit-inner-spin-button,
 .backtest-form input[type="number"]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+    -webkit-appearance: none;
+    margin: 0;
 }
 .backtest-form input[type="number"] {
-  -moz-appearance: textfield; /* Firefox */
+    -moz-appearance: textfield; /* Firefox */
 }
 
 /* Fieldset Styling */
 .backtest-form fieldset {
-    border: 1px solid #3f3f55;
-    border-radius: 8px;
-    padding: 15px;
-    margin-bottom: 20px;
+    border: 1px solid #3f3f55;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
 }
 .backtest-form legend {
-    padding: 0 10px;
-    font-weight: 600;
-    color: #cbd5e1;
+    padding: 0 10px;
+    font-weight: 600;
+    color: #cbd5e1;
 }
 
 
 /* Form Buttons */
 .backtest-form button {
-  display: inline-block; /* Allow multiple buttons */
-  margin-top: 15px;
-  margin-right: 10px; /* Space between buttons */
-  padding: 12px 20px; /* Larger padding */
-  background-color: #3b82f6; /* Blue */
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 0.95rem;
-  transition: background-color 0.2s, opacity 0.2s;
+    display: inline-block; /* Allow multiple buttons */
+    margin-top: 15px;
+    margin-right: 10px; /* Space between buttons */
+    padding: 12px 20px; /* Larger padding */
+    background-color: #3b82f6; /* Blue */
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: background-color 0.2s, opacity 0.2s;
 }
 .backtest-form button:last-of-type {
-    margin-right: 0;
+    margin-right: 0;
 }
 
 .backtest-form button:disabled {
-  background-color: #4b5563; /* Darker gray when disabled */
-  opacity: 0.7;
-  cursor: not-allowed;
+    background-color: #4b5563; /* Darker gray when disabled */
+    opacity: 0.7;
+    cursor: not-allowed;
 }
 
 .backtest-form button:hover:not(:disabled) {
-  background-color: #2563eb; /* Darker blue on hover */
+    background-color: #2563eb; /* Darker blue on hover */
 }
 
 /* Specific button styling (e.g., remove button) */
 .backtest-form button.remove-btn,
 .combo-card .remove-btn { /* Style remove buttons */
-    background-color: #ef4444; /* Red */
-    padding: 4px 8px;
-    font-size: 0.8rem;
-    margin: 0; /* Reset margins if needed */
+    background-color: #ef4444; /* Red */
+    padding: 4px 8px;
+    font-size: 0.8rem;
+    margin: 0; /* Reset margins if needed */
 }
 .backtest-form button.remove-btn:hover:not(:disabled),
 .combo-card .remove-btn:hover:not(:disabled) {
-    background-color: #dc2626; /* Darker red */
+    background-color: #dc2626; /* Darker red */
 }
 
 
 /* --- Combo Strategy --- */
 .combo-strategy-list {
-    margin-top: 20px;
+    margin-top: 20px;
 }
 .combo-card {
-    background-color: #1f2031; /* Slightly different dark */
-    border: 1px solid #3f3f55;
-    border-radius: 8px;
-    margin-bottom: 15px;
-    padding: 15px;
+    background-color: #1f2031; /* Slightly different dark */
+    border: 1px solid #3f3f55;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    padding: 15px;
 }
 .combo-card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #3f3f55;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #3f3f55;
 }
 .combo-card-header strong {
-    color: #cbd5e1;
+    color: #cbd5e1;
 }
 .combo-card-body label {
-    margin-bottom: 10px;
+    margin-bottom: 10px;
 }
 
 /* --- Results Section --- */
 .results-section {
-    flex: 1 1 600px; /* Allow results to grow, base width 600px */
-    min-width: 300px;
-    background-color: #27293d;
-    border-radius: 12px;
-    padding: 25px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-    position: relative; /* Needed for loading overlay positioning */
-    align-self: flex-start;
+    flex: 1 1 600px; /* Allow results to grow, base width 600px */
+    min-width: 300px;
+    background-color: #27293d;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    position: relative; /* Needed for loading overlay positioning */
+    align-self: flex-start;
 }
 
 /* --- Metrics Grid --- */
 .metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); /* Adjust min width */
-  gap: 15px;
-  margin-bottom: 30px; /* Increased space */
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); /* Adjust min width */
+    gap: 15px;
+    margin-bottom: 30px; /* Increased space */
 }
 
 .metric-item {
-  background-color: #1f2031; /* Match input background */
-  padding: 15px; /* Increased padding */
-  border-radius: 8px;
-  text-align: center;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    background-color: #1f2031; /* Match input background */
+    padding: 15px; /* Increased padding */
+    border-radius: 8px;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
 }
 
 .metric-label {
-  display: block;
-  font-size: 0.8rem; /* Smaller label */
-  margin-bottom: 8px; /* Increased space */
-  color: #9ca3af; /* Lighter gray */
-  text-transform: uppercase; /* Uppercase labels */
+    display: block;
+    font-size: 0.8rem; /* Smaller label */
+    margin-bottom: 8px; /* Increased space */
+    color: #9ca3af; /* Lighter gray */
+    text-transform: uppercase; /* Uppercase labels */
 }
 
 .metric-value {
-  font-size: 1.25rem; /* Larger value */
-  font-weight: 600;
-  color: #f3f4f6;
+    font-size: 1.25rem; /* Larger value */
+    font-weight: 600;
+    color: #f3f4f6;
 }
 
 /* --- Charts --- */
 .charts-container {
-    display: flex;
-    flex-wrap: wrap; /* Wrap charts on smaller screens */
-    gap: 20px;
-    margin-top: 20px;
+    display: flex;
+    flex-wrap: wrap; /* Wrap charts on smaller screens */
+    gap: 20px;
+    margin-top: 20px;
 }
 .chart {
-    flex: 1 1 400px; /* Allow charts to grow, base width 400px */
-    min-width: 280px;
-    background-color: #1f2031; /* Match metric items */
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    flex: 1 1 400px; /* Allow charts to grow, base width 400px */
+    min-width: 280px;
+    background-color: #1f2031; /* Match metric items */
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
     
     /* 🚀 CHART FIX: Explicitly setting height prevents ResponsiveContainer from failing on initial render. */
     height: 340px; 
 }
 .chart h3 {
-    text-align: center;
-    margin-bottom: 20px;
-    color: #cbd5e1;
+    text-align: center;
+    margin-bottom: 20px;
+    color: #cbd5e1;
 }
 /* Style Recharts tooltips/legends if needed */
 .recharts-tooltip-wrapper {
-    background: #374151 !important; /* Darker tooltip */
-    border: 1px solid #4b5563 !important;
-    border-radius: 4px !important;
+    background: #374151 !important; /* Darker tooltip */
+    border: 1px solid #4b5563 !important;
+    border-radius: 4px !important;
 }
 .recharts-tooltip-label {
-    color: #f3f4f6 !important;
+    color: #f3f4f6 !important;
 }
 .recharts-legend-item-text {
-     color: #d1d5db !important; /* Legend text color */
+    color: #d1d5db !important; /* Legend text color */
 }
 
 
 /* --- Loading / Placeholder States --- */
 .metrics-grid-loading {
-    text-align: center;
-    padding: 40px;
-    color: #9ca3af;
+    text-align: center;
+    padding: 40px;
+    color: #9ca3af;
 }
 .no-results-message {
-    text-align: center;
-    padding: 50px;
-    color: #6b7280; /* Dimmer text */
-    font-style: italic;
+    text-align: center;
+    padding: 50px;
+    color: #6b7280; /* Dimmer text */
+    font-style: italic;
 }
 
 .loading-overlay {
-    position: absolute; /* Cover the results section */
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(31, 32, 49, 0.85); /* Semi-transparent overlay */
-    display: flex;
-    flex-direction: column; /* Stack text and spinner */
-    justify-content: center;
-    align-items: center;
-    z-index: 10; /* Ensure it's above content */
-    border-radius: 12px; /* Match parent */
-    color: #e5e7eb;
-    text-align: center;
-    padding: 20px;
+    position: absolute; /* Cover the results section */
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(31, 32, 49, 0.85); /* Semi-transparent overlay */
+    display: flex;
+    flex-direction: column; /* Stack text and spinner */
+    justify-content: center;
+    align-items: center;
+    z-index: 10; /* Ensure it's above content */
+    border-radius: 12px; /* Match parent */
+    color: #e5e7eb;
+    text-align: center;
+    padding: 20px;
 }
 
-/* --- 🚀 Spinner CSS Added Here --- */
+/* --- Spinner CSS --- */
 .spinner {
-  border: 4px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  border-top: 4px solid #fff; /* White spinner top */
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
-  margin: 20px auto; /* Center the spinner */
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top: 4px solid #fff; /* White spinner top */
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 20px auto; /* Center the spinner */
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 
 .loading-overlay h3 {
-   margin-bottom: 10px; /* Add space between text and spinner */
-   font-size: 1.1rem; /* Adjust size if needed */
-   color: #e5e7eb;
+    margin-bottom: 10px; /* Add space between text and spinner */
+    font-size: 1.1rem; /* Adjust size if needed */
+    color: #e5e7eb;
 }
-/* --- 🚀 End Spinner CSS --- */
 
 
 /* --- Error Box --- */
 .error-box {
-  background-color: rgba(239, 68, 68, 0.2); /* Semi-transparent red */
-  border: 1px solid #ef4444; /* Red border */
-  color: #fecaca; /* Light red text */
-  padding: 12px 15px;
-  border-radius: 8px;
-  margin-bottom: 20px;
+    background-color: rgba(239, 68, 68, 0.2); /* Semi-transparent red */
+    border: 1px solid #ef4444; /* Red border */
+    color: #fecaca; /* Light red text */
+    padding: 12px 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
 }
 
 .error-box h4 {
-  margin: 0 0 5px 0;
-  color: #f87171; /* Brighter red for heading */
+    margin: 0 0 5px 0;
+    color: #f87171; /* Brighter red for heading */
 }
 
 /* --- Modal Styles (If you use modals) --- */
 .modal-overlay {
-  position: fixed;
-  top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(0,0,0,0.7); /* Darker overlay */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.7); /* Darker overlay */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
 }
 
 .modal-content {
-  background-color: #27293d;
-  padding: 30px;
-  border-radius: 12px;
-  width: 90%;
-  max-width: 500px;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.6);
+    background-color: #27293d;
+    padding: 30px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.6);
 }
 .modal-content h3 { margin-bottom: 20px; }
 .modal-content label { margin-bottom: 15px; }
@@ -388,23 +387,22 @@
 
 /* --- Responsive Adjustments --- */
 @media (max-width: 900px) {
-  .backtest-main {
-     flex-direction: column; /* Stack forms and results */
-  }
-  .backtest-forms, .results-section {
-      flex-basis: auto; /* Reset flex-basis */
-  }
+    .backtest-main {
+        flex-direction: column; /* Stack forms and results */
+    }
+    .backtest-forms, .results-section {
+        flex-basis: auto; /* Reset flex-basis */
+    }
 }
 
 @media (max-width: 600px) {
-    .dashboard-container { padding: 15px; }
-    .dashboard-container h1 { font-size: 1.8rem; }
-    .backtest-forms, .results-section { padding: 15px; }
-    .tabs button { padding: 8px 12px; font-size: 0.9rem; }
-    .metric-item { padding: 10px; }
-    .metric-value { font-size: 1.1rem; }
-    .chart { 
+    .dashboard-container { padding: 15px; }
+    .dashboard-container h1 { font-size: 1.8rem; }
+    .backtest-forms, .results-section { padding: 15px; }
+    .tabs button { padding: 8px 12px; font-size: 0.9rem; }
+    .metric-item { padding: 10px; }
+    .metric-value { font-size: 1.1rem; }
+    .chart { 
         padding: 15px; 
-        /* Adjust height for smaller screens, if needed, but 340px is likely okay */
     }
 }
