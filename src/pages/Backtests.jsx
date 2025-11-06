@@ -835,7 +835,10 @@ export default function Backtests() {
     try {
       const res = await runNewBacktest?.(formData);
       if (res) { setBacktestResults({ main: res, individuals: [] }); }
-    } catch (err) { console.error("Single backtest submission failed:", err.message); }
+      
+      console.log("BACKTEST RESULTS (for ChartReplay):", res);
+    
+    } catch (err) { console.error("Single backtest submission failed:", err.message); }
   };
   const handleRunComboBacktest = async (e) => {
     e.preventDefault();
