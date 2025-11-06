@@ -2,6 +2,7 @@
 //
 // FINAL VERSION: Includes all fixes (Strategy Mapping, Chart Replay, ML Model Selection, CSS Dims)
 // 🪵 DEBUG: ADDED CONSOLE LOGS FOR FULL DATA TRACING
+// 🔧 FIX: Removed all stray characters and build errors.
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -16,7 +17,6 @@ import "./Backtests.css"; // 🚀 NOW INCLUDES THE .chart HEIGHT FIX
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
 
 // Helper functions (formatDate, formatChartDate, getDefaultDates, getMLStartDate)
-// ... (omitted for brevity, no logs needed here) ...
 const formatDate = dateString => {
   if (!dateString) return '';
   const date = new Date(dateString);
@@ -38,12 +38,16 @@ const getDefaultDates = () => {
 const getMLStartDate = () => {
     return '2017-01-01'; 
 }
+
+// Default parameters for filters/strategy
 const defaultFilterParams = {
     SL: 5.0,
     TP: 10.0,
     minAtrPct: 0, 
     trendFilterPeriod: 200, 
 };
+
+// Initial state for the single backtest form
 const initialFormData = {
   code: "", 
   symbol: "",
@@ -60,6 +64,8 @@ const initialFormData = {
   mlThreshold: 0.5,
   mlHorizon: 1
 };
+
+// Initial state for the combo backtest form
 const initialComboData = {
   strategies: [ 
     { code: "", params: { SL: 5.0, TP: 10.0 } },
@@ -83,7 +89,9 @@ const initialComboData = {
   mlThreshold: 0.5,
   mlHorizon: 1
 };
-// ... (STRATEGY_TYPE_TO_CODE_MAP omitted) ...
+
+
+// 🚀 Strategy Code Map: MUST match the 'signal_map' in your Python server
 const STRATEGY_TYPE_TO_CODE_MAP = {
   "Moving Average Crossover": "sma_crossover",
   "RSI": "rsi_divergence",
@@ -97,6 +105,7 @@ const STRATEGY_TYPE_TO_CODE_MAP = {
   "Parabolic SAR": "psar_signal"
 };
 
+
 // --- Child Components (MetricsDisplay, CommonBacktestInputs, ComboStrategyCard) ---
 
 // Displays performance metrics (unchanged)
@@ -106,10 +115,10 @@ const MetricsDisplay = ({ metrics }) => {
   if (!metrics) return <div className="metrics-grid-loading">Calculating metrics...</div>;
   const formatValue = (value, format) => {
       if (typeof value !== "number" || isNaN(value)) {
-        // 🪵 DEBUG: [Errors & Status] Log any invalid metric value
-        console.warn(`🪵 DEBUG: MetricsDisplay formatValue received invalid number:`, { value, format });
-        return "N/A";
-      }
+        // 🪵 DEBUG: [Errors & Status] Log any invalid metric value
+        console.warn(`🪵 DEBUG: MetricsDisplay formatValue received invalid number:`, { value, format });
+        return "N/A";
+      }
       switch (format) {
           case 'currency': return `$${value.toFixed(2)}`;
           case 'percent': return `${value.toFixed(2)}%`;
@@ -117,7 +126,6 @@ const MetricsDisplay = ({ metrics }) => {
           default: return value;
       }
   };
-  // ... (rest of MetricsDisplay) ...
   const items = [
     { label: "Total Return", value: metrics.totalReturn, format: 'percent' },
     { label: "Profit Factor", value: metrics.profitFactor, format: 'number' },
@@ -151,15 +159,15 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
 
     const handleParamChange = (e) => {
         const { name, value, type } = e.target;
-        // 🪵 DEBUG: [User Actions] Log common param change
-        console.log("🪵 DEBUG: CommonBacktestInputs [handleParamChange]:", { name, value, type });
+        // 🪵 DEBUG: [User Actions] Log common param change
+        console.log("🪵 DEBUG: CommonBacktestInputs [handleParamChange]:", { name, value, type });
         const val = type === 'number' && value !== '' ? parseFloat(value) : value;
         const syntheticEvent = { target: { name: `param_${name}`, value: val, type: type } };
         onChange(syntheticEvent);
     };
     const handleGlobalChange = (e) => {
-        // 🪵 DEBUG: [User Actions] Log common global change
-        console.log("🪵 DEBUG: CommonBacktestInputs [handleGlobalChange]:", { name: e.target.name, value: e.target.value, type: e.target.type });
+        // 🪵 DEBUG: [User Actions] Log common global change
+        console.log("🪵 DEBUG: CommonBacktestInputs [handleGlobalChange]:", { name: e.target.name, value: e.target.value, type: e.target.type });
         onChange(e);
     };
 
@@ -219,8 +227,6 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
 
     return (
         <>
-          {/* ... (JSX for CommonBacktestInputs) ... */}
-         {/* ... (omitted for brevity) ... */}
             {/* UPDATED Symbol Dropdown */}
             <label>Symbol:
                 <select 
@@ -248,7 +254,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
             <label>Timeframe:
                 <select 
                     name="timeframe" 
-              _a`             value={data.timeframe} 
+                    value={data.timeframe} 
                     onChange={handleGlobalChange} 
                     disabled={!processedTimeframeOptions.length}
                     title="Select the chart timeframe (e.g., 1h, 4h, 1d) for the backtest."
@@ -265,8 +271,226 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                         </option>
                     ))}
                 </select>
-        _   </label>
-        {/* ... (rest of common inputs JSX) ... */}
+            </label>
+
+            {/* Date Inputs */}
+            <label>Start Date: 
+                <input 
+                    type="date" 
+                    name="startDate" 
+                    value={data.startDate} 
+                    onChange={handleGlobalChange} 
+                    title="The first day of the backtest period (YYYY-MM-DD)."
+                />
+            </label>
+            <label>End Date: 
+                <input 
+                    type="date" 
+                    name="endDate" 
+                    value={data.endDate} 
+                    onChange={handleGlobalChange} 
+                    title="The last day of the backtest period (YYYY-MM-DD)."
+                />
+            </label>
+            <label>Initial Balance: 
+                <input 
+                    type="number" 
+                    name="initialBalance" 
+                    value={data.initialBalance} 
+                    onChange={handleGlobalChange} 
+                    min="1" 
+                    step="1" 
+                    title="The starting cash balance (e.g., 1000) for the backtest."
+                />
+            </label>
+
+            {/* Risk Management Section */}
+            <fieldset title="Configure how much capital to risk on each trade.">
+                <legend>Risk Management</legend>
+                <label>Mode:
+                    <select 
+                        name="riskManagementMode" 
+                        value={data.riskManagementMode} 
+                        onChange={handleGlobalChange}
+                        title="Select the risk management style. 'Standard Risk %' uses a fixed percentage of your balance for each trade. 'Dynamic Growth Mode' risks more aggressively to reach a target."
+                    >
+                        <option value="standard">Standard Risk %</option>
+                        <option value="dynamic">Dynamic Growth Mode</option>
+                    </select>
+                </label>
+                {data.riskManagementMode === 'standard' ? (
+                    <label>Risk Per Trade (%): 
+                        <input 
+                            type="number" 
+                            name="riskPercentage" 
+                            value={data.riskPercentage} 
+                            onChange={handleGlobalChange} 
+                            step="0.1" 
+                            min="0.1" 
+                            title="The percentage of your total equity to risk per trade (e.g., 1 for 1%)."
+                        /> 
+                    </label>
+                ) : (
+                    <>
+                        <label>Growth Capital Target ($): 
+                            <input 
+                                type="number" 
+                                name="growthCapitalTarget" 
+                                value={data.growthCapitalTarget} 
+                                onChange={handleGlobalChange} 
+                                min="1" 
+                                step="1" 
+                                title="In 'Dynamic Growth Mode', this is the equity target. The system will risk aggressively to reach this target, then revert to the 'Risk %' setting."
+                            /> 
+                        </label>
+                        <label>Risk % (After Target): 
+                            <input 
+                                type="number" 
+                                name="riskPercentage" 
+                                value={data.riskPercentage} 
+                                onChange={handleGlobalChange} 
+                                step="0.1" 
+                                min="0.1" 
+                                title="In 'Dynamic Growth Mode', this is the standard risk % to use *after* your equity target has been reached."
+                            /> 
+                        </label>
+                    </>
+                )}
+            </fieldset>
+
+            {/* Machine Learning Section */}
+            <fieldset title="Configure Machine Learning model integration.">
+                <legend>Machine Learning</legend>
+                <label>Mode:
+                    <select 
+                        name="mlMode" 
+                        value={data.mlMode || "off"} 
+                        onChange={handleGlobalChange}
+                        title="Select the backtest mode. 'Off' uses only TA signals. 'Hybrid' uses TA signals filtered by an ML model. 'On' uses only ML model signals."
+                    >
+                        <option value="off">Off (Pure TA)</option>
+                        <option value="predictions">Hybrid (TA + ML Filter)</option>
+                        <option value="on">On (Pure ML)</option>
+                    </select>
+                </label>
+                {data.mlMode !== "off" && (
+                    <>
+                       {/* Model Dropdown */}
+                        <label>Model:
+                            <select 
+                                name="mlModel" 
+                                value={data.mlModel} 
+                                onChange={handleGlobalChange} 
+                                disabled={allModelOptions.length === 0}
+                                title="Select the pre-trained ML model to use. The model's name (e.g., 'ada_30m_...') MUST match your selected Symbol (ADA-USD) and Timeframe (30m) to avoid an error."
+                            >
+                                <option value="">-- Select Model --</option>
+                                {
+                                    allModelOptions.map(m => (
+                                        <option key={m.id} value={m.id}>{m.name}</option>
+                                    ))
+                                }
+                            </select>
+                        </label>
+                        <label>Confidence Threshold: 
+                            <input 
+                                type="number" 
+                                name="mlThreshold" 
+                                value={data.mlThreshold || 0.5} 
+                                step="0.01" 
+                                min="0" 
+                                max="1" 
+                                onChange={handleGlobalChange} 
+                                title="The minimum confidence (0.0 to 1.0) from the ML model to consider a signal valid. e.g., 0.65 = 65% confidence."
+                            /> 
+                        </label>
+                        <label>Prediction Horizon: 
+                            <input 
+                                type="number" 
+                                name="mlHorizon" 
+                                value={data.mlHorizon || 1} 
+                                step="1" 
+                                min="1" 
+                                onChange={handleGlobalChange}content
+                                title="The number of bars/candles the model was trained to predict. (e.g., 1 = next bar). This must match the model's training."
+                            /> 
+                        </label>
+
+                        {/* Hybrid Logic Selector */}
+                        {data.mlMode === 'predictions' && (
+                            <label>Hybrid Logic:
+                                <select 
+                                    name="hybridMode" 
+                                    value={params.hybridMode ?? 'AND'} 
+                                    onChange={handleParamChange}
+                                    title="How to combine TA and ML signals in 'Hybrid' mode. 'AND' requires both. 'OR' allows either. 'Regime' uses the TA signal as a long-term trend filter."
+                                >
+                                    <option value="AND">TA AND ML (Strict Filter)</option>
+                                    <option value="OR">TA OR ML (Permissive)</option>
+                                    <option value="Regime">TA as Regime Filter</option>
+                                </select>
+                            </label>
+                        )}
+                    </>
+                )}
+            </fieldset>
+
+            {/* Advanced Filters Section */}
+            <fieldset title="Apply advanced filters to your strategy signals.">
+                <legend>Advanced Filters</legend>
+                <label>Volatility Filter (Min ATR %):
+                    <input 
+                        type="number" 
+                        name="minAtrPct" 
+                        value={params.minAtrPct ?? 0} 
+                        onChange={handleParamChange} 
+                        step="0.05" 
+                        min="0" 
+                        title="A volatility filter. The strategy will ONLY trade if the current ATR (Average True Range) as a percentage of price is *above* this value. e.g., 0.5 = only trade if volatility is at least 0.5% of the price. Set to 0 to disable."
+                    />
+                </label>
+                {(data.mlMode === 'on' || (data.mlMode === 'predictions' && params.hybridMode === 'Regime')) && (
+                    <label>Trend Filter SMA Period:
+                        <input 
+                            type="number"s
+                            name="trendFilterPeriod" 
+                            value={params.trendFilterPeriod ?? 200}s
+                            onChange={handleGlobalChange} 
+                            step="1" 
+                            min="1" 
+                            title="A long-term trend filter. The strategy will only take trades in the direction of this SMA. (e.g., 200). Only Longs if Price > SMA, only Shorts if Price < SMA."
+                        />
+                    </label>
+                )}
+            </fieldset>
+
+            {/* SL/TP Inputs (Only for Single mode form) */}
+            {!isCombo && (
+                <>
+                    <label>Stop Loss (%):
+                        <input 
+                            type="number" 
+                            name="SL" 
+                            value={params.SL ?? 5.0}s
+                            onChange={handleParamChange} 
+                            step="0.1" 
+                            min="0" 
+                            title="The Stop Loss for the TA strategy, as a percentage from the entry price (e.g., 5 = 5%)."
+                        />
+                    </label>
+                    <label>Take Profit (%):
+                        <input 
+                            type="number" 
+                            name="TP" 
+                            value={params.TP ?? 10.0} 
+                            onChange={handleParamChange} 
+                            step="0.1" 
+                            min="0" 
+                            title="The Take Profit for the TA strategy, as a percentage from the entry price (e.g., 10 = 10%)."
+                        />
+                    </label>
+                </>
+            )}
         </>
     );
 };
@@ -278,7 +502,6 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
   const handleChange = (e) => onChange(e, idx);
   return (
     <div className="combo-card">
-      {/* ... (JSX for ComboStrategyCard) ... */}
       <div className="combo-card-header"><strong>Strategy #{idx + 1}</strong>
         {!disableRemove && <button type="button" onClick={() => onRemove(idx)} className="remove-btn">✕</button>}
       </div>
@@ -302,15 +525,15 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
                 value={config.params?.SL ?? 5.0} 
                 onChange={handleChange} 
                 step="0.1" 
-                min="0" 
+                min="0"true
                 title="Override the global Stop Loss % for this specific strategy."
             />
         </label>
         <label>Take Profit (%): 
-            <input 
-                type="number" 
+              <input 
+                type="number"s
                 name="param_TP" 
-                value={config.params?.TP ?? 10.0} 
+                value={config.params?.TP ?? 10.0}s
                 onChange={handleChange} 
                 step="0.1" 
                 min="0" 
@@ -395,7 +618,7 @@ export default function Backtests() {
           let modelName = model.name;
           
           if (parts.length >= 3) {
-              symbolBase = parts[0]; 
+              symbolBase = parts[0]; 
               timeframe = parts[1];  
               tfWeight = timeframeWeights[timeframe] || 99;
               modelName = parts.slice(2).join('_');
@@ -415,7 +638,7 @@ export default function Backtests() {
       });
       
       // 🪵 DEBUG: [Data Flow & Memoization] Log model options processing
-      console.log("🪵 DEBUG: Backtests.jsx [Memo]: Processing modelOptions...", { raw: options?.models, parsed: parsedModels });
+        console.log("🪵 DEBUG: Backtests.jsx [Memo]: Processing modelOptions...", { raw: options?.models, parsed: parsedModels });
       return parsedModels;
   }, [options?.models]);
 
@@ -451,7 +674,7 @@ export default function Backtests() {
   useEffect(() => {
     // Set default TA strategy
     if (strategyOptions.length > 0 && !formData.code) {
-      // 🪵 DEBUG: [Data Flow & Memoization] Log setting default single strategy
+        // 🪵 DEBUG: [Data Flow & Memoization] Log setting default single strategy
       console.log("🪵 DEBUG: Backtests.jsx [Effect]: Setting default TA strategy (Single Form).");
       const defaultStrategy = strategyOptions[0];
       setFormData(prev => ({ ...prev, code: defaultStrategy.code, params: { ...defaultStrategy.params, ...prev.params } }));
@@ -488,7 +711,7 @@ export default function Backtests() {
         
         // 🪵 DEBUG: [Data Flow & Memoization] Log setting default symbol
         console.log("🪵 DEBUG: Backtests.jsx [Effect]: Setting default symbol.", { defaultSymbol });
-        setFormData(prev => ({ ...prev, symbol: defaultSymbol }));
+        setFormData(prev => ({ ...prev, symbol: defaultSymbol }));
         setComboData(prev => ({ ...prev, symbol: defaultSymbol }));
     }
   }, [symbolOptions, modelOptions, formData.symbol]); 
@@ -508,10 +731,10 @@ export default function Backtests() {
   useEffect(() => {
     const { startDate: defaultStart, endDate: defaultEnd } = getDefaultDates();
     const mlStartDate = getMLStartDate(); // '2017-01-01'
-    const mlMode = activeTab === 'single' ? formData.mlMode : comboData.mlMode;
+    const mlMode = activeTab === 'single' ? formData.mlMode : comboData.mlMode;
 
-    // 🪵 DEBUG: [Data Flow & Memoization] Log date range change effect
-    console.log("🪵 DEBUG: Backtests.jsx [Effect]: Checking for date range update.", { activeTab, mlMode });
+    // 🪵 DEBUG: [Data Flow & Memoization] Log date range change effect
+    console.log("🪵 DEBUG: Backtests.jsx [Effect]: Checking for date range update.", { activeTab, mlMode });
 
     const setForm = activeTab === 'single' ? setFormData : setComboData;
 
@@ -542,7 +765,7 @@ export default function Backtests() {
         
         if (!isValid) {
             // 🪵 DEBUG: [Data Flow & Memoization] Log auto-selecting model (Single)
-            console.log("🪵 DEBUG: Backtests.jsx [Effect]: Auto-selecting default model (Single).", { newModel: modelOptions[0].id });
+            console.log("🪵 DEBUG: Backtests.jsx [Effect]: Auto-selecting default model (Single).", { newModel: modelOptions[0].id });
             setFormData(prev => ({
                 ...prev,
                 mlModel: modelOptions[0].id 
@@ -569,7 +792,7 @@ export default function Backtests() {
                 mlModel: modelOptions[0].id 
             }));
         }
-  S }
+    }
   }, [modelOptions, comboData.mlMode, comboData.mlModel]);
 
 
@@ -660,7 +883,7 @@ export default function Backtests() {
     console.log("🪵 DEBUG: Backtests.jsx [handleStrategyConfigChange]:", { index, name, value, type });
     const isParam = name.startsWith("param_");
     const val = type === 'number' && value !== '' ? parseFloat(value) : (type === 'checkbox' ? e.target.checked : value);
-    const updatedStrategies = [...comboData.strategies];
+    const updatedStrategies = [...comboData.strategies];
     const currentConfig = { ...updatedStrategies[index] };
     if (isParam) {
       const paramName = name.substring(6);
@@ -671,7 +894,7 @@ export default function Backtests() {
       console.log("🪵 DEBUG: Backtests.jsx [handleStrategyConfigChange]: Strategy selected for card.", { index, selectedStrategy });
       currentConfig.code = value;
       currentConfig.params = { ...(selectedStrategy?.params || {}), SL: currentConfig.params?.SL ?? 5.0, TP: currentConfig.params?.TP ?? 10.0, };
-    }
+    }
     updatedStrategies[index] = currentConfig;
     setComboData(prev => ({ ...prev, strategies: updatedStrategies }));
   };
@@ -684,7 +907,7 @@ export default function Backtests() {
   };
   const removeStrategyCard = (index) => {
     // 🪵 DEBUG: [User Actions] Log removing strategy card
-    console.log("🪵 DEBUG: Backtests.jsx [removeStrategyCard]: Removing card.", { index });
+      console.log("🪵 DEBUG: Backtests.jsx [removeStrategyCard]: Removing card.", { index });
     if (comboData.strategies.length <= 1) return;
     setComboData(prev => ({ ...prev, strategies: prev.strategies.filter((_, i) => i !== index) }));
   };
@@ -694,7 +917,7 @@ export default function Backtests() {
     e.preventDefault();
     // 🪵 DEBUG: [Submissions & Responses] Log single submit validation
     console.log("🪵 DEBUG: Backtests.jsx [handleRunBacktest]: Validating...");
-    if (formData.mlMode !== 'off' && !formData.mlModel) { alert("Please select an ML model."); return; }
+        if (formData.mlMode !== 'off' && !formData.mlModel) { alert("Please select an ML model."); return; }
     if (formData.mlMode === 'off' && !formData.code) { alert("Please select a TA Strategy."); return; }
     setBacktestResults({ main: null, individuals: [] });
     
@@ -816,7 +1039,7 @@ export default function Backtests() {
               setActiveTab('single');
             }}>Single Strategy</button>
             <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => {
-              // 🪵 DEBUG: [User Actions] Log tab switch
+              // 🪵 DEBUG: [User Actions] Log tab switch
               console.log("🪵 DEBUG: Backtests.jsx [User Action]: Switched tab to 'combo'");
               setActiveTab('combo');
             }}>Combo Strategy</button>
@@ -825,14 +1048,52 @@ export default function Backtests() {
           {/* Single Strategy Form */}
           {activeTab === 'single' && (
             <form onSubmit={handleRunBacktest} className="backtest-form">
-              {/* ... (rest of single form JSX) ... */}
-            </form>
+              {(formData.mlMode === 'off' || formData.mlMode === 'predictions') && (
+                <label>Strategy:
+                  <select 
+                    name="code"content
+                    value={formData.code} 
+                    onChange={handleFormChange} 
+                    disabled={!strategyOptions.length}
+                    title="Select the core Technical Analysis (TA) strategy to run."
+                  >
+                    <option value="">-- Select TA Strategy --</option>
+                    {strategyOptions.length ? strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option disabled>Loading...</option>}
+                  </select>
+                </label>
+              )}
+              <CommonBacktestInputs
+                  data={formData}
+                  onChange={handleFormChange}
+                  options={{ symbolOptions, timeframeOptions, modelOptions }}
+                  availableModelData={availableModelData}
+                  isCombo={false}
+              />
+              <button type="submit" disabled={isSingleSubmitDisabled}>
+                {getButtonText(loading)}
+              </button>
+            </form>
           )}
 
           {/* Combo Strategy Form */}
           {activeTab === 'combo' && (
              <form onSubmit={handleRunComboBacktest} className="backtest-form">
-                {/* ... (rest of combo form JSX) ... */}
+                <CommonBacktestInputs
+                    data={comboData}
+                    onChange={handleComboChange}
+                    options={{ symbolOptions, timeframeOptions, modelOptions }}
+                    availableModelData={availableModelData}
+                    isCombo={true}
+                />
+                <div className="combo-strategy-list">
+                       {comboData.strategies.map((config, idx) => (
+                    <ComboStrategyCard key={idx} idx={idx} config={config} strategies={strategyOptions} onChange={handleStrategyConfigChange} onRemove={removeStrategyCard} disableRemove={comboData.strategies.length <= 1} />
+                   ))}
+                </div>
+                <button type="button" onClick={addStrategyCard} disabled={loading !== 'idle' || !strategyOptions.length}>Add Strategy</button>
+                <button type="submit" disabled={isComboSubmitDisabled}>
+                   {getButtonText(loading)}
+               </button>
              </form>
           )}
         </div> {/* end backtest-forms */}
@@ -840,12 +1101,12 @@ export default function Backtests() {
         {/* --- Results Section --- */}
         {(loading !== 'idle' || combinedMetrics || error) && (
           <div className="results-section">
-      _       <h2>Backtest Results</h2>
+            <h2>Backtest Results</h2>
             
-            {loading !== 'idle' && (
+            {loading !== 'idle' && (
               <div className="loading-overlay">
                 <h3>{getStatusMessage(loading, currentFormDataForStatus)}</h3>
-                <div className="spinner"></div>
+                <div className="spinner"></div>
               </div>
             )}
             {loading === 'idle' && combinedMetrics && !error && (
@@ -857,32 +1118,46 @@ export default function Backtests() {
                   // 🪵 DEBUG: [Submissions & Responses] Log data being sent to ChartReplay
                   (console.log("🪵 DEBUG: Backtests.jsx [Render]: Rendering ChartReplay with results:", {
                     candleDataLength: backtestResults.main.candleData?.length,
-                    tradeBreakdownLength: backtestResults.main.tradeBreakdown?.length,
+                      tradeBreakdownLength: backtestResults.main.tradeBreakdown?.length,
                     symbol: backtestResults.main.symbol
-                NEW   }),
-                  <ChartReplay results={backtestResults.main} />)
-  S           )}
+                  }),
+                  <ChartReplay results={backtestResults.main} />)
+                )}
                 
                 <div className="charts-container">
                   <div className="chart">
                     <h3>Equity Curve</h3>
-                     <ResponsiveContainer width="100%" height={300}>
-                       <LineChart data={combinedEquityCurve} margin={{ top: 5, right: 20, left: 10, bottom: 25 }}>
-                         {/* ... (rest of LineChart) ... */}
-                       </LineChart>
-            _       </ResponsiveContainer>
-                  </div>
+                      <ResponsiveContainer width="100%" height={300}>
+                       <LineChart data={combinedEquityCurve} margin={{ top: 5, right: 20, left: 10, bottom: 25 }}>
+                         {/* Ensures chart is only rendered when data is available to prevent render issues */}
+                         {combinedEquityCurve.length > 0 && (
+                          <XAxis dataKey="timestamp" tickFormatter={formatChartDate} angle={-30} textAnchor="end" height={50} interval="preserveStartEnd" />
+                         )}
+                         <YAxis domain={['auto', 'auto']} tickFormatter={(tick) => `$${tick.toLocaleString()}`} allowDataOverflow={true} />
+                         <Tooltip formatter={(value) => `$${value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} />
+                        <CartesianGrid stroke="#555" strokeDasharray="3 3"/>
+                         <Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false} strokeWidth={2} />
+                      </LineChart>
+                     </ResponsiveContainer>
+                     </div>
                   <div className="chart">
                     <h3>Win / Loss Distribution</h3>
                      <ResponsiveContainer width="100%" height={300}>
-                       <PieChart>
-                         {/* ... (rest of PieChart) ... */}
+                     <PieChart>
+                         {/* Ensures chart is only rendered when data is available */}
+                         {pieData.length > 0 && (
+                      All    <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} labelLine={false} label={({ cx, cy, midAngle, innerRadius, outerRadius, value, index }) => { const RADIAN = Math.PI / 180; const radius = innerRadius + (outerRadius - innerRadius) * 0.5; const x = cx + radius * Math.cos(-midAngle * RADIAN); const y = cy + radius * Math.sin(-midAngle * RADIAN); return ( <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" > {`${pieData[index].name}: ${value}`} </text> ); }}>
+                             {pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
+                         </Pie>
+                         )}
+                         <Tooltip />
+                        <Legend />
                        </PieChart>
                      </ResponsiveContainer>
                   </div>
                 </div>
-              </>
-            )}
+              </>
+              )}
              {loading === 'idle' && !combinedMetrics && !error && (
                  <p className="no-results-message">Select parameters and run a backtest to see results here.</p>
              )}
