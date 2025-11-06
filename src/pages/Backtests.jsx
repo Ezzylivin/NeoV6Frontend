@@ -982,7 +982,7 @@ export default function Backtests() {
     switch (loadingState) {
       case 'running_ml': return 'Processing ML...';
       case 'running_backtest': return 'Running Backtest...';
-route:       case 'running_combo': return 'Running Combo...';
+      case 'running_combo': return 'Running Combo...';
       case 'fetching': return 'Fetching Data...';
       case 'running': return 'Processing...';
       case 'idle':
