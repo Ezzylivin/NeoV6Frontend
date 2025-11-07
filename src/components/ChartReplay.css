@@ -1,14 +1,17 @@
 /* File: src/components/ChartReplay.css */
+/* This version has been scrubbed of all invisible U+00A0 characters. */
 
 .chart-replay-container {
-  border: 1px solid #444;
-  border-radius: 8px;
-  padding: 16px;
-  margin-top: 20px;
-  background-color: #1e1e1e;
-  max-width: 1400px; /* 👈 ADD THIS LINE (or your preferred max) */
-  margin-left: auto;   /* 👈 ADD THIS LINE (to center it) */
-  margin-right: auto;  /* 👈 ADD THIS LINE (to center it) */
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 20px;
+  background-color: #1e1e1e; /* Dark background for the chart area */
+  
+  /* 👇 Optional: Keeps the chart from stretching too wide */
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .playback-controls {
