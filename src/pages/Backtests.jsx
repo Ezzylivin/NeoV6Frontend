@@ -114,7 +114,7 @@ const STRATEGY_TYPE_TO_CODE_MAP = {
 // --- Child Components (MetricsDisplay, CommonBacktestInputs, ComboStrategyCard) ---
 
 // Displays performance metrics (unchanged)
-const MetricsDisplay = ({ metrics }) => {
+const MetricsDisplay = ({ metrics, mainResult }) => {
   // 🪵 DEBUG: [State & Props] Log props for MetricsDisplay
   console.log("🪵 DEBUG: MetricsDisplay [Props]:", { metrics });
   if (!metrics) return <div className="metrics-grid-loading">Calculating metrics...</div>;
@@ -139,7 +139,7 @@ const MetricsDisplay = ({ metrics }) => {
     { label: "Total Trades", value: metrics.totalTrades, format: null },
     { label: "Avg. Win", value: metrics.averageWin, format: 'currency' },
     { label: "Avg. Loss", value: metrics.averageLoss, format: 'currency' },
-    { label: "Final Balance", value: metrics.finalBalance, format: 'currency' }
+    { label: "Final Balance", value: mainResult?.finalBalance, format: 'currency' }
   ];
   return (
     <div className="metrics-grid">
@@ -1116,7 +1116,7 @@ export default function Backtests() {
             )}
             {loading === 'idle' && combinedMetrics && !error && (
               <>
-                <MetricsDisplay metrics={combinedMetrics} />
+                <MetricsDisplay metrics={combinedMetrics} mainResult={backtestResults.main} />
                 
                 {/* 🚀 CHART REPLAY COMPONENT */}
                 {backtestResults.main && backtestResults.main.candleData?.length > 0 && (
