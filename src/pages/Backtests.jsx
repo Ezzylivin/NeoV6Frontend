@@ -2342,4 +2342,4 @@ export default function Backtests() {
       </div> {/* end backtest-main */}
     </div> // end dashboard-container
   );
-}q
+}
