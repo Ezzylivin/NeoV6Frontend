@@ -1,9 +1,9 @@
 // File: src/pages/Backtests.jsx
 //
 // 💡 FINAL FIX:
-// 1. Removed the `useEffect` (lines 742-762) that forced the start date to 2017,
-//    which was causing the 502 Bad Gateway / OOM crash.
-// 2. Fixed the `useEffect` (lines 765-783) to auto-select a model that
+// 1. Fixed the </Key> typo (line 1252).
+// 2. Removed the `useEffect` (lines 742-762) that forced the start date to 2017.
+// 3. Fixed the `useEffect` (lines 765-816) to auto-select a model that
 //    matches *both* the selected symbol AND timeframe.
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -37,7 +37,6 @@ const getDefaultDates = () => {
   const end = new Date(today); end.setDate(today.getDate() - 1);
   return { startDate: formatDate(start), endDate: formatDate(end) };
 };
-// 💡 NOTE: getMLStartDate() is no longer used by the auto-date-changer
 const getMLStartDate = () => {
     return '2017-01-01'; 
 }
@@ -730,10 +729,10 @@ export default function Backtests() {
     }
   }, [timeframeOptions, formData.timeframe]); 
 
-  // 💡 --- START OF BUGGY CODE --- 💡
+  // 💡 --- BUGGY CODE BLOCK --- 💡
   // This code block automatically changes the start date when you select "ML On"
   // This causes a massive 8-year backtest request, crashing the server.
-  // We are REMOVING this entire block.
+  // We will COMMENT THIS OUT to fix the crash.
   /*
   // NEW: Effect to dynamically change date range based on ML Mode
   useEffect(() => {
@@ -765,9 +764,12 @@ export default function Backtests() {
   // 💡 --- END OF BUGGY CODE --- 💡
 
 
-  // [FIXED] Auto-select default model for SINGLE form
-  // 💡 --- START OF BUGGY CODE --- 💡
+  // 💡 --- BUGGY CODE BLOCK --- 💡
+  // This code block auto-selects the first model in the list,
+  // which causes a symbol/timeframe mismatch (e.g., '1h' data with '30m' model).
+  // We will REPLACE this with smarter logic.
   /*
+  // [FIXED] Auto-select default model for SINGLE form
   useEffect(() => {
     const mode = formData.mlMode;
     if (mode === 'off' || modelOptions.length === 0) return;
@@ -831,9 +833,10 @@ export default function Backtests() {
   // 💡 --- END OF NEW, CORRECTED CODE --- 💡
 
 
-  // [FIXED] Auto-select default model for COMBO form
-  // 💡 --- START OF BUGGY CODE --- 💡
+  // 💡 --- BUGGY CODE BLOCK (FOR COMBO) --- 💡
+  // We will REPLACE this with smarter logic.
   /*
+  // [FIXED] Auto-select default model for COMBO form
   useEffect(() => {
     const mode = comboData.mlMode;
     if (mode === 'off' || modelOptions.length === 0) return;
@@ -855,7 +858,7 @@ export default function Backtests() {
   */
   // 💡 --- END OF BUGGY CODE --- 💡
   
-  // 💡 --- START OF NEW, CORRECTED CODE --- 💡
+  // 💡 --- START OF NEW, CORRECTED CODE (FOR COMBO) --- 💡
   // This effect auto-selects a model that matches the *selected symbol and timeframe*
   useEffect(() => {
     const { mlMode, symbol, timeframe, mlModel } = comboData;
@@ -890,7 +893,7 @@ export default function Backtests() {
       }
     }
   }, [modelOptions, comboData.mlMode, comboData.symbol, comboData.timeframe]); // Note the new dependencies
-  // 💡 --- END OF NEW, CORRECTED CODE --- 💡
+  // 💡 --- END OF NEW, CORRECTED CODE (FOR COMBO) --- 💡
 
 
   // --- Memoized Results Data ---
@@ -1249,7 +1252,7 @@ export default function Backtests() {
                           )}
                           <Tooltip />
                          <Legend />
-                       </Key>
+                       </PieChart>
                      </ResponsiveContainer>
                   </div>
                 </div>
