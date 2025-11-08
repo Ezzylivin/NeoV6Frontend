@@ -1,5 +1,5 @@
 /* File: src/components/ChartReplay.css */
-/* This version has been scrubbed of all invisible U+00A0 characters. */
+/* This version includes the new HUD styles and control polish. */
 
 .chart-replay-container {
   border: 1px solid #444;
@@ -22,35 +22,42 @@
   flex-wrap: wrap;
 }
 
+/* --- 💡 UPGRADED BUTTONS --- */
 .playback-controls button {
   background-color: #3b82f6;
   color: white;
   border: none;
-  padding: 8px 12px;
+  padding: 4px 8px; /* Adjusted padding for icons */
   border-radius: 4px;
   cursor: pointer;
   font-weight: bold;
+  font-size: 1.25rem; /* Make icons bigger */
 }
 
 .playback-controls button:hover {
   background-color: #2563eb;
 }
 
+/* --- 💡 UPGRADED LABEL --- */
 .playback-controls label {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px; /* Adjusted gap */
+  font-size: 0.9rem; /* Added font size */
 }
 
 .playback-controls input[type="range"] {
   cursor: pointer;
+  margin: 0; /* Added margin reset */
 }
 
-.playback-controls span {
+/* --- 💡 UPGRADED SPAN (now .candle-counter) --- */
+/* This replaces the old .playback-controls span */
+.candle-counter {
+  margin-left: auto; /* Pushes counter to the right */
+  font-size: 0.9rem;
+  color: #9ca3af;
   font-family: monospace;
-  font-size: 14px;
-  color: #aaa;
-  margin-left: auto;
 }
 
 /* Style recharts tooltips to match */
@@ -63,4 +70,37 @@
 .recharts-tooltip-label {
   color: #eee !important;
   font-weight: bold;
+}
+
+/* --- 💡 NEW HUD STYLES --- 💡 */
+.replay-hud {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-around;
+  align-items: center;
+  background: #2a2a33; /* Darker background for the HUD */
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border: 1px solid #444;
+}
+
+.hud-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 4px 12px;
+}
+
+.hud-label {
+  font-size: 0.75rem; /* 12px */
+  color: #9ca3af; /* gray-400 */
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.hud-value {
+  font-size: 1.25rem; /* 20px */
+  font-weight: 600;
+  color: #f3f4f6; /* gray-100 */
 }
