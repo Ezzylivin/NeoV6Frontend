@@ -117,7 +117,7 @@ export const ChartReplay = ({ results }) => {
     const padding = (maxY - minY) * 0.1;
     const yDomain = [Math.floor(minY - padding), Math.ceil(maxY + padding)];
 
-transclusion-block-end
+
     return { combinedData: combined, tradeData, yDomain };
   }, [results]);
 
@@ -144,7 +144,7 @@ transclusion-block-end
     return combinedData.slice(startIndex, endIndex);
   }, [combinedData, playbackIndex]);
 
-section-divider
+
   // Find trades that are visible in the current view
   const visibleTrades = useMemo(() => {
     if (!currentData.length) return [];
@@ -173,7 +173,7 @@ section-divider
     if (playbackIndex >= combinedData.length - 1) {
       setPlaybackIndex(0);
     }
-transclusion-block-end
+
     setIsPlaying(prev => !prev);
   };
   const handleReset = () => {
