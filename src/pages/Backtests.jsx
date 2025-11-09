@@ -1,10 +1,9 @@
 // File: src/pages/Backtests.jsx
 //
-// 💡 FINAL FIX:
-// 1. Fixed the </Key> typo (line 1252).
-// 2. Removed the `useEffect` (lines 742-762) that forced the start date to 2017.
-// 3. Fixed the `useEffect` (lines 765-816) to auto-select a model that
-//    matches *both* the selected symbol AND timeframe.
+// 💡 STRATEGY UPGRADE:
+// 1. Added "Chop Filter (Min ADX)" input field.
+// 2. Added "Trailing Stop (ATR Mult)" input field.
+// (Includes all previous fixes)
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -47,6 +46,8 @@ const defaultFilterParams = {
     TP: 10.0,
     minAtrPct: 0, 
     trendFilterPeriod: 200, 
+    minAdxLevel: 0, // 💡 New default
+    tslAtrMult: 0,  // 💡 New default
 };
 
 // Initial state for the single backtest form
@@ -76,7 +77,9 @@ const initialComboData = {
   params: { 
     minAtrPct: 0,
     trendFilterPeriod: 200,
-    hybridMode: 'AND'
+    hybridMode: 'AND',
+    minAdxLevel: 0, // 💡 New default
+    tslAtrMult: 0,  // 💡 New default
   },
   symbol: "",
   timeframe: "", 
@@ -451,13 +454,40 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                         title="A volatility filter. The strategy will ONLY trade if the current ATR (Average True Range) as a percentage of price is *above* this value. e.g., 0.5 = only trade if volatility is at least 0.5% of the price. Set to 0 to disable."
                     />
                 </label>
+
+                {/* --- 💡 START OF STRATEGY UPGRADES --- 💡 */}
+                <label>Chop Filter (Min ADX):
+                    <input 
+                        type="number" 
+                        name="minAdxLevel" 
+                        value={params.minAdxLevel ?? 0} 
+                        onChange={handleParamChange} 
+                        step="1" 
+                        min="0" 
+                        max="100"
+                        title="A trend strength filter. Strategy will ONLY trade if ADX is *above* this value (e.g., 20 or 25). Set to 0 to disable."
+                    />
+                </label>
+                <label>Trailing Stop (ATR Mult):
+                    <input 
+                        type="number" 
+                        name="tslAtrMult" 
+                        value={params.tslAtrMult ?? 0} 
+                        onChange={handleParamChange} 
+                        step="0.1" 
+                        min="0" 
+                        title="An ATR-based trailing stop loss. This will override the fixed Stop Loss % (if set). (e.g., 1.5). Set to 0 to use fixed SL%."
+                    />
+                </label>
+                {/* --- 💡 END OF STRATEGY UPGRADES --- 💡 */}
+
                 {(data.mlMode === 'on' || (data.mlMode === 'predictions' && params.hybridMode === 'Regime')) && (
                     <label>Trend Filter SMA Period:
                         <input 
                             type="number"
                             name="trendFilterPeriod" 
                             value={params.trendFilterPeriod ?? 200}
-                            onChange={handleParamChange} 
+                            onChange={handleParamChange} // 💡 FIX: Was handleGlobalChange
                             step="1" 
                             min="1" 
                             title="A long-term trend filter. The strategy will only take trades in the direction of this SMA. (e.g., 200). Only Longs if Price > SMA, only Shorts if Price < SMA."
@@ -729,10 +759,10 @@ export default function Backtests() {
     }
   }, [timeframeOptions, formData.timeframe]); 
 
-  // 💡 --- BUGGY CODE BLOCK --- 💡
+  // 💡 --- START OF CRASH-CAUSING CODE --- 💡
   // This code block automatically changes the start date when you select "ML On"
   // This causes a massive 8-year backtest request, crashing the server.
-  // We will COMMENT THIS OUT to fix the crash.
+  // We are COMMENTING THIS OUT to fix the crash.
   /*
   // NEW: Effect to dynamically change date range based on ML Mode
   useEffect(() => {
@@ -761,13 +791,13 @@ export default function Backtests() {
     
   }, [formData.mlMode, comboData.mlMode, activeTab]); 
   */
-  // 💡 --- END OF BUGGY CODE --- 💡
+  // 💡 --- END OF CRASH-CAUSING CODE --- 💡
 
 
-  // 💡 --- BUGGY CODE BLOCK --- 💡
+  // 💡 --- START OF MODEL-MISMATCH BUGGY CODE --- 💡
   // This code block auto-selects the first model in the list,
   // which causes a symbol/timeframe mismatch (e.g., '1h' data with '30m' model).
-  // We will REPLACE this with smarter logic.
+  // We are REPLACING this with smarter logic.
   /*
   // [FIXED] Auto-select default model for SINGLE form
   useEffect(() => {
@@ -789,7 +819,7 @@ export default function Backtests() {
     }
   }, [modelOptions, formData.mlMode, formData.mlModel]); 
   */
-  // 💡 --- END OF BUGGY CODE --- 💡
+  // 💡 --- END OF MODEL-MISMATCH BUGGY CODE --- 💡
 
   // 💡 --- START OF NEW, CORRECTED CODE --- 💡
   // This effect auto-selects a model that matches the *selected symbol and timeframe*
@@ -833,8 +863,8 @@ export default function Backtests() {
   // 💡 --- END OF NEW, CORRECTED CODE --- 💡
 
 
-  // 💡 --- BUGGY CODE BLOCK (FOR COMBO) --- 💡
-  // We will REPLACE this with smarter logic.
+  // 💡 --- START OF MODEL-MISMATCH BUGGY CODE (FOR COMBO) --- 💡
+  // We are REPLACING this with smarter logic.
   /*
   // [FIXED] Auto-select default model for COMBO form
   useEffect(() => {
@@ -1252,7 +1282,7 @@ export default function Backtests() {
                           )}
                           <Tooltip />
                          <Legend />
-                       </PieChart>
+                       </PieChart>{/* 💡 FIX: This was </Key> */}
                      </ResponsiveContainer>
                   </div>
                 </div>
