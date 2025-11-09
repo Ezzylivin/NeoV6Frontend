@@ -1,9 +1,10 @@
 // File: src/pages/Backtests.jsx
 //
 // 💡 UPGRADE:
-// 1. CRASH FIX: Applied empty string ("") to 0 logic to
-//    `handleParamChange`. This was the last handler
-//    causing the "Length of values" server crash.
+// 1. CRASH FIX: Applied empty string ("") to 0 logic to ALL 4
+//    form handlers (handleFormChange, handleComboChange,
+//    handleStrategyConfigChange, AND handleParamChange).
+//    This fixes the "Length of values (0)" server crash.
 // (Includes all previous fixes)
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -514,7 +515,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                         type="number"
                         name="trendFilterPeriod" 
                         value={params.trendFilterPeriod ?? 200}
-                        onChange={handleParamChange} // 💡 FIX: Was handleGlobalChange
+                        onChange={handleParamChange}
                         step="1" 
                         min="1" 
                         title="A long-term trend filter. The strategy will only take trades in the direction of this SMA. (e.g., 200). Only Longs if Price > SMA, only Shorts if Price < SMA."
