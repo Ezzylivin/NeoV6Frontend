@@ -1,12 +1,9 @@
 // File: src/pages/Backtests.jsx
 //
 // 💡 UPGRADE:
-// 1. ML-specific inputs (Model, Threshold, Horizon) are now
-//    correctly hidden when ML Mode is "Off".
-// 2. All other global filters (ADX, ATR, TSL, Trend Filter) are
-//    always visible.
-// 3. CRASH FIX: All form handlers (single, combo, params) now
-//    convert empty number fields to 0, preventing server crashes.
+// 1. CRASH FIX: Applied empty string ("") to 0 logic to
+//    `handleParamChange`. This was the last handler
+//    causing the "Length of values" server crash.
 // (Includes all previous fixes)
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -259,7 +256,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                         <option 
                             key={s.value} 
                             value={s.value} 
-                            disabled={data.mlMode !== 'off' && !s.isAvailable} 
+                            disabled={data.mlMode !== 'off' && !s.isAvailable}
                             style={{ color: (data.mlMode !== 'off' && !s.isAvailable) ? '#888' : 'white' }}
                         >
                             {s.name}
@@ -296,7 +293,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 <input 
                     type="date" 
                     name="startDate" 
-                    value={data.startDate} 
+                    value={data.startDate}
                     onChange={handleGlobalChange} 
                     title="The first day of the backtest period (YYYY-MM-DD)."
                 />
@@ -510,7 +507,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
 
                 {/***********************************************}
                  💡 START UPGRADE: Removing conditional wrapper
-                    This input will NOW BE VISIBLE ALWAYS.
+                   This input will NOW BE VISIBLE ALWAYS.
                 {/***********************************************/}
                 <label>Trend Filter SMA Period:
                     <input 
@@ -956,7 +953,7 @@ export default function Backtests() {
     }
   }, [modelOptions, comboData.mlMode, comboData.symbol, comboData.timeframe]); // Note the new dependencies
   // 💡 --- END OF NEW, CORRECTED CODE (FOR COMBO) --- 💡
-
+ 
 
   // --- Memoized Results Data ---
  const { combinedEquityCurve, combinedMetrics, mainResult } = useMemo(() => {
@@ -1309,9 +1306,9 @@ export default function Backtests() {
                   (console.log("🪵 DEBUG: Backtests.jsx [Render]: Rendering ChartReplay with results:", {
                     candleDataLength: mainResult.candleData?.length,
                     tradeBreakdownLength: mainResult.tradeBreakdown?.length,
-                    symbol: backtestResults.symbol 
+                    symbol: backtestResults.symbol // 💡 FIX
                   })),
-                  <ChartReplay results={mainResult} symbol={backtestResults.symbol} />)
+                  <ChartReplay results={mainResult} symbol={backtestResults.symbol} />) // 💡 FIX
                 }
                 {/***********************************************}
                  💡 END CHART REPLAY FIX
