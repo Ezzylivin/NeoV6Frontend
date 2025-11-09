@@ -1,8 +1,10 @@
 // File: src/pages/Backtests.jsx
 //
 // 💡 UPGRADE:
-// 1. All "global" parameters (ML Model, Threshold, Hybrid Logic, Trend Filter) are
-//    now visible at all times, regardless of ML Mode or form type.
+// 1. ML-specific inputs (Model, Threshold, Horizon) are now
+//    correctly hidden when ML Mode is "Off".
+// 2. All other global filters (ADX, ATR, TSL, Trend Filter) are
+//    always visible.
 // (Includes all previous fixes)
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -246,7 +248,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                         <option 
                             key={s.value} 
                             value={s.value} 
-                            disabled={data.mlMode !== 'off' && !s.isAvailable} 
+                            disabled={data.mlMode !== 'off' && !s.isAvailable}s 
                             style={{ color: (data.mlMode !== 'off' && !s.isAvailable) ? '#888' : 'white' }}
                         >
                             {s.name}
@@ -265,9 +267,9 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                     title="Select the chart timeframe (e.g., 1h, 4h, 1d) for the backtest."
                 >
                     <option value="">-- Select Timeframe --</option>
-                    {processedTimeframeOptions.map(t => (
+                    {processedTimeframeOptions.map(t => (
                         <option 
-                            key={t.value} 
+                            key={t.value} 
                             value={t.value} 
                             disabled={data.mlMode !== 'off' && !t.isAvailable} 
                             style={{ color: (data.mlMode !== 'off' && !t.isAvailable) ? '#888' : 'white' }}
@@ -283,7 +285,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 <input 
                     type="date" 
                     name="startDate" 
-                    value={data.startDate} 
+                    value={data.startDate}s 
                     onChange={handleGlobalChange} 
                     title="The first day of the backtest period (YYYY-MM-DD)."
                 />
@@ -331,7 +333,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                             value={data.riskPercentage} 
                             onChange={handleGlobalChange} 
                             step="0.1" 
-                            min="0.1" 
+                            min="0.1" 
                             title="The percentage of your total equity to risk per trade (e.g., 1 for 1%)."
                         /> 
                     </label>
@@ -344,22 +346,22 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                                 value={data.growthCapitalTarget} 
                                 onChange={handleGlobalChange} 
                                 min="1" 
-                                step="1" 
+                                step="1" 
                                 title="In 'Dynamic Growth Mode', this is the equity target. The system will risk aggressively to reach this target, then revert to the 'Risk %' setting."
                             /> 
-                        </label>
+                        </label>
                         <label>Risk % (After Target): 
                             <input 
-                                type="number" 
+                                type="number" 
                                 name="riskPercentage" 
-                                value={data.riskPercentage} 
+                                value={data.riskPercentage} 
                                 onChange={handleGlobalChange} 
                                 step="0.1" 
                                 min="0.1" 
                                 title="In 'Dynamic Growth Mode', this is the standard risk % to use *after* your equity target has been reached."
                             /> 
                         </label>
-                    </>
+                  </g>
                 )}
             </fieldset>
 
@@ -367,7 +369,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
             <fieldset title="Configure Machine Learning model integration.">
                 <legend>Machine Learning</legend>
                 <label>Mode:
-                    <select 
+                  <select 
                         name="mlMode" 
                         value={data.mlMode || "off"} 
                         onChange={handleGlobalChange}
@@ -379,9 +381,10 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                     </select>
                 </label>
                 {/***********************************************}
-                  💡 START UPGRADE: Removing conditional wrapper
-                  OLD: {data.mlMode !== "off" && (
+                  💡 START UPGRADE: Restoring conditional wrapper
+                    These inputs will ONLY show if ML Mode is NOT "Off"
                 {/***********************************************/}
+                {data.mlMode !== "off" && (
                     <>
                         {/* Model Dropdown */}
                         <label>Model:
@@ -400,15 +403,15 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                                 }
                             </select>
                         </label>
-                        <label>Confidence Threshold: 
+                        <label>Confidence Threshold: 
                             <input 
-                                type="number" 
+                                type="number" 
                                 name="mlThreshold" 
-                                value={data.mlThreshold || 0.5} 
+                                value={data.mlThreshold || 0.5} 
                                 step="0.01" 
                                 min="0" 
-                                max="1"orderBy="viewCount" 
-                                onChange={handleGlobalChange} 
+                                max="1" 
+                                onChange={handleGlobalChange} 
                                 title="The minimum confidence (0.0 to 1.0) from the ML model to consider a signal valid. e.g., 0.65 = 65% confidence."
                             /> 
                         </label>
@@ -418,37 +421,38 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                                 name="mlHorizon" 
                                 value={data.mlHorizon || 1} 
                                 step="1" 
-                                min="1" 
+                                min="1" 
                                 onChange={handleGlobalChange}
-                                title="The number of bars/candles the model was trained to predict. (e.g., 1 = next bar). This must match the model's training."
+                                title="The number of bars/candles the model was trained to predict. (e.g., 1 = next bar). This must match the model's training."
                             /> 
                         </label>
-
-                        {/* Hybrid Logic Selector */}
-                        {/***********************************************}
-                          💡 START UPGRADE: Removing conditional wrapper
-                          OLD: {data.mlMode === 'predictions' && (
-                        {/***********************************************/}
-                            <label>Hybrid Logic:
-                                <select 
-                                    name="hybridMode" 
-                                    value={params.hybridMode ?? 'AND'} 
-                                    onChange={handleParamChange}
-                                    title="How to combine TA and ML signals in 'Hybrid' mode. 'AND' requires both. 'OR' allows either. 'Regime' uses the TA signal as a long-term trend filter."
-                                >
-                                    <option value="AND">TA AND ML (Strict Filter)</option>
-                                    <option value="OR">TA OR ML (Permissive)</option>
-                                    <option value="Regime">TA as Regime Filter</option>
-                                </select>
-                            </label>
-                        {/***********************************************}
-                          💡 END UPGRADE: Removing conditional wrapper
-                          OLD: )}
-                        {/***********************************************/}
                     </>
+                )}
                 {/***********************************************}
-                  💡 END UPGRADE: Removing conditional wrapper
-                  OLD: )}
+                  💡 END UPGRADE: End of ML-specific wrapper
+                {/***********************************************/}
+
+                {/* Hybrid Logic Selector */}
+                {/***********************************************}
+                  💡 START UPGRADE: Restoring wrapper for Hybrid Logic
+                    This input ONLY shows if ML Mode is "Hybrid"
+                {/***********************************************/}
+                {data.mlMode === 'predictions' && (
+                    <label>Hybrid Logic:
+                        <select 
+                            name="hybridMode" 
+                            value={params.hybridMode ?? 'AND'} 
+                            onChange={handleParamChange}
+                            title="How to combine TA and ML signals in 'Hybrid' mode. 'AND' requires both. 'OR' allows either. 'Regime' uses the TA signal as a long-term trend filter."
+                        >
+                            <option value="AND">TA AND ML (Strict Filter)</option>
+                            <option value="OR">TA OR ML (Permissive)</option>
+                            <option value="Regime">TA as Regime Filter</option>
+                        </select>
+                    </label>
+                )}
+                {/***********************************************}
+                 💡 END UPGRADE: End of Hybrid Logic wrapper
                 {/***********************************************/}
             </fieldset>
 
@@ -470,11 +474,11 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 {/* --- 💡 START OF STRATEGY UPGRADES --- 💡 */}
                 <label>Chop Filter (Min ADX):
                     <input 
-                        type="number" 
+                        type="number" 
                         name="minAdxLevel" 
                         value={params.minAdxLevel ?? 0} 
                         onChange={handleParamChange} 
-                        step="1"orderBy="viewCount" 
+                        step="1" 
                         min="0" 
                         max="100"
                         title="A trend strength filter. Strategy will ONLY trade if ADX is *above* this value (e.g., 20 or 25). Set to 0 to disable."
@@ -482,29 +486,30 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 </label>
                 <label>Trailing Stop (ATR Mult):
                     <input 
-                        type="number" 
+                        type="number" 
                         name="tslAtrMult" 
                         value={params.tslAtrMult ?? 0} 
                         onChange={handleParamChange} 
-                        step="0.1" 
+                        step="0.1" 
                         min="0" 
                         title="An ATR-based trailing stop loss. This will override the fixed Stop Loss % (if set). (e.g., 1.5). Set to 0 to use fixed SL%."
                     />
                 </label>
-               {/* --- 💡 END OF STRATEGY UPGRADES --- 💡 */}
+                {/* --- 💡 END OF STRATEGY UPGRADES --- 💡 */}
 
                 {/***********************************************}
                   💡 START UPGRADE: Removing conditional wrapper
+                   This input will NOW BE VISIBLE ALWAYS.
                   OLD: {(data.mlMode === 'on' || (data.mlMode === 'predictions' && params.hybridMode === 'Regime')) && (
                 {/***********************************************/}
                     <label>Trend Filter SMA Period:
                         <input 
-                            type="number"
+                          type="number"
                             name="trendFilterPeriod" 
                             value={params.trendFilterPeriod ?? 200}
-                            onChange={handleParamChange} // 💡 FIX: Was handleGlobalChange
+                            onChange={handleParamChange} // 💡 FIX: Was handleGlobalChange
                             step="1" 
-                            min="1" 
+                            min="1" 
                             title="A long-term trend filter. The strategy will only take trades in the direction of this SMA. (e.g., 200). Only Longs if Price > SMA, only Shorts if Price < SMA."
                         />
                     </label>
@@ -519,27 +524,27 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 <>
                     <label>Stop Loss (%):
                         <input 
-                            type="number" 
+                            type="number" 
                             name="SL" 
                             value={params.SL ?? 5.0}
                             onChange={handleParamChange} 
                             step="0.1" 
-                            min="0" 
-                            title="The Stop Loss for the TA strategy, as a percentage from the entry price (e.g., 5 = 5%)."
+                            min="0" 
+                            title="The Stop Loss for the TA strategy, as a percentage from the entry price (e.g., 5 = 5%)."
                         />
                     </label>
                     <label>Take Profit (%):
                         <input 
-                            type="number"s 
-                            name="TP" 
-                            value={params.TP ?? 10.0} 
+                            type="number" 
+                          name="TP" 
+                            value={params.TP ?? 10.0} 
                             onChange={handleParamChange} 
                             step="0.1" 
                             min="0" 
-                            title="The Take Profit for the TA strategy, as a percentage from the entry price (e.g., 10 = 10%)."
+                            title="The Take Profit for the TA strategy, as a percentage from the entry price (e.g., 10 = 10%)."
                         />
                     </label>
-              </>
+                </>
             )}
         </>
     );
@@ -565,18 +570,18 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
             title="Select the TA strategy for this card in the combo."
           >
             <option value="">-- Select --</option>
-           {strategies.length ? strategies.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option disabled>Loading...</option>}
+            {strategies.length ? strategies.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option disabled>Loading...</option>}
           </select>
         </label>
         <label>Stop Loss (%): 
             <input 
                 type="number" 
                 name="param_SL" 
-                value={config.params?.SL ?? 5.0} 
+                value={config.params?.SL ?? 5.0} 
                 onChange={handleChange} 
                 step="0.1" 
                 min="0"
-                title="Override the global Stop Loss % for this specific strategy."
+                title="Override the global Stop Loss % for this specific strategy."
             />
         </label>
         <label>Take Profit (%): 
@@ -585,8 +590,8 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
                 name="param_TP" 
                 value={config.params?.TP ?? 10.0}
                 onChange={handleChange} 
-                step="0.1" 
-                min="0"A 
+                step="0.1" 
+                min="0" 
                 title="Override the global Take Profit % for this specific strategy."
             />
         </label>
@@ -608,7 +613,7 @@ export default function Backtests() {
     console.log("🪵 DEBUG: Backtests.jsx [Hook State Change]:", { state });
     if (error) {
       console.error("🪵 DEBUG: Backtests.jsx [Hook ERROR]:", error);
-    }
+    }
   }, [state, error]); // Log when state (and error) changes
 
   const [formData, setFormData] = useState(initialFormData);
@@ -637,11 +642,11 @@ export default function Backtests() {
     }).filter(Boolean); // filter(Boolean) removes all null entries
     
     // 🪵 DEBUG: [Data Flow & Memoization] Log strategy options processing
-    console.log("🪵 DEBUG: Backtests.jsx [Memo]: Processing strategyOptions...", { raw: options?.strategies, mapped: mappedStrategies });
+    console.log("🪵 DEBUG: Backtests.jsx [Memo]: Processing strategyOptions...", { raw: options?.strategies, mapped: mappedStrategies });
     return mappedStrategies;
     
   }, [options?.strategies]);
-  
+  
   // Memoize other options
   const symbolOptions = useMemo(() => options?.symbols || [], [options?.symbols]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options?.timeframes]);
@@ -661,7 +666,7 @@ export default function Backtests() {
 
       // Parse each model name
       const parsedModels = options.models.map(model => {
-          const parts = model.id.split('_');
+       const parts = model.id.split('_');
           let symbolBase = 'zzz'; 
           let timeframe = 'zzz';
           let tfWeight = 99;
@@ -688,7 +693,7 @@ export default function Backtests() {
       });
       
       // 🪵 DEBUG: [Data Flow & Memoization] Log model options processing
-        console.log("🪵 DEBUG: Backtests.jsx [Memo]: Processing modelOptions...", { raw: options?.models, parsed: parsedModels });
+        console.log("🪵 DEBUG: Backtests.jsx [Memo]: Processing modelOptions...", { raw: options?.models, parsed: parsedModels });
       return parsedModels;
   }, [options?.models]);
 
@@ -706,7 +711,7 @@ export default function Backtests() {
 
     for (const model of modelOptions) {
         const { symbolBase, timeframe } = model;
-        const fullSymbol = `${symbolBase.toUpperCase()}-USD`; 
+        const fullSymbol = `${symbolBase.toUpperCase()}-USD`; 
         
         availableSymbols.add(fullSymbol);
         availableTimeframes.add(timeframe);
@@ -716,7 +721,7 @@ export default function Backtests() {
     // 🪵 DEBUG: [Data Flow & Memoization] Log available model data
     const result = { availableSymbols, availableTimeframes, lookup };
     console.log("🪵 DEBUG: Backtests.jsx [Memo]: Processing availableModelData...", result);
-    return result;
+    return result;
   }, [modelOptions]); 
 
 
@@ -739,7 +744,7 @@ export default function Backtests() {
       const newConfigs = comboData.strategies.map((config, index) => {
         const strategy = strategyOptions[index] || strategyOptions[0];
         return { code: strategy.code, params: { ...strategy.params, SL: 5.0, TP: 10.0 } };
-       });
+      });
       setComboData(prev => ({ ...prev, strategies: newConfigs }));
     }
   }, [strategyOptions, comboData.strategies]); 
@@ -750,14 +755,14 @@ export default function Backtests() {
     if (symbolOptions.length > 0 && modelOptions.length > 0 && !formData.symbol) {
         const firstModel = modelOptions[0]; 
         const firstModelSymbol = `${firstModel.symbolBase.toUpperCase()}-USD`; 
-        
+        
         let defaultSymbol = "";
         
         if (symbolOptions.includes(firstModelSymbol)) {
             defaultSymbol = firstModelSymbol;
         } else {
             defaultSymbol = symbolOptions.find(s => s === 'BTC-USD') || symbolOptions[0];
-       }
+        }
         
         // 🪵 DEBUG: [Data Flow & Memoization] Log setting default symbol
         console.log("🪵 DEBUG: Backtests.jsx [Effect]: Setting default symbol.", { defaultSymbol });
@@ -772,11 +777,11 @@ export default function Backtests() {
         const defaultTimeframe = timeframeOptions.find(t => t === '1h') || timeframeOptions[0];
         // 🪵 DEBUG: [Data Flow & Memoization] Log setting default timeframe
         console.log("🪵 DEBUG: Backtests.jsx [Effect]: Setting default timeframe.", { defaultTimeframe });
-        setFormData(prev => ({ ...prev, timeframe: defaultTimeframe }));
+        setFormData(prev => ({ ...prev, timeframe: defaultTimeframe }));
         setComboData(prev => ({ ...prev, timeframe: defaultTimeframe }));
     }
   }, [timeframeOptions, formData.timeframe]); 
- 
+
   // 💡 --- START OF CRASH-CAUSING CODE --- 💡
   // This code block automatically changes the start date when you select "ML On"
   // This causes a massive 8-year backtest request, crashing the server.
@@ -798,7 +803,7 @@ export default function Backtests() {
       if (prev.startDate !== newStartDate || prev.endDate !== defaultEnd) {
         // 🪵 DEBUG: [Data Flow & Memoization] Log *applying* date range update
         console.log("🪵 DEBUG: Backtests.jsx [Effect]: Applying new date range.", { newStartDate, defaultEnd });
-        return {
+          return {
           ...prev,
           startDate: newStartDate,
           endDate: defaultEnd
@@ -835,7 +840,7 @@ export default function Backtests() {
             }));
         }
     }
-  }, [modelOptions, formData.mlMode, formData.mlModel]); 
+  }, [modelOptions, formData.mlMode, formData.mlModel]); 
   */
   // 💡 --- END OF MODEL-MISMATCH BUGGY CODE --- 💡
 
@@ -856,7 +861,7 @@ export default function Backtests() {
       );
   
       // If the current model is already valid, do nothing
-   if (isCurrentModelValid) return;
+      if (isCurrentModelValid) return;
   
       // If not, find the *first* model that matches the form's symbol and timeframe
       const newDefaultModel = modelOptions.find(m => 
@@ -878,7 +883,7 @@ export default function Backtests() {
       }
     }
   }, [modelOptions, formData.mlMode, formData.symbol, formData.timeframe]); // Note the new dependencies
-  // 💡 --- END OF NEW, CORRECTED CODE --- 💡
+ // 💡 --- END OF NEW, CORRECTED CODE --- 💡
 
 
   // 💡 --- START OF MODEL-MISMATCH BUGGY CODE (FOR COMBO) --- 💡
@@ -898,7 +903,7 @@ export default function Backtests() {
             console.log("🪵 DEBUG: Backtests.jsx [Effect]: Auto-selecting default model (Combo).", { newModel: modelOptions[0].id });
             setComboData(prev => ({
                 ...prev,
-              mlModel: modelOptions[0].id 
+             mlModel: modelOptions[0].id 
             }));
         }
     }
@@ -911,7 +916,7 @@ export default function Backtests() {
   useEffect(() => {
     const { mlMode, symbol, timeframe, mlModel } = comboData;
     if (mlMode === 'off' || modelOptions.length === 0 || !symbol || !timeframe) return;
-  
+ 
     if (mlMode === 'on' || mlMode === 'predictions') {
       const symbolBase = symbol.split('-')[0].toLowerCase();
       
@@ -919,7 +924,7 @@ export default function Backtests() {
         m.id === mlModel && 
         m.symbolBase === symbolBase && 
         m.timeframe === timeframe
-     );
+      );
   
       if (isCurrentModelValid) return;
   
@@ -937,36 +942,36 @@ export default function Backtests() {
         }));
       } else {
         console.warn(`🪵 DEBUG: Backtests.jsx [Effect]: No matching model found for ${symbol} @ ${timeframe} (Combo).`);
-       setComboData(prev => ({ ...prev, mlModel: "" }));
+        setComboData(prev => ({ ...prev, mlModel: "" }));
       }
     }
   }, [modelOptions, comboData.mlMode, comboData.symbol, comboData.timeframe]); // Note the new dependencies
   // 💡 --- END OF NEW, CORRECTED CODE (FOR COMBO) --- 💡
-
+ 
 
   // --- Memoized Results Data ---
  const { combinedEquityCurve, combinedMetrics, mainResult } = useMemo(() => {
       // 🪵 DEBUG: [Data Flow & Memoization] Log processing of backtest results
-      console.log("🪵 DEBUG: Backtests.jsx [Memo]: Processing results...", { backtestResults });
+     console.log("🪵 DEBUG: Backtests.jsx [Memo]: Processing results...", { backtestResults });
       try {
         const mainResult = backtestResults?.main || backtestResults?.combinedResult;
         if (mainResult?.metrics && mainResult?.equityCurve) {
           // 🪵 DEBUG: [Data Flow & Memoization] Log successful result mapping
           console.log("🪵 DEBUG: Backtests.jsx [Memo]: Successfully mapped mainResult.", { metrics: mainResult.metrics, equityCurveLength: mainResult.equityCurve.length });
-         return {
+          return {
             combinedEquityCurve: (mainResult.equityCurve || []).map(p => ({ ...p, timestamp: new Date(p.timestamp).getTime() })),
             combinedMetrics: mainResult.metrics || null,
             mainResult: mainResult
           };
         }
         // 🪵 DEBUG: [Data Flow & Memoization] Log empty/invalid results
-       console.log("🪵 DEBUG: Backtests.jsx [Memo]: No valid mainResult metrics or equityCurve found.");
+        console.log("🪵 DEBUG: Backtests.jsx [Memo]: No valid mainResult metrics or equityCurve found.");
         return { combinedEquityCurve: [], combinedMetrics: null, mainResult:null };
       } catch (e) {
         // 🪵 DEBUG: [Errors & Status] Log error during result processing
         console.error("🪵 DEBUG: Backtests.jsx [Memo ERROR]: Error processing results:", e, { backtestResults });
         return { combinedEquityCurve: [], combinedMetrics: null, mainResult:null };
-      }
+      }
   }, [backtestResults]);
 
   const pieData = useMemo(() => {
@@ -976,8 +981,8 @@ export default function Backtests() {
     const wins = combinedMetrics.winningTrades;
     const losses = combinedMetrics.totalTrades - wins;
     if (wins <= 0 && losses <= 0) return [];
-    return [{ name: "Wins", value: wins }, { name: "Losses", value: losses }];
-    }, [combinedMetrics]);
+    return [{ name: "Wins", value: wins }, { name: "Losses", value: losses }];
+  }, [combinedMetrics]);
 
 
   // Initial loading screen
@@ -988,7 +993,7 @@ export default function Backtests() {
         <div className="dashboard-container">
             <h1>Backtests</h1>
             <div className="loading-overlay" style={{ position: 'relative', background: 'none' }}>
-              <h3>Initializing Backtest Environment...</h3>
+                <h3>Initializing Backtest Environment...</h3>
                 <div className="spinner"></div>
             </div>
         </div>
@@ -1001,12 +1006,12 @@ export default function Backtests() {
     const { name, value, type } = e.target;
     // 🪵 DEBUG: [User Actions] Log single form change
     console.log("🪵 DEBUG: Backtests.jsx [handleFormChange]:", { name, value, type });
-    const val = type === 'number' && value !== '' ? parseFloat(value) : (type === 'checkbox' ? e.target.checked : value);
+   const val = type === 'number' && value !== '' ? parseFloat(value) : (type === 'checkbox' ? e.target.checked : value);
     if (name === 'code') {
       const selectedStrategy = strategyOptions.find(s => s.code === value);
       // 🪵 DEBUG: [User Actions] Log strategy selection
       console.log("🪵 DEBUG: Backtests.jsx [handleFormChange]: Strategy selected.", { selectedStrategy });
-      setFormData(prev => ({ ...prev, code: value, params: { ...prev.params, ...(selectedStrategy?.params || {}) } }));
+      setFormData(prev => ({ ...prev, code: value, params: { ...prev.params, ...(selectedStrategy?.params || {}) } }));
     } else if (name.startsWith("param_")) {
       const paramName = name.substring(6);
       setFormData(prev => ({ ...prev, params: { ...prev.params, [paramName]: val } }));
@@ -1016,13 +1021,13 @@ export default function Backtests() {
   };
   const handleComboChange = (e) => {
     const { name, value, type } = e.target;
-    // 🪵 DEBUG: [User Actions] Log combo form change
+   // 🪵 DEBUG: [User Actions] Log combo form change
     console.log("🪵 DEBUG: Backtests.jsx [handleComboChange]:", { name, value, type });
     const val = type === 'number' && value !== '' ? parseFloat(value) : (type === 'checkbox' ? e.target.checked : value);
     if (name.startsWith("param_")) {
       const paramName = name.substring(6);
       setComboData(prev => ({ ...prev, params: { ...prev.params, [paramName]: val } }));
-    } else {
+    } else {
       setComboData(prev => ({ ...prev, [name]: val }));
     }
   };
@@ -1032,16 +1037,16 @@ export default function Backtests() {
     console.log("🪵 DEBUG: Backtests.jsx [handleStrategyConfigChange]:", { index, name, value, type });
     const isParam = name.startsWith("param_");
     const val = type === 'number' && value !== '' ? parseFloat(value) : (type === 'checkbox' ? e.target.checked : value);
-    const updatedStrategies = [...comboData.strategies];
+    const updatedStrategies = [...comboData.strategies];
     const currentConfig = { ...updatedStrategies[index] };
     if (isParam) {
       const paramName = name.substring(6);
       currentConfig.params = { ...(currentConfig.params || {}), [paramName]: val };
-    } else if (name === 'code') {
+     } else if (name === 'code') {
       const selectedStrategy = strategyOptions.find(s => s.code === value);
       // 🪵 DEBUG: [User Actions] Log combo card strategy selection
       console.log("🪵 DEBUG: Backtests.jsx [handleStrategyConfigChange]: Strategy selected for card.", { index, selectedStrategy });
-      currentConfig.code = value;
+      currentConfig.code = value;
       currentConfig.params = { ...(selectedStrategy?.params || {}), SL: currentConfig.params?.SL ?? 5.0, TP: currentConfig.params?.TP ?? 10.0, };
     }
     updatedStrategies[index] = currentConfig;
@@ -1050,17 +1055,17 @@ export default function Backtests() {
   const addStrategyCard = () => {
     // 🪵 DEBUG: [User Actions] Log adding strategy card
     console.log("🪵 DEBUG: Backtests.jsx [addStrategyCard]: Adding new card.");
-    const defaultStrategy = strategyOptions[0] || {};
+    const defaultStrategy = strategyOptions[0] || {};
     const newCard = { code: defaultStrategy.code || "", params: { ...(defaultStrategy.params || {}), SL: 5.0, TP: 10.0 } };
     setComboData(prev => ({ ...prev, strategies: [...prev.strategies, newCard] }));
   };
   const removeStrategyCard = (index) => {
     // 🪵 DEBUG: [User Actions] Log removing strategy card
       console.log("🪵 DEBUG: Backtests.jsx [removeStrategyCard]: Removing card.", { index });
-    if (comboData.strategies.length <= 1) return;
+    if (comboData.strategies.length <= 1) return;
     setComboData(prev => ({ ...prev, strategies: prev.strategies.filter((_, i) => i !== index) }));
   };
-
+ 
   // --- Submit Handlers ---
   const handleRunBacktest = async (e) => {
     e.preventDefault();
@@ -1101,9 +1106,9 @@ export default function Backtests() {
     e.preventDefault();
     // 🪵 DEBUG: [Submissions & Responses] Log combo submit validation
     console.log("🪵 DEBUG: Backtests.jsx [handleRunComboBacktest]: Validating...");
-    if (comboData.mlMode !== 'off' && !comboData.mlModel) { alert("Please select an ML model for the combo."); return; }
+    if (comboData.mlMode !== 'off' && !comboData.mlModel) { alert("Please select an ML model for the combo."); return; }
     if (comboData.strategies.filter(s => s.code?.trim()).length < 1) { alert("Please select at least one TA strategy for the combo."); return; }
-     setBacktestResults({ main: null, individuals: [] });
+    setBacktestResults({ main: null, individuals: [] });
 
     // 🪵 DEBUG: [Submissions & Responses] Log PAYLOAD being sent to hook
     console.log("🪵 DEBUG: Backtests.jsx [SUBMIT]: Running COMBO backtest with payload:", { ...comboData });
@@ -1111,7 +1116,7 @@ export default function Backtests() {
     try {
       const comboRes = await runComboBacktest?.(comboData);
       // 🪵 DEBUG: [Submissions & Responses] Log RESPONSE from hook
-      console.log("🪵 DEBUG: Backtests.jsx [RESPONSE]: COMBO backtest results:", comboRes);
+       console.log("🪵 DEBUG: Backtests.jsx [RESPONSE]: COMBO backtest results:", comboRes);
       if (comboRes) { setBacktestResults(comboRes); }
     } catch (err) { 
       // 🪵 DEBUG: [Errors & Status] Log submission failure
@@ -1123,10 +1128,10 @@ export default function Backtests() {
   const getButtonText = (loadingState) => {
     // 🪵 DEBUG: [Errors & Status] Log loading state change for button
     // console.log(`🪵 DEBUG: getButtonText, loading: ${loadingState}`); // This is too noisy, uncomment if needed
-    switch (loadingState) {
+      switch (loadingState) {
       case 'running_ml': return 'Processing ML...';
       case 'running_backtest': return 'Running Backtest...';
-      case 'running_combo': return 'Running Combo...';
+      case 'running_combo': return 'Running Combo...';
       case 'fetching': return 'Fetching Data...';
       case 'running': return 'Processing...';
       case 'idle':
@@ -1136,42 +1141,42 @@ export default function Backtests() {
   const getStatusMessage = (loadingState, currentFormData) => {
     // 🪵 DEBUG: [Errors & Status] Log status message generation
     // console.log(`🪵 DEBUG: getStatusMessage, loading: ${loadingState}`); // Also noisy
-    switch (loadingState) {
+      switch (loadingState) {
       case 'running_ml':
         if (currentFormData?.mlMode === 'predictions') return 'Fetching external ML features & predictions...';
         if (currentFormData?.mlMode === 'on') return 'Running Python ML backtest (loading data, applying model, simulating)...';
         return 'Running Python backtest...';
       case 'running_backtest':
         if (currentFormData?.mlMode === 'off') return 'Running TA simulation in Node.js...';
-        if (currentFormData?.mlMode === 'on') return 'Initiating Python ML backtest... (Checking cache)';
+        if (currentFormData?.mlMode === 'on') return 'Initiating Python ML backtest... (Checking cache)';
         return 'Starting backtest simulation...';
       case 'running_combo':
         return 'Running Combo Backtest in Python...';
       case 'fetching': return 'Fetching required data...';
       case 'running': return 'Processing request...';
       default: return 'Processing...';
-  _ }
+    }
   };
 
   // Updated single submit logic
   const isSingleSubmitDisabled = loading !== 'idle' ||
     (!options?.symbols?.length) ||
     (formData.mlMode === 'off' && !formData.code) ||
-    (formData.mlMode === 'predictions' && (!formData.code || !formData.mlModel)) ||
+    (formData.mlMode === 'predictions' && (!formData.code || !formData.mlModel)) ||
     (formData.mlMode === 'on' && !formData.mlModel);
 
   // Updated combo submit logic
   const isComboSubmitDisabled = loading !== 'idle' ||
     (!options?.symbols?.length) ||
     (comboData.mlMode === 'predictions' && (!comboData.mlModel)) ||
-    (comboData.mlMode === 'on' && !comboData.mlModel) ||
+    (comboData.mlMode === 'on' && !comboData.mlModel) ||
     (comboData.strategies.filter(s => s.code?.trim()).length < 1);
 
   const currentFormDataForStatus = activeTab === 'single' ? formData : comboData;
-
+ 
   // --- Render JSX ---
   // 🪵 DEBUG: [Data Flow & Memoization] Log final render props and states
-  console.log("🪵 DEBUG: Backtests.jsx [RENDER JSX]:", { loading, error, activeTab, formData, comboData, backtestResults, combinedMetrics });
+  console.log("🪵 DEBUG: Backtests.jsx [RENDER JSX]:", { loading, error, activeTab, formData, comboData, backtestResults, combinedMetrics });
   
   return (
     <div className="dashboard-container">
@@ -1182,13 +1187,13 @@ export default function Backtests() {
         <div className="backtest-forms">
           {/* Tabs */}
           <div className="tabs">
-            <button className={activeTab === 'single' ? 'active' : ''} onClick={() => { 
+            <button className={activeTab === 'single' ? 'active' : ''} onClick={() => { 
               // 🪵 DEBUG: [User Actions] Log tab switch
               console.log("🪵 DEBUG: Backtests.jsx [User Action]: Switched tab to 'single'");
-               setActiveTab('single');
+              setActiveTab('single');
             }}>Single Strategy</button>
             <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => {
-               // 🪵 DEBUG: [User Actions] Log tab switch
+             // 🪵 DEBUG: [User Actions] Log tab switch
               console.log("🪵 DEBUG: Backtests.jsx [User Action]: Switched tab to 'combo'");
               setActiveTab('combo');
             }}>Combo Strategy</button>
@@ -1196,42 +1201,42 @@ export default function Backtests() {
 
           {/* Single Strategy Form */}
           {activeTab === 'single' && (
-            <form onSubmit={handleRunBacktest} className="backtest-form">
+            <form onSubmit={handleRunBacktest} className="backtest-form">
               {(formData.mlMode === 'off' || formData.mlMode === 'predictions') && (
                 <label>Strategy:
                   <select 
                     name="code"
-                    value={formData.code} 
+                    value={formData.code} 
                     onChange={handleFormChange} 
                     disabled={!strategyOptions.length}
                     title="Select the core Technical Analysis (TA) strategy to run."
-                 >
+                  >
                     <option value="">-- Select TA Strategy --</option>
                     {strategyOptions.length ? strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option disabled>Loading...</option>}
                   </select>
                 </label>
-                  )}
+                 )}
               <CommonBacktestInputs
                   data={formData}
                   onChange={handleFormChange}
                   options={{ symbolOptions, timeframeOptions, modelOptions }}
                   availableModelData={availableModelData}
-                S   isCombo={false}
+                  isCombo={false}
               />
               <button type="submit" disabled={isSingleSubmitDisabled}>
-                {getButtonText(loading)}
+               {getButtonText(loading)}
               </button>
             </form>
           )}
 
           {/* Combo Strategy Form */}
           {activeTab === 'combo' && (
-             <form onSubmit={handleRunComboBacktest} className="backtest-form">
+             <form onSubmit={handleRunComboBacktest} className="backtest-form">
                 <CommonBacktestInputs
                     data={comboData}
                     onChange={handleComboChange}
-                    options={{ symbolOptions, timeframeOptions, modelOptions }}
-                    availableModelData={availableModelData}
+                        options={{ symbolOptions, timeframeOptions, modelOptions }}
+                    availableModelData={availableModelData}
                     isCombo={true}
                 />
                 <div className="combo-strategy-list">
@@ -1241,27 +1246,27 @@ export default function Backtests() {
                 </div>
                 <button type="button" onClick={addStrategyCard} disabled={loading !== 'idle' || !strategyOptions.length}>Add Strategy</button>
                 <button type="submit" disabled={isComboSubmitDisabled}>
-                   {getButtonText(loading)}
+                 {getButtonText(loading)}
                 </button>
              </form>
           )}
         </div> {/* end backtest-forms */}
-
-         {/* --- Results Section --- */}
+ 
+        {/* --- Results Section --- */}
         {(loading !== 'idle' || combinedMetrics || error) && (
           <div className="results-section">
             <h2>Backtest Results</h2>
             
             {loading !== 'idle' && (
-                <div className="loading-overlay">
+              <div className="loading-overlay">
                 <h3>{getStatusMessage(loading, currentFormDataForStatus)}</h3>
-                <div className="spinner"></div>
+                <div className="spinner"></div>
               </div>
             )}
             {loading === 'idle' && combinedMetrics && !error && (
-                <>
+              <>
                 <MetricsDisplay metrics={combinedMetrics} mainResult={mainResult} />
-                
+               
                 {/* 🚀 CHART REPLAY COMPONENT */}
                 {backtestResults.main && backtestResults.main.candleData?.length > 0 && (
                   // 🪵 DEBUG: [Submissions & Responses] Log data being sent to ChartReplay
@@ -1269,9 +1274,9 @@ export default function Backtests() {
                     candleDataLength: backtestResults.main.candleData?.length,
                       tradeBreakdownLength: backtestResults.main.tradeBreakdown?.length,
                       symbol: backtestResults.main.symbol
-                  }),
+                  }),
                   <ChartReplay results={backtestResults.main} />)
-                )}
+                  )}
                 
                 <div className="charts-container">
                   <div className="chart">
@@ -1281,38 +1286,38 @@ export default function Backtests() {
                           {/* Ensures chart is only rendered when data is available to prevent render issues */}
                           {combinedEquityCurve.length > 0 && (
                            <XAxis dataKey="timestamp" tickFormatter={formatChartDate} angle={-30} textAnchor="end" height={50} interval="preserveStartEnd" />
-                          )}
+                        )}
                           <YAxis domain={['auto', 'auto']} tickFormatter={(tick) => `$${tick.toLocaleString()}`} allowDataOverflow={true} />
-                          <Tooltip formatter={(value) => `$${value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} />
-                         <CartesianGrid stroke="#555" strokeDasharray="3 3"/>
+                          <Tooltip formatter={(value) => `$${value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} />
+                          <CartesianGrid stroke="#555" strokeDasharray="3 3"/>
                           <Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false} strokeWidth={2} />
-                       </LineChart>
-                    </ResponsiveContainer>
-                        </div>
+                       </LineChart>
+                     </ResponsiveContainer>
+                   </div>
                   <div className="chart">
-                     <h3>Win / Loss Distribution</h3>
+                    <h3>Win / Loss Distribution</h3>
                      <ResponsiveContainer width="100%" height={300}>
                      <PieChart>
                          
-                          {pieData.length > 0 && (
+                          {pieData.length > 0 && (
                              <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} labelLine={false} label={({ cx, cy, midAngle, innerRadius, outerRadius, value, index }) => { const RADIAN = Math.PI / 180; const radius = innerRadius + (outerRadius - innerRadius) * 0.5; const x = cx + radius * Math.cos(-midAngle * RADIAN); const y = cy + radius * Math.sin(-midAngle * RADIAN); return ( <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" > {`${pieData[index].name}: ${value}`} </text> ); }}>
-                             {pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
-                           </Pie>
+                             {pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
+                             </Pie>
                           )}
                           <Tooltip />
-                       <Legend />
+                         <Legend />
                        </PieChart>{/* 💡 FIX: This was </Key> */}
                      </ResponsiveContainer>
                   </div>
                 </div>
-               </>
+             </>
             )}
             {loading === 'idle' && !combinedMetrics && !error && (
-                 <p className="no-results-message">Select parameters and run a backtest to see results here.</p>
+               <p className="no-results-message">Select parameters and run a backtest to see results here.</p>
             )}
           </div>
         )}
       </div> {/* end backtest-main */}
     </div> // end dashboard-container
-  );
+ );
 }
