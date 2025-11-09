@@ -1275,7 +1275,7 @@ export default function Backtests() {
     symbol: mainResult.symbol
   })),
   <ChartReplay results={mainResult} />)
-)}
+}
                 
                 <div className="charts-container">
                   <div className="chart">
