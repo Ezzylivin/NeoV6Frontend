@@ -938,11 +938,12 @@ export default function Backtests() {
           return {
             combinedEquityCurve: (mainResult.equityCurve || []).map(p => ({ ...p, timestamp: new Date(p.timestamp).getTime() })),
             combinedMetrics: mainResult.metrics || null,
+            mainResult: mainResult
           };
         }
         // 🪵 DEBUG: [Data Flow & Memoization] Log empty/invalid results
         console.log("🪵 DEBUG: Backtests.jsx [Memo]: No valid mainResult metrics or equityCurve found.");
-        return { combinedEquityCurve: [], combinedMetrics: null };
+        return { combinedEquityCurve: [], combinedMetrics: null, mainResult:null };
       } catch (e) {
         // 🪵 DEBUG: [Errors & Status] Log error during result processing
         console.error("🪵 DEBUG: Backtests.jsx [Memo ERROR]: Error processing results:", e, { backtestResults });
@@ -1241,7 +1242,7 @@ export default function Backtests() {
             )}
             {loading === 'idle' && combinedMetrics && !error && (
               <>
-                <MetricsDisplay metrics={combinedMetrics} mainResult={backtestResults.main} />
+                <MetricsDisplay metrics={combinedMetrics} mainResult={mainResult} />
                 
                 {/* 🚀 CHART REPLAY COMPONENT */}
                 {backtestResults.main && backtestResults.main.candleData?.length > 0 && (
