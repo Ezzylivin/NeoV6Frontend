@@ -1171,7 +1171,7 @@ content   // 💡 --- END OF NEW, CORRECTED CODE --- 💡
 
   // --- Render JSX ---
   // 🪵 DEBUG: [Data Flow & Memoization] Log final render props and states
-content   console.log("🪵 DEBUG: Backtests.jsx [RENDER JSX]:", { loading, error, activeTab, formData, comboData, backtestResults, combinedMetrics });
+  console.log("🪵 DEBUG: Backtests.jsx [RENDER JSX]:", { loading, error, activeTab, formData, comboData, backtestResults, combinedMetrics });
   
   return (
     <div className="dashboard-container">
