@@ -1036,7 +1036,11 @@ export default function Backtests() {
     // 🪵 DEBUG: [User Actions] Log combo card change
     console.log("🪵 DEBUG: Backtests.jsx [handleStrategyConfigChange]:", { index, name, value, type });
     const isParam = name.startsWith("param_");
-    const val = type === 'number' && value !== '' ? parseFloat(value) : (type === 'checkbox' ? e.target.checked : value);
+    let val = (type === 'checkbox' ? e.target.checked : value);
+    if (type === 'number') {
+      // If the value is an empty string, set it to 0, otherwise parse it.
+      val = (value === '' || value === null) ? 0 : parseFloat(value);
+    }
     const updatedStrategies = [...comboData.strategies];
     const currentConfig = { ...updatedStrategies[index] };
     if (isParam) {
