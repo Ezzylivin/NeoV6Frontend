@@ -1097,7 +1097,7 @@ export default function Backtests() {
       if (comboRes) { setBacktestResults(comboRes); }
     } catch (err) { 
       // 🪵 DEBUG: [Errors & Status] Log submission failure
-      console.error("🪵 DEBUG: Combo backtest submission FAILED:", err.message, err);s
+      console.error("🪵 DEBUG: Combo backtest submission FAILED:", err.message, err);
     }
   };
 
