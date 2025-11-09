@@ -878,7 +878,7 @@ export default function Backtests() {
       }
     }
   }, [modelOptions, formData.mlMode, formData.symbol, formData.timeframe]); // Note the new dependencies
-content   // 💡 --- END OF NEW, CORRECTED CODE --- 💡
+  // 💡 --- END OF NEW, CORRECTED CODE --- 💡
 
 
   // 💡 --- START OF MODEL-MISMATCH BUGGY CODE (FOR COMBO) --- 💡
