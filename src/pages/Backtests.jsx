@@ -1345,7 +1345,7 @@ export default function Backtests() {
                           )}
                           <Tooltip />
                          <Legend />
-                       </</PieChart>{/* 💡 FIX: This was </Key> */}
+                       </PieChart>{/* 💡 FIX: This was </Key> */}
                      </ResponsiveContainer>
                   </div>
                 </div>
