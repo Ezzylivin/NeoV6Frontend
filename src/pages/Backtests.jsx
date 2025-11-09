@@ -641,7 +641,7 @@ export default function Backtests() {
     return mappedStrategies;
     
   }, [options?.strategies]);
- content 
+  
   // Memoize other options
   const symbolOptions = useMemo(() => options?.symbols || [], [options?.symbols]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options?.timeframes]);
