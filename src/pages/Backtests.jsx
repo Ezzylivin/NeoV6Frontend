@@ -927,7 +927,7 @@ export default function Backtests() {
 
 
   // --- Memoized Results Data ---
-  const { combinedEquityCurve, combinedMetrics } = useMemo(() => {
+ const { combinedEquityCurve, combinedMetrics, mainResult } = useMemo(() => {
       // 🪵 DEBUG: [Data Flow & Memoization] Log processing of backtest results
       console.log("🪵 DEBUG: Backtests.jsx [Memo]: Processing results...", { backtestResults });
       try {
@@ -947,7 +947,7 @@ export default function Backtests() {
       } catch (e) {
         // 🪵 DEBUG: [Errors & Status] Log error during result processing
         console.error("🪵 DEBUG: Backtests.jsx [Memo ERROR]: Error processing results:", e, { backtestResults });
-        return { combinedEquityCurve: [], combinedMetrics: null };
+        return { combinedEquityCurve: [], combinedMetrics: null, mainResult:null };
       }
   }, [backtestResults]);
 
