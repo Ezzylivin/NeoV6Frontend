@@ -1267,16 +1267,15 @@ export default function Backtests() {
               <>
                 <MetricsDisplay metrics={combinedMetrics} mainResult={mainResult} />
                
-                {/* 🚀 CHART REPLAY COMPONENT */}
-                {backtestResults.main && backtestResults.main.candleData?.length > 0 && (
-                  // 🪵 DEBUG: [Submissions & Responses] Log data being sent to ChartReplay
-                  (console.log("🪵 DEBUG: Backtests.jsx [Render]: Rendering ChartReplay with results:", {
-                    candleDataLength: backtestResults.main.candleData?.length,
-                      tradeBreakdownLength: backtestResults.main.tradeBreakdown?.length,
-                      symbol: backtestResults.main.symbol
-                  }),
-                  <ChartReplay results={backtestResults.main} />)
-                  )}
+                // 🚀 CHART REPLAY COMPONENT (FIXED)
+{mainResult && mainResult.candleData?.length > 0 && (
+  (console.log("🪵 DEBUG: Backtests.jsx [Render]: Rendering ChartReplay with results:", {
+    candleDataLength: mainResult.candleData?.length,
+    tradeBreakdownLength: mainResult.tradeBreakdown?.length,
+    symbol: mainResult.symbol
+  })),
+  <ChartReplay results={mainResult} />)
+)}
                 
                 <div className="charts-container">
                   <div className="chart">
