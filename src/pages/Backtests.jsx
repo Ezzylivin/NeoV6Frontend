@@ -79,7 +79,7 @@ const initialComboData = {
   params: { 
     minAtrPct: 0,
     trendFilterPeriod: 200,
-    hybridMode: 'AND',
+    hybridMode: 'OR',
     minAdxLevel: 0, // 💡 New default
     tslAtrMult: 0,  // 💡 New default
   },
@@ -441,7 +441,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                     <label>Hybrid Logic:
                         <select 
                             name="hybridMode" 
-                            value={params.hybridMode ?? 'AND'} 
+                            value={params.hybridMode ?? 'OR'} 
                             onChange={handleParamChange}
                             title="How to combine TA and ML signals in 'Hybrid' mode. 'AND' requires both. 'OR' allows either. 'Regime' uses the TA signal as a long-term trend filter."
                         >
