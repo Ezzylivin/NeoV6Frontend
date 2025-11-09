@@ -361,7 +361,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                                 title="In 'Dynamic Growth Mode', this is the standard risk % to use *after* your equity target has been reached."
                             /> 
                         </label>
-                  </g>
+                  </>
                 )}
             </fieldset>
 
