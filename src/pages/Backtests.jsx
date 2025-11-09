@@ -132,14 +132,14 @@ const MetricsDisplay = ({ metrics, mainResult }) => {
       }
   };
   const items = [
-    { label: "Total Return", value: metrics.totalReturn, format: 'percent' },
-    { label: "Profit Factor", value: metrics.profitFactor, format: 'number' },
-    { label: "Max Drawdown", value: metrics.maxDrawdown, format: 'percent' },
-    { label: "Win Rate", value: metrics.winRate, format: 'percent' },
-    { label: "Total Trades", value: metrics.totalTrades, format: null },
-    { label: "Avg. Win", value: metrics.averageWin, format: 'currency' },
-    { label: "Avg. Loss", value: metrics.averageLoss, format: 'currency' },
-    { label: "Final Balance", value: mainResult?.finalBalance, format: 'currency' }
+    { label: "Total Return", value: metrics.totalReturn ?? 0, format: 'percent' },
+    { label: "Profit Factor", value: metrics.profitFactor ?? 0, format: 'number' },
+    { label: "Max Drawdown", value: metrics.maxDrawdown ?? 0, format: 'percent' },
+    { label: "Win Rate", value: metrics.winRate ?? 0, format: 'percent' },
+    { label: "Total Trades", value: metrics.totalTrades ?? 0, format: null },
+    { label: "Avg. Win", value: metrics.averageWin ?? 0, format: 'currency' },
+    { label: "Avg. Loss", value: metrics.averageLoss ?? 0, format: 'currency' },
+    { label: "Final Balance", value: metrics.finalBalance ?? 0, format: 'currency' }
   ];
   return (
     <div className="metrics-grid">
