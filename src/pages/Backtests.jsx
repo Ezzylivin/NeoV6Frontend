@@ -1031,7 +1031,8 @@ content   // 💡 --- END OF NEW, CORRECTED CODE --- 💡
     // 🪵 DEBUG: [User Actions] Log combo card change
     console.log("🪵 DEBUG: Backtests.jsx [handleStrategyConfigChange]:", { index, name, value, type });
     const isParam = name.startsWith("param_");
-    const val = type === 'number' && value !== '' ? parseFloat(value) : (type === 'checkbox' ? e.target.checked : value);s   const updatedStrategies = [...comboData.strategies];
+    const val = type === 'number' && value !== '' ? parseFloat(value) : (type === 'checkbox' ? e.target.checked : value);
+    const updatedStrategies = [...comboData.strategies];
     const currentConfig = { ...updatedStrategies[index] };
     if (isParam) {
       const paramName = name.substring(6);
