@@ -67,7 +67,7 @@ const BotIcon = ({ cx, cy }) => {
 };
 
 // --- Main Replay Component ---
-export const ChartReplay = ({ results }) => {
+export const ChartReplay = ({ results, symbol }) => {
   const [playbackIndex, setPlaybackIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(50); // Milliseconds
