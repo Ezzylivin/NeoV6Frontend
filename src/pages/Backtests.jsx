@@ -1,10 +1,10 @@
 // File: src/pages/Backtests.jsx
 //
 // 💡 UPGRADE:
-// 1. Added read-only "Initial Risk Amount ($)" display for
-//    "Standard" mode.
-// 2. Added read-only "Risk Amount (After Target) ($)" display
-//    for "Dynamic" mode.
+// 1. CHART FIX: Correctly passes the `symbol` prop to ChartReplay
+//    for both Single and Combo modes.
+// 2. VALIDATION FIX: Added `required` and `min="0.1"` to all
+//    Risk/SL/TP fields to prevent 0% trades.
 // (Includes all previous fixes)
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -344,6 +344,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                                 onChange={handleGlobalChange} 
                                 step="0.1" 
                                 min="0.1" 
+                                required
                                 title="The percentage of your total equity to risk per trade (e.g., 1 for 1%)."
                             /> 
                         </label>
@@ -384,6 +385,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                                 onChange={handleGlobalChange} 
                                 step="0.1" 
                                 min="0.1" 
+                                required
                                 title="In 'Dynamic Growth Mode', this is the standard risk % to use *after* your equity target has been reached."
                             /> 
                         </label>
@@ -541,6 +543,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 {/***********************************************}
                  💡 START UPGRADE: Removing conditional wrapper
                    This input will NOW BE VISIBLE ALWAYS.
+                   min="1" changed to min="0" to allow disabling.
                 {/***********************************************/}
                 <label>Trend Filter SMA Period:
                     <input 
@@ -550,7 +553,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                         onChange={handleParamChange}
                         step="1" 
                         min="0" 
-                        title="A long-term trend filter. The strategy will only take trades in the direction of this SMA. (e.g., 200). Only Longs if Price > SMA, only Shorts if Price < SMA."
+                        title="A long-term trend filter. The strategy will only take trades in the direction of this SMA. (e.g., 200). Set to 0 to disable."
                     />
                 </label>
                 {/***********************************************}
@@ -568,7 +571,8 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                             value={params.SL ?? 5.0}
                             onChange={handleParamChange} 
                             step="0.1" 
-                            min="0" 
+                            min="0.1" 
+                            required
                             title="The Stop Loss for the TA strategy, as a percentage from the entry price (e.g., 5 = 5%)."
                         />
                     </label>
@@ -579,7 +583,8 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                             value={params.TP ?? 10.0} 
                             onChange={handleParamChange} 
                             step="0.1" 
-                            min="0" 
+                            min="0.1" 
+                            required
                             title="The Take Profit for the TA strategy, as a percentage from the entry price (e.g., 10 = 10%)."
                         />
                     </label>
@@ -1330,19 +1335,21 @@ export default function Backtests() {
                 
                 {/***********************************************}
                  💡 START CHART REPLAY FIX
-                    Was: backtestResults.main
-                    Now: mainResult
-                    Was: mainResult.symbol (undefined)
-                    Now: backtestResults.symbol (correct)
+                    This now correctly finds the symbol for
+                    both Single and Combo backtest results.
                 {/***********************************************/}
-                {mainResult && mainResult.candleData?.length > 0 && (
-                  (console.log("🪵 DEBUG: Backtests.jsx [Render]: Rendering ChartReplay with results:", {
+                {mainResult && mainResult.candleData?.length > 0 && (() => {
+                  // This finds the symbol in the correct place for both Single and Combo
+                  const symbol = activeTab === 'single' ? mainResult.symbol : backtestResults.symbol;
+                  
+                  console.log("🪵 DEBUG: Backtests.jsx [Render]: Rendering ChartReplay with results:", {
                     candleDataLength: mainResult.candleData?.length,
                     tradeBreakdownLength: mainResult.tradeBreakdown?.length,
-                    symbol: backtestResults.symbol // 💡 FIX
-                  })),
-                  <ChartReplay results={mainResult} symbol={backtestResults.symbol} />) // 💡 FIX
-                }
+                    symbol: symbol 
+                  });
+                  
+                  return <ChartReplay results={mainResult} symbol={symbol} />;
+                })()}
                 {/***********************************************}
                  💡 END CHART REPLAY FIX
                 {/***********************************************/}
