@@ -62,7 +62,7 @@ export async function fetchOptions() {
 // 🚀 ADDED: This function was missing, causing the TypeError
 export async function fetchModels() {
     try {
-        const url = 'https://74.208.28.77:8001/api/ml/models'; // Calls Node.js backend
+        const response = await api.get("/ml/available-models"); // Calls Node.js backend
         return response.data || [];
     } catch (error) {
         handleError(error, "fetchModels");
