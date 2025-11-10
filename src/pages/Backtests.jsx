@@ -549,7 +549,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                         value={params.trendFilterPeriod ?? 200}
                         onChange={handleParamChange}
                         step="1" 
-                        min="1" 
+                        min="0" 
                         title="A long-term trend filter. The strategy will only take trades in the direction of this SMA. (e.g., 200). Only Longs if Price > SMA, only Shorts if Price < SMA."
                     />
                 </label>
