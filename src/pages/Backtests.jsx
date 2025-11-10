@@ -1,10 +1,10 @@
 // File: src/pages/Backtests.jsx
 //
 // 💡 UPGRADE:
-// 1. CRASH FIX: Applied empty string ("") to 0 logic to ALL 4
-//    form handlers (handleFormChange, handleComboChange,
-//    handleStrategyConfigChange, AND handleParamChange).
-//    This fixes the "Length of values (0)" server crash.
+// 1. Added read-only "Initial Risk Amount ($)" display for
+//    "Standard" mode.
+// 2. Added read-only "Risk Amount (After Target) ($)" display
+//    for "Dynamic" mode.
 // (Includes all previous fixes)
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -335,17 +335,34 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                     </select>
                 </label>
                 {data.riskManagementMode === 'standard' ? (
-                    <label>Risk Per Trade (%): 
-                        <input 
-                            type="number" 
-                            name="riskPercentage" 
-                            value={data.riskPercentage} 
-                            onChange={handleGlobalChange} 
-                            step="0.1" 
-                            min="0.1" 
-                            title="The percentage of your total equity to risk per trade (e.g., 1 for 1%)."
-                        /> 
-                    </label>
+                    <>
+                        <label>Risk Per Trade (%): 
+                            <input 
+                                type="number" 
+                                name="riskPercentage" 
+                                value={data.riskPercentage} 
+                                onChange={handleGlobalChange} 
+                                step="0.1" 
+                                min="0.1" 
+                                title="The percentage of your total equity to risk per trade (e.g., 1 for 1%)."
+                            /> 
+                        </label>
+                        {/***********************************************}
+                         💡 START NEW FEATURE: Calculated Risk Amount
+                        {/***********************************************/}
+                        <label>Initial Risk Amount ($):
+                            <input
+                                type="text"
+                                readOnly
+                                value={`$${(data.initialBalance * (data.riskPercentage / 100)).toFixed(2)}`}
+                                className="read-only-display"
+                                title="Your calculated risk for the first trade (Initial Balance * Risk %)."
+                            />
+                        </label>
+                        {/***********************************************}
+                         💡 END NEW FEATURE
+                        {/***********************************************/}
+                    </>
                 ) : (
                     <>
                         <label>Growth Capital Target ($): 
@@ -370,6 +387,21 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                                 title="In 'Dynamic Growth Mode', this is the standard risk % to use *after* your equity target has been reached."
                             /> 
                         </label>
+                        {/***********************************************}
+                         💡 START NEW FEATURE: Calculated Risk Amount
+                        {/***********************************************/}
+                        <label>Risk Amount (After Target) ($):
+                            <input
+                                type="text"
+                                readOnly
+                                value={`$${(data.growthCapitalTarget * (data.riskPercentage / 100)).toFixed(2)}`}
+                                className="read-only-display"
+                                title="Your calculated risk *after* the target is met (Target * Risk %)."
+                            />
+                        </label>
+                        {/***********************************************}
+                         💡 END NEW FEATURE
+                        {/***********************************************/}
                     </>
                 )}
             </fieldset>
