@@ -343,6 +343,13 @@
     color: #e5e7eb;
 }
 
+.read-only-display {
+  background-color: #4b5563; /* A slightly darker gray */
+  color: #d1d5db; /* Lighter text */
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
 
 /* --- Error Box --- */
 .error-box {
