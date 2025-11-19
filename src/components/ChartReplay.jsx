@@ -1,5 +1,5 @@
 // File: src/components/ChartReplay.jsx
-// 🚀 PROFESSIONAL UPGRADE: Switched to Lightweight Charts for maximum visibility.
+// 🚀 PROFESSIONAL UPGRADE: Lightweight Charts + HUD + Entry Price Markers
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { createChart, CrosshairMode } from 'lightweight-charts';
@@ -9,16 +9,16 @@ export const ChartReplay = ({ results, symbol }) => {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const candlestickSeriesRef = useRef(null);
+  
   const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState(100); // ms per candle
+  const [playbackSpeed, setPlaybackSpeed] = useState(100); 
   const [currentIndex, setCurrentIndex] = useState(0);
-  const requestRef = useRef();
-
-  // 1. Parse Data
+  
+  // --- 1. Parse Data ---
   const candles = useMemo(() => {
     if (!results?.candleData) return [];
     return results.candleData.map(c => ({
-      time: new Date(c.timestamp).getTime() / 1000, // Lightweight charts wants seconds
+      time: new Date(c.timestamp).getTime() / 1000, 
       open: c.open,
       high: c.high,
       low: c.low,
@@ -38,73 +38,58 @@ export const ChartReplay = ({ results, symbol }) => {
     }));
   }, [results]);
 
-  // 2. Initialize Chart
+  // --- 2. HUD Logic ---
+  const currentCandle = candles[currentIndex];
+  const openTrade = trades.find(t => t.time <= currentCandle?.time && (!t.exitTime || t.exitTime > currentCandle?.time));
+  
+  let pnl = 0;
+  let pnlPct = 0;
+  
+  if (openTrade && currentCandle) {
+      if (openTrade.position === 'long') {
+          pnl = (currentCandle.close - openTrade.price) * (1000 / openTrade.price); // Approx PnL based on $1k size
+          pnlPct = ((currentCandle.close - openTrade.price) / openTrade.price) * 100;
+      } else {
+          pnl = (openTrade.price - currentCandle.close) * (1000 / openTrade.price);
+          pnlPct = ((openTrade.price - currentCandle.close) / openTrade.price) * 100;
+      }
+  }
+
+  // --- 3. Initialize Chart ---
   useEffect(() => {
     if (!chartContainerRef.current || candles.length === 0) return;
 
     chartRef.current = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
       height: 500,
-      layout: {
-        backgroundColor: '#1e1e1e',
-        textColor: '#ddd',
-      },
-      grid: {
-        vertLines: { color: '#2b2b2b' },
-        horzLines: { color: '#2b2b2b' },
-      },
-      crosshair: {
-        mode: CrosshairMode.Normal,
-      },
-      timeScale: {
-        borderColor: '#485c7b',
-        timeVisible: true,
-      },
+      layout: { backgroundColor: '#1e1e1e', textColor: '#ddd' },
+      grid: { vertLines: { color: '#2b2b2b' }, horzLines: { color: '#2b2b2b' } },
+      crosshair: { mode: CrosshairMode.Normal },
+      timeScale: { borderColor: '#485c7b', timeVisible: true },
     });
 
     candlestickSeriesRef.current = chartRef.current.addCandlestickSeries({
-      upColor: '#26a69a',
-      downColor: '#ef5350',
-      borderVisible: false,
-      wickUpColor: '#26a69a',
-      wickDownColor: '#ef5350',
+      upColor: '#26a69a', downColor: '#ef5350',
+      borderVisible: false, wickUpColor: '#26a69a', wickDownColor: '#ef5350',
     });
 
-    // Load ALL data initially so we can see the full history, 
-    // or load up to currentIndex to simulate replay.
-    // For replay, we usually set data up to the current index.
     candlestickSeriesRef.current.setData(candles.slice(0, currentIndex + 1));
-    
-    // Add markers for trades that happened up to this point
     updateMarkers(currentIndex);
 
-    return () => {
-      chartRef.current.remove();
-    };
-  }, [candles]); // Re-create if data changes completely
+    return () => { chartRef.current.remove(); };
+  }, [candles]); 
 
-  // 3. Handle Resize
-  useEffect(() => {
-    const handleResize = () => {
-      if (chartRef.current && chartContainerRef.current) {
-        chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
-      }
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // 4. Update Chart on Index Change
+  // --- 4. Update Chart Loop ---
   useEffect(() => {
     if (!candlestickSeriesRef.current || candles.length === 0) return;
-    
     const slice = candles.slice(0, currentIndex + 1);
     candlestickSeriesRef.current.setData(slice);
     updateMarkers(currentIndex);
     
-    // Auto-scroll to latest
-    chartRef.current.timeScale().scrollToPosition(0, false); 
-
+    // Auto-scroll logic
+    if (currentIndex > 0) {
+       chartRef.current.timeScale().scrollToPosition(0, false);
+    }
   }, [currentIndex, candles]);
 
   const updateMarkers = (index) => {
@@ -119,7 +104,7 @@ export const ChartReplay = ({ results, symbol }) => {
           position: 'belowBar',
           color: t.position === 'long' ? '#2196F3' : '#E91E63',
           shape: t.position === 'long' ? 'arrowUp' : 'arrowDown',
-          text: `ENTRY ${t.position.toUpperCase()}`
+          text: `ENTRY: $${t.price.toFixed(2)}` // 💡 ENTRY PRICE ADDED HERE
         });
       }
       if (t.exitTime && t.exitTime <= currentTime) {
@@ -127,40 +112,18 @@ export const ChartReplay = ({ results, symbol }) => {
           time: t.exitTime,
           position: 'aboveBar',
           color: t.profit > 0 ? '#4CAF50' : '#F44336',
-          shape: t.profit > 0 ? 'arrowDown' : 'arrowUp', // visual logic: exit is opposite of entry flow? or just a marker
+          shape: 'circle',
           text: `EXIT ($${t.profit?.toFixed(2)})`
         });
       }
     });
+    
+    // Sort markers by time to avoid LWCharts errors
+    markers.sort((a, b) => a.time - b.time);
     candlestickSeriesRef.current.setMarkers(markers);
   };
 
-  // 5. Playback Loop
-  const animate = () => {
-    setCurrentIndex(prev => {
-      if (prev >= candles.length - 1) {
-        setIsPlaying(false);
-        return prev;
-      }
-      return prev + 1;
-    });
-    requestRef.current = setTimeout(() => {
-      if (isPlaying) requestAnimationFrame(animate); // Check isPlaying inside timeout isn't enough due to closure
-    }, playbackSpeed);
-  };
-
-  // Effect to trigger animation loop
-  useEffect(() => {
-    if (isPlaying) {
-      requestRef.current = setTimeout(animate, playbackSpeed);
-    } else {
-      clearTimeout(requestRef.current);
-    }
-    return () => clearTimeout(requestRef.current);
-  }, [isPlaying, playbackSpeed, candles]); 
-  // Note: The recursion in `animate` uses state, so we need to be careful. 
-  // Better pattern for React intervals:
-  
+  // --- 5. Playback Loop ---
   useEffect(() => {
     let interval = null;
     if (isPlaying) {
@@ -177,12 +140,8 @@ export const ChartReplay = ({ results, symbol }) => {
     return () => clearInterval(interval);
   }, [isPlaying, playbackSpeed, candles]);
 
-
   // Controls
-  const handlePlay = () => {
-    if (currentIndex >= candles.length - 1) setCurrentIndex(0);
-    setIsPlaying(true);
-  };
+  const handlePlay = () => { if (currentIndex >= candles.length - 1) setCurrentIndex(0); setIsPlaying(true); };
   const handlePause = () => setIsPlaying(false);
   const handleReset = () => { setIsPlaying(false); setCurrentIndex(0); };
   const handleForward = () => setCurrentIndex(prev => Math.min(prev + 1, candles.length - 1));
@@ -192,29 +151,41 @@ export const ChartReplay = ({ results, symbol }) => {
 
   return (
     <div className="chart-replay-container">
-      <div className="chart-header">
+      <div className="chart-header-row">
         <h3>Market Replay: {symbol}</h3>
+        
+        {/* HUD */}
+        <div className="replay-hud">
+             <div className="hud-item">
+                <span className="hud-label">Position</span>
+                <span className="hud-value" style={{color: openTrade ? (openTrade.position === 'long' ? '#22c55e' : '#ef4444') : '#9ca3af'}}>
+                    {openTrade ? openTrade.position.toUpperCase() : 'FLAT'}
+                </span>
+             </div>
+             <div className="hud-item">
+                <span className="hud-label">Open PnL</span>
+                <span className="hud-value" style={{color: pnl > 0 ? '#22c55e' : pnl < 0 ? '#ef4444' : '#ddd'}}>
+                    ${pnl.toFixed(2)}
+                </span>
+             </div>
+             <div className="hud-item">
+                <span className="hud-label">Return</span>
+                <span className="hud-value" style={{color: pnlPct > 0 ? '#22c55e' : pnlPct < 0 ? '#ef4444' : '#ddd'}}>
+                    {pnlPct.toFixed(2)}%
+                </span>
+             </div>
+             <div className="hud-item">
+                <span className="hud-label">Entry</span>
+                <span className="hud-value">{openTrade ? `$${openTrade.price}` : '-'}</span>
+             </div>
+        </div>
+
         <div className="controls">
           <button onClick={handleBackward}>Step Back</button>
-          {!isPlaying ? (
-            <button onClick={handlePlay} className="play-btn">▶ Play</button>
-          ) : (
-            <button onClick={handlePause} className="pause-btn">⏸ Pause</button>
-          )}
+          {!isPlaying ? <button onClick={handlePlay} className="play-btn">▶ Play</button> : <button onClick={handlePause} className="pause-btn">⏸ Pause</button>}
           <button onClick={handleForward}>Step Fwd</button>
           <button onClick={handleReset}>Reset</button>
-          <label>
-            Speed:
-            <input 
-              type="range" 
-              min="10" 
-              max="1000" 
-              step="10" 
-              value={1000 - playbackSpeed} // Invert logic so right is faster
-              onChange={(e) => setPlaybackSpeed(1000 - Number(e.target.value))} 
-            />
-          </label>
-          <span>{new Date(candles[currentIndex]?.time * 1000).toLocaleString()}</span>
+          <label>Speed: <input type="range" min="10" max="500" step="10" value={510 - playbackSpeed} onChange={(e) => setPlaybackSpeed(510 - Number(e.target.value))} /></label>
         </div>
       </div>
       <div ref={chartContainerRef} className="chart-canvas" />
