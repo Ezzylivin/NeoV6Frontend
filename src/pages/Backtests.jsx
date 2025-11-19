@@ -1,8 +1,8 @@
 // File: src/pages/Backtests.jsx
 //
-// 💡 v2.3 UPGRADE:
-// 1. Added 'Regime Threshold' input to the UI (visible only in Regime mode).
-// 2. ChartReplay receives full results to show Entry Price markers.
+// 💡 v2.4 FIX:
+// 1. Fixed "Regime" vs "REGIME" case sensitivity bug so the threshold input appears.
+// 2. Includes ChartReplay entry price visualization.
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -42,7 +42,7 @@ const defaultFilterParams = {
     trendFilterPeriod: 200, 
     minAdxLevel: 0,
     tslAtrMult: 3.5,
-    regime_threshold: 25, // Default ADX threshold for regime switching
+    regime_threshold: 25, 
 };
 
 const initialFormData = {
@@ -407,11 +407,12 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                             >
                                 <option value="AND">TA AND ML (Strict Filter)</option>
                                 <option value="OR">TA OR ML (Permissive)</option>
-                                <option value="Regime">TA as Regime Filter</option>
+                                {/* 💡 FIXED: Value must be REGIME (All Caps) to match server expectation */}
+                                <option value="REGIME">TA as Regime Filter</option>
                             </select>
                         </label>
                         
-                        {/* 💡 NEW: Regime Threshold Input */}
+                        {/* 💡 Conditional Input: Only shows if REGIME is selected */}
                         {params.hybridMode === 'REGIME' && (
                              <label>Regime Threshold (ADX):
                                 <input 
