@@ -1,6 +1,5 @@
 // File: src/components/ChartReplay.jsx
-// 🚀 UPGRADE: Trade History Log added BELOW the chart.
-// 🚀 UPGRADE: Entry markers now show the price on the chart.
+// 🚀 UPGRADE: Trade Log moved ABOVE the chart.
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { createChart, CrosshairMode } from 'lightweight-charts';
@@ -113,7 +112,7 @@ export const ChartReplay = ({ results, symbol }) => {
           position: 'belowBar',
           color: t.position === 'long' ? '#2196F3' : '#E91E63',
           shape: t.position === 'long' ? 'arrowUp' : 'arrowDown',
-          text: `ENTRY: $${t.price.toFixed(2)}` // 💡 ON-CHART ENTRY PRICE
+          text: `ENTRY: $${t.price.toFixed(2)}` 
         });
       }
       if (t.exitTime && t.exitTime <= currentTime) {
@@ -164,7 +163,6 @@ export const ChartReplay = ({ results, symbol }) => {
       <div className="chart-header-row">
         <h3>Market Replay: {symbol}</h3>
         
-        {/* HUD */}
         <div className="replay-hud">
              <div className="hud-item">
                 <span className="hud-label">Pos</span>
@@ -191,26 +189,26 @@ export const ChartReplay = ({ results, symbol }) => {
           {!isPlaying ? <button onClick={handlePlay} className="play-btn">▶ Play</button> : <button onClick={handlePause} className="pause-btn">⏸ Pause</button>}
           <button onClick={handleForward}>Step Fwd</button>
           <button onClick={handleReset}>Reset</button>
-          <label>Speed: <input type="range" min="10" max="500" step="10" value={510 - playbackSpeed} onChange={(e) => setPlaybackSpeed(510 - Number(e.target.value))} /></label>
+          <label style={{marginLeft: '15px'}}>
+             Speed
+             <input type="range" min="10" max="500" step="10" value={510 - playbackSpeed} onChange={(e) => setPlaybackSpeed(510 - Number(e.target.value))} />
+          </label>
         </div>
       </div>
-      
-      {/* CHART */}
-      <div ref={chartContainerRef} className="chart-canvas" />
 
-      {/* 🚀 TRADE LOG TABLE (Below Chart) */}
+      {/* 🚀 MOVED: Trade History Log is now ABOVE the chart */}
       <div className="trade-log-container">
-        <h4>Trade History</h4>
+        <h4>Live Trade Log</h4>
         <div className="trade-log-table-wrapper">
             <table className="trade-log-table">
                 <thead>
                     <tr>
                         <th>Type</th>
-                        <th>Entry Time</th>
+                        <th>Entry Date</th>
                         <th>Entry Price</th>
-                        <th>Exit Time</th>
+                        <th>Exit Date</th>
                         <th>Exit Price</th>
-                        <th>Profit</th>
+                        <th>PnL</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -236,7 +234,9 @@ export const ChartReplay = ({ results, symbol }) => {
             </table>
         </div>
       </div>
-
+      
+      {/* Chart Canvas is now below the table */}
+      <div ref={chartContainerRef} className="chart-canvas" />
     </div>
   );
 };
