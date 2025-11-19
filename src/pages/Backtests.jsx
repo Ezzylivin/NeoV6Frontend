@@ -1,8 +1,8 @@
 // File: src/pages/Backtests.jsx
 //
-// 💡 v2.1 FIX:
-// 1. Changed 'mainResult.equity' to 'mainResult.equityCurve' to match server response.
-// 2. This ensures Charts and Metrics render correctly.
+// 💡 v2.3 UPGRADE:
+// 1. Added 'Regime Threshold' input to the UI (visible only in Regime mode).
+// 2. ChartReplay receives full results to show Entry Price markers.
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -42,6 +42,7 @@ const defaultFilterParams = {
     trendFilterPeriod: 200, 
     minAdxLevel: 0,
     tslAtrMult: 3.5,
+    regime_threshold: 25, // Default ADX threshold for regime switching
 };
 
 const initialFormData = {
@@ -72,6 +73,7 @@ const initialComboData = {
     hybridMode: 'AND',
     minAdxLevel: 0,
     tslAtrMult: 0,
+    regime_threshold: 25,
   },
   symbol: "",
   timeframe: "", 
@@ -396,17 +398,35 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                     </>
                 )}
                 {data.mlMode === 'predictions' && (
-                    <label>Hybrid Logic:
-                        <select 
-                            name="hybridMode" 
-                            value={params.hybridMode ?? 'AND'} 
-                            onChange={handleParamChange}
-                        >
-                            <option value="AND">TA AND ML (Strict Filter)</option>
-                            <option value="OR">TA OR ML (Permissive)</option>
-                            <option value="Regime">TA as Regime Filter</option>
-                        </select>
-                    </label>
+                    <>
+                        <label>Hybrid Logic:
+                            <select 
+                                name="hybridMode" 
+                                value={params.hybridMode ?? 'AND'} 
+                                onChange={handleParamChange}
+                            >
+                                <option value="AND">TA AND ML (Strict Filter)</option>
+                                <option value="OR">TA OR ML (Permissive)</option>
+                                <option value="Regime">TA as Regime Filter</option>
+                            </select>
+                        </label>
+                        
+                        {/* 💡 NEW: Regime Threshold Input */}
+                        {params.hybridMode === 'REGIME' && (
+                             <label>Regime Threshold (ADX):
+                                <input 
+                                    type="number" 
+                                    name="regime_threshold" 
+                                    value={params.regime_threshold ?? 25} 
+                                    onChange={handleParamChange} 
+                                    step="1" 
+                                    min="0" 
+                                    max="100"
+                                    title="The ADX level to switch strategies. Above this is TREND (Strat 1), below is RANGE (Strat 2)."
+                                />
+                            </label>
+                        )}
+                    </>
                 )}
             </fieldset>
 
