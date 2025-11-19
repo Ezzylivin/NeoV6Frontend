@@ -1,339 +1,135 @@
-// File: src/components/ChartReplay.jsx
-//
-// 🚀 VISUAL UPGRADE 🚀
-// - Zoomed in (Window Size 90) for wider candles.
-// - Neon Colors & White Wicks for high visibility.
-// - Better spacing.
+/* File: src/components/ChartReplay.css */
 
-import React, { useState, useEffect, useMemo } from 'react';
-import {
-  ComposedChart, Bar, AreaChart, Area,
-  XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
-  ReferenceDot, ErrorBar
-} from 'recharts';
-import './ChartReplay.css';
-
-// 👇 CHANGED: Lower number = Wider, easier-to-see candles
-const WINDOW_SIZE = 90; 
-
-// 1. High-Visibility Custom Candle
-const CustomCandleBar = (props) => {
-  const { x, y, width, height, payload } = props;
+.chart-replay-container {
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 20px;
+  background-color: #1e1e1e; /* Dark background for the chart area */
   
-  // Determine Color (Neon Green / Bright Red)
-  const isBullish = payload.openClose[1] >= payload.openClose[0];
-  const fill = isBullish ? '#00ff88' : '#ff3b30'; 
-  const stroke = isBullish ? '#00ff88' : '#ff3b30';
+  /* Optional: Keeps the chart from stretching too wide */
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+}
 
-  // Ensure even flat candles (dojis) are visible with min-height 2px
-  const visibleHeight = Math.max(2, height);
-  // Fix Y position for flat candles so they align correctly
-  const visibleY = height < 2 ? y - 1 : y; 
+.chart-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+}
 
-  return (
-    <rect 
-      x={x} 
-      y={visibleY} 
-      width={width} 
-      height={visibleHeight} 
-      fill={fill} 
-      stroke={stroke}
-      strokeWidth={1}
-    />
-  );
-};
+.chart-header-row h3 {
+  margin: 0;
+  color: #fff;
+}
 
-// 2. High-Vis Buy Arrow (Larger, Glowing)
-const BuyArrow = ({ cx, cy }) => {
-  if (isNaN(cx) || isNaN(cy)) return null;
-  return (
-    <svg x={cx - 10} y={cy + 12} width="20" height="20" fill="#00ff88" viewBox="0 0 1024 1024" style={{ filter: 'drop-shadow(0px 0px 3px rgba(0, 255, 136, 0.5))' }}>
-      <path d="M858.9 689L530.5 308.2c-9.4-10.9-27.5-10.9-37 0L165.1 689c-12.2 14.2-1.2 35.1 18.5 35.1h656.8c19.7 0 30.7-20.9 18.5-35.1z" />
-    </svg>
-  );
-};
+.playback-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
 
-// 3. High-Vis Sell Arrow (Larger, Glowing)
-const SellArrow = ({ cx, cy }) => {
-  if (isNaN(cx) || isNaN(cy)) return null;
-  return (
-    <svg x={cx - 10} y={cy - 32} width="20" height="20" fill="#ff3b30" viewBox="0 0 1024 1024" style={{ filter: 'drop-shadow(0px 0px 3px rgba(255, 59, 48, 0.5))' }}>
-      <path d="M840.4 300H183.6c-19.7 0-30.7 20.9-18.5 35.1l328.4 380.8c9.4 10.9 27.5 10.9 37 0L858.9 335.1c12.2-14.2 1.2-35.1-18.5-35.1z" />
-    </svg>
-  );
-};
+/* --- BUTTONS --- */
+.playback-controls button {
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
 
-const BotIcon = ({ cx, cy }) => {
-  if (isNaN(cx) || isNaN(cy)) return null;
-  return (
-    <svg x={cx - 10} y={cy - 10} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 8V4H8" />
-      <rect x="4" y="12" width="16" height="10" rx="2" />
-      <path d="M2 12h20" />
-      <path d="M12 12v-4" />
-    </svg>
-  );
-};
+.playback-controls button:hover {
+  background-color: #2563eb;
+}
 
-export const ChartReplay = ({ results, symbol }) => {
-  const [playbackIndex, setPlaybackIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState(50);
+.playback-controls button:active {
+  transform: translateY(1px);
+}
 
-  // --- 1. Prepare Data ---
-  const { combinedData, tradeData, yDomain } = useMemo(() => {
-    const candleData = results?.candleData || [];
-    const predData = results?.mlPredictions || [];
-    const tradeData = results?.tradeBreakdown || [];
+/* --- LABEL & SLIDER --- */
+.playback-controls label {
+  display: flex;
+  align-items: center;
+  gap: 8px; 
+  font-size: 0.9rem;
+  color: #ccc;
+}
 
-    const predMap = new Map();
-    predData.forEach(p => predMap.set(p.timestamp, p));
-    
-    let minY = Infinity;
-    let maxY = -Infinity;
+.playback-controls input[type="range"] {
+  cursor: pointer;
+  margin: 0;
+  accent-color: #3b82f6;
+}
 
-    const combined = candleData.map(candle => {
-      const pred = predMap.get(candle.timestamp) || {};
-      
-      // Use raw high/low for domain calc
-      if (candle.high > maxY) maxY = candle.high;
-      if (candle.low < minY) minY = candle.low;
+/* --- COUNTER --- */
+.candle-counter {
+  margin-left: 10px; 
+  font-size: 0.9rem;
+  color: #9ca3af;
+  font-family: monospace;
+  background: #2a2a2a;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #444;
+}
 
-      return {
-        ...candle,
-        timestamp: new Date(candle.timestamp).getTime(),
-        highLow: [candle.low, candle.high],
-        openClose: [candle.open, candle.close],
-        prob_buy: pred.prob_buy || 0,
-        prob_sell: pred.prob_sell || 0,
-        prob_hold: 1 - (pred.prob_buy || 0) - (pred.prob_sell || 0),
-      };
-    });
+/* --- RECHARTS TOOLTIPS --- */
+.recharts-tooltip-wrapper {
+  background-color: #2a2a2a !important;
+  border: 1px solid #555 !important;
+  border-radius: 4px !important;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+}
 
-    const padding = (maxY - minY) * 0.1;
-    const yDomain = [minY - padding, maxY + padding];
+.recharts-tooltip-label {
+  color: #eee !important;
+  font-weight: bold;
+}
 
-    return { combinedData: combined, tradeData, yDomain };
-  }, [results]);
+/* --- HUD STYLES --- */
+.replay-hud {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 20px;
+  align-items: center;
+  background: #2a2a33; 
+  border-radius: 8px;
+  padding: 10px 20px;
+  margin-bottom: 16px;
+  border: 1px solid #444;
+}
 
-  // --- 2. Animation Loop ---
-  useEffect(() => {
-    if (isPlaying && playbackIndex < combinedData.length - 1) {
-      const timer = setTimeout(() => {
-        setPlaybackIndex(prev => prev + 1);
-      }, playbackSpeed);
-      return () => clearTimeout(timer);
-    } else if (playbackIndex >= combinedData.length - 1) {
-      setIsPlaying(false);
-    }
-  }, [isPlaying, playbackIndex, combinedData.length, playbackSpeed]);
+.hud-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 80px;
+}
 
-  // --- 3. Sliced Data ---
-  const currentData = useMemo(() => {
-    const startIndex = Math.max(0, playbackIndex - WINDOW_SIZE + 1);
-    const endIndex = playbackIndex + 1;
-    return combinedData.slice(startIndex, endIndex);
-  }, [combinedData, playbackIndex]);
+.hud-label {
+  font-size: 0.75rem; /* 12px */
+  color: #9ca3af; /* gray-400 */
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
 
-  // Visible Trades
-  const visibleTrades = useMemo(() => {
-    if (!currentData.length) return [];
-    const lastVisibleTime = currentData[currentData.length - 1].timestamp;
-    const firstVisibleTime = currentData[0].timestamp;
-    
-    return tradeData.filter(trade => {
-      const entryTime = new Date(trade.entryTime).getTime();
-      return entryTime >= firstVisibleTime && entryTime <= lastVisibleTime;
-    });
-  }, [tradeData, currentData]);
-  
-  const currentBotPosition = useMemo(() => {
-    const lastCandle = currentData[currentData.length - 1];
-    if (!lastCandle) return null;
-    return { x: lastCandle.timestamp, y: lastCandle.close };
-  }, [currentData]);
-
-  // --- HUD Logic ---
-  const botStatus = useMemo(() => {
-    const lastCandle = currentData[currentData.length - 1];
-    if (!lastCandle) return { status: 'FLAT', pnl: 0, pnlPct: 0 };
-    const lastTrade = [...tradeData].reverse().find(t => new Date(t.entryTime).getTime() <= lastCandle.timestamp);
-    
-    if (!lastTrade) return { status: 'FLAT', pnl: 0, pnlPct: 0 };
-    const isExited = lastTrade.exitTime && new Date(lastTrade.exitTime).getTime() <= lastCandle.timestamp;
-    if (isExited) return { status: 'FLAT', pnl: 0, pnlPct: 0 };
-
-    const { entryPrice, size, position } = lastTrade;
-    const currentPrice = lastCandle.close;
-    const pnl = position === 'long' ? (currentPrice - entryPrice) * size : (entryPrice - currentPrice) * size;
-    const pnlPct = (pnl / (entryPrice * size)) * 100;
-
-    return { status: position.toUpperCase(), pnl, pnlPct };
-  }, [currentData, tradeData]);
-
-  const botThought = useMemo(() => {
-    const lastCandle = currentData[currentData.length - 1];
-    if (!lastCandle) return null;
-    const { prob_buy, prob_sell, prob_hold } = lastCandle;
-
-    if (prob_buy > prob_sell && prob_buy > prob_hold && prob_buy > 0.4) 
-      return { thought: 'BUY', prob: prob_buy, color: '#00ff88' };
-    if (prob_sell > prob_buy && prob_sell > prob_hold && prob_sell > 0.4) 
-      return { thought: 'SELL', prob: prob_sell, color: '#ff3b30' };
-    
-    return { thought: 'HOLD', prob: prob_hold, color: '#9ca3af' };
-  }, [currentData]);
-
-  // --- Handlers ---
-  const handlePlayPause = () => {
-    if (playbackIndex >= combinedData.length - 1) setPlaybackIndex(0);
-    setIsPlaying(prev => !prev);
-  };
-  const handleReset = () => { setIsPlaying(false); setPlaybackIndex(0); };
-  const handleSpeedChange = (e) => {
-    const newSpeed = 200 - e.target.value; 
-    setPlaybackSpeed(Math.max(10, newSpeed));
-  };
-
-  if (!combinedData.length) return <div>Preparing replay data...</div>;
-
-  const formatChartDate = timestamp => {
-    const date = new Date(timestamp);
-    return `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-  };
-
-  const getPnlColor = (pnl) => (pnl > 0 ? '#00ff88' : pnl < 0 ? '#ff3b30' : '#9ca3af');
-
-  return (
-    <div className="chart-replay-container">
-      <div className="chart-header-row">
-        <h3>Market Replay: {symbol}</h3>
-        <div className="playback-controls">
-            <button onClick={handlePlayPause}>{isPlaying ? '⏸️' : '▶️'}</button>
-            <button onClick={handleReset}>🔄</button>
-            <label>
-            Speed
-            <input type="range" min="0" max="190" defaultValue={150} onChange={handleSpeedChange} />
-            </label>
-            <span className="candle-counter">Candle: {playbackIndex + 1} / {combinedData.length}</span>
-        </div>
-      </div>
-
-      <div className="replay-hud">
-        <div className="hud-item">
-          <span className="hud-label">Pos</span>
-          <span className="hud-value" style={{ color: botStatus.status === 'LONG' ? '#00ff88' : botStatus.status === 'SHORT' ? '#ff3b30' : '#9ca3af' }}>
-            {botStatus.status}
-          </span>
-        </div>
-        <div className="hud-item">
-          <span className="hud-label">PnL</span>
-          <span className="hud-value" style={{ color: getPnlColor(botStatus.pnl) }}>
-            ${botStatus.pnl.toFixed(2)}
-          </span>
-        </div>
-        <div className="hud-item">
-          <span className="hud-label">Return</span>
-          <span className="hud-value" style={{ color: getPnlColor(botStatus.pnlPct) }}>
-            {botStatus.pnlPct.toFixed(2)}%
-          </span>
-        </div>
-        {botThought && (
-          <div className="hud-item">
-            <span className="hud-label">AI Confidence</span>
-            <span className="hud-value" style={{ color: botThought.color }}>
-              {botThought.thought} {(botThought.prob * 100).toFixed(0)}%
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* CANDLESTICK CHART */}
-      <ResponsiveContainer width="100%" height={450}>
-        <ComposedChart data={currentData} syncId="replayChart">
-          <CartesianGrid stroke="#333" strokeDasharray="3 3" />
-          <XAxis 
-            dataKey="timestamp" 
-            type="number" 
-            domain={['dataMin', 'dataMax']} 
-            tickFormatter={formatChartDate} 
-            minTickGap={50}
-            tick={{ fill: '#888', fontSize: 12 }}
-          />
-          <YAxis 
-            scale="auto" 
-            domain={yDomain} 
-            orientation="right" 
-            tickFormatter={(tick) => `$${tick}`}
-            tick={{ fill: '#888', fontSize: 12 }}
-          />
-          <Tooltip 
-             contentStyle={{ backgroundColor: '#1e1e1e', border: '1px solid #444', color: '#fff' }}
-             labelFormatter={formatChartDate}
-          />
-          
-          {/* 1. WICKS: Thicker White Lines */}
-          <Bar dataKey="highLow" fill="none" isAnimationActive={false} barSize={2}>
-            <ErrorBar dataKey="highLow" width={0} strokeWidth={2} stroke="#ffffff" direction="y" />
-          </Bar>
-
-          {/* 2. BODIES: Bright Neon Colors */}
-          <Bar 
-            dataKey="openClose" 
-            shape={<CustomCandleBar />} 
-            isAnimationActive={false} 
-            barCategoryGap={2} // Small gap between candles
-          />
-
-          {/* 3. TRADES & BOT */}
-          {visibleTrades.map((trade, i) => (
-            <ReferenceDot
-              key={`entry-${i}`}
-              x={new Date(trade.entryTime).getTime()}
-              y={trade.entryPrice}
-              r={6}
-              label={<BuyArrow />} // This logic can be refined if needed to show SellArrow for shorts
-              // Note: Logic for label icon:
-              // If trade.position == 'long', entry is buy (Green Arrow)
-              // If trade.position == 'short', entry is sell (Red Arrow)
-            />
-          ))}
-          
-          {currentBotPosition && (
-            <ReferenceDot
-              x={currentBotPosition.x}
-              y={currentBotPosition.y}
-              r={0} // Hide dot, show icon
-              label={<BotIcon />}
-              isFront={true}
-            />
-          )}
-        </ComposedChart>
-      </ResponsiveContainer>
-
-      {/* ML BRAIN CHART */}
-      {results?.mlPredictions?.length > 0 && (
-        <ResponsiveContainer width="100%" height={100}>
-          <AreaChart data={currentData} syncId="replayChart">
-             <defs>
-                <linearGradient id="colorBuy" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#00ff88" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#00ff88" stopOpacity={0}/>
-                </linearGradient>
-                <linearGradient id="colorSell" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ff3b30" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#ff3b30" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-            <CartesianGrid stroke="#333" strokeDasharray="3 3" />
-            <XAxis dataKey="timestamp" type="number" domain={['dataMin', 'dataMax']} hide />
-            <YAxis domain={[0, 1]} hide />
-            <Tooltip contentStyle={{ backgroundColor: '#1e1e1e', border: '1px solid #444' }} labelFormatter={() => ''}/>
-            <Area type="monotone" dataKey="prob_buy" stroke="#00ff88" fill="url(#colorBuy)" strokeWidth={2} isAnimationActive={false} />
-            <Area type="monotone" dataKey="prob_sell" stroke="#ff3b30" fill="url(#colorSell)" strokeWidth={2} isAnimationActive={false} />
-          </AreaChart>
-        </ResponsiveContainer>
-      )}
-    </div>
-  );
-};
+.hud-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #f3f4f6; 
+  font-family: 'Roboto Mono', monospace; /* If available, otherwise sans-serif */
+}
