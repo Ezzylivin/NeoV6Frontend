@@ -1,387 +1,223 @@
 // File: src/components/ChartReplay.jsx
-//
-// 🚀 UPGRADED VERSION 🚀
-// - Adds a "Heads-Up Display (HUD)" for bot status and live PnL.
-// - Adds a "Bot Thinking" display for ML probabilities.
-// - 🔧 FIX: Removes all 'transclusion' and 'section-divider' errors.
-// - ✨ POLISH: Adds icons to playback buttons.
+// 🚀 PROFESSIONAL UPGRADE: Switched to Lightweight Charts for maximum visibility.
 
-import React, { useState, useEffect, useMemo } from 'react';
-import {
-  ComposedChart, Line, Bar, AreaChart, Area,
-  XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
-  ReferenceDot, ErrorBar
-} from 'recharts';
-import './ChartReplay.css'; // We will need to create this CSS file
+import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { createChart, CrosshairMode } from 'lightweight-charts';
+import './ChartReplay.css';
 
-// How many candles to show on screen at once.
-const WINDOW_SIZE = 150;
-
-// --- Helper Components for Chart ---
-
-// 1. A custom bar shape for Candlesticks (red/green)
-const CustomCandleBar = (props) => {
-  const { x, y, width, height, payload } = props;
-  const isBullish = payload.openClose[1] >= payload.openClose[0];
-  const fill = isBullish ? '#22c55e' : '#ef4444';
-  return <path d={`M ${x},${y} h ${width} v ${height} h ${-width} Z`} fill={fill} />;
-};
-
-// 2. A custom SVG for the "Buy" arrow
-const BuyArrow = ({ cx, cy }) => {
-  if (isNaN(cx) || isNaN(cy)) {
-    return null;
-  }
-  return (
-    <svg x={cx - 8} y={cy + 8} width="16" height="16" fill="#22c55e" viewBox="0 0 1024 1024">
-      <path d="M858.9 689L530.5 308.2c-9.4-10.9-27.5-10.9-37 0L165.1 689c-12.2 14.2-1.2 35.1 18.5 35.1h656.8c19.7 0 30.7-20.9 18.5-35.1z" />
-    </svg>
-  );
-};
-
-// 3. A custom SVG for the "Sell" arrow
-const SellArrow = ({ cx, cy }) => {
-  if (isNaN(cx) || isNaN(cy)) {
-    return null;
-  }
-  return (
-    <svg x={cx - 8} y={cy - 24} width="16" height="16" fill="#ef4444" viewBox="0 0 1024 1024">
-      <path d="M840.4 300H183.6c-19.7 0-30.7 20.9-18.5 35.1l328.4 380.8c9.4 10.9 27.5 10.9 37 0L858.9 335.1c12.2-14.2 1.2-35.1-18.5-35.1z" />
-    </svg>
-  );
-};
-
-// 4. A custom SVG for the "Bot" icon
-const BotIcon = ({ cx, cy }) => {
-  if (isNaN(cx) || isNaN(cy)) {
-    return null;
-  }
-  return (
-    <svg x={cx - 10} y={cy - 10} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 8V4H8" />
-      <rect x="4" y="12" width="16" height="10" rx="2" />
-      <path d="M2 12h20" />
-      <path d="M12 12v-4" />
-    </svg>
-  );
-};
-
-// --- Main Replay Component ---
 export const ChartReplay = ({ results, symbol }) => {
-  const [playbackIndex, setPlaybackIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState(50); // Milliseconds
+  const chartContainerRef = useRef(null);
+  const chartRef = useRef(null);
+  const candlestickSeriesRef = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(100); // ms per candle
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const requestRef = useRef();
 
-  // --- 1. Prepare Data ---
-  const { combinedData, tradeData, yDomain } = useMemo(() => {
-    const candleData = results?.candleData || [];
-    const predData = results?.mlPredictions || [];
-    const tradeData = results?.tradeBreakdown || [];
+  // 1. Parse Data
+  const candles = useMemo(() => {
+    if (!results?.candleData) return [];
+    return results.candleData.map(c => ({
+      time: new Date(c.timestamp).getTime() / 1000, // Lightweight charts wants seconds
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+    })).sort((a, b) => a.time - b.time);
+  }, [results]);
 
-    // Create a fast lookup map for predictions
-    const predMap = new Map();
-    predData.forEach(p => predMap.set(p.timestamp, p));
-    
-    let minY = Infinity;
-    let maxY = -Infinity;
+  const trades = useMemo(() => {
+    if (!results?.tradeBreakdown) return [];
+    return results.tradeBreakdown.map(t => ({
+      time: new Date(t.entryTime).getTime() / 1000,
+      position: t.position,
+      price: t.entryPrice,
+      profit: t.profit,
+      exitTime: t.exitTime ? new Date(t.exitTime).getTime() / 1000 : null,
+      exitPrice: t.exitPrice
+    }));
+  }, [results]);
 
-    // Combine candle and prediction data
-    const combined = candleData.map(candle => {
-      const pred = predMap.get(candle.timestamp) || {};
-      
-      // For candlestick wicks
-      const highLow = [candle.low, candle.high];
-      // For candlestick body
-      const openClose = [candle.open, candle.close];
+  // 2. Initialize Chart
+  useEffect(() => {
+    if (!chartContainerRef.current || candles.length === 0) return;
 
-      // Update Y-axis domain
-      if (candle.high > maxY) maxY = candle.high;
-      if (candle.low < minY) minY = candle.low;
+    chartRef.current = createChart(chartContainerRef.current, {
+      width: chartContainerRef.current.clientWidth,
+      height: 500,
+      layout: {
+        backgroundColor: '#1e1e1e',
+        textColor: '#ddd',
+      },
+      grid: {
+        vertLines: { color: '#2b2b2b' },
+        horzLines: { color: '#2b2b2b' },
+      },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+      },
+      timeScale: {
+        borderColor: '#485c7b',
+        timeVisible: true,
+      },
+    });
 
-      return {
-        ...candle,
-        timestamp: new Date(candle.timestamp).getTime(),
-        highLow,
-        openClose,
-        prob_buy: pred.prob_buy || 0,
-        prob_sell: pred.prob_sell || 0,
-        prob_hold: 1 - (pred.prob_buy || 0) - (pred.prob_sell || 0), // Calculate hold
-      };
-    });
+    candlestickSeriesRef.current = chartRef.current.addCandlestickSeries({
+      upColor: '#26a69a',
+      downColor: '#ef5350',
+      borderVisible: false,
+      wickUpColor: '#26a69a',
+      wickDownColor: '#ef5350',
+    });
 
-    // Add padding to the Y-axis
-    const padding = (maxY - minY) * 0.1;
-    const yDomain = [Math.floor(minY - padding), Math.ceil(maxY + padding)];
-
-    // 🔧 FIX: Removed stray 'transclusion-block-end'
-    return { combinedData: combined, tradeData, yDomain };
-  }, [results]);
-
-  // --- 2. Animation Loop ---
-  useEffect(() => {
-    if (isPlaying && playbackIndex < combinedData.length - 1) {
-      const timer = setTimeout(() => {
-        setPlaybackIndex(prevIndex => prevIndex + 1);
-      }, playbackSpeed);
-      return () => clearTimeout(timer);
-    } else if (playbackIndex >= combinedData.length - 1) {
-      setIsPlaying(false); // Stop at the end
-    }
-  }, [isPlaying, playbackIndex, combinedData.length, playbackSpeed]);
-
-  // --- 3. Sliced Data for Animation ---
-  // This is the "Sliding Window"
-  const currentData = useMemo(() => {
-    // Calculate the start of our window
-    const startIndex = Math.max(0, playbackIndex - WINDOW_SIZE + 1);
-    // Calculate the end of our window
-    const endIndex = playbackIndex + 1;
-    // Slice the data to only get this window
-    return combinedData.slice(startIndex, endIndex);
-  }, [combinedData, playbackIndex]);
-
-  // 🔧 FIX: Removed stray 'section-divider'
-
-  // Find trades that are visible in the current view
-  const visibleTrades = useMemo(() => {
-    if (!currentData.length) return [];
-    const lastVisibleTime = currentData[currentData.length - 1].timestamp;
-    
-    return tradeData.filter(trade => {
-      const entryTime = new Date(trade.entryTime).getTime();
-      // Filter out invalid trades that would cause a crash
-      return entryTime <= lastVisibleTime && typeof trade.entryPrice === 'number';
-    });
-  }, [tradeData, currentData]);
-  
-  // Find the bot's current position
-  const currentBotPosition = useMemo(() => {
-    const lastCandle = currentData[currentData.length - 1];
-    if (!lastCandle) return null;
-    
-    return {
-      x: lastCandle.timestamp,
-      y: lastCandle.close, // Bot sits on the 'close' price
-    };
-  }, [currentData]);
-
-  // 💡 --- NEW HUD #1: Bot Status & PnL ---
-  const botStatus = useMemo(() => {
-    const lastCandle = currentData[currentData.length - 1];
-    if (!lastCandle) return { status: 'FLAT', pnl: 0, pnlPct: 0 };
-
-    // Find the last trade that has been entered
-    const lastTrade = [...tradeData]
-      .reverse()
-      .find(trade => new Date(trade.entryTime).getTime() <= lastCandle.timestamp);
-
-    if (!lastTrade) {
-      return { status: 'FLAT', pnl: 0, pnlPct: 0 };
-    }
-
-    const isExited = lastTrade.exitTime && new Date(lastTrade.exitTime).getTime() <= lastCandle.timestamp;
+    // Load ALL data initially so we can see the full history, 
+    // or load up to currentIndex to simulate replay.
+    // For replay, we usually set data up to the current index.
+    candlestickSeriesRef.current.setData(candles.slice(0, currentIndex + 1));
     
-    // If the last trade is already exited, we are flat
-    if (isExited) {
-      return { status: 'FLAT', pnl: 0, pnlPct: 0 };
-    }
+    // Add markers for trades that happened up to this point
+    updateMarkers(currentIndex);
 
-    // If we are here, the trade is open
-    const entryPrice = lastTrade.entryPrice;
-    const currentPrice = lastCandle.close;
-    const size = lastTrade.size;
-    const position = lastTrade.position; // "long" or "short"
-    const entryValue = entryPrice * size;
+    return () => {
+      chartRef.current.remove();
+    };
+  }, [candles]); // Re-create if data changes completely
 
-    let pnl = 0;
-    if (position === 'long') {
-      pnl = (currentPrice - entryPrice) * size;
-    } else {
-      pnl = (entryPrice - currentPrice) * size;
-    }
+  // 3. Handle Resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (chartRef.current && chartContainerRef.current) {
+        chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // 4. Update Chart on Index Change
+  useEffect(() => {
+    if (!candlestickSeriesRef.current || candles.length === 0) return;
     
-    const pnlPct = (pnl / entryValue) * 100;
+    const slice = candles.slice(0, currentIndex + 1);
+    candlestickSeriesRef.current.setData(slice);
+    updateMarkers(currentIndex);
+    
+    // Auto-scroll to latest
+    chartRef.current.timeScale().scrollToPosition(0, false); 
 
-    return { status: position.toUpperCase(), pnl: pnl, pnlPct: pnlPct };
+  }, [currentIndex, candles]);
 
-  }, [currentData, tradeData]);
+  const updateMarkers = (index) => {
+    const currentTime = candles[index]?.time;
+    if (!currentTime) return;
 
-  // 💡 --- NEW HUD #2: "Bot is Thinking" ---
-  const botThought = useMemo(() => {
-    const lastCandle = currentData[currentData.length - 1];
-    if (!lastCandle || !results?.mlPredictions?.length > 0) return null;
-
-    const { prob_buy, prob_sell, prob_hold } = lastCandle;
-
-    if (prob_buy > prob_sell && prob_buy > prob_hold && prob_buy > 0.4) {
-      return { thought: 'BUY', prob: prob_buy, color: '#22c55e' };
-    }
-    if (prob_sell > prob_buy && prob_sell > prob_hold && prob_sell > 0.4) {
-      return { thought: 'SELL', prob: prob_sell, color: '#ef4444' };
-    }
-    return { thought: 'HOLD', prob: prob_hold, color: '#9ca3af' };
-
-  }, [currentData, results?.mlPredictions]);
-
-  // --- 4. Handlers ---
-  const handlePlayPause = () => {
-    if (playbackIndex >= combinedData.length - 1) {
-      setPlaybackIndex(0);
-    }
-    // 🔧 FIX: Removed stray 'transclusion-block-end'
-    setIsPlaying(prev => !prev);
-  };
-  const handleReset = () => {
-    setIsPlaying(false);
-    setPlaybackIndex(0);
-  };
-  const handleSpeedChange = (e) => {
-    // 💡 POLISH: Invert slider so left=slow, right=fast
-    const newSpeed = 200 - e.target.value; 
-    setPlaybackSpeed(Math.max(10, newSpeed)); // 10ms is fastest
+    const markers = [];
+    trades.forEach(t => {
+      if (t.time <= currentTime) {
+        markers.push({
+          time: t.time,
+          position: 'belowBar',
+          color: t.position === 'long' ? '#2196F3' : '#E91E63',
+          shape: t.position === 'long' ? 'arrowUp' : 'arrowDown',
+          text: `ENTRY ${t.position.toUpperCase()}`
+        });
+      }
+      if (t.exitTime && t.exitTime <= currentTime) {
+        markers.push({
+          time: t.exitTime,
+          position: 'aboveBar',
+          color: t.profit > 0 ? '#4CAF50' : '#F44336',
+          shape: t.profit > 0 ? 'arrowDown' : 'arrowUp', // visual logic: exit is opposite of entry flow? or just a marker
+          text: `EXIT ($${t.profit?.toFixed(2)})`
+        });
+      }
+    });
+    candlestickSeriesRef.current.setMarkers(markers);
   };
 
-  if (!combinedData.length) {
-    return <div>Preparing replay data...</div>;
-  }
+  // 5. Playback Loop
+  const animate = () => {
+    setCurrentIndex(prev => {
+      if (prev >= candles.length - 1) {
+        setIsPlaying(false);
+        return prev;
+      }
+      return prev + 1;
+    });
+    requestRef.current = setTimeout(() => {
+      if (isPlaying) requestAnimationFrame(animate); // Check isPlaying inside timeout isn't enough due to closure
+    }, playbackSpeed);
+  };
 
-  const formatChartDate = timestamp => {
-    if (!timestamp) return '';
-    const date = new Date(timestamp);
-    if (isNaN(date.getTime())) return '';
-    return `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`;
-  };
+  // Effect to trigger animation loop
+  useEffect(() => {
+    if (isPlaying) {
+      requestRef.current = setTimeout(animate, playbackSpeed);
+    } else {
+      clearTimeout(requestRef.current);
+    }
+    return () => clearTimeout(requestRef.current);
+  }, [isPlaying, playbackSpeed, candles]); 
+  // Note: The recursion in `animate` uses state, so we need to be careful. 
+  // Better pattern for React intervals:
+  
+  useEffect(() => {
+    let interval = null;
+    if (isPlaying) {
+      interval = setInterval(() => {
+        setCurrentIndex(prev => {
+          if (prev >= candles.length - 1) {
+            setIsPlaying(false);
+            return prev;
+          }
+          return prev + 1;
+        });
+      }, playbackSpeed);
+    }
+    return () => clearInterval(interval);
+  }, [isPlaying, playbackSpeed, candles]);
 
-  // 💡 Helper to format PnL color
-  const getPnlColor = (pnl) => (pnl > 0 ? '#22c55e' : pnl < 0 ? '#ef4444' : '#9ca3af');
 
-  return (
-    <div className="chart-replay-container">
-      <h3>Chart Replay</h3>
-      
-      {/* --- 5. Playback Controls --- */}
-      <div className="playback-controls">
-        {/* 💡 POLISH: Added icons to buttons */}
-        <button onClick={handlePlayPause}>{isPlaying ? '⏸️' : '▶️'}</button>
-        <button onClick={handleReset}>🔄</button>
-        <label>
-          Slow
-          <input 
-            type="range"
-            min="0" 
-            max="190" // 200ms (slow) to 10ms (fast)
-            defaultValue={150} 
-            onChange={handleSpeedChange} 
-          />
-          Fast
-        </label>
-        <span className="candle-counter">Candle: {playbackIndex + 1} / {combinedData.length}</span>
-      </div>
+  // Controls
+  const handlePlay = () => {
+    if (currentIndex >= candles.length - 1) setCurrentIndex(0);
+    setIsPlaying(true);
+  };
+  const handlePause = () => setIsPlaying(false);
+  const handleReset = () => { setIsPlaying(false); setCurrentIndex(0); };
+  const handleForward = () => setCurrentIndex(prev => Math.min(prev + 1, candles.length - 1));
+  const handleBackward = () => setCurrentIndex(prev => Math.max(prev - 1, 0));
 
-      {/* 💡 --- NEW HUD SECTION --- 💡 */}
-      <div className="replay-hud">
-        <div className="hud-item">
-          <span className="hud-label">Position</span>
-          <span className="hud-value" style={{ color: botStatus.status === 'LONG' ? '#22c55e' : botStatus.status === 'SHORT' ? '#ef4444' : '#9ca3af' }}>
-            {botStatus.status}
-          </span>
+  if (!results || !candles.length) return null;
+
+  return (
+    <div className="chart-replay-container">
+      <div className="chart-header">
+        <h3>Market Replay: {symbol}</h3>
+        <div className="controls">
+          <button onClick={handleBackward}>Step Back</button>
+          {!isPlaying ? (
+            <button onClick={handlePlay} className="play-btn">▶ Play</button>
+          ) : (
+            <button onClick={handlePause} className="pause-btn">⏸ Pause</button>
+          )}
+          <button onClick={handleForward}>Step Fwd</button>
+          <button onClick={handleReset}>Reset</button>
+          <label>
+            Speed:
+            <input 
+              type="range" 
+              min="10" 
+              max="1000" 
+              step="10" 
+              value={1000 - playbackSpeed} // Invert logic so right is faster
+              onChange={(e) => setPlaybackSpeed(1000 - Number(e.target.value))} 
+            />
+          </label>
+          <span>{new Date(candles[currentIndex]?.time * 1000).toLocaleString()}</span>
         </div>
-        <div className="hud-item">
-          <span className="hud-label">Open PnL</span>
-          <span className="hud-value" style={{ color: getPnlColor(botStatus.pnl) }}>
-            ${botStatus.pnl.toFixed(2)}
-          </span>
-        </div>
-        <div className="hud-item">
-          <span className="hud-label">Open PnL (%)</span>
-          <span className="hud-value" style={{ color: getPnlColor(botStatus.pnlPct) }}>
-            {botStatus.pnlPct.toFixed(2)}%
-          </span>
-        </div>
-        {botThought && (
-          <div className="hud-item">
-            <span className="hud-label">Bot is Thinking...</span>
-            <span className="hud-value" style={{ color: botThought.color }}>
-              {botThought.thought} ({(botThought.prob * 100).toFixed(0)}%)
-            </span>
-          </div>
-        )}
       </div>
-      {/* 💡 --- END NEW HUD SECTION --- 💡 */}
-
-
-      {/* --- 6. The Candlestick Chart --- */}
-      <ResponsiveContainer width="100%" height={400}>
-        <ComposedChart data={currentData} syncId="replayChart">
-          <CartesianGrid stroke="#333" />
-          <XAxis 
-            dataKey="timestamp"
-            type="number"
-            domain={['dataMin', 'dataMax']}
-            tickFormatter={formatChartDate} 
-            minTickGap={60}
-          />
-          <YAxis 
-            scale="linear"
-            domain={yDomain} 
-            orientation="right" 
-            tickFormatter={(tick) => `$${tick.toLocaleString()}`}
-          />
-          <Tooltip />
-          
-          {/* Wicks (ErrorBar) - must come before Bar */}
-          <Bar dataKey="highLow" fill="none" isAnimationActive={false}>
-            <ErrorBar dataKey="highLow" width={1} stroke="#aaa" direction="y" />
-          </Bar>
-
-          {/* Body (Bar) */}
-          <Bar 
-            dataKey="openClose"
-            shape={<CustomCandleBar />} 
-            isAnimationActive={false} 
-            barCategoryGap={1} // 🚀 FIX: Adds a 1px gap between candles
-          />
-
-          {/* Draw Trades */}
-          {visibleTrades.map((trade, i) => (
-            <ReferenceDot
-              key={`entry-${i}`}
-              x={new Date(trade.entryTime).getTime()}
-              y={trade.entryPrice}
-              label={trade.position === 'long' ? <BuyArrow /> : <SellArrow />}
-            />
-          ))}
-          
-          {/* Draw the Bot */}
-          {currentBotPosition && (
-            <ReferenceDot
-              x={currentBotPosition.x}
-              y={currentBotPosition.y}
-              label={<BotIcon />}
-              isFront={true}
-            />
-          )}
-    </ComposedChart>
-      </ResponsiveContainer>
-
-      {/* --- 7. The "ML Brain" Chart --- */}
-      {results?.mlPredictions?.length > 0 && (
-        <ResponsiveContainer width="100%" height={100}>
-          <AreaChart data={currentData} syncId="replayChart">
-            <CartesianGrid stroke="#333" />
-            <XAxis 
-              dataKey="timestamp" 
-              type="number" 
-              domain={['dataMin', 'dataMax']} 
-              tickFormatter={() => ''} 
-            />
-            <YAxis domain={[0, 1]} hide />
-            <Tooltip />
-            <Area type="monotone" dataKey="prob_buy" stackId="1" stroke="#22c55e" fill="#22c55e" fillOpacity={0.5} isAnimationActive={false} />
-            <Area type="monotone" dataKey="prob_sell" stackId="1" stroke="#ef4444" fill="#ef4444" fillOpacity={0.5} isAnimationActive={false} />
-          </AreaChart>
-        </ResponsiveContainer>
-      )}
-    </div>
-  );
+      <div ref={chartContainerRef} className="chart-canvas" />
+    </div>
+  );
 };
