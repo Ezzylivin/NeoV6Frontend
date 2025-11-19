@@ -1,5 +1,6 @@
 // File: src/components/ChartReplay.jsx
-// 🚀 PROFESSIONAL UPGRADE: Lightweight Charts + HUD + Entry Price Markers
+// 🚀 UPGRADE: Trade History Log added BELOW the chart.
+// 🚀 UPGRADE: Entry markers now show the price on the chart.
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { createChart, CrosshairMode } from 'lightweight-charts';
@@ -38,8 +39,17 @@ export const ChartReplay = ({ results, symbol }) => {
     }));
   }, [results]);
 
-  // --- 2. HUD Logic ---
+  // --- 2. HUD & Log Logic ---
   const currentCandle = candles[currentIndex];
+  
+  // Filter trades that have happened up to the current playback time
+  const tradeLog = useMemo(() => {
+    if (!currentCandle) return [];
+    return trades
+      .filter(t => t.time <= currentCandle.time)
+      .sort((a, b) => b.time - a.time); // Newest first
+  }, [trades, currentIndex, currentCandle]);
+
   const openTrade = trades.find(t => t.time <= currentCandle?.time && (!t.exitTime || t.exitTime > currentCandle?.time));
   
   let pnl = 0;
@@ -47,7 +57,7 @@ export const ChartReplay = ({ results, symbol }) => {
   
   if (openTrade && currentCandle) {
       if (openTrade.position === 'long') {
-          pnl = (currentCandle.close - openTrade.price) * (1000 / openTrade.price); // Approx PnL based on $1k size
+          pnl = (currentCandle.close - openTrade.price) * (1000 / openTrade.price); 
           pnlPct = ((currentCandle.close - openTrade.price) / openTrade.price) * 100;
       } else {
           pnl = (openTrade.price - currentCandle.close) * (1000 / openTrade.price);
@@ -86,8 +96,7 @@ export const ChartReplay = ({ results, symbol }) => {
     candlestickSeriesRef.current.setData(slice);
     updateMarkers(currentIndex);
     
-    // Auto-scroll logic
-    if (currentIndex > 0) {
+    if (currentIndex > 0 && isPlaying) {
        chartRef.current.timeScale().scrollToPosition(0, false);
     }
   }, [currentIndex, candles]);
@@ -104,7 +113,7 @@ export const ChartReplay = ({ results, symbol }) => {
           position: 'belowBar',
           color: t.position === 'long' ? '#2196F3' : '#E91E63',
           shape: t.position === 'long' ? 'arrowUp' : 'arrowDown',
-          text: `ENTRY: $${t.price.toFixed(2)}` // 💡 ENTRY PRICE ADDED HERE
+          text: `ENTRY: $${t.price.toFixed(2)}` // 💡 ON-CHART ENTRY PRICE
         });
       }
       if (t.exitTime && t.exitTime <= currentTime) {
@@ -118,7 +127,6 @@ export const ChartReplay = ({ results, symbol }) => {
       }
     });
     
-    // Sort markers by time to avoid LWCharts errors
     markers.sort((a, b) => a.time - b.time);
     candlestickSeriesRef.current.setMarkers(markers);
   };
@@ -140,7 +148,6 @@ export const ChartReplay = ({ results, symbol }) => {
     return () => clearInterval(interval);
   }, [isPlaying, playbackSpeed, candles]);
 
-  // Controls
   const handlePlay = () => { if (currentIndex >= candles.length - 1) setCurrentIndex(0); setIsPlaying(true); };
   const handlePause = () => setIsPlaying(false);
   const handleReset = () => { setIsPlaying(false); setCurrentIndex(0); };
@@ -148,6 +155,9 @@ export const ChartReplay = ({ results, symbol }) => {
   const handleBackward = () => setCurrentIndex(prev => Math.max(prev - 1, 0));
 
   if (!results || !candles.length) return null;
+
+  const formatTime = (t) => new Date(t * 1000).toLocaleString();
+  const getPnlColor = (pnl) => (pnl > 0 ? '#00ff88' : pnl < 0 ? '#ff3b30' : '#9ca3af');
 
   return (
     <div className="chart-replay-container">
@@ -157,30 +167,26 @@ export const ChartReplay = ({ results, symbol }) => {
         {/* HUD */}
         <div className="replay-hud">
              <div className="hud-item">
-                <span className="hud-label">Position</span>
+                <span className="hud-label">Pos</span>
                 <span className="hud-value" style={{color: openTrade ? (openTrade.position === 'long' ? '#22c55e' : '#ef4444') : '#9ca3af'}}>
                     {openTrade ? openTrade.position.toUpperCase() : 'FLAT'}
                 </span>
              </div>
              <div className="hud-item">
                 <span className="hud-label">Open PnL</span>
-                <span className="hud-value" style={{color: pnl > 0 ? '#22c55e' : pnl < 0 ? '#ef4444' : '#ddd'}}>
+                <span className="hud-value" style={{ color: getPnlColor(pnl) }}>
                     ${pnl.toFixed(2)}
                 </span>
              </div>
              <div className="hud-item">
-                <span className="hud-label">Return</span>
-                <span className="hud-value" style={{color: pnlPct > 0 ? '#22c55e' : pnlPct < 0 ? '#ef4444' : '#ddd'}}>
-                    {pnlPct.toFixed(2)}%
-                </span>
-             </div>
-             <div className="hud-item">
                 <span className="hud-label">Entry</span>
-                <span className="hud-value">{openTrade ? `$${openTrade.price}` : '-'}</span>
+                <span className="hud-value" style={{ color: '#fff' }}>
+                    {openTrade ? `$${openTrade.price.toFixed(2)}` : '-'}
+                </span>
              </div>
         </div>
 
-        <div className="controls">
+        <div className="playback-controls">
           <button onClick={handleBackward}>Step Back</button>
           {!isPlaying ? <button onClick={handlePlay} className="play-btn">▶ Play</button> : <button onClick={handlePause} className="pause-btn">⏸ Pause</button>}
           <button onClick={handleForward}>Step Fwd</button>
@@ -188,7 +194,49 @@ export const ChartReplay = ({ results, symbol }) => {
           <label>Speed: <input type="range" min="10" max="500" step="10" value={510 - playbackSpeed} onChange={(e) => setPlaybackSpeed(510 - Number(e.target.value))} /></label>
         </div>
       </div>
+      
+      {/* CHART */}
       <div ref={chartContainerRef} className="chart-canvas" />
+
+      {/* 🚀 TRADE LOG TABLE (Below Chart) */}
+      <div className="trade-log-container">
+        <h4>Trade History</h4>
+        <div className="trade-log-table-wrapper">
+            <table className="trade-log-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Entry Time</th>
+                        <th>Entry Price</th>
+                        <th>Exit Time</th>
+                        <th>Exit Price</th>
+                        <th>Profit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {tradeLog.length === 0 ? (
+                        <tr><td colSpan="6" style={{textAlign:'center', padding:'20px', color:'#666'}}>No trades yet. Press Play!</td></tr>
+                    ) : (
+                        tradeLog.map((trade, i) => (
+                            <tr key={i} className="trade-row">
+                                <td style={{ color: trade.position === 'long' ? '#22c55e' : '#ef4444', fontWeight: 'bold' }}>
+                                    {trade.position.toUpperCase()}
+                                </td>
+                                <td>{formatTime(trade.time)}</td>
+                                <td style={{ color: '#fff' }}>${trade.price.toFixed(2)}</td>
+                                <td>{trade.exitTime ? formatTime(trade.exitTime) : <span style={{color:'#eab308'}}>OPEN</span>}</td>
+                                <td>{trade.exitPrice ? `$${trade.exitPrice.toFixed(2)}` : '-'}</td>
+                                <td style={{ color: trade.profit > 0 ? '#22c55e' : trade.profit < 0 ? '#ef4444' : '#ddd', fontWeight: 'bold' }}>
+                                    {trade.profit !== undefined ? `$${trade.profit.toFixed(2)}` : '-'}
+                                </td>
+                            </tr>
+                        ))
+                    )}
+                </tbody>
+            </table>
+        </div>
+      </div>
+
     </div>
   );
 };
