@@ -1,18 +1,15 @@
 /* File: src/components/ChartReplay.css */
 
 .chart-replay-container {
-  border: 1px solid #333; /* Darker border */
+  border: 1px solid #333;
   border-radius: 8px;
   padding: 16px;
   margin-top: 20px;
-  
-  /* 👇 CHANGED: Much darker background (Almost Black) */
-  background-color: #0f0f0f; 
-  
+  background-color: #0f0f0f; /* Dark background */
   max-width: 1400px;
   margin-left: auto;
   margin-right: auto;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.5); /* Deeper shadow */
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
 }
 
 .chart-header-row {
@@ -25,104 +22,84 @@
 
 .chart-header-row h3 {
   margin: 0;
-  color: #e5e5e5; /* Brighter text */
+  color: #e5e5e5;
 }
 
-.playback-controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+/* ... (Previous control/HUD styles remain same) ... */
+
+.chart-canvas {
+  width: 100%;
+  height: 500px; 
+  border: 1px solid #333;
 }
 
-/* --- BUTTONS --- */
-.playback-controls button {
-  background-color: #3b82f6;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: bold;
-  font-size: 1.1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.2s, transform 0.1s;
+/* --- 🚀 NEW TRADE LOG STYLES --- */
+.trade-log-container {
+  margin-top: 20px;
+  border-top: 1px solid #333;
+  padding-top: 15px;
 }
 
-.playback-controls button:hover {
-  background-color: #2563eb;
-  transform: translateY(-1px);
+.trade-log-container h4 {
+  color: #e5e5e5;
+  margin-bottom: 10px;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
-.playback-controls button:active {
-  transform: translateY(1px);
+.trade-log-table-wrapper {
+  max-height: 250px; /* Scrollable */
+  overflow-y: auto;
+  border: 1px solid #333;
+  border-radius: 6px;
+  background-color: #18181a;
 }
 
-/* --- LABEL & SLIDER --- */
-.playback-controls label {
-  display: flex;
-  align-items: center;
-  gap: 8px; 
+.trade-log-table {
+  width: 100%;
+  border-collapse: collapse;
   font-size: 0.9rem;
   color: #aaa;
 }
 
-.playback-controls input[type="range"] {
-  cursor: pointer;
-  margin: 0;
-  accent-color: #3b82f6;
-}
-
-/* --- COUNTER --- */
-.candle-counter {
-  margin-left: 10px; 
-  font-size: 0.9rem;
-  color: #888;
-  font-family: 'Courier New', monospace;
-  background: #1a1a1a; /* Darker counter bg */
-  padding: 4px 8px;
-  border-radius: 4px;
-  border: 1px solid #333;
-}
-
-/* --- HUD STYLES --- */
-.replay-hud {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-start;
-  gap: 20px;
-  align-items: center;
-  
-  /* 👇 CHANGED: Darker HUD background */
-  background: #18181a; 
-  
-  border-radius: 8px;
-  padding: 10px 20px;
-  margin-bottom: 16px;
-  border: 1px solid #333;
-}
-
-.hud-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 80px;
-}
-
-.hud-label {
-  font-size: 0.75rem;
-  color: #888; 
-  text-transform: uppercase;
-  margin-bottom: 4px;
+.trade-log-table th {
+  background-color: #252526;
+  position: sticky;
+  top: 0;
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid #444;
   font-weight: 600;
-  letter-spacing: 0.5px;
+  color: #fff;
+  z-index: 1;
 }
 
-.hud-value {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #fff; 
-  font-family: monospace;
+.trade-log-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #2a2a2a;
+  font-family: 'Roboto Mono', monospace; /* Monospace for numbers */
+}
+
+.trade-log-table tr:last-child td {
+  border-bottom: none;
+}
+
+.trade-row:hover {
+  background-color: #2a2a30;
+}
+
+/* Custom Scrollbar */
+.trade-log-table-wrapper::-webkit-scrollbar {
+  width: 8px;
+}
+.trade-log-table-wrapper::-webkit-scrollbar-track {
+  background: #18181a;
+}
+.trade-log-table-wrapper::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 4px;
+}
+.trade-log-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
