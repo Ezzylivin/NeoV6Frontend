@@ -22,8 +22,13 @@ const Strategies = () => {
     const { setups } = useBacktestSetupFunction();
     const [newStrategy, setNewStrategy] = useState(initialStrategyState);
 
+    // Safety check for strategyNameMap
     const strategyNameMap = useMemo(() => {
-        return new Map(strategies.map(s => [s._id, s.name]));
+        if (!strategies) return new Map();
+        return new Map(strategies
+            .filter(s => s && s._id) // Filter out bad data before mapping
+            .map(s => [s._id, s.name])
+        );
     }, [strategies]);
 
     const fetchStrategies = useCallback(async () => {
@@ -70,10 +75,13 @@ const Strategies = () => {
         setSuccess(null);
         try {
             const res = await api.post("/strategy", newStrategy);
-            setStrategies(prev => [...prev, res.data.strategy]);
-            setNewStrategy(initialStrategyState);
-            setSuccess("Strategy created successfully!");
-            setTimeout(() => setSuccess(null), 3000);
+            // Ensure we only add valid objects to state
+            if (res.data && res.data.strategy) {
+                setStrategies(prev => [...prev, res.data.strategy]);
+                setNewStrategy(initialStrategyState);
+                setSuccess("Strategy created successfully!");
+                setTimeout(() => setSuccess(null), 3000);
+            }
         } catch (err) {
             const errorMessage = err.response?.data?.message || err.message;
             console.error("❌ Error creating strategy:", errorMessage);
@@ -138,7 +146,7 @@ const Strategies = () => {
                 {strategies.length > 0 ? (
                     <ul className="strategy-list">
                         {strategies.map(s => {
-                            // 🛡️ Safety Check: Ensure strategy exists
+                            // 🛡️ FIX 1: Safety Check for Single Strategies
                             if (!s || !s._id) return null;
                             return (
                                 <li key={s._id} className="strategy-card">
@@ -157,7 +165,7 @@ const Strategies = () => {
                 {comboStrategies.length > 0 ? (
                     <ul className="strategy-list">
                         {comboStrategies.map((c, index) => {
-                            // 🛡️ Safety Check: Ensure combo exists
+                            // 🛡️ FIX 2: Safety Check for Combos
                             if (!c) return null;
                             const strategyNames = Array.isArray(c.strategies)
                                 ? c.strategies.map(s => s.params?.strategyType || s.name || "Unknown").join(" + ")
@@ -178,8 +186,9 @@ const Strategies = () => {
                 {setups.length > 0 ? (
                     <ul className="strategy-list">
                         {setups.map(setup => {
-                            // 🛡️ Safety Check: Ensure setup exists
+                            // 🛡️ FIX 3: Safety Check for Setups
                             if (!setup || !setup._id) return null;
+                            
                             const setupType = setup.isCombo ? 'Combo' : 'Single';
                             const setupStrategies = setup.isCombo
                                 ? setup.comboConfig?.strategyCodes?.join(' + ')
