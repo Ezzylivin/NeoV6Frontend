@@ -1,8 +1,9 @@
 // File: src/pages/Backtests.jsx
 //
-// 💡 v2.4 FIX:
-// 1. Fixed "Regime" vs "REGIME" case sensitivity bug so the threshold input appears.
-// 2. Includes ChartReplay entry price visualization.
+// 💡 v2.6 FIX:
+// 1. Strategy Selection now supports ALL strategies from DB (not just hardcoded types).
+// 2. Dropdowns select by unique '_id' to support custom strategies.
+// 3. Correctly loads custom parameters when a strategy is selected.
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -16,7 +17,7 @@ import "./Backtests.css";
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
 
-// Helper functions
+// --- Helper Functions ---
 const formatDate = dateString => {
   if (!dateString) return '';
   const date = new Date(dateString);
@@ -36,16 +37,17 @@ const getDefaultDates = () => {
   return { startDate: formatDate(start), endDate: formatDate(end) };
 };
 
-// Default parameters
+// --- Default Parameters ---
 const defaultFilterParams = {
     minAtrPct: 0, 
     trendFilterPeriod: 200, 
     minAdxLevel: 0,
     tslAtrMult: 3.5,
-    regime_threshold: 25, 
+    regime_threshold: 25
 };
 
 const initialFormData = {
+  strategyId: "", // Critical for selection
   code: "", 
   symbol: "",
   timeframe: "",
@@ -64,8 +66,8 @@ const initialFormData = {
 
 const initialComboData = {
   strategies: [ 
-    { code: "", params: { tslAtrMult: 3.5 } },
-    { code: "", params: { tslAtrMult: 3.5 } }
+    { strategyId: "", code: "", params: { tslAtrMult: 3.5 } },
+    { strategyId: "", code: "", params: { tslAtrMult: 3.5 } }
   ],
   params: { 
     minAtrPct: 0,
@@ -89,6 +91,8 @@ const initialComboData = {
   mlHorizon: 1
 };
 
+// 💡 IMPORTANT: Map user-friendly types to Python codes
+// If a strategy doesn't match this map, we will fallback to using its type directly or 'unknown'
 const STRATEGY_TYPE_TO_CODE_MAP = {
   "Moving Average Crossover": "sma_crossover",
   "RSI": "rsi_divergence",
@@ -101,6 +105,13 @@ const STRATEGY_TYPE_TO_CODE_MAP = {
   "On-Balance Volume": "obv_signal",
   "Parabolic SAR": "psar_signal"
 };
+
+const getStrategyCode = (strategy) => {
+    // Try to find a known code map, otherwise use the raw type if available
+    const type = strategy.params?.strategyType || strategy.type;
+    return STRATEGY_TYPE_TO_CODE_MAP[type] || strategy.code || "unknown_strategy";
+};
+
 
 // --- Child Components ---
 
@@ -407,18 +418,17 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                             >
                                 <option value="AND">TA AND ML (Strict Filter)</option>
                                 <option value="OR">TA OR ML (Permissive)</option>
-                                {/* 💡 FIXED: Value must be REGIME (All Caps) to match server expectation */}
                                 <option value="REGIME">TA as Regime Filter</option>
                             </select>
                         </label>
                         
-                        {/* 💡 Conditional Input: Only shows if REGIME is selected */}
+                        {/* Regime Threshold Input */}
                         {params.hybridMode === 'REGIME' && (
                              <label>Regime Threshold (ADX):
                                 <input 
                                     type="number" 
                                     name="regime_threshold" 
-                                    value={params.regime_threshold ?? 25} 
+                                    value={params.regime_threshold !== undefined ? params.regime_threshold : 25} 
                                     onChange={handleParamChange} 
                                     step="1" 
                                     min="0" 
@@ -520,13 +530,13 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
       <div className="combo-card-body">
         <label>Strategy:
           <select 
-            name="code" 
-            value={config.code} 
+            name="strategyId" 
+            value={config.strategyId} 
             onChange={handleChange} 
             disabled={!strategies.length}
           >
             <option value="">-- Select --</option>
-            {strategies.length ? strategies.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option disabled>Loading...</option>}
+            {strategies.length ? strategies.map(s => <option key={s._id} value={s._id}>{s.name}</option>) : <option disabled>Loading...</option>}
           </select>
         </label>
         
@@ -586,16 +596,17 @@ export default function Backtests() {
   const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
   const [activeTab, setActiveTab] = useState('single');
 
+  // 💡 FIX: Filter out invalid strategies but KEEP custom ones
   const strategyOptions = useMemo(() => {
     if (!options?.strategies) return [];
+    // Return ALL strategies, adding 'code' if possible, but keeping them regardless
     return options.strategies.map(strategy => {
       const strategyTypeKey = strategy.params?.strategyType?.trim();
-      const pythonCode = STRATEGY_TYPE_TO_CODE_MAP[strategyTypeKey];
-      if (pythonCode) {
-        return { ...strategy, code: pythonCode };
-      }
-      return null; 
-    }).filter(Boolean);
+      const pythonCode = STRATEGY_TYPE_TO_CODE_MAP[strategyTypeKey] || "unknown";
+      
+      // Always return the strategy so it appears in the dropdown
+      return { ...strategy, code: pythonCode }; 
+    });
   }, [options?.strategies]);
   
   const symbolOptions = useMemo(() => options?.symbols || [], [options?.symbols]);
@@ -651,18 +662,28 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
 
+  // Default selections logic
   useEffect(() => {
-    if (strategyOptions.length > 0 && !formData.code) {
+    if (strategyOptions.length > 0 && !formData.strategyId) {
       const defaultStrategy = strategyOptions[0];
-      setFormData(prev => ({ ...prev, code: defaultStrategy.code, params: { ...defaultStrategy.params, ...prev.params } }));
+      setFormData(prev => ({ 
+          ...prev, 
+          strategyId: defaultStrategy._id,
+          code: defaultStrategy.code, 
+          params: { ...defaultStrategy.params, ...prev.params } 
+      }));
     }
-  }, [strategyOptions, formData.code]); 
+  }, [strategyOptions, formData.strategyId]); 
 
   useEffect(() => {
-    if (strategyOptions.length > 0 && comboData.strategies.every(c => !c.code)) {
+    if (strategyOptions.length > 0 && comboData.strategies.every(c => !c.strategyId)) {
       const newConfigs = comboData.strategies.map((config, index) => {
         const strategy = strategyOptions[index] || strategyOptions[0];
-        return { code: strategy.code, params: { ...strategy.params, tslAtrMult: 3.5 } };
+        return { 
+            strategyId: strategy._id,
+            code: strategy.code, 
+            params: { ...strategy.params, tslAtrMult: 3.5 } 
+        };
       });
       setComboData(prev => ({ ...prev, strategies: newConfigs }));
     }
@@ -735,11 +756,9 @@ export default function Backtests() {
   }, [modelOptions, comboData.mlMode, comboData.symbol, comboData.timeframe]); 
   
 
- // --- 🚀 FIX: Use 'equityCurve' instead of 'equity' ---
  const { combinedEquityCurve, combinedMetrics, mainResult } = useMemo(() => {
        try {
          const mainResult = backtestResults?.main || backtestResults?.combinedResult;
-         // ✅ FIX: Check for 'equityCurve' (from server) OR 'equity' (legacy fallback)
          const curve = mainResult?.equityCurve || mainResult?.equity;
 
          if (mainResult?.metrics && curve) { 
@@ -777,6 +796,7 @@ export default function Backtests() {
     );
   }
 
+  // 💡 FIX: Selection by ID Logic
   const handleFormChange = (e) => {
     const { name, value, type } = e.target;
     let val = (type === 'checkbox' ? e.target.checked : value);
@@ -784,9 +804,16 @@ export default function Backtests() {
       val = (value === '' || value === null) ? 0 : parseFloat(value);
     }
 
-    if (name === 'code') {
-      const selectedStrategy = strategyOptions.find(s => s.code === val); 
-      setFormData(prev => ({ ...prev, code: val, params: { ...prev.params, ...(selectedStrategy?.params || {}) } })); 
+    if (name === 'strategyId') { // Changed from 'code' to 'strategyId'
+      const selectedStrategy = strategyOptions.find(s => s._id === val); 
+      if (selectedStrategy) {
+        setFormData(prev => ({ 
+            ...prev, 
+            strategyId: val,
+            code: selectedStrategy.code, 
+            params: { ...prev.params, ...(selectedStrategy.params || {}) } 
+        })); 
+      }
     } else if (name.startsWith("param_")) {
       const paramName = name.substring(6);
       setFormData(prev => ({ ...prev, params: { ...prev.params, [paramName]: val } }));
@@ -794,6 +821,7 @@ export default function Backtests() {
       setFormData(prev => ({ ...prev, [name]: val }));
     }
   };
+
   const handleComboChange = (e) => {
     const { name, value, type } = e.target;
     let val = (type === 'checkbox' ? e.target.checked : value);
@@ -820,16 +848,21 @@ export default function Backtests() {
 
     const updatedStrategies = [...comboData.strategies];
     const currentConfig = { ...updatedStrategies[index] };
+    
     if (isParam) {
       const paramName = name.substring(6);
       currentConfig.params = { ...(currentConfig.params || {}), [paramName]: val };
-     } else if (name === 'code') {
-      const selectedStrategy = strategyOptions.find(s => s.code === value);
-      currentConfig.code = value;
-      currentConfig.params = { 
-        ...(selectedStrategy?.params || {}), 
-        tslAtrMult: currentConfig.params?.tslAtrMult ?? 3.5, 
-      };
+     } else if (name === 'strategyId') { // Changed from 'code' to 'strategyId'
+      const selectedStrategy = strategyOptions.find(s => s._id === value);
+      if (selectedStrategy) {
+          currentConfig.strategyId = value;
+          currentConfig.code = selectedStrategy.code;
+          // Load params but keep existing TSL if it was set
+          currentConfig.params = { 
+            ...(selectedStrategy.params || {}), 
+            tslAtrMult: currentConfig.params?.tslAtrMult ?? 3.5, 
+          };
+      }
     }
     updatedStrategies[index] = currentConfig;
     setComboData(prev => ({ ...prev, strategies: updatedStrategies }));
@@ -838,6 +871,7 @@ export default function Backtests() {
   const addStrategyCard = () => {
     const defaultStrategy = strategyOptions[0] || {};
     const newCard = { 
+        strategyId: defaultStrategy._id || "",
         code: defaultStrategy.code || "", 
         params: { ...(defaultStrategy.params || {}), tslAtrMult: 3.5 } 
     };
@@ -937,13 +971,13 @@ export default function Backtests() {
               {(formData.mlMode === 'off' || formData.mlMode === 'predictions') && (
                 <label>Strategy:
                   <select 
-                    name="code"
-                    value={formData.code} 
+                    name="strategyId" // 💡 FIX: Name is now strategyId
+                    value={formData.strategyId} 
                     onChange={handleFormChange} 
                     disabled={!strategyOptions.length}
                   >
                     <option value="">-- Select TA Strategy --</option>
-                    {strategyOptions.length ? strategyOptions.map(s => <option key={s.code} value={s.code}>{s.name}</option>) : <option disabled>Loading...</option>}
+                    {strategyOptions.length ? strategyOptions.map(s => <option key={s._id} value={s._id}>{s.name}</option>) : <option disabled>Loading...</option>}
                   </select>
                 </label>
                  )}
