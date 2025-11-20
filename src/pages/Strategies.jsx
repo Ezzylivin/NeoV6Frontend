@@ -1,18 +1,16 @@
+// File: src/pages/Strategies.jsx
+
 import React, { useState, useEffect, useContext, useCallback, useMemo } from "react";
 import api from "../api/apiClient.js";
 import { StrategyContext } from "../context/StrategyContext.jsx";
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
-import { strategyDefinitions, initialStrategyParams } from "../config/strategyConfig.js"; // ✅ We now import our config
+import { strategyDefinitions, initialStrategyParams } from "../config/strategyConfig.js"; 
 import "./Strategies.css";
 
-// --- Strategy Guides & Defaults ---
-// (All removed from here and put in strategyConfig.js)
-
-// --- Default new strategy ---
 const initialStrategyState = {
     name: "",
     description: "",
-    params: initialStrategyParams // ✅ Use the imported default
+    params: initialStrategyParams 
 };
 
 const Strategies = () => {
@@ -24,7 +22,6 @@ const Strategies = () => {
     const { setups } = useBacktestSetupFunction();
     const [newStrategy, setNewStrategy] = useState(initialStrategyState);
 
-    // ✅ --- Create a fast lookup map for strategy names (Performance Fix) ---
     const strategyNameMap = useMemo(() => {
         return new Map(strategies.map(s => [s._id, s.name]));
     }, [strategies]);
@@ -57,10 +54,8 @@ const Strategies = () => {
         const finalValue = type === 'number' ? Number(value) : value;
 
         if (name === "strategyType") {
-            // ✅ --- Logic is now 1 simple line, reading from our config ---
             const newParams = strategyDefinitions[value]?.defaultParams || { strategyType: value };
             setNewStrategy(prev => ({ ...prev, params: newParams }));
-            // (All the old hard-coded defaultParams are gone)
         } else if (Object.keys(newStrategy.params).includes(name)) {
             setNewStrategy(prev => ({ ...prev, params: { ...prev.params, [name]: finalValue } }));
         } else {
@@ -108,7 +103,6 @@ const Strategies = () => {
                 <form onSubmit={handleCreateStrategy}>
                     <label>Strategy Type:
                         <select name="strategyType" value={newStrategy.params.strategyType} onChange={handleStrategyChange} className="dashboard-dropdown">
-                            {/* ✅ Read from our new config object */}
                             {Object.keys(strategyDefinitions).sort().map(t => <option key={t} value={t}>{strategyDefinitions[t].title}</option>)}
                         </select>
                     </label>
@@ -120,7 +114,6 @@ const Strategies = () => {
                     </label>
                     <fieldset className="parameters-form">
                         <legend>Parameters</legend>
-                        {/* This part works perfectly now. It will show 'tslAtrMult' instead of SL/TP */}
                         {Object.entries(newStrategy.params).filter(([k]) => k !== "strategyType").map(([k, v]) => (
                             <label key={k}>{formatLabel(k)}: <input type="number" name={k} value={v} onChange={handleStrategyChange} step="0.1"/></label>
                         ))}
@@ -133,7 +126,6 @@ const Strategies = () => {
                 {newStrategy.params.strategyType && (
                     <div className="strategy-guide">
                         <h3 className="card-title">Strategy Guide</h3>
-                        {/* ✅ Read from our new config object */}
                         <p><strong>What it is:</strong> {strategyDefinitions[newStrategy.params.strategyType]?.whatItIs}</p>
                         <p><strong>How it works:</strong> {strategyDefinitions[newStrategy.params.strategyType]?.howItWorks}</p>
                         <p><strong>Combine with:</strong> {strategyDefinitions[newStrategy.params.strategyType]?.combineWith}</p>
@@ -145,12 +137,16 @@ const Strategies = () => {
                 <h2 className="card-title">Saved Single Strategies</h2>
                 {strategies.length > 0 ? (
                     <ul className="strategy-list">
-                        {strategies.map(s => (
-                            <li key={s._id} className="strategy-card">
-                                <span className="strategy-name">{s.name}</span>
-                                <span className="strategy-type">{s.params?.strategyType}</span>
-                            </li>
-                        ))}
+                        {strategies.map(s => {
+                            // 🛡️ Safety Check: Ensure strategy exists
+                            if (!s || !s._id) return null;
+                            return (
+                                <li key={s._id} className="strategy-card">
+                                    <span className="strategy-name">{s.name}</span>
+                                    <span className="strategy-type">{s.params?.strategyType}</span>
+                                </li>
+                            );
+                        })}
                     </ul>
                 ) : !loading && <p className="no-strategies">No strategies yet. Create your first one above!</p>}
             </div>
@@ -160,8 +156,9 @@ const Strategies = () => {
                 <button onClick={handleAddCombo} className="button-add">➕ Add Combo Strategy</button>
                 {comboStrategies.length > 0 ? (
                     <ul className="strategy-list">
-                        {/* ✅ Use index as a safe key fallback (Performance Fix) */}
                         {comboStrategies.map((c, index) => {
+                            // 🛡️ Safety Check: Ensure combo exists
+                            if (!c) return null;
                             const strategyNames = Array.isArray(c.strategies)
                                 ? c.strategies.map(s => s.params?.strategyType || s.name || "Unknown").join(" + ")
                                 : c.comboConfig?.strategyCodes?.join(" + ") || "No strategies";
@@ -181,10 +178,12 @@ const Strategies = () => {
                 {setups.length > 0 ? (
                     <ul className="strategy-list">
                         {setups.map(setup => {
+                            // 🛡️ Safety Check: Ensure setup exists
+                            if (!setup || !setup._id) return null;
                             const setupType = setup.isCombo ? 'Combo' : 'Single';
                             const setupStrategies = setup.isCombo
                                 ? setup.comboConfig?.strategyCodes?.join(' + ')
-                                : strategyNameMap.get(setup.strategyId) || 'Unknown Strategy'; // ✅ Use fast lookup map
+                                : strategyNameMap.get(setup.strategyId) || 'Unknown Strategy'; 
                             return (
                                 <li key={setup._id} className="strategy-card">
                                     <span className="strategy-name">{setup.name} ({setupType})</span>
