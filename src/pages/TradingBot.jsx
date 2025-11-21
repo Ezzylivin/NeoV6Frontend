@@ -1,8 +1,12 @@
+// File: src/pages/TradingBot.jsx
+// 🚀 UPGRADE: Added "Paper vs. Real" Trading Mode Switch.
+// 🚀 UPGRADE: Displays Real-Time Portfolio Value.
+
 import React, { useState, useEffect, useRef, useContext } from "react";
 import { useBot } from '../hooks/useBot.js';
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { useBacktest } from "../hooks/useBacktest.js";
-import { StrategyContext } from "../context/StrategyContext.jsx"; // Assuming you might need this
+import { StrategyContext } from "../context/StrategyContext.jsx";
 import "./TradingBot.css";
 
 // --- Metrics Display Component ---
@@ -43,7 +47,6 @@ export default function TradingBot() {
     const { botStatus, logs, loading: botLoading, error, startBot, stopBot, refreshBotData } = useBot();
     const { setups, loading: setupsLoading } = useBacktestSetupFunction();
     
-    // ✅ FIX: Correctly destructure the nested state from useBacktest
     const { state: backtestState } = useBacktest();
     const { options: backtestOptions, loading: backtestLoading } = backtestState;
     const optionsLoading = backtestLoading === 'initial';
@@ -51,9 +54,15 @@ export default function TradingBot() {
     const { strategies: availableStrategies } = useContext(StrategyContext);
 
     const [formConfig, setFormConfig] = useState({
-        isCombo: false, strategyId: '', comboConfig: { strategyCodes: [], combinationRule: 'OR' },
-        symbol: '', timeframe: '1h', capitalAllocation: 1000,
+        isCombo: false, 
+        strategyId: '', 
+        comboConfig: { strategyCodes: [], combinationRule: 'OR' },
+        symbol: '', 
+        timeframe: '1h', 
+        capitalAllocation: 1000,
+        tradingMode: 'paper' // 🚀 NEW: 'paper' or 'live'
     });
+
     const [selectedSetupId, setSelectedSetupId] = useState('');
     const logsEndRef = useRef(null);
 
@@ -62,7 +71,6 @@ export default function TradingBot() {
     }, [logs]);
 
     useEffect(() => {
-        // Now this check is safe because backtestOptions is guaranteed to be an object
         if (availableStrategies?.length > 0 && !formConfig.strategyId && !selectedSetupId) {
             const firstStrategy = availableStrategies[0];
             setFormConfig(prev => ({
@@ -86,14 +94,15 @@ export default function TradingBot() {
         setSelectedSetupId(setupId);
         const setup = setups.find(s => s._id === setupId);
         if (setup) {
-            setFormConfig({
+            setFormConfig(prev => ({
+                ...prev,
                 isCombo: setup.isCombo,
                 strategyId: setup.strategyId || '',
                 comboConfig: setup.comboConfig || { strategyCodes: [], combinationRule: 'OR' },
                 symbol: setup.symbol,
                 timeframe: setup.timeframe,
                 capitalAllocation: 1000,
-            });
+            }));
         } else {
             setSelectedSetupId('');
         }
@@ -101,6 +110,13 @@ export default function TradingBot() {
 
     const handleStart = async (e) => {
         e.preventDefault();
+        
+        // 🚀 Safety Check for Live Mode
+        if (formConfig.tradingMode === 'live') {
+            const confirm = window.confirm("⚠️ WARNING: You are about to start REAL MONEY trading. \n\nAre you sure you want to proceed?");
+            if (!confirm) return;
+        }
+
         try { await startBot(formConfig); } 
         catch (err) { alert(`Failed to start bot: ${err.message}`); }
     };
@@ -110,7 +126,6 @@ export default function TradingBot() {
         catch (err) { alert(`Failed to stop bot: ${err.message}`); }
     };
 
-    // This guard clause will now work correctly
     if (optionsLoading || setupsLoading) {
         return <div className="loading-container">Loading Bot Configuration...</div>;
     }
@@ -125,20 +140,54 @@ export default function TradingBot() {
     return (
         <div className="trading-bot-container">
             <h2 className="header">Live Trading Bot</h2>
+            
+            {/* 🚀 Control Panel */}
             <div className="bot-card control-panel">
-                <h3 className="card-title">{isRunning ? 'Bot is Live' : 'Deploy a Strategy'}</h3>
+                <h3 className="card-title">
+                    {isRunning ? 'Bot is Live' : 'Deploy a Strategy'}
+                    <span className={`mode-badge ${formConfig.tradingMode}`}>
+                        {formConfig.tradingMode === 'paper' ? 'PAPER TRADING' : 'REAL MONEY'}
+                    </span>
+                </h3>
+                
                 <form onSubmit={handleStart} className="bot-form">
+                    
+                    {/* 🚀 Trading Mode Switch */}
+                    {!isRunning && (
+                        <div className="mode-switch-container">
+                            <label className="switch-label">Trading Mode:</label>
+                            <div className="mode-toggle">
+                                <button 
+                                    type="button"
+                                    className={formConfig.tradingMode === 'paper' ? 'active' : ''}
+                                    onClick={() => setFormConfig(p => ({...p, tradingMode: 'paper'}))}
+                                >
+                                    Paper (Simulated)
+                                </button>
+                                <button 
+                                    type="button"
+                                    className={formConfig.tradingMode === 'live' ? 'active danger' : ''}
+                                    onClick={() => setFormConfig(p => ({...p, tradingMode: 'live'}))}
+                                >
+                                    Real Money
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     <label className="setup-selector">Load Saved Setup
                         <select value={selectedSetupId} onChange={(e) => handleSetupSelect(e.target.value)} disabled={isRunning}>
                             <option value="">-- Manual Configuration --</option>
                             {setups.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
                         </select>
                     </label>
+                    
                     <div className="form-grid">
                         <label>Symbol<input value={formConfig.symbol} disabled /></label>
                         <label>Timeframe<input value={formConfig.timeframe} disabled /></label>
                         <label>Capital ($)<input type="number" value={formConfig.capitalAllocation} onChange={e => setFormConfig(p => ({...p, capitalAllocation: Number(e.target.value)}))} disabled={isRunning} /></label>
                     </div>
+                    
                     <div className="strategy-details-display">
                         <h4>Strategy Configuration:</h4>
                         {formConfig.isCombo ? (
@@ -156,8 +205,13 @@ export default function TradingBot() {
                             <p><strong>Type:</strong> {findStrategyName(formConfig.strategyId)}</p>
                         )}
                     </div>
+                    
                     <div className="form-actions">
-                        {!isRunning && <button type="submit" className="button-start" disabled={botLoading}>{botLoading ? 'Deploying...' : 'Deploy Bot'}</button>}
+                        {!isRunning && (
+                            <button type="submit" className={`button-start ${formConfig.tradingMode === 'live' ? 'live-btn' : ''}`} disabled={botLoading}>
+                                {botLoading ? 'Deploying...' : (formConfig.tradingMode === 'live' ? '🚀 Start Live Trading' : '🤖 Start Paper Bot')}
+                            </button>
+                        )}
                     </div>
                 </form>
             </div>
@@ -176,7 +230,7 @@ export default function TradingBot() {
                             <p><strong>Strategy:</strong> {botStatus.isCombo ? `Combo (${botStatus.comboConfig.combinationRule})` : findStrategyName(botStatus.strategyId)}</p>
                             <p><strong>Symbol:</strong> {botStatus.symbol}</p>
                             <p><strong>Timeframe:</strong> {botStatus.timeframe}</p>
-                            <p><strong>Current Balance:</strong> ${botStatus.currentBalance?.toFixed(2)}</p>
+                            <p><strong>Current Balance:</strong> <span className="balance-highlight">${botStatus.currentBalance?.toFixed(2)}</span></p>
                             {botStatus.lastTrade && <p><strong>Last Trade:</strong> {new Date(botStatus.lastTrade).toLocaleTimeString()}</p>}
                         </div>
                         <MetricsDisplay metrics={botStatus.performanceMetrics} />
