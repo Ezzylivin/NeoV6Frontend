@@ -1,15 +1,12 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: Added "Paper vs. Real" Trading Mode Switch.
-// 🚀 UPGRADE: Displays Real-Time Portfolio Value.
-
 import React, { useState, useEffect, useRef, useContext } from "react";
 import { useBot } from '../hooks/useBot.js';
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { StrategyContext } from "../context/StrategyContext.jsx";
+import LiveTradingChart from "../components/LiveTradingChart.jsx"; // 🚀 IMPORTED CHART
 import "./TradingBot.css";
 
-// --- Metrics Display Component ---
 const MetricsDisplay = ({ metrics }) => {
     if (!metrics || Object.keys(metrics).length === 0) return <p className="no-metrics">No live metrics yet.</p>;
     
@@ -60,7 +57,7 @@ export default function TradingBot() {
         symbol: '', 
         timeframe: '1h', 
         capitalAllocation: 1000,
-        tradingMode: 'paper' // 🚀 NEW: 'paper' or 'live'
+        tradingMode: 'paper'
     });
 
     const [selectedSetupId, setSelectedSetupId] = useState('');
@@ -85,7 +82,7 @@ export default function TradingBot() {
 
     useEffect(() => {
         if (botStatus?.status === 'running') {
-            const interval = setInterval(refreshBotData, 30_000);
+            const interval = setInterval(refreshBotData, 10000); // Poll faster for chart updates
             return () => clearInterval(interval);
         }
     }, [botStatus?.status, refreshBotData]);
@@ -110,13 +107,10 @@ export default function TradingBot() {
 
     const handleStart = async (e) => {
         e.preventDefault();
-        
-        // 🚀 Safety Check for Live Mode
         if (formConfig.tradingMode === 'live') {
             const confirm = window.confirm("⚠️ WARNING: You are about to start REAL MONEY trading. \n\nAre you sure you want to proceed?");
             if (!confirm) return;
         }
-
         try { await startBot(formConfig); } 
         catch (err) { alert(`Failed to start bot: ${err.message}`); }
     };
@@ -141,7 +135,6 @@ export default function TradingBot() {
         <div className="trading-bot-container">
             <h2 className="header">Live Trading Bot</h2>
             
-            {/* 🚀 Control Panel */}
             <div className="bot-card control-panel">
                 <h3 className="card-title">
                     {isRunning ? 'Bot is Live' : 'Deploy a Strategy'}
@@ -151,8 +144,6 @@ export default function TradingBot() {
                 </h3>
                 
                 <form onSubmit={handleStart} className="bot-form">
-                    
-                    {/* 🚀 Trading Mode Switch */}
                     {!isRunning && (
                         <div className="mode-switch-container">
                             <label className="switch-label">Trading Mode:</label>
@@ -235,6 +226,16 @@ export default function TradingBot() {
                         </div>
                         <MetricsDisplay metrics={botStatus.performanceMetrics} />
                     </div>
+                    
+                    {/* 🚀 LIVE CHART PANEL */}
+                    <div className="bot-card chart-panel">
+                        <h3 className="card-title">Live Market Action</h3>
+                        <LiveTradingChart 
+                            candles={botStatus.candles || []} 
+                            trades={botStatus.trades || []} 
+                        />
+                    </div>
+
                     <div className="bot-card logs-panel">
                         <h3 className="card-title">Activity Log</h3>
                         <div className="logs-container">
