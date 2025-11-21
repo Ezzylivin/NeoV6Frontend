@@ -5,6 +5,7 @@ import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { StrategyContext } from "../context/StrategyContext.jsx";
 import LiveTradingChart from "../components/LiveTradingChart.jsx"; // 🚀 IMPORTED CHART
+import TradingBot from "../components/TradingBot.css";
 import "./TradingBot.css";
 
 const MetricsDisplay = ({ metrics }) => {
