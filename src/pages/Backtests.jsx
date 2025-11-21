@@ -1,11 +1,11 @@
 // File: src/pages/Backtests.jsx
 //
-// 💡 v2.6 FIX:
-// 1. Strategy Selection now supports ALL strategies from DB (not just hardcoded types).
-// 2. Dropdowns select by unique '_id' to support custom strategies.
-// 3. Correctly loads custom parameters when a strategy is selected.
+// 💡 v2.8 UPGRADE:
+// 1. Added Live Countdown Timer during loading.
+// 2. Simplified Combo Cards (Removed individual parameter inputs).
+// 3. Maintains all previous logic fixes.
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
@@ -43,11 +43,11 @@ const defaultFilterParams = {
     trendFilterPeriod: 200, 
     minAdxLevel: 0,
     tslAtrMult: 3.5,
-    regime_threshold: 25
+    regime_threshold: 25 
 };
 
 const initialFormData = {
-  strategyId: "", // Critical for selection
+  strategyId: "", 
   code: "", 
   symbol: "",
   timeframe: "",
@@ -91,8 +91,6 @@ const initialComboData = {
   mlHorizon: 1
 };
 
-// 💡 IMPORTANT: Map user-friendly types to Python codes
-// If a strategy doesn't match this map, we will fallback to using its type directly or 'unknown'
 const STRATEGY_TYPE_TO_CODE_MAP = {
   "Moving Average Crossover": "sma_crossover",
   "RSI": "rsi_divergence",
@@ -105,13 +103,6 @@ const STRATEGY_TYPE_TO_CODE_MAP = {
   "On-Balance Volume": "obv_signal",
   "Parabolic SAR": "psar_signal"
 };
-
-const getStrategyCode = (strategy) => {
-    // Try to find a known code map, otherwise use the raw type if available
-    const type = strategy.params?.strategyType || strategy.type;
-    return STRATEGY_TYPE_TO_CODE_MAP[type] || strategy.code || "unknown_strategy";
-};
-
 
 // --- Child Components ---
 
@@ -488,6 +479,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 </label>
             </fieldset>
 
+            {/* Only show manual SL/TP for Single Strategy if TSL is off */}
             {(params.tslAtrMult ?? 0) === 0 && !isCombo && (
                 <>
                     <label>Stop Loss (%):
@@ -518,10 +510,10 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
     );
 };
 
+// 💡 UPGRADE: Simplified Combo Card (Removed inputs)
 const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, disableRemove }) => {
   const handleChange = (e) => onChange(e, idx);
-  const trailingStopEnabled = (config.params?.tslAtrMult ?? 0) > 0;
-
+  
   return (
     <div className="combo-card">
       <div className="combo-card-header"><strong>Strategy #{idx + 1}</strong>
@@ -540,41 +532,10 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
           </select>
         </label>
         
-        <label>Trailing Stop (ATR Mult):
-             <input 
-                type="number" 
-                name="param_tslAtrMult" 
-                value={config.params?.tslAtrMult ?? 0} 
-                onChange={handleChange} 
-                step="0.1" 
-                min="0" 
-            />
-        </label>
-
-        {!trailingStopEnabled && (
-          <>
-            <label>Stop Loss (%): 
-                <input 
-                    type="number" 
-                    name="param_SL" 
-                    value={config.params?.SL ?? 5.0} 
-                    onChange={handleChange} 
-                    step="0.1" 
-                    min="0"
-                />
-            </label>
-            <label>Take Profit (%): 
-                 <input 
-                    type="number"
-                    name="param_TP" 
-                    value={config.params?.TP ?? 10.0}
-                    onChange={handleChange} 
-                    step="0.1" 
-                    min="0" 
-                />
-            </label>
-          </>
-        )}
+        {/* Removed redundant inputs for cleaner UI */}
+        <div className="card-note">
+            <small>Parameters managed globally or by saved strategy.</small>
+        </div>
       </div>
     </div>
   );
@@ -584,6 +545,21 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
 export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest, getPastBacktests } = useBacktest(); 
   const { loading = 'initial', error = null, options = {} } = state || {};
+
+  // 💡 COUNTDOWN TIMER LOGIC
+  const [countdown, setCountdown] = useState(0);
+  useEffect(() => {
+      let timer;
+      if (loading === 'running_ml' || loading === 'running_combo') {
+          setCountdown(0); // Reset
+          timer = setInterval(() => {
+              setCountdown(prev => prev + 1);
+          }, 1000);
+      } else {
+          setCountdown(0);
+      }
+      return () => clearInterval(timer);
+  }, [loading]);
 
   useEffect(() => {
     if (error) {
@@ -596,17 +572,13 @@ export default function Backtests() {
   const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
   const [activeTab, setActiveTab] = useState('single');
 
-  // 💡 FIX: Filter out invalid strategies but KEEP custom ones
   const strategyOptions = useMemo(() => {
     if (!options?.strategies) return [];
-    // Return ALL strategies, adding 'code' if possible, but keeping them regardless
     return options.strategies.map(strategy => {
       const strategyTypeKey = strategy.params?.strategyType?.trim();
       const pythonCode = STRATEGY_TYPE_TO_CODE_MAP[strategyTypeKey] || "unknown";
-      
-      // Always return the strategy so it appears in the dropdown
       return { ...strategy, code: pythonCode }; 
-    });
+    }).filter(Boolean);
   }, [options?.strategies]);
   
   const symbolOptions = useMemo(() => options?.symbols || [], [options?.symbols]);
@@ -796,7 +768,6 @@ export default function Backtests() {
     );
   }
 
-  // 💡 FIX: Selection by ID Logic
   const handleFormChange = (e) => {
     const { name, value, type } = e.target;
     let val = (type === 'checkbox' ? e.target.checked : value);
@@ -804,7 +775,7 @@ export default function Backtests() {
       val = (value === '' || value === null) ? 0 : parseFloat(value);
     }
 
-    if (name === 'strategyId') { // Changed from 'code' to 'strategyId'
+    if (name === 'strategyId') { 
       const selectedStrategy = strategyOptions.find(s => s._id === val); 
       if (selectedStrategy) {
         setFormData(prev => ({ 
@@ -852,12 +823,11 @@ export default function Backtests() {
     if (isParam) {
       const paramName = name.substring(6);
       currentConfig.params = { ...(currentConfig.params || {}), [paramName]: val };
-     } else if (name === 'strategyId') { // Changed from 'code' to 'strategyId'
+     } else if (name === 'strategyId') { 
       const selectedStrategy = strategyOptions.find(s => s._id === value);
       if (selectedStrategy) {
           currentConfig.strategyId = value;
           currentConfig.code = selectedStrategy.code;
-          // Load params but keep existing TSL if it was set
           currentConfig.params = { 
             ...(selectedStrategy.params || {}), 
             tslAtrMult: currentConfig.params?.tslAtrMult ?? 3.5, 
@@ -913,9 +883,9 @@ export default function Backtests() {
   // --- UI Helper Functions ---
   const getButtonText = (loadingState) => {
       switch (loadingState) {
-      case 'running_ml': return 'Processing ML...';
-      case 'running_backtest': return 'Running Backtest...';
-      case 'running_combo': return 'Running Combo...';
+      case 'running_ml': return `Processing ML... (${countdown}s)`;
+      case 'running_backtest': return `Running Backtest... (${countdown}s)`;
+      case 'running_combo': return `Running Combo... (${countdown}s)`;
       case 'fetching': return 'Fetching Data...';
       case 'running': return 'Processing...';
       case 'idle':
@@ -925,15 +895,13 @@ export default function Backtests() {
   const getStatusMessage = (loadingState, currentFormData) => {
       switch (loadingState) {
       case 'running_ml':
-        if (currentFormData?.mlMode === 'predictions') return 'Fetching external ML features & predictions...';
-        if (currentFormData?.mlMode === 'on') return 'Running Python ML backtest (loading data, applying model, simulating)...';
+        if (currentFormData?.mlMode === 'predictions') return `Fetching ML features... (${countdown}s)`;
+        if (currentFormData?.mlMode === 'on') return `Running ML simulation... (${countdown}s)`;
         return 'Running Python backtest...';
       case 'running_backtest':
-        if (currentFormData?.mlMode === 'off') return 'Running TA simulation in Node.js...';
-        if (currentFormData?.mlMode === 'on') return 'Initiating Python ML backtest... (Checking cache)';
-        return 'Starting backtest simulation...';
+        return `Running Backtest... (${countdown}s)`;
       case 'running_combo':
-        return 'Running Combo Backtest in Python...';
+        return `Running Combo Backtest... (${countdown}s)`;
       case 'fetching': return 'Fetching required data...';
       case 'running': return 'Processing request...';
       default: return 'Processing...';
@@ -971,7 +939,7 @@ export default function Backtests() {
               {(formData.mlMode === 'off' || formData.mlMode === 'predictions') && (
                 <label>Strategy:
                   <select 
-                    name="strategyId" // 💡 FIX: Name is now strategyId
+                    name="strategyId" 
                     value={formData.strategyId} 
                     onChange={handleFormChange} 
                     disabled={!strategyOptions.length}
