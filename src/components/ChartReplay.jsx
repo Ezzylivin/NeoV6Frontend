@@ -1,4 +1,7 @@
 // File: src/components/ChartReplay.jsx
+// 🚀 UPGRADE: Added Safety Guards to prevent crashes on missing data.
+// 🚀 UPGRADE: Layout optimized (Log on Top).
+
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { createChart, CrosshairMode } from 'lightweight-charts';
 import './ChartReplay.css';
@@ -24,15 +27,13 @@ export const ChartReplay = ({ results, symbol }) => {
     })).sort((a, b) => a.time - b.time);
   }, [results]);
 
-  // 💡 FIX: Correct Mapping for Entry vs Exit Time
   const trades = useMemo(() => {
     if (!results?.tradeBreakdown) return [];
     return results.tradeBreakdown.map(t => {
-      // Prioritize entryTime, fallback to time if entryTime missing
+      // Prioritize entryTime, fallback to time
       const entryTimestamp = t.entryTime ? new Date(t.entryTime).getTime() : (t.time ? new Date(t.time).getTime() : null);
       
-      // Check if 'time' is actually the exit time (common in backtest structures)
-      // If t.time > entryTimestamp, it is the exit.
+      // Determine Exit Time
       let exitTimestamp = t.exitTime ? new Date(t.exitTime).getTime() : null;
       if (!exitTimestamp && t.time && new Date(t.time).getTime() > entryTimestamp) {
           exitTimestamp = new Date(t.time).getTime();
@@ -40,13 +41,14 @@ export const ChartReplay = ({ results, symbol }) => {
 
       return {
         time: entryTimestamp / 1000, 
-        position: t.position,
-        price: t.entryPrice,
+        // 🛡️ SAFETY FIX: Default to 'long' if missing to prevent crash
+        position: t.position || 'long', 
+        price: t.entryPrice || 0,
         profit: t.profit_usd || t.profit,
         exitTime: exitTimestamp ? exitTimestamp / 1000 : null,
-        exitPrice: t.exitPrice || t.price // Usually 'price' is exit price in closed trades
+        exitPrice: t.exitPrice || t.price
       };
-    }).filter(t => t.time); // Filter out bad data
+    }).filter(t => t.time); // Filter out invalid
   }, [results]);
 
   // --- 2. HUD & Log Logic ---
@@ -64,7 +66,7 @@ export const ChartReplay = ({ results, symbol }) => {
   let pnl = 0;
   let pnlPct = 0;
   
-  if (openTrade && currentCandle) {
+  if (openTrade && currentCandle && openTrade.price > 0) {
       if (openTrade.position === 'long') {
           pnl = (currentCandle.close - openTrade.price) * (1000 / openTrade.price); 
           pnlPct = ((currentCandle.close - openTrade.price) / openTrade.price) * 100;
@@ -122,7 +124,7 @@ export const ChartReplay = ({ results, symbol }) => {
           position: 'belowBar',
           color: t.position === 'long' ? '#2196F3' : '#E91E63',
           shape: t.position === 'long' ? 'arrowUp' : 'arrowDown',
-          text: `ENTRY: $${t.price.toFixed(2)}`
+          text: `BUY @ ${t.price.toFixed(2)}`
         });
       }
       if (t.exitTime && t.exitTime <= currentTime) {
@@ -168,6 +170,9 @@ export const ChartReplay = ({ results, symbol }) => {
   const formatTime = (t) => new Date(t * 1000).toLocaleString();
   const getPnlColor = (pnl) => (pnl > 0 ? '#00ff88' : pnl < 0 ? '#ff3b30' : '#9ca3af');
 
+  // 🛡️ SAFETY FIX: Handle undefined position in HUD
+  const positionText = openTrade && openTrade.position ? openTrade.position.toUpperCase() : 'FLAT';
+
   return (
     <div className="chart-replay-container">
       <div className="chart-header-row">
@@ -177,7 +182,7 @@ export const ChartReplay = ({ results, symbol }) => {
              <div className="hud-item">
                 <span className="hud-label">Pos</span>
                 <span className="hud-value" style={{color: openTrade ? (openTrade.position === 'long' ? '#22c55e' : '#ef4444') : '#9ca3af'}}>
-                    {openTrade ? openTrade.position.toUpperCase() : 'FLAT'}
+                    {positionText}
                 </span>
              </div>
              <div className="hud-item">
@@ -206,7 +211,7 @@ export const ChartReplay = ({ results, symbol }) => {
         </div>
       </div>
 
-      {/* 🚀 TRADE LOG (Top) */}
+      {/* TRADE LOG */}
       <div className="trade-log-container">
         <div className="trade-log-header">
             <h4>Live Trade Log</h4>
@@ -231,7 +236,7 @@ export const ChartReplay = ({ results, symbol }) => {
                         tradeLog.map((trade, i) => (
                             <tr key={i} className="trade-row">
                                 <td style={{ color: trade.position === 'long' ? '#22c55e' : '#ef4444', fontWeight: 'bold' }}>
-                                    {trade.position.toUpperCase()}
+                                    {(trade.position || 'UNK').toUpperCase()} 
                                 </td>
                                 <td>{formatTime(trade.time)}</td>
                                 <td style={{ color: '#60a5fa', fontWeight: 'bold' }}>${trade.price.toFixed(2)}</td>
@@ -248,7 +253,6 @@ export const ChartReplay = ({ results, symbol }) => {
         </div>
       </div>
       
-      {/* 🚀 CHART CANVAS (Bottom) */}
       <div ref={chartContainerRef} className="chart-canvas" />
     </div>
   );
