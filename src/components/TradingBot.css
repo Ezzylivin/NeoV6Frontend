@@ -1,0 +1,363 @@
+/* Main Container */
+.trading-bot-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #e0e0e0;
+}
+
+.header {
+  font-size: 1.8rem;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #333;
+  padding-bottom: 10px;
+  color: #fff;
+}
+
+/* --- Cards (Panels) --- */
+.bot-card {
+  background-color: #18181a; /* Darker card background */
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+.card-title {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 1.2rem;
+  color: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #2a2a2a;
+  padding-bottom: 10px;
+}
+
+/* --- Mode Switch (Paper vs Live) --- */
+.mode-switch-container {
+  background-color: #252526;
+  padding: 15px;
+  border-radius: 6px;
+  border: 1px solid #444;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.switch-label {
+  font-weight: 600;
+  color: #bbb;
+}
+
+.mode-toggle {
+  display: flex;
+  gap: 10px;
+}
+
+.mode-toggle button {
+  background: #1e1e1e;
+  border: 1px solid #555;
+  color: #888;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.mode-toggle button:hover {
+  background: #333;
+}
+
+.mode-toggle button.active {
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* Paper Mode Active Color */
+.mode-toggle button.active:first-child {
+  background-color: #3b82f6; /* Blue */
+}
+
+/* Real Money Mode Active Color */
+.mode-toggle button.active.danger {
+  background-color: #ef4444; /* Red */
+  animation: pulse-red 2s infinite;
+}
+
+@keyframes pulse-red {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+/* --- Mode Badges in Header --- */
+.mode-badge {
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.mode-badge.paper {
+  background-color: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  border: 1px solid #3b82f6;
+}
+
+.mode-badge.live {
+  background-color: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid #ef4444;
+}
+
+/* --- Form Layout --- */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.bot-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.9rem;
+  color: #aaa;
+}
+
+.bot-form input, .bot-form select {
+  background-color: #2d2d30;
+  border: 1px solid #444;
+  padding: 8px 12px;
+  border-radius: 4px;
+  color: white;
+  font-size: 1rem;
+}
+
+.bot-form input:disabled, .bot-form select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.setup-selector {
+  margin-bottom: 20px;
+  display: block;
+}
+
+.strategy-details-display {
+  background-color: #252526;
+  padding: 15px;
+  border-radius: 6px;
+  border-left: 4px solid #3b82f6;
+  margin-bottom: 20px;
+}
+
+.strategy-details-display h4 {
+  margin-top: 0;
+  color: #eee;
+}
+
+.strategy-details-display ul {
+  margin: 5px 0 0 20px;
+  color: #ccc;
+}
+
+/* --- Action Buttons --- */
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.button-start {
+  background-color: #22c55e;
+  color: white;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.button-start:hover {
+  background-color: #16a34a;
+}
+
+/* Live Mode Button Override */
+.button-start.live-btn {
+  background-color: #ef4444;
+}
+.button-start.live-btn:hover {
+  background-color: #dc2626;
+}
+
+.button-stop-main {
+  background-color: #ef4444;
+  color: white;
+  padding: 15px;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  margin-bottom: 20px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.button-stop-main:hover {
+  background-color: #dc2626;
+}
+
+/* --- Status Dashboard --- */
+.status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.status-indicator {
+  padding: 5px 10px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.status-indicator.running {
+  background-color: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+  border: 1px solid #22c55e;
+  animation: blink 2s infinite;
+}
+
+.status-indicator.stopped {
+  background-color: rgba(100, 116, 139, 0.2);
+  color: #94a3b8;
+  border: 1px solid #64748b;
+}
+
+@keyframes blink {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.status-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #333;
+}
+
+.balance-highlight {
+  color: #4ade80; /* Green balance */
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+/* --- Metrics Grid --- */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.metric-item {
+  background-color: #252526;
+  padding: 10px;
+  border-radius: 4px;
+  text-align: center;
+  border: 1px solid #333;
+}
+
+.metric-label {
+  display: block;
+  font-size: 0.75rem;
+  color: #888;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.metric-value {
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #eee;
+}
+
+/* --- Logs Panel --- */
+.logs-panel {
+  max-height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.logs-container {
+  overflow-y: auto;
+  flex-grow: 1;
+  background-color: #0f0f0f;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 10px;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 0.85rem;
+}
+
+.log-entry {
+  padding: 4px 0;
+  border-bottom: 1px solid #222;
+}
+
+.log-timestamp {
+  color: #666;
+  margin-right: 10px;
+}
+
+.log-message {
+  color: #ccc;
+}
+
+.log-info .log-message { color: #60a5fa; } /* Blue for Info */
+.log-buy .log-message { color: #4ade80; font-weight: bold; } /* Green for Buy */
+.log-sell .log-message { color: #f87171; font-weight: bold; } /* Red for Sell */
+.log-error .log-message { color: #ef4444; } /* Deep Red for Error */
+.log-status .log-message { color: #fbbf24; } /* Yellow for System Status */
+
+.no-logs, .no-metrics {
+  text-align: center;
+  color: #666;
+  font-style: italic;
+  padding: 20px;
+}
+
+.error-banner {
+  background-color: rgba(239, 68, 68, 0.2);
+  border: 1px solid #ef4444;
+  color: #f87171;
+  padding: 10px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+/* --- Chart Panel --- */
+.chart-panel {
+    height: 480px; /* Fixed height for chart container */
+    display: flex;
+    flex-direction: column;
+}
