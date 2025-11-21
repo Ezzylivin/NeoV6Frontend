@@ -1,11 +1,10 @@
 // File: src/pages/Backtests.jsx
 //
-// 💡 v2.8 UPGRADE:
-// 1. Added Live Countdown Timer during loading.
-// 2. Simplified Combo Cards (Removed individual parameter inputs).
-// 3. Maintains all previous logic fixes.
+// 💡 v2.9 FIX:
+// 1. Timer now properly COUNTS DOWN from 60s instead of counting up.
+// 2. Stops at 0s (shows "Finishing up...").
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
@@ -16,6 +15,7 @@ import "../components/ChartReplay.css";
 import "./Backtests.css";
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
+const ESTIMATED_DURATION = 60; // Standard ML Backtest Time
 
 // --- Helper Functions ---
 const formatDate = dateString => {
@@ -479,7 +479,6 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 </label>
             </fieldset>
 
-            {/* Only show manual SL/TP for Single Strategy if TSL is off */}
             {(params.tslAtrMult ?? 0) === 0 && !isCombo && (
                 <>
                     <label>Stop Loss (%):
@@ -510,7 +509,6 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
     );
 };
 
-// 💡 UPGRADE: Simplified Combo Card (Removed inputs)
 const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, disableRemove }) => {
   const handleChange = (e) => onChange(e, idx);
   
@@ -532,7 +530,6 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
           </select>
         </label>
         
-        {/* Removed redundant inputs for cleaner UI */}
         <div className="card-note">
             <small>Parameters managed globally or by saved strategy.</small>
         </div>
@@ -546,17 +543,17 @@ export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest, getPastBacktests } = useBacktest(); 
   const { loading = 'initial', error = null, options = {} } = state || {};
 
-  // 💡 COUNTDOWN TIMER LOGIC
-  const [countdown, setCountdown] = useState(0);
+  // 💡 COUNTDOWN TIMER LOGIC (Fixed: Counts DOWN)
+  const [countdown, setCountdown] = useState(ESTIMATED_DURATION);
   useEffect(() => {
       let timer;
       if (loading === 'running_ml' || loading === 'running_combo') {
-          setCountdown(0); // Reset
+          setCountdown(ESTIMATED_DURATION); // Start at 60
           timer = setInterval(() => {
-              setCountdown(prev => prev + 1);
+              setCountdown(prev => (prev > 0 ? prev - 1 : 0)); // Decrement, stop at 0
           }, 1000);
       } else {
-          setCountdown(0);
+          setCountdown(ESTIMATED_DURATION); // Reset
       }
       return () => clearInterval(timer);
   }, [loading]);
@@ -768,6 +765,7 @@ export default function Backtests() {
     );
   }
 
+  // 💡 FIX: Selection by ID Logic
   const handleFormChange = (e) => {
     const { name, value, type } = e.target;
     let val = (type === 'checkbox' ? e.target.checked : value);
@@ -828,6 +826,7 @@ export default function Backtests() {
       if (selectedStrategy) {
           currentConfig.strategyId = value;
           currentConfig.code = selectedStrategy.code;
+          // Load params but keep existing TSL if it was set
           currentConfig.params = { 
             ...(selectedStrategy.params || {}), 
             tslAtrMult: currentConfig.params?.tslAtrMult ?? 3.5, 
@@ -881,6 +880,7 @@ export default function Backtests() {
   };
 
   // --- UI Helper Functions ---
+  // 💡 UPGRADE: Countdown Timer in Button
   const getButtonText = (loadingState) => {
       switch (loadingState) {
       case 'running_ml': return `Processing ML... (${countdown}s)`;
