@@ -24,16 +24,29 @@ export const ChartReplay = ({ results, symbol }) => {
     })).sort((a, b) => a.time - b.time);
   }, [results]);
 
+  // 💡 FIX: Correct Mapping for Entry vs Exit Time
   const trades = useMemo(() => {
     if (!results?.tradeBreakdown) return [];
-    return results.tradeBreakdown.map(t => ({
-      time: new Date(t.entryTime).getTime() / 1000,
-      position: t.position,
-      price: t.entryPrice,
-      profit: t.profit,
-      exitTime: t.exitTime ? new Date(t.exitTime).getTime() / 1000 : null,
-      exitPrice: t.exitPrice
-    }));
+    return results.tradeBreakdown.map(t => {
+      // Prioritize entryTime, fallback to time if entryTime missing
+      const entryTimestamp = t.entryTime ? new Date(t.entryTime).getTime() : (t.time ? new Date(t.time).getTime() : null);
+      
+      // Check if 'time' is actually the exit time (common in backtest structures)
+      // If t.time > entryTimestamp, it is the exit.
+      let exitTimestamp = t.exitTime ? new Date(t.exitTime).getTime() : null;
+      if (!exitTimestamp && t.time && new Date(t.time).getTime() > entryTimestamp) {
+          exitTimestamp = new Date(t.time).getTime();
+      }
+
+      return {
+        time: entryTimestamp / 1000, 
+        position: t.position,
+        price: t.entryPrice,
+        profit: t.profit_usd || t.profit,
+        exitTime: exitTimestamp ? exitTimestamp / 1000 : null,
+        exitPrice: t.exitPrice || t.price // Usually 'price' is exit price in closed trades
+      };
+    }).filter(t => t.time); // Filter out bad data
   }, [results]);
 
   // --- 2. HUD & Log Logic ---
@@ -109,7 +122,7 @@ export const ChartReplay = ({ results, symbol }) => {
           position: 'belowBar',
           color: t.position === 'long' ? '#2196F3' : '#E91E63',
           shape: t.position === 'long' ? 'arrowUp' : 'arrowDown',
-          text: `BUY @ ${t.price.toFixed(2)}`
+          text: `ENTRY: $${t.price.toFixed(2)}`
         });
       }
       if (t.exitTime && t.exitTime <= currentTime) {
@@ -168,7 +181,7 @@ export const ChartReplay = ({ results, symbol }) => {
                 </span>
              </div>
              <div className="hud-item">
-                <span className="hud-label">PnL</span>
+                <span className="hud-label">Open PnL</span>
                 <span className="hud-value" style={{ color: getPnlColor(pnl) }}>
                     ${pnl.toFixed(2)}
                 </span>
@@ -193,7 +206,7 @@ export const ChartReplay = ({ results, symbol }) => {
         </div>
       </div>
 
-      {/* 🚀 1. TRADE LOG (On Top) */}
+      {/* 🚀 TRADE LOG (Top) */}
       <div className="trade-log-container">
         <div className="trade-log-header">
             <h4>Live Trade Log</h4>
@@ -235,7 +248,7 @@ export const ChartReplay = ({ results, symbol }) => {
         </div>
       </div>
       
-      {/* 🚀 2. CHART CANVAS (Attached Below Log) */}
+      {/* 🚀 CHART CANVAS (Bottom) */}
       <div ref={chartContainerRef} className="chart-canvas" />
     </div>
   );
