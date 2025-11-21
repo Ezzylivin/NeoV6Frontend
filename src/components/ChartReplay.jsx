@@ -1,6 +1,4 @@
 // File: src/components/ChartReplay.jsx
-// 🚀 UPGRADE: Trade Log moved ABOVE the chart.
-
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { createChart, CrosshairMode } from 'lightweight-charts';
 import './ChartReplay.css';
@@ -41,12 +39,11 @@ export const ChartReplay = ({ results, symbol }) => {
   // --- 2. HUD & Log Logic ---
   const currentCandle = candles[currentIndex];
   
-  // Filter trades that have happened up to the current playback time
   const tradeLog = useMemo(() => {
     if (!currentCandle) return [];
     return trades
       .filter(t => t.time <= currentCandle.time)
-      .sort((a, b) => b.time - a.time); // Newest first
+      .sort((a, b) => b.time - a.time);
   }, [trades, currentIndex, currentCandle]);
 
   const openTrade = trades.find(t => t.time <= currentCandle?.time && (!t.exitTime || t.exitTime > currentCandle?.time));
@@ -112,7 +109,7 @@ export const ChartReplay = ({ results, symbol }) => {
           position: 'belowBar',
           color: t.position === 'long' ? '#2196F3' : '#E91E63',
           shape: t.position === 'long' ? 'arrowUp' : 'arrowDown',
-          text: `ENTRY: $${t.price.toFixed(2)}` 
+          text: `BUY @ ${t.price.toFixed(2)}`
         });
       }
       if (t.exitTime && t.exitTime <= currentTime) {
@@ -171,7 +168,7 @@ export const ChartReplay = ({ results, symbol }) => {
                 </span>
              </div>
              <div className="hud-item">
-                <span className="hud-label">Open PnL</span>
+                <span className="hud-label">PnL</span>
                 <span className="hud-value" style={{ color: getPnlColor(pnl) }}>
                     ${pnl.toFixed(2)}
                 </span>
@@ -196,9 +193,12 @@ export const ChartReplay = ({ results, symbol }) => {
         </div>
       </div>
 
-      {/* 🚀 MOVED: Trade History Log is now ABOVE the chart */}
+      {/* 🚀 1. TRADE LOG (On Top) */}
       <div className="trade-log-container">
-        <h4>Live Trade Log</h4>
+        <div className="trade-log-header">
+            <h4>Live Trade Log</h4>
+            <span className="log-count">{tradeLog.length} Trades</span>
+        </div>
         <div className="trade-log-table-wrapper">
             <table className="trade-log-table">
                 <thead>
@@ -213,7 +213,7 @@ export const ChartReplay = ({ results, symbol }) => {
                 </thead>
                 <tbody>
                     {tradeLog.length === 0 ? (
-                        <tr><td colSpan="6" style={{textAlign:'center', padding:'20px', color:'#666'}}>No trades yet. Press Play!</td></tr>
+                        <tr><td colSpan="6" style={{textAlign:'center', padding:'15px', color:'#666'}}>No trades yet. Press Play!</td></tr>
                     ) : (
                         tradeLog.map((trade, i) => (
                             <tr key={i} className="trade-row">
@@ -221,8 +221,8 @@ export const ChartReplay = ({ results, symbol }) => {
                                     {trade.position.toUpperCase()}
                                 </td>
                                 <td>{formatTime(trade.time)}</td>
-                                <td style={{ color: '#fff' }}>${trade.price.toFixed(2)}</td>
-                                <td>{trade.exitTime ? formatTime(trade.exitTime) : <span style={{color:'#eab308'}}>OPEN</span>}</td>
+                                <td style={{ color: '#60a5fa', fontWeight: 'bold' }}>${trade.price.toFixed(2)}</td>
+                                <td>{trade.exitTime ? formatTime(trade.exitTime) : <span style={{color:'#eab308', fontWeight:'bold'}}>OPEN</span>}</td>
                                 <td>{trade.exitPrice ? `$${trade.exitPrice.toFixed(2)}` : '-'}</td>
                                 <td style={{ color: trade.profit > 0 ? '#22c55e' : trade.profit < 0 ? '#ef4444' : '#ddd', fontWeight: 'bold' }}>
                                     {trade.profit !== undefined ? `$${trade.profit.toFixed(2)}` : '-'}
@@ -235,7 +235,7 @@ export const ChartReplay = ({ results, symbol }) => {
         </div>
       </div>
       
-      {/* Chart Canvas is now below the table */}
+      {/* 🚀 2. CHART CANVAS (Attached Below Log) */}
       <div ref={chartContainerRef} className="chart-canvas" />
     </div>
   );
