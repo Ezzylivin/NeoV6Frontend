@@ -3,6 +3,7 @@
 // 💡 v2.9 FIX:
 // 1. Timer now properly COUNTS DOWN from 60s instead of counting up.
 // 2. Stops at 0s (shows "Finishing up...").
+// 3. FIX: Logic updated to prevent "BTC-USD-USD" symbol doubling errors.
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -622,7 +623,14 @@ export default function Backtests() {
 
     for (const model of modelOptions) {
         const { symbolBase, timeframe } = model;
-        const fullSymbol = `${symbolBase.toUpperCase()}-USD`; 
+        
+        // 💡 FIX: Prevent creating "BTC-USD-USD"
+        // Check if the base already contains a hyphen (likely full pair)
+        // If not, append -USD.
+        let fullSymbol = symbolBase.toUpperCase();
+        if (!fullSymbol.includes('-')) {
+            fullSymbol = `${fullSymbol}-USD`;
+        }
         
         availableSymbols.add(fullSymbol);
         availableTimeframes.add(timeframe);
@@ -661,7 +669,11 @@ export default function Backtests() {
   useEffect(() => {
     if (symbolOptions.length > 0 && modelOptions.length > 0 && !formData.symbol) {
         const firstModel = modelOptions[0]; 
-        const firstModelSymbol = `${firstModel.symbolBase.toUpperCase()}-USD`; 
+        let firstModelSymbol = firstModel.symbolBase.toUpperCase();
+        if (!firstModelSymbol.includes('-')) {
+            firstModelSymbol = `${firstModelSymbol}-USD`;
+        }
+
         let defaultSymbol = symbolOptions.includes(firstModelSymbol) ? firstModelSymbol : (symbolOptions.find(s => s === 'BTC-USD') || symbolOptions[0]);
         setFormData(prev => ({ ...prev, symbol: defaultSymbol }));
         setComboData(prev => ({ ...prev, symbol: defaultSymbol }));
@@ -1008,15 +1020,15 @@ export default function Backtests() {
                   <div className="chart">
                     <h3>Equity Curve</h3>
                       <ResponsiveContainer width="100%" height={300}>
-                       <LineChart data={combinedEquityCurve} margin={{ top: 5, right: 20, left: 10, bottom: 25 }}>
-                         {combinedEquityCurve.length > 0 && (
-                          <XAxis dataKey="timestamp" tickFormatter={formatChartDate} angle={-30} textAnchor="end" height={50} interval="preserveStartEnd" />
-                         )}
-                         <YAxis domain={['auto', 'auto']} tickFormatter={(tick) => `$${tick.toLocaleString()}`} allowDataOverflow={true} />
-                         <Tooltip formatter={(value) => `$${value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} />
-                         <CartesianGrid stroke="#555" strokeDasharray="3 3"/>
-                         <Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false} strokeWidth={2} />
-                       </LineChart>
+                        <LineChart data={combinedEquityCurve} margin={{ top: 5, right: 20, left: 10, bottom: 25 }}>
+                          {combinedEquityCurve.length > 0 && (
+                           <XAxis dataKey="timestamp" tickFormatter={formatChartDate} angle={-30} textAnchor="end" height={50} interval="preserveStartEnd" />
+                          )}
+                          <YAxis domain={['auto', 'auto']} tickFormatter={(tick) => `$${tick.toLocaleString()}`} allowDataOverflow={true} />
+                          <Tooltip formatter={(value) => `$${value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} />
+                          <CartesianGrid stroke="#555" strokeDasharray="3 3"/>
+                          <Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false} strokeWidth={2} />
+                        </LineChart>
                       </ResponsiveContainer>
                     </div>
                   <div className="chart">
