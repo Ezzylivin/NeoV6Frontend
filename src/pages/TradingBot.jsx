@@ -1,11 +1,12 @@
 // File: src/pages/TradingBot.jsx
+// 🚀 UPGRADE: Includes Live Chart, Strategy Loading, and Mode Switching.
+
 import React, { useState, useEffect, useRef, useContext } from "react";
 import { useBot } from '../hooks/useBot.js';
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { StrategyContext } from "../context/StrategyContext.jsx";
-import LiveTradingChart from "../components/LiveTradingChart.jsx"; // 🚀 IMPORTED CHART
-import TradingBot from "../components/TradingBot.css";
+import LiveTradingChart from "../components/LiveTradingChart.jsx"; 
 import "./TradingBot.css";
 
 const MetricsDisplay = ({ metrics }) => {
@@ -62,14 +63,32 @@ export default function TradingBot() {
     });
 
     const [selectedSetupId, setSelectedSetupId] = useState('');
+    const [winnersList, setWinnersList] = useState([]);
+    const [selectedWinnerId, setSelectedWinnerId] = useState("");
     const logsEndRef = useRef(null);
 
+    // 1. Fetch Winners on Mount
+    useEffect(() => {
+        const fetchWinners = async () => {
+            try {
+                const res = await fetch('/api/bot/winners');
+                if (res.ok) {
+                    const data = await res.json();
+                    setWinnersList(data);
+                }
+            } catch (e) { console.error("Error fetching winners:", e); }
+        };
+        fetchWinners();
+    }, []);
+
+    // 2. Auto-scroll Logs
     useEffect(() => {
         if (logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: "smooth" });
     }, [logs]);
 
+    // 3. Default Strategy Selection
     useEffect(() => {
-        if (availableStrategies?.length > 0 && !formConfig.strategyId && !selectedSetupId) {
+        if (availableStrategies?.length > 0 && !formConfig.strategyId && !selectedSetupId && !selectedWinnerId) {
             const firstStrategy = availableStrategies[0];
             setFormConfig(prev => ({
                 ...prev,
@@ -79,17 +98,21 @@ export default function TradingBot() {
                 comboConfig: firstStrategy?.comboConfig || { strategyCodes: [], combinationRule: 'OR' },
             }));
         }
-    }, [availableStrategies, backtestOptions, formConfig.strategyId, selectedSetupId]);
+    }, [availableStrategies, backtestOptions, formConfig.strategyId, selectedSetupId, selectedWinnerId]);
 
+    // 4. Live Polling
     useEffect(() => {
         if (botStatus?.status === 'running') {
-            const interval = setInterval(refreshBotData, 10000); // Poll faster for chart updates
+            const interval = setInterval(refreshBotData, 10000); // Poll faster (10s) for chart
             return () => clearInterval(interval);
         }
     }, [botStatus?.status, refreshBotData]);
 
+    // --- Handlers ---
+
     const handleSetupSelect = (setupId) => {
         setSelectedSetupId(setupId);
+        setSelectedWinnerId(""); // Clear winner selection
         const setup = setups.find(s => s._id === setupId);
         if (setup) {
             setFormConfig(prev => ({
@@ -101,8 +124,28 @@ export default function TradingBot() {
                 timeframe: setup.timeframe,
                 capitalAllocation: 1000,
             }));
-        } else {
-            setSelectedSetupId('');
+        }
+    };
+
+    const handleWinnerSelect = (e) => {
+        const filename = e.target.value;
+        setSelectedWinnerId(filename);
+        setSelectedSetupId(""); // Clear setup selection
+
+        if (!filename) return;
+
+        const selectedWinner = winnersList.find(w => w.id === filename);
+        if (selectedWinner && selectedWinner.config) {
+            const winnerConfig = selectedWinner.config;
+            if (winnerConfig.combo_strategies) {
+                const codes = winnerConfig.combo_strategies.split(',');
+                setFormConfig(prev => ({
+                    ...prev,
+                    isCombo: true,
+                    comboConfig: { strategyCodes: codes, combinationRule: winnerConfig.hybridMode || 'REGIME' },
+                    params: winnerConfig // Inject the specific winning params
+                }));
+            }
         }
     };
 
@@ -167,12 +210,23 @@ export default function TradingBot() {
                         </div>
                     )}
 
-                    <label className="setup-selector">Load Saved Setup
-                        <select value={selectedSetupId} onChange={(e) => handleSetupSelect(e.target.value)} disabled={isRunning}>
-                            <option value="">-- Manual Configuration --</option>
-                            {setups.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
-                        </select>
-                    </label>
+                    <div className="selectors-row" style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
+                        <label className="setup-selector" style={{ flex: 1 }}>Load Saved Setup (DB)
+                            <select value={selectedSetupId} onChange={(e) => handleSetupSelect(e.target.value)} disabled={isRunning || !!selectedWinnerId}>
+                                <option value="">-- Manual Configuration --</option>
+                                {setups.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+                            </select>
+                        </label>
+
+                        <label className="setup-selector" style={{ flex: 1 }}>Load Optimized Strategy (ML)
+                            <select value={selectedWinnerId} onChange={handleWinnerSelect} disabled={isRunning || !!selectedSetupId} style={{ borderColor: selectedWinnerId ? '#3b82f6' : '#444' }}>
+                                <option value="">-- Select a Winner --</option>
+                                {winnersList.map(w => (
+                                    <option key={w.id} value={w.id}>🏆 {w.name}</option>
+                                ))}
+                            </select>
+                        </label>
+                    </div>
                     
                     <div className="form-grid">
                         <label>Symbol<input value={formConfig.symbol} disabled /></label>
@@ -192,6 +246,12 @@ export default function TradingBot() {
                                         return <li key={code} title={s?.name}>{s?.name || code}</li>;
                                     })}
                                 </ul>
+                                {formConfig.params && Object.keys(formConfig.params).length > 0 && (
+                                    <div style={{marginTop:'10px', fontSize:'0.85em', color:'#aaa'}}>
+                                        <strong>Optimized Params:</strong>
+                                        <pre>{JSON.stringify(formConfig.params, null, 2)}</pre>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <p><strong>Type:</strong> {findStrategyName(formConfig.strategyId)}</p>
