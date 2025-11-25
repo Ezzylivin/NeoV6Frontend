@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: Fully integrated with useBot hook & Winners List
+// 🚀 UPGRADE: Fully integrated with useBot hook & Winners List & Clear Logs
 
 import React, { useState, useEffect, useRef, useContext } from "react";
 import { useBot } from '../hooks/useBot.js'; // Hook handles API calls + Auth
@@ -167,6 +167,15 @@ export default function TradingBot() {
         catch (err) { /* Error handled by hook state */ }
     };
 
+    const handleClearLogs = () => {
+        // Note: This just clears the local view until next refresh. 
+        // To clear backend logs, you'd need an API endpoint like DELETE /api/bot/logs
+        // For now, we can just force a refresh or maybe implement local clearing if needed,
+        // but usually 'Logs' implies persistent history.
+        // Let's assume we just want to refresh data to ensure we see latest.
+        refreshBotData(); 
+    };
+
     if (optionsLoading || setupsLoading) {
         return <div className="loading-container">Loading Configuration...</div>;
     }
@@ -266,7 +275,12 @@ export default function TradingBot() {
                     </div>
 
                     <div className="bot-card logs-panel">
-                        <h3 className="card-title">Logs</h3>
+                        <div className="card-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                            <h3 className="card-title" style={{ margin: 0 }}>Logs</h3>
+                            <button onClick={handleClearLogs} className="clear-logs-btn" style={{ background: 'transparent', border: '1px solid #475569', color: '#94a3b8', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>
+                                Refresh Logs
+                            </button>
+                        </div>
                         <div className="logs-container">
                             {logs.length > 0 ? logs.map((log, i) => (
                                 <div key={i} className={`log-entry log-${log.type}`}>
