@@ -12,8 +12,7 @@ export function useBot() {
   const [error, setError] = useState(null);
 
   // --- Fetches bot status, logs, and winners ---
-  // We combine them into one refresh function for convenience, 
-  // though winners usually don't change as often as logs.
+  // We combine them into one refresh function for convenience.
   const fetchBotData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -29,9 +28,8 @@ export function useBot() {
       setLogs(logsData);
       setWinners(winnersData || []); // Ensure array
     } catch (err) {
-      // If specific winner fetch fails, don't crash the whole UI, just log it
-      // But generally set the error state for visibility
       console.error("Bot Data Fetch Error:", err);
+      // Don't block the UI if just one part fails, but show general error
       setError(err.message || "Failed to fetch bot data.");
     } finally {
       setLoading(false);
@@ -79,7 +77,7 @@ export function useBot() {
   return { 
     botStatus, 
     logs, 
-    winners, // 🚀 Export the winners list
+    winners, // 🚀 Export the winners list so the Component can use it
     loading, 
     error, 
     startBot, 
