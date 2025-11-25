@@ -54,6 +54,10 @@ export default function TradingBot() {
         refreshBotData 
     } = useBot();
 
+    console.log("1. TradingBot Rendered");
+    console.log("2. Winners Data:", winners); 
+    console.log("3. Type of Winners:", Array.isArray(winners) ? "Array" : typeof winners);
+
     const { setups, loading: setupsLoading } = useBacktestSetupFunction();
     const { state: backtestState } = useBacktest();
     const { options: backtestOptions, loading: backtestLoading } = backtestState;
@@ -203,6 +207,13 @@ export default function TradingBot() {
 
     return (
         <div className="trading-bot-container">
+            {/* 🔍 DEBUG DISPLAY: Remove this after fixing */}
+        <div style={{background: '#333', padding: '10px', marginBottom: '20px', fontSize: '12px'}}>
+            <strong>Debug Info:</strong> <br/>
+            Winners Count: {winners?.length || 0} <br/>
+            Data Type: {Array.isArray(winners) ? 'Array' : typeof winners} <br/>
+            First Item: {winners?.[0]?.name || 'None'}
+        </div>
             <h2 className="header">Live Trading Bot</h2>
             
             <div className="bot-card control-panel">
