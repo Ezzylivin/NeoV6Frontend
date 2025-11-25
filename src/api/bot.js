@@ -1,82 +1,69 @@
-import axios from 'axios';
+// File: src/api/bot.js
+// 🚀 UPGRADED: Matches the robust structure of backtest.js
+// Uses centralized apiClient for automatic Auth/Token handling.
 
-// Create an axios instance with default config
-const api = axios.create({
-  baseURL: '/api/bot', // Proxy in vite.config.js handles the redirect
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+import api from "./apiClient.js"; 
 
-// --- REQUEST INTERCEPTOR (Inject Token) ---
-api.interceptors.request.use(
-  (config) => {
-    // 1. Get raw data from storage
-    const userInfo = localStorage.getItem('user');
+/**
+ * Consistent Error Handler
+ */
+const handleError = (error, functionName) => {
+    console.error(`Error in ${functionName}():`, error.message);
+    if (error.response) {
+        console.error('Error Response Data:', error.response.data);
+    }
     
-    // 🔍 DEBUG LOGS (Check your browser console for these!)
-    // console.log("🔐 [Auth Debug] Raw Storage:", userInfo); 
+    const message = error.response?.data?.message || error.message || "An unknown bot error occurred.";
+    throw new Error(message);
+};
 
-    if (userInfo) {
-      try {
-        const parsed = JSON.parse(userInfo);
-        // 2. Extract token (Adjust this if your object structure is different)
-        const token = parsed.token; 
+// --- Main Bot API Functions ---
 
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
-          // console.log("✅ [Auth Debug] Token attached."); 
-        } else {
-          console.warn("⚠️ [Auth Debug] UserInfo found, but NO TOKEN property.");
-        }
-      } catch (err) {
-        console.error("❌ [Auth Debug] Failed to parse userInfo:", err);
-      }
-    } else {
-      console.warn("⚠️ [Auth Debug] No userInfo in localStorage. Are you logged in?");
+export async function startBot(config) {
+    if (!config) throw new Error("Bot configuration is required.");
+    try {
+        const res = await api.post("/bot/start", config);
+        return res.data;
+    } catch (error) {
+        handleError(error, "startBot");
     }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+}
 
-// --- RESPONSE INTERCEPTOR (Handle 401s) ---
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response && error.response.status === 401) {
-      console.error("🔒 [Auth Error] 401 Unauthorized. Your session may have expired.");
-      // Optional: Redirect to login if this happens consistently
-      // window.location.href = '/login'; 
+export async function stopBot() {
+    try {
+        const res = await api.post("/bot/stop");
+        return res.data;
+    } catch (error) {
+        handleError(error, "stopBot");
     }
-    return Promise.reject(error);
-  }
-);
+}
 
-// --- API Functions ---
+export async function fetchBotStatus() {
+    try {
+        const res = await api.get("/bot/status");
+        return res.data;
+    } catch (error) {
+        handleError(error, "fetchBotStatus");
+    }
+}
 
-export const startBot = async (config) => {
-  const response = await api.post('/start', config);
-  return response.data;
-};
+export async function fetchBotLogs(limit = 100) {
+    try {
+        const res = await api.get(`/bot/logs?limit=${limit}`);
+        return res.data;
+    } catch (error) {
+        handleError(error, "fetchBotLogs");
+    }
+}
 
-export const stopBot = async () => {
-  const response = await api.post('/stop');
-  return response.data;
-};
-
-export const fetchBotStatus = async () => {
-  const response = await api.get('/status');
-  return response.data;
-};
-
-export const fetchBotLogs = async (limit = 100) => {
-  const response = await api.get(`/logs?limit=${limit}`);
-  return response.data;
-};
-
-// 🚀 Fetch the "Certified Golden" strategies
-export const fetchWinners = async () => {
-  const response = await api.get('/winners');
-  return response.data;
-};
+// 🚀 THE WINNERS ENDPOINT
+export async function fetchWinners() {
+    try {
+        const res = await api.get("/bot/winners");
+        return res.data || [];
+    } catch (error) {
+        // Graceful fail: Return empty array if server is offline/error
+        console.warn("Could not fetch winners:", error.message);
+        return [];
+    }
+}
