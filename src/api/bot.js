@@ -12,7 +12,7 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     // 1. Get raw data from storage
-    const userInfo = localStorage.getItem('userInfo');
+    const userInfo = localStorage.getItem('user');
     
     // 🔍 DEBUG LOGS (Check your browser console for these!)
     // console.log("🔐 [Auth Debug] Raw Storage:", userInfo); 
