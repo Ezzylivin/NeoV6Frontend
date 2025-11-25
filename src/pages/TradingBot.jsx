@@ -121,34 +121,49 @@ export default function TradingBot() {
         }
     };
 
-    const handleWinnerSelect = (e) => {
+   const handleWinnerSelect = (e) => {
         const filename = e.target.value;
         setSelectedWinnerId(filename);
         setSelectedSetupId(""); 
 
         if (!filename) return;
 
-        // Find the winner in the list from the hook
+        // 1. Find the winner data
         const selectedWinner = winners.find(w => w.id === filename);
+        
         if (selectedWinner && selectedWinner.config) {
             const winnerConfig = selectedWinner.config;
             
-            // Parse strategies from combo string (e.g. "macd,rsi")
-            const stratString = selectedWinner.name.split('(')[0].trim(); // Clean name
+            // 2. 🚀 PARSE FILENAME for Symbol & Timeframe
+            // Format is usually: winner_SYMBOL_TIMEFRAME_TYPE_DATE.json
+            // Example: winner_BTC-USD_1d_FINAL_1_2025.json
+            const nameParts = filename.split('_');
+            
+            // Default fallbacks if parsing fails
+            let detectedSymbol = 'BTC-USD';
+            let detectedTimeframe = '1h';
+
+            if (nameParts.length >= 3) {
+                detectedSymbol = nameParts[1]; // "BTC-USD"
+                detectedTimeframe = nameParts[2]; // "1d" or "1h"
+            }
+
+            // 3. Parse Strategies
+            const stratString = selectedWinner.name.split('(')[0].trim();
             const codes = stratString.split(',').map(s => s.trim());
             
-            // Also try reading from config directly if available
             const finalCodes = winnerConfig.combo_strategies 
                 ? winnerConfig.combo_strategies.split(',') 
                 : codes;
 
+            // 4. Update Form State
             setFormConfig(prev => ({
                 ...prev,
                 isCombo: true,
                 comboConfig: { strategyCodes: finalCodes, combinationRule: winnerConfig.hybridMode || 'REGIME' },
-                params: winnerConfig, // Important: Pass optimized params
-                symbol: 'BTC-USD', // Default to BTC if winner is BTC specific
-                timeframe: '1h'
+                params: winnerConfig, 
+                symbol: detectedSymbol,    // <--- 🚀 Now Dynamic
+                timeframe: detectedTimeframe // <--- 🚀 Now Dynamic
             }));
         }
     };
