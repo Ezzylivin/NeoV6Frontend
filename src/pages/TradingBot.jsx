@@ -1,8 +1,8 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: Fully integrated with useBot hook & Winners List & Clear Logs
+// 🚀 UPGRADE: Robust Filename Parsing & Payload Validation
 
 import React, { useState, useEffect, useRef, useContext } from "react";
-import { useBot } from '../hooks/useBot.js'; // Hook handles API calls + Auth
+import { useBot } from '../hooks/useBot.js';
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { StrategyContext } from "../context/StrategyContext.jsx";
@@ -43,11 +43,10 @@ const MetricsDisplay = ({ metrics }) => {
 };
 
 export default function TradingBot() {
-    // 1. Hook Integration: Get everything from useBot
     const { 
         botStatus, 
         logs, 
-        winners, // <--- Automatically fetched by hook
+        winners, 
         loading: botLoading, 
         error, 
         startBot, 
@@ -65,8 +64,8 @@ export default function TradingBot() {
         isCombo: false, 
         strategyId: '', 
         comboConfig: { strategyCodes: [], combinationRule: 'OR' },
-        symbol: '', 
-        timeframe: '1h', 
+        symbol: 'BTC-USD', // Default to prevent empty error
+        timeframe: '1h',   // Default to prevent empty error
         capitalAllocation: 1000,
         tradingMode: 'paper'
     });
@@ -75,34 +74,17 @@ export default function TradingBot() {
     const [selectedWinnerId, setSelectedWinnerId] = useState("");
     const logsEndRef = useRef(null);
 
-    // 2. Auto-scroll Logs
     useEffect(() => {
         if (logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: "smooth" });
     }, [logs]);
 
-    // 3. Default Config Initialization
-    useEffect(() => {
-        if (availableStrategies?.length > 0 && !formConfig.strategyId && !selectedSetupId && !selectedWinnerId) {
-            const firstStrategy = availableStrategies[0];
-            setFormConfig(prev => ({
-                ...prev,
-                strategyId: firstStrategy?._id || '',
-                symbol: backtestOptions.symbols?.[0] || 'BTC-USD',
-                isCombo: firstStrategy?.isCombo || false,
-                comboConfig: firstStrategy?.comboConfig || { strategyCodes: [], combinationRule: 'OR' },
-            }));
-        }
-    }, [availableStrategies, backtestOptions, formConfig.strategyId, selectedSetupId, selectedWinnerId]);
-
-    // 4. Live Polling (10s refresh when running)
+    // Polling
     useEffect(() => {
         if (botStatus?.status === 'running') {
             const interval = setInterval(refreshBotData, 10000);
             return () => clearInterval(interval);
         }
     }, [botStatus?.status, refreshBotData]);
-
-    // --- Handlers ---
 
     const handleSetupSelect = (setupId) => {
         setSelectedSetupId(setupId);
@@ -114,41 +96,48 @@ export default function TradingBot() {
                 isCombo: setup.isCombo,
                 strategyId: setup.strategyId || '',
                 comboConfig: setup.comboConfig || { strategyCodes: [], combinationRule: 'OR' },
-                symbol: setup.symbol,
-                timeframe: setup.timeframe,
+                symbol: setup.symbol || 'BTC-USD',
+                timeframe: setup.timeframe || '1h',
                 capitalAllocation: 1000,
             }));
         }
     };
 
-   const handleWinnerSelect = (e) => {
+    const handleWinnerSelect = (e) => {
         const filename = e.target.value;
         setSelectedWinnerId(filename);
         setSelectedSetupId(""); 
 
         if (!filename) return;
 
-        // 1. Find the winner data
         const selectedWinner = winners.find(w => w.id === filename);
-        
         if (selectedWinner && selectedWinner.config) {
             const winnerConfig = selectedWinner.config;
             
-            // 2. 🚀 PARSE FILENAME for Symbol & Timeframe
-            // Format is usually: winner_SYMBOL_TIMEFRAME_TYPE_DATE.json
-            // Example: winner_BTC-USD_1d_FINAL_1_2025.json
-            const nameParts = filename.split('_');
+            // 🚀 ROBUST FILENAME PARSING
+            // Filename formats vary: 
+            // 1. winner_BTC-USD_1d_FINAL... (Has timeframe)
+            // 2. winner_BTC-USD_GOLDEN... (No timeframe)
             
-            // Default fallbacks if parsing fails
+            const nameParts = filename.split('_');
             let detectedSymbol = 'BTC-USD';
-            let detectedTimeframe = '1h';
+            let detectedTimeframe = '1h'; // Default fallback
 
-            if (nameParts.length >= 3) {
-                detectedSymbol = nameParts[1]; // "BTC-USD"
-                detectedTimeframe = nameParts[2]; // "1d" or "1h"
+            // Try to grab symbol (usually index 1)
+            if (nameParts.length >= 2 && nameParts[1].includes('-')) {
+                detectedSymbol = nameParts[1];
             }
 
-            // 3. Parse Strategies
+            // Try to grab timeframe (look for index 2 if it matches 1h, 4h, 1d, etc)
+            if (nameParts.length >= 3) {
+                const part = nameParts[2];
+                const validTfs = ['1m','5m','15m','30m','1h','4h','1d','1w'];
+                if (validTfs.includes(part)) {
+                    detectedTimeframe = part;
+                }
+            }
+
+            // Parse strategies
             const stratString = selectedWinner.name.split('(')[0].trim();
             const codes = stratString.split(',').map(s => s.trim());
             
@@ -156,38 +145,48 @@ export default function TradingBot() {
                 ? winnerConfig.combo_strategies.split(',') 
                 : codes;
 
-            // 4. Update Form State
+            console.log("✅ Loaded Strategy:", {
+                symbol: detectedSymbol,
+                timeframe: detectedTimeframe,
+                params: winnerConfig
+            });
+
             setFormConfig(prev => ({
                 ...prev,
                 isCombo: true,
                 comboConfig: { strategyCodes: finalCodes, combinationRule: winnerConfig.hybridMode || 'REGIME' },
                 params: winnerConfig, 
-                symbol: detectedSymbol,    // <--- 🚀 Now Dynamic
-                timeframe: detectedTimeframe // <--- 🚀 Now Dynamic
+                symbol: detectedSymbol,    
+                timeframe: detectedTimeframe 
             }));
         }
     };
 
     const handleStart = async (e) => {
         e.preventDefault();
+        
+        // 🚀 CLIENT SIDE VALIDATION
+        if (!formConfig.symbol || !formConfig.timeframe || !formConfig.capitalAllocation) {
+            alert("⚠️ Error: Symbol, Timeframe, and Capital are required.");
+            return;
+        }
+
         if (formConfig.tradingMode === 'live') {
             if (!window.confirm("⚠️ WARNING: Real Money Trading. Proceed?")) return;
         }
+        
+        console.log("🚀 Launching Bot with Config:", formConfig);
+        
         try { await startBot(formConfig); } 
-        catch (err) { /* Error handled by hook state */ }
+        catch (err) { console.error(err); }
     };
 
     const handleStop = async () => {
         try { await stopBot(); } 
-        catch (err) { /* Error handled by hook state */ }
+        catch (err) { console.error(err); }
     };
 
     const handleClearLogs = () => {
-        // Note: This just clears the local view until next refresh. 
-        // To clear backend logs, you'd need an API endpoint like DELETE /api/bot/logs
-        // For now, we can just force a refresh or maybe implement local clearing if needed,
-        // but usually 'Logs' implies persistent history.
-        // Let's assume we just want to refresh data to ensure we see latest.
         refreshBotData(); 
     };
 
