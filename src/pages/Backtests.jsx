@@ -1,5 +1,5 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Fixed "Raw Array" Parsing for Golden Strategies.
+// 🚀 UPGRADE: Fixed ReferenceError: timeframeWeights is not defined.
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -595,6 +595,9 @@ export default function Backtests() {
   const symbolOptions = useMemo(() => options?.symbols || [], [options?.symbols]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options?.timeframes]);
   
+  // 🚀 FIX: Add missing timeframeWeights definition for sorting
+  const timeframeWeights = { '1m': 0, '5m': 1, '15m': 2, '30m': 3, '1h': 4, '4h': 5, '1d': 6, '1w': 7 };
+
   const modelOptions = useMemo(() => {
       if (!options?.models) return [];
       const parsedModels = options.models.map(model => {
@@ -629,11 +632,19 @@ export default function Backtests() {
     const availableSymbols = new Set();
     const availableTimeframes = new Set();
     const lookup = new Set(); 
+
     if (!modelOptions.length) return { availableSymbols, availableTimeframes, lookup };
+
     for (const model of modelOptions) {
-        availableSymbols.add(model.symbolBase);
-        availableTimeframes.add(model.timeframe);
-        lookup.add(`${model.symbolBase}_${model.timeframe}`);
+        const { symbolBase, timeframe } = model;
+        let fullSymbol = symbolBase.toUpperCase();
+        if (!fullSymbol.includes('-')) {
+            fullSymbol = `${fullSymbol}-USD`;
+        }
+        
+        availableSymbols.add(fullSymbol);
+        availableTimeframes.add(timeframe);
+        lookup.add(`${fullSymbol}_${timeframe}`);
     }
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
@@ -672,15 +683,11 @@ export default function Backtests() {
               };
           };
 
-          // 🚀 FIX: Handle Direct Array configuration (where config IS the strategies list)
-          if (Array.isArray(config)) {
-               // Case where config IS the array of strategies
-               strategiesList = config.map(s => buildStrategy(s.code, s.params));
-          } else if (Array.isArray(config.strategies)) {
-              // Standard case
-              strategiesList = config.strategies.map(s => buildStrategy(s.code, s.params));
+          if (Array.isArray(config.strategies)) {
+              strategiesList = config.strategies.map(s => 
+                  buildStrategy(s.code, s.params)
+              );
           } else if (typeof config.strategies === "string") {
-              // Legacy string case
               strategiesList = config.strategies
                   .split(",")
                   .map(s => s.trim())
@@ -727,7 +734,7 @@ export default function Backtests() {
       }
   };
 
-  // Reset logic (optional)
+  // Reset logic
   const handleResetWinner = () => {
       setSelectedWinnerId("");
       setComboData(initialComboData);
@@ -735,7 +742,7 @@ export default function Backtests() {
 
   // Default selections logic
   useEffect(() => {
-    if (selectedWinnerId) return; // 🚀 STOP FIGHTING with Winner
+    if (selectedWinnerId) return;
 
     if (strategyOptions.length > 0 && !formData.strategyId) {
       const defaultStrategy = strategyOptions[0];
@@ -749,7 +756,7 @@ export default function Backtests() {
   }, [strategyOptions, formData.strategyId, selectedWinnerId]); 
 
   useEffect(() => {
-    if (selectedWinnerId) return; // 🚀 STOP FIGHTING with Winner
+    if (selectedWinnerId) return;
 
     if (strategyOptions.length > 0 && comboData.strategies.every(c => !c.strategyId)) {
       const newConfigs = comboData.strategies.map((config, index) => {
@@ -765,7 +772,7 @@ export default function Backtests() {
   }, [strategyOptions, comboData.strategies, selectedWinnerId]); 
 
   useEffect(() => {
-    if (selectedWinnerId) return; // 🚀 STOP FIGHTING with Winner
+    if (selectedWinnerId) return;
 
     if (symbolOptions.length > 0 && modelOptions.length > 0 && !formData.symbol) {
         const firstModel = modelOptions[0]; 
@@ -781,7 +788,7 @@ export default function Backtests() {
   }, [symbolOptions, modelOptions, formData.symbol, selectedWinnerId]); 
 
   useEffect(() => {
-    if (selectedWinnerId) return; // 🚀 STOP FIGHTING with Winner
+    if (selectedWinnerId) return;
 
     if (timeframeOptions.length && !formData.timeframe) {
         const defaultTimeframe = timeframeOptions.find(t => t === '1h') || timeframeOptions[0];
@@ -791,7 +798,7 @@ export default function Backtests() {
   }, [timeframeOptions, formData.timeframe, selectedWinnerId]); 
 
   useEffect(() => {
-    if (selectedWinnerId) return; // 🚀 STOP FIGHTING with Winner
+    if (selectedWinnerId) return;
 
     const { mlMode, symbol, timeframe, mlModel } = formData;
     if (mlMode === 'off' || modelOptions.length === 0 || !symbol || !timeframe) return;
@@ -817,7 +824,7 @@ export default function Backtests() {
   }, [modelOptions, formData.mlMode, formData.symbol, formData.timeframe, selectedWinnerId]);
 
   useEffect(() => {
-    if (selectedWinnerId) return; // 🚀 STOP FIGHTING with Winner
+    if (selectedWinnerId) return;
 
     const { mlMode, symbol, timeframe, mlModel } = comboData;
     if (mlMode === 'off' || modelOptions.length === 0 || !symbol || !timeframe) return;
@@ -863,7 +870,7 @@ export default function Backtests() {
  }, [backtestResults]);
 
   const pieData = useMemo(() => {
-    if (!combinedMetrics || typeof combinedMetrics.winningTrades !== 'number') return [];
+    if (!combinedMetrics || typeof combinedMetrics.winningTrades !== 'number' || typeof combinedMetrics.totalTrades !== 'number') return [];
     const wins = combinedMetrics.winningTrades;
     const losses = combinedMetrics.totalTrades - wins;
     if (wins <= 0 && losses <= 0) return [];
@@ -944,7 +951,6 @@ export default function Backtests() {
       if (selectedStrategy) {
           currentConfig.strategyId = value;
           currentConfig.code = selectedStrategy.code;
-          // Load params but keep existing TSL if it was set
           currentConfig.params = { 
             ...(selectedStrategy.params || {}), 
             tslAtrMult: currentConfig.params?.tslAtrMult ?? 3.5, 
