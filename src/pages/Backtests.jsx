@@ -1,12 +1,9 @@
 // File: src/pages/Backtests.jsx
-//
-// 💡 v2.9 FIX:
-// 1. Timer now properly COUNTS DOWN from 60s instead of counting up.
-// 2. Stops at 0s (shows "Finishing up...").
-// 3. FIX: Logic updated to prevent "BTC-USD-USD" symbol doubling errors.
+// 🚀 UPGRADE: Integrated "Load Golden Strategy" Dropdown
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useContext } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
+import { StrategyContext } from "../context/StrategyContext.jsx";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
@@ -16,7 +13,7 @@ import "../components/ChartReplay.css";
 import "./Backtests.css";
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
-const ESTIMATED_DURATION = 60; // Standard ML Backtest Time
+const ESTIMATED_DURATION = 60; 
 
 // --- Helper Functions ---
 const formatDate = dateString => {
@@ -542,7 +539,7 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
 // --- Main Page Component ---
 export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest, getPastBacktests } = useBacktest(); 
-  const { loading = 'initial', error = null, options = {} } = state || {};
+  const { loading = 'initial', error = null, options = {}, winners = [] } = state || {};
 
   // 💡 COUNTDOWN TIMER LOGIC (Fixed: Counts DOWN)
   const [countdown, setCountdown] = useState(ESTIMATED_DURATION);
@@ -569,6 +566,7 @@ export default function Backtests() {
   const [comboData, setComboData] = useState(initialComboData);
   const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
   const [activeTab, setActiveTab] = useState('single');
+  const [selectedWinnerId, setSelectedWinnerId] = useState("");
 
   const strategyOptions = useMemo(() => {
     if (!options?.strategies) return [];
@@ -625,8 +623,6 @@ export default function Backtests() {
         const { symbolBase, timeframe } = model;
         
         // 💡 FIX: Prevent creating "BTC-USD-USD"
-        // Check if the base already contains a hyphen (likely full pair)
-        // If not, append -USD.
         let fullSymbol = symbolBase.toUpperCase();
         if (!fullSymbol.includes('-')) {
             fullSymbol = `${fullSymbol}-USD`;
@@ -638,6 +634,70 @@ export default function Backtests() {
     }
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
+
+  // 🚀 HANDLE WINNER SELECTION
+  const handleWinnerSelect = (e) => {
+      const filename = e.target.value;
+      setSelectedWinnerId(filename);
+      
+      if (!filename) return;
+
+      const selectedWinner = winners.find(w => w.id === filename);
+      
+      if (selectedWinner && selectedWinner.config) {
+          const winnerConfig = selectedWinner.config;
+          
+          // Parse Symbol & Timeframe
+          const nameParts = filename.split('_');
+          let detectedSymbol = 'BTC-USD';
+          let detectedTimeframe = '1h';
+
+          if (nameParts.length >= 2 && nameParts[1].includes('-')) {
+              detectedSymbol = nameParts[1];
+          }
+          if (nameParts.length >= 3) {
+             const part = nameParts[2];
+             const validTfs = ['1m','5m','15m','30m','1h','4h','1d','1w'];
+             if (validTfs.includes(part)) detectedTimeframe = part;
+          }
+
+          // Parse Strategies
+          const stratString = selectedWinner.name.split('(')[0].trim();
+          const codes = stratString.split(',').map(s => s.trim());
+          const finalCodes = winnerConfig.combo_strategies 
+              ? winnerConfig.combo_strategies.split(',') 
+              : codes;
+
+          // Switch to Combo Tab
+          setActiveTab('combo');
+
+          // Update Combo Config
+          setComboData(prev => ({
+              ...prev,
+              symbol: detectedSymbol,
+              timeframe: detectedTimeframe,
+              comboConfig: { strategyCodes: finalCodes, combinationRule: winnerConfig.hybridMode || 'REGIME' },
+              params: winnerConfig,
+              mlMode: winnerConfig.mlMode || 'off',
+              mlModel: winnerConfig.mlModel || '',
+              mlThreshold: winnerConfig.mlThreshold || 0.5
+          }));
+          
+          // Populate strategies array for UI cards
+          // Note: This is tricky because we need IDs, but optimized strategies don't have DB IDs.
+          // We map based on 'code' if available in strategyOptions
+          const mappedStrategies = finalCodes.map(code => {
+             const match = strategyOptions.find(s => s.code === code);
+             return {
+                 strategyId: match?._id || "",
+                 code: code,
+                 params: winnerConfig // Apply global winner config to card (simplified)
+             };
+          });
+          
+          setComboData(prev => ({ ...prev, strategies: mappedStrategies }));
+      }
+  };
 
   // Default selections logic
   useEffect(() => {
@@ -944,6 +1004,25 @@ export default function Backtests() {
           <div className="tabs">
             <button className={activeTab === 'single' ? 'active' : ''} onClick={() => setActiveTab('single')}>Single Strategy</button>
             <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo Strategy</button>
+          </div>
+
+          {/* 🚀 NEW: GOLDEN STRATEGY DROPDOWN */}
+          <div className="form-group" style={{ marginBottom: '20px', padding: '15px', background: '#1e293b', borderRadius: '8px', border: '1px solid #334155' }}>
+             <label style={{ color: '#4ade80', fontWeight: 'bold', display: 'block', marginBottom: '10px' }}>
+                 🏆 Load Optimized Strategy (ML)
+             </label>
+             <select 
+                 value={selectedWinnerId} 
+                 onChange={handleWinnerSelect}
+                 style={{ width: '100%', padding: '10px', borderRadius: '6px', background: '#0f172a', color: 'white', border: '1px solid #475569' }}
+             >
+                 <option value="">-- Select a Golden Strategy --</option>
+                 {winners && winners.map(w => (
+                     <option key={w.id} value={w.id}>
+                         {w.name}
+                     </option>
+                 ))}
+             </select>
           </div>
 
           {activeTab === 'single' && (
