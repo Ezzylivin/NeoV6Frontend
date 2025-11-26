@@ -1,5 +1,8 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Production-Ready. Fixed Strategy Card Rendering & Parameter Injection.
+// 🚀 UPGRADE: Final "Golden" Integration.
+// 1. Injects "Base" Strategy Options so dropdowns auto-select correctly.
+// 2. Deeply loads optimized parameters into the specific strategy cards.
+// 3. Visualizes specific params on the cards.
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -579,22 +582,21 @@ export default function Backtests() {
   const strategyOptions = useMemo(() => {
     const dbStrats = options?.strategies || [];
     
-    // Inject Base Types for Raw Codes
+    // 1. Create "Base" Options (Fake IDs for the UI)
     const baseStrats = Object.entries(STRATEGY_TYPE_TO_CODE_MAP).map(([name, code], idx) => ({
         _id: `base-${code}-${idx}`, 
         name: name,
         code: code,
-        params: {} // Defaults
+        params: {} 
     }));
 
-    // Map DB strats
+    // 2. Combine with DB strats
     const mappedDB = dbStrats.map(s => {
         const strategyTypeKey = s.params?.strategyType?.trim();
         const pythonCode = STRATEGY_TYPE_TO_CODE_MAP[strategyTypeKey] || "unknown";
         return { ...s, code: pythonCode };
     });
 
-    // Return Combined list (Base first for reliable matching)
     return [...baseStrats, ...mappedDB];
   }, [options?.strategies]);
   
@@ -708,7 +710,7 @@ export default function Backtests() {
               strategiesList = codes.map(code => buildStrat(code, config.params));
           }
 
-          // 🚀 4. FORCE COMBO TAB & UPDATE STATE
+          // 4. FORCE COMBO TAB & UPDATE STATE
           setActiveTab('combo');
 
           setComboData(prev => ({
@@ -732,7 +734,7 @@ export default function Backtests() {
       }
   };
 
-  // Reset logic (optional)
+  // Reset logic
   const handleResetWinner = () => {
       setSelectedWinnerId("");
       setComboData(initialComboData);
@@ -937,6 +939,7 @@ export default function Backtests() {
       if (selectedStrategy) {
           currentConfig.strategyId = value;
           currentConfig.code = selectedStrategy.code;
+          // Load params but keep existing TSL if it was set
           currentConfig.params = { 
             ...(selectedStrategy.params || {}), 
             tslAtrMult: currentConfig.params?.tslAtrMult ?? 3.5, 
@@ -1043,6 +1046,7 @@ export default function Backtests() {
             <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo Strategy</button>
           </div>
 
+          {/* --- SINGLE STRATEGY TAB --- */}
           {activeTab === 'single' && (
             <form onSubmit={handleRunBacktest} className="backtest-form">
               {(formData.mlMode === 'off' || formData.mlMode === 'predictions') && (
@@ -1071,8 +1075,10 @@ export default function Backtests() {
             </form>
           )}
 
+          {/* --- COMBO STRATEGY TAB --- */}
           {activeTab === 'combo' && (
              <>
+                {/* 🚀 MOVED: Dropdown now lives ONLY inside the Combo Tab */}
                 <div className="form-group" style={{ marginBottom: '20px', padding: '15px', background: '#1e293b', borderRadius: '8px', border: '1px solid #334155' }}>
                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                        <label style={{ color: '#4ade80', fontWeight: 'bold', margin: 0 }}>
@@ -1120,6 +1126,7 @@ export default function Backtests() {
           )}
         </div> 
 
+        {/* ... Results Section Remains the Same ... */}
         {(loading !== 'idle' || combinedMetrics || error) && (
           <div className="results-section">
             <h2>Backtest Results</h2>
