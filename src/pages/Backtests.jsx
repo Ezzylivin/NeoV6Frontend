@@ -654,33 +654,62 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
 
-  function rebuildStrategiesFromParams(raw) {
-    if (Array.isArray(raw.strategies)) {
-        return raw.strategies;   // already correct
+ function rebuildStrategiesFromParams(raw) {
+    // 1. Try standard list
+    if (Array.isArray(raw.strategies) && raw.strategies.length > 0) {
+        return raw.strategies; 
     }
 
-    // If it's a comma string like "sma_crossover,rsi_divergence"
+    // 2. Try legacy string
     if (typeof raw.strategies === "string") {
         return raw.strategies.split(",").map(code => ({
+            code: code.trim(),
+            params: extractParamsFor(code.trim(), raw.params || raw)
+        }));
+    }
+
+    // 3. 🚀 NEW: Deep Scan for Hidden Strategies
+    // If strategies key is missing, scan the PARAMS keys to guess the strategy.
+    const detectedCodes = new Set();
+    const params = raw.params || raw; // Handle flat or nested params
+
+    Object.keys(params).forEach(key => {
+        // Check if key starts with known strategy prefix (e.g. 'macd', 'rsi', 'bb')
+        if (key.startsWith('macd')) detectedCodes.add('macd_crossover');
+        if (key.startsWith('rsi')) detectedCodes.add('rsi_divergence');
+        if (key.startsWith('bb')) detectedCodes.add('bollinger_bands');
+        if (key.startsWith('stoch')) detectedCodes.add('stochastic_crossover');
+        if (key.startsWith('atr')) detectedCodes.add('atr_breakout');
+        if (key.startsWith('cci')) detectedCodes.add('cci_oversold');
+        if (key.startsWith('ich')) detectedCodes.add('ichimoku_cloud');
+        if (key.startsWith('psar')) detectedCodes.add('psar_signal');
+        if (key.startsWith('obv')) detectedCodes.add('obv_signal');
+        if (key.startsWith('sma')) detectedCodes.add('sma_crossover');
+    });
+
+    if (detectedCodes.size > 0) {
+        console.log("🕵️‍♀️ Detected Strategies from Params:", Array.from(detectedCodes));
+        return Array.from(detectedCodes).map(code => ({
             code,
-            params: extractParamsFor(code, raw)
+            params: extractParamsFor(code, params)
         }));
     }
 
     return [];
 }
 
-// Extract parameters belonging to a specific strategy
-function extractParamsFor(code, raw) {
-    const params = {};
-
-    Object.entries(raw).forEach(([key, val]) => {
-        if (key.startsWith(code.split("_")[0])) {
-            params[key] = val;
+// Helper to extract relevant params for a given code
+function extractParamsFor(code, allParams) {
+    const relevant = {};
+    // Map code prefix (e.g. 'macd_crossover' -> 'macd')
+    const prefix = code.split('_')[0]; 
+    
+    Object.entries(allParams).forEach(([key, val]) => {
+        if (key.startsWith(prefix)) {
+            relevant[key] = val;
         }
     });
-
-    return params;
+    return relevant;
 }
 
 
