@@ -654,7 +654,7 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
 
- function rebuildStrategiesFromParams(raw) {
+function rebuildStrategiesFromParams(raw) {
     // 1. Try standard list
     if (Array.isArray(raw.strategies) && raw.strategies.length > 0) {
         return raw.strategies; 
@@ -668,23 +668,31 @@ export default function Backtests() {
         }));
     }
 
-    // 3. 🚀 NEW: Deep Scan for Hidden Strategies
-    // If strategies key is missing, scan the PARAMS keys to guess the strategy.
+    // 3. Deep Scan: Map Prefixes to Strategy Codes
+    const prefixMap = {
+        'macd': 'macd_crossover',
+        'rsi': 'rsi_divergence',
+        'bb': 'bollinger_bands',
+        'stoch': 'stochastic_crossover',
+        'atr': 'atr_breakout',
+        'cci': 'cci_oversold',
+        'ich': 'ichimoku_cloud',
+        'psar': 'psar_signal',
+        'obv': 'obv_signal',
+        'sma': 'sma_crossover'
+    };
+
     const detectedCodes = new Set();
     const params = raw.params || raw; // Handle flat or nested params
 
     Object.keys(params).forEach(key => {
-        // Check if key starts with known strategy prefix (e.g. 'macd', 'rsi', 'bb')
-        if (key.startsWith('macd')) detectedCodes.add('macd_crossover');
-        if (key.startsWith('rsi')) detectedCodes.add('rsi_divergence');
-        if (key.startsWith('bb')) detectedCodes.add('bollinger_bands');
-        if (key.startsWith('stoch')) detectedCodes.add('stochastic_crossover');
-        if (key.startsWith('atr')) detectedCodes.add('atr_breakout');
-        if (key.startsWith('cci')) detectedCodes.add('cci_oversold');
-        if (key.startsWith('ich')) detectedCodes.add('ichimoku_cloud');
-        if (key.startsWith('psar')) detectedCodes.add('psar_signal');
-        if (key.startsWith('obv')) detectedCodes.add('obv_signal');
-        if (key.startsWith('sma')) detectedCodes.add('sma_crossover');
+        // Check if key starts with any known prefix
+        for (const [prefix, code] of Object.entries(prefixMap)) {
+            if (key.startsWith(prefix)) {
+                detectedCodes.add(code);
+                break; // Found match, stop checking other prefixes for this key
+            }
+        }
     });
 
     if (detectedCodes.size > 0) {
@@ -701,8 +709,21 @@ export default function Backtests() {
 // Helper to extract relevant params for a given code
 function extractParamsFor(code, allParams) {
     const relevant = {};
-    // Map code prefix (e.g. 'macd_crossover' -> 'macd')
-    const prefix = code.split('_')[0]; 
+    // Map code to its prefix for extraction
+    const prefixMap = {
+        'macd_crossover': 'macd',
+        'rsi_divergence': 'rsi',
+        'bollinger_bands': 'bb',
+        'stochastic_crossover': 'stoch',
+        'atr_breakout': 'atr',
+        'cci_oversold': 'cci',
+        'ichimoku_cloud': 'ich',
+        'psar_signal': 'psar',
+        'obv_signal': 'obv',
+        'sma_crossover': 'sma'
+    };
+
+    const prefix = prefixMap[code] || code.split('_')[0];
     
     Object.entries(allParams).forEach(([key, val]) => {
         if (key.startsWith(prefix)) {
@@ -711,7 +732,6 @@ function extractParamsFor(code, allParams) {
     });
     return relevant;
 }
-
 
   // 🚀 ROBUST WINNER PARSING & AUTO-FILLING - FINAL FIXED VERSION
  const handleWinnerSelect = (e) => {
