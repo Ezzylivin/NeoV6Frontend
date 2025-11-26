@@ -1,7 +1,7 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Fixed Strategy Card Rendering & Robust Parsing
+// 🚀 UPGRADE: Strict Mode - No Fallbacks. Only loads exactly what is in the file.
 
-import React, { useState, useEffect, useMemo, useContext } from "react";
+import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { StrategyContext } from "../context/StrategyContext.jsx";
 import {
@@ -541,6 +541,7 @@ export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest, getPastBacktests } = useBacktest(); 
   const { loading = 'initial', error = null, options = {}, winners = [] } = state || {};
 
+  // 💡 COUNTDOWN TIMER LOGIC
   const [countdown, setCountdown] = useState(ESTIMATED_DURATION);
   useEffect(() => {
       let timer;
@@ -620,6 +621,7 @@ export default function Backtests() {
 
     for (const model of modelOptions) {
         const { symbolBase, timeframe } = model;
+        
         let fullSymbol = symbolBase.toUpperCase();
         if (!fullSymbol.includes('-')) {
             fullSymbol = `${fullSymbol}-USD`;
@@ -632,7 +634,7 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
 
-  // 🚀 UPGRADE: ROBUST WINNER PARSING WITH FALLBACKS
+  // 🚀 HANDLE WINNER SELECTION (Strict Mode)
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
@@ -657,7 +659,7 @@ export default function Backtests() {
               }
           }
 
-          // 2. Prepare Global Parameters
+          // 2. Global Params
           const globalParams = {
               ...defaultFilterParams,
               ...config.params,
@@ -668,7 +670,7 @@ export default function Backtests() {
           // 3. Prepare Strategies List
           let strategiesList = [];
           
-          if (Array.isArray(config.strategies) && config.strategies.length > 0) {
+          if (Array.isArray(config.strategies)) {
               strategiesList = config.strategies.map(strat => {
                   const def = strategyOptions.find(opt => opt.code === strat.code);
                   return {
@@ -689,14 +691,10 @@ export default function Backtests() {
               });
           }
 
-          // 🚀 FALLBACK: If parsing failed (empty list), create 2 empty cards so user can fix it
+          // 🚀 NO FALLBACK: If strategies are missing/invalid, fail gracefully
           if (strategiesList.length === 0) {
-              console.warn("⚠️ Parsing failed or empty strategies. Loading defaults.");
-              const defaultStrat = strategyOptions[0];
-              strategiesList = [
-                  { strategyId: defaultStrat?._id || "", code: defaultStrat?.code || "", params: {} },
-                  { strategyId: defaultStrat?._id || "", code: defaultStrat?.code || "", params: {} }
-              ];
+              console.warn("⚠️ File contained no strategies. Selection ignored.");
+              return;
           }
 
           // 4. FORCE COMBO TAB & UPDATE STATE
@@ -717,7 +715,7 @@ export default function Backtests() {
               }
           }));
           
-          console.log(`✅ Loaded Winner: ${loadedSymbol} with ${strategiesList.length} strategies`);
+          console.log(`✅ Loaded Winner: ${loadedSymbol} (${strategiesList.length} strategies)`);
       }
   };
 
@@ -926,6 +924,7 @@ export default function Backtests() {
       if (selectedStrategy) {
           currentConfig.strategyId = value;
           currentConfig.code = selectedStrategy.code;
+          // Load params but keep existing TSL if it was set
           currentConfig.params = { 
             ...(selectedStrategy.params || {}), 
             tslAtrMult: currentConfig.params?.tslAtrMult ?? 3.5, 
@@ -1112,7 +1111,6 @@ export default function Backtests() {
         {(loading !== 'idle' || combinedMetrics || error) && (
           <div className="results-section">
             <h2>Backtest Results</h2>
-            
             {loading !== 'idle' && (
               <div className="loading-overlay">
                 <h3>{getStatusMessage(loading, currentFormDataForStatus)}</h3>
