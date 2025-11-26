@@ -1,5 +1,6 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Fixed "State Fighting". Default logic now respects Winner Selection.
+// 🚀 UPGRADE: Final Version. 
+// Guaranteed parsing of Legacy JSON files (atr_p -> atr_breakout).
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -546,7 +547,7 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
 
 // --- Main Page Component ---
 export default function Backtests() {
-  const { state, runNewBacktest, runComboBacktest, getPastBacktests } = useBacktest(); 
+  const { state, runNewBacktest, runComboBacktest } = useBacktest(); 
   const { loading = 'initial', error = null, options = {}, winners = [] } = state || {};
 
   const [countdown, setCountdown] = useState(ESTIMATED_DURATION);
@@ -584,7 +585,7 @@ export default function Backtests() {
         _id: `base-${code}-${idx}`, 
         name: name,
         code: code,
-        params: {} // Defaults
+        params: {} 
     }));
 
     // Map DB strats
@@ -654,7 +655,8 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
 
-function rebuildStrategiesFromParams(raw) {
+  // 🚀 ROBUST STRATEGY RECONSTRUCTION (FIXED)
+  function rebuildStrategiesFromParams(raw) {
     // 1. Try standard list
     if (Array.isArray(raw.strategies) && raw.strategies.length > 0) {
         return raw.strategies; 
@@ -686,11 +688,10 @@ function rebuildStrategiesFromParams(raw) {
     const params = raw.params || raw; // Handle flat or nested params
 
     Object.keys(params).forEach(key => {
-        // Check if key starts with any known prefix
         for (const [prefix, code] of Object.entries(prefixMap)) {
             if (key.startsWith(prefix)) {
                 detectedCodes.add(code);
-                break; // Found match, stop checking other prefixes for this key
+                break; 
             }
         }
     });
@@ -704,12 +705,11 @@ function rebuildStrategiesFromParams(raw) {
     }
 
     return [];
-}
+  }
 
-// Helper to extract relevant params for a given code
-function extractParamsFor(code, allParams) {
+  // Helper to extract relevant params for a given code
+  function extractParamsFor(code, allParams) {
     const relevant = {};
-    // Map code to its prefix for extraction
     const prefixMap = {
         'macd_crossover': 'macd',
         'rsi_divergence': 'rsi',
@@ -731,87 +731,91 @@ function extractParamsFor(code, allParams) {
         }
     });
     return relevant;
-}
+  }
 
-  // 🚀 ROBUST WINNER PARSING & AUTO-FILLING - FINAL FIXED VERSION
- const handleWinnerSelect = (e) => {
-    const filename = e.target.value;
-    setSelectedWinnerId(filename);
-    if (!filename) return;
+  // 🚀 HANDLE WINNER SELECTION
+  const handleWinnerSelect = (e) => {
+      const filename = e.target.value;
+      setSelectedWinnerId(filename);
+      
+      if (!filename) return;
 
-    const selectedWinner = winners.find(w => w.id === filename);
-    if (!selectedWinner?.config) return;
+      const selectedWinner = winners.find(w => w.id === filename);
+      
+      if (selectedWinner && selectedWinner.config) {
+          const config = selectedWinner.config;
+          
+          // --- 1. Meta ---
+          const loadedSymbol = config.symbol || comboData.symbol || "BTC-USD";
+          const loadedTimeframe = config.timeframe || comboData.timeframe || "1h";
 
-    const config = selectedWinner.config;
+          // --- 2. Merge global params ---
+          const globalParams = {
+              ...defaultFilterParams,
+              ...(config.params || {}),
+              hybridMode: config.params?.hybridMode || config.comboConfig?.combinationRule || "AND",
+              regime_threshold: config.params?.regime_threshold ?? 25,
+          };
 
-    // ---------------------------------
-    // 1. META DATA FIX
-    // ---------------------------------
-    let loadedSymbol = config.symbol || "BTC-USD";
-    let loadedTimeframe = config.timeframe || "1h";
+          // --- 3. Strategies ― full hydration ---
+          let strategiesList = rebuildStrategiesFromParams(config);
 
-    const nameParts = filename.split("_");
-    if (!config.symbol && nameParts[1]) loadedSymbol = nameParts[1];
-    if (!config.timeframe && nameParts[2]) loadedTimeframe = nameParts[2];
+          // Convert rebuilt strategies into UI-compatible objects
+          strategiesList = strategiesList.map(s => {
+              const def = strategyOptions.find(opt => opt.code === s.code);
+              // Ensure we fallback to a "Base" ID if DB strategy not found
+              const idToUse = def ? def._id : `base-${s.code}-fallback`;
 
-    // ---------------------------------
-    // 2. GLOBAL PARAMS
-    // ---------------------------------
-    const globalParams = {
-        ...defaultFilterParams,
-        ...config.params,
-        hybridMode: config.params?.hybridMode || "REGIME",
-        regime_threshold: config.params?.regime_threshold ?? 25,
-    };
+              return {
+                  strategyId: idToUse,
+                  code: s.code,
+                  params: s.params || {},
+              };
+          });
+          
+          // Safety fallback if list still empty
+          if (strategiesList.length === 0) {
+               strategiesList = [
+                  { strategyId: "", code: "", params: {} },
+                  { strategyId: "", code: "", params: {} }
+               ];
+          }
 
-    // ---------------------------------
-    // 3. STRATEGY REBUILDER (FIX)
-    // ---------------------------------
+          // --- 4. Set UI State (COMBO TAB) ---
+          setActiveTab("combo");
 
-    // Insert here:
-    let strategiesList = rebuildStrategiesFromParams(config);
-    console.log("Rebuilt strategies:", strategiesList);
+          setComboData(prev => ({
+              ...prev,
+              symbol: loadedSymbol,
+              timeframe: loadedTimeframe,
 
-    // Convert rebuilt strategies into UI-compatible objects
-    strategiesList = strategiesList.map(s => {
-        const def = strategyOptions.find(opt => opt.code === s.code);
+              // ML settings
+              mlMode: config.mlMode || "off",
+              mlModel: config.mlModel || "",
+              mlThreshold: config.mlThreshold ?? 0.5,
+              mlHorizon: config.mlHorizon ?? prev.mlHorizon,
 
-        return {
-            strategyId: def?._id || "",
-            code: s.code,
-            params: s.params || {},
-        };
-    });
+              // Strategies (FULLY HYDRATED)
+              strategies: strategiesList,
 
-    // ---------------------------------
-    // 4. SET UI STATE (COMBO TAB)
-    // ---------------------------------
-    setActiveTab("combo");
+              // Params (FULLY MIRRORED)
+              params: { 
+                  ...globalParams, 
+                  hybridMode: globalParams.hybridMode, 
+              },
 
-    setComboData(prev => ({
-        ...prev,
-        symbol: loadedSymbol,
-        timeframe: loadedTimeframe,
+              // Backend-mapped comboConfig
+              comboConfig: {
+                  strategyCodes: strategiesList.map(s => s.code),
+                  combinationRule: globalParams.hybridMode,
+              }
+          }));
+          
+          console.log(`✅ Loaded Winner: ${loadedSymbol} (${strategiesList.length} strategies)`);
+      }
+  };
 
-        mlMode: config.mlMode || "off",
-        mlModel: config.mlModel || "",
-        mlThreshold: config.mlThreshold ?? 0.5,
-
-        strategies: strategiesList,
-        params: globalParams,
-
-        comboConfig: {
-            strategyCodes: strategiesList.map(s => s.code),
-            combinationRule: globalParams.hybridMode,
-        }
-    }));
-
-    console.log(
-        `✅ Loaded Winner: ${loadedSymbol} (${strategiesList.length} strategies)`
-    );
-};
-
-  // Reset logic (optional)
+  // Reset logic
   const handleResetWinner = () => {
       setSelectedWinnerId("");
       setComboData(initialComboData);
