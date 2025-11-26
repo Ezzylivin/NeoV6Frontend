@@ -1,5 +1,5 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Strict ML Parsing + Debug Logs
+// 🚀 UPGRADE: Bulletproof Crash Protection. Fixed "undefined reading length" error.
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -129,8 +129,9 @@ const PARAM_MAPPING = {
 // --- Helper Functions ---
 const normalizeParams = (rawParams) => {
     const normalized = {};
+    if (!rawParams) return normalized;
     Object.entries(rawParams).forEach(([key, val]) => {
-        const uiKey = PARAM_MAPPING[key] || key; // Map if exists, else keep original
+        const uiKey = PARAM_MAPPING[key] || key; 
         normalized[uiKey] = val;
     });
     return normalized;
@@ -164,7 +165,7 @@ function rebuildStrategiesFromParams(raw) {
       }
   });
 
-  // 🚀 FALLBACK: Check if 'raw' IS an array (Direct List from Python)
+  // Fallback: Check if 'raw' IS an array 
   if (Array.isArray(raw)) {
       return raw.map(s => ({
           code: s.code || "unknown",
@@ -234,9 +235,10 @@ const MetricsDisplay = ({ metrics }) => {
 };
 
 const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isCombo = false }) => {
-    const symbolOptions = options.symbolOptions || [];
-    const timeframeOptions = options.timeframeOptions || [];
-    const allModelOptions = options.modelOptions || []; 
+    // 🚀 SAFE ARRAY DEFAULTS TO PREVENT CRASH
+    const symbolOptions = options?.symbolOptions || [];
+    const timeframeOptions = options?.timeframeOptions || [];
+    const allModelOptions = options?.modelOptions || []; 
 
     const handleParamChange = (e) => {
         const { name, value, type } = e.target;
@@ -252,7 +254,6 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
     };
 
     const params = data.params || {};
-    const activeHybridMode = isCombo ? (data.comboConfig?.combinationRule || params.hybridMode || 'AND') : 'AND';
 
     const processedSymbolOptions = useMemo(() => {
         if (data.mlMode === 'off') {
@@ -297,10 +298,20 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
     return (
         <>
             <label>Symbol:
-                <select name="symbol" value={data.symbol} onChange={handleGlobalChange} disabled={!processedSymbolOptions.length}>
+                <select 
+                    name="symbol" 
+                    value={data.symbol} 
+                    onChange={handleGlobalChange} 
+                    disabled={!processedSymbolOptions.length}
+                >
                     <option value="">-- Select Symbol --</option>
                     {processedSymbolOptions.map(s => (
-                        <option key={s.value} value={s.value} disabled={data.mlMode !== 'off' && !s.isAvailable} style={{ color: (data.mlMode !== 'off' && !s.isAvailable) ? '#888' : 'white' }}>
+                        <option 
+                            key={s.value} 
+                            value={s.value} 
+                            disabled={data.mlMode !== 'off' && !s.isAvailable}
+                            style={{ color: (data.mlMode !== 'off' && !s.isAvailable) ? '#888' : 'white' }}
+                        >
                             {s.name}
                         </option>
                     ))}
@@ -308,10 +319,20 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
             </label>
 
             <label>Timeframe:
-                <select name="timeframe" value={data.timeframe} onChange={handleGlobalChange} disabled={!processedTimeframeOptions.length}>
+                <select 
+                    name="timeframe" 
+                    value={data.timeframe} 
+                    onChange={handleGlobalChange} 
+                    disabled={!processedTimeframeOptions.length}
+                >
                     <option value="">-- Select Timeframe --</option>
                     {processedTimeframeOptions.map(t => (
-                        <option key={t.value} value={t.value} disabled={data.mlMode !== 'off' && !t.isAvailable} style={{ color: (data.mlMode !== 'off' && !t.isAvailable) ? '#888' : 'white' }}>
+                        <option 
+                            key={t.value} 
+                            value={t.value} 
+                            disabled={data.mlMode !== 'off' && !t.isAvailable} 
+                            style={{ color: (data.mlMode !== 'off' && !t.isAvailable) ? '#888' : 'white' }}
+                        >
                             {t.name}
                         </option>
                     ))}
@@ -388,13 +409,13 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 {data.mlMode === 'predictions' && (
                     <>
                         <label>Hybrid Logic:
-                            <select name="hybridMode" value={activeHybridMode} onChange={handleParamChange}>
+                            <select name="hybridMode" value={data.params?.hybridMode ?? 'AND'} onChange={handleParamChange}>
                                 <option value="AND">TA AND ML (Strict Filter)</option>
                                 <option value="OR">TA OR ML (Permissive)</option>
                                 <option value="REGIME">TA as Regime Filter</option>
                             </select>
                         </label>
-                        {activeHybridMode === 'REGIME' && (
+                        {(data.params?.hybridMode === 'REGIME') && (
                              <label>Regime Threshold (ADX):
                                 <input type="number" name="regime_threshold" value={params.regime_threshold ?? 25} onChange={handleParamChange} step="1" min="0" max="100" />
                             </label>
@@ -462,7 +483,7 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
 
 // --- Main Page Component ---
 export default function Backtests() {
-  const { state, runNewBacktest, runComboBacktest, getPastBacktests } = useBacktest(); 
+  const { state, runNewBacktest, runComboBacktest } = useBacktest(); 
   const { loading = 'initial', error = null, options = {}, winners = [] } = state || {};
 
   const [countdown, setCountdown] = useState(ESTIMATED_DURATION);
@@ -491,57 +512,77 @@ export default function Backtests() {
   const [activeTab, setActiveTab] = useState('single');
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
 
-  // 🚀 POLISH: Inject Base Strategies
+  // 🚀 POLISH: Inject Base Strategies so "Code" Matches work
   const strategyOptions = useMemo(() => {
-    // SAFETY CHECK: If options is missing, return empty array immediately
-    if (!options || !options.strategies) return [];
+    // 💡 CRASH FIX: Default to empty array if options undefined
+    const dbStrats = options?.strategies || [];
     
-    const dbStrats = options.strategies || [];
-    
-    // Inject Base Types for Raw Codes
     const baseStrats = Object.entries(STRATEGY_TYPE_TO_CODE_MAP).map(([name, code], idx) => ({
         _id: `base-${code}-${idx}`, 
         name: name,
         code: code,
         params: {} 
     }));
-
-    // Map DB strats
     const mappedDB = dbStrats.map(s => {
         const strategyTypeKey = s.params?.strategyType?.trim();
         const pythonCode = STRATEGY_TYPE_TO_CODE_MAP[strategyTypeKey] || "unknown";
         return { ...s, code: pythonCode };
     });
-
     return [...baseStrats, ...mappedDB];
-  }, [options]); // Depend on the whole options object to trigger update
+  }, [options?.strategies]);
   
+  // 💡 CRASH FIX: Default to empty arrays
   const symbolOptions = useMemo(() => options?.symbols || [], [options?.symbols]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options?.timeframes]);
-  
   const timeframeWeights = { '30m': 1, '1h': 2, '4h': 3, '1d': 4, '1w': 5 };
   
   const modelOptions = useMemo(() => {
       if (!options?.models) return [];
       const parsedModels = options.models.map(model => {
        const parts = model.id.split('_');
-       let symbolBase = 'BTC'; 
-       let timeframe = '1h';
-       if (parts.length >= 3) { symbolBase = parts[0].toUpperCase(); timeframe = parts[1]; }
-       if (!symbolBase.includes('-')) symbolBase += '-USD';
-       return { ...model, symbolBase, timeframe };
-      }).sort((a,b) => a.id.localeCompare(b.id));
+       let symbolBase = 'zzz'; 
+       let timeframe = 'zzz';
+       let tfWeight = 99;
+       let modelName = model.name;
+       
+       if (parts.length >= 3) {
+           symbolBase = parts[0]; 
+           timeframe = parts[1];  
+           tfWeight = timeframeWeights[timeframe] || 99;
+           modelName = parts.slice(2).join('_');
+       }
+       return { ...model, symbolBase, timeframe, tfWeight, modelName };
+      });
+      
+      parsedModels.sort((a, b) => {
+        if (a.symbolBase < b.symbolBase) return -1;
+        if (a.symbolBase > b.symbolBase) return 1;
+        if (a.tfWeight < b.tfWeight) return -1;
+        if (a.tfWeight > b.tfWeight) return 1;
+        if (a.modelName < b.modelName) return -1;
+        if (a.modelName > b.modelName) return 1;
+        return 0;
+      });
+      return parsedModels;
   }, [options?.models]);
 
   const availableModelData = useMemo(() => {
     const availableSymbols = new Set();
     const availableTimeframes = new Set();
     const lookup = new Set(); 
+
     if (!modelOptions.length) return { availableSymbols, availableTimeframes, lookup };
+
     for (const model of modelOptions) {
-        availableSymbols.add(model.symbolBase);
-        availableTimeframes.add(model.timeframe);
-        lookup.add(`${model.symbolBase}_${model.timeframe}`);
+        const { symbolBase, timeframe } = model;
+        let fullSymbol = symbolBase.toUpperCase();
+        if (!fullSymbol.includes('-')) {
+            fullSymbol = `${fullSymbol}-USD`;
+        }
+        
+        availableSymbols.add(fullSymbol);
+        availableTimeframes.add(timeframe);
+        lookup.add(`${fullSymbol}_${timeframe}`);
     }
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
@@ -571,11 +612,11 @@ export default function Backtests() {
               }
           }
 
-          // --- 2. Global Params (Normalized)
+          // --- 2. Merge global params ---
           const rawGlobalParams = { ...defaultFilterParams, ...(config.params || {}) };
           const globalParams = normalizeParams(rawGlobalParams);
 
-          // --- 3. ML Settings Extraction (The Fix) ---
+          // --- 3. ML Settings Extraction ---
           const detectedModel = config.mlModel || config.params?.mlModel || "";
           let detectedMode = config.mlMode || config.params?.mlMode || "off";
           if (detectedMode === "off" && detectedModel !== "") {
@@ -628,14 +669,18 @@ export default function Backtests() {
                   combinationRule: globalParams.hybridMode || 'AND',
               }
           }));
+          
+          console.log(`✅ Loaded Winner: ${loadedSymbol} (${strategiesList.length} strategies)`);
       }
   };
 
-  // Rest of handlers...
+  // Reset logic
   const handleResetWinner = () => {
       setSelectedWinnerId("");
       setComboData(initialComboData);
   };
+
+  // Form Handlers
   const handleFormChange = (e) => {
     const { name, value, type } = e.target;
     let val = (type === 'checkbox' ? e.target.checked : value);
@@ -721,49 +766,36 @@ export default function Backtests() {
     } catch (err) { console.error(err); }
   };
 
-  // ... UI Code ...
-  // (Keep existing UI logic for rendering, it's fine)
-  const getButtonText = (loadingState) => {
-      switch (loadingState) {
-      case 'running_ml': return `Processing ML... (${countdown}s)`;
-      case 'running_backtest': return `Running Backtest... (${countdown}s)`;
-      case 'running_combo': return `Running Combo... (${countdown}s)`;
-      case 'fetching': return 'Fetching Data...';
-      case 'running': return 'Processing...';
-      case 'idle':
-      default: return activeTab === 'single' ? 'Run Backtest' : 'Run Combo Backtest';
-    }
-  };
-  const getStatusMessage = (loadingState, currentFormData) => {
-      switch (loadingState) {
-      case 'running_ml':
-        if (currentFormData?.mlMode === 'predictions') return `Fetching ML features... (${countdown}s)`;
-        if (currentFormData?.mlMode === 'on') return `Running ML simulation... (${countdown}s)`;
-        return 'Running Python backtest...';
-      case 'running_backtest':
-        return `Running Backtest... (${countdown}s)`;
-      case 'running_combo':
-        return `Running Combo Backtest... (${countdown}s)`;
-      case 'fetching': return 'Fetching required data...';
-      case 'running': return 'Processing request...';
-      default: return 'Processing...';
-    }
-  };
+  // Metrics Prep
+  const { combinedEquityCurve, combinedMetrics, mainResult } = useMemo(() => {
+       try {
+         const mainResult = backtestResults?.main || backtestResults?.combinedResult;
+         const curve = mainResult?.equityCurve || mainResult?.equity;
+         if (mainResult?.metrics && curve) { 
+           return {
+             combinedEquityCurve: curve.map(p => ({ ...p, timestamp: new Date(p.timestamp).getTime() })), 
+             combinedMetrics: mainResult.metrics || null,
+             mainResult: mainResult
+           };
+         }
+         return { combinedEquityCurve: [], combinedMetrics: null, mainResult:null };
+       } catch (e) { return { combinedEquityCurve: [], combinedMetrics: null, mainResult:null }; }
+  }, [backtestResults]);
 
-  const isSingleSubmitDisabled = loading !== 'idle' ||
-    (!options?.symbols?.length) ||
-    (formData.mlMode === 'off' && !formData.code) ||
-    (formData.mlMode === 'predictions' && (!formData.code || !formData.mlModel)) ||
-    (formData.mlMode === 'on' && !formData.mlModel);
+  const pieData = useMemo(() => {
+    if (!combinedMetrics || typeof combinedMetrics.winningTrades !== 'number') return [];
+    const wins = combinedMetrics.winningTrades;
+    const losses = combinedMetrics.totalTrades - wins;
+    return (wins <= 0 && losses <= 0) ? [] : [{ name: "Wins", value: wins }, { name: "Losses", value: losses }];
+  }, [combinedMetrics]);
 
-  const isComboSubmitDisabled = loading !== 'idle' ||
-    (!options?.symbols?.length) ||
-    (comboData.mlMode === 'predictions' && (!comboData.mlModel)) ||
-    (comboData.mlMode === 'on' && !comboData.mlModel) ||
-    (comboData.strategies.filter(s => s.code?.trim()).length < 1);
+  if (loading === 'initial') return <div className="dashboard-container"><h1>Backtests</h1><div className="loading-overlay"><div className="spinner"></div></div></div>;
 
+  const isComboSubmitDisabled = loading !== 'idle' || (comboData.mlMode !== 'off' && !comboData.mlModel) || (comboData.strategies.length < 1);
+  const isSingleSubmitDisabled = loading !== 'idle' || (formData.mlMode !== 'off' && !formData.mlModel);
   const currentFormDataForStatus = activeTab === 'single' ? formData : comboData;
- 
+  const getStatusMessage = () => loading === 'running_ml' ? `Running ML... (${countdown}s)` : "Processing...";
+
   return (
     <div className="dashboard-container">
       <h1>Backtests</h1>
