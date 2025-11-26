@@ -1,5 +1,5 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Fixed ReferenceError: timeframeWeights is not defined.
+// 🚀 UPGRADE: Fixed "State Fighting". Default logic now respects Winner Selection.
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -578,26 +578,31 @@ export default function Backtests() {
   // 🚀 POLISH: Inject Base Strategies so "Code" Matches work
   const strategyOptions = useMemo(() => {
     const dbStrats = options?.strategies || [];
+    
+    // Inject Base Types for Raw Codes
     const baseStrats = Object.entries(STRATEGY_TYPE_TO_CODE_MAP).map(([name, code], idx) => ({
         _id: `base-${code}-${idx}`, 
         name: name,
         code: code,
-        params: {} 
+        params: {} // Defaults
     }));
+
+    // Map DB strats
     const mappedDB = dbStrats.map(s => {
         const strategyTypeKey = s.params?.strategyType?.trim();
         const pythonCode = STRATEGY_TYPE_TO_CODE_MAP[strategyTypeKey] || "unknown";
         return { ...s, code: pythonCode };
     });
+
+    // Return Combined list (Base first for reliable matching)
     return [...baseStrats, ...mappedDB];
   }, [options?.strategies]);
   
   const symbolOptions = useMemo(() => options?.symbols || [], [options?.symbols]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options?.timeframes]);
   
-  // 🚀 FIX: Add missing timeframeWeights definition for sorting
-  const timeframeWeights = { '1m': 0, '5m': 1, '15m': 2, '30m': 3, '1h': 4, '4h': 5, '1d': 6, '1w': 7 };
-
+  const timeframeWeights = { '30m': 1, '1h': 2, '4h': 3, '1d': 4, '1w': 5 };
+  
   const modelOptions = useMemo(() => {
       if (!options?.models) return [];
       const parsedModels = options.models.map(model => {
@@ -653,88 +658,81 @@ export default function Backtests() {
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
+      
       if (!filename) return;
 
       const selectedWinner = winners.find(w => w.id === filename);
+      
       if (selectedWinner && selectedWinner.config) {
           const config = selectedWinner.config;
           
-          // --- 1. Meta ---
-          const loadedSymbol = config.symbol || comboData.symbol || "BTC-USD";
-          const loadedTimeframe = config.timeframe || comboData.timeframe || "1h";
+          // 1. Detect Meta-Data
+          let loadedSymbol = config.symbol || 'BTC-USD';
+          let loadedTimeframe = config.timeframe || '1h';
+          
+          if (!config.symbol || !config.timeframe) {
+              const nameParts = filename.split('_');
+              if (nameParts.length >= 2 && nameParts[1].includes('-')) loadedSymbol = nameParts[1];
+              if (nameParts.length >= 3) {
+                  const validTfs = ['1m','5m','15m','30m','1h','4h','1d','1w'];
+                  if (validTfs.includes(nameParts[2])) loadedTimeframe = nameParts[2];
+              }
+          }
 
-          // --- 2. Merge global params ---
+          // 2. Prepare Global Parameters
           const globalParams = {
               ...defaultFilterParams,
-              ...(config.params || {}),
-              hybridMode: config.params?.hybridMode || config.comboConfig?.combinationRule || "AND",
-              regime_threshold: config.params?.regime_threshold ?? 25,
+              ...config.params,
+              hybridMode: config.params?.hybridMode || 'REGIME',
+              regime_threshold: config.params?.regime_threshold || 25
           };
 
-          // --- 3. Strategies ― full hydration ---
+          // 3. Prepare Strategies List
           let strategiesList = [];
-
-          const buildStrategy = (code, params) => {
-              const match = strategyOptions.find(s => s.code === code);
+          
+          // Helper to create strategy object
+          const buildStrat = (code, params) => {
+              // Use "find" on our UPGRADED strategyOptions which includes Base types
+              const def = strategyOptions.find(opt => opt.code === code);
               return {
-                  strategyId: match?._id || "",
-                  code,
-                  params: { ...(params || {}) }
+                  strategyId: def?._id || "", // Should always find a base match now
+                  code: code,
+                  params: params || {} 
               };
           };
 
           if (Array.isArray(config.strategies)) {
-              strategiesList = config.strategies.map(s => 
-                  buildStrategy(s.code, s.params)
-              );
-          } else if (typeof config.strategies === "string") {
-              strategiesList = config.strategies
-                  .split(",")
-                  .map(s => s.trim())
-                  .map(code => buildStrategy(code, config.params || {}));
+              strategiesList = config.strategies.map(strat => buildStrat(strat.code, strat.params));
+          } else if (typeof config.strategies === 'string') {
+              const codes = config.strategies.split(',').map(s => s.trim());
+              strategiesList = codes.map(code => buildStrat(code, config.params));
           }
 
-          // --- 4. Combo rule (mirrored in both places) ---
-          const combinationRule = 
-              config.comboConfig?.combinationRule || 
-              config.params?.hybridMode || 
-              "AND";
-
-          // --- 5. Apply everything ---
-          setActiveTab("combo");
+          // 4. FORCE COMBO TAB & UPDATE STATE
+          setActiveTab('combo');
 
           setComboData(prev => ({
               ...prev,
               symbol: loadedSymbol,
               timeframe: loadedTimeframe,
-              
-              // ML settings
-              mlMode: config.mlMode || "off",
-              mlModel: config.mlModel || "",
-              mlThreshold: config.mlThreshold ?? 0.5,
-              mlHorizon: config.mlHorizon ?? prev.mlHorizon,
-              
-              // Strategies (FULLY HYDRATED)
+              // 🚀 FIX: Ensure ML Settings are Pulled from Winner Config
+              mlMode: config.mlMode || 'off',
+              mlModel: config.mlModel || '',
+              mlThreshold: config.mlThreshold || 0.5,
+              // 🚀 FIX: Apply Strategies List
               strategies: strategiesList,
-
-              // Params (FULLY MIRRORED)
-              params: { 
-                  ...globalParams, 
-                  hybridMode: combinationRule, 
-              },
-
-              // Backend-mapped comboConfig
-              comboConfig: {
-                  strategyCodes: strategiesList.map(s => s.code),
-                  combinationRule: combinationRule,
+              params: globalParams,
+              comboConfig: { 
+                  strategyCodes: strategiesList.map(s => s.code), 
+                  combinationRule: globalParams.hybridMode 
               }
           }));
           
-          console.log(`✅ Loaded Winner: ${loadedSymbol}`);
+          console.log(`✅ Loaded Winner: ${loadedSymbol} (${strategiesList.length} strategies)`);
       }
   };
 
-  // Reset logic
+  // Reset logic (optional)
   const handleResetWinner = () => {
       setSelectedWinnerId("");
       setComboData(initialComboData);
@@ -742,7 +740,7 @@ export default function Backtests() {
 
   // Default selections logic
   useEffect(() => {
-    if (selectedWinnerId) return;
+    if (selectedWinnerId) return; // 🚀 STOP FIGHTING with Winner
 
     if (strategyOptions.length > 0 && !formData.strategyId) {
       const defaultStrategy = strategyOptions[0];
@@ -756,7 +754,7 @@ export default function Backtests() {
   }, [strategyOptions, formData.strategyId, selectedWinnerId]); 
 
   useEffect(() => {
-    if (selectedWinnerId) return;
+    if (selectedWinnerId) return; // 🚀 STOP FIGHTING with Winner
 
     if (strategyOptions.length > 0 && comboData.strategies.every(c => !c.strategyId)) {
       const newConfigs = comboData.strategies.map((config, index) => {
@@ -772,7 +770,7 @@ export default function Backtests() {
   }, [strategyOptions, comboData.strategies, selectedWinnerId]); 
 
   useEffect(() => {
-    if (selectedWinnerId) return;
+    if (selectedWinnerId) return; // 🚀 STOP FIGHTING with Winner
 
     if (symbolOptions.length > 0 && modelOptions.length > 0 && !formData.symbol) {
         const firstModel = modelOptions[0]; 
@@ -788,7 +786,7 @@ export default function Backtests() {
   }, [symbolOptions, modelOptions, formData.symbol, selectedWinnerId]); 
 
   useEffect(() => {
-    if (selectedWinnerId) return;
+    if (selectedWinnerId) return; // 🚀 STOP FIGHTING with Winner
 
     if (timeframeOptions.length && !formData.timeframe) {
         const defaultTimeframe = timeframeOptions.find(t => t === '1h') || timeframeOptions[0];
@@ -798,7 +796,7 @@ export default function Backtests() {
   }, [timeframeOptions, formData.timeframe, selectedWinnerId]); 
 
   useEffect(() => {
-    if (selectedWinnerId) return;
+    if (selectedWinnerId) return; // 🚀 STOP FIGHTING with Winner
 
     const { mlMode, symbol, timeframe, mlModel } = formData;
     if (mlMode === 'off' || modelOptions.length === 0 || !symbol || !timeframe) return;
@@ -824,7 +822,7 @@ export default function Backtests() {
   }, [modelOptions, formData.mlMode, formData.symbol, formData.timeframe, selectedWinnerId]);
 
   useEffect(() => {
-    if (selectedWinnerId) return;
+    if (selectedWinnerId) return; // 🚀 STOP FIGHTING with Winner
 
     const { mlMode, symbol, timeframe, mlModel } = comboData;
     if (mlMode === 'off' || modelOptions.length === 0 || !symbol || !timeframe) return;
@@ -951,6 +949,7 @@ export default function Backtests() {
       if (selectedStrategy) {
           currentConfig.strategyId = value;
           currentConfig.code = selectedStrategy.code;
+          // Load params but keep existing TSL if it was set
           currentConfig.params = { 
             ...(selectedStrategy.params || {}), 
             tslAtrMult: currentConfig.params?.tslAtrMult ?? 3.5, 
@@ -1134,6 +1133,7 @@ export default function Backtests() {
           )}
         </div> 
 
+        {/* ... Results Section Remains the Same ... */}
         {(loading !== 'idle' || combinedMetrics || error) && (
           <div className="results-section">
             <h2>Backtest Results</h2>
