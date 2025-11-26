@@ -1,5 +1,9 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Auto-populates ALL fields + Dynamically adds Strategy Cards based on Winner configuration.
+// 🚀 UPGRADE: FINAL VERSION
+// 1. Base Strategies Injected (Dropdowns always have names).
+// 2. Deep Parameter Loading (Global inputs fill automatically).
+// 3. ML Mode/Model Loading (Auto-selects ML settings).
+// 4. Strategy Card Params (Specific params show up on the card).
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -532,9 +536,9 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
         {config.params && Object.keys(config.params).length > 0 && (
             <div className="card-note" style={{marginTop: '10px'}}>
                 <small><strong>Optimized Params:</strong></small>
-                <div style={{fontSize: '0.8em', color: '#aaa', marginTop: '4px'}}>
+                <div style={{fontSize: '0.8em', color: '#aaa', marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '8px'}}>
                     {Object.entries(config.params).map(([k, v]) => (
-                        <span key={k} style={{display:'inline-block', marginRight:'10px'}}>{k}: {v}</span>
+                        <span key={k} style={{background: '#334155', padding: '2px 6px', borderRadius: '4px'}}>{k}: {v}</span>
                     ))}
                 </div>
             </div>
@@ -549,7 +553,6 @@ export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest, getPastBacktests } = useBacktest(); 
   const { loading = 'initial', error = null, options = {}, winners = [] } = state || {};
 
-  // 💡 COUNTDOWN TIMER LOGIC
   const [countdown, setCountdown] = useState(ESTIMATED_DURATION);
   useEffect(() => {
       let timer;
@@ -576,13 +579,27 @@ export default function Backtests() {
   const [activeTab, setActiveTab] = useState('single');
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
 
+  // 🚀 POLISH: Inject Base Strategies so "Code" Matches work
   const strategyOptions = useMemo(() => {
-    if (!options?.strategies) return [];
-    return options.strategies.map(strategy => {
-      const strategyTypeKey = strategy.params?.strategyType?.trim();
-      const pythonCode = STRATEGY_TYPE_TO_CODE_MAP[strategyTypeKey] || "unknown";
-      return { ...strategy, code: pythonCode }; 
-    }).filter(Boolean);
+    const dbStrats = options?.strategies || [];
+    
+    // Inject Base Types for Raw Codes
+    const baseStrats = Object.entries(STRATEGY_TYPE_TO_CODE_MAP).map(([name, code], idx) => ({
+        _id: `base-${code}-${idx}`, 
+        name: name,
+        code: code,
+        params: {} // Defaults
+    }));
+
+    // Map DB strats
+    const mappedDB = dbStrats.map(s => {
+        const strategyTypeKey = s.params?.strategyType?.trim();
+        const pythonCode = STRATEGY_TYPE_TO_CODE_MAP[strategyTypeKey] || "unknown";
+        return { ...s, code: pythonCode };
+    });
+
+    // Return Combined list (Base first for reliable matching)
+    return [...baseStrats, ...mappedDB];
   }, [options?.strategies]);
   
   const symbolOptions = useMemo(() => options?.symbols || [], [options?.symbols]);
@@ -641,7 +658,7 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
 
-  // 🚀 UPGRADE: AUTO-POPULATE STRATEGY CARDS & PARAMS
+  // 🚀 ROBUST WINNER PARSING & AUTO-FILLING
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
@@ -666,7 +683,8 @@ export default function Backtests() {
               }
           }
 
-          // 2. Global Params
+          // 2. Prepare Global Parameters
+          // 🚀 FIX: Ensure ML params are populated here too
           const globalParams = {
               ...defaultFilterParams,
               ...config.params,
@@ -674,50 +692,40 @@ export default function Backtests() {
               regime_threshold: config.params?.regime_threshold || 25
           };
 
-          // 3. Prepare Strategies List & Inject Params
+          // 3. Prepare Strategies List
           let strategiesList = [];
           
-          // Helper to build a valid strategy card object
-          const buildStrategyCard = (code, params) => {
-              // Find matching DB Definition for UI
+          // Helper to create strategy object
+          const buildStrat = (code, params) => {
+              // Use "find" on our UPGRADED strategyOptions which includes Base types
               const def = strategyOptions.find(opt => opt.code === code);
               return {
-                  // Important: If def not found, use "" but still pass code/params so it runs
-                  strategyId: def?._id || "", 
+                  strategyId: def?._id || "", // Should always find a base match now
                   code: code,
-                  // Merge global winner config params + specific strategy params
-                  params: { ...globalParams, ...params } 
+                  params: params || {} 
               };
           };
 
           if (Array.isArray(config.strategies)) {
-              // NEW FORMAT: List of objects
-              strategiesList = config.strategies.map(strat => buildStrategyCard(strat.code, strat.params));
+              strategiesList = config.strategies.map(strat => buildStrat(strat.code, strat.params));
           } else if (typeof config.strategies === 'string') {
-              // LEGACY FORMAT: String list
               const codes = config.strategies.split(',').map(s => s.trim());
-              strategiesList = codes.map(code => buildStrategyCard(code, config.params));
+              strategiesList = codes.map(code => buildStrat(code, config.params));
           }
 
-          // 🚀 FALLBACK: Ensure we have at least 2 cards if empty
-          if (strategiesList.length === 0) {
-              strategiesList = [
-                  { strategyId: "", code: "", params: {} },
-                  { strategyId: "", code: "", params: {} }
-              ];
-          }
-
-          // 4. FORCE COMBO TAB & UPDATE STATE
+          // 🚀 4. FORCE COMBO TAB & UPDATE STATE
           setActiveTab('combo');
 
           setComboData(prev => ({
               ...prev,
               symbol: loadedSymbol,
               timeframe: loadedTimeframe,
+              // 🚀 FIX: Ensure ML Settings are Pulled from Winner Config
               mlMode: config.mlMode || 'off',
               mlModel: config.mlModel || '',
               mlThreshold: config.mlThreshold || 0.5,
-              strategies: strategiesList, // 🚀 THIS POPULATES THE BOXES
+              // 🚀 FIX: Apply Strategies List
+              strategies: strategiesList,
               params: globalParams,
               comboConfig: { 
                   strategyCodes: strategiesList.map(s => s.code), 
@@ -729,7 +737,7 @@ export default function Backtests() {
       }
   };
 
-  // Reset logic
+  // Reset logic (optional)
   const handleResetWinner = () => {
       setSelectedWinnerId("");
       setComboData(initialComboData);
@@ -758,12 +766,9 @@ export default function Backtests() {
             params: { ...strategy.params, tslAtrMult: 3.5 } 
         };
       });
-      // Only set default if empty (don't overwrite winner load)
-      if(comboData.strategies.length === 2 && !comboData.strategies[0].code) {
-           setComboData(prev => ({ ...prev, strategies: newConfigs }));
-      }
+      setComboData(prev => ({ ...prev, strategies: newConfigs }));
     }
-  }, [strategyOptions]); // Removed comboData.strategies dependency to prevent override loop
+  }, [strategyOptions, comboData.strategies]); 
 
   useEffect(() => {
     if (symbolOptions.length > 0 && modelOptions.length > 0 && !formData.symbol) {
@@ -937,7 +942,6 @@ export default function Backtests() {
       if (selectedStrategy) {
           currentConfig.strategyId = value;
           currentConfig.code = selectedStrategy.code;
-          // Load params but keep existing TSL if it was set
           currentConfig.params = { 
             ...(selectedStrategy.params || {}), 
             tslAtrMult: currentConfig.params?.tslAtrMult ?? 3.5, 
