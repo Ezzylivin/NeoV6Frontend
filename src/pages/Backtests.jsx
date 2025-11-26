@@ -634,22 +634,26 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
 
-  // 🚀 HANDLE WINNER SELECTION (Strict Mode)
+ // 🚀 UPGRADE: Debug & Robust Loading Logic
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
       
       if (!filename) return;
 
+      console.log(`🔍 Selected Winner File: ${filename}`);
+
       const selectedWinner = winners.find(w => w.id === filename);
       
       if (selectedWinner && selectedWinner.config) {
           const config = selectedWinner.config;
+          console.log("📄 Full Winner Config:", config);
           
-          // 1. Detect Meta-Data
+          // --- 1. Detect Symbol & Timeframe ---
           let loadedSymbol = config.symbol || 'BTC-USD';
           let loadedTimeframe = config.timeframe || '1h';
           
+          // Parsing Fallback
           if (!config.symbol || !config.timeframe) {
               const nameParts = filename.split('_');
               if (nameParts.length >= 2 && nameParts[1].includes('-')) loadedSymbol = nameParts[1];
@@ -659,7 +663,7 @@ export default function Backtests() {
               }
           }
 
-          // 2. Global Params
+          // --- 2. Global Params ---
           const globalParams = {
               ...defaultFilterParams,
               ...config.params,
@@ -667,37 +671,49 @@ export default function Backtests() {
               regime_threshold: config.params?.regime_threshold || 25
           };
 
-          // 3. Prepare Strategies List
+          // --- 3. Strategy List Construction ---
           let strategiesList = [];
           
+          // Handle List Format (New v7.0)
           if (Array.isArray(config.strategies)) {
               strategiesList = config.strategies.map(strat => {
+                  // DEBUG: What are we looking for?
+                  console.log(`🔎 Looking for DB Strategy matching code: '${strat.code}'`);
+                  
+                  // Find matching definition in your DB options
                   const def = strategyOptions.find(opt => opt.code === strat.code);
+                  
+                  if (!def) console.warn(`⚠️ No DB match found for '${strat.code}'. Check STRATEGY_TYPE_TO_CODE_MAP.`);
+                  else console.log(`✅ Match found: ${def.name} (ID: ${def._id})`);
+
                   return {
-                      strategyId: def?._id || "", 
+                      strategyId: def?._id || "", // If empty, box will show "Select"
                       code: strat.code,
-                      params: strat.params || {} 
+                      params: strat.params || {}  // Load specific indicator params
                   };
               });
-          } else if (typeof config.strategies === 'string') {
+          } 
+          // Handle String Format (Old)
+          else if (typeof config.strategies === 'string') {
               const codes = config.strategies.split(',').map(s => s.trim());
               strategiesList = codes.map(code => {
+                  console.log(`🔎 Looking for DB Strategy matching code: '${code}'`);
                   const def = strategyOptions.find(opt => opt.code === code);
+                  
+                  if (!def) console.warn(`⚠️ No DB match found for '${code}'. Check STRATEGY_TYPE_TO_CODE_MAP.`);
+                  else console.log(`✅ Match found: ${def.name} (ID: ${def._id})`);
+
                   return {
                       strategyId: def?._id || "",
                       code: code,
-                      params: config.params 
+                      params: config.params // Legacy files mixed params
                   };
               });
           }
 
-          // 🚀 NO FALLBACK: If strategies are missing/invalid, fail gracefully
-          if (strategiesList.length === 0) {
-              console.warn("⚠️ File contained no strategies. Selection ignored.");
-              return;
-          }
+          console.log("🚀 Final Strategy List for State:", strategiesList);
 
-          // 4. FORCE COMBO TAB & UPDATE STATE
+          // --- 4. Update State ---
           setActiveTab('combo');
 
           setComboData(prev => ({
@@ -714,11 +730,8 @@ export default function Backtests() {
                   combinationRule: globalParams.hybridMode 
               }
           }));
-          
-          console.log(`✅ Loaded Winner: ${loadedSymbol} (${strategiesList.length} strategies)`);
       }
   };
-
   // Reset logic (optional)
   const handleResetWinner = () => {
       setSelectedWinnerId("");
