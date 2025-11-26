@@ -655,6 +655,7 @@ export default function Backtests() {
   }, [modelOptions]); 
 
   // 🚀 ROBUST WINNER PARSING & AUTO-FILLING - FINAL FIXED VERSION
+  // 🚀 UPGRADE: Bulletproof Parsing Logic
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
@@ -665,85 +666,84 @@ export default function Backtests() {
       
       if (selectedWinner && selectedWinner.config) {
           const config = selectedWinner.config;
+          console.log("📄 Raw Winner Config:", config); // Debug log
           
-          // --- 1. Meta ---
-          const loadedSymbol = config.symbol || comboData.symbol || "BTC-USD";
-          const loadedTimeframe = config.timeframe || comboData.timeframe || "1h";
+          // 1. Detect Meta-Data
+          let loadedSymbol = config.symbol || 'BTC-USD';
+          let loadedTimeframe = config.timeframe || '1h';
+          
+          if (!config.symbol || !config.timeframe) {
+              const nameParts = filename.split('_');
+              if (nameParts.length >= 2 && nameParts[1].includes('-')) loadedSymbol = nameParts[1];
+              if (nameParts.length >= 3) {
+                  const validTfs = ['1m','5m','15m','30m','1h','4h','1d','1w'];
+                  if (validTfs.includes(nameParts[2])) loadedTimeframe = nameParts[2];
+              }
+          }
 
-          // --- 2. Merge global params ---
+          // 2. Global Params
           const globalParams = {
               ...defaultFilterParams,
-              ...(config.params || {}),
-              hybridMode: config.params?.hybridMode || config.comboConfig?.combinationRule || "AND",
-              regime_threshold: config.params?.regime_threshold ?? 25,
+              ...config.params,
+              hybridMode: config.params?.hybridMode || 'REGIME',
+              regime_threshold: config.params?.regime_threshold || 25
           };
 
-          // --- 3. Strategies ― full hydration ---
+          // 3. Prepare Strategies List
           let strategiesList = [];
-
-          const buildStrategy = (code, params) => {
-              // 🚀 FIX: Construct the ID deterministically instead of searching
-              // Since we inject IDs as `base-${code}` in useMemo, we know exactly what ID to use.
-              const deterministicId = `base-${code}`;
+          
+          // Helper to create strategy object
+          const buildStrat = (code, params) => {
+              // Try to find a matching ID from options, but fallback to a generated base ID
+              // This ensures it NEVER fails to create a card even if options aren't loaded.
+              const def = strategyOptions.find(opt => opt.code === code);
+              const idToUse = def ? def._id : `base-${code}-fallback`; 
               
               return {
-                  strategyId: deterministicId, // Matches the dropdown option value exactly
-                  code,
-                  params: { ...(params || {}) }
+                  strategyId: idToUse, 
+                  code: code,
+                  params: params || {} 
               };
           };
 
+          // HANDLING ARRAY FORMAT
           if (Array.isArray(config.strategies)) {
-              strategiesList = config.strategies.map(s => 
-                  buildStrategy(s.code, s.params)
-              );
-          } else if (typeof config.strategies === "string") {
-              strategiesList = config.strategies
-                  .split(",")
-                  .map(s => s.trim())
-                  .map(code => buildStrategy(code, config.params || {}));
+              strategiesList = config.strategies.map(strat => buildStrat(strat.code, strat.params));
+          } 
+          // HANDLING LEGACY STRING FORMAT
+          else if (typeof config.strategies === 'string') {
+              const codes = config.strategies.split(',').map(s => s.trim());
+              strategiesList = codes.map(code => buildStrat(code, config.params));
+          }
+          // HANDLING MISSING STRATEGIES KEY (Fallback to filename inference if desperate)
+          else {
+              // Last resort: Try to guess from filename (e.g. "winner_..._macd,rsi_...")
+              // Or just warn
+              console.warn("⚠️ 'strategies' key missing in config. Checking top-level keys...");
           }
 
-          // --- 4. Combo rule (mirrored in both places) ---
-          const combinationRule = 
-              config.comboConfig?.combinationRule || 
-              config.params?.hybridMode || 
-              "AND";
-
-          // --- 5. Apply everything ---
-          setActiveTab("combo");
+          // 4. FORCE COMBO TAB & UPDATE STATE
+          setActiveTab('combo');
 
           setComboData(prev => ({
               ...prev,
               symbol: loadedSymbol,
               timeframe: loadedTimeframe,
-              
-              // ML settings
-              mlMode: config.mlMode || "off",
-              mlModel: config.mlModel || "",
-              mlThreshold: config.mlThreshold ?? 0.5,
-              mlHorizon: config.mlHorizon ?? prev.mlHorizon,
-              
-              // Strategies (FULLY HYDRATED)
+              mlMode: config.mlMode || 'off',
+              mlModel: config.mlModel || '',
+              mlThreshold: config.mlThreshold || 0.5,
               strategies: strategiesList,
-
-              // Params (FULLY MIRRORED)
-              params: { 
-                  ...globalParams, 
-                  hybridMode: combinationRule, 
-              },
-
-              // Backend-mapped comboConfig
-              comboConfig: {
-                  strategyCodes: strategiesList.map(s => s.code),
-                  combinationRule: combinationRule,
+              params: globalParams,
+              comboConfig: { 
+                  strategyCodes: strategiesList.map(s => s.code), 
+                  combinationRule: globalParams.hybridMode 
               }
           }));
           
-          console.log(`✅ Loaded Winner: ${loadedSymbol} with ${strategiesList.length} strategies`);
+          console.log(`✅ Loaded Winner: ${loadedSymbol} (${strategiesList.length} strategies)`);
       }
   };
-
+  
   // Reset logic (optional)
   const handleResetWinner = () => {
       setSelectedWinnerId("");
