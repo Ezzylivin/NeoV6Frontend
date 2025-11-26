@@ -1,5 +1,5 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Fixed Syntax Error & Logic for Legacy Strategy Parsing
+// 🚀 UPGRADE: Auto-populates ALL fields + Dynamically adds Strategy Cards based on Winner configuration.
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -528,9 +528,17 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
           </select>
         </label>
         
-        <div className="card-note">
-            <small>Parameters managed globally or by saved strategy.</small>
-        </div>
+        {/* 🚀 UPGRADE: Show Strategy-Specific Params in UI */}
+        {config.params && Object.keys(config.params).length > 0 && (
+            <div className="card-note" style={{marginTop: '10px'}}>
+                <small><strong>Optimized Params:</strong></small>
+                <div style={{fontSize: '0.8em', color: '#aaa', marginTop: '4px'}}>
+                    {Object.entries(config.params).map(([k, v]) => (
+                        <span key={k} style={{display:'inline-block', marginRight:'10px'}}>{k}: {v}</span>
+                    ))}
+                </div>
+            </div>
+        )}
       </div>
     </div>
   );
@@ -633,7 +641,7 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
 
-  // 🚀 UPGRADE: ROBUST WINNER PARSING WITH FALLBACKS
+  // 🚀 UPGRADE: AUTO-POPULATE STRATEGY CARDS & PARAMS
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
@@ -666,33 +674,37 @@ export default function Backtests() {
               regime_threshold: config.params?.regime_threshold || 25
           };
 
-          // 3. Prepare Strategies List
+          // 3. Prepare Strategies List & Inject Params
           let strategiesList = [];
           
+          // Helper to build a valid strategy card object
+          const buildStrategyCard = (code, params) => {
+              // Find matching DB Definition for UI
+              const def = strategyOptions.find(opt => opt.code === code);
+              return {
+                  // Important: If def not found, use "" but still pass code/params so it runs
+                  strategyId: def?._id || "", 
+                  code: code,
+                  // Merge global winner config params + specific strategy params
+                  params: { ...globalParams, ...params } 
+              };
+          };
+
           if (Array.isArray(config.strategies)) {
-              strategiesList = config.strategies.map(strat => {
-                  const def = strategyOptions.find(opt => opt.code === strat.code);
-                  return {
-                      strategyId: def?._id || "", 
-                      code: strat.code,
-                      params: strat.params || {} 
-                  };
-              });
+              // NEW FORMAT: List of objects
+              strategiesList = config.strategies.map(strat => buildStrategyCard(strat.code, strat.params));
           } else if (typeof config.strategies === 'string') {
+              // LEGACY FORMAT: String list
               const codes = config.strategies.split(',').map(s => s.trim());
-              strategiesList = codes.map(code => {
-                  console.log(`🔎 Processing Code: '${code}'`);
-                  
-                  // Try to find a match in options, but don't die if missing
-                  const def = strategyOptions.find(opt => opt.code === code);
-                  
-                  // If we find a match, great. If not, we create a valid object anyway.
-                  return {
-                      strategyId: def?._id || "", 
-                      code: code,
-                      params: config.params 
-                  };
-              });
+              strategiesList = codes.map(code => buildStrategyCard(code, config.params));
+          }
+
+          // 🚀 FALLBACK: Ensure we have at least 2 cards if empty
+          if (strategiesList.length === 0) {
+              strategiesList = [
+                  { strategyId: "", code: "", params: {} },
+                  { strategyId: "", code: "", params: {} }
+              ];
           }
 
           // 4. FORCE COMBO TAB & UPDATE STATE
@@ -705,7 +717,7 @@ export default function Backtests() {
               mlMode: config.mlMode || 'off',
               mlModel: config.mlModel || '',
               mlThreshold: config.mlThreshold || 0.5,
-              strategies: strategiesList,
+              strategies: strategiesList, // 🚀 THIS POPULATES THE BOXES
               params: globalParams,
               comboConfig: { 
                   strategyCodes: strategiesList.map(s => s.code), 
@@ -713,7 +725,7 @@ export default function Backtests() {
               }
           }));
           
-          console.log(`✅ Loaded Winner into Combo Tab: ${loadedSymbol}`);
+          console.log(`✅ Loaded Winner: ${loadedSymbol} (${strategiesList.length} strategies)`);
       }
   };
 
@@ -746,9 +758,12 @@ export default function Backtests() {
             params: { ...strategy.params, tslAtrMult: 3.5 } 
         };
       });
-      setComboData(prev => ({ ...prev, strategies: newConfigs }));
+      // Only set default if empty (don't overwrite winner load)
+      if(comboData.strategies.length === 2 && !comboData.strategies[0].code) {
+           setComboData(prev => ({ ...prev, strategies: newConfigs }));
+      }
     }
-  }, [strategyOptions, comboData.strategies]); 
+  }, [strategyOptions]); // Removed comboData.strategies dependency to prevent override loop
 
   useEffect(() => {
     if (symbolOptions.length > 0 && modelOptions.length > 0 && !formData.symbol) {
@@ -922,6 +937,7 @@ export default function Backtests() {
       if (selectedStrategy) {
           currentConfig.strategyId = value;
           currentConfig.code = selectedStrategy.code;
+          // Load params but keep existing TSL if it was set
           currentConfig.params = { 
             ...(selectedStrategy.params || {}), 
             tslAtrMult: currentConfig.params?.tslAtrMult ?? 3.5, 
