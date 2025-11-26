@@ -635,7 +635,9 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
 
-  // 🚀 HANDLE WINNER SELECTION
+ // 🚀 UPGRADE: DEEP LOAD
+  // This function now extracts EVERY parameter from the winner file
+  // and injects it into the Combo/Single form states.
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
@@ -645,57 +647,102 @@ export default function Backtests() {
       const selectedWinner = winners.find(w => w.id === filename);
       
       if (selectedWinner && selectedWinner.config) {
-          const winnerConfig = selectedWinner.config;
+          const config = selectedWinner.config;
           
-          // Parse Symbol & Timeframe
-          const nameParts = filename.split('_');
-          let detectedSymbol = 'BTC-USD';
-          let detectedTimeframe = '1h';
-
-          if (nameParts.length >= 2 && nameParts[1].includes('-')) {
-              detectedSymbol = nameParts[1];
+          // 1. Detect Basic Meta-Data (Symbol/Timeframe)
+          // Prefer values from inside the JSON, fallback to filename parsing
+          let loadedSymbol = config.symbol || 'BTC-USD';
+          let loadedTimeframe = config.timeframe || '1h';
+          
+          // Fallback: Parse filename if JSON is missing meta-data (legacy files)
+          if (!config.symbol || !config.timeframe) {
+              const nameParts = filename.split('_');
+              if (nameParts.length >= 2 && nameParts[1].includes('-')) loadedSymbol = nameParts[1];
+              if (nameParts.length >= 3) {
+                  const validTfs = ['1m','5m','15m','30m','1h','4h','1d','1w'];
+                  if (validTfs.includes(nameParts[2])) loadedTimeframe = nameParts[2];
+              }
           }
-          if (nameParts.length >= 3) {
-             const part = nameParts[2];
-             const validTfs = ['1m','5m','15m','30m','1h','4h','1d','1w'];
-             if (validTfs.includes(part)) detectedTimeframe = part;
+
+          // 2. Prepare Global Parameters (The "Advanced Filters")
+          // We merge the winner's params with default defaults to ensure nothing breaks
+          const globalParams = {
+              ...defaultFilterParams, // Safety defaults
+              ...config.params,       // Winner's specific global settings
+              hybridMode: config.params?.hybridMode || 'REGIME',
+              regime_threshold: config.params?.regime_threshold || 25
+          };
+
+          // 3. Prepare Strategies List (The "Meat")
+          let strategiesList = [];
+          
+          // Check if 'strategies' is the new List format (v7.0+) or old String format
+          if (Array.isArray(config.strategies)) {
+              // NEW FORMAT: List of objects { code: "...", params: {...} }
+              strategiesList = config.strategies.map(strat => {
+                  // Find matching definition to get the ID (optional, mostly for UI matching)
+                  const def = strategyOptions.find(opt => opt.code === strat.code);
+                  return {
+                      strategyId: def?._id || "", // It's okay if this is empty, logic uses 'code'
+                      code: strat.code,
+                      params: strat.params || {}  // Load specific indicator params (e.g. macd_fast)
+                  };
+              });
+          } else if (typeof config.strategies === 'string') {
+              // LEGACY FORMAT: String "macd,rsi"
+              const codes = config.strategies.split(',').map(s => s.trim());
+              strategiesList = codes.map(code => {
+                  const def = strategyOptions.find(opt => opt.code === code);
+                  return {
+                      strategyId: def?._id || "",
+                      code: code,
+                      // In legacy files, specific params were mixed in global 'params'
+                      // We pass the whole global bag; the strategy will pick what it needs
+                      params: config.params 
+                  };
+              });
           }
 
-          // Parse Strategies
-          const stratString = selectedWinner.name.split('(')[0].trim();
-          const codes = stratString.split(',').map(s => s.trim());
-          const finalCodes = winnerConfig.combo_strategies 
-              ? winnerConfig.combo_strategies.split(',') 
-              : codes;
+          // 4. Determine Mode (Single vs Combo)
+          const isCombo = strategiesList.length > 1;
+          setActiveTab(isCombo ? 'combo' : 'single');
 
-          // Switch to Combo Tab
-          setActiveTab('combo');
-
-          // Update Combo Config
-          setComboData(prev => ({
-              ...prev,
-              symbol: detectedSymbol,
-              timeframe: detectedTimeframe,
-              comboConfig: { strategyCodes: finalCodes, combinationRule: winnerConfig.hybridMode || 'REGIME' },
-              params: winnerConfig,
-              mlMode: winnerConfig.mlMode || 'off',
-              mlModel: winnerConfig.mlModel || '',
-              mlThreshold: winnerConfig.mlThreshold || 0.5
-          }));
+          // 5. Update State
+          if (isCombo) {
+              setComboData(prev => ({
+                  ...prev,
+                  symbol: loadedSymbol,
+                  timeframe: loadedTimeframe,
+                  // Load ML settings if they exist
+                  mlMode: config.mlMode || 'off',
+                  mlModel: config.mlModel || '',
+                  mlThreshold: config.mlThreshold || 0.5,
+                  // Load Strategies & Global Params
+                  strategies: strategiesList,
+                  params: globalParams,
+                  // Update Combo Config UI helpers
+                  comboConfig: { 
+                      strategyCodes: strategiesList.map(s => s.code), 
+                      combinationRule: globalParams.hybridMode 
+                  }
+              }));
+          } else {
+              // Single Strategy Mode
+              const strat = strategiesList[0] || {};
+              setFormData(prev => ({
+                  ...prev,
+                  symbol: loadedSymbol,
+                  timeframe: loadedTimeframe,
+                  mlMode: config.mlMode || 'off',
+                  mlModel: config.mlModel || '',
+                  mlThreshold: config.mlThreshold || 0.5,
+                  strategyId: strat.strategyId,
+                  code: strat.code,
+                  params: { ...globalParams, ...strat.params }
+              }));
+          }
           
-          // Populate strategies array for UI cards
-          // Note: This is tricky because we need IDs, but optimized strategies don't have DB IDs.
-          // We map based on 'code' if available in strategyOptions
-          const mappedStrategies = finalCodes.map(code => {
-             const match = strategyOptions.find(s => s.code === code);
-             return {
-                 strategyId: match?._id || "",
-                 code: code,
-                 params: winnerConfig // Apply global winner config to card (simplified)
-             };
-          });
-          
-          setComboData(prev => ({ ...prev, strategies: mappedStrategies }));
+          console.log(`✅ Loaded Winner: ${loadedSymbol} ${loadedTimeframe} (${isCombo ? 'Combo' : 'Single'})`);
       }
   };
 
