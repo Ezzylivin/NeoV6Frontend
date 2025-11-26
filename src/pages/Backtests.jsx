@@ -567,7 +567,10 @@ export default function Backtests() {
 
       const selectedWinner = winners.find(w => w.id === filename);
       if (selectedWinner && selectedWinner.config) {
-          const config = selectedWinner.config;
+         const config = Array.isArray(selectedWinner.config)
+            ? selectedWinner.config[0]   // <-- FIX: unwrap array
+            : selectedWinner.config;
+
           
           console.log("📄 Raw Config:", config);
 
