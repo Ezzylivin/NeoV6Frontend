@@ -493,20 +493,28 @@ export default function Backtests() {
 
   // 🚀 POLISH: Inject Base Strategies
   const strategyOptions = useMemo(() => {
-    const dbStrats = options?.strategies || [];
+    // SAFETY CHECK: If options is missing, return empty array immediately
+    if (!options || !options.strategies) return [];
+    
+    const dbStrats = options.strategies || [];
+    
+    // Inject Base Types for Raw Codes
     const baseStrats = Object.entries(STRATEGY_TYPE_TO_CODE_MAP).map(([name, code], idx) => ({
         _id: `base-${code}-${idx}`, 
         name: name,
         code: code,
         params: {} 
     }));
+
+    // Map DB strats
     const mappedDB = dbStrats.map(s => {
         const strategyTypeKey = s.params?.strategyType?.trim();
         const pythonCode = STRATEGY_TYPE_TO_CODE_MAP[strategyTypeKey] || "unknown";
         return { ...s, code: pythonCode };
     });
+
     return [...baseStrats, ...mappedDB];
-  }, [options?.strategies]);
+  }, [options]); // Depend on the whole options object to trigger update
   
   const symbolOptions = useMemo(() => options?.symbols || [], [options?.symbols]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options?.timeframes]);
