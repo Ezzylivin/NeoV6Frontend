@@ -129,3 +129,14 @@ export async function previewStrategy(payload) {
         handleError(error, "previewStrategy");
     }
 }
+
+export async function fetchWinners() {
+    try {
+        // We use the same endpoint as the bot
+        const res = await api.get("/bot/winners"); 
+        return res.data || [];
+    } catch (error) {
+        console.warn("Could not fetch winners:", error.message);
+        return [];
+    }
+}
