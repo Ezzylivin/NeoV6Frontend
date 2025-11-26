@@ -1,7 +1,7 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Optimized Strategy Dropdown moved exclusively to Combo Tab.
+// 🚀 UPGRADE: Fixed Strategy Card Rendering & Robust Parsing
 
-import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
+import React, { useState, useEffect, useMemo, useContext } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { StrategyContext } from "../context/StrategyContext.jsx";
 import {
@@ -545,9 +545,9 @@ export default function Backtests() {
   useEffect(() => {
       let timer;
       if (loading === 'running_ml' || loading === 'running_combo') {
-          setCountdown(ESTIMATED_DURATION);
+          setCountdown(ESTIMATED_DURATION); 
           timer = setInterval(() => {
-              setCountdown(prev => (prev > 0 ? prev - 1 : 0));
+              setCountdown(prev => (prev > 0 ? prev - 1 : 0)); 
           }, 1000);
       } else {
           setCountdown(ESTIMATED_DURATION); 
@@ -632,7 +632,7 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
 
-  // 🚀 UPGRADE: ALWAYS FORCE COMBO MODE for Winners
+  // 🚀 UPGRADE: ROBUST WINNER PARSING WITH FALLBACKS
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
@@ -644,6 +644,7 @@ export default function Backtests() {
       if (selectedWinner && selectedWinner.config) {
           const config = selectedWinner.config;
           
+          // 1. Detect Meta-Data
           let loadedSymbol = config.symbol || 'BTC-USD';
           let loadedTimeframe = config.timeframe || '1h';
           
@@ -656,6 +657,7 @@ export default function Backtests() {
               }
           }
 
+          // 2. Prepare Global Parameters
           const globalParams = {
               ...defaultFilterParams,
               ...config.params,
@@ -663,9 +665,10 @@ export default function Backtests() {
               regime_threshold: config.params?.regime_threshold || 25
           };
 
+          // 3. Prepare Strategies List
           let strategiesList = [];
           
-          if (Array.isArray(config.strategies)) {
+          if (Array.isArray(config.strategies) && config.strategies.length > 0) {
               strategiesList = config.strategies.map(strat => {
                   const def = strategyOptions.find(opt => opt.code === strat.code);
                   return {
@@ -686,7 +689,17 @@ export default function Backtests() {
               });
           }
 
-          // FORCE COMBO MODE
+          // 🚀 FALLBACK: If parsing failed (empty list), create 2 empty cards so user can fix it
+          if (strategiesList.length === 0) {
+              console.warn("⚠️ Parsing failed or empty strategies. Loading defaults.");
+              const defaultStrat = strategyOptions[0];
+              strategiesList = [
+                  { strategyId: defaultStrat?._id || "", code: defaultStrat?.code || "", params: {} },
+                  { strategyId: defaultStrat?._id || "", code: defaultStrat?.code || "", params: {} }
+              ];
+          }
+
+          // 4. FORCE COMBO TAB & UPDATE STATE
           setActiveTab('combo');
 
           setComboData(prev => ({
@@ -704,8 +717,14 @@ export default function Backtests() {
               }
           }));
           
-          console.log(`✅ Loaded Winner into Combo Tab: ${loadedSymbol}`);
+          console.log(`✅ Loaded Winner: ${loadedSymbol} with ${strategiesList.length} strategies`);
       }
+  };
+
+  // Reset logic (optional)
+  const handleResetWinner = () => {
+      setSelectedWinnerId("");
+      setComboData(initialComboData);
   };
 
   // Default selections logic
@@ -907,7 +926,6 @@ export default function Backtests() {
       if (selectedStrategy) {
           currentConfig.strategyId = value;
           currentConfig.code = selectedStrategy.code;
-          // Load params but keep existing TSL if it was set
           currentConfig.params = { 
             ...(selectedStrategy.params || {}), 
             tslAtrMult: currentConfig.params?.tslAtrMult ?? 3.5, 
@@ -1045,9 +1063,16 @@ export default function Backtests() {
           {activeTab === 'combo' && (
              <>
                 <div className="form-group" style={{ marginBottom: '20px', padding: '15px', background: '#1e293b', borderRadius: '8px', border: '1px solid #334155' }}>
-                   <label style={{ color: '#4ade80', fontWeight: 'bold', display: 'block', marginBottom: '10px' }}>
-                       🏆 Load Optimized Strategy (ML)
-                   </label>
+                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                       <label style={{ color: '#4ade80', fontWeight: 'bold', margin: 0 }}>
+                           🏆 Load Optimized Strategy (ML)
+                       </label>
+                       {selectedWinnerId && (
+                           <button type="button" onClick={handleResetWinner} style={{ background: 'transparent', border: '1px solid #475569', color: '#94a3b8', padding: '2px 8px', fontSize: '0.8rem', cursor: 'pointer', borderRadius: '4px' }}>
+                               Reset
+                           </button>
+                       )}
+                   </div>
                    <select 
                        value={selectedWinnerId} 
                        onChange={handleWinnerSelect}
@@ -1087,6 +1112,7 @@ export default function Backtests() {
         {(loading !== 'idle' || combinedMetrics || error) && (
           <div className="results-section">
             <h2>Backtest Results</h2>
+            
             {loading !== 'idle' && (
               <div className="loading-overlay">
                 <h3>{getStatusMessage(loading, currentFormDataForStatus)}</h3>
