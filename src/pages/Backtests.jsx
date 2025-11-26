@@ -1,7 +1,7 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Fixed Syntax Error & Forces Combo Mode for Winners
+// 🚀 UPGRADE: Optimized Strategy Dropdown moved exclusively to Combo Tab.
 
-import React, { useState, useEffect, useMemo, useContext } from "react";
+import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { StrategyContext } from "../context/StrategyContext.jsx";
 import {
@@ -541,14 +541,13 @@ export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest, getPastBacktests } = useBacktest(); 
   const { loading = 'initial', error = null, options = {}, winners = [] } = state || {};
 
-  // 💡 COUNTDOWN TIMER LOGIC
   const [countdown, setCountdown] = useState(ESTIMATED_DURATION);
   useEffect(() => {
       let timer;
       if (loading === 'running_ml' || loading === 'running_combo') {
-          setCountdown(ESTIMATED_DURATION); 
+          setCountdown(ESTIMATED_DURATION);
           timer = setInterval(() => {
-              setCountdown(prev => (prev > 0 ? prev - 1 : 0)); 
+              setCountdown(prev => (prev > 0 ? prev - 1 : 0));
           }, 1000);
       } else {
           setCountdown(ESTIMATED_DURATION); 
@@ -566,7 +565,6 @@ export default function Backtests() {
   const [comboData, setComboData] = useState(initialComboData);
   const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
   const [activeTab, setActiveTab] = useState('single');
-  
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
 
   const strategyOptions = useMemo(() => {
@@ -622,7 +620,6 @@ export default function Backtests() {
 
     for (const model of modelOptions) {
         const { symbolBase, timeframe } = model;
-        
         let fullSymbol = symbolBase.toUpperCase();
         if (!fullSymbol.includes('-')) {
             fullSymbol = `${fullSymbol}-USD`;
@@ -635,7 +632,7 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
 
-  // 🚀 HANDLE WINNER SELECTION (FORCED COMBO MODE)
+  // 🚀 UPGRADE: ALWAYS FORCE COMBO MODE for Winners
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
@@ -647,7 +644,6 @@ export default function Backtests() {
       if (selectedWinner && selectedWinner.config) {
           const config = selectedWinner.config;
           
-          // 1. Detect Meta-Data
           let loadedSymbol = config.symbol || 'BTC-USD';
           let loadedTimeframe = config.timeframe || '1h';
           
@@ -660,7 +656,6 @@ export default function Backtests() {
               }
           }
 
-          // 2. Global Params
           const globalParams = {
               ...defaultFilterParams,
               ...config.params,
@@ -668,7 +663,6 @@ export default function Backtests() {
               regime_threshold: config.params?.regime_threshold || 25
           };
 
-          // 3. Prepare Strategies List
           let strategiesList = [];
           
           if (Array.isArray(config.strategies)) {
@@ -692,7 +686,7 @@ export default function Backtests() {
               });
           }
 
-          // 4. FORCE COMBO TAB & UPDATE STATE
+          // FORCE COMBO MODE
           setActiveTab('combo');
 
           setComboData(prev => ({
@@ -967,7 +961,6 @@ export default function Backtests() {
   };
 
   // --- UI Helper Functions ---
-  // 💡 UPGRADE: Countdown Timer in Button
   const getButtonText = (loadingState) => {
       switch (loadingState) {
       case 'running_ml': return `Processing ML... (${countdown}s)`;
@@ -1021,25 +1014,6 @@ export default function Backtests() {
             <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo Strategy</button>
           </div>
 
-          {/* 🚀 NEW: GOLDEN STRATEGY DROPDOWN */}
-          <div className="form-group" style={{ marginBottom: '20px', padding: '15px', background: '#1e293b', borderRadius: '8px', border: '1px solid #334155' }}>
-             <label style={{ color: '#4ade80', fontWeight: 'bold', display: 'block', marginBottom: '10px' }}>
-                 🏆 Load Optimized Strategy (ML)
-             </label>
-             <select 
-                 value={selectedWinnerId} 
-                 onChange={handleWinnerSelect}
-                 style={{ width: '100%', padding: '10px', borderRadius: '6px', background: '#0f172a', color: 'white', border: '1px solid #475569' }}
-             >
-                 <option value="">-- Select a Golden Strategy --</option>
-                 {winners && winners.map(w => (
-                     <option key={w.id} value={w.id}>
-                         {w.name}
-                     </option>
-                 ))}
-             </select>
-          </div>
-
           {activeTab === 'single' && (
             <form onSubmit={handleRunBacktest} className="backtest-form">
               {(formData.mlMode === 'off' || formData.mlMode === 'predictions') && (
@@ -1069,31 +1043,50 @@ export default function Backtests() {
           )}
 
           {activeTab === 'combo' && (
-             <form onSubmit={handleRunComboBacktest} className="backtest-form">
-                <CommonBacktestInputs
-                    data={comboData}
-                    onChange={handleComboChange}
-                        options={{ symbolOptions, timeframeOptions, modelOptions }}
-                    availableModelData={availableModelData}
-                    isCombo={true}
-                />
-                <div className="combo-strategy-list">
-                    {comboData.strategies.map((config, idx) => (
-                    <ComboStrategyCard key={idx} idx={idx} config={config} strategies={strategyOptions} onChange={handleStrategyConfigChange} onRemove={removeStrategyCard} disableRemove={comboData.strategies.length <= 1} />
-                  ))}
+             <>
+                <div className="form-group" style={{ marginBottom: '20px', padding: '15px', background: '#1e293b', borderRadius: '8px', border: '1px solid #334155' }}>
+                   <label style={{ color: '#4ade80', fontWeight: 'bold', display: 'block', marginBottom: '10px' }}>
+                       🏆 Load Optimized Strategy (ML)
+                   </label>
+                   <select 
+                       value={selectedWinnerId} 
+                       onChange={handleWinnerSelect}
+                       style={{ width: '100%', padding: '10px', borderRadius: '6px', background: '#0f172a', color: 'white', border: '1px solid #475569' }}
+                   >
+                       <option value="">-- Select a Golden Strategy --</option>
+                       {winners && winners.map(w => (
+                           <option key={w.id} value={w.id}>
+                               {w.name}
+                           </option>
+                       ))}
+                   </select>
                 </div>
-                <button type="button" onClick={addStrategyCard} disabled={loading !== 'idle' || !strategyOptions.length}>Add Strategy</button>
-                <button type="submit" disabled={isComboSubmitDisabled}>
-                   {getButtonText(loading)}
-                </button>
-             </form>
+
+                <form onSubmit={handleRunComboBacktest} className="backtest-form">
+                    <CommonBacktestInputs
+                        data={comboData}
+                        onChange={handleComboChange}
+                            options={{ symbolOptions, timeframeOptions, modelOptions }}
+                        availableModelData={availableModelData}
+                        isCombo={true}
+                    />
+                    <div className="combo-strategy-list">
+                        {comboData.strategies.map((config, idx) => (
+                        <ComboStrategyCard key={idx} idx={idx} config={config} strategies={strategyOptions} onChange={handleStrategyConfigChange} onRemove={removeStrategyCard} disableRemove={comboData.strategies.length <= 1} />
+                      ))}
+                    </div>
+                    <button type="button" onClick={addStrategyCard} disabled={loading !== 'idle' || !strategyOptions.length}>Add Strategy</button>
+                    <button type="submit" disabled={isComboSubmitDisabled}>
+                       {getButtonText(loading)}
+                    </button>
+                 </form>
+             </>
           )}
         </div> 
 
         {(loading !== 'idle' || combinedMetrics || error) && (
           <div className="results-section">
             <h2>Backtest Results</h2>
-            
             {loading !== 'idle' && (
               <div className="loading-overlay">
                 <h3>{getStatusMessage(loading, currentFormDataForStatus)}</h3>
@@ -1104,7 +1097,6 @@ export default function Backtests() {
               <>
                 <MetricsDisplay metrics={combinedMetrics} mainResult={mainResult} />
                 
-                {/* 💡 CHART REPLAY INTEGRATION */}
                 {mainResult && mainResult.candleData?.length > 0 && (() => {
                   const symbol = activeTab === 'single' ? formData.symbol : comboData.symbol;
                   return <ChartReplay results={mainResult} symbol={symbol} />;
