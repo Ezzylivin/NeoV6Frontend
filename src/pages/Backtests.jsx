@@ -1,5 +1,5 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Integrated "Load Golden Strategy" Dropdown
+// 🚀 UPGRADE: Fixed Syntax Error & Forces Combo Mode for Winners
 
 import React, { useState, useEffect, useMemo, useContext } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -541,17 +541,17 @@ export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest, getPastBacktests } = useBacktest(); 
   const { loading = 'initial', error = null, options = {}, winners = [] } = state || {};
 
-  // 💡 COUNTDOWN TIMER LOGIC (Fixed: Counts DOWN)
+  // 💡 COUNTDOWN TIMER LOGIC
   const [countdown, setCountdown] = useState(ESTIMATED_DURATION);
   useEffect(() => {
       let timer;
       if (loading === 'running_ml' || loading === 'running_combo') {
-          setCountdown(ESTIMATED_DURATION); // Start at 60
+          setCountdown(ESTIMATED_DURATION); 
           timer = setInterval(() => {
-              setCountdown(prev => (prev > 0 ? prev - 1 : 0)); // Decrement, stop at 0
+              setCountdown(prev => (prev > 0 ? prev - 1 : 0)); 
           }, 1000);
       } else {
-          setCountdown(ESTIMATED_DURATION); // Reset
+          setCountdown(ESTIMATED_DURATION); 
       }
       return () => clearInterval(timer);
   }, [loading]);
@@ -566,6 +566,7 @@ export default function Backtests() {
   const [comboData, setComboData] = useState(initialComboData);
   const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
   const [activeTab, setActiveTab] = useState('single');
+  
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
 
   const strategyOptions = useMemo(() => {
@@ -622,7 +623,6 @@ export default function Backtests() {
     for (const model of modelOptions) {
         const { symbolBase, timeframe } = model;
         
-        // 💡 FIX: Prevent creating "BTC-USD-USD"
         let fullSymbol = symbolBase.toUpperCase();
         if (!fullSymbol.includes('-')) {
             fullSymbol = `${fullSymbol}-USD`;
@@ -635,9 +635,7 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
 
-// 🚀 UPGRADE: ALWAYS FORCE COMBO MODE
-  // This ensures complex optimized parameters are loaded correctly into strategy cards,
-  // never into the simplified Single Strategy form.
+  // 🚀 HANDLE WINNER SELECTION (FORCED COMBO MODE)
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
@@ -662,7 +660,7 @@ export default function Backtests() {
               }
           }
 
-          // 2. Prepare Global Parameters
+          // 2. Global Params
           const globalParams = {
               ...defaultFilterParams,
               ...config.params,
@@ -694,9 +692,7 @@ export default function Backtests() {
               });
           }
 
-          // 🚀 4. FORCE COMBO TAB
-          // Even if it's a single strategy, we load it into the Combo UI 
-          // because that UI handles per-strategy parameter isolation better.
+          // 4. FORCE COMBO TAB & UPDATE STATE
           setActiveTab('combo');
 
           setComboData(prev => ({
@@ -715,48 +711,6 @@ export default function Backtests() {
           }));
           
           console.log(`✅ Loaded Winner into Combo Tab: ${loadedSymbol}`);
-      }
-  };
-          // 4. Determine Mode (Single vs Combo)
-          const isCombo = strategiesList.length > 1;
-          setActiveTab(isCombo ? 'combo' : 'single');
-
-          // 5. Update State
-          if (isCombo) {
-              setComboData(prev => ({
-                  ...prev,
-                  symbol: loadedSymbol,
-                  timeframe: loadedTimeframe,
-                  // Load ML settings if they exist
-                  mlMode: config.mlMode || 'off',
-                  mlModel: config.mlModel || '',
-                  mlThreshold: config.mlThreshold || 0.5,
-                  // Load Strategies & Global Params
-                  strategies: strategiesList,
-                  params: globalParams,
-                  // Update Combo Config UI helpers
-                  comboConfig: { 
-                      strategyCodes: strategiesList.map(s => s.code), 
-                      combinationRule: globalParams.hybridMode 
-                  }
-              }));
-          } else {
-              // Single Strategy Mode
-              const strat = strategiesList[0] || {};
-              setFormData(prev => ({
-                  ...prev,
-                  symbol: loadedSymbol,
-                  timeframe: loadedTimeframe,
-                  mlMode: config.mlMode || 'off',
-                  mlModel: config.mlModel || '',
-                  mlThreshold: config.mlThreshold || 0.5,
-                  strategyId: strat.strategyId,
-                  code: strat.code,
-                  params: { ...globalParams, ...strat.params }
-              }));
-          }
-          
-          console.log(`✅ Loaded Winner: ${loadedSymbol} ${loadedTimeframe} (${isCombo ? 'Combo' : 'Single'})`);
       }
   };
 
