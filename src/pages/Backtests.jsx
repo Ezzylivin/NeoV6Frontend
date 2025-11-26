@@ -635,9 +635,9 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
 
- // 🚀 UPGRADE: DEEP LOAD
-  // This function now extracts EVERY parameter from the winner file
-  // and injects it into the Combo/Single form states.
+// 🚀 UPGRADE: ALWAYS FORCE COMBO MODE
+  // This ensures complex optimized parameters are loaded correctly into strategy cards,
+  // never into the simplified Single Strategy form.
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
@@ -649,12 +649,10 @@ export default function Backtests() {
       if (selectedWinner && selectedWinner.config) {
           const config = selectedWinner.config;
           
-          // 1. Detect Basic Meta-Data (Symbol/Timeframe)
-          // Prefer values from inside the JSON, fallback to filename parsing
+          // 1. Detect Meta-Data
           let loadedSymbol = config.symbol || 'BTC-USD';
           let loadedTimeframe = config.timeframe || '1h';
           
-          // Fallback: Parse filename if JSON is missing meta-data (legacy files)
           if (!config.symbol || !config.timeframe) {
               const nameParts = filename.split('_');
               if (nameParts.length >= 2 && nameParts[1].includes('-')) loadedSymbol = nameParts[1];
@@ -664,45 +662,61 @@ export default function Backtests() {
               }
           }
 
-          // 2. Prepare Global Parameters (The "Advanced Filters")
-          // We merge the winner's params with default defaults to ensure nothing breaks
+          // 2. Prepare Global Parameters
           const globalParams = {
-              ...defaultFilterParams, // Safety defaults
-              ...config.params,       // Winner's specific global settings
+              ...defaultFilterParams,
+              ...config.params,
               hybridMode: config.params?.hybridMode || 'REGIME',
               regime_threshold: config.params?.regime_threshold || 25
           };
 
-          // 3. Prepare Strategies List (The "Meat")
+          // 3. Prepare Strategies List
           let strategiesList = [];
           
-          // Check if 'strategies' is the new List format (v7.0+) or old String format
           if (Array.isArray(config.strategies)) {
-              // NEW FORMAT: List of objects { code: "...", params: {...} }
               strategiesList = config.strategies.map(strat => {
-                  // Find matching definition to get the ID (optional, mostly for UI matching)
                   const def = strategyOptions.find(opt => opt.code === strat.code);
                   return {
-                      strategyId: def?._id || "", // It's okay if this is empty, logic uses 'code'
+                      strategyId: def?._id || "", 
                       code: strat.code,
-                      params: strat.params || {}  // Load specific indicator params (e.g. macd_fast)
+                      params: strat.params || {} 
                   };
               });
           } else if (typeof config.strategies === 'string') {
-              // LEGACY FORMAT: String "macd,rsi"
               const codes = config.strategies.split(',').map(s => s.trim());
               strategiesList = codes.map(code => {
                   const def = strategyOptions.find(opt => opt.code === code);
                   return {
                       strategyId: def?._id || "",
                       code: code,
-                      // In legacy files, specific params were mixed in global 'params'
-                      // We pass the whole global bag; the strategy will pick what it needs
                       params: config.params 
                   };
               });
           }
 
+          // 🚀 4. FORCE COMBO TAB
+          // Even if it's a single strategy, we load it into the Combo UI 
+          // because that UI handles per-strategy parameter isolation better.
+          setActiveTab('combo');
+
+          setComboData(prev => ({
+              ...prev,
+              symbol: loadedSymbol,
+              timeframe: loadedTimeframe,
+              mlMode: config.mlMode || 'off',
+              mlModel: config.mlModel || '',
+              mlThreshold: config.mlThreshold || 0.5,
+              strategies: strategiesList,
+              params: globalParams,
+              comboConfig: { 
+                  strategyCodes: strategiesList.map(s => s.code), 
+                  combinationRule: globalParams.hybridMode 
+              }
+          }));
+          
+          console.log(`✅ Loaded Winner into Combo Tab: ${loadedSymbol}`);
+      }
+  };
           // 4. Determine Mode (Single vs Combo)
           const isCombo = strategiesList.length > 1;
           setActiveTab(isCombo ? 'combo' : 'single');
