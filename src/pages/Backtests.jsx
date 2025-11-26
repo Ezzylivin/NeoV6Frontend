@@ -1,5 +1,5 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Final Polish. Robust Winner Parsing + Base Strategy Injection + Deep Param Loading.
+// 🚀 UPGRADE: Fixed "State Fighting". Default logic now respects Winner Selection.
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -747,8 +747,11 @@ export default function Backtests() {
       setComboData(initialComboData);
   };
 
-  // Default selections logic
+  // 🚀 DISABLE DEFAULT OVERWRITE IF WINNER SELECTED
   useEffect(() => {
+    // If user selected a winner, don't let defaults overwrite it!
+    if (selectedWinnerId) return;
+
     if (strategyOptions.length > 0 && !formData.strategyId) {
       const defaultStrategy = strategyOptions[0];
       setFormData(prev => ({ 
@@ -758,9 +761,11 @@ export default function Backtests() {
           params: { ...defaultStrategy.params, ...prev.params } 
       }));
     }
-  }, [strategyOptions, formData.strategyId]); 
+  }, [strategyOptions, formData.strategyId, selectedWinnerId]); 
 
   useEffect(() => {
+    if (selectedWinnerId) return; // Stop fighting!
+
     if (strategyOptions.length > 0 && comboData.strategies.every(c => !c.strategyId)) {
       const newConfigs = comboData.strategies.map((config, index) => {
         const strategy = strategyOptions[index] || strategyOptions[0];
@@ -772,9 +777,11 @@ export default function Backtests() {
       });
       setComboData(prev => ({ ...prev, strategies: newConfigs }));
     }
-  }, [strategyOptions, comboData.strategies]); 
+  }, [strategyOptions, comboData.strategies, selectedWinnerId]); 
 
   useEffect(() => {
+    if (selectedWinnerId) return; // Stop fighting!
+
     if (symbolOptions.length > 0 && modelOptions.length > 0 && !formData.symbol) {
         const firstModel = modelOptions[0]; 
         let firstModelSymbol = firstModel.symbolBase.toUpperCase();
@@ -786,17 +793,21 @@ export default function Backtests() {
         setFormData(prev => ({ ...prev, symbol: defaultSymbol }));
         setComboData(prev => ({ ...prev, symbol: defaultSymbol }));
     }
-  }, [symbolOptions, modelOptions, formData.symbol]); 
+  }, [symbolOptions, modelOptions, formData.symbol, selectedWinnerId]); 
 
   useEffect(() => {
+    if (selectedWinnerId) return; // Stop fighting!
+
     if (timeframeOptions.length && !formData.timeframe) {
         const defaultTimeframe = timeframeOptions.find(t => t === '1h') || timeframeOptions[0];
         setFormData(prev => ({ ...prev, timeframe: defaultTimeframe }));
         setComboData(prev => ({ ...prev, timeframe: defaultTimeframe }));
     }
-  }, [timeframeOptions, formData.timeframe]); 
+  }, [timeframeOptions, formData.timeframe, selectedWinnerId]); 
 
   useEffect(() => {
+    if (selectedWinnerId) return; // Stop fighting!
+
     const { mlMode, symbol, timeframe, mlModel } = formData;
     if (mlMode === 'off' || modelOptions.length === 0 || !symbol || !timeframe) return;
   
@@ -818,9 +829,11 @@ export default function Backtests() {
         setFormData(prev => ({ ...prev, mlModel: "" }));
       }
     }
-  }, [modelOptions, formData.mlMode, formData.symbol, formData.timeframe]);
+  }, [modelOptions, formData.mlMode, formData.symbol, formData.timeframe, selectedWinnerId]);
 
   useEffect(() => {
+    if (selectedWinnerId) return; // Stop fighting!
+
     const { mlMode, symbol, timeframe, mlModel } = comboData;
     if (mlMode === 'off' || modelOptions.length === 0 || !symbol || !timeframe) return;
   
@@ -842,7 +855,7 @@ export default function Backtests() {
         setComboData(prev => ({ ...prev, mlModel: "" }));
       }
     }
-  }, [modelOptions, comboData.mlMode, comboData.symbol, comboData.timeframe]); 
+  }, [modelOptions, comboData.mlMode, comboData.symbol, comboData.timeframe, selectedWinnerId]); 
   
 
  const { combinedEquityCurve, combinedMetrics, mainResult } = useMemo(() => {
