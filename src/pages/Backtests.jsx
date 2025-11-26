@@ -97,7 +97,7 @@ const STRATEGY_TYPE_TO_CODE_MAP = {
   "CCI": "cci_oversold",
   "Bollinger Bands": "bollinger_bands",
   "Ichimoku Cloud": "ichimoku_cloud",
-  "ATR": "atr_signal",
+  "ATR": "atr_breakout",
   "On-Balance Volume": "obv_signal",
   "Parabolic SAR": "psar_signal"
 };
@@ -694,19 +694,23 @@ export default function Backtests() {
               });
           } 
           // Handle String Format (Old)
-          else if (typeof config.strategies === 'string') {
+          } else if (typeof config.strategies === 'string') {
+              // LEGACY FORMAT: String "macd_crossover,rsi_divergence"
               const codes = config.strategies.split(',').map(s => s.trim());
+              
               strategiesList = codes.map(code => {
-                  console.log(`🔎 Looking for DB Strategy matching code: '${code}'`);
+                  console.log(`🔎 Processing Code: '${code}'`);
+                  
+                  // Try to find a match in options, but don't die if missing
                   const def = strategyOptions.find(opt => opt.code === code);
                   
-                  if (!def) console.warn(`⚠️ No DB match found for '${code}'. Check STRATEGY_TYPE_TO_CODE_MAP.`);
-                  else console.log(`✅ Match found: ${def.name} (ID: ${def._id})`);
-
+                  // If we find a match, great. If not, we create a valid object anyway.
+                  // The ID is only needed for the UI dropdown to show the name.
+                  // If ID is empty, the dropdown will show "Select", but the logic will still work because 'code' is set.
                   return {
-                      strategyId: def?._id || "",
+                      strategyId: def?._id || "", 
                       code: code,
-                      params: config.params // Legacy files mixed params
+                      params: config.params 
                   };
               });
           }
