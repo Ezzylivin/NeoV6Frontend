@@ -1,5 +1,5 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: FIXED - Restored missing form handlers (handleFormChange, etc.)
+// 🚀 UPGRADE: Added Detailed Logging to debug Golden Parameter Loading
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -102,6 +102,30 @@ const STRATEGY_TYPE_TO_CODE_MAP = {
   "Parabolic SAR": "psar_signal"
 };
 
+// 🚀 PARAMETER MAPPING: Python Short Key -> React UI Key
+const PARAM_MAPPING = {
+    'min_adx': 'minAdxLevel',
+    'tsl_mult': 'tslAtrMult',
+    'regime_threshold': 'regime_threshold',
+    'atr_p': 'atr_period',
+    'atr_m': 'atr_multiplier',
+    'rsi_len': 'rsi_length',
+    'rsi_os': 'oversold_level',
+    'rsi_ob': 'overbought_level',
+    'bb_len': 'bb_length',
+    'bb_std': 'bb_std',
+    'cci_len': 'cci_length',
+    'cci_os': 'cci_oversold',
+    'cci_ob': 'cci_overbought',
+    'k_period': 'k_period',
+    'd_period': 'd_period',
+    'sma_1': 'sma_fast_period',
+    'sma_2': 'sma_slow_period',
+    'macd_f': 'macd_fast_period',
+    'macd_s': 'macd_slow_period',
+    'macd_sig': 'macd_signal_period'
+};
+
 // --- Child Components ---
 
 const MetricsDisplay = ({ metrics }) => {
@@ -156,6 +180,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
     };
 
     const params = data.params || {};
+    const activeHybridMode = isCombo ? (data.comboConfig?.combinationRule || params.hybridMode || 'AND') : 'AND';
 
     const processedSymbolOptions = useMemo(() => {
         if (data.mlMode === 'off') {
@@ -167,14 +192,11 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
             const bHas = availableSymbols.has(b);
             return (bHas ? 1 : 0) - (aHas ? 1 : 0);
         });
-        return sortedSymbols.map(s => {
-            const isAvailable = availableSymbols.has(s);
-            return {
-                value: s,
-                name: isAvailable ? s : `${s} (No models)`,
-                isAvailable: isAvailable
-            };
-        });
+        return sortedSymbols.map(s => ({
+            value: s,
+            name: availableSymbols.has(s) ? s : `${s} (No models)`,
+            isAvailable: availableSymbols.has(s)
+        }));
     }, [data.mlMode, symbolOptions, availableModelData]);
 
     const processedTimeframeOptions = useMemo(() => {
@@ -182,11 +204,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
             return timeframeOptions.map(t => ({ value: t, name: t, isAvailable: true }));
         }
         if (!data.symbol) {
-             return timeframeOptions.map(t => ({
-                value: t,
-                name: `${t} (Select Symbol)`,
-                isAvailable: false
-             }));
+             return timeframeOptions.map(t => ({ value: t, name: `${t} (Select Symbol)`, isAvailable: false }));
         }
         const { lookup } = availableModelData;
         const sortedTimeframes = [...timeframeOptions].sort((a, b) => {
@@ -207,20 +225,10 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
     return (
         <>
             <label>Symbol:
-                <select 
-                    name="symbol" 
-                    value={data.symbol} 
-                    onChange={handleGlobalChange} 
-                    disabled={!processedSymbolOptions.length}
-                >
+                <select name="symbol" value={data.symbol} onChange={handleGlobalChange} disabled={!processedSymbolOptions.length}>
                     <option value="">-- Select Symbol --</option>
                     {processedSymbolOptions.map(s => (
-                        <option 
-                            key={s.value} 
-                            value={s.value} 
-                            disabled={data.mlMode !== 'off' && !s.isAvailable}
-                            style={{ color: (data.mlMode !== 'off' && !s.isAvailable) ? '#888' : 'white' }}
-                        >
+                        <option key={s.value} value={s.value} disabled={data.mlMode !== 'off' && !s.isAvailable} style={{ color: (data.mlMode !== 'off' && !s.isAvailable) ? '#888' : 'white' }}>
                             {s.name}
                         </option>
                     ))}
@@ -228,61 +236,33 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
             </label>
 
             <label>Timeframe:
-                <select 
-                    name="timeframe" 
-                    value={data.timeframe} 
-                    onChange={handleGlobalChange} 
-                    disabled={!processedTimeframeOptions.length}
-                >
+                <select name="timeframe" value={data.timeframe} onChange={handleGlobalChange} disabled={!processedTimeframeOptions.length}>
                     <option value="">-- Select Timeframe --</option>
                     {processedTimeframeOptions.map(t => (
-                        <option 
-                            key={t.value} 
-                            value={t.value} 
-                            disabled={data.mlMode !== 'off' && !t.isAvailable} 
-                            style={{ color: (data.mlMode !== 'off' && !t.isAvailable) ? '#888' : 'white' }}
-                        >
+                        <option key={t.value} value={t.value} disabled={data.mlMode !== 'off' && !t.isAvailable} style={{ color: (data.mlMode !== 'off' && !t.isAvailable) ? '#888' : 'white' }}>
                             {t.name}
                         </option>
                     ))}
                 </select>
             </label>
 
-            <label>Start Date: 
-                <input 
-                    type="date" 
-                    name="startDate" 
-                    value={data.startDate}
-                    onChange={handleGlobalChange} 
-                />
-            </label>
-            <label>End Date: 
-                <input 
-                    type="date" 
-                    name="endDate" 
-                    value={data.endDate} 
-                    onChange={handleGlobalChange} 
-                />
-            </label>
+            <div style={{display: 'flex', gap: '10px'}}>
+                <label style={{flex:1}}>Start Date: 
+                    <input type="date" name="startDate" value={data.startDate} onChange={handleGlobalChange} />
+                </label>
+                <label style={{flex:1}}>End Date: 
+                    <input type="date" name="endDate" value={data.endDate} onChange={handleGlobalChange} />
+                </label>
+            </div>
+            
             <label>Initial Balance: 
-                <input 
-                    type="number" 
-                    name="initialBalance" 
-                    value={data.initialBalance} 
-                    onChange={handleGlobalChange} 
-                    min="1" 
-                    step="1" 
-                />
+                <input type="number" name="initialBalance" value={data.initialBalance} onChange={handleGlobalChange} min="1" step="1" />
             </label>
 
-            <fieldset title="Configure how much capital to risk on each trade.">
+            <fieldset>
                 <legend>Risk Management</legend>
                 <label>Mode:
-                    <select 
-                        name="riskManagementMode" 
-                        value={data.riskManagementMode} 
-                        onChange={handleGlobalChange}
-                    >
+                    <select name="riskManagementMode" value={data.riskManagementMode} onChange={handleGlobalChange}>
                         <option value="standard">Standard Risk %</option>
                         <option value="dynamic">Dynamic Growth Mode</option>
                     </select>
@@ -290,68 +270,28 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 {data.riskManagementMode === 'standard' ? (
                     <>
                         <label>Risk Per Trade (%): 
-                            <input 
-                                type="number" 
-                                name="riskPercentage" 
-                                value={data.riskPercentage} 
-                                onChange={handleGlobalChange} 
-                                step="0.1" 
-                                min="0.1" 
-                                required
-                            /> 
+                            <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={handleGlobalChange} step="0.1" min="0.1" required /> 
                         </label>
                         <label>Initial Risk Amount ($):
-                            <input
-                                type="text"
-                                readOnly
-                                value={`$${(data.initialBalance * (data.riskPercentage / 100)).toFixed(2)}`}
-                                className="read-only-display"
-                            />
+                            <input type="text" readOnly value={`$${(data.initialBalance * (data.riskPercentage / 100)).toFixed(2)}`} className="read-only-display"/>
                         </label>
                     </>
                 ) : (
                     <>
                         <label>Growth Capital Target ($): 
-                            <input 
-                                type="number" 
-                                name="growthCapitalTarget" 
-                                value={data.growthCapitalTarget} 
-                                onChange={handleGlobalChange} 
-                                min="1" 
-                                step="1" 
-                            /> 
+                            <input type="number" name="growthCapitalTarget" value={data.growthCapitalTarget} onChange={handleGlobalChange} min="1" step="1" /> 
                         </label>
                         <label>Risk % (After Target): 
-                            <input 
-                                type="number" 
-                                name="riskPercentage" 
-                                value={data.riskPercentage} 
-                                onChange={handleGlobalChange} 
-                                step="0.1" 
-                                min="0.1" 
-                                required
-                            /> 
-                        </label>
-                        <label>Risk Amount (After Target) ($):
-                            <input
-                                type="text"
-                                readOnly
-                                value={`$${(data.growthCapitalTarget * (data.riskPercentage / 100)).toFixed(2)}`}
-                                className="read-only-display"
-                            />
+                            <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={handleGlobalChange} step="0.1" min="0.1" required /> 
                         </label>
                     </>
                 )}
             </fieldset>
 
-            <fieldset title="Configure Machine Learning model integration.">
+            <fieldset>
                 <legend>Machine Learning</legend>
                 <label>Mode:
-                    <select 
-                        name="mlMode" 
-                        value={data.mlMode || "off"} 
-                        onChange={handleGlobalChange}
-                    >
+                    <select name="mlMode" value={data.mlMode || "off"} onChange={handleGlobalChange}>
                         <option value="off">Off (Pure TA)</option>
                         <option value="predictions">Hybrid (TA + ML Filter)</option>
                         <option value="on">On (Pure ML)</option>
@@ -360,147 +300,55 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 {data.mlMode !== "off" && (
                     <>
                         <label>Model:
-                            <select 
-                                name="mlModel" 
-                                value={data.mlModel} 
-                                onChange={handleGlobalChange} 
-                                disabled={allModelOptions.length === 0}
-                            >
+                            <select name="mlModel" value={data.mlModel} onChange={handleGlobalChange} disabled={allModelOptions.length === 0}>
                                 <option value="">-- Select Model --</option>
-                                {
-                                    allModelOptions.map(m => (
-                                        <option key={m.id} value={m.id}>{m.name}</option>
-                                    ))
-                                }
+                                {allModelOptions.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                             </select>
                         </label>
                         <label>Confidence Threshold: 
-                            <input 
-                                type="number" 
-                                name="mlThreshold" 
-                                value={data.mlThreshold || 0.5} 
-                                step="0.01" 
-                                min="0" 
-                                max="1" 
-                                onChange={handleGlobalChange} 
-                            /> 
-                        </label>
-                        <label>Prediction Horizon: 
-                            <input 
-                                type="number" 
-                                name="mlHorizon" 
-                                value={data.mlHorizon || 1} 
-                                step="1" 
-                                min="1" 
-                                onChange={handleGlobalChange}
-                            /> 
+                            <input type="number" name="mlThreshold" value={data.mlThreshold || 0.5} step="0.01" min="0" max="1" onChange={handleGlobalChange} /> 
                         </label>
                     </>
                 )}
                 {data.mlMode === 'predictions' && (
                     <>
                         <label>Hybrid Logic:
-                            <select 
-                                name="hybridMode" 
-                                value={params.hybridMode ?? 'AND'} 
-                                onChange={handleParamChange}
-                            >
+                            <select name="hybridMode" value={activeHybridMode} onChange={handleParamChange}>
                                 <option value="AND">TA AND ML (Strict Filter)</option>
                                 <option value="OR">TA OR ML (Permissive)</option>
                                 <option value="REGIME">TA as Regime Filter</option>
                             </select>
                         </label>
-                        
-                        {/* Regime Threshold Input */}
-                        {params.hybridMode === 'REGIME' && (
+                        {activeHybridMode === 'REGIME' && (
                              <label>Regime Threshold (ADX):
-                                <input 
-                                    type="number" 
-                                    name="regime_threshold" 
-                                    value={params.regime_threshold !== undefined ? params.regime_threshold : 25} 
-                                    onChange={handleParamChange} 
-                                    step="1" 
-                                    min="0" 
-                                    max="100"
-                                    title="The ADX level to switch strategies. Above this is TREND (Strat 1), below is RANGE (Strat 2)."
-                                />
+                                <input type="number" name="regime_threshold" value={params.regime_threshold ?? 25} onChange={handleParamChange} step="1" min="0" max="100" />
                             </label>
                         )}
                     </>
                 )}
             </fieldset>
 
-            <fieldset title="Apply advanced filters to your strategy signals.">
+            <fieldset>
                 <legend>Advanced Filters</legend>
                 <label>Volatility Filter (Min ATR %):
-                    <input 
-                        type="number" 
-                        name="minAtrPct" 
-                        value={params.minAtrPct ?? 0} 
-                        onChange={handleParamChange} 
-                        step="0.05" 
-                        min="0" 
-                    />
+                    <input type="number" name="minAtrPct" value={params.minAtrPct ?? 0} onChange={handleParamChange} step="0.05" min="0" />
                 </label>
                 <label>Chop Filter (Min ADX):
-                    <input 
-                        type="number" 
-                        name="minAdxLevel" 
-                        value={params.minAdxLevel ?? 0} 
-                        onChange={handleParamChange} 
-                        step="1" 
-                        min="0" 
-                        max="100"
-                    />
+                    <input type="number" name="minAdxLevel" value={params.minAdxLevel ?? 0} onChange={handleParamChange} step="1" min="0" max="100" />
                 </label>
-                
                 <label>Trailing Stop (ATR Mult):
-                    <input 
-                        type="number" 
-                        name="tslAtrMult" 
-                        value={params.tslAtrMult ?? 0} 
-                        onChange={handleParamChange} 
-                        step="0.1" 
-                        min="0" 
-                    />
+                    <input type="number" name="tslAtrMult" value={params.tslAtrMult ?? 0} onChange={handleParamChange} step="0.1" min="0" />
                 </label>
-
                 <label>Trend Filter SMA Period:
-                    <input 
-                        type="number"
-                        name="trendFilterPeriod" 
-                        value={params.trendFilterPeriod ?? 200}
-                        onChange={handleParamChange}
-                        step="1" 
-                        min="0" 
-                    />
+                    <input type="number" name="trendFilterPeriod" value={params.trendFilterPeriod ?? 200} onChange={handleParamChange} step="1" min="0" />
                 </label>
             </fieldset>
 
+            {/* Show SL/TP only if TSL is 0 and not combo (simpler logic) */}
             {(params.tslAtrMult ?? 0) === 0 && !isCombo && (
                 <>
-                    <label>Stop Loss (%):
-                        <input 
-                            type="number" 
-                            name="SL" 
-                            value={params.SL ?? 5.0}
-                            onChange={handleParamChange} 
-                            step="0.1" 
-                            min="0.1" 
-                            required
-                        />
-                    </label>
-                    <label>Take Profit (%):
-                        <input 
-                            type="number" 
-                            name="TP" 
-                            value={params.TP ?? 10.0} 
-                            onChange={handleParamChange} 
-                            step="0.1" 
-                            min="0.1" 
-                            required
-                        />
-                    </label>
+                    <label>Stop Loss (%): <input type="number" name="SL" value={params.SL ?? 5.0} onChange={handleParamChange} step="0.1" min="0.1" required /></label>
+                    <label>Take Profit (%): <input type="number" name="TP" value={params.TP ?? 10.0} onChange={handleParamChange} step="0.1" min="0.1" required /></label>
                 </>
             )}
         </>
@@ -509,7 +357,6 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
 
 const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, disableRemove }) => {
   const handleChange = (e) => onChange(e, idx);
-  
   return (
     <div className="combo-card">
       <div className="combo-card-header"><strong>Strategy #{idx + 1}</strong>
@@ -517,23 +364,19 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
       </div>
       <div className="combo-card-body">
         <label>Strategy:
-          <select 
-            name="strategyId" 
-            value={config.strategyId} 
-            onChange={handleChange} 
-            disabled={!strategies.length}
-          >
+          <select name="strategyId" value={config.strategyId} onChange={handleChange} disabled={!strategies.length}>
             <option value="">-- Select --</option>
             {strategies.length ? strategies.map(s => <option key={s._id} value={s._id}>{s.name}</option>) : <option disabled>Loading...</option>}
           </select>
         </label>
         
-        {/* 🚀 UPGRADE: Show Strategy-Specific Params in UI */}
+        {/* 🚀 FIXED: Display params cleanly */}
         {config.params && Object.keys(config.params).length > 0 && (
             <div className="card-note" style={{marginTop: '10px'}}>
                 <small><strong>Optimized Params:</strong></small>
                 <div style={{fontSize: '0.8em', color: '#aaa', marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '8px'}}>
                     {Object.entries(config.params).map(([k, v]) => {
+                         // Don't show empty or null values
                          if (v === null || v === undefined) return null;
                          return <span key={k} style={{background: '#334155', padding: '2px 6px', borderRadius: '4px'}}>{k}: {v}</span>
                     })}
@@ -564,12 +407,6 @@ export default function Backtests() {
       return () => clearInterval(timer);
   }, [loading]);
 
-  useEffect(() => {
-    if (error) {
-      console.error("🪵 DEBUG: Backtests.jsx [Hook ERROR]:", error);
-    }
-  }, [state, error]); 
-
   const [formData, setFormData] = useState(initialFormData);
   const [comboData, setComboData] = useState(initialComboData);
   const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
@@ -597,7 +434,7 @@ export default function Backtests() {
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options?.timeframes]);
   
   const timeframeWeights = { '30m': 1, '1h': 2, '4h': 3, '1d': 4, '1w': 5 };
-  
+
   const modelOptions = useMemo(() => {
       if (!options?.models) return [];
       const parsedModels = options.models.map(model => {
@@ -632,46 +469,14 @@ export default function Backtests() {
     const availableSymbols = new Set();
     const availableTimeframes = new Set();
     const lookup = new Set(); 
-
     if (!modelOptions.length) return { availableSymbols, availableTimeframes, lookup };
-
     for (const model of modelOptions) {
-        const { symbolBase, timeframe } = model;
-        let fullSymbol = symbolBase.toUpperCase();
-        if (!fullSymbol.includes('-')) {
-            fullSymbol = `${fullSymbol}-USD`;
-        }
-        
-        availableSymbols.add(fullSymbol);
-        availableTimeframes.add(timeframe);
-        lookup.add(`${fullSymbol}_${timeframe}`);
+        availableSymbols.add(model.symbolBase);
+        availableTimeframes.add(model.timeframe);
+        lookup.add(`${model.symbolBase}_${model.timeframe}`);
     }
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
-
-  // 🚀 PARAMETER MAPPING: Python Short Key -> React UI Key
-  const PARAM_MAPPING = {
-      'min_adx': 'minAdxLevel',
-      'tsl_mult': 'tslAtrMult',
-      'regime_threshold': 'regime_threshold',
-      'atr_p': 'atr_period',
-      'atr_m': 'atr_multiplier',
-      'rsi_len': 'rsi_length',
-      'rsi_os': 'oversold_level',
-      'rsi_ob': 'overbought_level',
-      'bb_len': 'bb_length',
-      'bb_std': 'bb_std',
-      'cci_len': 'cci_length',
-      'cci_os': 'cci_oversold',
-      'cci_ob': 'cci_overbought',
-      'k_period': 'k_period',
-      'd_period': 'd_period',
-      'sma_1': 'sma_fast_period',
-      'sma_2': 'sma_slow_period',
-      'macd_f': 'macd_fast_period',
-      'macd_s': 'macd_slow_period',
-      'macd_sig': 'macd_signal_period'
-  };
 
   // 🚀 HELPER: Normalize Params (Keys -> UI Keys)
   const normalizeParams = (rawParams) => {
@@ -685,7 +490,12 @@ export default function Backtests() {
 
   // 🚀 ROBUST STRATEGY RECONSTRUCTION
   function rebuildStrategiesFromParams(raw) {
-    if (Array.isArray(raw.strategies) && raw.strategies.length > 0) return raw.strategies; 
+    // 1. Try standard list
+    if (Array.isArray(raw.strategies) && raw.strategies.length > 0) {
+        return raw.strategies; 
+    }
+
+    // 2. Try legacy string
     if (typeof raw.strategies === "string") {
         return raw.strategies.split(",").map(code => ({
             code: code.trim(),
@@ -693,29 +503,41 @@ export default function Backtests() {
         }));
     }
 
+    // 3. Deep Scan: Map Prefixes to Strategy Codes
     const prefixMap = {
-        'macd': 'macd_crossover', 'rsi': 'rsi_divergence', 'bb': 'bollinger_bands',
-        'stoch': 'stochastic_crossover', 'atr': 'atr_breakout', 'cci': 'cci_oversold',
-        'ich': 'ichimoku_cloud', 'psar': 'psar_signal', 'obv': 'obv_signal', 'sma': 'sma_crossover'
+        'macd': 'macd_crossover',
+        'rsi': 'rsi_divergence',
+        'bb': 'bollinger_bands',
+        'stoch': 'stochastic_crossover',
+        'atr': 'atr_breakout',
+        'cci': 'cci_oversold',
+        'ich': 'ichimoku_cloud',
+        'psar': 'psar_signal',
+        'obv': 'obv_signal',
+        'sma': 'sma_crossover'
     };
 
     const detectedCodes = new Set();
-    const params = raw.params || raw; 
+    const params = raw.params || raw; // Handle flat or nested params
+
     Object.keys(params).forEach(key => {
+        // Check if key starts with any known prefix
         for (const [prefix, code] of Object.entries(prefixMap)) {
             if (key.startsWith(prefix)) {
                 detectedCodes.add(code);
-                break; 
+                break; // Found match, stop checking other prefixes for this key
             }
         }
     });
 
     if (detectedCodes.size > 0) {
+        console.log("🕵️‍♀️ Detected Strategies from Params:", Array.from(detectedCodes));
         return Array.from(detectedCodes).map(code => ({
             code,
             params: extractParamsFor(code, params)
         }));
     }
+
     return [];
   }
 
@@ -727,6 +549,7 @@ export default function Backtests() {
         'ichimoku_cloud': 'ich', 'psar_signal': 'psar', 'obv_signal': 'obv', 'sma_crossover': 'sma'
     };
     const prefix = prefixMap[code] || code.split('_')[0];
+    
     Object.entries(allParams).forEach(([key, val]) => {
         if (key.startsWith(prefix)) {
             const uiKey = PARAM_MAPPING[key] || key;
@@ -746,8 +569,11 @@ export default function Backtests() {
       if (selectedWinner && selectedWinner.config) {
           const config = selectedWinner.config;
           
-          let loadedSymbol = config.symbol || 'BTC-USD';
-          let loadedTimeframe = config.timeframe || '1h';
+          console.log("📄 Raw Config:", config);
+
+          // --- 1. Meta ---
+          let loadedSymbol = config.symbol || comboData.symbol || "BTC-USD";
+          let loadedTimeframe = config.timeframe || comboData.timeframe || "1h";
           
           if (!config.symbol || !config.timeframe) {
               const nameParts = filename.split('_');
@@ -758,10 +584,15 @@ export default function Backtests() {
               }
           }
 
+          // --- 2. Merge global params ---
           const rawGlobalParams = { ...defaultFilterParams, ...(config.params || {}) };
           const globalParams = normalizeParams(rawGlobalParams);
 
+          console.log("🌍 Normalized Global Params:", globalParams);
+
+          // --- 3. Strategies ― full hydration ---
           let strategiesList = rebuildStrategiesFromParams(config);
+          console.log("🛠 Rebuilt Strategy List (Raw):", strategiesList);
 
           strategiesList = strategiesList.map(s => {
               const def = strategyOptions.find(opt => opt.code === s.code);
@@ -776,26 +607,46 @@ export default function Backtests() {
           });
           
           if (strategiesList.length === 0) {
+               console.warn("⚠️ Failed to rebuild strategies. Check parsing logic.");
                strategiesList = [
                   { strategyId: "", code: "", params: {} },
                   { strategyId: "", code: "", params: {} }
                ];
           }
 
-          setActiveTab('combo');
+          // --- 4. Combo rule (mirrored in both places) ---
+          const combinationRule = 
+              config.comboConfig?.combinationRule || 
+              config.params?.hybridMode || 
+              "AND";
+
+          // --- 5. Apply everything ---
+          setActiveTab("combo");
 
           setComboData(prev => ({
               ...prev,
               symbol: loadedSymbol,
               timeframe: loadedTimeframe,
-              mlMode: config.mlMode || 'off',
-              mlModel: config.mlModel || '',
-              mlThreshold: config.mlThreshold || 0.5,
+              
+              // ML settings
+              mlMode: config.mlMode || "off",
+              mlModel: config.mlModel || "",
+              mlThreshold: config.mlThreshold ?? 0.5,
+              mlHorizon: config.mlHorizon ?? prev.mlHorizon,
+              
+              // Strategies (FULLY HYDRATED)
               strategies: strategiesList,
-              params: globalParams,
-              comboConfig: { 
-                  strategyCodes: strategiesList.map(s => s.code), 
-                  combinationRule: globalParams.hybridMode || 'AND',
+
+              // Params (FULLY MIRRORED)
+              params: { 
+                  ...globalParams, 
+                  hybridMode: combinationRule, 
+              },
+
+              // Backend-mapped comboConfig
+              comboConfig: {
+                  strategyCodes: strategiesList.map(s => s.code),
+                  combinationRule: combinationRule,
               }
           }));
           
@@ -803,12 +654,13 @@ export default function Backtests() {
       }
   };
 
+  // Reset logic (optional)
   const handleResetWinner = () => {
       setSelectedWinnerId("");
       setComboData(initialComboData);
   };
 
-  // 🚀 RESTORED FORM HANDLERS (MISSING IN PREVIOUS VERSION)
+  // 🚀 RESTORED FORM HANDLERS
   const handleFormChange = (e) => {
     const { name, value, type } = e.target;
     let val = (type === 'checkbox' ? e.target.checked : value);
