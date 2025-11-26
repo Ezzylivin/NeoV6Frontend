@@ -1,9 +1,5 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: FINAL VERSION
-// 1. Base Strategies Injected (Dropdowns always have names).
-// 2. Deep Parameter Loading (Global inputs fill automatically).
-// 3. ML Mode/Model Loading (Auto-selects ML settings).
-// 4. Strategy Card Params (Specific params show up on the card).
+// 🚀 UPGRADE: Production-Ready. Fixed Strategy Card Rendering & Parameter Injection.
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -684,7 +680,6 @@ export default function Backtests() {
           }
 
           // 2. Prepare Global Parameters
-          // 🚀 FIX: Ensure ML params are populated here too
           const globalParams = {
               ...defaultFilterParams,
               ...config.params,
