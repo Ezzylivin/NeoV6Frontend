@@ -1,5 +1,5 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Strict Mode - No Fallbacks. Only loads exactly what is in the file.
+// 🚀 UPGRADE: Fixed Syntax Error & Logic for Legacy Strategy Parsing
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -97,7 +97,7 @@ const STRATEGY_TYPE_TO_CODE_MAP = {
   "CCI": "cci_oversold",
   "Bollinger Bands": "bollinger_bands",
   "Ichimoku Cloud": "ichimoku_cloud",
-  "ATR": "atr_breakout",
+  "ATR": "atr_breakout", 
   "On-Balance Volume": "obv_signal",
   "Parabolic SAR": "psar_signal"
 };
@@ -621,7 +621,6 @@ export default function Backtests() {
 
     for (const model of modelOptions) {
         const { symbolBase, timeframe } = model;
-        
         let fullSymbol = symbolBase.toUpperCase();
         if (!fullSymbol.includes('-')) {
             fullSymbol = `${fullSymbol}-USD`;
@@ -634,26 +633,22 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
 
- // 🚀 UPGRADE: Debug & Robust Loading Logic
+  // 🚀 UPGRADE: ROBUST WINNER PARSING WITH FALLBACKS
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
       
       if (!filename) return;
 
-      console.log(`🔍 Selected Winner File: ${filename}`);
-
       const selectedWinner = winners.find(w => w.id === filename);
       
       if (selectedWinner && selectedWinner.config) {
           const config = selectedWinner.config;
-          console.log("📄 Full Winner Config:", config);
           
-          // --- 1. Detect Symbol & Timeframe ---
+          // 1. Detect Meta-Data
           let loadedSymbol = config.symbol || 'BTC-USD';
           let loadedTimeframe = config.timeframe || '1h';
           
-          // Parsing Fallback
           if (!config.symbol || !config.timeframe) {
               const nameParts = filename.split('_');
               if (nameParts.length >= 2 && nameParts[1].includes('-')) loadedSymbol = nameParts[1];
@@ -663,7 +658,7 @@ export default function Backtests() {
               }
           }
 
-          // --- 2. Global Params ---
+          // 2. Global Params
           const globalParams = {
               ...defaultFilterParams,
               ...config.params,
@@ -671,33 +666,20 @@ export default function Backtests() {
               regime_threshold: config.params?.regime_threshold || 25
           };
 
-          // --- 3. Strategy List Construction ---
+          // 3. Prepare Strategies List
           let strategiesList = [];
           
-          // Handle List Format (New v7.0)
           if (Array.isArray(config.strategies)) {
               strategiesList = config.strategies.map(strat => {
-                  // DEBUG: What are we looking for?
-                  console.log(`🔎 Looking for DB Strategy matching code: '${strat.code}'`);
-                  
-                  // Find matching definition in your DB options
                   const def = strategyOptions.find(opt => opt.code === strat.code);
-                  
-                  if (!def) console.warn(`⚠️ No DB match found for '${strat.code}'. Check STRATEGY_TYPE_TO_CODE_MAP.`);
-                  else console.log(`✅ Match found: ${def.name} (ID: ${def._id})`);
-
                   return {
-                      strategyId: def?._id || "", // If empty, box will show "Select"
+                      strategyId: def?._id || "", 
                       code: strat.code,
-                      params: strat.params || {}  // Load specific indicator params
+                      params: strat.params || {} 
                   };
               });
-          } 
-          // Handle String Format (Old)
           } else if (typeof config.strategies === 'string') {
-              // LEGACY FORMAT: String "macd_crossover,rsi_divergence"
               const codes = config.strategies.split(',').map(s => s.trim());
-              
               strategiesList = codes.map(code => {
                   console.log(`🔎 Processing Code: '${code}'`);
                   
@@ -705,8 +687,6 @@ export default function Backtests() {
                   const def = strategyOptions.find(opt => opt.code === code);
                   
                   // If we find a match, great. If not, we create a valid object anyway.
-                  // The ID is only needed for the UI dropdown to show the name.
-                  // If ID is empty, the dropdown will show "Select", but the logic will still work because 'code' is set.
                   return {
                       strategyId: def?._id || "", 
                       code: code,
@@ -715,9 +695,7 @@ export default function Backtests() {
               });
           }
 
-          console.log("🚀 Final Strategy List for State:", strategiesList);
-
-          // --- 4. Update State ---
+          // 4. FORCE COMBO TAB & UPDATE STATE
           setActiveTab('combo');
 
           setComboData(prev => ({
@@ -734,9 +712,12 @@ export default function Backtests() {
                   combinationRule: globalParams.hybridMode 
               }
           }));
+          
+          console.log(`✅ Loaded Winner into Combo Tab: ${loadedSymbol}`);
       }
   };
-  // Reset logic (optional)
+
+  // Reset logic
   const handleResetWinner = () => {
       setSelectedWinnerId("");
       setComboData(initialComboData);
@@ -941,7 +922,6 @@ export default function Backtests() {
       if (selectedStrategy) {
           currentConfig.strategyId = value;
           currentConfig.code = selectedStrategy.code;
-          // Load params but keep existing TSL if it was set
           currentConfig.params = { 
             ...(selectedStrategy.params || {}), 
             tslAtrMult: currentConfig.params?.tslAtrMult ?? 3.5, 
