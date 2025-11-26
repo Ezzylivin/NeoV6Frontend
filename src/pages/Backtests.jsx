@@ -1,5 +1,5 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Fixed "State Fighting". Default logic now respects Winner Selection.
+// 🚀 UPGRADE: Fixed Strategy Loading Logic (Deterministic IDs)
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -579,12 +579,12 @@ export default function Backtests() {
   const strategyOptions = useMemo(() => {
     const dbStrats = options?.strategies || [];
     
-    // Inject Base Types for Raw Codes
-    const baseStrats = Object.entries(STRATEGY_TYPE_TO_CODE_MAP).map(([name, code], idx) => ({
-        _id: `base-${code}-${idx}`, 
+    // Inject Base Types for Raw Codes (Force IDs like base-macd_crossover)
+    const baseStrats = Object.entries(STRATEGY_TYPE_TO_CODE_MAP).map(([name, code]) => ({
+        _id: `base-${code}`, 
         name: name,
         code: code,
-        params: {} // Defaults
+        params: {} 
     }));
 
     // Map DB strats
@@ -682,9 +682,12 @@ export default function Backtests() {
           let strategiesList = [];
 
           const buildStrategy = (code, params) => {
-              const match = strategyOptions.find(s => s.code === code);
+              // 🚀 FIX: Construct the ID deterministically instead of searching
+              // Since we inject IDs as `base-${code}` in useMemo, we know exactly what ID to use.
+              const deterministicId = `base-${code}`;
+              
               return {
-                  strategyId: match?._id || "",
+                  strategyId: deterministicId, // Matches the dropdown option value exactly
                   code,
                   params: { ...(params || {}) }
               };
@@ -737,7 +740,7 @@ export default function Backtests() {
               }
           }));
           
-          console.log(`✅ Loaded Winner: ${loadedSymbol}`);
+          console.log(`✅ Loaded Winner: ${loadedSymbol} with ${strategiesList.length} strategies`);
       }
   };
 
@@ -747,11 +750,8 @@ export default function Backtests() {
       setComboData(initialComboData);
   };
 
-  // 🚀 DISABLE DEFAULT OVERWRITE IF WINNER SELECTED
+  // Default selections logic
   useEffect(() => {
-    // If user selected a winner, don't let defaults overwrite it!
-    if (selectedWinnerId) return;
-
     if (strategyOptions.length > 0 && !formData.strategyId) {
       const defaultStrategy = strategyOptions[0];
       setFormData(prev => ({ 
@@ -761,10 +761,10 @@ export default function Backtests() {
           params: { ...defaultStrategy.params, ...prev.params } 
       }));
     }
-  }, [strategyOptions, formData.strategyId, selectedWinnerId]); 
+  }, [strategyOptions, formData.strategyId]); 
 
   useEffect(() => {
-    if (selectedWinnerId) return; // Stop fighting!
+    if (selectedWinnerId) return; // Stop defaults if winner selected
 
     if (strategyOptions.length > 0 && comboData.strategies.every(c => !c.strategyId)) {
       const newConfigs = comboData.strategies.map((config, index) => {
@@ -780,7 +780,7 @@ export default function Backtests() {
   }, [strategyOptions, comboData.strategies, selectedWinnerId]); 
 
   useEffect(() => {
-    if (selectedWinnerId) return; // Stop fighting!
+    if (selectedWinnerId) return;
 
     if (symbolOptions.length > 0 && modelOptions.length > 0 && !formData.symbol) {
         const firstModel = modelOptions[0]; 
@@ -796,7 +796,7 @@ export default function Backtests() {
   }, [symbolOptions, modelOptions, formData.symbol, selectedWinnerId]); 
 
   useEffect(() => {
-    if (selectedWinnerId) return; // Stop fighting!
+    if (selectedWinnerId) return;
 
     if (timeframeOptions.length && !formData.timeframe) {
         const defaultTimeframe = timeframeOptions.find(t => t === '1h') || timeframeOptions[0];
@@ -806,7 +806,7 @@ export default function Backtests() {
   }, [timeframeOptions, formData.timeframe, selectedWinnerId]); 
 
   useEffect(() => {
-    if (selectedWinnerId) return; // Stop fighting!
+    if (selectedWinnerId) return;
 
     const { mlMode, symbol, timeframe, mlModel } = formData;
     if (mlMode === 'off' || modelOptions.length === 0 || !symbol || !timeframe) return;
@@ -832,7 +832,7 @@ export default function Backtests() {
   }, [modelOptions, formData.mlMode, formData.symbol, formData.timeframe, selectedWinnerId]);
 
   useEffect(() => {
-    if (selectedWinnerId) return; // Stop fighting!
+    if (selectedWinnerId) return;
 
     const { mlMode, symbol, timeframe, mlModel } = comboData;
     if (mlMode === 'off' || modelOptions.length === 0 || !symbol || !timeframe) return;
@@ -959,7 +959,6 @@ export default function Backtests() {
       if (selectedStrategy) {
           currentConfig.strategyId = value;
           currentConfig.code = selectedStrategy.code;
-          // Load params but keep existing TSL if it was set
           currentConfig.params = { 
             ...(selectedStrategy.params || {}), 
             tslAtrMult: currentConfig.params?.tslAtrMult ?? 3.5, 
@@ -1143,6 +1142,7 @@ export default function Backtests() {
           )}
         </div> 
 
+        {/* ... Results Section ... */}
         {(loading !== 'idle' || combinedMetrics || error) && (
           <div className="results-section">
             <h2>Backtest Results</h2>
