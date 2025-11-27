@@ -1,323 +1,269 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: Robust Filename Parsing & Payload Validation
+// 🚀 UPGRADE: Fixed ReferenceError & Added Auto-Polling
 
-import React, { useState, useEffect, useRef, useContext } from "react";
-import { useBot } from '../hooks/useBot.js';
-import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
-import { useBacktest } from "../hooks/useBacktest.js";
-import { StrategyContext } from "../context/StrategyContext.jsx";
-import LiveTradingChart from "../components/LiveTradingChart.jsx"; 
-import "./TradingBot.css";
+import React, { useState, useEffect, useRef } from 'react';
+import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import api from '../api/apiClient';
+
+const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b"];
+const ESTIMATED_DURATION = 60;
+
+// --- Helper Functions (Restored) ---
+const calculateMaxDrawdown = (results) => {
+  if (!results || results.length === 0) return 0;
+  let maxDrawdown = 0;
+  let peak = -Infinity;
+  for (const r of results) {
+    if (r.portfolioValue > peak) peak = r.portfolioValue;
+    const drawdown = ((peak - r.portfolioValue) / peak) * 100;
+    if (drawdown > maxDrawdown) maxDrawdown = drawdown;
+  }
+  return maxDrawdown;
+};
+
+const calculateSharpeRatio = (results) => {
+  if (!results || results.length < 2) return 0;
+  const returns = [];
+  for (let i = 1; i < results.length; i++) {
+    returns.push((results[i].portfolioValue - results[i-1].portfolioValue) / results[i-1].portfolioValue);
+  }
+  const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+  const stdDev = Math.sqrt(returns.map(x => Math.pow(x - avgReturn, 2)).reduce((a, b) => a + b, 0) / returns.length);
+  if (stdDev === 0) return 0;
+  return (avgReturn / stdDev) * Math.sqrt(252); // Annualized (assuming daily) - rough approx for crypto
+};
+
+const calculateProfitFactor = (results) => {
+    // Simplified profit factor based on trade list if available, else approximation
+    // Since we only have equity curve here usually, we return 0 or need trade list
+    return 0; 
+};
+
+const formatChartDate = (date) => new Date(date).toLocaleDateString();
+
+// --- Components ---
+const EquityCurveChart = ({ curve, height = 300 }) => {
+  if (!curve || curve.length === 0) return <div className="no-data">No Data</div>;
+  const minPv = Math.min(...curve.map(p => p.portfolioValue));
+  const maxPv = Math.max(...curve.map(p => p.portfolioValue));
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={curve}>
+        <CartesianGrid stroke="#333" strokeDasharray="3 3" />
+        <XAxis dataKey="timestamp" tickFormatter={formatChartDate} />
+        <YAxis domain={[minPv, maxPv]} />
+        <Tooltip 
+            contentStyle={{backgroundColor: '#1f2937', border: 'none'}}
+            labelFormatter={(l) => new Date(l).toLocaleString()}
+        />
+        <Line type="monotone" dataKey="portfolioValue" stroke="#4ade80" dot={false} strokeWidth={2} />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+};
+
+const WinLossPieChart = ({ data }) => (
+    <ResponsiveContainer width="100%" height={260}>
+        <PieChart>
+            <Pie data={data} cx="50%" cy="50%" outerRadius={80} dataKey="value" label>
+                {data.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+            </Pie>
+            <Tooltip />
+            <Legend />
+        </PieChart>
+    </ResponsiveContainer>
+);
 
 const MetricsDisplay = ({ metrics }) => {
-    if (!metrics || Object.keys(metrics).length === 0) return <p className="no-metrics">No live metrics yet.</p>;
-    
-    const formatValue = (key, value) => {
-        if (value == null) return "N/A";
-        if (typeof value !== "number") return String(value);
-        if (key.toLowerCase().includes("win rate")) return `${value.toFixed(2)}%`;
-        if (key.toLowerCase().includes("profit") || key.toLowerCase().includes("balance") || key.toLowerCase().includes("drawdown")) return `$${value.toFixed(2)}`;
-        if (key.toLowerCase().includes("profit factor")) return value.toFixed(2);
-        return value;
-    };
-
-    const keyMetrics = {
-        "Total Profit": metrics.totalProfit,
-        "Total Trades": metrics.totalTrades,
-        "Win Rate": metrics.winRate,
-        "Max Drawdown": metrics.maxDrawdown,
-        "Profit Factor": metrics.profitFactor,
-        "Current Balance": metrics.currentBalance
-    };
-
+    const formatNumber = (n) => n !== undefined && n !== null ? Number(n).toFixed(2) : '-';
     return (
-        <div className="metrics-grid">
-            {Object.entries(keyMetrics).map(([key, value]) => (
-                <div key={key} className="metric-item">
-                    <span className="metric-label">{key}</span>
-                    <span className="metric-value">{formatValue(key, value)}</span>
-                </div>
-            ))}
+        <div className="metrics-grid" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '15px', marginTop: '20px'}}>
+            <div className="metric-box" style={{background: '#1f2937', padding: '15px', borderRadius: '8px', textAlign: 'center'}}>
+                <div style={{fontSize: '0.8rem', color: '#9ca3af'}}>Return %</div>
+                <div style={{fontSize: '1.2rem', fontWeight: 'bold', color: '#fff'}}>{formatNumber(metrics.returnPct)}%</div>
+            </div>
+            <div className="metric-box" style={{background: '#1f2937', padding: '15px', borderRadius: '8px', textAlign: 'center'}}>
+                <div style={{fontSize: '0.8rem', color: '#9ca3af'}}>Win Rate</div>
+                <div style={{fontSize: '1.2rem', fontWeight: 'bold', color: '#fff'}}>{formatNumber(metrics.winRate)}%</div>
+            </div>
+            <div className="metric-box" style={{background: '#1f2937', padding: '15px', borderRadius: '8px', textAlign: 'center'}}>
+                <div style={{fontSize: '0.8rem', color: '#9ca3af'}}>Max Drawdown</div>
+                <div style={{fontSize: '1.2rem', fontWeight: 'bold', color: '#ef4444'}}>{formatNumber(metrics.maxDrawdown)}%</div>
+            </div>
+             <div className="metric-box" style={{background: '#1f2937', padding: '15px', borderRadius: '8px', textAlign: 'center'}}>
+                <div style={{fontSize: '0.8rem', color: '#9ca3af'}}>Total Trades</div>
+                <div style={{fontSize: '1.2rem', fontWeight: 'bold', color: '#fff'}}>{metrics.totalTrades}</div>
+            </div>
         </div>
     );
 };
 
+// --- MAIN COMPONENT ---
 export default function TradingBot() {
-    const { 
-        botStatus, 
-        logs, 
-        winners, 
-        loading: botLoading, 
-        error, 
-        startBot, 
-        stopBot, 
-        refreshBotData 
-    } = useBot();
-
-    console.log("1. TradingBot Rendered");
-    console.log("2. Winners Data:", winners); 
-    console.log("3. Type of Winners:", Array.isArray(winners) ? "Array" : typeof winners);
-
-    const { setups, loading: setupsLoading } = useBacktestSetupFunction();
-    const { state: backtestState } = useBacktest();
-    const { options: backtestOptions, loading: backtestLoading } = backtestState;
-    const optionsLoading = backtestLoading === 'initial';
-    const { strategies: availableStrategies } = useContext(StrategyContext);
-
-    const [formConfig, setFormConfig] = useState({
-        isCombo: false, 
-        strategyId: '', 
-        comboConfig: { strategyCodes: [], combinationRule: 'OR' },
-        symbol: 'BTC-USD', // Default to prevent empty error
-        timeframe: '1h',   // Default to prevent empty error
-        capitalAllocation: 1000,
-        tradingMode: 'paper'
-    });
-
-    const [selectedSetupId, setSelectedSetupId] = useState('');
+    const [status, setStatus] = useState({ status: 'stopped', logs: [], trades: [], currentBalance: 1000 });
+    const [loading, setLoading] = useState(false);
+    const [winners, setWinners] = useState([]);
     const [selectedWinnerId, setSelectedWinnerId] = useState("");
-    const logsEndRef = useRef(null);
+    const [equityCurve, setEquityCurve] = useState([]);
 
+    // --- Polling Logic ---
     useEffect(() => {
-        if (logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }, [logs]);
+        fetchStatus(); // Initial fetch
+        fetchWinners();
 
-    // Polling
-    useEffect(() => {
-        if (botStatus?.status === 'running') {
-            const interval = setInterval(refreshBotData, 10000);
-            return () => clearInterval(interval);
-        }
-    }, [botStatus?.status, refreshBotData]);
+        // 🚀 POLL EVERY 2 SECONDS
+        const interval = setInterval(() => {
+            fetchStatus();
+        }, 2000);
 
-    const handleSetupSelect = (setupId) => {
-        setSelectedSetupId(setupId);
-        setSelectedWinnerId(""); 
-        const setup = setups.find(s => s._id === setupId);
-        if (setup) {
-            setFormConfig(prev => ({
-                ...prev,
-                isCombo: setup.isCombo,
-                strategyId: setup.strategyId || '',
-                comboConfig: setup.comboConfig || { strategyCodes: [], combinationRule: 'OR' },
-                symbol: setup.symbol || 'BTC-USD',
-                timeframe: setup.timeframe || '1h',
-                capitalAllocation: 1000,
-            }));
+        return () => clearInterval(interval); // Cleanup on unmount
+    }, []);
+
+    const fetchStatus = async () => {
+        try {
+            const res = await api.get('/bot/status');
+            const data = res.data;
+            
+            // Process logs
+            if(data.logs) data.logs.reverse(); 
+            
+            setStatus(data);
+
+            // Build simple equity curve from trades if available
+            // In a real app, backend should send 'equityCurve'
+            if (data.trades && data.trades.length > 0) {
+                let balance = 1000; // Default start
+                const curve = data.trades.map(t => {
+                    balance += t.profit;
+                    return { timestamp: t.exitTime || t.entryTime, portfolioValue: balance };
+                });
+                setEquityCurve(curve);
+            }
+            
+        } catch (err) {
+            console.error("Status fetch error:", err);
         }
     };
 
-    const handleWinnerSelect = (e) => {
-        const filename = e.target.value;
-        setSelectedWinnerId(filename);
-        setSelectedSetupId(""); 
-
-        if (!filename) return;
-
-        const selectedWinner = winners.find(w => w.id === filename);
-        if (selectedWinner && selectedWinner.config) {
-            const winnerConfig = selectedWinner.config;
-            
-            // 🚀 ROBUST FILENAME PARSING
-            // Filename formats vary: 
-            // 1. winner_BTC-USD_1d_FINAL... (Has timeframe)
-            // 2. winner_BTC-USD_GOLDEN... (No timeframe)
-            
-            const nameParts = filename.split('_');
-            let detectedSymbol = 'BTC-USD';
-            let detectedTimeframe = '1h'; // Default fallback
-
-            // Try to grab symbol (usually index 1)
-            if (nameParts.length >= 2 && nameParts[1].includes('-')) {
-                detectedSymbol = nameParts[1];
-            }
-
-            // Try to grab timeframe (look for index 2 if it matches 1h, 4h, 1d, etc)
-            if (nameParts.length >= 3) {
-                const part = nameParts[2];
-                const validTfs = ['1m','5m','15m','30m','1h','4h','1d','1w'];
-                if (validTfs.includes(part)) {
-                    detectedTimeframe = part;
-                }
-            }
-
-            // Parse strategies
-            const stratString = selectedWinner.name.split('(')[0].trim();
-            const codes = stratString.split(',').map(s => s.trim());
-            
-            const finalCodes = winnerConfig.combo_strategies 
-                ? winnerConfig.combo_strategies.split(',') 
-                : codes;
-
-            console.log("✅ Loaded Strategy:", {
-                symbol: detectedSymbol,
-                timeframe: detectedTimeframe,
-                params: winnerConfig
-            });
-
-            setFormConfig(prev => ({
-                ...prev,
-                isCombo: true,
-                comboConfig: { strategyCodes: finalCodes, combinationRule: winnerConfig.hybridMode || 'REGIME' },
-                params: winnerConfig, 
-                symbol: detectedSymbol,    
-                timeframe: detectedTimeframe 
-            }));
-        }
+    const fetchWinners = async () => {
+        try {
+            const res = await api.get('/bot/winners');
+            setWinners(res.data || []);
+        } catch (err) {}
     };
 
-    const handleStart = async (e) => {
-        e.preventDefault();
-        
-        // 🚀 CLIENT SIDE VALIDATION
-        if (!formConfig.symbol || !formConfig.timeframe || !formConfig.capitalAllocation) {
-            alert("⚠️ Error: Symbol, Timeframe, and Capital are required.");
-            return;
+    const handleStart = async () => {
+        setLoading(true);
+        try {
+            await api.post('/bot/start', { 
+                strategyId: selectedWinnerId, // Can be empty if hardcoded defaults in backend
+                capitalAllocation: 1000
+            }); 
+            await fetchStatus();
+        } catch (err) {
+            alert(err.message);
         }
-
-        if (formConfig.tradingMode === 'live') {
-            if (!window.confirm("⚠️ WARNING: Real Money Trading. Proceed?")) return;
-        }
-        
-        console.log("🚀 Launching Bot with Config:", formConfig);
-        
-        try { await startBot(formConfig); } 
-        catch (err) { console.error(err); }
+        setLoading(false);
     };
 
     const handleStop = async () => {
-        try { await stopBot(); } 
-        catch (err) { console.error(err); }
+        setLoading(true);
+        try {
+            await api.post('/bot/stop');
+            await fetchStatus();
+        } catch (err) {
+            alert(err.message);
+        }
+        setLoading(false);
     };
 
-    const handleClearLogs = () => {
-        refreshBotData(); 
-    };
-
-    if (optionsLoading || setupsLoading) {
-        return <div className="loading-container">Loading Configuration...</div>;
-    }
-
-    const isRunning = botStatus?.status === 'running';
-
-    const findStrategyName = (id) => {
-        const strat = availableStrategies.find(s => s._id === id);
-        return strat?.name || 'Unnamed Strategy';
+    // Calc Metrics
+    const winCount = status.trades ? status.trades.filter(t => t.profit > 0).length : 0;
+    const lossCount = status.trades ? status.trades.filter(t => t.profit <= 0).length : 0;
+    const winLossData = [{ name: "Wins", value: winCount }, { name: "Losses", value: lossCount }];
+    
+    const metrics = {
+        returnPct: ((status.currentBalance - 1000) / 1000) * 100,
+        winRate: (status.trades?.length > 0) ? (winCount / status.trades.length) * 100 : 0,
+        maxDrawdown: calculateMaxDrawdown(equityCurve), // Uses restored helper
+        totalTrades: status.trades?.length || 0
     };
 
     return (
-        <div className="trading-bot-container">
-            {/* 🔍 DEBUG DISPLAY: Remove this after fixing */}
-        <div style={{background: '#333', padding: '10px', marginBottom: '20px', fontSize: '12px'}}>
-            <strong>Debug Info:</strong> <br/>
-            Winners Count: {winners?.length || 0} <br/>
-            Data Type: {Array.isArray(winners) ? 'Array' : typeof winners} <br/>
-            First Item: {winners?.[0]?.name || 'None'}
-        </div>
-            <h2 className="header">Live Trading Bot</h2>
+        <div className="dashboard-container">
+            <h1>Live Trading Bot</h1>
             
-            <div className="bot-card control-panel">
-                <h3 className="card-title">
-                    {isRunning ? 'Bot is Live' : 'Deploy Strategy'}
-                    <span className={`mode-badge ${formConfig.tradingMode}`}>
-                        {formConfig.tradingMode === 'paper' ? 'PAPER' : 'LIVE'}
-                    </span>
-                </h3>
-                
-                <form onSubmit={handleStart} className="bot-form">
-                    {!isRunning && (
-                        <div className="mode-switch-container">
-                            <label className="switch-label">Mode:</label>
-                            <div className="mode-toggle">
-                                <button 
-                                    type="button" 
-                                    className={formConfig.tradingMode === 'paper' ? 'active' : ''}
-                                    onClick={() => setFormConfig(p => ({...p, tradingMode: 'paper'}))}
-                                >Paper</button>
-                                <button 
-                                    type="button" 
-                                    className={formConfig.tradingMode === 'live' ? 'active danger' : ''}
-                                    onClick={() => setFormConfig(p => ({...p, tradingMode: 'live'}))}
-                                >Real Money</button>
-                            </div>
-                        </div>
+            {/* Control Panel */}
+            <div className="bot-controls" style={{background: '#1e293b', padding: '20px', borderRadius: '8px', marginBottom: '20px'}}>
+                <div style={{display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '15px'}}>
+                    <div className={`status-indicator ${status.status}`} style={{
+                        padding: '8px 16px', borderRadius: '20px', 
+                        background: status.status === 'running' ? '#22c55e20' : '#ef444420',
+                        color: status.status === 'running' ? '#22c55e' : '#ef4444',
+                        border: `1px solid ${status.status === 'running' ? '#22c55e' : '#ef4444'}`
+                    }}>
+                        Status: <strong>{status.status?.toUpperCase()}</strong>
+                    </div>
+                    {status.status === 'running' ? (
+                        <button onClick={handleStop} disabled={loading} style={{background: '#ef4444', color: 'white', padding: '10px 20px', borderRadius: '5px', border: 'none', cursor: 'pointer'}}>
+                            ⏹ Stop Bot
+                        </button>
+                    ) : (
+                        <button onClick={handleStart} disabled={loading} style={{background: '#22c55e', color: 'white', padding: '10px 20px', borderRadius: '5px', border: 'none', cursor: 'pointer'}}>
+                            ▶ Start Bot
+                        </button>
                     )}
-
-                    <div className="selectors-row" style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
-                        <label className="setup-selector" style={{ flex: 1 }}>Saved Setups (DB)
-                            <select value={selectedSetupId} onChange={(e) => handleSetupSelect(e.target.value)} disabled={isRunning || !!selectedWinnerId}>
-                                <option value="">-- Select Setup --</option>
-                                {setups.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
-                            </select>
-                        </label>
-
-                        <label className="setup-selector" style={{ flex: 1 }}>Optimized Strategies (ML)
-                            <select value={selectedWinnerId} onChange={handleWinnerSelect} disabled={isRunning || !!selectedSetupId} style={{ borderColor: selectedWinnerId ? '#3b82f6' : '#444' }}>
-                                <option value="">-- Select Winner --</option>
-                                {winners && winners.map(w => (
-                                    <option key={w.id} value={w.id}>🏆 {w.name}</option>
-                                ))}
-                            </select>
-                        </label>
-                    </div>
-                    
-                    <div className="form-grid">
-                        <label>Symbol<input value={formConfig.symbol} disabled /></label>
-                        <label>Timeframe<input value={formConfig.timeframe} disabled /></label>
-                        <label>Capital ($)<input type="number" value={formConfig.capitalAllocation} onChange={e => setFormConfig(p => ({...p, capitalAllocation: Number(e.target.value)}))} disabled={isRunning} /></label>
-                    </div>
-
-                    <div className="form-actions">
-                        {!isRunning && (
-                            <button type="submit" className={`button-start ${formConfig.tradingMode === 'live' ? 'live-btn' : ''}`} disabled={botLoading}>
-                                {botLoading ? 'Deploying...' : (formConfig.tradingMode === 'live' ? '🚀 Launch Live' : '🤖 Launch Paper')}
-                            </button>
-                        )}
-                    </div>
-                </form>
+                </div>
+                
+                 {/* Simple Winner Selector for Quick Launch */}
+                 {status.status !== 'running' && (
+                    <select 
+                        value={selectedWinnerId} 
+                        onChange={(e) => setSelectedWinnerId(e.target.value)}
+                        style={{width: '100%', padding: '10px', borderRadius: '5px', background: '#0f172a', color: 'white', border: '1px solid #334155'}}
+                    >
+                        <option value="">-- Select Strategy to Deploy --</option>
+                        {winners.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    </select>
+                 )}
             </div>
 
-            {isRunning && <button onClick={handleStop} className="button-stop-main" disabled={botLoading}>{botLoading ? 'Stopping...' : 'Stop Bot'}</button>}
-            {error && <div className="error-banner">{error}</div>}
-
-            {botStatus?.isConfigured && (
-                <>
-                    <div className="bot-card status-dashboard">
-                        <div className="status-header">
-                            <h3 className="card-title">Status</h3>
-                            <div className={`status-indicator ${botStatus.status}`}>{botStatus.status}</div>
-                        </div>
-                        <div className="status-details">
-                            <p><strong>Strategy:</strong> {botStatus.isCombo ? `Combo` : findStrategyName(botStatus.strategyId)}</p>
-                            <p><strong>Balance:</strong> <span className="balance-highlight">${botStatus.currentBalance?.toFixed(2)}</span></p>
-                        </div>
-                        <MetricsDisplay metrics={botStatus.performanceMetrics} />
+            <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap'}}>
+                {/* Left Col: Metrics & Chart */}
+                <div style={{flex: 2, minWidth: '300px'}}>
+                    <div style={{background: '#1e293b', padding: '20px', borderRadius: '8px', marginBottom: '20px'}}>
+                         <h3 style={{color: '#4ade80', marginTop: 0}}>Live Performance</h3>
+                         <MetricsDisplay metrics={metrics} />
+                         <div style={{marginTop: '20px'}}>
+                             <EquityCurveChart curve={equityCurve} />
+                         </div>
                     </div>
-                    
-                    <div className="bot-card chart-panel">
-                        <h3 className="card-title">Live Chart</h3>
-                        <LiveTradingChart candles={botStatus.candles || []} trades={botStatus.trades || []} />
-                    </div>
+                </div>
 
-                    <div className="bot-card logs-panel">
-                        <div className="card-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                            <h3 className="card-title" style={{ margin: 0 }}>Logs</h3>
-                            <button onClick={handleClearLogs} className="clear-logs-btn" style={{ background: 'transparent', border: '1px solid #475569', color: '#94a3b8', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>
-                                Refresh Logs
-                            </button>
-                        </div>
-                        <div className="logs-container">
-                            {logs.length > 0 ? logs.map((log, i) => (
-                                <div key={i} className={`log-entry log-${log.type}`}>
-                                    <span className="log-timestamp">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                                    <span className="log-message">{log.message}</span>
+                {/* Right Col: Logs */}
+                <div style={{flex: 1, minWidth: '300px'}}>
+                    <div className="logs-container" style={{background: '#000', padding: '15px', borderRadius: '8px', height: '600px', overflowY: 'auto', border: '1px solid #333', fontFamily: 'monospace'}}>
+                        <h4 style={{color: '#888', marginTop: 0, borderBottom: '1px solid #333', paddingBottom: '10px'}}>System Logs</h4>
+                        {status.logs && status.logs.length > 0 ? (
+                            status.logs.map((log, i) => (
+                                <div key={i} style={{marginBottom: '5px', fontSize: '0.85rem', lineHeight: '1.4'}}>
+                                    <span style={{color: '#666', marginRight: '10px', fontSize: '0.75rem'}}>
+                                        {new Date(log.timestamp).toLocaleTimeString()}
+                                    </span>
+                                    <span style={{color: log.message.toLowerCase().includes('error') ? '#ef4444' : (log.message.toLowerCase().includes('buy') || log.message.toLowerCase().includes('sell') ? '#fbbf24' : '#d1d5db')}}>
+                                        {log.message}
+                                    </span>
                                 </div>
-                            )) : <p className="no-logs">No logs yet.</p>}
-                            <div ref={logsEndRef} />
-                        </div>
+                            ))
+                        ) : (
+                            <div style={{color: '#444', textAlign: 'center', marginTop: '20px'}}>Waiting for logs...</div>
+                        )}
                     </div>
-                </>
-            )}
+                </div>
+            </div>
         </div>
     );
 }
