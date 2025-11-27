@@ -1,8 +1,5 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Final Stable Version.
-// - Fixes "r is not a function" crash.
-// - Restore Golden Strategy Auto-Population.
-// - Includes Parameter Normalization (Python snake_case -> React camelCase).
+// 🚀 UPGRADE: Fixed Crash. Added aggressive null checks for all array inputs.
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -175,9 +172,10 @@ const MetricsDisplay = ({ metrics }) => {
 };
 
 const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isCombo = false }) => {
-    const symbolOptions = options.symbolOptions || [];
-    const timeframeOptions = options.timeframeOptions || [];
-    const allModelOptions = options.modelOptions || []; 
+    // 🚀 SAFETY: Ensure props are always arrays
+    const symbolOptions = options?.symbolOptions || [];
+    const timeframeOptions = options?.timeframeOptions || [];
+    const allModelOptions = options?.modelOptions || []; 
 
     const handleParamChange = (e) => {
         const { name, value, type } = e.target;
@@ -195,38 +193,35 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
     const params = data.params || {};
 
     const processedSymbolOptions = useMemo(() => {
+        // 🚀 SAFETY: Null check on symbolOptions before mapping
+        const safeSymbols = symbolOptions || [];
         if (data.mlMode === 'off') {
-            return symbolOptions.map(s => ({ value: s, name: s, isAvailable: true }));
+            return safeSymbols.map(s => ({ value: s, name: s, isAvailable: true }));
         }
         const { availableSymbols } = availableModelData;
-        const sortedSymbols = [...symbolOptions].sort((a, b) => {
+        const sortedSymbols = [...safeSymbols].sort((a, b) => {
             const aHas = availableSymbols.has(a);
             const bHas = availableSymbols.has(b);
             return (bHas ? 1 : 0) - (aHas ? 1 : 0);
         });
-        return sortedSymbols.map(s => {
-            const isAvailable = availableSymbols.has(s);
-            return {
-                value: s,
-                name: isAvailable ? s : `${s} (No models)`,
-                isAvailable: isAvailable
-            };
-        });
+        return sortedSymbols.map(s => ({
+            value: s,
+            name: availableSymbols.has(s) ? s : `${s} (No models)`,
+            isAvailable: availableSymbols.has(s)
+        }));
     }, [data.mlMode, symbolOptions, availableModelData]);
 
     const processedTimeframeOptions = useMemo(() => {
+        // 🚀 SAFETY: Null check on timeframeOptions
+        const safeTimeframes = timeframeOptions || [];
         if (data.mlMode === 'off') {
-            return timeframeOptions.map(t => ({ value: t, name: t, isAvailable: true }));
+            return safeTimeframes.map(t => ({ value: t, name: t, isAvailable: true }));
         }
         if (!data.symbol) {
-             return timeframeOptions.map(t => ({
-                value: t,
-                name: `${t} (Select Symbol)`,
-                isAvailable: false
-             }));
+             return safeTimeframes.map(t => ({ value: t, name: `${t} (Select Symbol)`, isAvailable: false }));
         }
         const { lookup } = availableModelData;
-        const sortedTimeframes = [...timeframeOptions].sort((a, b) => {
+        const sortedTimeframes = [...safeTimeframes].sort((a, b) => {
             const aHas = lookup.has(`${data.symbol}_${a}`);
             const bHas = lookup.has(`${data.symbol}_${b}`);
             return (bHas ? 1 : 0) - (aHas ? 1 : 0);
@@ -298,10 +293,14 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 <input type="number" name="initialBalance" value={data.initialBalance} onChange={handleGlobalChange} min="1" step="1" />
             </label>
 
-            <fieldset>
+            <fieldset title="Configure how much capital to risk on each trade.">
                 <legend>Risk Management</legend>
                 <label>Mode:
-                    <select name="riskManagementMode" value={data.riskManagementMode} onChange={handleGlobalChange}>
+                    <select 
+                        name="riskManagementMode" 
+                        value={data.riskManagementMode} 
+                        onChange={handleGlobalChange}
+                    >
                         <option value="standard">Standard Risk %</option>
                         <option value="dynamic">Dynamic Growth Mode</option>
                     </select>
@@ -309,28 +308,68 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 {data.riskManagementMode === 'standard' ? (
                     <>
                         <label>Risk Per Trade (%): 
-                            <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={handleGlobalChange} step="0.1" min="0.1" required /> 
+                            <input 
+                                type="number" 
+                                name="riskPercentage" 
+                                value={data.riskPercentage} 
+                                onChange={handleGlobalChange} 
+                                step="0.1" 
+                                min="0.1" 
+                                required
+                            /> 
                         </label>
                         <label>Initial Risk Amount ($):
-                            <input type="text" readOnly value={`$${(data.initialBalance * (data.riskPercentage / 100)).toFixed(2)}`} className="read-only-display"/>
+                            <input
+                                type="text"
+                                readOnly
+                                value={`$${(data.initialBalance * (data.riskPercentage / 100)).toFixed(2)}`}
+                                className="read-only-display"
+                            />
                         </label>
                     </>
                 ) : (
                     <>
                         <label>Growth Capital Target ($): 
-                            <input type="number" name="growthCapitalTarget" value={data.growthCapitalTarget} onChange={handleGlobalChange} min="1" step="1" /> 
+                            <input 
+                                type="number" 
+                                name="growthCapitalTarget" 
+                                value={data.growthCapitalTarget} 
+                                onChange={handleGlobalChange} 
+                                min="1" 
+                                step="1" 
+                            /> 
                         </label>
                         <label>Risk % (After Target): 
-                            <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={handleGlobalChange} step="0.1" min="0.1" required /> 
+                            <input 
+                                type="number" 
+                                name="riskPercentage" 
+                                value={data.riskPercentage} 
+                                onChange={handleGlobalChange} 
+                                step="0.1" 
+                                min="0.1" 
+                                required
+                            /> 
+                        </label>
+                        <label>Risk Amount (After Target) ($):
+                            <input
+                                type="text"
+                                readOnly
+                                value={`$${(data.growthCapitalTarget * (data.riskPercentage / 100)).toFixed(2)}`}
+                                className="read-only-display"
+                            />
                         </label>
                     </>
                 )}
             </fieldset>
 
-            <fieldset>
+            <fieldset title="Configure Machine Learning model integration.">
                 <legend>Machine Learning</legend>
                 <label>Mode:
-                    <select name="mlMode" value={data.mlMode || "off"} onChange={handleGlobalChange}>
+                    <select 
+                        name="mlMode" 
+                        value={data.mlMode || "off"} 
+                        onChange={handleGlobalChange}
+                    >
                         <option value="off">Off (Pure TA)</option>
                         <option value="predictions">Hybrid (TA + ML Filter)</option>
                         <option value="on">On (Pure ML)</option>
@@ -339,57 +378,147 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 {data.mlMode !== "off" && (
                     <>
                         <label>Model:
-                            <select name="mlModel" value={data.mlModel} onChange={handleGlobalChange} disabled={allModelOptions.length === 0}>
+                            <select 
+                                name="mlModel" 
+                                value={data.mlModel} 
+                                onChange={handleGlobalChange} 
+                                disabled={allModelOptions.length === 0}
+                            >
                                 <option value="">-- Select Model --</option>
-                                {allModelOptions.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                {
+                                    allModelOptions.map(m => (
+                                        <option key={m.id} value={m.id}>{m.name}</option>
+                                    ))
+                                }
                             </select>
                         </label>
                         <label>Confidence Threshold: 
-                            <input type="number" name="mlThreshold" value={data.mlThreshold || 0.5} step="0.01" min="0" max="1" onChange={handleGlobalChange} /> 
+                            <input 
+                                type="number" 
+                                name="mlThreshold" 
+                                value={data.mlThreshold || 0.5} 
+                                step="0.01" 
+                                min="0" 
+                                max="1" 
+                                onChange={handleGlobalChange} 
+                            /> 
                         </label>
                         <label>Prediction Horizon: 
-                            <input type="number" name="mlHorizon" value={data.mlHorizon || 1} step="1" min="1" onChange={handleGlobalChange} /> 
+                            <input 
+                                type="number" 
+                                name="mlHorizon" 
+                                value={data.mlHorizon || 1} 
+                                step="1" 
+                                min="1" 
+                                onChange={handleGlobalChange}
+                            /> 
                         </label>
                     </>
                 )}
                 {data.mlMode === 'predictions' && (
                     <>
                         <label>Hybrid Logic:
-                            <select name="hybridMode" value={data.params?.hybridMode ?? 'AND'} onChange={handleParamChange}>
+                            <select 
+                                name="hybridMode" 
+                                value={data.params?.hybridMode ?? 'AND'} 
+                                onChange={handleParamChange}
+                            >
                                 <option value="AND">TA AND ML (Strict Filter)</option>
                                 <option value="OR">TA OR ML (Permissive)</option>
                                 <option value="REGIME">TA as Regime Filter</option>
                             </select>
                         </label>
-                        {(data.params?.hybridMode === 'REGIME') && (
+                        
+                        {/* Regime Threshold Input */}
+                        {data.params?.hybridMode === 'REGIME' && (
                              <label>Regime Threshold (ADX):
-                                <input type="number" name="regime_threshold" value={params.regime_threshold ?? 25} onChange={handleParamChange} step="1" min="0" max="100" />
+                                <input 
+                                    type="number" 
+                                    name="regime_threshold" 
+                                    value={params.regime_threshold !== undefined ? params.regime_threshold : 25} 
+                                    onChange={handleParamChange} 
+                                    step="1" 
+                                    min="0" 
+                                    max="100"
+                                    title="The ADX level to switch strategies. Above this is TREND (Strat 1), below is RANGE (Strat 2)."
+                                />
                             </label>
                         )}
                     </>
                 )}
             </fieldset>
 
-            <fieldset>
+            <fieldset title="Apply advanced filters to your strategy signals.">
                 <legend>Advanced Filters</legend>
                 <label>Volatility Filter (Min ATR %):
-                    <input type="number" name="minAtrPct" value={params.minAtrPct ?? 0} onChange={handleParamChange} step="0.05" min="0" />
+                    <input 
+                        type="number" 
+                        name="minAtrPct" 
+                        value={params.minAtrPct ?? 0} 
+                        onChange={handleParamChange} 
+                        step="0.05" 
+                        min="0" 
+                    />
                 </label>
                 <label>Chop Filter (Min ADX):
-                    <input type="number" name="minAdxLevel" value={params.minAdxLevel ?? 0} onChange={handleParamChange} step="1" min="0" max="100" />
+                    <input 
+                        type="number" 
+                        name="minAdxLevel" 
+                        value={params.minAdxLevel ?? 0} 
+                        onChange={handleParamChange} 
+                        step="1" 
+                        min="0" 
+                        max="100"
+                    />
                 </label>
+                
                 <label>Trailing Stop (ATR Mult):
-                    <input type="number" name="tslAtrMult" value={params.tslAtrMult ?? 0} onChange={handleParamChange} step="0.1" min="0" />
+                    <input 
+                        type="number" 
+                        name="tslAtrMult" 
+                        value={params.tslAtrMult ?? 0} 
+                        onChange={handleParamChange} 
+                        step="0.1" 
+                        min="0" 
+                    />
                 </label>
+
                 <label>Trend Filter SMA Period:
-                    <input type="number" name="trendFilterPeriod" value={params.trendFilterPeriod ?? 200} onChange={handleParamChange} step="1" min="0" />
+                    <input 
+                        type="number"
+                        name="trendFilterPeriod" 
+                        value={params.trendFilterPeriod ?? 200}
+                        onChange={handleParamChange}
+                        step="1" 
+                        min="0" 
+                    />
                 </label>
             </fieldset>
 
             {(params.tslAtrMult ?? 0) === 0 && !isCombo && (
                 <>
-                    <label>Stop Loss (%): <input type="number" name="SL" value={params.SL ?? 5.0} onChange={handleParamChange} step="0.1" min="0.1" required /></label>
-                    <label>Take Profit (%): <input type="number" name="TP" value={params.TP ?? 10.0} onChange={handleParamChange} step="0.1" min="0.1" required /></label>
+                    <label>Stop Loss (%):
+                        <input 
+                            type="number" 
+                            name="SL" 
+                            value={params.SL ?? 5.0}
+                            onChange={handleParamChange} 
+                            step="0.1" 
+                            min="0.1" 
+                            required
+                        />
+                    </label>
+                    <label>Take Profit (%):
+                        <input 
+                            type="number" 
+                            name="TP" 
+                            value={params.TP ?? 10.0} 
+                            onChange={handleParamChange} 
+                            step="0.1" 
+                            min="0.1" 
+                            required
+                        />
+                    </label>
                 </>
             )}
         </>
@@ -398,6 +527,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
 
 const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, disableRemove }) => {
   const handleChange = (e) => onChange(e, idx);
+  
   return (
     <div className="combo-card">
       <div className="combo-card-header"><strong>Strategy #{idx + 1}</strong>
@@ -405,12 +535,18 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
       </div>
       <div className="combo-card-body">
         <label>Strategy:
-          <select name="strategyId" value={config.strategyId} onChange={handleChange} disabled={!strategies.length}>
+          <select 
+            name="strategyId" 
+            value={config.strategyId} 
+            onChange={handleChange} 
+            disabled={!strategies.length}
+          >
             <option value="">-- Select --</option>
             {strategies.length ? strategies.map(s => <option key={s._id} value={s._id}>{s.name}</option>) : <option disabled>Loading...</option>}
           </select>
         </label>
         
+        {/* 🚀 UPGRADE: Show Strategy-Specific Params in UI */}
         {config.params && Object.keys(config.params).length > 0 && (
             <div className="card-note" style={{marginTop: '10px'}}>
                 <small><strong>Optimized Params:</strong></small>
@@ -446,15 +582,46 @@ export default function Backtests() {
       return () => clearInterval(timer);
   }, [loading]);
 
+  useEffect(() => {
+    if (error) {
+      console.error("🪵 DEBUG: Backtests.jsx [Hook ERROR]:", error);
+    }
+  }, [state, error]); 
+
   const [formData, setFormData] = useState(initialFormData);
   const [comboData, setComboData] = useState(initialComboData);
   const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
   const [activeTab, setActiveTab] = useState('single');
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
 
+  // 🚀 Metrics Logic Moved BEFORE usage to fix ReferenceError
+  const { combinedEquityCurve, combinedMetrics, mainResult } = useMemo(() => {
+       try {
+         const mainResult = backtestResults?.main || backtestResults?.combinedResult;
+         const curve = mainResult?.equityCurve || mainResult?.equity;
+         if (mainResult?.metrics && curve) { 
+           return {
+             combinedEquityCurve: curve.map(p => ({ ...p, timestamp: new Date(p.timestamp).getTime() })), 
+             combinedMetrics: mainResult.metrics || null,
+             mainResult: mainResult
+           };
+         }
+         return { combinedEquityCurve: [], combinedMetrics: null, mainResult:null };
+       } catch (e) { return { combinedEquityCurve: [], combinedMetrics: null, mainResult:null }; }
+  }, [backtestResults]);
+
+  const pieData = useMemo(() => {
+    if (!combinedMetrics || typeof combinedMetrics.winningTrades !== 'number') return [];
+    const wins = combinedMetrics.winningTrades;
+    const losses = combinedMetrics.totalTrades - wins;
+    return (wins <= 0 && losses <= 0) ? [] : [{ name: "Wins", value: wins }, { name: "Losses", value: losses }];
+  }, [combinedMetrics]);
+
   // 🚀 POLISH: Inject Base Strategies so "Code" Matches work
   const strategyOptions = useMemo(() => {
+    // 🚀 CRASH FIX: Default to empty array if options undefined
     const dbStrats = options?.strategies || [];
+    
     const baseStrats = Object.entries(STRATEGY_TYPE_TO_CODE_MAP).map(([name, code], idx) => ({
         _id: `base-${code}-${idx}`, 
         name: name,
@@ -469,9 +636,11 @@ export default function Backtests() {
     return [...baseStrats, ...mappedDB];
   }, [options?.strategies]);
   
+  // 💡 CRASH FIX: Default to empty arrays
   const symbolOptions = useMemo(() => options?.symbols || [], [options?.symbols]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options?.timeframes]);
   
+  // 🚀 FIX: Added Missing Weights
   const timeframeWeights = { '30m': 1, '1h': 2, '4h': 3, '1d': 4, '1w': 5 };
   
   const modelOptions = useMemo(() => {
@@ -490,7 +659,9 @@ export default function Backtests() {
     const availableSymbols = new Set();
     const availableTimeframes = new Set();
     const lookup = new Set(); 
-    if (!modelOptions.length) return { availableSymbols, availableTimeframes, lookup };
+    // 🚀 CRASH FIX: Check modelOptions exists
+    if (!modelOptions || !modelOptions.length) return { availableSymbols, availableTimeframes, lookup };
+    
     for (const model of modelOptions) {
         availableSymbols.add(model.symbolBase);
         availableTimeframes.add(model.timeframe);
@@ -554,8 +725,9 @@ export default function Backtests() {
     const prefix = prefixMap[code] || code.split('_')[0];
     Object.entries(allParams).forEach(([key, val]) => {
         if (key.startsWith(prefix)) {
-             const uiKey = PARAM_MAPPING[key] || key;
-             relevant[uiKey] = val;
+             // 🚀 NORMALIZE SUB-PARAMS TOO
+            const uiKey = PARAM_MAPPING[key] || key;
+            relevant[uiKey] = val;
         }
     });
     return relevant;
@@ -586,11 +758,11 @@ export default function Backtests() {
               }
           }
 
-          // --- 2. Global Params (Normalized)
+          // --- 2. Merge global params ---
           const rawGlobalParams = { ...defaultFilterParams, ...(config.params || {}) };
           const globalParams = normalizeParams(rawGlobalParams);
 
-          // --- 3. ML Settings Extraction (The Fix) ---
+          // --- 3. ML Settings Extraction ---
           let detectedModel = "";
           let detectedMode = "off";
           let detectedThreshold = 0.5;
@@ -645,6 +817,7 @@ export default function Backtests() {
               symbol: loadedSymbol,
               timeframe: loadedTimeframe,
               
+              // 🚀 Apply Extracted ML Settings
               mlMode: detectedMode,
               mlModel: detectedModel,
               mlThreshold: detectedThreshold,
@@ -754,28 +927,6 @@ export default function Backtests() {
     } catch (err) { console.error(err); }
   };
 
-  // Metrics Prep
-  const { combinedEquityCurve, combinedMetrics, mainResult } = useMemo(() => {
-       try {
-         const mainResult = backtestResults?.main || backtestResults?.combinedResult;
-         const curve = mainResult?.equityCurve || mainResult?.equity;
-         if (mainResult?.metrics && curve) { 
-           return {
-             combinedEquityCurve: curve.map(p => ({ ...p, timestamp: new Date(p.timestamp).getTime() })), 
-             combinedMetrics: mainResult.metrics || null,
-             mainResult: mainResult
-           };
-         }
-         return { combinedEquityCurve: [], combinedMetrics: null, mainResult:null };
-       } catch (e) { return { combinedEquityCurve: [], combinedMetrics: null, mainResult:null }; }
-  }, [backtestResults]);
-
-  const pieData = useMemo(() => {
-    if (!combinedMetrics || typeof combinedMetrics.winningTrades !== 'number') return [];
-    const wins = combinedMetrics.winningTrades;
-    const losses = combinedMetrics.totalTrades - wins;
-    return (wins <= 0 && losses <= 0) ? [] : [{ name: "Wins", value: wins }, { name: "Losses", value: losses }];
-  }, [combinedMetrics]);
 
   if (loading === 'initial') return <div className="dashboard-container"><h1>Backtests</h1><div className="loading-overlay"><div className="spinner"></div></div></div>;
 
