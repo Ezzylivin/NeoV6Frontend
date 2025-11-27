@@ -1,5 +1,5 @@
 // File: src/components/ChartReplay.jsx
-// 🚀 UPGRADE: Fixed 'datetime' key mismatch. Now loads Python candles correctly.
+// 🚀 UPGRADE: Auto-Zooms to Full History on Load. Fixed 'datetime' parsing.
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { createChart, CrosshairMode } from 'lightweight-charts';
@@ -17,14 +17,10 @@ export const ChartReplay = ({ results, symbol }) => {
   // --- 1. Robust Time Parsing Helper ---
   const parseTime = (t) => {
       if (!t) return null;
-      // Handle MongoDB style { $date: ... }
-      if (typeof t === 'object' && t.$date) t = t.$date;
-      
+      if (typeof t === 'object' && t.$date) t = t.$date; // Handle MongoDB
       const d = new Date(t);
       if (isNaN(d.getTime())) return null;
-      
-      // Return Unix Timestamp (Seconds) for Lightweight Charts
-      return d.getTime() / 1000; 
+      return d.getTime() / 1000; // Unix Seconds
   };
 
   // --- 2. Parse Data ---
@@ -32,9 +28,7 @@ export const ChartReplay = ({ results, symbol }) => {
     if (!results?.candleData || !Array.isArray(results.candleData)) return [];
     
     return results.candleData.map(c => {
-      // 🚀 FIX: Added 'c.datetime' to the check list
       const time = parseTime(c.timestamp || c.time || c.datetime);
-      
       if (!time) return null;
       return {
         time: time, 
@@ -44,7 +38,7 @@ export const ChartReplay = ({ results, symbol }) => {
         close: parseFloat(c.close),
       };
     })
-    .filter(c => c !== null) // Remove invalid candles
+    .filter(c => c !== null)
     .sort((a, b) => a.time - b.time);
   }, [results]);
 
@@ -52,11 +46,9 @@ export const ChartReplay = ({ results, symbol }) => {
     if (!results?.tradeBreakdown || !Array.isArray(results.tradeBreakdown)) return [];
     
     return results.tradeBreakdown.map(t => {
-      // Check all possible time keys
       const entryTimestamp = parseTime(t.entryTime || t.time || t.entry_time);
       let exitTimestamp = parseTime(t.exitTime || t.exit_time);
       
-      // Fallback logic for exit time
       if (!exitTimestamp && t.time && entryTimestamp) {
           const tTime = parseTime(t.time);
           if (tTime > entryTimestamp) exitTimestamp = tTime;
@@ -76,6 +68,13 @@ export const ChartReplay = ({ results, symbol }) => {
     .filter(t => t !== null)
     .sort((a, b) => a.time - b.time);
   }, [results]);
+
+  // 🚀 NEW: Auto-Jump to End on Load
+  useEffect(() => {
+      if (candles.length > 0) {
+          setCurrentIndex(candles.length - 1);
+      }
+  }, [candles]);
 
   // --- 3. HUD & Log Logic ---
   const currentCandle = candles[currentIndex];
@@ -102,7 +101,6 @@ export const ChartReplay = ({ results, symbol }) => {
   useEffect(() => {
     if (!chartContainerRef.current || candles.length === 0) return;
 
-    // Cleanup old chart if exists
     if (chartRef.current) {
         chartRef.current.remove();
         chartRef.current = null;
@@ -122,17 +120,10 @@ export const ChartReplay = ({ results, symbol }) => {
       borderVisible: false, wickUpColor: '#26a69a', wickDownColor: '#ef5350',
     });
 
-    // Load ALL data immediately so the chart isn't empty
+    // Initialize with ALL data first to set scale
     candlestickSeriesRef.current.setData(candles);
-    
-    // Set view to the beginning or end based on pref
     chartRef.current.timeScale().fitContent();
 
-    // --- UPDATE: Override data to match "Replay" index ---
-    const slice = candles.slice(0, currentIndex + 1);
-    candlestickSeriesRef.current.setData(slice);
-
-    // Handle Resize
     const handleResize = () => {
         if (chartRef.current && chartContainerRef.current) {
             chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
@@ -144,9 +135,9 @@ export const ChartReplay = ({ results, symbol }) => {
         window.removeEventListener('resize', handleResize);
         if (chartRef.current) chartRef.current.remove(); 
     };
-  }, [candles]); // Re-init only if data changes completely
+  }, [candles]); 
 
-  // --- 5. Update Chart Loop (Fast) ---
+  // --- 5. Update Chart Loop ---
   useEffect(() => {
     if (!candlestickSeriesRef.current || candles.length === 0) return;
     
@@ -155,9 +146,9 @@ export const ChartReplay = ({ results, symbol }) => {
     
     updateMarkers(currentIndex);
     
-    // Auto-scroll
-    if (currentIndex > 0 && isPlaying) {
-       // Optional: Scroll logic if you want it to follow the candle
+    // Only auto-scroll if playing, otherwise respect user zoom
+    if (isPlaying && currentIndex > 0) {
+       // chartRef.current.timeScale().scrollToPosition(0, false);
     }
   }, [currentIndex, isPlaying]); 
 
@@ -167,27 +158,33 @@ export const ChartReplay = ({ results, symbol }) => {
 
     const markers = [];
     trades.forEach(t => {
-      if (Math.abs(t.time - currentTime) < 60000) { // Relaxed matching (within same hour)
-        markers.push({
-          time: t.time,
-          position: 'belowBar',
-          color: t.position === 'long' ? '#2196F3' : '#E91E63',
-          shape: t.position === 'long' ? 'arrowUp' : 'arrowDown',
-          text: `BUY @ ${t.price.toFixed(2)}`
-        });
-      }
-      if (t.exitTime && Math.abs(t.exitTime - currentTime) < 60000) { 
-        markers.push({
-          time: t.exitTime,
-          position: 'aboveBar',
-          color: t.profit > 0 ? '#4CAF50' : '#F44336',
-          shape: 'circle',
-          text: `EXIT ($${t.profit?.toFixed(2)})`
-        });
+      if (t.time <= currentTime) {
+         // Show buy if within time
+         if (Math.abs(t.time - currentTime) < 360000) { // Show marker if near current candle (visual declutter)
+            markers.push({
+              time: t.time,
+              position: 'belowBar',
+              color: t.position === 'long' ? '#2196F3' : '#E91E63',
+              shape: t.position === 'long' ? 'arrowUp' : 'arrowDown',
+              text: `BUY`
+            });
+         }
+         // Show exit
+         if (t.exitTime && t.exitTime <= currentTime) {
+             if (Math.abs(t.exitTime - currentTime) < 360000) {
+                markers.push({
+                  time: t.exitTime,
+                  position: 'aboveBar',
+                  color: t.profit > 0 ? '#4CAF50' : '#F44336',
+                  shape: 'circle',
+                  text: `$${t.profit?.toFixed(0)}`
+                });
+             }
+         }
       }
     });
     
-    // Markers must be sorted by time
+    // Always sort markers
     markers.sort((a, b) => a.time - b.time);
     candlestickSeriesRef.current.setMarkers(markers);
   };
