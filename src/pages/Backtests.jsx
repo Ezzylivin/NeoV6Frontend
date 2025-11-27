@@ -671,8 +671,12 @@ export default function Backtests() {
   }, [modelOptions]); 
 
   // 🚀 ROBUST STRATEGY RECONSTRUCTION
-  function rebuildStrategiesFromParams(raw) {
+ // 🚀 ROBUST STRATEGY RECONSTRUCTION (v4 - The Final Fix)
+function rebuildStrategiesFromParams(raw) {
+    // 1. Standard List
     if (Array.isArray(raw.strategies) && raw.strategies.length > 0) return raw.strategies; 
+    
+    // 2. Legacy String
     if (typeof raw.strategies === "string") {
         return raw.strategies.split(",").map(code => ({
             code: code.trim(),
@@ -680,40 +684,78 @@ export default function Backtests() {
         }));
     }
 
+    // 3. Array Root Fallback (The one you are hitting)
+    if (Array.isArray(raw)) {
+        return raw.map(item => {
+            // If code exists, use it.
+            if (item.code) return item;
+            
+            // If code is missing, SCAN THE PARAMS inside this item
+            // This is the magic step we were missing.
+            const detectedCode = detectCodeFromParams(item.params || item);
+            return {
+                code: detectedCode || "unknown",
+                params: item.params || item
+            };
+        });
+    }
+
+    // 4. Deep Scan on Object Root
+    const detectedCode = detectCodeFromParams(raw.params || raw);
+    if (detectedCode) {
+        // If we found one, maybe there are multiple mixed in?
+        // For now, return what we found.
+        // Actually, let's use the multi-scan logic from before:
+        return scanForMultipleCodes(raw.params || raw);
+    }
+
+    return [];
+}
+
+// Helper: Find ONE code from a param object
+function detectCodeFromParams(params) {
     const prefixMap = {
         'macd': 'macd_crossover', 'rsi': 'rsi_divergence', 'bb': 'bollinger_bands',
         'stoch': 'stochastic_crossover', 'atr': 'atr_breakout', 'cci': 'cci_oversold',
         'ich': 'ichimoku_cloud', 'psar': 'psar_signal', 'obv': 'obv_signal', 'sma': 'sma_crossover'
     };
+    
+    // Check explicit keys like "trend_strategy": "atr_breakout"
+    if (params.trend_strategy) return params.trend_strategy;
+    if (params.range_strategy) return params.range_strategy;
 
-    const detectedCodes = new Set();
-    const params = raw.params || raw; 
+    for (const key of Object.keys(params)) {
+        for (const [prefix, code] of Object.entries(prefixMap)) {
+            if (key.startsWith(prefix)) return code;
+        }
+    }
+    return null;
+}
+
+// Helper: Scan for multiple codes in one big object (Legacy behavior)
+function scanForMultipleCodes(params) {
+     const prefixMap = {
+        'macd': 'macd_crossover', 'rsi': 'rsi_divergence', 'bb': 'bollinger_bands',
+        'stoch': 'stochastic_crossover', 'atr': 'atr_breakout', 'cci': 'cci_oversold',
+        'ich': 'ichimoku_cloud', 'psar': 'psar_signal', 'obv': 'obv_signal', 'sma': 'sma_crossover'
+    };
+    const found = new Set();
+    
+    // Check explicit keys first
+    if (params.trend_strategy) found.add(params.trend_strategy);
+    if (params.range_strategy) found.add(params.range_strategy);
+
     Object.keys(params).forEach(key => {
         for (const [prefix, code] of Object.entries(prefixMap)) {
-            if (key.startsWith(prefix)) {
-                detectedCodes.add(code);
-                break; 
-            }
+            if (key.startsWith(prefix)) found.add(code);
         }
     });
-
-    if (detectedCodes.size > 0) {
-        return Array.from(detectedCodes).map(code => ({
-            code,
-            params: extractParamsFor(code, params)
-        }));
-    }
-
-    // 🚀 NEW: Array Fallback (If raw is the array)
-    if (Array.isArray(raw)) {
-        return raw.map(s => ({
-            code: s.code || "unknown",
-            params: s.params || {}
-        }));
-    }
-
-    return [];
-  }
+    
+    return Array.from(found).map(code => ({
+        code,
+        params: extractParamsFor(code, params)
+    }));
+}
 
   function extractParamsFor(code, allParams) {
     const relevant = {};
