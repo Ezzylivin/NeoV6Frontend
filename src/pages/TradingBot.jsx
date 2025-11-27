@@ -1,269 +1,401 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: Fixed ReferenceError & Added Auto-Polling
+// 🚀 UPGRADE: Complete Live Bot Dashboard.
+// - Ports the robust "Golden Strategy" parser from Backtests.
+// - Fixes Metrics & Charting.
+// - Adds Auto-Polling & Log Streaming.
 
-import React, { useState, useEffect, useRef } from 'react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import api from '../api/apiClient';
+import React, { useState, useEffect, useRef, useContext, useMemo } from "react";
+import { useBot } from '../hooks/useBot.js';
+import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
+import { useBacktest } from "../hooks/useBacktest.js";
+import { StrategyContext } from "../context/StrategyContext.jsx";
+import LiveTradingChart from "../components/LiveTradingChart.jsx"; 
+import "./TradingBot.css";
+import api from '../api/apiClient'; 
 
-const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b"];
-const ESTIMATED_DURATION = 60;
-
-// --- Helper Functions (Restored) ---
-const calculateMaxDrawdown = (results) => {
-  if (!results || results.length === 0) return 0;
-  let maxDrawdown = 0;
-  let peak = -Infinity;
-  for (const r of results) {
-    if (r.portfolioValue > peak) peak = r.portfolioValue;
-    const drawdown = ((peak - r.portfolioValue) / peak) * 100;
-    if (drawdown > maxDrawdown) maxDrawdown = drawdown;
-  }
-  return maxDrawdown;
+// --- 1. CONSTANTS & MAPPINGS (Ported from Backtests.jsx) ---
+const STRATEGY_PREFIXES = {
+    'macd_crossover': 'macd', 'rsi_divergence': 'rsi', 'bollinger_bands': 'bb',
+    'stochastic_crossover': 'stoch', 'atr_breakout': 'atr', 'cci_oversold': 'cci',
+    'ichimoku_cloud': 'ich', 'psar_signal': 'psar', 'obv_signal': 'obv', 'sma_crossover': 'sma'
 };
 
-const calculateSharpeRatio = (results) => {
-  if (!results || results.length < 2) return 0;
-  const returns = [];
-  for (let i = 1; i < results.length; i++) {
-    returns.push((results[i].portfolioValue - results[i-1].portfolioValue) / results[i-1].portfolioValue);
-  }
-  const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
-  const stdDev = Math.sqrt(returns.map(x => Math.pow(x - avgReturn, 2)).reduce((a, b) => a + b, 0) / returns.length);
-  if (stdDev === 0) return 0;
-  return (avgReturn / stdDev) * Math.sqrt(252); // Annualized (assuming daily) - rough approx for crypto
+const PARAM_MAPPING = {
+    'min_adx': 'minAdxLevel', 'tsl_mult': 'tslAtrMult', 'regime_threshold': 'regime_threshold',
+    'min_atr_pct': 'minAtrPct', 'trend_filter_period': 'trendFilterPeriod',
+    'atr_p': 'atr_period', 'atr_m': 'atr_multiplier', 'rsi_len': 'rsi_length',
+    'rsi_os': 'oversold_level', 'rsi_ob': 'overbought_level', 'bb_len': 'bb_length',
+    'bb_std': 'bb_std', 'cci_len': 'cci_length', 'cci_os': 'cci_oversold',
+    'cci_ob': 'cci_overbought', 'k_period': 'k_period', 'd_period': 'd_period',
+    'sma_1': 'sma_fast_period', 'sma_2': 'sma_slow_period', 'macd_f': 'macd_fast_period',
+    'macd_s': 'macd_slow_period', 'macd_sig': 'macd_signal_period'
 };
 
-const calculateProfitFactor = (results) => {
-    // Simplified profit factor based on trade list if available, else approximation
-    // Since we only have equity curve here usually, we return 0 or need trade list
-    return 0; 
+// --- 2. HELPERS (Ported) ---
+const normalizeParams = (rawParams) => {
+    const normalized = {};
+    if (!rawParams) return normalized;
+    Object.entries(rawParams).forEach(([key, val]) => {
+        const uiKey = PARAM_MAPPING[key] || key; 
+        normalized[uiKey] = val;
+    });
+    return normalized;
 };
 
-const formatChartDate = (date) => new Date(date).toLocaleDateString();
+function extractParamsFor(code, allParams) {
+    const relevant = {};
+    const prefix = STRATEGY_PREFIXES[code] || code.split('_')[0];
+    Object.entries(allParams).forEach(([key, val]) => {
+        if (key.startsWith(prefix)) {
+            const uiKey = PARAM_MAPPING[key] || key;
+            relevant[uiKey] = val;
+        }
+    });
+    return relevant;
+}
 
-// --- Components ---
-const EquityCurveChart = ({ curve, height = 300 }) => {
-  if (!curve || curve.length === 0) return <div className="no-data">No Data</div>;
-  const minPv = Math.min(...curve.map(p => p.portfolioValue));
-  const maxPv = Math.max(...curve.map(p => p.portfolioValue));
+function detectCodeFromParams(params) {
+    if (params.trend_strategy) return params.trend_strategy;
+    if (params.range_strategy) return params.range_strategy;
+    for (const key of Object.keys(params)) {
+        for (const [prefix, code] of Object.entries(STRATEGY_PREFIXES)) {
+            if (key.startsWith(prefix)) return code;
+        }
+    }
+    return null;
+}
 
-  return (
-    <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={curve}>
-        <CartesianGrid stroke="#333" strokeDasharray="3 3" />
-        <XAxis dataKey="timestamp" tickFormatter={formatChartDate} />
-        <YAxis domain={[minPv, maxPv]} />
-        <Tooltip 
-            contentStyle={{backgroundColor: '#1f2937', border: 'none'}}
-            labelFormatter={(l) => new Date(l).toLocaleString()}
-        />
-        <Line type="monotone" dataKey="portfolioValue" stroke="#4ade80" dot={false} strokeWidth={2} />
-      </LineChart>
-    </ResponsiveContainer>
-  );
-};
+function rebuildStrategiesFromParams(raw) {
+    if (Array.isArray(raw.strategies) && raw.strategies.length > 0) return raw.strategies; 
+    if (typeof raw.strategies === "string") {
+        return raw.strategies.split(",").map(code => ({ code: code.trim(), params: {} }));
+    }
+    if (Array.isArray(raw)) {
+        const expanded = [];
+        raw.forEach(item => {
+            const p = item.params || item; 
+            if (p.trend_strategy || p.range_strategy) {
+                if (p.trend_strategy) expanded.push({ code: p.trend_strategy, params: p });
+                if (p.range_strategy) expanded.push({ code: p.range_strategy, params: p });
+            } else {
+                const code = item.code || detectCodeFromParams(p) || "unknown";
+                expanded.push({ code: code, params: p });
+            }
+        });
+        return expanded;
+    }
+    // Deep Scan
+    const detectedCodes = new Set();
+    const params = raw.params || raw; 
+    if (params.trend_strategy) detectedCodes.add(params.trend_strategy);
+    if (params.range_strategy) detectedCodes.add(params.range_strategy);
+    Object.keys(params).forEach(key => {
+        for (const [prefix, code] of Object.entries(STRATEGY_PREFIXES)) {
+            if (key.startsWith(prefix)) {
+                detectedCodes.add(code);
+                break; 
+            }
+        }
+    });
+    return Array.from(detectedCodes).map(code => ({ code, params: {} }));
+}
 
-const WinLossPieChart = ({ data }) => (
-    <ResponsiveContainer width="100%" height={260}>
-        <PieChart>
-            <Pie data={data} cx="50%" cy="50%" outerRadius={80} dataKey="value" label>
-                {data.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-            </Pie>
-            <Tooltip />
-            <Legend />
-        </PieChart>
-    </ResponsiveContainer>
-);
+
+// --- 3. COMPONENTS ---
 
 const MetricsDisplay = ({ metrics }) => {
-    const formatNumber = (n) => n !== undefined && n !== null ? Number(n).toFixed(2) : '-';
+    // Default empty metrics if bot hasn't traded
+    const m = metrics || {};
+    const keyMetrics = {
+        "Total Profit": m.totalProfit ?? 0,
+        "Total Trades": m.totalTrades ?? 0,
+        "Win Rate": m.winRate ?? 0,
+        "Max Drawdown": m.maxDrawdown ?? 0,
+        "Profit Factor": m.profitFactor ?? 0,
+        "Current Balance": m.currentBalance ?? 0
+    };
+
+    const formatValue = (key, value) => {
+        if (value === undefined || value === null) return "N/A";
+        if (typeof value !== "number") return String(value);
+        if (key.includes("Rate") || key.includes("Drawdown")) return `${value.toFixed(2)}%`;
+        if (key.includes("Profit") || key.includes("Balance")) return `$${value.toFixed(2)}`;
+        return value.toFixed(2);
+    };
+
     return (
-        <div className="metrics-grid" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '15px', marginTop: '20px'}}>
-            <div className="metric-box" style={{background: '#1f2937', padding: '15px', borderRadius: '8px', textAlign: 'center'}}>
-                <div style={{fontSize: '0.8rem', color: '#9ca3af'}}>Return %</div>
-                <div style={{fontSize: '1.2rem', fontWeight: 'bold', color: '#fff'}}>{formatNumber(metrics.returnPct)}%</div>
-            </div>
-            <div className="metric-box" style={{background: '#1f2937', padding: '15px', borderRadius: '8px', textAlign: 'center'}}>
-                <div style={{fontSize: '0.8rem', color: '#9ca3af'}}>Win Rate</div>
-                <div style={{fontSize: '1.2rem', fontWeight: 'bold', color: '#fff'}}>{formatNumber(metrics.winRate)}%</div>
-            </div>
-            <div className="metric-box" style={{background: '#1f2937', padding: '15px', borderRadius: '8px', textAlign: 'center'}}>
-                <div style={{fontSize: '0.8rem', color: '#9ca3af'}}>Max Drawdown</div>
-                <div style={{fontSize: '1.2rem', fontWeight: 'bold', color: '#ef4444'}}>{formatNumber(metrics.maxDrawdown)}%</div>
-            </div>
-             <div className="metric-box" style={{background: '#1f2937', padding: '15px', borderRadius: '8px', textAlign: 'center'}}>
-                <div style={{fontSize: '0.8rem', color: '#9ca3af'}}>Total Trades</div>
-                <div style={{fontSize: '1.2rem', fontWeight: 'bold', color: '#fff'}}>{metrics.totalTrades}</div>
-            </div>
+        <div className="metrics-grid">
+            {Object.entries(keyMetrics).map(([key, value]) => (
+                <div key={key} className="metric-item">
+                    <span className="metric-label">{key}</span>
+                    <span className="metric-value" style={{
+                        color: (key.includes("Profit") || key.includes("Balance")) && value < 0 ? '#ef4444' : '#f3f4f6'
+                    }}>{formatValue(key, value)}</span>
+                </div>
+            ))}
         </div>
     );
 };
 
 // --- MAIN COMPONENT ---
 export default function TradingBot() {
-    const [status, setStatus] = useState({ status: 'stopped', logs: [], trades: [], currentBalance: 1000 });
-    const [loading, setLoading] = useState(false);
-    const [winners, setWinners] = useState([]);
+    // 1. Hooks
+    const { 
+        botStatus, logs, winners: botWinners, loading: botLoading, 
+        error, startBot, stopBot, refreshBotData 
+    } = useBot();
+
+    const { state: backtestState } = useBacktest();
+    const winners = (botWinners && botWinners.length > 0) ? botWinners : (backtestState?.winners || []);
+    const logsEndRef = useRef(null);
+
+    // 2. State
     const [selectedWinnerId, setSelectedWinnerId] = useState("");
-    const [equityCurve, setEquityCurve] = useState([]);
+    const [formConfig, setFormConfig] = useState({
+        isCombo: false, 
+        strategyId: '', 
+        comboConfig: { strategyCodes: [], combinationRule: 'AND' },
+        symbol: 'BTC-USD', 
+        timeframe: '1h',   
+        capitalAllocation: 1000,
+        tradingMode: 'paper',
+        params: {},
+        strategies: [], // This will hold the robustly parsed strategies
+        mlMode: 'off',
+        mlModel: '',
+        mlThreshold: 0.5
+    });
 
-    // --- Polling Logic ---
+    // 3. Auto-Scroll Logs
     useEffect(() => {
-        fetchStatus(); // Initial fetch
-        fetchWinners();
+        if (logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }, [logs]);
 
-        // 🚀 POLL EVERY 2 SECONDS
-        const interval = setInterval(() => {
-            fetchStatus();
+    // 4. Auto-Polling (Every 2s)
+    useEffect(() => {
+        let interval;
+        // Always poll if running, or just once to check status on load
+        interval = setInterval(() => {
+            refreshBotData(); 
         }, 2000);
+        return () => clearInterval(interval);
+    }, [refreshBotData]);
 
-        return () => clearInterval(interval); // Cleanup on unmount
-    }, []);
+    // --- 5. HANDLER: Golden Strategy Selection ---
+    const handleWinnerSelect = (e) => {
+        const filename = e.target.value;
+        setSelectedWinnerId(filename);
+        if (!filename) return;
 
-    const fetchStatus = async () => {
-        try {
-            const res = await api.get('/bot/status');
-            const data = res.data;
+        const selectedWinner = winners.find(w => w.id === filename);
+        if (selectedWinner && selectedWinner.config) {
+            const config = selectedWinner.config;
+            console.log("🏆 Loading Golden Strategy:", config);
+
+            // A. Meta Data
+            let loadedSymbol = config.symbol || "BTC-USD";
+            let loadedTimeframe = config.timeframe || "1h";
             
-            // Process logs
-            if(data.logs) data.logs.reverse(); 
-            
-            setStatus(data);
-
-            // Build simple equity curve from trades if available
-            // In a real app, backend should send 'equityCurve'
-            if (data.trades && data.trades.length > 0) {
-                let balance = 1000; // Default start
-                const curve = data.trades.map(t => {
-                    balance += t.profit;
-                    return { timestamp: t.exitTime || t.entryTime, portfolioValue: balance };
-                });
-                setEquityCurve(curve);
+            if (!config.symbol) {
+                const parts = filename.split('_');
+                if (parts.length >= 2 && parts[1].includes('-')) loadedSymbol = parts[1];
+                if (parts.length >= 3 && ['1h','4h','1d'].includes(parts[2])) loadedTimeframe = parts[2];
             }
+
+            // B. Global Params & Normalization
+            let rawGlobalParams = { ...config.params };
+            if (Array.isArray(config) && config.length > 0) {
+                 rawGlobalParams = { ...rawGlobalParams, ...(config[0].params || config[0]) };
+            }
+            const globalParams = normalizeParams(rawGlobalParams);
+
+            // C. ML Detection
+            let detectedModel = config.mlModel || config.params?.mlModel || "";
+            let detectedMode = config.mlMode || config.params?.mlMode || "off";
+            let detectedThreshold = config.mlThreshold ?? config.params?.mlThreshold ?? 0.5;
+
+            const findML = (obj) => {
+                if (obj.mlModel) detectedModel = obj.mlModel;
+                if (obj.mlMode) detectedMode = obj.mlMode;
+                if (obj.mlThreshold) detectedThreshold = obj.mlThreshold;
+            };
+            if (Array.isArray(config)) config.forEach(findML);
+            else findML(config);
+            if (config.params) findML(config.params);
+
+            if (detectedMode === "off" && detectedModel) detectedMode = "predictions";
+
+            // D. Strategy Reconstruction (Traffic Cop Logic)
+            let strategiesList = rebuildStrategiesFromParams(config);
+
+            strategiesList = strategiesList.map(s => {
+                const prefix = STRATEGY_PREFIXES[s.code]; 
+                const specificParams = {};
+                
+                // 1. Get from Global/Array
+                const allParams = { ...(config.params || {}), ...(s.params || {}) };
+                if(Array.isArray(config)) {
+                    config.forEach(item => Object.assign(allParams, item.params || item));
+                }
+
+                // 2. Filter
+                Object.entries(allParams).forEach(([key, val]) => {
+                    if (prefix && key.startsWith(prefix)) {
+                         const uiKey = PARAM_MAPPING[key] || key;
+                         specificParams[uiKey] = val;
+                    }
+                });
+
+                return {
+                    code: s.code,
+                    params: specificParams
+                };
+            });
+
+            // E. Update Form
+            setFormConfig(prev => ({
+                ...prev,
+                isCombo: true,
+                comboConfig: { 
+                    strategyCodes: strategiesList.map(s => s.code), 
+                    combinationRule: globalParams.hybridMode || 'AND' 
+                },
+                params: globalParams, 
+                strategies: strategiesList, // 🚀 Sending perfectly reconstructed strategies to backend
+                symbol: loadedSymbol,    
+                timeframe: loadedTimeframe,
+                mlMode: detectedMode,
+                mlModel: detectedModel,
+                mlThreshold: detectedThreshold
+            }));
             
-        } catch (err) {
-            console.error("Status fetch error:", err);
+            console.log(`✅ Setup Complete: ${loadedSymbol} (${strategiesList.length} strats)`);
         }
     };
 
-    const fetchWinners = async () => {
-        try {
-            const res = await api.get('/bot/winners');
-            setWinners(res.data || []);
-        } catch (err) {}
-    };
-
-    const handleStart = async () => {
-        setLoading(true);
-        try {
-            await api.post('/bot/start', { 
-                strategyId: selectedWinnerId, // Can be empty if hardcoded defaults in backend
-                capitalAllocation: 1000
-            }); 
-            await fetchStatus();
-        } catch (err) {
-            alert(err.message);
+    const handleStart = async (e) => {
+        e.preventDefault();
+        if (!formConfig.symbol || !formConfig.timeframe || !formConfig.capitalAllocation) {
+             alert("Please fill in Symbol, Timeframe, and Capital.");
+             return;
         }
-        setLoading(false);
+        if (formConfig.tradingMode === 'live') {
+            if (!window.confirm("⚠️ WARNING: Real Money Trading. Proceed?")) return;
+        }
+
+        console.log("🚀 Launching Bot Payload:", formConfig);
+        try { await startBot(formConfig); } 
+        catch (err) { console.error(err); alert(err.message); }
     };
 
     const handleStop = async () => {
-        setLoading(true);
-        try {
-            await api.post('/bot/stop');
-            await fetchStatus();
-        } catch (err) {
-            alert(err.message);
-        }
-        setLoading(false);
+        try { await stopBot(); } 
+        catch (err) { console.error(err); }
     };
 
-    // Calc Metrics
-    const winCount = status.trades ? status.trades.filter(t => t.profit > 0).length : 0;
-    const lossCount = status.trades ? status.trades.filter(t => t.profit <= 0).length : 0;
-    const winLossData = [{ name: "Wins", value: winCount }, { name: "Losses", value: lossCount }];
-    
-    const metrics = {
-        returnPct: ((status.currentBalance - 1000) / 1000) * 100,
-        winRate: (status.trades?.length > 0) ? (winCount / status.trades.length) * 100 : 0,
-        maxDrawdown: calculateMaxDrawdown(equityCurve), // Uses restored helper
-        totalTrades: status.trades?.length || 0
-    };
+    const handleClearLogs = () => { refreshBotData(); };
+
+    const isRunning = botStatus?.status === 'running';
 
     return (
-        <div className="dashboard-container">
-            <h1>Live Trading Bot</h1>
+        <div className="trading-bot-container">
+            <h2 className="header">Live Trading Bot</h2>
             
-            {/* Control Panel */}
-            <div className="bot-controls" style={{background: '#1e293b', padding: '20px', borderRadius: '8px', marginBottom: '20px'}}>
-                <div style={{display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '15px'}}>
-                    <div className={`status-indicator ${status.status}`} style={{
-                        padding: '8px 16px', borderRadius: '20px', 
-                        background: status.status === 'running' ? '#22c55e20' : '#ef444420',
-                        color: status.status === 'running' ? '#22c55e' : '#ef4444',
-                        border: `1px solid ${status.status === 'running' ? '#22c55e' : '#ef4444'}`
-                    }}>
-                        Status: <strong>{status.status?.toUpperCase()}</strong>
+            {/* CONTROL PANEL */}
+            <div className="bot-card control-panel">
+                <div className="panel-header">
+                    <h3 className="card-title">
+                        {isRunning ? 'Bot is Live' : 'Deploy Strategy'}
+                        <span className={`mode-badge ${formConfig.tradingMode}`}>
+                            {formConfig.tradingMode === 'paper' ? 'PAPER' : 'LIVE'}
+                        </span>
+                    </h3>
+                    <div className={`status-indicator ${botStatus?.status || 'stopped'}`}>
+                        {botStatus?.status?.toUpperCase() || 'STOPPED'}
                     </div>
-                    {status.status === 'running' ? (
-                        <button onClick={handleStop} disabled={loading} style={{background: '#ef4444', color: 'white', padding: '10px 20px', borderRadius: '5px', border: 'none', cursor: 'pointer'}}>
-                            ⏹ Stop Bot
-                        </button>
-                    ) : (
-                        <button onClick={handleStart} disabled={loading} style={{background: '#22c55e', color: 'white', padding: '10px 20px', borderRadius: '5px', border: 'none', cursor: 'pointer'}}>
-                            ▶ Start Bot
-                        </button>
-                    )}
                 </div>
                 
-                 {/* Simple Winner Selector for Quick Launch */}
-                 {status.status !== 'running' && (
-                    <select 
-                        value={selectedWinnerId} 
-                        onChange={(e) => setSelectedWinnerId(e.target.value)}
-                        style={{width: '100%', padding: '10px', borderRadius: '5px', background: '#0f172a', color: 'white', border: '1px solid #334155'}}
-                    >
-                        <option value="">-- Select Strategy to Deploy --</option>
-                        {winners.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                    </select>
-                 )}
-            </div>
-
-            <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap'}}>
-                {/* Left Col: Metrics & Chart */}
-                <div style={{flex: 2, minWidth: '300px'}}>
-                    <div style={{background: '#1e293b', padding: '20px', borderRadius: '8px', marginBottom: '20px'}}>
-                         <h3 style={{color: '#4ade80', marginTop: 0}}>Live Performance</h3>
-                         <MetricsDisplay metrics={metrics} />
-                         <div style={{marginTop: '20px'}}>
-                             <EquityCurveChart curve={equityCurve} />
-                         </div>
-                    </div>
-                </div>
-
-                {/* Right Col: Logs */}
-                <div style={{flex: 1, minWidth: '300px'}}>
-                    <div className="logs-container" style={{background: '#000', padding: '15px', borderRadius: '8px', height: '600px', overflowY: 'auto', border: '1px solid #333', fontFamily: 'monospace'}}>
-                        <h4 style={{color: '#888', marginTop: 0, borderBottom: '1px solid #333', paddingBottom: '10px'}}>System Logs</h4>
-                        {status.logs && status.logs.length > 0 ? (
-                            status.logs.map((log, i) => (
-                                <div key={i} style={{marginBottom: '5px', fontSize: '0.85rem', lineHeight: '1.4'}}>
-                                    <span style={{color: '#666', marginRight: '10px', fontSize: '0.75rem'}}>
-                                        {new Date(log.timestamp).toLocaleTimeString()}
-                                    </span>
-                                    <span style={{color: log.message.toLowerCase().includes('error') ? '#ef4444' : (log.message.toLowerCase().includes('buy') || log.message.toLowerCase().includes('sell') ? '#fbbf24' : '#d1d5db')}}>
-                                        {log.message}
-                                    </span>
+                <form onSubmit={handleStart} className="bot-form">
+                    {!isRunning && (
+                        <>
+                            <div className="mode-switch-container">
+                                <label className="switch-label">Mode:</label>
+                                <div className="mode-toggle">
+                                    <button type="button" className={formConfig.tradingMode === 'paper' ? 'active' : ''} onClick={() => setFormConfig(p => ({...p, tradingMode: 'paper'}))}>Paper</button>
+                                    <button type="button" className={formConfig.tradingMode === 'live' ? 'active danger' : ''} onClick={() => setFormConfig(p => ({...p, tradingMode: 'live'}))}>Real Money</button>
                                 </div>
-                            ))
-                        ) : (
-                            <div style={{color: '#444', textAlign: 'center', marginTop: '20px'}}>Waiting for logs...</div>
-                        )}
-                    </div>
-                </div>
+                            </div>
+
+                            <div className="selectors-row">
+                                <label className="setup-selector" style={{flex:1}}>
+                                    Optimized Strategies (ML)
+                                    <select value={selectedWinnerId} onChange={handleWinnerSelect} style={{ borderColor: selectedWinnerId ? '#3b82f6' : '#444' }}>
+                                        <option value="">-- Select Winner --</option>
+                                        {winners && winners.map(w => (
+                                            <option key={w.id} value={w.id}>🏆 {w.name}</option>
+                                        ))}
+                                    </select>
+                                </label>
+                            </div>
+                            
+                            <div className="form-grid">
+                                <label>Symbol<input value={formConfig.symbol} disabled /></label>
+                                <label>Timeframe<input value={formConfig.timeframe} disabled /></label>
+                                <label>Capital ($)<input type="number" value={formConfig.capitalAllocation} onChange={e => setFormConfig(p => ({...p, capitalAllocation: Number(e.target.value)}))} /></label>
+                            </div>
+
+                            <div className="form-actions">
+                                <button type="submit" className={`button-start ${formConfig.tradingMode === 'live' ? 'live-btn' : ''}`} disabled={botLoading}>
+                                    {botLoading ? 'Deploying...' : (formConfig.tradingMode === 'live' ? '🚀 Launch Live' : '🤖 Launch Paper')}
+                                </button>
+                            </div>
+                        </>
+                    )}
+                    
+                    {isRunning && (
+                        <div className="running-actions">
+                            <button type="button" onClick={handleStop} className="button-stop-main" disabled={botLoading}>
+                                {botLoading ? 'Stopping...' : 'Stop Bot'}
+                            </button>
+                        </div>
+                    )}
+                </form>
             </div>
+
+            {error && <div className="error-banner">{error}</div>}
+
+            {/* DASHBOARD */}
+            {(botStatus?.isConfigured || isRunning) && (
+                <>
+                    <div className="bot-card status-dashboard">
+                         <MetricsDisplay metrics={botStatus.performanceMetrics} />
+                    </div>
+                    
+                    <div className="bot-card chart-panel">
+                        <h3 className="card-title">Live Chart</h3>
+                        {/* 🚀 Pass Candles and Trades to the Live Chart */}
+                        <LiveTradingChart candles={botStatus.candles || []} trades={botStatus.trades || []} />
+                    </div>
+
+                    <div className="bot-card logs-panel">
+                        <div className="card-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                            <h3 className="card-title" style={{ margin: 0 }}>Logs</h3>
+                            <button onClick={handleClearLogs} className="clear-logs-btn" style={{ background: 'transparent', border: '1px solid #475569', color: '#94a3b8', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>
+                                Refresh Logs
+                            </button>
+                        </div>
+                        <div className="logs-container">
+                            {logs.length > 0 ? logs.map((log, i) => (
+                                <div key={i} className={`log-entry log-${log.type}`}>
+                                    <span className="log-timestamp">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                                    <span className="log-message">{log.message}</span>
+                                </div>
+                            )) : <p className="no-logs">Waiting for logs...</p>}
+                            <div ref={logsEndRef} />
+                        </div>
+                    </div>
+                </>
+            )}
         </div>
     );
 }
