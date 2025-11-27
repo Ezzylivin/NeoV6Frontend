@@ -1,5 +1,6 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Bulletproof Crash Protection + Traffic Cop Parameter Filtering
+// 🚀 UPGRADE: Fixed "Merged Strategy" parsing.
+// Now correctly splits "trend_strategy" and "range_strategy" into TWO separate cards.
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -15,7 +16,7 @@ import "./Backtests.css";
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
 const ESTIMATED_DURATION = 60; 
 
-// --- 1. CONSTANTS & MAPS ---
+// --- 1. STRATEGY MAP ---
 const STRATEGY_TYPE_TO_CODE_MAP = {
   "Moving Average Crossover": "sma_crossover",
   "RSI": "rsi_divergence",
@@ -29,6 +30,7 @@ const STRATEGY_TYPE_TO_CODE_MAP = {
   "Parabolic SAR": "psar_signal"
 };
 
+// --- 2. PARAMETER MAPPING & PREFIXES ---
 const PARAM_MAPPING = {
     'min_adx': 'minAdxLevel',
     'tsl_mult': 'tslAtrMult',
@@ -65,7 +67,7 @@ const STRATEGY_PREFIXES = {
     'sma_crossover': 'sma'
 };
 
-// --- 2. HELPER FUNCTIONS ---
+// --- 3. HELPER FUNCTIONS ---
 const normalizeParams = (rawParams) => {
     const normalized = {};
     if (!rawParams) return normalized;
@@ -95,7 +97,7 @@ const getDefaultDates = () => {
   return { startDate: formatDate(start), endDate: formatDate(end) };
 };
 
-// --- 3. DEFAULT DATA STRUCTURES ---
+// --- 4. DEFAULT DATA STRUCTURES ---
 const defaultFilterParams = {
     minAtrPct: 0, 
     trendFilterPeriod: 200, 
@@ -143,7 +145,7 @@ const initialComboData = {
   mlHorizon: 1
 };
 
-// --- 4. STRATEGY RECONSTRUCTION LOGIC ---
+// --- 5. ROBUST STRATEGY RECONSTRUCTION (FIXED SPLITTER) ---
 function rebuildStrategiesFromParams(raw) {
   // 1. Standard List
   if (Array.isArray(raw.strategies) && raw.strategies.length > 0) return raw.strategies; 
@@ -152,21 +154,47 @@ function rebuildStrategiesFromParams(raw) {
   if (typeof raw.strategies === "string") {
       return raw.strategies.split(",").map(code => ({
           code: code.trim(),
-          params: {} // Will be filled by Traffic Cop later
+          params: {} // Will be filled by traffic cop later
       }));
   }
 
-  // 3. Direct Array (Raw Config)
+  // 3. Direct Array (Raw Config - The One You Use)
   if (Array.isArray(raw)) {
-      return raw.map(s => ({
-          code: s.code || detectCodeFromParams(s.params || s) || "unknown",
-          params: s.params || {}
-      }));
+      const expanded = [];
+      raw.forEach(item => {
+          const p = item.params || item; // flattened params
+          
+          // 🚀 FIX: Check for MERGED strategies (Trend + Range)
+          if (p.trend_strategy && p.range_strategy) {
+              // Split into two strategies
+              expanded.push({
+                  code: p.trend_strategy,
+                  params: p // Pass full params, filter later
+              });
+              expanded.push({
+                  code: p.range_strategy,
+                  params: p // Pass full params, filter later
+              });
+          } else {
+              // Standard single strategy
+              const code = item.code || detectCodeFromParams(p) || "unknown";
+              expanded.push({
+                  code: code,
+                  params: p
+              });
+          }
+      });
+      return expanded;
   }
 
-  // 4. Deep Scan from Params Keys
+  // 4. Deep Scan from Params Keys (Object Root)
   const detectedCodes = new Set();
   const params = raw.params || raw; 
+  
+  // Check explicit keys first
+  if (params.trend_strategy) detectedCodes.add(params.trend_strategy);
+  if (params.range_strategy) detectedCodes.add(params.range_strategy);
+
   Object.keys(params).forEach(key => {
       for (const [prefix, code] of Object.entries(STRATEGY_PREFIXES)) {
           if (key.startsWith(prefix)) {
@@ -179,7 +207,7 @@ function rebuildStrategiesFromParams(raw) {
   if (detectedCodes.size > 0) {
       return Array.from(detectedCodes).map(code => ({
           code,
-          params: {} // Will be filled by Traffic Cop
+          params: {} // Will be filled by traffic cop logic
       }));
   }
   return [];
@@ -196,7 +224,7 @@ function detectCodeFromParams(params) {
     return null;
 }
 
-// --- 5. CHILD COMPONENTS ---
+// --- 6. CHILD COMPONENTS ---
 
 const MetricsDisplay = ({ metrics }) => {
   if (!metrics) return <div className="metrics-grid-loading">Calculating metrics...</div>;
@@ -232,7 +260,7 @@ const MetricsDisplay = ({ metrics }) => {
 };
 
 const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isCombo = false }) => {
-    // 🚀 CRASH PROTECTION: Default to empty arrays
+    // 🚀 CRASH PROTECTION
     const symbolOptions = options?.symbolOptions || [];
     const timeframeOptions = options?.timeframeOptions || [];
     const allModelOptions = options?.modelOptions || []; 
@@ -296,10 +324,20 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
     return (
         <>
             <label>Symbol:
-                <select name="symbol" value={data.symbol} onChange={handleGlobalChange} disabled={!processedSymbolOptions.length}>
+                <select 
+                    name="symbol" 
+                    value={data.symbol} 
+                    onChange={handleGlobalChange} 
+                    disabled={!processedSymbolOptions.length}
+                >
                     <option value="">-- Select Symbol --</option>
                     {processedSymbolOptions.map(s => (
-                        <option key={s.value} value={s.value} disabled={data.mlMode !== 'off' && !s.isAvailable} style={{ color: (data.mlMode !== 'off' && !s.isAvailable) ? '#888' : 'white' }}>
+                        <option 
+                            key={s.value} 
+                            value={s.value} 
+                            disabled={data.mlMode !== 'off' && !s.isAvailable}
+                            style={{ color: (data.mlMode !== 'off' && !s.isAvailable) ? '#888' : 'white' }}
+                        >
                             {s.name}
                         </option>
                     ))}
@@ -307,10 +345,20 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
             </label>
 
             <label>Timeframe:
-                <select name="timeframe" value={data.timeframe} onChange={handleGlobalChange} disabled={!processedTimeframeOptions.length}>
+                <select 
+                    name="timeframe" 
+                    value={data.timeframe} 
+                    onChange={handleGlobalChange} 
+                    disabled={!processedTimeframeOptions.length}
+                >
                     <option value="">-- Select Timeframe --</option>
                     {processedTimeframeOptions.map(t => (
-                        <option key={t.value} value={t.value} disabled={data.mlMode !== 'off' && !t.isAvailable} style={{ color: (data.mlMode !== 'off' && !t.isAvailable) ? '#888' : 'white' }}>
+                        <option 
+                            key={t.value} 
+                            value={t.value} 
+                            disabled={data.mlMode !== 'off' && !t.isAvailable} 
+                            style={{ color: (data.mlMode !== 'off' && !t.isAvailable) ? '#888' : 'white' }}
+                        >
                             {t.name}
                         </option>
                     ))}
@@ -357,7 +405,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 {data.mlMode !== "off" && (
                     <>
                         <label>Model:
-                            <select name="mlModel" value={data.mlModel} onChange={handleGlobalChange} disabled={!allModelOptions.length}>
+                            <select name="mlModel" value={data.mlModel} onChange={handleGlobalChange} disabled={allModelOptions.length === 0}>
                                 <option value="">-- Select Model --</option>
                                 {allModelOptions.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                             </select>
@@ -415,7 +463,7 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
           </select>
         </label>
         
-        {/* 🚀 VISUAL: Display Only RELEVANT Params */}
+        {/* 🚀 UPGRADE: Show Strategy-Specific Params in UI */}
         {config.params && Object.keys(config.params).length > 0 && (
             <div className="card-note" style={{marginTop: '10px'}}>
                 <small><strong>Optimized Params:</strong></small>
@@ -457,10 +505,9 @@ export default function Backtests() {
   const [activeTab, setActiveTab] = useState('single');
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
 
-  // 🚀 CRASH PROTECTION: Safe Options Memo
+  // 🚀 POLISH: Inject Base Strategies so "Code" Matches work
   const strategyOptions = useMemo(() => {
     const dbStrats = options?.strategies || [];
-    
     const baseStrats = Object.entries(STRATEGY_TYPE_TO_CODE_MAP).map(([name, code], idx) => ({
         _id: `base-${code}-${idx}`, 
         name: name,
@@ -473,7 +520,7 @@ export default function Backtests() {
         return { ...s, code: pythonCode };
     });
     return [...baseStrats, ...mappedDB];
-  }, [options]);
+  }, [options?.strategies]);
   
   const symbolOptions = useMemo(() => options?.symbols || [], [options]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
@@ -495,10 +542,7 @@ export default function Backtests() {
     const availableSymbols = new Set();
     const availableTimeframes = new Set();
     const lookup = new Set(); 
-    
-    // 🚀 CRASH PROTECTION
     if (!modelOptions.length) return { availableSymbols, availableTimeframes, lookup };
-    
     for (const model of modelOptions) {
         availableSymbols.add(model.symbolBase);
         availableTimeframes.add(model.timeframe);
@@ -507,7 +551,7 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
 
-  // 🚀 HANDLE WINNER SELECTION (Traffic Cop)
+  // 🚀 HANDLE WINNER SELECTION
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
@@ -527,13 +571,16 @@ export default function Backtests() {
               if (parts.length >= 3 && ['1h','4h','1d'].includes(parts[2])) loadedTimeframe = parts[2];
           }
 
-          // 2. Global Params
+          // 2. Global Params (Normalized)
           const rawGlobalParams = { ...defaultFilterParams, ...(config.params || {}) };
           const globalParams = normalizeParams(rawGlobalParams);
 
           // 3. ML Settings
-          let detectedModel = "";
-          let detectedMode = "off";
+          let detectedModel = config.mlModel || config.params?.mlModel || "";
+          let detectedMode = config.mlMode || config.params?.mlMode || "off";
+          const detectedThreshold = config.mlThreshold ?? config.params?.mlThreshold ?? 0.5;
+
+          // Deep search for ML settings in array/nested
           const findML = (obj) => {
               if (obj.mlModel) detectedModel = obj.mlModel;
               if (obj.mlMode) detectedMode = obj.mlMode;
@@ -543,12 +590,12 @@ export default function Backtests() {
           if (config.params) findML(config.params);
 
           if (detectedMode === "off" && detectedModel) detectedMode = "predictions";
-          const detectedThreshold = config.mlThreshold ?? 0.5;
 
-          // 4. Strategy Reconstruction
+          // 4. Strategy Reconstruction (The Traffic Cop)
           let strategiesList = rebuildStrategiesFromParams(config);
 
           strategiesList = strategiesList.map(s => {
+              // Find matching base ID for the dropdown
               let def = strategyOptions.find(opt => opt.code === s.code);
               if (!def) {
                    // Fallback: find any ID that starts with base code
@@ -577,6 +624,7 @@ export default function Backtests() {
           });
 
           if (strategiesList.length === 0) {
+               // Fallback
                strategiesList = [
                   { strategyId: "", code: "", params: {} },
                   { strategyId: "", code: "", params: {} }
@@ -694,7 +742,7 @@ export default function Backtests() {
     } catch (err) { console.error(err); }
   };
 
-  // Metrics Prep (Moved BEFORE usage to avoid reference error)
+  // Metrics Prep
   const { combinedEquityCurve, combinedMetrics, mainResult } = useMemo(() => {
        try {
          const mainResult = backtestResults?.main || backtestResults?.combinedResult;
