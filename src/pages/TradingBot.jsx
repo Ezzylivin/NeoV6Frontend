@@ -1,8 +1,6 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: Complete Live Bot Dashboard.
-// - Ports the robust "Golden Strategy" parser from Backtests.
-// - Fixes Metrics & Charting.
-// - Adds Auto-Polling & Log Streaming.
+// 🚀 UPGRADE: Fixed "Infinite Loop". Only polls when truly running.
+// Includes "Golden Strategy" Loading + Live Charts + Logs.
 
 import React, { useState, useEffect, useRef, useContext, useMemo } from "react";
 import { useBot } from '../hooks/useBot.js';
@@ -13,7 +11,7 @@ import LiveTradingChart from "../components/LiveTradingChart.jsx";
 import "./TradingBot.css";
 import api from '../api/apiClient'; 
 
-// --- 1. CONSTANTS & MAPPINGS (Ported from Backtests.jsx) ---
+// --- 1. CONSTANTS & MAPPINGS ---
 const STRATEGY_PREFIXES = {
     'macd_crossover': 'macd', 'rsi_divergence': 'rsi', 'bollinger_bands': 'bb',
     'stochastic_crossover': 'stoch', 'atr_breakout': 'atr', 'cci_oversold': 'cci',
@@ -31,7 +29,7 @@ const PARAM_MAPPING = {
     'macd_s': 'macd_slow_period', 'macd_sig': 'macd_signal_period'
 };
 
-// --- 2. HELPERS (Ported) ---
+// --- 2. HELPERS ---
 const normalizeParams = (rawParams) => {
     const normalized = {};
     if (!rawParams) return normalized;
@@ -42,34 +40,12 @@ const normalizeParams = (rawParams) => {
     return normalized;
 };
 
-function extractParamsFor(code, allParams) {
-    const relevant = {};
-    const prefix = STRATEGY_PREFIXES[code] || code.split('_')[0];
-    Object.entries(allParams).forEach(([key, val]) => {
-        if (key.startsWith(prefix)) {
-            const uiKey = PARAM_MAPPING[key] || key;
-            relevant[uiKey] = val;
-        }
-    });
-    return relevant;
-}
-
-function detectCodeFromParams(params) {
-    if (params.trend_strategy) return params.trend_strategy;
-    if (params.range_strategy) return params.range_strategy;
-    for (const key of Object.keys(params)) {
-        for (const [prefix, code] of Object.entries(STRATEGY_PREFIXES)) {
-            if (key.startsWith(prefix)) return code;
-        }
-    }
-    return null;
-}
-
 function rebuildStrategiesFromParams(raw) {
     if (Array.isArray(raw.strategies) && raw.strategies.length > 0) return raw.strategies; 
     if (typeof raw.strategies === "string") {
         return raw.strategies.split(",").map(code => ({ code: code.trim(), params: {} }));
     }
+    // Array Root Config
     if (Array.isArray(raw)) {
         const expanded = [];
         raw.forEach(item => {
@@ -78,33 +54,18 @@ function rebuildStrategiesFromParams(raw) {
                 if (p.trend_strategy) expanded.push({ code: p.trend_strategy, params: p });
                 if (p.range_strategy) expanded.push({ code: p.range_strategy, params: p });
             } else {
-                const code = item.code || detectCodeFromParams(p) || "unknown";
+                const code = item.code || item.trend_strategy || "unknown";
                 expanded.push({ code: code, params: p });
             }
         });
         return expanded;
     }
-    // Deep Scan
-    const detectedCodes = new Set();
-    const params = raw.params || raw; 
-    if (params.trend_strategy) detectedCodes.add(params.trend_strategy);
-    if (params.range_strategy) detectedCodes.add(params.range_strategy);
-    Object.keys(params).forEach(key => {
-        for (const [prefix, code] of Object.entries(STRATEGY_PREFIXES)) {
-            if (key.startsWith(prefix)) {
-                detectedCodes.add(code);
-                break; 
-            }
-        }
-    });
-    return Array.from(detectedCodes).map(code => ({ code, params: {} }));
+    return [];
 }
-
 
 // --- 3. COMPONENTS ---
 
 const MetricsDisplay = ({ metrics }) => {
-    // Default empty metrics if bot hasn't traded
     const m = metrics || {};
     const keyMetrics = {
         "Total Profit": m.totalProfit ?? 0,
@@ -139,7 +100,6 @@ const MetricsDisplay = ({ metrics }) => {
 
 // --- MAIN COMPONENT ---
 export default function TradingBot() {
-    // 1. Hooks
     const { 
         botStatus, logs, winners: botWinners, loading: botLoading, 
         error, startBot, stopBot, refreshBotData 
@@ -149,7 +109,6 @@ export default function TradingBot() {
     const winners = (botWinners && botWinners.length > 0) ? botWinners : (backtestState?.winners || []);
     const logsEndRef = useRef(null);
 
-    // 2. State
     const [selectedWinnerId, setSelectedWinnerId] = useState("");
     const [formConfig, setFormConfig] = useState({
         isCombo: false, 
@@ -160,28 +119,29 @@ export default function TradingBot() {
         capitalAllocation: 1000,
         tradingMode: 'paper',
         params: {},
-        strategies: [], // This will hold the robustly parsed strategies
+        strategies: [],
         mlMode: 'off',
         mlModel: '',
         mlThreshold: 0.5
     });
 
-    // 3. Auto-Scroll Logs
+    // Auto-Scroll Logs
     useEffect(() => {
         if (logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: "smooth" });
     }, [logs]);
 
-    // 4. Auto-Polling (Every 2s)
+    // 🚀 CRITICAL FIX: Only poll if status is RUNNING
     useEffect(() => {
         let interval;
-        // Always poll if running, or just once to check status on load
-        interval = setInterval(() => {
-            refreshBotData(); 
-        }, 2000);
+        if (botStatus?.status === 'running') {
+            interval = setInterval(() => {
+                refreshBotData(); 
+            }, 2000);
+        }
         return () => clearInterval(interval);
-    }, [refreshBotData]);
+    }, [botStatus?.status, refreshBotData]);
 
-    // --- 5. HANDLER: Golden Strategy Selection ---
+    // --- HANDLER: Golden Strategy Selection ---
     const handleWinnerSelect = (e) => {
         const filename = e.target.value;
         setSelectedWinnerId(filename);
@@ -225,20 +185,18 @@ export default function TradingBot() {
 
             if (detectedMode === "off" && detectedModel) detectedMode = "predictions";
 
-            // D. Strategy Reconstruction (Traffic Cop Logic)
+            // D. Strategy Reconstruction
             let strategiesList = rebuildStrategiesFromParams(config);
 
             strategiesList = strategiesList.map(s => {
-                const prefix = STRATEGY_PREFIXES[s.code]; 
+                const prefix = STRATEGY_PREFIXES[s.code] || s.code.split('_')[0]; 
                 const specificParams = {};
                 
-                // 1. Get from Global/Array
                 const allParams = { ...(config.params || {}), ...(s.params || {}) };
                 if(Array.isArray(config)) {
                     config.forEach(item => Object.assign(allParams, item.params || item));
                 }
 
-                // 2. Filter
                 Object.entries(allParams).forEach(([key, val]) => {
                     if (prefix && key.startsWith(prefix)) {
                          const uiKey = PARAM_MAPPING[key] || key;
@@ -246,10 +204,7 @@ export default function TradingBot() {
                     }
                 });
 
-                return {
-                    code: s.code,
-                    params: specificParams
-                };
+                return { code: s.code, params: specificParams };
             });
 
             // E. Update Form
@@ -261,29 +216,21 @@ export default function TradingBot() {
                     combinationRule: globalParams.hybridMode || 'AND' 
                 },
                 params: globalParams, 
-                strategies: strategiesList, // 🚀 Sending perfectly reconstructed strategies to backend
+                strategies: strategiesList, 
                 symbol: loadedSymbol,    
                 timeframe: loadedTimeframe,
                 mlMode: detectedMode,
                 mlModel: detectedModel,
                 mlThreshold: detectedThreshold
             }));
-            
-            console.log(`✅ Setup Complete: ${loadedSymbol} (${strategiesList.length} strats)`);
         }
     };
 
     const handleStart = async (e) => {
         e.preventDefault();
-        if (!formConfig.symbol || !formConfig.timeframe || !formConfig.capitalAllocation) {
-             alert("Please fill in Symbol, Timeframe, and Capital.");
-             return;
-        }
         if (formConfig.tradingMode === 'live') {
             if (!window.confirm("⚠️ WARNING: Real Money Trading. Proceed?")) return;
         }
-
-        console.log("🚀 Launching Bot Payload:", formConfig);
         try { await startBot(formConfig); } 
         catch (err) { console.error(err); alert(err.message); }
     };
@@ -294,14 +241,12 @@ export default function TradingBot() {
     };
 
     const handleClearLogs = () => { refreshBotData(); };
-
     const isRunning = botStatus?.status === 'running';
 
     return (
         <div className="trading-bot-container">
             <h2 className="header">Live Trading Bot</h2>
             
-            {/* CONTROL PANEL */}
             <div className="bot-card control-panel">
                 <div className="panel-header">
                     <h3 className="card-title">
@@ -364,7 +309,6 @@ export default function TradingBot() {
 
             {error && <div className="error-banner">{error}</div>}
 
-            {/* DASHBOARD */}
             {(botStatus?.isConfigured || isRunning) && (
                 <>
                     <div className="bot-card status-dashboard">
@@ -373,7 +317,6 @@ export default function TradingBot() {
                     
                     <div className="bot-card chart-panel">
                         <h3 className="card-title">Live Chart</h3>
-                        {/* 🚀 Pass Candles and Trades to the Live Chart */}
                         <LiveTradingChart candles={botStatus.candles || []} trades={botStatus.trades || []} />
                     </div>
 
