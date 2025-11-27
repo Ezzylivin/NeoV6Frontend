@@ -734,6 +734,7 @@ export default function Backtests() {
   }
 
   // 🚀 HANDLE WINNER SELECTION
+ // 🚀 HANDLE WINNER SELECTION (Traffic Cop Edition)
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
@@ -743,98 +744,89 @@ export default function Backtests() {
       if (selectedWinner && selectedWinner.config) {
           const config = selectedWinner.config;
           
-          console.log("📄 Raw Config:", config);
-
-          // --- 1. Meta ---
+          // 1. Meta Data
           let loadedSymbol = config.symbol || comboData.symbol || "BTC-USD";
           let loadedTimeframe = config.timeframe || comboData.timeframe || "1h";
           
-          if (!config.symbol || !config.timeframe) {
-              const nameParts = filename.split('_');
-              if (nameParts.length >= 2 && nameParts[1].includes('-')) loadedSymbol = nameParts[1];
-              if (nameParts.length >= 3) {
-                  const validTfs = ['1m','5m','15m','30m','1h','4h','1d','1w'];
-                  if (validTfs.includes(nameParts[2])) loadedTimeframe = nameParts[2];
-              }
+          if (!config.symbol) {
+              const parts = filename.split('_');
+              if (parts.length >= 2 && parts[1].includes('-')) loadedSymbol = parts[1];
+              if (parts.length >= 3 && ['1h','4h','1d'].includes(parts[2])) loadedTimeframe = parts[2];
           }
 
-          // --- 2. Merge global params ---
+          // 2. Global Params (Filters, ML, etc)
+          // We filter OUT strategy-specific params from the global list to keep it clean
           const rawGlobalParams = { ...defaultFilterParams, ...(config.params || {}) };
           const globalParams = normalizeParams(rawGlobalParams);
 
-          // --- 3. ML Settings Extraction ---
+          // 3. ML Settings
           let detectedModel = "";
           let detectedMode = "off";
-          let detectedThreshold = 0.5;
-
-          const extractML = (obj) => {
-              if (!obj) return;
-              if (obj.mlModel || obj.params?.mlModel) detectedModel = obj.mlModel || obj.params?.mlModel;
-              if (obj.mlMode || obj.params?.mlMode) detectedMode = obj.mlMode || obj.params?.mlMode;
-              if (obj.mlThreshold !== undefined) detectedThreshold = obj.mlThreshold;
-              else if (obj.params?.mlThreshold !== undefined) detectedThreshold = obj.params.mlThreshold;
+          
+          // Check deeply for ML model
+          const findML = (obj) => {
+              if (obj.mlModel) detectedModel = obj.mlModel;
+              if (obj.mlMode) detectedMode = obj.mlMode;
           };
+          if (Array.isArray(config)) config.forEach(findML);
+          else findML(config);
+          if (config.params) findML(config.params);
 
-          if (Array.isArray(config)) {
-              config.forEach(item => extractML(item));
-          } else {
-              extractML(config);
-          }
+          if (detectedMode === "off" && detectedModel) detectedMode = "predictions";
 
-          if (detectedMode === "off" && detectedModel !== "") {
-              detectedMode = "predictions"; 
-          }
-
-          console.log("🤖 ML Settings Detected:", { mode: detectedMode, model: detectedModel, thresh: detectedThreshold });
-
-          // --- 4. Strategies ---
+          // 4. Strategy Rebuilding (The Traffic Cop)
           let strategiesList = rebuildStrategiesFromParams(config);
-
+          
           strategiesList = strategiesList.map(s => {
               const def = strategyOptions.find(opt => opt.code === s.code);
               const idToUse = def ? def._id : `base-${s.code}-fallback`;
-              const normalizedStratParams = normalizeParams(s.params || {});
+              
+              // 🚦 TRAFFIC COP: Only give this strategy its OWN parameters
+              // If strategy is "atr_breakout", only give it params starting with "atr_"
+              const specificParams = {};
+              const prefix = s.code.split('_')[0]; // e.g. "atr" or "rsi"
+              
+              // Loop through ALL params in the file
+              const allFileParams = config.params || {};
+              
+              Object.entries(allFileParams).forEach(([key, val]) => {
+                  // 1. Match Prefix (e.g. "atr_period" matches "atr")
+                  if (key.startsWith(prefix)) {
+                       const uiKey = PARAM_MAPPING[key] || key;
+                       specificParams[uiKey] = val;
+                  }
+                  // 2. Handle Explicit Params from New Format
+                  if (s.params && s.params[key]) {
+                       const uiKey = PARAM_MAPPING[key] || key;
+                       specificParams[uiKey] = s.params[key];
+                  }
+              });
 
               return {
                   strategyId: idToUse,
                   code: s.code,
-                  params: normalizedStratParams
+                  params: specificParams
               };
           });
-          
-          if (strategiesList.length === 0) {
-               strategiesList = [
-                  { strategyId: "", code: "", params: {} },
-                  { strategyId: "", code: "", params: {} }
-               ];
-          }
 
-          // --- 5. Set State ---
+          // 5. Set State
           setActiveTab('combo');
-
           setComboData(prev => ({
               ...prev,
               symbol: loadedSymbol,
               timeframe: loadedTimeframe,
-              
-              // 🚀 Apply Extracted ML Settings
               mlMode: detectedMode,
               mlModel: detectedModel,
-              mlThreshold: detectedThreshold,
-              mlHorizon: config.mlHorizon ?? prev.mlHorizon,
-              
+              mlThreshold: config.mlThreshold ?? 0.5,
               strategies: strategiesList,
-              params: globalParams,
+              params: globalParams, 
               comboConfig: { 
                   strategyCodes: strategiesList.map(s => s.code), 
                   combinationRule: globalParams.hybridMode || 'AND',
               }
           }));
-          
-          console.log(`✅ Loaded Winner: ${loadedSymbol} (${strategiesList.length} strategies)`);
       }
   };
-
   // Reset logic
   const handleResetWinner = () => {
       setSelectedWinnerId("");
