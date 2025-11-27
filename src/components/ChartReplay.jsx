@@ -1,5 +1,6 @@
 // File: src/components/ChartReplay.jsx
-// 🚀 UPGRADE: Auto-Zooms to Full History on Load. Fixed 'datetime' parsing.
+// 🚀 UPGRADE: Real-time "Decision" Rendering. 
+// Markers appear exactly when the candle closes.
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { createChart, CrosshairMode } from 'lightweight-charts';
@@ -13,98 +14,57 @@ export const ChartReplay = ({ results, symbol }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(100); 
   const [currentIndex, setCurrentIndex] = useState(0);
-  
-  // --- 1. Robust Time Parsing Helper ---
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // --- 1. PARSE DATA ---
   const parseTime = (t) => {
       if (!t) return null;
-      if (typeof t === 'object' && t.$date) t = t.$date; // Handle MongoDB
+      if (typeof t === 'object' && t.$date) t = t.$date;
       const d = new Date(t);
-      if (isNaN(d.getTime())) return null;
-      return d.getTime() / 1000; // Unix Seconds
+      return isNaN(d.getTime()) ? null : d.getTime() / 1000;
   };
 
-  // --- 2. Parse Data ---
   const candles = useMemo(() => {
     if (!results?.candleData || !Array.isArray(results.candleData)) return [];
-    
-    return results.candleData.map(c => {
-      const time = parseTime(c.timestamp || c.time || c.datetime);
-      if (!time) return null;
-      return {
-        time: time, 
-        open: parseFloat(c.open),
-        high: parseFloat(c.high),
-        low: parseFloat(c.low),
-        close: parseFloat(c.close),
-      };
-    })
-    .filter(c => c !== null)
-    .sort((a, b) => a.time - b.time);
+    return results.candleData.map(c => ({
+      time: parseTime(c.timestamp || c.time || c.datetime), 
+      open: parseFloat(c.open),
+      high: parseFloat(c.high),
+      low: parseFloat(c.low),
+      close: parseFloat(c.close),
+    })).filter(c => c.time).sort((a, b) => a.time - b.time);
   }, [results]);
 
   const trades = useMemo(() => {
     if (!results?.tradeBreakdown || !Array.isArray(results.tradeBreakdown)) return [];
-    
     return results.tradeBreakdown.map(t => {
-      const entryTimestamp = parseTime(t.entryTime || t.time || t.entry_time);
-      let exitTimestamp = parseTime(t.exitTime || t.exit_time);
-      
-      if (!exitTimestamp && t.time && entryTimestamp) {
-          const tTime = parseTime(t.time);
-          if (tTime > entryTimestamp) exitTimestamp = tTime;
-      }
-
-      if (!entryTimestamp) return null;
-
-      return {
-        time: entryTimestamp, 
+      const entryTime = parseTime(t.entryTime || t.time);
+      const exitTime = parseTime(t.exitTime);
+      return entryTime ? {
+        time: entryTime, 
         position: t.position || 'long', 
-        price: parseFloat(t.entryPrice || t.price || t.entry_price || 0),
-        profit: parseFloat(t.profit_usd || t.profit || 0),
-        exitTime: exitTimestamp,
-        exitPrice: parseFloat(t.exitPrice || t.price || t.exit_price || 0)
-      };
-    })
-    .filter(t => t !== null)
-    .sort((a, b) => a.time - b.time);
+        price: parseFloat(t.entryPrice || t.price || 0),
+        profit: parseFloat(t.profit || 0),
+        exitTime: exitTime,
+        exitPrice: parseFloat(t.exitPrice || 0)
+      } : null;
+    }).filter(t => t !== null).sort((a, b) => a.time - b.time);
   }, [results]);
 
-  // 🚀 NEW: Auto-Jump to End on Load
+  // --- 2. AUTO-INIT (Runs Once) ---
   useEffect(() => {
-      if (candles.length > 0) {
-          setCurrentIndex(candles.length - 1);
+      if (candles.length > 0 && !isLoaded) {
+          setCurrentIndex(candles.length - 1); // Start at end
+          setIsLoaded(true);
       }
-  }, [candles]);
+  }, [candles, isLoaded]);
 
-  // --- 3. HUD & Log Logic ---
-  const currentCandle = candles[currentIndex];
-  
-  const tradeLog = useMemo(() => {
-    if (!currentCandle) return [];
-    return trades
-      .filter(t => t.time <= currentCandle.time)
-      .sort((a, b) => b.time - a.time);
-  }, [trades, currentIndex, currentCandle]);
-
-  const openTrade = trades.find(t => t.time <= currentCandle?.time && (!t.exitTime || t.exitTime > currentCandle?.time));
-  
-  let pnl = 0;
-  if (openTrade && currentCandle && openTrade.price > 0) {
-      if (openTrade.position === 'long') {
-          pnl = (currentCandle.close - openTrade.price) * (1000 / openTrade.price); 
-      } else {
-          pnl = (openTrade.price - currentCandle.close) * (1000 / openTrade.price);
-      }
-  }
-
-  // --- 4. Initialize Chart ---
+  // --- 3. INITIALIZE CHART ---
   useEffect(() => {
     if (!chartContainerRef.current || candles.length === 0) return;
 
-    if (chartRef.current) {
-        chartRef.current.remove();
-        chartRef.current = null;
-    }
+    // Cleanup
+    if (chartRef.current) { chartRef.current.remove(); }
 
     chartRef.current = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
@@ -120,14 +80,12 @@ export const ChartReplay = ({ results, symbol }) => {
       borderVisible: false, wickUpColor: '#26a69a', wickDownColor: '#ef5350',
     });
 
-    // Initialize with ALL data first to set scale
+    // Initial Render: Full Data
     candlestickSeriesRef.current.setData(candles);
     chartRef.current.timeScale().fitContent();
 
     const handleResize = () => {
-        if (chartRef.current && chartContainerRef.current) {
-            chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
-        }
+        if (chartRef.current) chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
     };
     window.addEventListener('resize', handleResize);
 
@@ -137,59 +95,57 @@ export const ChartReplay = ({ results, symbol }) => {
     };
   }, [candles]); 
 
-  // --- 5. Update Chart Loop ---
+  // --- 4. THE LOOP: Update Chart & Markers on Index Change ---
   useEffect(() => {
     if (!candlestickSeriesRef.current || candles.length === 0) return;
     
-    const slice = candles.slice(0, currentIndex + 1);
-    candlestickSeriesRef.current.setData(slice);
-    
-    updateMarkers(currentIndex);
-    
-    // Only auto-scroll if playing, otherwise respect user zoom
-    if (isPlaying && currentIndex > 0) {
-       // chartRef.current.timeScale().scrollToPosition(0, false);
-    }
-  }, [currentIndex, isPlaying]); 
+    const currentCandle = candles[currentIndex];
+    if (!currentCandle) return;
 
-  const updateMarkers = (index) => {
-    const currentTime = candles[index]?.time;
-    if (!currentTime) return;
+    // A. Update Price (The Worm)
+    // Use setData for replay effect (hides future), or update() for live append.
+    // For replay, we slice the array.
+    const visibleCandles = candles.slice(0, currentIndex + 1);
+    candlestickSeriesRef.current.setData(visibleCandles);
 
-    const markers = [];
+    // B. Update Markers (The Decisions)
+    const activeMarkers = [];
     trades.forEach(t => {
-      if (t.time <= currentTime) {
-         // Show buy if within time
-         if (Math.abs(t.time - currentTime) < 360000) { // Show marker if near current candle (visual declutter)
-            markers.push({
-              time: t.time,
-              position: 'belowBar',
-              color: t.position === 'long' ? '#2196F3' : '#E91E63',
-              shape: t.position === 'long' ? 'arrowUp' : 'arrowDown',
-              text: `BUY`
+        // 1. ENTRY MARKER (If entry time is in the past/now)
+        if (t.time <= currentCandle.time) {
+            activeMarkers.push({
+                time: t.time,
+                position: 'belowBar',
+                color: t.position === 'long' ? '#2196F3' : '#E91E63',
+                shape: t.position === 'long' ? 'arrowUp' : 'arrowDown',
+                text: `BUY @ ${t.price.toFixed(2)}`
             });
-         }
-         // Show exit
-         if (t.exitTime && t.exitTime <= currentTime) {
-             if (Math.abs(t.exitTime - currentTime) < 360000) {
-                markers.push({
-                  time: t.exitTime,
-                  position: 'aboveBar',
-                  color: t.profit > 0 ? '#4CAF50' : '#F44336',
-                  shape: 'circle',
-                  text: `$${t.profit?.toFixed(0)}`
-                });
-             }
-         }
-      }
+        }
+        // 2. EXIT MARKER (Only if exit time is reached)
+        if (t.exitTime && t.exitTime <= currentCandle.time) {
+            activeMarkers.push({
+                time: t.exitTime,
+                position: 'aboveBar',
+                color: t.profit > 0 ? '#4CAF50' : '#F44336',
+                shape: 'circle',
+                text: `EXIT ${t.profit > 0 ? '+' : ''}${t.profit.toFixed(2)}`
+            });
+        }
     });
-    
-    // Always sort markers
-    markers.sort((a, b) => a.time - b.time);
-    candlestickSeriesRef.current.setMarkers(markers);
-  };
 
-  // --- 6. Playback Loop ---
+    // Lightweight Charts requires markers sorted by time
+    activeMarkers.sort((a, b) => a.time - b.time);
+    candlestickSeriesRef.current.setMarkers(activeMarkers);
+
+    // Auto-Scroll if playing
+    if (isPlaying && currentIndex > 0 && currentIndex < candles.length - 1) {
+        // Keeping the latest candle visible
+        // chartRef.current.timeScale().scrollToPosition(0, false); 
+    }
+
+  }, [currentIndex, candles, trades, isPlaying]);
+
+  // --- 5. Playback Interval ---
   useEffect(() => {
     let interval = null;
     if (isPlaying) {
@@ -206,95 +162,64 @@ export const ChartReplay = ({ results, symbol }) => {
     return () => clearInterval(interval);
   }, [isPlaying, playbackSpeed, candles.length]);
 
+  // Controls
   const handlePlay = () => { if (currentIndex >= candles.length - 1) setCurrentIndex(0); setIsPlaying(true); };
   const handlePause = () => setIsPlaying(false);
   const handleReset = () => { setIsPlaying(false); setCurrentIndex(0); };
-  const handleForward = () => setCurrentIndex(prev => Math.min(prev + 1, candles.length - 1));
-  const handleBackward = () => setCurrentIndex(prev => Math.max(prev - 1, 0));
+  const handleStepBack = () => setCurrentIndex(prev => Math.max(0, prev - 1));
+  const handleStepFwd = () => setCurrentIndex(prev => Math.min(candles.length - 1, prev + 1));
 
-  if (!results || !candles.length) return <div className="chart-loading">Waiting for candle data...</div>;
+  if (!results || !candles.length) return <div className="chart-loading">Loading Chart Data...</div>;
 
-  const formatTime = (t) => new Date(t * 1000).toLocaleString();
-  const getPnlColor = (pnl) => (pnl > 0 ? '#00ff88' : pnl < 0 ? '#ff3b30' : '#9ca3af');
-  const positionText = openTrade && openTrade.position ? openTrade.position.toUpperCase() : 'FLAT';
+  // HUD Data
+  const currentCandleData = candles[currentIndex] || {};
+  const openTrade = trades.find(t => t.time <= currentCandleData.time && (!t.exitTime || t.exitTime > currentCandleData.time));
+  
+  let pnl = 0;
+  if (openTrade && currentCandleData && openTrade.price > 0) {
+      pnl = (currentCandleData.close - openTrade.price) * (1000 / openTrade.price); // Example $1000 pos size logic
+  }
 
   return (
     <div className="chart-replay-container">
       <div className="chart-header-row">
-        <h3>Market Replay: {symbol}</h3>
+        <h3>Replay: {symbol}</h3>
         
         <div className="replay-hud">
              <div className="hud-item">
-                <span className="hud-label">Pos</span>
-                <span className="hud-value" style={{color: openTrade ? (openTrade.position === 'long' ? '#22c55e' : '#ef4444') : '#9ca3af'}}>
-                    {positionText}
+                <span className="hud-label">Date</span>
+                <span className="hud-value" style={{fontSize:'0.9rem'}}>
+                    {currentCandleData.time ? new Date(currentCandleData.time * 1000).toLocaleDateString() : '-'}
                 </span>
              </div>
              <div className="hud-item">
-                <span className="hud-label">Open PnL</span>
-                <span className="hud-value" style={{ color: getPnlColor(pnl) }}>
-                    ${pnl.toFixed(2)}
-                </span>
+                <span className="hud-label">Price</span>
+                <span className="hud-value">${currentCandleData.close?.toFixed(2) || '-'}</span>
              </div>
              <div className="hud-item">
-                <span className="hud-label">Entry</span>
-                <span className="hud-value" style={{ color: '#fff' }}>
-                    {openTrade ? `$${openTrade.price.toFixed(2)}` : '-'}
+                <span className="hud-label">Active PnL</span>
+                <span className="hud-value" style={{ color: pnl >= 0 ? '#4ade80' : '#ef4444' }}>
+                    {openTrade ? `$${pnl.toFixed(2)}` : '-'}
                 </span>
              </div>
         </div>
 
         <div className="playback-controls">
-          <button onClick={handleBackward}>Step Back</button>
-          {!isPlaying ? <button onClick={handlePlay} className="play-btn">▶ Play</button> : <button onClick={handlePause} className="pause-btn">⏸ Pause</button>}
-          <button onClick={handleForward}>Step Fwd</button>
+          <button onClick={handleStepBack}>Prev</button>
+          {!isPlaying ? 
+            <button onClick={handlePlay} className="play-btn">▶ Play</button> : 
+            <button onClick={handlePause} className="pause-btn">⏸ Pause</button>
+          }
+          <button onClick={handleStepFwd}>Next</button>
           <button onClick={handleReset}>Reset</button>
-          <label style={{marginLeft: '15px'}}>
-              Speed
-              <input type="range" min="10" max="500" step="10" value={510 - playbackSpeed} onChange={(e) => setPlaybackSpeed(510 - Number(e.target.value))} />
-          </label>
-        </div>
-      </div>
-
-      {/* TRADE LOG */}
-      <div className="trade-log-container">
-        <div className="trade-log-header">
-            <h4>Live Trade Log</h4>
-            <span className="log-count">{tradeLog.length} Trades</span>
-        </div>
-        <div className="trade-log-table-wrapper">
-            <table className="trade-log-table">
-                <thead>
-                    <tr>
-                        <th>Type</th>
-                        <th>Entry Date</th>
-                        <th>Entry Price</th>
-                        <th>Exit Date</th>
-                        <th>Exit Price</th>
-                        <th>PnL</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {tradeLog.length === 0 ? (
-                        <tr><td colSpan="6" style={{textAlign:'center', padding:'15px', color:'#666'}}>No trades yet. Press Play!</td></tr>
-                    ) : (
-                        tradeLog.map((trade, i) => (
-                            <tr key={i} className="trade-row">
-                                <td style={{ color: trade.position === 'long' ? '#22c55e' : '#ef4444', fontWeight: 'bold' }}>
-                                    {(trade.position || 'UNK').toUpperCase()} 
-                                </td>
-                                <td>{formatTime(trade.time)}</td>
-                                <td style={{ color: '#60a5fa', fontWeight: 'bold' }}>${trade.price.toFixed(2)}</td>
-                                <td>{trade.exitTime ? formatTime(trade.exitTime) : <span style={{color:'#eab308', fontWeight:'bold'}}>OPEN</span>}</td>
-                                <td>{trade.exitPrice ? `$${trade.exitPrice.toFixed(2)}` : '-'}</td>
-                                <td style={{ color: trade.profit > 0 ? '#22c55e' : trade.profit < 0 ? '#ef4444' : '#ddd', fontWeight: 'bold' }}>
-                                    {trade.profit !== undefined ? `$${trade.profit.toFixed(2)}` : '-'}
-                                </td>
-                            </tr>
-                        ))
-                    )}
-                </tbody>
-            </table>
+          
+          <div style={{display:'flex', alignItems:'center', gap:'5px', marginLeft:'10px'}}>
+              <span style={{fontSize:'0.8rem', color:'#888'}}>Speed:</span>
+              <input type="range" min="10" max="500" step="10" 
+                 value={510 - playbackSpeed} 
+                 onChange={(e) => setPlaybackSpeed(510 - Number(e.target.value))} 
+              />
+          </div>
         </div>
       </div>
       
