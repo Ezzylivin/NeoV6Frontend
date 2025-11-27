@@ -1,7 +1,7 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: Added "Clear Logs" button + Local Filtering logic.
+// 🚀 UPGRADE: Changed Polling Interval to 1 Minute.
 
-import React, { useState, useEffect, useRef, useContext, useMemo } from "react";
+import React, { useState, useEffect, useRef, useContext } from "react";
 import { useBot } from '../hooks/useBot.js';
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -107,9 +107,6 @@ export default function TradingBot() {
     const winners = (botWinners && botWinners.length > 0) ? botWinners : (backtestState?.winners || []);
     const logsEndRef = useRef(null);
 
-    // 🚀 NEW: Track when logs were cleared to filter old ones
-    const [logsClearedAt, setLogsClearedAt] = useState(0);
-
     const [selectedWinnerId, setSelectedWinnerId] = useState("");
     const [formConfig, setFormConfig] = useState({
         isCombo: false, 
@@ -131,13 +128,13 @@ export default function TradingBot() {
         if (logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: "smooth" });
     }, [logs]);
 
-    // Auto-Polling
+    // 🚀 UPGRADE: AUTO-POLLING (Every 60s / 1 Minute)
     useEffect(() => {
         let interval;
         if (botStatus?.status === 'running') {
             interval = setInterval(() => {
                 refreshBotData(); 
-            }, 2000);
+            }, 60000); // <--- CHANGED TO 60,000ms (1 Minute)
         }
         return () => clearInterval(interval);
     }, [botStatus?.status, refreshBotData]);
@@ -151,7 +148,9 @@ export default function TradingBot() {
         const selectedWinner = winners.find(w => w.id === filename);
         if (selectedWinner && selectedWinner.config) {
             const config = selectedWinner.config;
-            
+            console.log("🏆 Loading Golden Strategy:", config);
+
+            // A. Meta Data
             let loadedSymbol = config.symbol || "BTC-USD";
             let loadedTimeframe = config.timeframe || "1h";
             
@@ -161,14 +160,14 @@ export default function TradingBot() {
                 if (parts.length >= 3 && ['1h','4h','1d'].includes(parts[2])) loadedTimeframe = parts[2];
             }
 
-            // Global Params
+            // B. Global Params
             let rawGlobalParams = { ...config.params };
             if (Array.isArray(config) && config.length > 0) {
                  rawGlobalParams = { ...rawGlobalParams, ...(config[0].params || config[0]) };
             }
             const globalParams = normalizeParams(rawGlobalParams);
 
-            // ML Detection
+            // C. ML Detection
             let detectedModel = config.mlModel || config.params?.mlModel || "";
             let detectedMode = config.mlMode || config.params?.mlMode || "off";
             let detectedThreshold = config.mlThreshold ?? config.params?.mlThreshold ?? 0.5;
@@ -184,7 +183,7 @@ export default function TradingBot() {
 
             if (detectedMode === "off" && detectedModel) detectedMode = "predictions";
 
-            // Strategy Reconstruction
+            // D. Strategy Reconstruction
             let strategiesList = rebuildStrategiesFromParams(config);
 
             strategiesList = strategiesList.map(s => {
@@ -206,6 +205,7 @@ export default function TradingBot() {
                 return { code: s.code, params: specificParams };
             });
 
+            // E. Update Form
             setFormConfig(prev => ({
                 ...prev,
                 isCombo: true,
@@ -229,8 +229,6 @@ export default function TradingBot() {
         if (formConfig.tradingMode === 'live') {
             if (!window.confirm("⚠️ WARNING: Real Money Trading. Proceed?")) return;
         }
-        // 🚀 Reset cleared logs when starting new bot
-        setLogsClearedAt(0); 
         try { await startBot(formConfig); } 
         catch (err) { console.error(err); alert(err.message); }
     };
@@ -240,13 +238,7 @@ export default function TradingBot() {
         catch (err) { console.error(err); }
     };
 
-    // 🚀 Log Controls
-    const handleRefreshLogs = () => { refreshBotData(); };
-    const handleClearLogs = () => { setLogsClearedAt(Date.now()); };
-
-    // 🚀 Filter Logs Visuals
-    const visibleLogs = logs.filter(log => new Date(log.timestamp).getTime() > logsClearedAt);
-
+    const handleClearLogs = () => { refreshBotData(); };
     const isRunning = botStatus?.status === 'running';
 
     return (
@@ -329,18 +321,12 @@ export default function TradingBot() {
                     <div className="bot-card logs-panel">
                         <div className="card-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                             <h3 className="card-title" style={{ margin: 0 }}>Logs</h3>
-                            <div style={{display:'flex', gap:'10px'}}>
-                                <button onClick={handleRefreshLogs} className="clear-logs-btn" style={{ background: 'transparent', border: '1px solid #475569', color: '#94a3b8', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>
-                                    Refresh
-                                </button>
-                                {/* 🚀 NEW: Clear Button */}
-                                <button onClick={handleClearLogs} className="clear-logs-btn" style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>
-                                    Clear
-                                </button>
-                            </div>
+                            <button onClick={handleClearLogs} className="clear-logs-btn" style={{ background: 'transparent', border: '1px solid #475569', color: '#94a3b8', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>
+                                Refresh Logs
+                            </button>
                         </div>
                         <div className="logs-container">
-                            {visibleLogs.length > 0 ? visibleLogs.map((log, i) => (
+                            {logs.length > 0 ? logs.map((log, i) => (
                                 <div key={i} className={`log-entry log-${log.type}`}>
                                     <span className="log-timestamp">{new Date(log.timestamp).toLocaleTimeString()}</span>
                                     <span className="log-message">{log.message}</span>
