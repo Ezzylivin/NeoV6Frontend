@@ -735,35 +735,41 @@ export default function Backtests() {
 
   // 🚀 HANDLE WINNER SELECTION
  // 🚀 HANDLE WINNER SELECTION (Traffic Cop Edition)
+ // 🚀 HANDLE WINNER SELECTION (Traffic Cop Edition + LOGS)
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
+      
       if (!filename) return;
 
       const selectedWinner = winners.find(w => w.id === filename);
+      
       if (selectedWinner && selectedWinner.config) {
           const config = selectedWinner.config;
-          
-          // 1. Meta Data
+          console.log("🔍 [1] Raw Config from File:", config);
+
+          // --- 1. Meta Data ---
           let loadedSymbol = config.symbol || comboData.symbol || "BTC-USD";
           let loadedTimeframe = config.timeframe || comboData.timeframe || "1h";
           
+          // Fallback parsing from filename
           if (!config.symbol) {
               const parts = filename.split('_');
               if (parts.length >= 2 && parts[1].includes('-')) loadedSymbol = parts[1];
               if (parts.length >= 3 && ['1h','4h','1d'].includes(parts[2])) loadedTimeframe = parts[2];
           }
+          console.log(`🔍 [2] Meta Data: ${loadedSymbol} on ${loadedTimeframe}`);
 
-          // 2. Global Params (Filters, ML, etc)
-          // We filter OUT strategy-specific params from the global list to keep it clean
+          // --- 2. Global Params ---
+          // We intentionally filter out strategy-specific keys to keep the global "Advanced Filters" box clean
           const rawGlobalParams = { ...defaultFilterParams, ...(config.params || {}) };
           const globalParams = normalizeParams(rawGlobalParams);
+          console.log("🔍 [3] Global Params Normalized:", globalParams);
 
-          // 3. ML Settings
+          // --- 3. ML Settings ---
           let detectedModel = "";
           let detectedMode = "off";
           
-          // Check deeply for ML model
           const findML = (obj) => {
               if (obj.mlModel) detectedModel = obj.mlModel;
               if (obj.mlMode) detectedMode = obj.mlMode;
@@ -772,35 +778,42 @@ export default function Backtests() {
           else findML(config);
           if (config.params) findML(config.params);
 
-          if (detectedMode === "off" && detectedModel) detectedMode = "predictions";
+          if (detectedMode === "off" && detectedModel) detectedMode = "predictions"; // Smart default
+          const detectedThreshold = config.mlThreshold ?? 0.5;
 
-          // 4. Strategy Rebuilding (The Traffic Cop)
+          console.log("🔍 [4] ML Settings:", { mode: detectedMode, model: detectedModel, thresh: detectedThreshold });
+
+          // --- 4. Strategy Reconstruction (The Traffic Cop) ---
           let strategiesList = rebuildStrategiesFromParams(config);
+          console.log("🔍 [5] Raw Rebuilt Strategies:", strategiesList);
           
-          strategiesList = strategiesList.map(s => {
+          strategiesList = strategiesList.map((s, index) => {
               const def = strategyOptions.find(opt => opt.code === s.code);
               const idToUse = def ? def._id : `base-${s.code}-fallback`;
               
-              // 🚦 TRAFFIC COP: Only give this strategy its OWN parameters
-              // If strategy is "atr_breakout", only give it params starting with "atr_"
+              // 🚦 TRAFFIC COP LOGIC
+              // Only assign parameters that belong to THIS strategy
               const specificParams = {};
-              const prefix = s.code.split('_')[0]; // e.g. "atr" or "rsi"
+              const prefix = s.code.split('_')[0]; // e.g. "atr" from "atr_breakout" or "rsi" from "rsi_divergence"
               
-              // Loop through ALL params in the file
+              // Source A: The global params bag (legacy files)
               const allFileParams = config.params || {};
-              
               Object.entries(allFileParams).forEach(([key, val]) => {
-                  // 1. Match Prefix (e.g. "atr_period" matches "atr")
                   if (key.startsWith(prefix)) {
                        const uiKey = PARAM_MAPPING[key] || key;
                        specificParams[uiKey] = val;
                   }
-                  // 2. Handle Explicit Params from New Format
-                  if (s.params && s.params[key]) {
-                       const uiKey = PARAM_MAPPING[key] || key;
-                       specificParams[uiKey] = s.params[key];
-                  }
               });
+
+              // Source B: Explicit params (new files)
+              if (s.params) {
+                  Object.entries(s.params).forEach(([key, val]) => {
+                       const uiKey = PARAM_MAPPING[key] || key;
+                       specificParams[uiKey] = val;
+                  });
+              }
+
+              console.log(`   🔹 Strategy #${index+1} (${s.code}): Assigned Params ->`, specificParams);
 
               return {
                   strategyId: idToUse,
@@ -809,24 +822,30 @@ export default function Backtests() {
               };
           });
 
-          // 5. Set State
+          // --- 5. Update State ---
           setActiveTab('combo');
-          setComboData(prev => ({
-              ...prev,
+          
+          const newState = {
+              ...initialComboData, // Reset to clean state first
               symbol: loadedSymbol,
               timeframe: loadedTimeframe,
               mlMode: detectedMode,
               mlModel: detectedModel,
-              mlThreshold: config.mlThreshold ?? 0.5,
+              mlThreshold: detectedThreshold,
+              mlHorizon: config.mlHorizon ?? 1,
               strategies: strategiesList,
               params: globalParams, 
               comboConfig: { 
                   strategyCodes: strategiesList.map(s => s.code), 
                   combinationRule: globalParams.hybridMode || 'AND',
               }
-          }));
+          };
+
+          console.log("🔍 [6] Final State Update Payload:", newState);
+          setComboData(newState);
       }
   };
+  
   // Reset logic
   const handleResetWinner = () => {
       setSelectedWinnerId("");
