@@ -523,6 +523,7 @@ export default function Backtests() {
   }, [modelOptions]); 
 
   // 🚀 HANDLE WINNER SELECTION (The Master Logic)
+ // 🚀 HANDLE WINNER SELECTION (Fixed ML Auto-Detection)
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
@@ -531,8 +532,7 @@ export default function Backtests() {
       const selectedWinner = winners.find(w => w.id === filename);
       if (selectedWinner && selectedWinner.config) {
           const config = selectedWinner.config;
-          console.log("📄 Raw Config:", config);
-
+          
           // 1. Meta Data
           let loadedSymbol = config.symbol || comboData.symbol || "BTC-USD";
           let loadedTimeframe = config.timeframe || comboData.timeframe || "1h";
@@ -543,52 +543,63 @@ export default function Backtests() {
               if (parts.length >= 3 && ['1h','4h','1d'].includes(parts[2])) loadedTimeframe = parts[2];
           }
 
-          // 2. Global Params (Deep Normalization)
+          // 2. Global Params
           let rawGlobalParams = { ...defaultFilterParams };
           if (Array.isArray(config) && config.length > 0) {
-             // Extract globals from first strategy object if array
              rawGlobalParams = { ...rawGlobalParams, ...(config[0].params || config[0]) };
           } else {
              rawGlobalParams = { ...rawGlobalParams, ...(config.params || {}) };
           }
           const globalParams = normalizeParams(rawGlobalParams);
 
-          // 3. ML Settings
-          let detectedModel = config.mlModel || config.params?.mlModel || "";
-          let detectedMode = config.mlMode || config.params?.mlMode || "off";
-          let detectedThreshold = config.mlThreshold ?? config.params?.mlThreshold ?? 0.5;
+          // 3. ML Settings (The Fix)
+          let detectedModel = "";
+          let detectedMode = "off";
+          let detectedThreshold = 0.5;
 
-          const findML = (obj) => {
+          // Helper to look anywhere for ML keys
+          const extractML = (obj) => {
+              if (!obj) return;
+              // Check root
               if (obj.mlModel) detectedModel = obj.mlModel;
               if (obj.mlMode) detectedMode = obj.mlMode;
               if (obj.mlThreshold) detectedThreshold = obj.mlThreshold;
+              
+              // Check params
+              if (obj.params) {
+                  if (obj.params.mlModel) detectedModel = obj.params.mlModel;
+                  if (obj.params.mlMode) detectedMode = obj.params.mlMode;
+                  if (obj.params.mlThreshold) detectedThreshold = obj.params.mlThreshold;
+              }
           };
-          if (Array.isArray(config)) config.forEach(findML);
-          else findML(config);
-          if (config.params) findML(config.params);
 
-          if (detectedMode === "off" && detectedModel) detectedMode = "predictions";
+          if (Array.isArray(config)) {
+              config.forEach(item => extractML(item));
+          } else {
+              extractML(config);
+          }
 
-          // 4. Strategy Reconstruction (Splitter + Traffic Cop)
+          // 🧠 SMART DEFAULT: If we found a model but mode is off, force it to predictions
+          if (detectedMode === "off" && detectedModel !== "") {
+              console.log("🧠 Smart Default: Found model, forcing ML Mode to 'predictions'");
+              detectedMode = "predictions"; 
+          }
+
+          // 4. Strategies (Traffic Cop)
           let strategiesList = rebuildStrategiesFromParams(config);
 
           strategiesList = strategiesList.map(s => {
-              // Deterministic ID Logic
               let def = strategyOptions.find(opt => opt.code === s.code);
               if (!def) {
-                   const codes = Object.values(STRATEGY_TYPE_TO_CODE_MAP);
-                   const idx = codes.indexOf(s.code);
-                   if (idx !== -1) {
-                       def = { _id: `base-${s.code}-${idx}` }; 
-                   }
+                   def = strategyOptions.find(opt => opt._id.startsWith(`base-${s.code}`));
               }
               const idToUse = def ? def._id : "";
 
-              // 🚦 TRAFFIC COP: Filter params for this card only
               const specificParams = {};
               const prefix = STRATEGY_PREFIXES[s.code]; 
               const allParams = { ...(config.params || {}), ...(s.params || {}) };
               
+              // Also check array sources
               if(Array.isArray(config)) {
                   config.forEach(item => Object.assign(allParams, item.params || item));
               }
@@ -620,7 +631,7 @@ export default function Backtests() {
               ...prev,
               symbol: loadedSymbol,
               timeframe: loadedTimeframe,
-              mlMode: detectedMode,
+              mlMode: detectedMode, // This will now be correct
               mlModel: detectedModel,
               mlThreshold: detectedThreshold,
               mlHorizon: config.mlHorizon ?? prev.mlHorizon,
@@ -631,8 +642,6 @@ export default function Backtests() {
                   combinationRule: globalParams.hybridMode || 'AND',
               }
           }));
-          
-          console.log(`✅ Loaded Winner: ${loadedSymbol} (${strategiesList.length} strategies)`);
       }
   };
 
