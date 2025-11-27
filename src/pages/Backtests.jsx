@@ -1,8 +1,9 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Final Integration.
-// - Maps ALL Global Filters (min_atr_pct -> minAtrPct).
-// - Populates Advanced Filters fieldset.
-// - Populates Strategy Cards.
+// 🚀 UPGRADE: THE MASTER VERSION.
+// 1. Fixed "Single Box" bug (Splits Trend/Range correctly).
+// 2. Fixed "Empty Dropdown" bug (Base Strategy Injection).
+// 3. Fixed "Missing Params" bug (Deep Normalization).
+// 4. Fixed "Crash" bugs (Safety checks).
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -45,16 +46,13 @@ const STRATEGY_PREFIXES = {
     'sma_crossover': 'sma'
 };
 
-// 🚀 PARAMETER MAPPING: Python Short Key -> React UI Key
 const PARAM_MAPPING = {
-    // Global / Advanced Filters
     'min_adx': 'minAdxLevel',
     'tsl_mult': 'tslAtrMult',
     'regime_threshold': 'regime_threshold',
     'min_atr_pct': 'minAtrPct',
     'trend_filter_period': 'trendFilterPeriod',
     
-    // Strategy Specific Params
     'atr_p': 'atr_period',
     'atr_m': 'atr_multiplier',
     'rsi_len': 'rsi_length',
@@ -152,26 +150,51 @@ const initialComboData = {
   mlHorizon: 1
 };
 
-// --- 4. STRATEGY PARSING LOGIC ---
+// --- 4. STRATEGY PARSING LOGIC (THE SPLITTER) ---
 function rebuildStrategiesFromParams(raw) {
+  // 1. Standard List
   if (Array.isArray(raw.strategies) && raw.strategies.length > 0) return raw.strategies; 
   
+  // 2. Legacy String
   if (typeof raw.strategies === "string") {
       return raw.strategies.split(",").map(code => ({
           code: code.trim(),
-          params: {} 
+          params: {} // Will be filled by traffic cop
       }));
   }
 
+  // 3. Direct Array (Raw Config - THIS IS THE ONE YOU USE)
   if (Array.isArray(raw)) {
-      return raw.map(s => ({
-          code: s.code || detectCodeFromParams(s.params || s) || "unknown",
-          params: s.params || {}
-      }));
+      const expanded = [];
+      raw.forEach(item => {
+          const p = item.params || item; // flattened params
+          
+          // 🚀 CRITICAL FIX: If object has BOTH trend and range, split them!
+          if (p.trend_strategy || p.range_strategy) {
+              if (p.trend_strategy) {
+                  expanded.push({ code: p.trend_strategy, params: p });
+              }
+              if (p.range_strategy) {
+                  expanded.push({ code: p.range_strategy, params: p });
+              }
+          } else {
+              // Standard single strategy in array
+              const code = item.code || detectCodeFromParams(p) || "unknown";
+              expanded.push({ code: code, params: p });
+          }
+      });
+      return expanded;
   }
 
+  // 4. Deep Scan (Object Root)
   const detectedCodes = new Set();
   const params = raw.params || raw; 
+  
+  // Explicit keys
+  if (params.trend_strategy) detectedCodes.add(params.trend_strategy);
+  if (params.range_strategy) detectedCodes.add(params.range_strategy);
+
+  // Prefix scan
   Object.keys(params).forEach(key => {
       for (const [prefix, code] of Object.entries(STRATEGY_PREFIXES)) {
           if (key.startsWith(prefix)) {
@@ -238,6 +261,7 @@ const MetricsDisplay = ({ metrics }) => {
 };
 
 const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isCombo = false }) => {
+    // 🚀 CRASH PROTECTION
     const symbolOptions = options?.symbolOptions || [];
     const timeframeOptions = options?.timeframeOptions || [];
     const allModelOptions = options?.modelOptions || []; 
@@ -420,9 +444,10 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
           </select>
         </label>
         
+        {/* 🚀 VISUAL: Display Only RELEVANT Params */}
         {config.params && Object.keys(config.params).length > 0 && (
             <div className="card-note" style={{marginTop: '10px'}}>
-                <small><strong>Parameters:</strong></small>
+                <small><strong>Optimized Params:</strong></small>
                 <div style={{fontSize: '0.8em', color: '#aaa', marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '8px'}}>
                     {Object.entries(config.params).map(([k, v]) => {
                          if (v === null || v === undefined) return null;
@@ -461,7 +486,7 @@ export default function Backtests() {
   const [activeTab, setActiveTab] = useState('single');
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
 
-  // 🚀 CRASH PROTECTION: Safe Memos
+  // 🚀 SAFE MEMOS & BASE INJECTION
   const strategyOptions = useMemo(() => {
     const dbStrats = options?.strategies || [];
     const baseStrats = Object.entries(STRATEGY_TYPE_TO_CODE_MAP).map(([name, code], idx) => ({
@@ -503,7 +528,7 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
 
-  // 🚀 HANDLE WINNER SELECTION (Traffic Cop + Params Fix)
+  // 🚀 HANDLE WINNER SELECTION (MASTER LOGIC)
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
@@ -524,13 +549,16 @@ export default function Backtests() {
               if (parts.length >= 3 && ['1h','4h','1d'].includes(parts[2])) loadedTimeframe = parts[2];
           }
 
-          // 2. Global Params
+          // 2. Global Params (Deep Normalization)
           const rawGlobalParams = { ...defaultFilterParams, ...(config.params || {}) };
           const globalParams = normalizeParams(rawGlobalParams);
 
           // 3. ML Settings
-          let detectedModel = "";
-          let detectedMode = "off";
+          let detectedModel = config.mlModel || config.params?.mlModel || "";
+          let detectedMode = config.mlMode || config.params?.mlMode || "off";
+          const detectedThreshold = config.mlThreshold ?? config.params?.mlThreshold ?? 0.5;
+
+          // Deep search for ML in array
           const findML = (obj) => {
               if (obj.mlModel) detectedModel = obj.mlModel;
               if (obj.mlMode) detectedMode = obj.mlMode;
@@ -540,9 +568,8 @@ export default function Backtests() {
           if (config.params) findML(config.params);
 
           if (detectedMode === "off" && detectedModel) detectedMode = "predictions";
-          const detectedThreshold = config.mlThreshold ?? 0.5;
 
-          // 4. Strategy Reconstruction
+          // 4. Strategy Reconstruction (Splitter + Traffic Cop)
           let strategiesList = rebuildStrategiesFromParams(config);
 
           strategiesList = strategiesList.map(s => {
@@ -552,7 +579,7 @@ export default function Backtests() {
               }
               const idToUse = def ? def._id : "";
 
-              // 🚦 TRAFFIC COP: Filter params for this card only
+              // 🚦 TRAFFIC COP: Filter Params
               const specificParams = {};
               const prefix = STRATEGY_PREFIXES[s.code]; 
               const allParams = { ...(config.params || {}), ...(s.params || {}) };
@@ -589,7 +616,7 @@ export default function Backtests() {
               mlThreshold: detectedThreshold,
               mlHorizon: config.mlHorizon ?? prev.mlHorizon,
               strategies: strategiesList,
-              params: globalParams, // This populates the global fields (Adv Filters)
+              params: globalParams, 
               comboConfig: { 
                   strategyCodes: strategiesList.map(s => s.code), 
                   combinationRule: globalParams.hybridMode || 'AND',
@@ -598,13 +625,12 @@ export default function Backtests() {
       }
   };
 
-  // Reset logic
+  // Handlers
   const handleResetWinner = () => {
       setSelectedWinnerId("");
       setComboData(initialComboData);
   };
 
-  // Form Handlers
   const handleFormChange = (e) => {
     const { name, value, type } = e.target;
     let val = (type === 'checkbox' ? e.target.checked : value);
