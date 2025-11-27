@@ -1,5 +1,5 @@
 // File: src/components/ChartReplay.jsx
-// 🚀 UPGRADE: Fixed Time Parsing & Added Safety Guards
+// 🚀 UPGRADE: Fixed 'datetime' key mismatch. Now loads Python candles correctly.
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { createChart, CrosshairMode } from 'lightweight-charts';
@@ -32,7 +32,9 @@ export const ChartReplay = ({ results, symbol }) => {
     if (!results?.candleData || !Array.isArray(results.candleData)) return [];
     
     return results.candleData.map(c => {
-      const time = parseTime(c.timestamp || c.time);
+      // 🚀 FIX: Added 'c.datetime' to the check list
+      const time = parseTime(c.timestamp || c.time || c.datetime);
+      
       if (!time) return null;
       return {
         time: time, 
@@ -50,8 +52,9 @@ export const ChartReplay = ({ results, symbol }) => {
     if (!results?.tradeBreakdown || !Array.isArray(results.tradeBreakdown)) return [];
     
     return results.tradeBreakdown.map(t => {
-      const entryTimestamp = parseTime(t.entryTime || t.time);
-      let exitTimestamp = parseTime(t.exitTime);
+      // Check all possible time keys
+      const entryTimestamp = parseTime(t.entryTime || t.time || t.entry_time);
+      let exitTimestamp = parseTime(t.exitTime || t.exit_time);
       
       // Fallback logic for exit time
       if (!exitTimestamp && t.time && entryTimestamp) {
@@ -64,10 +67,10 @@ export const ChartReplay = ({ results, symbol }) => {
       return {
         time: entryTimestamp, 
         position: t.position || 'long', 
-        price: parseFloat(t.entryPrice || t.price || 0),
+        price: parseFloat(t.entryPrice || t.price || t.entry_price || 0),
         profit: parseFloat(t.profit_usd || t.profit || 0),
         exitTime: exitTimestamp,
-        exitPrice: parseFloat(t.exitPrice || t.price || 0)
+        exitPrice: parseFloat(t.exitPrice || t.price || t.exit_price || 0)
       };
     })
     .filter(t => t !== null)
@@ -119,11 +122,15 @@ export const ChartReplay = ({ results, symbol }) => {
       borderVisible: false, wickUpColor: '#26a69a', wickDownColor: '#ef5350',
     });
 
-    const initialData = candles.slice(0, 1); // Start with just 1 candle
-    candlestickSeriesRef.current.setData(initialData);
+    // Load ALL data immediately so the chart isn't empty
+    candlestickSeriesRef.current.setData(candles);
     
-    // Auto-scale
+    // Set view to the beginning or end based on pref
     chartRef.current.timeScale().fitContent();
+
+    // --- UPDATE: Override data to match "Replay" index ---
+    const slice = candles.slice(0, currentIndex + 1);
+    candlestickSeriesRef.current.setData(slice);
 
     // Handle Resize
     const handleResize = () => {
@@ -143,19 +150,16 @@ export const ChartReplay = ({ results, symbol }) => {
   useEffect(() => {
     if (!candlestickSeriesRef.current || candles.length === 0) return;
     
-    // Efficient update: Set data up to current index
-    // Note: setData is heavier than update, but required for "replay" effect 
-    // where future candles shouldn't exist yet.
     const slice = candles.slice(0, currentIndex + 1);
     candlestickSeriesRef.current.setData(slice);
     
     updateMarkers(currentIndex);
     
-    // Auto-scroll only if playing
+    // Auto-scroll
     if (currentIndex > 0 && isPlaying) {
-       // Optional: chartRef.current.timeScale().scrollToPosition(0, false);
+       // Optional: Scroll logic if you want it to follow the candle
     }
-  }, [currentIndex, isPlaying]); // Removed 'candles' dep to avoid re-render loop
+  }, [currentIndex, isPlaying]); 
 
   const updateMarkers = (index) => {
     const currentTime = candles[index]?.time;
@@ -163,7 +167,7 @@ export const ChartReplay = ({ results, symbol }) => {
 
     const markers = [];
     trades.forEach(t => {
-      if (Math.abs(t.time - currentTime) < 60) { // Entry match (approx)
+      if (Math.abs(t.time - currentTime) < 60000) { // Relaxed matching (within same hour)
         markers.push({
           time: t.time,
           position: 'belowBar',
@@ -172,7 +176,7 @@ export const ChartReplay = ({ results, symbol }) => {
           text: `BUY @ ${t.price.toFixed(2)}`
         });
       }
-      if (t.exitTime && Math.abs(t.exitTime - currentTime) < 60) { // Exit match
+      if (t.exitTime && Math.abs(t.exitTime - currentTime) < 60000) { 
         markers.push({
           time: t.exitTime,
           position: 'aboveBar',
