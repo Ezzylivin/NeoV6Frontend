@@ -1,9 +1,5 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: THE MASTER VERSION.
-// 1. Fixed "Single Box" bug (Splits Trend/Range correctly).
-// 2. Fixed "Empty Dropdown" bug (Base Strategy Injection).
-// 3. Fixed "Missing Params" bug (Deep Normalization).
-// 4. Fixed "Crash" bugs (Safety checks).
+// 🚀 UPGRADE: FIXED Array-Root Global Params & Dropdown ID Matching.
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -19,7 +15,7 @@ import "./Backtests.css";
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
 const ESTIMATED_DURATION = 60; 
 
-// --- 1. CONSTANTS ---
+// --- 1. STRATEGY MAP ---
 const STRATEGY_TYPE_TO_CODE_MAP = {
   "Moving Average Crossover": "sma_crossover",
   "RSI": "rsi_divergence",
@@ -159,26 +155,20 @@ function rebuildStrategiesFromParams(raw) {
   if (typeof raw.strategies === "string") {
       return raw.strategies.split(",").map(code => ({
           code: code.trim(),
-          params: {} // Will be filled by traffic cop
+          params: {} 
       }));
   }
 
-  // 3. Direct Array (Raw Config - THIS IS THE ONE YOU USE)
+  // 3. Direct Array (Raw Config)
   if (Array.isArray(raw)) {
       const expanded = [];
       raw.forEach(item => {
-          const p = item.params || item; // flattened params
-          
-          // 🚀 CRITICAL FIX: If object has BOTH trend and range, split them!
+          const p = item.params || item; 
+          // Check for MERGED strategies
           if (p.trend_strategy || p.range_strategy) {
-              if (p.trend_strategy) {
-                  expanded.push({ code: p.trend_strategy, params: p });
-              }
-              if (p.range_strategy) {
-                  expanded.push({ code: p.range_strategy, params: p });
-              }
+              if (p.trend_strategy) expanded.push({ code: p.trend_strategy, params: p });
+              if (p.range_strategy) expanded.push({ code: p.range_strategy, params: p });
           } else {
-              // Standard single strategy in array
               const code = item.code || detectCodeFromParams(p) || "unknown";
               expanded.push({ code: code, params: p });
           }
@@ -189,12 +179,8 @@ function rebuildStrategiesFromParams(raw) {
   // 4. Deep Scan (Object Root)
   const detectedCodes = new Set();
   const params = raw.params || raw; 
-  
-  // Explicit keys
   if (params.trend_strategy) detectedCodes.add(params.trend_strategy);
   if (params.range_strategy) detectedCodes.add(params.range_strategy);
-
-  // Prefix scan
   Object.keys(params).forEach(key => {
       for (const [prefix, code] of Object.entries(STRATEGY_PREFIXES)) {
           if (key.startsWith(prefix)) {
@@ -261,7 +247,6 @@ const MetricsDisplay = ({ metrics }) => {
 };
 
 const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isCombo = false }) => {
-    // 🚀 CRASH PROTECTION
     const symbolOptions = options?.symbolOptions || [];
     const timeframeOptions = options?.timeframeOptions || [];
     const allModelOptions = options?.modelOptions || []; 
@@ -444,7 +429,6 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
           </select>
         </label>
         
-        {/* 🚀 VISUAL: Display Only RELEVANT Params */}
         {config.params && Object.keys(config.params).length > 0 && (
             <div className="card-note" style={{marginTop: '10px'}}>
                 <small><strong>Optimized Params:</strong></small>
@@ -486,7 +470,7 @@ export default function Backtests() {
   const [activeTab, setActiveTab] = useState('single');
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
 
-  // 🚀 SAFE MEMOS & BASE INJECTION
+  // 🚀 POLISH: Inject Base Strategies so "Code" Matches work
   const strategyOptions = useMemo(() => {
     const dbStrats = options?.strategies || [];
     const baseStrats = Object.entries(STRATEGY_TYPE_TO_CODE_MAP).map(([name, code], idx) => ({
@@ -498,22 +482,22 @@ export default function Backtests() {
         return { ...s, code: pythonCode };
     });
     return [...baseStrats, ...mappedDB];
-  }, [options]);
+  }, [options?.strategies]);
   
-  const symbolOptions = useMemo(() => options?.symbols || [], [options]);
-  const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
+  const symbolOptions = useMemo(() => options?.symbols || [], [options?.symbols]);
+  const timeframeOptions = useMemo(() => options?.timeframes || [], [options?.timeframes]);
   const timeframeWeights = { '30m': 1, '1h': 2, '4h': 3, '1d': 4, '1w': 5 };
   
   const modelOptions = useMemo(() => {
       if (!options?.models) return [];
-      return options.models.map(model => {
-         const parts = model.id.split('_');
-         let symbolBase = 'BTC'; let timeframe = '1h';
-         if (parts.length >= 3) { symbolBase = parts[0].toUpperCase(); timeframe = parts[1]; }
-         if (!symbolBase.includes('-')) symbolBase += '-USD';
-         return { ...model, symbolBase, timeframe };
+      const parsedModels = options.models.map(model => {
+       const parts = model.id.split('_');
+       let symbolBase = 'BTC'; let timeframe = '1h';
+       if (parts.length >= 3) { symbolBase = parts[0].toUpperCase(); timeframe = parts[1]; }
+       if (!symbolBase.includes('-')) symbolBase += '-USD';
+       return { ...model, symbolBase, timeframe };
       }).sort((a,b) => a.id.localeCompare(b.id));
-  }, [options]);
+  }, [options?.models]);
 
   const availableModelData = useMemo(() => {
     const availableSymbols = new Set();
@@ -528,7 +512,7 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
 
-  // 🚀 HANDLE WINNER SELECTION (MASTER LOGIC)
+  // 🚀 HANDLE WINNER SELECTION (FINAL)
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
@@ -537,7 +521,6 @@ export default function Backtests() {
       const selectedWinner = winners.find(w => w.id === filename);
       if (selectedWinner && selectedWinner.config) {
           const config = selectedWinner.config;
-          console.log("📄 Raw Config:", config);
 
           // 1. Meta Data
           let loadedSymbol = config.symbol || comboData.symbol || "BTC-USD";
@@ -549,19 +532,25 @@ export default function Backtests() {
               if (parts.length >= 3 && ['1h','4h','1d'].includes(parts[2])) loadedTimeframe = parts[2];
           }
 
-          // 2. Global Params (Deep Normalization)
-          const rawGlobalParams = { ...defaultFilterParams, ...(config.params || {}) };
+          // 2. Global Params (Deep Normalization for Array Root)
+          let rawGlobalParams = { ...defaultFilterParams };
+          if (Array.isArray(config) && config.length > 0) {
+             // Extract globals from first strategy object if array
+             rawGlobalParams = { ...rawGlobalParams, ...(config[0].params || config[0]) };
+          } else {
+             rawGlobalParams = { ...rawGlobalParams, ...(config.params || {}) };
+          }
           const globalParams = normalizeParams(rawGlobalParams);
 
           // 3. ML Settings
           let detectedModel = config.mlModel || config.params?.mlModel || "";
           let detectedMode = config.mlMode || config.params?.mlMode || "off";
-          const detectedThreshold = config.mlThreshold ?? config.params?.mlThreshold ?? 0.5;
+          let detectedThreshold = config.mlThreshold ?? config.params?.mlThreshold ?? 0.5;
 
-          // Deep search for ML in array
           const findML = (obj) => {
               if (obj.mlModel) detectedModel = obj.mlModel;
               if (obj.mlMode) detectedMode = obj.mlMode;
+              if (obj.mlThreshold) detectedThreshold = obj.mlThreshold;
           };
           if (Array.isArray(config)) config.forEach(findML);
           else findML(config);
@@ -573,16 +562,28 @@ export default function Backtests() {
           let strategiesList = rebuildStrategiesFromParams(config);
 
           strategiesList = strategiesList.map(s => {
+              // 🚀 FIXED: Deterministic ID construction logic
               let def = strategyOptions.find(opt => opt.code === s.code);
               if (!def) {
-                   def = strategyOptions.find(opt => opt._id.startsWith(`base-${s.code}`));
+                   const codes = Object.values(STRATEGY_TYPE_TO_CODE_MAP);
+                   const idx = codes.indexOf(s.code);
+                   if (idx !== -1) {
+                       // Manually construct the ID to match useMemo logic: base-{code}-{index}
+                       // We need to find the key (name) to construct index? No, just use the index of the code value.
+                       def = { _id: `base-${s.code}-${idx}` };
+                   }
               }
               const idToUse = def ? def._id : "";
 
-              // 🚦 TRAFFIC COP: Filter Params
+              // 🚦 TRAFFIC COP: Filter params for this card only
               const specificParams = {};
               const prefix = STRATEGY_PREFIXES[s.code]; 
               const allParams = { ...(config.params || {}), ...(s.params || {}) };
+              
+              // Also check if config IS array of params
+              if(Array.isArray(config)) {
+                  config.forEach(item => Object.assign(allParams, item.params || item));
+              }
               
               Object.entries(allParams).forEach(([key, val]) => {
                   if (prefix && key.startsWith(prefix)) {
