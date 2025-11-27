@@ -1,5 +1,7 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: FIXED Array-Root Global Params & Dropdown ID Matching.
+// 🚀 UPGRADE: Paranoid Safety Mode.
+// - Prevents "reading 'length'" crashes by using Array.isArray() everywhere.
+// - Includes: Traffic Cop, Splitter, Deep Params, Legacy Parsing.
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -15,7 +17,7 @@ import "./Backtests.css";
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
 const ESTIMATED_DURATION = 60; 
 
-// --- 1. STRATEGY MAP ---
+// --- 1. CONSTANTS ---
 const STRATEGY_TYPE_TO_CODE_MAP = {
   "Moving Average Crossover": "sma_crossover",
   "RSI": "rsi_divergence",
@@ -146,7 +148,7 @@ const initialComboData = {
   mlHorizon: 1
 };
 
-// --- 4. STRATEGY PARSING LOGIC (THE SPLITTER) ---
+// --- 4. STRATEGY PARSING LOGIC ---
 function rebuildStrategiesFromParams(raw) {
   // 1. Standard List
   if (Array.isArray(raw.strategies) && raw.strategies.length > 0) return raw.strategies; 
@@ -164,7 +166,7 @@ function rebuildStrategiesFromParams(raw) {
       const expanded = [];
       raw.forEach(item => {
           const p = item.params || item; 
-          // Check for MERGED strategies
+          // 🚀 THE SPLITTER: Check for MERGED strategies
           if (p.trend_strategy || p.range_strategy) {
               if (p.trend_strategy) expanded.push({ code: p.trend_strategy, params: p });
               if (p.range_strategy) expanded.push({ code: p.range_strategy, params: p });
@@ -246,7 +248,8 @@ const MetricsDisplay = ({ metrics }) => {
   );
 };
 
-const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isCombo = false }) => {
+const CommonBacktestInputs = ({ data, onChange, options = {}, availableModelData, isCombo = false }) => {
+    // 🚀 PARANOID SAFETY: Destructure with defaults + Optional Chaining
     const symbolOptions = options?.symbolOptions || [];
     const timeframeOptions = options?.timeframeOptions || [];
     const allModelOptions = options?.modelOptions || []; 
@@ -265,12 +268,13 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
     const params = data.params || {};
     const activeHybridMode = isCombo ? (data.comboConfig?.combinationRule || params.hybridMode || 'AND') : 'AND';
 
+    // 🚀 SAFE MEMOIZATION
     const processedSymbolOptions = useMemo(() => {
-        if (!symbolOptions.length) return [];
+        if (!Array.isArray(symbolOptions)) return [];
         if (data.mlMode === 'off') {
             return symbolOptions.map(s => ({ value: s, name: s, isAvailable: true }));
         }
-        const { availableSymbols } = availableModelData;
+        const { availableSymbols } = availableModelData || { availableSymbols: new Set() };
         const sortedSymbols = [...symbolOptions].sort((a, b) => {
             const aHas = availableSymbols.has(a);
             const bHas = availableSymbols.has(b);
@@ -284,14 +288,14 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
     }, [data.mlMode, symbolOptions, availableModelData]);
 
     const processedTimeframeOptions = useMemo(() => {
-        if (!timeframeOptions.length) return [];
+        if (!Array.isArray(timeframeOptions)) return [];
         if (data.mlMode === 'off') {
             return timeframeOptions.map(t => ({ value: t, name: t, isAvailable: true }));
         }
         if (!data.symbol) {
              return timeframeOptions.map(t => ({ value: t, name: `${t} (Select Symbol)`, isAvailable: false }));
         }
-        const { lookup } = availableModelData;
+        const { lookup } = availableModelData || { lookup: new Set() };
         const sortedTimeframes = [...timeframeOptions].sort((a, b) => {
             const aHas = lookup.has(`${data.symbol}_${a}`);
             const bHas = lookup.has(`${data.symbol}_${b}`);
@@ -371,9 +375,9 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 {data.mlMode !== "off" && (
                     <>
                         <label>Model:
-                            <select name="mlModel" value={data.mlModel} onChange={handleGlobalChange} disabled={allModelOptions.length === 0}>
+                            <select name="mlModel" value={data.mlModel} onChange={handleGlobalChange} disabled={!Array.isArray(allModelOptions) || allModelOptions.length === 0}>
                                 <option value="">-- Select Model --</option>
-                                {allModelOptions.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                {Array.isArray(allModelOptions) && allModelOptions.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                             </select>
                         </label>
                         <label>Confidence Threshold: <input type="number" name="mlThreshold" value={data.mlThreshold || 0.5} step="0.01" min="0" max="1" onChange={handleGlobalChange} /></label>
@@ -429,6 +433,7 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
           </select>
         </label>
         
+        {/* 🚀 VISUAL: Display Only RELEVANT Params */}
         {config.params && Object.keys(config.params).length > 0 && (
             <div className="card-note" style={{marginTop: '10px'}}>
                 <small><strong>Optimized Params:</strong></small>
@@ -470,7 +475,7 @@ export default function Backtests() {
   const [activeTab, setActiveTab] = useState('single');
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
 
-  // 🚀 POLISH: Inject Base Strategies so "Code" Matches work
+  // 🚀 CRASH PROTECTION: Safe Memos
   const strategyOptions = useMemo(() => {
     const dbStrats = options?.strategies || [];
     const baseStrats = Object.entries(STRATEGY_TYPE_TO_CODE_MAP).map(([name, code], idx) => ({
@@ -482,22 +487,24 @@ export default function Backtests() {
         return { ...s, code: pythonCode };
     });
     return [...baseStrats, ...mappedDB];
-  }, [options?.strategies]);
+  }, [options]);
   
-  const symbolOptions = useMemo(() => options?.symbols || [], [options?.symbols]);
-  const timeframeOptions = useMemo(() => options?.timeframes || [], [options?.timeframes]);
+  const symbolOptions = useMemo(() => options?.symbols || [], [options]);
+  const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
   const timeframeWeights = { '30m': 1, '1h': 2, '4h': 3, '1d': 4, '1w': 5 };
   
   const modelOptions = useMemo(() => {
-      if (!options?.models) return [];
-      const parsedModels = options.models.map(model => {
-       const parts = model.id.split('_');
-       let symbolBase = 'BTC'; let timeframe = '1h';
-       if (parts.length >= 3) { symbolBase = parts[0].toUpperCase(); timeframe = parts[1]; }
-       if (!symbolBase.includes('-')) symbolBase += '-USD';
-       return { ...model, symbolBase, timeframe };
+      // 🚀 CRASH FIX
+      if (!options?.models || !Array.isArray(options.models)) return [];
+      
+      return options.models.map(model => {
+         const parts = model.id.split('_');
+         let symbolBase = 'BTC'; let timeframe = '1h';
+         if (parts.length >= 3) { symbolBase = parts[0].toUpperCase(); timeframe = parts[1]; }
+         if (!symbolBase.includes('-')) symbolBase += '-USD';
+         return { ...model, symbolBase, timeframe };
       }).sort((a,b) => a.id.localeCompare(b.id));
-  }, [options?.models]);
+  }, [options]);
 
   const availableModelData = useMemo(() => {
     const availableSymbols = new Set();
@@ -512,7 +519,7 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
 
-  // 🚀 HANDLE WINNER SELECTION (FINAL)
+  // 🚀 HANDLE WINNER SELECTION (Traffic Cop + Params Fix)
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
@@ -521,6 +528,7 @@ export default function Backtests() {
       const selectedWinner = winners.find(w => w.id === filename);
       if (selectedWinner && selectedWinner.config) {
           const config = selectedWinner.config;
+          console.log("📄 Raw Config:", config);
 
           // 1. Meta Data
           let loadedSymbol = config.symbol || comboData.symbol || "BTC-USD";
@@ -532,10 +540,10 @@ export default function Backtests() {
               if (parts.length >= 3 && ['1h','4h','1d'].includes(parts[2])) loadedTimeframe = parts[2];
           }
 
-          // 2. Global Params (Deep Normalization for Array Root)
+          // 2. Global Params (Deep Normalization)
+          // 🚀 FIX: Extract from Array[0] if needed
           let rawGlobalParams = { ...defaultFilterParams };
           if (Array.isArray(config) && config.length > 0) {
-             // Extract globals from first strategy object if array
              rawGlobalParams = { ...rawGlobalParams, ...(config[0].params || config[0]) };
           } else {
              rawGlobalParams = { ...rawGlobalParams, ...(config.params || {}) };
@@ -545,12 +553,11 @@ export default function Backtests() {
           // 3. ML Settings
           let detectedModel = config.mlModel || config.params?.mlModel || "";
           let detectedMode = config.mlMode || config.params?.mlMode || "off";
-          let detectedThreshold = config.mlThreshold ?? config.params?.mlThreshold ?? 0.5;
+          const detectedThreshold = config.mlThreshold ?? config.params?.mlThreshold ?? 0.5;
 
           const findML = (obj) => {
               if (obj.mlModel) detectedModel = obj.mlModel;
               if (obj.mlMode) detectedMode = obj.mlMode;
-              if (obj.mlThreshold) detectedThreshold = obj.mlThreshold;
           };
           if (Array.isArray(config)) config.forEach(findML);
           else findML(config);
@@ -558,19 +565,17 @@ export default function Backtests() {
 
           if (detectedMode === "off" && detectedModel) detectedMode = "predictions";
 
-          // 4. Strategy Reconstruction (Splitter + Traffic Cop)
+          // 4. Strategy Reconstruction (Traffic Cop)
           let strategiesList = rebuildStrategiesFromParams(config);
 
           strategiesList = strategiesList.map(s => {
-              // 🚀 FIXED: Deterministic ID construction logic
+              // 🚀 FIXED: Deterministic ID
               let def = strategyOptions.find(opt => opt.code === s.code);
               if (!def) {
                    const codes = Object.values(STRATEGY_TYPE_TO_CODE_MAP);
                    const idx = codes.indexOf(s.code);
                    if (idx !== -1) {
-                       // Manually construct the ID to match useMemo logic: base-{code}-{index}
-                       // We need to find the key (name) to construct index? No, just use the index of the code value.
-                       def = { _id: `base-${s.code}-${idx}` };
+                       def = { _id: `base-${s.code}-${idx}` }; 
                    }
               }
               const idToUse = def ? def._id : "";
@@ -580,7 +585,6 @@ export default function Backtests() {
               const prefix = STRATEGY_PREFIXES[s.code]; 
               const allParams = { ...(config.params || {}), ...(s.params || {}) };
               
-              // Also check if config IS array of params
               if(Array.isArray(config)) {
                   config.forEach(item => Object.assign(allParams, item.params || item));
               }
