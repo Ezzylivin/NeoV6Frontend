@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: Full Support for "Saved Combos" + Golden Strategies + Auto-Polling
+// 🚀 UPGRADE: Full Feature Set (Polling, Charts, Logs, Golden Strategies).
 
 import React, { useState, useEffect, useRef, useContext } from "react";
 import { useBot } from '../hooks/useBot.js';
@@ -10,7 +10,7 @@ import LiveTradingChart from "../components/LiveTradingChart.jsx";
 import "./TradingBot.css";
 import api from '../api/apiClient'; 
 
-// --- METRICS COMPONENT ---
+// --- METRICS DISPLAY ---
 const MetricsDisplay = ({ metrics }) => {
     if (!metrics || Object.keys(metrics).length === 0) return <p className="no-metrics">No live metrics yet.</p>;
     
@@ -59,14 +59,16 @@ export default function TradingBot() {
 
     const { setups, loading: setupsLoading } = useBacktestSetupFunction();
     const { state: backtestState } = useBacktest();
-    const winners = botWinners.length > 0 ? botWinners : (backtestState?.winners || []);
+    
+    // Merge winners sources (Hook vs Backtest Context)
+    const winners = (botWinners && botWinners.length > 0) ? botWinners : (backtestState?.winners || []);
 
     const { strategies: availableStrategies } = useContext(StrategyContext);
     const [selectedWinnerId, setSelectedWinnerId] = useState("");
     const [selectedSetupId, setSelectedSetupId] = useState("");
     const logsEndRef = useRef(null);
 
-    // 3. Local Form Config
+    // Form State
     const [formConfig, setFormConfig] = useState({
         isCombo: false, 
         strategyId: '', 
@@ -75,55 +77,42 @@ export default function TradingBot() {
         timeframe: '1h',   
         capitalAllocation: 1000,
         tradingMode: 'paper',
-        // Defaults to prevent undefined errors
         params: {},
         strategies: [],
         mlMode: 'off'
     });
 
-    // --- Auto-Scroll Logs ---
+    // --- 1. Auto-Scroll Logs ---
     useEffect(() => {
         if (logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: "smooth" });
     }, [logs]);
 
-    // --- 🚀 AUTO-POLLING (Every 2s) ---
+    // --- 2. Auto-Polling (Every 2s) ---
     useEffect(() => {
         let interval;
-        if (botStatus?.status === 'running') {
-            interval = setInterval(() => {
-                refreshBotData(); 
-            }, 2000);
-        }
+        // Poll if running OR if we just loaded the page to check status
+        interval = setInterval(() => {
+            refreshBotData(); 
+        }, 2000);
         return () => clearInterval(interval);
-    }, [botStatus?.status, refreshBotData]);
-
+    }, [refreshBotData]);
 
     // --- HANDLER: Saved Setup (DB) ---
-    // 🚀 UPGRADE: Deep Load of Saved Configs
     const handleSetupSelect = (setupId) => {
         setSelectedSetupId(setupId);
-        setSelectedWinnerId(""); // Clear winner if selecting saved setup
+        setSelectedWinnerId(""); 
         
         const setup = setups.find(s => s._id === setupId);
         if (setup) {
-            console.log("📂 Loaded Saved Setup:", setup);
-            
             setFormConfig(prev => ({
                 ...prev,
-                // 1. Meta
                 symbol: setup.symbol || 'BTC-USD',
                 timeframe: setup.timeframe || '1h',
                 capitalAllocation: setup.initialBalance || 1000,
-                
-                // 2. Mode Logic
                 isCombo: setup.isCombo || (setup.strategies && setup.strategies.length > 1),
-                
-                // 3. Strategies
                 strategyId: setup.strategyId || '',
                 comboConfig: setup.comboConfig || { strategyCodes: [], combinationRule: 'OR' },
-                strategies: setup.strategies || [], // Pass the full strategy array if saved
-                
-                // 4. Parameters & ML
+                strategies: setup.strategies || [], 
                 params: setup.params || {},
                 mlMode: setup.mlMode || 'off',
                 mlModel: setup.mlModel || '',
@@ -154,16 +143,23 @@ export default function TradingBot() {
                  if (nameParts.length >= 3 && ['1h','4h','1d'].includes(nameParts[2])) detectedTimeframe = nameParts[2];
             }
 
-            // Determine Strategy Codes
-            let codes = [];
-            if (typeof winnerConfig.strategies === 'string') {
-                codes = winnerConfig.strategies.split(',').map(s => s.trim());
-            } else if (Array.isArray(winnerConfig.strategies)) {
-                codes = winnerConfig.strategies.map(s => s.code);
+            // Determine Strategy Codes & List
+            let strategiesList = [];
+            if (Array.isArray(winnerConfig.strategies)) {
+                strategiesList = winnerConfig.strategies;
+            } else if (typeof winnerConfig.strategies === 'string') {
+                const codes = winnerConfig.strategies.split(',').map(s => s.trim());
+                strategiesList = codes.map(c => ({ code: c, params: winnerConfig.params }));
             }
-            if (Array.isArray(winnerConfig)) { // Handle raw array config
-                codes = winnerConfig.map(s => s.code || "unknown");
+            // Handle Array Root (The fix you need)
+            else if (Array.isArray(winnerConfig)) { 
+                strategiesList = winnerConfig.map(s => ({
+                    code: s.code || s.trend_strategy || s.range_strategy || "unknown",
+                    params: s.params || s
+                }));
             }
+
+            const codes = strategiesList.map(s => s.code);
 
             console.log("🏆 Loaded Golden Strategy:", { symbol: detectedSymbol, codes });
 
@@ -172,13 +168,11 @@ export default function TradingBot() {
                 isCombo: true,
                 comboConfig: { strategyCodes: codes, combinationRule: winnerConfig.hybridMode || 'AND' },
                 params: winnerConfig.params || {}, 
-                // 🚀 Ensure we pass strategy definitions if available, or let backend reconstruct from codes
-                strategies: Array.isArray(winnerConfig.strategies) ? winnerConfig.strategies : [],
-                
+                strategies: strategiesList,
                 symbol: detectedSymbol,    
                 timeframe: detectedTimeframe,
                 
-                // ML Defaults from Winner
+                // ML Defaults
                 mlMode: winnerConfig.mlMode || (winnerConfig.mlModel ? 'predictions' : 'off'),
                 mlModel: winnerConfig.mlModel || '',
                 mlThreshold: winnerConfig.mlThreshold || 0.5
@@ -188,13 +182,10 @@ export default function TradingBot() {
 
     const handleStart = async (e) => {
         e.preventDefault();
-        
-        // Validation
         if (!formConfig.symbol || !formConfig.timeframe || !formConfig.capitalAllocation) {
              alert("Please fill in Symbol, Timeframe, and Capital.");
              return;
         }
-
         if (formConfig.tradingMode === 'live') {
             if (!window.confirm("⚠️ WARNING: Real Money Trading. Proceed?")) return;
         }
@@ -207,8 +198,11 @@ export default function TradingBot() {
         catch (err) { console.error(err); }
     };
 
-    const isRunning = botStatus?.status === 'running';
+    const handleClearLogs = () => {
+        refreshBotData(); 
+    };
 
+    const isRunning = botStatus?.status === 'running';
     const findStrategyName = (id) => {
         if (!id) return "Combo Strategy";
         const s = availableStrategies.find(st => st._id === id);
@@ -303,7 +297,12 @@ export default function TradingBot() {
                     </div>
 
                     <div className="bot-card logs-panel">
-                        <h3 className="card-title">Live Logs</h3>
+                        <div className="card-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                            <h3 className="card-title" style={{ margin: 0 }}>Logs</h3>
+                            <button onClick={handleClearLogs} className="clear-logs-btn" style={{ background: 'transparent', border: '1px solid #475569', color: '#94a3b8', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>
+                                Refresh Logs
+                            </button>
+                        </div>
                         <div className="logs-container">
                             {logs.length > 0 ? logs.map((log, i) => (
                                 <div key={i} className={`log-entry log-${log.type}`}>
