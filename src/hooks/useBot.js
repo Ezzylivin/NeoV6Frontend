@@ -1,87 +1,28 @@
-// File: src/hooks/useBot.js
-// UPGRADED: Now includes fetching 'Golden Strategies' (Winners) alongside bot status/controls.
+// File: src/api/bot.js
+import api from './apiClient';
 
-import { useState, useEffect, useCallback } from "react";
-import * as botApi from '../api/bot.js'; // Import your API service
+// 🚀 API DEFINITIONS
+export const getBotStatus = async () => {
+    const res = await api.get('/bot/status');
+    return res.data;
+};
 
-export function useBot() {
-  const [botStatus, setBotStatus] = useState(null);
-  const [logs, setLogs] = useState([]);
-  const [winners, setWinners] = useState([]); // 🚀 Added state for winners
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+export const getBotLogs = async (limit = 100) => {
+    const res = await api.get(`/bot/logs?limit=${limit}`);
+    return res.data;
+};
 
-  // --- Fetches bot status, logs, and winners ---
-  // We combine them into one refresh function for convenience.
-  const fetchBotData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // ✅ Parallel fetching for speed
-      const [statusData, logsData, winnersData] = await Promise.all([
-        botApi.fetchBotStatus(),
-        botApi.fetchBotLogs(),
-        botApi.fetchWinners() // 🚀 Fetch golden strategies
-      ]);
+export const getWinners = async () => {
+    const res = await api.get('/bot/winners');
+    return res.data;
+};
 
-      setBotStatus(statusData);
-      setLogs(logsData);
-      setWinners(winnersData || []); // Ensure array
-    } catch (err) {
-      console.error("Bot Data Fetch Error:", err);
-      // Don't block the UI if just one part fails, but show general error
-      setError(err.message || "Failed to fetch bot data.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+export const startBot = async (config) => {
+    const res = await api.post('/bot/start', config);
+    return res.data;
+};
 
-  // --- Initial data load when the hook is first used ---
-  useEffect(() => {
-    fetchBotData();
-  }, [fetchBotData]);
-
-  // --- Starts the trading bot ---
-  const startBot = async (config) => {
-    setLoading(true);
-    setError(null);
-    try {
-      await botApi.startBot(config);
-      // Refresh status and logs after starting
-      await fetchBotData();
-    } catch (err) {
-      setError(err.message || "Failed to start the bot.");
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // --- Stops the trading bot ---
-  const stopBot = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      await botApi.stopBot();
-      // Refresh status and logs after stopping
-      await fetchBotData();
-    } catch (err) {
-      setError(err.message || "Failed to stop the bot.");
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // --- Return all state and functions needed by the UI ---
-  return { 
-    botStatus, 
-    logs, 
-    winners, // 🚀 Export the winners list so the Component can use it
-    loading, 
-    error, 
-    startBot, 
-    stopBot, 
-    refreshBotData: fetchBotData 
-  };
-}
+export const stopBot = async () => {
+    const res = await api.post('/bot/stop');
+    return res.data;
+};
