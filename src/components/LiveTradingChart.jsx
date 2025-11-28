@@ -1,5 +1,5 @@
 // File: src/components/LiveTradingChart.jsx
-// 🚀 UPGRADE: Matches your CSS. Fixes data parsing to remove the spinner.
+// 🚀 UPGRADE: Added Deduplication & Auto-Fit Fixes
 
 import React, { useEffect, useRef, useMemo } from 'react';
 import { createChart, CrosshairMode } from 'lightweight-charts';
@@ -10,39 +10,34 @@ const LiveTradingChart = ({ candles = [], trades = [] }) => {
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
 
-  // --- 1. Robust Time Parser (Crucial for Live Data) ---
   const parseTime = (t) => {
       if (!t) return null;
-      // Handle MongoDB style { $date: ... }
       if (typeof t === 'object' && t.$date) t = t.$date;
-      
       const d = new Date(t);
       if (isNaN(d.getTime())) return null;
-      
-      // Lightweight Charts needs Unix Timestamp (Seconds)
-      return d.getTime() / 1000; 
+      return d.getTime() / 1000; // Unix Seconds
   };
 
-  // --- 2. Prepare Data ---
+  // --- Prepare Data with Deduplication ---
   const chartData = useMemo(() => {
-      if (!Array.isArray(candles)) return [];
+      if (!Array.isArray(candles) || candles.length === 0) return [];
       
-      return candles.map(c => {
-          // 🚀 FIX: Check ALL possible key names for time
-          const time = parseTime(c.timestamp || c.time || c.date || c.datetime);
-          
-          if (!time) return null;
-          
-          return {
-              time: time,
-              open: parseFloat(c.open),
-              high: parseFloat(c.high),
-              low: parseFloat(c.low),
-              close: parseFloat(c.close),
-          };
-      })
-      .filter(c => c !== null) // Remove invalid
-      .sort((a, b) => a.time - b.time);
+      const dataMap = new Map();
+      candles.forEach(c => {
+          const time = parseTime(c.timestamp || c.time || c.datetime || c.Date);
+          if (time) {
+              dataMap.set(time, {
+                  time: time,
+                  open: parseFloat(c.open),
+                  high: parseFloat(c.high),
+                  low: parseFloat(c.low),
+                  close: parseFloat(c.close),
+              });
+          }
+      });
+
+      // Convert map to sorted array
+      return Array.from(dataMap.values()).sort((a, b) => a.time - b.time);
   }, [candles]);
 
   const markers = useMemo(() => {
@@ -52,47 +47,25 @@ const LiveTradingChart = ({ candles = [], trades = [] }) => {
           const time = parseTime(t.entryTime || t.time);
           const exitTime = parseTime(t.exitTime);
           
-          // Buy Marker
-          if (time) {
-              m.push({
-                  time: time,
-                  position: 'belowBar',
-                  color: '#2196F3',
-                  shape: 'arrowUp',
-                  text: 'BUY'
-              });
-          }
-          // Sell Marker
-          if (exitTime) {
-              m.push({
-                  time: exitTime,
-                  position: 'aboveBar',
-                  color: t.profit > 0 ? '#4CAF50' : '#F44336',
-                  shape: 'circle',
-                  text: `EXIT ${t.profit !== undefined ? t.profit.toFixed(2) : ''}`
-              });
-          }
+          if (time) m.push({ time, position: 'belowBar', color: '#2196F3', shape: 'arrowUp', text: 'BUY' });
+          if (exitTime) m.push({ time: exitTime, position: 'aboveBar', color: t.profit > 0 ? '#4CAF50' : '#F44336', shape: 'circle', text: `EXIT` });
       });
       return m.sort((a, b) => a.time - b.time);
   }, [trades]);
 
-  // --- 3. Initialize & Update Chart ---
+  // --- Chart Lifecycle ---
   useEffect(() => {
       if (!chartContainerRef.current) return;
 
-      // Create Chart only once
+      // Init Chart
       if (!chartRef.current) {
           chartRef.current = createChart(chartContainerRef.current, {
               width: chartContainerRef.current.clientWidth,
-              height: 400, // Matches CSS height
-              layout: { backgroundColor: '#0f0f0f', textColor: '#ddd' }, // Matches CSS background
+              height: 400,
+              layout: { backgroundColor: '#0f0f0f', textColor: '#ddd' },
               grid: { vertLines: { color: '#333' }, horzLines: { color: '#333' } },
               crosshair: { mode: CrosshairMode.Normal },
-              timeScale: { 
-                  borderColor: '#485c7b', 
-                  timeVisible: true,
-                  secondsVisible: false 
-              },
+              timeScale: { borderColor: '#485c7b', timeVisible: true },
           });
 
           seriesRef.current = chartRef.current.addCandlestickSeries({
@@ -101,36 +74,23 @@ const LiveTradingChart = ({ candles = [], trades = [] }) => {
           });
       }
 
-      // Update Data if available
-      if (chartData.length > 0) {
+      // Update Data
+      if (chartData.length > 0 && seriesRef.current) {
           seriesRef.current.setData(chartData);
           seriesRef.current.setMarkers(markers);
-          // Optional: Fit content to see the whole history
-          chartRef.current.timeScale().fitContent(); 
+          chartRef.current.timeScale().fitContent(); // 🚀 FORCE FIT
       }
 
-      // Handle Resize
-      const handleResize = () => {
-          if (chartRef.current && chartContainerRef.current) {
-              chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
-          }
-      };
-      window.addEventListener('resize', handleResize);
+      // Resize Observer
+      const resizeObserver = new ResizeObserver(entries => {
+          if (entries.length === 0 || !entries[0].contentRect) return;
+          const { width } = entries[0].contentRect;
+          chartRef.current.applyOptions({ width });
+      });
+      resizeObserver.observe(chartContainerRef.current);
 
-      return () => {
-          window.removeEventListener('resize', handleResize);
-      };
+      return () => resizeObserver.disconnect();
   }, [chartData, markers]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-      return () => {
-          if (chartRef.current) {
-              chartRef.current.remove();
-              chartRef.current = null;
-          }
-      };
-  }, []);
 
   return (
       <div className="live-chart-wrapper">
@@ -138,6 +98,9 @@ const LiveTradingChart = ({ candles = [], trades = [] }) => {
               <div className="chart-placeholder">
                   <div className="spinner"></div>
                   <p>Waiting for live market data...</p>
+                  <small style={{fontSize:'10px', color:'#555'}}>
+                      (Ensure Backend is running on 1 worker)
+                  </small>
               </div>
           )}
           <div ref={chartContainerRef} className="live-chart-container" />
