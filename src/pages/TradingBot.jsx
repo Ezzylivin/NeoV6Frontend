@@ -140,9 +140,12 @@ export default function TradingBot() {
     const [logsClearedTime, setLogsClearedTime] = useState(0);
     const visibleLogs = logs.filter(log => new Date(log.timestamp).getTime() > logsClearedTime);
 
-    // Auto-Scroll
+   // Auto-Scroll Logs (Inside Container Only)
     useEffect(() => {
-        if (logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: "smooth" });
+        if (logsEndRef.current) {
+            // block: "nearest" prevents the whole page from jumping
+            logsEndRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
     }, [logs, visibleLogs]);
 
     // Auto-Polling (Every 2s)
