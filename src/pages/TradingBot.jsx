@@ -141,10 +141,25 @@ export default function TradingBot() {
     const visibleLogs = logs.filter(log => new Date(log.timestamp).getTime() > logsClearedTime);
 
    // Auto-Scroll Logs (Inside Container Only)
+    // 🚀 SMART AUTO-SCROLL
+    // Only auto-scroll if the user is already near the bottom (within 100px).
+    // This prevents the page from jumping while you are reading old logs.
+    const logsContainerRef = useRef(null); // Need to attach this ref to the parent div
+
     useEffect(() => {
-        if (logsEndRef.current) {
-            // block: "nearest" prevents the whole page from jumping
-            logsEndRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        const container = logsContainerRef.current;
+        if (container) {
+            const { scrollTop, scrollHeight, clientHeight } = container;
+            // Check if user is near the bottom
+            const isNearBottom = scrollHeight - scrollTop - clientHeight < 150;
+
+            if (isNearBottom) {
+                // Use scrollTop instead of scrollIntoView to avoid page jumps
+                container.scrollTo({
+                    top: scrollHeight,
+                    behavior: 'smooth'
+                });
+            }
         }
     }, [logs, visibleLogs]);
 
