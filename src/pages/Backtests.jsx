@@ -1,9 +1,8 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Added "Saved Setups" Loading Functionality.
+// 🚀 UPGRADE: Smart Regime Detection + Removed Saved Setups Dropdown
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
-import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx"; // 🚀 NEW HOOK
 import { StrategyContext } from "../context/StrategyContext.jsx";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
@@ -152,7 +151,10 @@ const initialComboData = {
 function rebuildStrategiesFromParams(raw) {
   if (Array.isArray(raw.strategies) && raw.strategies.length > 0) return raw.strategies; 
   if (typeof raw.strategies === "string") {
-      return raw.strategies.split(",").map(code => ({ code: code.trim(), params: {} }));
+      return raw.strategies.split(",").map(code => ({
+          code: code.trim(),
+          params: {} 
+      }));
   }
   if (Array.isArray(raw)) {
       const expanded = [];
@@ -268,7 +270,11 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
             <label>Symbol:
                 <select name="symbol" value={data.symbol} onChange={handleGlobalChange} disabled={!processedSymbolOptions.length}>
                     <option value="">-- Select Symbol --</option>
-                    {processedSymbolOptions.map(s => <option key={s.value} value={s.value} disabled={data.mlMode !== 'off' && !s.isAvailable} style={{color: (data.mlMode !== 'off' && !s.isAvailable) ? '#888' : 'white'}}>{s.name}</option>)}
+                    {processedSymbolOptions.map(s => (
+                        <option key={s.value} value={s.value} disabled={data.mlMode !== 'off' && !s.isAvailable} style={{ color: (data.mlMode !== 'off' && !s.isAvailable) ? '#888' : 'white' }}>
+                            {s.name}
+                        </option>
+                    ))}
                 </select>
             </label>
             <label>Timeframe:
@@ -290,6 +296,7 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                         <option value="dynamic">Dynamic Growth Mode</option>
                     </select>
                 </label>
+                <label>Max Pyramiding (Entries): <input type="number" name="maxPyramiding" value={data.params?.maxPyramiding || 1} onChange={handleParamChange} min="1" max="10" /></label>
                 {data.riskManagementMode === 'standard' ? (
                     <>
                         <label>Risk Per Trade (%): <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={handleGlobalChange} step="0.1" min="0.1" required /></label>
@@ -389,27 +396,8 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
 export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest } = useBacktest(); 
   const { loading = 'initial', error = null, options = {}, winners = [] } = state || {};
-  
-  // 🚀 HOOK: Fetch Saved Setups
-  const { setups, loading: setupsLoading } = useBacktestSetupFunction();
-  
-  const [selectedSetupId, setSelectedSetupId] = useState("");
+
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
-
-  const [countdown, setCountdown] = useState(ESTIMATED_DURATION);
-  useEffect(() => {
-      let timer;
-      if (loading === 'running_ml' || loading === 'running_combo') {
-          setCountdown(ESTIMATED_DURATION); 
-          timer = setInterval(() => {
-              setCountdown(prev => (prev > 0 ? prev - 1 : 0)); 
-          }, 1000);
-      } else {
-          setCountdown(ESTIMATED_DURATION); 
-      }
-      return () => clearInterval(timer);
-  }, [loading]);
-
   const [formData, setFormData] = useState(initialFormData);
   const [comboData, setComboData] = useState(initialComboData);
   const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
@@ -455,67 +443,22 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
 
-  // 🚀 HANDLE SAVED SETUP SELECTION
-  const handleSetupSelect = (e) => {
-    const setupId = e.target.value;
-    setSelectedSetupId(setupId);
-    setSelectedWinnerId(""); // Clear winner selection
-    
-    const setup = setups.find(s => s._id === setupId);
-    if (!setup) return;
-
-    // Determine if Combo or Single based on saved data
-    const isCombo = setup.isCombo || (setup.strategies && setup.strategies.length > 1);
-
-    if (isCombo) {
-        setActiveTab('combo');
-        setComboData(prev => ({
-            ...prev,
-            symbol: setup.symbol,
-            timeframe: setup.timeframe,
-            initialBalance: setup.initialBalance,
-            strategies: setup.strategies,
-            comboConfig: setup.comboConfig || { strategyCodes: [], combinationRule: 'OR' },
-            params: setup.params || {},
-            mlMode: setup.mlMode || 'off',
-            mlModel: setup.mlModel || '',
-            mlThreshold: setup.mlThreshold || 0.5
-        }));
-    } else {
-        setActiveTab('single');
-        setFormData(prev => ({
-            ...prev,
-            symbol: setup.symbol,
-            timeframe: setup.timeframe,
-            initialBalance: setup.initialBalance,
-            // If strategies array exists, take first one, else use strategyId logic
-            strategyId: setup.strategyId || '',
-            code: setup.strategies?.[0]?.code || '',
-            params: setup.params || {},
-            mlMode: setup.mlMode || 'off',
-            mlModel: setup.mlModel || '',
-            mlThreshold: setup.mlThreshold || 0.5
-        }));
-    }
-  };
-
-  // 🚀 HANDLE WINNER SELECTION
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
-      setSelectedSetupId(""); // Clear setup selection
       if (!filename) return;
 
       const selectedWinner = winners.find(w => w.id === filename);
       if (selectedWinner && selectedWinner.config) {
           const config = selectedWinner.config;
+          
           let loadedSymbol = config.symbol || comboData.symbol || "BTC-USD";
           let loadedTimeframe = config.timeframe || comboData.timeframe || "1h";
-          if (!config.symbol) {
+          if (!config.symbol && filename.includes('_')) {
               const parts = filename.split('_');
-              if (parts.length >= 2 && parts[1].includes('-')) loadedSymbol = parts[1];
-              if (parts.length >= 3 && ['1h','4h','1d'].includes(parts[2])) loadedTimeframe = parts[2];
+              if(parts[1]) loadedSymbol = parts[1];
           }
+
           let rawGlobalParams = { ...defaultFilterParams };
           if (Array.isArray(config) && config.length > 0) {
              rawGlobalParams = { ...rawGlobalParams, ...(config[0].params || config[0]) };
@@ -523,6 +466,14 @@ export default function Backtests() {
              rawGlobalParams = { ...rawGlobalParams, ...(config.params || {}) };
           }
           const globalParams = normalizeParams(rawGlobalParams);
+
+          // 🚀 SMART DETECT REGIME MODE
+          // If regime_threshold exists, enforce REGIME mode even if JSON says AND
+          let hybridMode = globalParams.hybridMode || 'AND';
+          if (globalParams.regime_threshold !== undefined) {
+              hybridMode = 'REGIME';
+              globalParams.hybridMode = 'REGIME';
+          }
 
           let detectedModel = config.mlModel || config.params?.mlModel || "";
           let detectedMode = config.mlMode || config.params?.mlMode || "off";
@@ -559,14 +510,16 @@ export default function Backtests() {
               ...prev, symbol: loadedSymbol, timeframe: loadedTimeframe, mlMode: detectedMode,
               mlModel: detectedModel, mlThreshold: detectedThreshold, mlHorizon: config.mlHorizon ?? prev.mlHorizon,
               strategies: strategiesList, params: globalParams, 
-              comboConfig: { strategyCodes: strategiesList.map(s => s.code), combinationRule: globalParams.hybridMode || 'AND' }
+              comboConfig: { 
+                  strategyCodes: strategiesList.map(s => s.code), 
+                  combinationRule: hybridMode // 🚀 Auto-Selected Correct Mode
+              }
           }));
       }
   };
 
   const handleResetSelection = () => {
       setSelectedWinnerId("");
-      setSelectedSetupId("");
       setComboData(initialComboData);
   };
 
@@ -629,7 +582,6 @@ export default function Backtests() {
     setComboData(prev => ({ ...prev, strategies: prev.strategies.filter((_, i) => i !== index) }));
   };
 
-  // 🚀 SAVE STRATEGY HANDLER
   const handleSaveStrategy = async () => {
     const name = prompt("Enter a name for this strategy setup:");
     if (!name) return;
@@ -651,7 +603,7 @@ export default function Backtests() {
 
     try {
         await api.post('/strategies', payload); 
-        alert("✅ Strategy saved! It will appear in Saved Setups.");
+        alert("✅ Strategy saved successfully! You can now load it in the Trading Bot.");
     } catch (e) {
         console.error(e);
         alert("❌ Error saving strategy: " + (e.response?.data?.message || e.message));
@@ -715,15 +667,15 @@ export default function Backtests() {
             <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo Strategy</button>
           </div>
           
-          {/* 🚀 NEW: SAVED SETUPS DROPDOWN */}
+          {/* 🚀 OPTIMIZED STRATEGIES (ML) DROPDOWN ONLY */}
           <div className="form-group" style={{ marginBottom: '20px', padding: '15px', background: '#1e293b', borderRadius: '8px', border: '1px solid #334155' }}>
                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                   <label style={{ color: '#60a5fa', fontWeight: 'bold', margin: 0 }}>📂 Load Saved Setup (DB)</label>
-                   {selectedSetupId && <button type="button" onClick={handleResetSelection} className="remove-btn" style={{background:'transparent', border:'1px solid #555', padding:'4px 8px'}}>Reset</button>}
+                   <label style={{ color: '#4ade80', fontWeight: 'bold', margin: 0 }}>🏆 Load Optimized Strategy (ML)</label>
+                   {selectedWinnerId && <button type="button" onClick={handleResetSelection} className="remove-btn" style={{background:'transparent', border:'1px solid #555', padding:'4px 8px'}}>Reset</button>}
                </div>
-               <select value={selectedSetupId} onChange={handleSetupSelect} style={{ width: '100%', padding: '10px', background: '#0f172a', color: 'white', border: '1px solid #475569' }}>
-                   <option value="">-- Select Saved Setup --</option>
-                   {setups.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+               <select value={selectedWinnerId} onChange={handleWinnerSelect} style={{ width: '100%', padding: '10px', background: '#0f172a', color: 'white', border: '1px solid #475569' }}>
+                   <option value="">-- Select a Golden Strategy --</option>
+                   {winners && winners.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                </select>
           </div>
 
@@ -738,37 +690,27 @@ export default function Backtests() {
               <CommonBacktestInputs data={formData} onChange={handleFormChange} options={{ symbolOptions, timeframeOptions, modelOptions }} availableModelData={availableModelData} isCombo={false} />
               <div className="button-group" style={{display:'flex', gap:'10px'}}>
                 <button type="submit" disabled={isSingleSubmitDisabled} style={{flex:1}}>{loading !== 'idle' ? getStatusMessage() : "Run Backtest"}</button>
+                {/* 🚀 SAVE BUTTON */}
                 <button type="button" onClick={handleSaveStrategy} style={{flex:1, backgroundColor:'#22c55e', border:'none', cursor:'pointer'}}>💾 Save Strategy</button>
               </div>
             </form>
           )}
 
           {activeTab === 'combo' && (
-             <>
-                <div className="form-group" style={{ marginBottom: '20px', padding: '15px', background: '#1e293b', borderRadius: '8px', border: '1px solid #334155' }}>
-                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                       <label style={{ color: '#4ade80', fontWeight: 'bold', margin: 0 }}>🏆 Load Optimized Strategy (ML)</label>
-                       {selectedWinnerId && <button type="button" onClick={handleResetSelection} className="remove-btn" style={{background:'transparent', border:'1px solid #555', padding:'4px 8px'}}>Reset</button>}
-                   </div>
-                   <select value={selectedWinnerId} onChange={handleWinnerSelect} style={{ width: '100%', padding: '10px', background: '#0f172a', color: 'white', border: '1px solid #475569' }}>
-                       <option value="">-- Select a Golden Strategy --</option>
-                       {winners && winners.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                   </select>
+             <form onSubmit={handleRunComboBacktest} className="backtest-form">
+                <CommonBacktestInputs data={comboData} onChange={handleComboChange} options={{ symbolOptions, timeframeOptions, modelOptions }} availableModelData={availableModelData} isCombo={true} />
+                <div className="combo-strategy-list">
+                    {comboData.strategies.map((config, idx) => (
+                    <ComboStrategyCard key={idx} idx={idx} config={config} strategies={strategyOptions} onChange={handleStrategyConfigChange} onRemove={removeStrategyCard} disableRemove={comboData.strategies.length <= 1} />
+                  ))}
                 </div>
-                <form onSubmit={handleRunComboBacktest} className="backtest-form">
-                    <CommonBacktestInputs data={comboData} onChange={handleComboChange} options={{ symbolOptions, timeframeOptions, modelOptions }} availableModelData={availableModelData} isCombo={true} />
-                    <div className="combo-strategy-list">
-                        {comboData.strategies.map((config, idx) => (
-                        <ComboStrategyCard key={idx} idx={idx} config={config} strategies={strategyOptions} onChange={handleStrategyConfigChange} onRemove={removeStrategyCard} disableRemove={comboData.strategies.length <= 1} />
-                      ))}
-                    </div>
-                    <button type="button" onClick={addStrategyCard} disabled={loading !== 'idle'}>Add Strategy</button>
-                    <div className="button-group" style={{display:'flex', gap:'10px'}}>
-                         <button type="submit" disabled={isComboSubmitDisabled} style={{flex:1}}>{loading !== 'idle' ? getStatusMessage() : "Run Combo Backtest"}</button>
-                         <button type="button" onClick={handleSaveStrategy} style={{flex:1, backgroundColor:'#22c55e', border:'none', cursor:'pointer'}}>💾 Save Strategy</button>
-                    </div>
-                 </form>
-             </>
+                <button type="button" onClick={addStrategyCard} disabled={loading !== 'idle'}>Add Strategy</button>
+                <div className="button-group" style={{display:'flex', gap:'10px'}}>
+                     <button type="submit" disabled={isComboSubmitDisabled} style={{flex:1}}>{loading !== 'idle' ? getStatusMessage() : "Run Combo Backtest"}</button>
+                     {/* 🚀 SAVE BUTTON */}
+                     <button type="button" onClick={handleSaveStrategy} style={{flex:1, backgroundColor:'#22c55e', border:'none', cursor:'pointer'}}>💾 Save Strategy</button>
+                </div>
+             </form>
           )}
         </div> 
 
