@@ -1,10 +1,9 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Crash-Proof Version.
-// - Fixes "reading 'length'" error by enforcing safe defaults at the top level.
-// - Includes "Traffic Cop" (Param Filtering) & "Splitter" (Trend/Range Separation).
+// 🚀 UPGRADE: Added "Saved Setups" Loading Functionality.
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
+import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx"; // 🚀 NEW HOOK
 import { StrategyContext } from "../context/StrategyContext.jsx";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
@@ -13,6 +12,7 @@ import {
 import { ChartReplay } from "../components/ChartReplay.jsx";
 import "../components/ChartReplay.css";
 import "./Backtests.css";
+import api from "../api/apiClient"; 
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
 const ESTIMATED_DURATION = 60; 
@@ -148,44 +148,30 @@ const initialComboData = {
   mlHorizon: 1
 };
 
-// --- 4. STRATEGY PARSING LOGIC (THE SPLITTER) ---
+// --- 4. STRATEGY PARSING LOGIC ---
 function rebuildStrategiesFromParams(raw) {
-  // 1. Standard List
   if (Array.isArray(raw.strategies) && raw.strategies.length > 0) return raw.strategies; 
-  
-  // 2. Legacy String
   if (typeof raw.strategies === "string") {
-      return raw.strategies.split(",").map(code => ({
-          code: code.trim(),
-          params: {} // Will be filled by traffic cop
-      }));
+      return raw.strategies.split(",").map(code => ({ code: code.trim(), params: {} }));
   }
-
-  // 3. Direct Array (Raw Config - THIS IS THE ONE YOU USE)
   if (Array.isArray(raw)) {
       const expanded = [];
       raw.forEach(item => {
           const p = item.params || item; 
-          // 🚀 THE SPLITTER: Check for MERGED strategies
           if (p.trend_strategy || p.range_strategy) {
               if (p.trend_strategy) expanded.push({ code: p.trend_strategy, params: p });
               if (p.range_strategy) expanded.push({ code: p.range_strategy, params: p });
           } else {
-              // Standard single strategy in array
               const code = item.code || detectCodeFromParams(p) || "unknown";
               expanded.push({ code: code, params: p });
           }
       });
       return expanded;
   }
-
-  // 4. Deep Scan (Object Root)
   const detectedCodes = new Set();
   const params = raw.params || raw; 
-  
   if (params.trend_strategy) detectedCodes.add(params.trend_strategy);
   if (params.range_strategy) detectedCodes.add(params.range_strategy);
-
   Object.keys(params).forEach(key => {
       for (const [prefix, code] of Object.entries(STRATEGY_PREFIXES)) {
           if (key.startsWith(prefix)) {
@@ -194,12 +180,8 @@ function rebuildStrategiesFromParams(raw) {
           }
       }
   });
-
   if (detectedCodes.size > 0) {
-      return Array.from(detectedCodes).map(code => ({
-          code,
-          params: {} 
-      }));
+      return Array.from(detectedCodes).map(code => ({ code, params: {} }));
   }
   return [];
 }
@@ -215,9 +197,7 @@ function detectCodeFromParams(params) {
     return null;
 }
 
-
 // --- 5. COMPONENTS ---
-
 const MetricsDisplay = ({ metrics }) => {
   if (!metrics) return <div className="metrics-grid-loading">Calculating metrics...</div>;
   const formatValue = (value, format) => {
@@ -252,7 +232,6 @@ const MetricsDisplay = ({ metrics }) => {
 };
 
 const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isCombo = false }) => {
-    // 🚀 SAFETY DEFAULTS
     const symbolOptions = options?.symbolOptions || [];
     const timeframeOptions = options?.timeframeOptions || [];
     const allModelOptions = options?.modelOptions || []; 
@@ -264,53 +243,24 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
         const syntheticEvent = { target: { name: `param_${name}`, value: val, type: type } };
         onChange(syntheticEvent);
     };
-    const handleGlobalChange = (e) => {
-        onChange(e);
-    };
+    const handleGlobalChange = (e) => { onChange(e); };
 
     const params = data.params || {};
-    const activeHybridMode = isCombo ? (data.comboConfig?.combinationRule || params.hybridMode || 'AND') : 'AND';
-
     const processedSymbolOptions = useMemo(() => {
         if (!symbolOptions.length) return [];
-        if (data.mlMode === 'off') {
-            return symbolOptions.map(s => ({ value: s, name: s, isAvailable: true }));
-        }
+        if (data.mlMode === 'off') return symbolOptions.map(s => ({ value: s, name: s, isAvailable: true }));
         const { availableSymbols } = availableModelData;
-        const sortedSymbols = [...symbolOptions].sort((a, b) => {
-            const aHas = availableSymbols.has(a);
-            const bHas = availableSymbols.has(b);
-            return (bHas ? 1 : 0) - (aHas ? 1 : 0);
-        });
-        return sortedSymbols.map(s => ({
-            value: s,
-            name: availableSymbols.has(s) ? s : `${s} (No models)`,
-            isAvailable: availableSymbols.has(s)
-        }));
+        return [...symbolOptions].sort((a, b) => (availableSymbols.has(b) ? 1 : 0) - (availableSymbols.has(a) ? 1 : 0))
+            .map(s => ({ value: s, name: availableSymbols.has(s) ? s : `${s} (No models)`, isAvailable: availableSymbols.has(s) }));
     }, [data.mlMode, symbolOptions, availableModelData]);
 
     const processedTimeframeOptions = useMemo(() => {
         if (!timeframeOptions.length) return [];
-        if (data.mlMode === 'off') {
-            return timeframeOptions.map(t => ({ value: t, name: t, isAvailable: true }));
-        }
-        if (!data.symbol) {
-             return timeframeOptions.map(t => ({ value: t, name: `${t} (Select Symbol)`, isAvailable: false }));
-        }
+        if (data.mlMode === 'off') return timeframeOptions.map(t => ({ value: t, name: t, isAvailable: true }));
+        if (!data.symbol) return timeframeOptions.map(t => ({ value: t, name: `${t} (Select Symbol)`, isAvailable: false }));
         const { lookup } = availableModelData;
-        const sortedTimeframes = [...timeframeOptions].sort((a, b) => {
-            const aHas = lookup.has(`${data.symbol}_${a}`);
-            const bHas = lookup.has(`${data.symbol}_${b}`);
-            return (bHas ? 1 : 0) - (aHas ? 1 : 0);
-        });
-        return sortedTimeframes.map(t => {
-            const isAvailable = lookup.has(`${data.symbol}_${t}`);
-            return {
-                value: t,
-                name: isAvailable ? t : `${t} (No model)`,
-                isAvailable: isAvailable
-            };
-        });
+        return [...timeframeOptions].sort((a, b) => (lookup.has(`${data.symbol}_${b}`) ? 1 : 0) - (lookup.has(`${data.symbol}_${a}`) ? 1 : 0))
+            .map(t => ({ value: t, name: lookup.has(`${data.symbol}_${t}`) ? t : `${t} (No model)`, isAvailable: lookup.has(`${data.symbol}_${t}`) }));
     }, [data.mlMode, data.symbol, timeframeOptions, availableModelData]);
 
     return (
@@ -318,32 +268,20 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
             <label>Symbol:
                 <select name="symbol" value={data.symbol} onChange={handleGlobalChange} disabled={!processedSymbolOptions.length}>
                     <option value="">-- Select Symbol --</option>
-                    {processedSymbolOptions.map(s => (
-                        <option key={s.value} value={s.value} disabled={data.mlMode !== 'off' && !s.isAvailable} style={{ color: (data.mlMode !== 'off' && !s.isAvailable) ? '#888' : 'white' }}>
-                            {s.name}
-                        </option>
-                    ))}
+                    {processedSymbolOptions.map(s => <option key={s.value} value={s.value} disabled={data.mlMode !== 'off' && !s.isAvailable} style={{color: (data.mlMode !== 'off' && !s.isAvailable) ? '#888' : 'white'}}>{s.name}</option>)}
                 </select>
             </label>
-
             <label>Timeframe:
                 <select name="timeframe" value={data.timeframe} onChange={handleGlobalChange} disabled={!processedTimeframeOptions.length}>
                     <option value="">-- Select Timeframe --</option>
-                    {processedTimeframeOptions.map(t => (
-                        <option key={t.value} value={t.value} disabled={data.mlMode !== 'off' && !t.isAvailable} style={{ color: (data.mlMode !== 'off' && !t.isAvailable) ? '#888' : 'white' }}>
-                            {t.name}
-                        </option>
-                    ))}
+                    {processedTimeframeOptions.map(t => <option key={t.value} value={t.value} disabled={data.mlMode !== 'off' && !t.isAvailable} style={{color: (data.mlMode !== 'off' && !t.isAvailable) ? '#888' : 'white'}}>{t.name}</option>)}
                 </select>
             </label>
-
             <div style={{display: 'flex', gap: '10px'}}>
                 <label style={{flex:1}}>Start Date: <input type="date" name="startDate" value={data.startDate} onChange={handleGlobalChange} /></label>
                 <label style={{flex:1}}>End Date: <input type="date" name="endDate" value={data.endDate} onChange={handleGlobalChange} /></label>
             </div>
-            
             <label>Initial Balance: <input type="number" name="initialBalance" value={data.initialBalance} onChange={handleGlobalChange} min="1" step="1" /></label>
-
             <fieldset>
                 <legend>Risk Management</legend>
                 <label>Mode:
@@ -364,7 +302,6 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                     </>
                 )}
             </fieldset>
-
             <fieldset>
                 <legend>Machine Learning</legend>
                 <label>Mode:
@@ -401,7 +338,6 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                     </>
                 )}
             </fieldset>
-
             <fieldset>
                 <legend>Advanced Filters</legend>
                 <label>Volatility Filter (Min ATR %): <input type="number" name="minAtrPct" value={params.minAtrPct ?? 0} onChange={handleParamChange} step="0.05" min="0" /></label>
@@ -409,7 +345,6 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 <label>Trailing Stop (ATR Mult): <input type="number" name="tslAtrMult" value={params.tslAtrMult ?? 0} onChange={handleParamChange} step="0.1" min="0" /></label>
                 <label>Trend Filter SMA Period: <input type="number" name="trendFilterPeriod" value={params.trendFilterPeriod ?? 200} onChange={handleParamChange} step="1" min="0" /></label>
             </fieldset>
-
             {(params.tslAtrMult ?? 0) === 0 && !isCombo && (
                 <>
                     <label>Stop Loss (%): <input type="number" name="SL" value={params.SL ?? 5.0} onChange={handleParamChange} step="0.1" min="0.1" required /></label>
@@ -434,7 +369,6 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
             {strategies.length ? strategies.map(s => <option key={s._id} value={s._id}>{s.name}</option>) : <option disabled>Loading...</option>}
           </select>
         </label>
-        
         {config.params && Object.keys(config.params).length > 0 && (
             <div className="card-note" style={{marginTop: '10px'}}>
                 <small><strong>Optimized Params:</strong></small>
@@ -455,6 +389,12 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
 export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest } = useBacktest(); 
   const { loading = 'initial', error = null, options = {}, winners = [] } = state || {};
+  
+  // 🚀 HOOK: Fetch Saved Setups
+  const { setups, loading: setupsLoading } = useBacktestSetupFunction();
+  
+  const [selectedSetupId, setSelectedSetupId] = useState("");
+  const [selectedWinnerId, setSelectedWinnerId] = useState("");
 
   const [countdown, setCountdown] = useState(ESTIMATED_DURATION);
   useEffect(() => {
@@ -474,13 +414,9 @@ export default function Backtests() {
   const [comboData, setComboData] = useState(initialComboData);
   const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
   const [activeTab, setActiveTab] = useState('single');
-  const [selectedWinnerId, setSelectedWinnerId] = useState("");
 
-  // 🚀 SAFE MEMOS (Crash Protection)
-  const safeOptions = options || {}; // Guarantee object
-  
   const strategyOptions = useMemo(() => {
-    const dbStrats = safeOptions.strategies || [];
+    const dbStrats = options?.strategies || [];
     const baseStrats = Object.entries(STRATEGY_TYPE_TO_CODE_MAP).map(([name, code], idx) => ({
         _id: `base-${code}-${idx}`, name, code, params: {} 
     }));
@@ -490,24 +426,21 @@ export default function Backtests() {
         return { ...s, code: pythonCode };
     });
     return [...baseStrats, ...mappedDB];
-  }, [safeOptions.strategies]);
+  }, [options]);
   
-  const symbolOptions = useMemo(() => safeOptions.symbols || [], [safeOptions.symbols]);
-  const timeframeOptions = useMemo(() => safeOptions.timeframes || [], [safeOptions.timeframes]);
-  const timeframeWeights = { '30m': 1, '1h': 2, '4h': 3, '1d': 4, '1w': 5 };
+  const symbolOptions = useMemo(() => options?.symbols || [], [options]);
+  const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
   
   const modelOptions = useMemo(() => {
-      const rawModels = safeOptions.models || [];
-      if (!Array.isArray(rawModels)) return [];
-      
-      return rawModels.map(model => {
+      if (!options?.models) return [];
+      return options.models.map(model => {
          const parts = model.id.split('_');
          let symbolBase = 'BTC'; let timeframe = '1h';
          if (parts.length >= 3) { symbolBase = parts[0].toUpperCase(); timeframe = parts[1]; }
          if (!symbolBase.includes('-')) symbolBase += '-USD';
          return { ...model, symbolBase, timeframe };
       }).sort((a,b) => a.id.localeCompare(b.id));
-  }, [safeOptions.models]);
+  }, [options]);
 
   const availableModelData = useMemo(() => {
     const availableSymbols = new Set();
@@ -522,28 +455,67 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
 
-  // 🚀 HANDLE WINNER SELECTION (The Master Logic)
- // 🚀 HANDLE WINNER SELECTION (Fixed ML Auto-Detection)
+  // 🚀 HANDLE SAVED SETUP SELECTION
+  const handleSetupSelect = (e) => {
+    const setupId = e.target.value;
+    setSelectedSetupId(setupId);
+    setSelectedWinnerId(""); // Clear winner selection
+    
+    const setup = setups.find(s => s._id === setupId);
+    if (!setup) return;
+
+    // Determine if Combo or Single based on saved data
+    const isCombo = setup.isCombo || (setup.strategies && setup.strategies.length > 1);
+
+    if (isCombo) {
+        setActiveTab('combo');
+        setComboData(prev => ({
+            ...prev,
+            symbol: setup.symbol,
+            timeframe: setup.timeframe,
+            initialBalance: setup.initialBalance,
+            strategies: setup.strategies,
+            comboConfig: setup.comboConfig || { strategyCodes: [], combinationRule: 'OR' },
+            params: setup.params || {},
+            mlMode: setup.mlMode || 'off',
+            mlModel: setup.mlModel || '',
+            mlThreshold: setup.mlThreshold || 0.5
+        }));
+    } else {
+        setActiveTab('single');
+        setFormData(prev => ({
+            ...prev,
+            symbol: setup.symbol,
+            timeframe: setup.timeframe,
+            initialBalance: setup.initialBalance,
+            // If strategies array exists, take first one, else use strategyId logic
+            strategyId: setup.strategyId || '',
+            code: setup.strategies?.[0]?.code || '',
+            params: setup.params || {},
+            mlMode: setup.mlMode || 'off',
+            mlModel: setup.mlModel || '',
+            mlThreshold: setup.mlThreshold || 0.5
+        }));
+    }
+  };
+
+  // 🚀 HANDLE WINNER SELECTION
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
+      setSelectedSetupId(""); // Clear setup selection
       if (!filename) return;
 
       const selectedWinner = winners.find(w => w.id === filename);
       if (selectedWinner && selectedWinner.config) {
           const config = selectedWinner.config;
-          
-          // 1. Meta Data
           let loadedSymbol = config.symbol || comboData.symbol || "BTC-USD";
           let loadedTimeframe = config.timeframe || comboData.timeframe || "1h";
-          
           if (!config.symbol) {
               const parts = filename.split('_');
               if (parts.length >= 2 && parts[1].includes('-')) loadedSymbol = parts[1];
               if (parts.length >= 3 && ['1h','4h','1d'].includes(parts[2])) loadedTimeframe = parts[2];
           }
-
-          // 2. Global Params
           let rawGlobalParams = { ...defaultFilterParams };
           if (Array.isArray(config) && config.length > 0) {
              rawGlobalParams = { ...rawGlobalParams, ...(config[0].params || config[0]) };
@@ -552,102 +524,49 @@ export default function Backtests() {
           }
           const globalParams = normalizeParams(rawGlobalParams);
 
-          // 3. ML Settings (The Fix)
-          let detectedModel = "";
-          let detectedMode = "off";
-          let detectedThreshold = 0.5;
-
-          // Helper to look anywhere for ML keys
-          const extractML = (obj) => {
-              if (!obj) return;
-              // Check root
+          let detectedModel = config.mlModel || config.params?.mlModel || "";
+          let detectedMode = config.mlMode || config.params?.mlMode || "off";
+          const detectedThreshold = config.mlThreshold ?? config.params?.mlThreshold ?? 0.5;
+          const findML = (obj) => {
               if (obj.mlModel) detectedModel = obj.mlModel;
               if (obj.mlMode) detectedMode = obj.mlMode;
-              if (obj.mlThreshold) detectedThreshold = obj.mlThreshold;
-              
-              // Check params
-              if (obj.params) {
-                  if (obj.params.mlModel) detectedModel = obj.params.mlModel;
-                  if (obj.params.mlMode) detectedMode = obj.params.mlMode;
-                  if (obj.params.mlThreshold) detectedThreshold = obj.params.mlThreshold;
-              }
           };
+          if (Array.isArray(config)) config.forEach(findML);
+          else findML(config);
+          if (config.params) findML(config.params);
+          if (detectedMode === "off" && detectedModel) detectedMode = "predictions";
 
-          if (Array.isArray(config)) {
-              config.forEach(item => extractML(item));
-          } else {
-              extractML(config);
-          }
-
-          // 🧠 SMART DEFAULT: If we found a model but mode is off, force it to predictions
-          if (detectedMode === "off" && detectedModel !== "") {
-              console.log("🧠 Smart Default: Found model, forcing ML Mode to 'predictions'");
-              detectedMode = "predictions"; 
-          }
-
-          // 4. Strategies (Traffic Cop)
           let strategiesList = rebuildStrategiesFromParams(config);
-
           strategiesList = strategiesList.map(s => {
               let def = strategyOptions.find(opt => opt.code === s.code);
-              if (!def) {
-                   def = strategyOptions.find(opt => opt._id.startsWith(`base-${s.code}`));
-              }
+              if (!def) def = strategyOptions.find(opt => opt._id.startsWith(`base-${s.code}`));
               const idToUse = def ? def._id : "";
-
-              const specificParams = {};
               const prefix = STRATEGY_PREFIXES[s.code]; 
               const allParams = { ...(config.params || {}), ...(s.params || {}) };
-              
-              // Also check array sources
-              if(Array.isArray(config)) {
-                  config.forEach(item => Object.assign(allParams, item.params || item));
-              }
-              
+              if(Array.isArray(config)) config.forEach(item => Object.assign(allParams, item.params || item));
+              const specificParams = {};
               Object.entries(allParams).forEach(([key, val]) => {
                   if (prefix && key.startsWith(prefix)) {
                        const uiKey = PARAM_MAPPING[key] || key;
                        specificParams[uiKey] = val;
                   }
               });
-
-              return {
-                  strategyId: idToUse,
-                  code: s.code,
-                  params: specificParams
-              };
+              return { strategyId: idToUse, code: s.code, params: specificParams };
           });
 
-          if (strategiesList.length === 0) {
-               strategiesList = [
-                  { strategyId: "", code: "", params: {} },
-                  { strategyId: "", code: "", params: {} }
-               ];
-          }
-
-          // 5. Set State
           setActiveTab('combo');
           setComboData(prev => ({
-              ...prev,
-              symbol: loadedSymbol,
-              timeframe: loadedTimeframe,
-              mlMode: detectedMode, // This will now be correct
-              mlModel: detectedModel,
-              mlThreshold: detectedThreshold,
-              mlHorizon: config.mlHorizon ?? prev.mlHorizon,
-              strategies: strategiesList,
-              params: globalParams, 
-              comboConfig: { 
-                  strategyCodes: strategiesList.map(s => s.code), 
-                  combinationRule: globalParams.hybridMode || 'AND',
-              }
+              ...prev, symbol: loadedSymbol, timeframe: loadedTimeframe, mlMode: detectedMode,
+              mlModel: detectedModel, mlThreshold: detectedThreshold, mlHorizon: config.mlHorizon ?? prev.mlHorizon,
+              strategies: strategiesList, params: globalParams, 
+              comboConfig: { strategyCodes: strategiesList.map(s => s.code), combinationRule: globalParams.hybridMode || 'AND' }
           }));
       }
   };
 
-  // Handlers
-  const handleResetWinner = () => {
+  const handleResetSelection = () => {
       setSelectedWinnerId("");
+      setSelectedSetupId("");
       setComboData(initialComboData);
   };
 
@@ -655,14 +574,10 @@ export default function Backtests() {
     const { name, value, type } = e.target;
     let val = (type === 'checkbox' ? e.target.checked : value);
     if (type === 'number') val = (value === '' || value === null) ? 0 : parseFloat(value);
-
     if (name === 'strategyId') { 
       const selectedStrategy = strategyOptions.find(s => s._id === val); 
       if (selectedStrategy) {
-        setFormData(prev => ({ 
-            ...prev, strategyId: val, code: selectedStrategy.code, 
-            params: { ...prev.params, ...(selectedStrategy.params || {}) } 
-        })); 
+        setFormData(prev => ({ ...prev, strategyId: val, code: selectedStrategy.code, params: { ...prev.params, ...(selectedStrategy.params || {}) } })); 
       }
     } else if (name.startsWith("param_")) {
       setFormData(prev => ({ ...prev, params: { ...prev.params, [name.substring(6)]: val } }));
@@ -675,7 +590,6 @@ export default function Backtests() {
     const { name, value, type } = e.target;
     let val = (type === 'checkbox' ? e.target.checked : value);
     if (type === 'number') val = (value === '' || value === null) ? 0 : parseFloat(value);
-
     if (name.startsWith("param_")) {
       setComboData(prev => ({ ...prev, params: { ...prev.params, [name.substring(6)]: val } }));
     } else {
@@ -688,10 +602,8 @@ export default function Backtests() {
     const isParam = name.startsWith("param_");
     let val = (type === 'checkbox' ? e.target.checked : value);
     if (type === 'number') val = (value === '' || value === null) ? 0 : parseFloat(value);
-
     const updatedStrategies = [...comboData.strategies];
     const currentConfig = { ...updatedStrategies[index] };
-    
     if (isParam) {
       const paramName = name.substring(6);
       currentConfig.params = { ...(currentConfig.params || {}), [paramName]: val };
@@ -709,14 +621,41 @@ export default function Backtests() {
   
   const addStrategyCard = () => {
     const defaultStrategy = strategyOptions[0] || {};
-    setComboData(prev => ({ ...prev, strategies: [...prev.strategies, { 
-        strategyId: defaultStrategy._id || "", code: defaultStrategy.code || "", params: {} 
-    }] }));
+    setComboData(prev => ({ ...prev, strategies: [...prev.strategies, { strategyId: defaultStrategy._id || "", code: defaultStrategy.code || "", params: {} }] }));
   };
   
   const removeStrategyCard = (index) => {
     if (comboData.strategies.length <= 1) return;
     setComboData(prev => ({ ...prev, strategies: prev.strategies.filter((_, i) => i !== index) }));
+  };
+
+  // 🚀 SAVE STRATEGY HANDLER
+  const handleSaveStrategy = async () => {
+    const name = prompt("Enter a name for this strategy setup:");
+    if (!name) return;
+
+    const config = activeTab === 'single' ? formData : comboData;
+    const payload = {
+        name,
+        symbol: config.symbol,
+        timeframe: config.timeframe,
+        initialBalance: config.initialBalance,
+        strategies: activeTab === 'single' ? [{ code: config.code, params: config.params }] : config.strategies.map(s => ({ code: s.code, params: s.params })),
+        comboConfig: activeTab === 'combo' ? config.comboConfig : null,
+        params: config.params,
+        mlMode: config.mlMode,
+        mlModel: config.mlModel,
+        mlThreshold: config.mlThreshold,
+        isCombo: activeTab === 'combo'
+    };
+
+    try {
+        await api.post('/strategies', payload); 
+        alert("✅ Strategy saved! It will appear in Saved Setups.");
+    } catch (e) {
+        console.error(e);
+        alert("❌ Error saving strategy: " + (e.response?.data?.message || e.message));
+    }
   };
  
   const handleRunBacktest = async (e) => {
@@ -736,7 +675,6 @@ export default function Backtests() {
     } catch (err) { console.error(err); }
   };
 
-  // Metrics Prep
   const { combinedEquityCurve, combinedMetrics, mainResult } = useMemo(() => {
        try {
          const mainResult = backtestResults?.main || backtestResults?.combinedResult;
@@ -776,6 +714,18 @@ export default function Backtests() {
             <button className={activeTab === 'single' ? 'active' : ''} onClick={() => setActiveTab('single')}>Single Strategy</button>
             <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo Strategy</button>
           </div>
+          
+          {/* 🚀 NEW: SAVED SETUPS DROPDOWN */}
+          <div className="form-group" style={{ marginBottom: '20px', padding: '15px', background: '#1e293b', borderRadius: '8px', border: '1px solid #334155' }}>
+               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                   <label style={{ color: '#60a5fa', fontWeight: 'bold', margin: 0 }}>📂 Load Saved Setup (DB)</label>
+                   {selectedSetupId && <button type="button" onClick={handleResetSelection} className="remove-btn" style={{background:'transparent', border:'1px solid #555', padding:'4px 8px'}}>Reset</button>}
+               </div>
+               <select value={selectedSetupId} onChange={handleSetupSelect} style={{ width: '100%', padding: '10px', background: '#0f172a', color: 'white', border: '1px solid #475569' }}>
+                   <option value="">-- Select Saved Setup --</option>
+                   {setups.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+               </select>
+          </div>
 
           {activeTab === 'single' && (
             <form onSubmit={handleRunBacktest} className="backtest-form">
@@ -786,7 +736,10 @@ export default function Backtests() {
                   </select>
               </label>
               <CommonBacktestInputs data={formData} onChange={handleFormChange} options={{ symbolOptions, timeframeOptions, modelOptions }} availableModelData={availableModelData} isCombo={false} />
-              <button type="submit" disabled={isSingleSubmitDisabled}>{loading !== 'idle' ? getStatusMessage() : "Run Backtest"}</button>
+              <div className="button-group" style={{display:'flex', gap:'10px'}}>
+                <button type="submit" disabled={isSingleSubmitDisabled} style={{flex:1}}>{loading !== 'idle' ? getStatusMessage() : "Run Backtest"}</button>
+                <button type="button" onClick={handleSaveStrategy} style={{flex:1, backgroundColor:'#22c55e', border:'none', cursor:'pointer'}}>💾 Save Strategy</button>
+              </div>
             </form>
           )}
 
@@ -795,7 +748,7 @@ export default function Backtests() {
                 <div className="form-group" style={{ marginBottom: '20px', padding: '15px', background: '#1e293b', borderRadius: '8px', border: '1px solid #334155' }}>
                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                        <label style={{ color: '#4ade80', fontWeight: 'bold', margin: 0 }}>🏆 Load Optimized Strategy (ML)</label>
-                       {selectedWinnerId && <button type="button" onClick={handleResetWinner} className="remove-btn" style={{background:'transparent', border:'1px solid #555', padding:'4px 8px'}}>Reset</button>}
+                       {selectedWinnerId && <button type="button" onClick={handleResetSelection} className="remove-btn" style={{background:'transparent', border:'1px solid #555', padding:'4px 8px'}}>Reset</button>}
                    </div>
                    <select value={selectedWinnerId} onChange={handleWinnerSelect} style={{ width: '100%', padding: '10px', background: '#0f172a', color: 'white', border: '1px solid #475569' }}>
                        <option value="">-- Select a Golden Strategy --</option>
@@ -810,7 +763,10 @@ export default function Backtests() {
                       ))}
                     </div>
                     <button type="button" onClick={addStrategyCard} disabled={loading !== 'idle'}>Add Strategy</button>
-                    <button type="submit" disabled={isComboSubmitDisabled}>{loading !== 'idle' ? getStatusMessage() : "Run Combo Backtest"}</button>
+                    <div className="button-group" style={{display:'flex', gap:'10px'}}>
+                         <button type="submit" disabled={isComboSubmitDisabled} style={{flex:1}}>{loading !== 'idle' ? getStatusMessage() : "Run Combo Backtest"}</button>
+                         <button type="button" onClick={handleSaveStrategy} style={{flex:1, backgroundColor:'#22c55e', border:'none', cursor:'pointer'}}>💾 Save Strategy</button>
+                    </div>
                  </form>
              </>
           )}
