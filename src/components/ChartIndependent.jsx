@@ -1,20 +1,21 @@
+// File: src/components/ChartIndependent.jsx
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { createChart, CrosshairMode } from 'lightweight-charts';
+import './ChartIndependent.css';
 
 export const ChartIndependent = ({ results, symbol }) => {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const candleSeriesRef = useRef(null);
-  const tradeLineSeriesRef = useRef(null); // The "Laser Line"
+  const tradeLineSeriesRef = useRef(null);
   
   const [highlightedTrade, setHighlightedTrade] = useState(null);
-  const [chartWidth, setChartWidth] = useState(800);
-
-  // --- 1. PARSE DATA ---
+  
+  // --- 1. DATA PARSING ---
   const parseTime = (t) => {
       if (!t) return null;
       if (typeof t === 'object' && t.$date) t = t.$date;
-      if (typeof t === 'number' && t < 10000000000) return t; // UNIX seconds
+      if (typeof t === 'number' && t < 10000000000) return t; 
       const d = new Date(t);
       return isNaN(d.getTime()) ? null : d.getTime() / 1000;
   };
@@ -39,77 +40,76 @@ export const ChartIndependent = ({ results, symbol }) => {
       entryPrice: parseFloat(t.price || t.entryPrice),
       exitPrice: parseFloat(t.exitPrice),
       profit: parseFloat(t.profit),
-      position: t.position,
+      position: (t.position || 'long').toLowerCase(),
       duration: t.exitTime && t.entryTime ? ((new Date(t.exitTime) - new Date(t.entryTime)) / (1000 * 60 * 60)).toFixed(1) : '0'
-    })).sort((a, b) => a.entryTime - b.entryTime); // Sort chronologically
+    })).sort((a, b) => a.entryTime - b.entryTime);
   }, [results]);
 
-  // --- 2. INIT CHART ---
+  const totalPnL = trades.reduce((acc, t) => acc + t.profit, 0);
+
+  // --- 2. CHART INITIALIZATION ---
   useEffect(() => {
     if (!chartContainerRef.current || candles.length === 0) return;
 
-    // Cleanup old chart
     if (chartRef.current) chartRef.current.remove();
 
-    // Create Chart
     chartRef.current = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
-      height: 450,
-      layout: { backgroundColor: '#16161e', textColor: '#d1d5db' },
-      grid: { vertLines: { color: '#2b2b3b' }, horzLines: { color: '#2b2b3b' } },
-      timeScale: { borderColor: '#485c7b', timeVisible: true },
+      height: chartContainerRef.current.clientHeight,
+      layout: { backgroundColor: '#0f172a', textColor: '#94a3b8' },
+      grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
+      timeScale: { borderColor: '#334155', timeVisible: true },
+      rightPriceScale: { borderColor: '#334155' },
+      crosshair: { mode: CrosshairMode.Normal },
     });
 
-    // 1. Candle Series
     candleSeriesRef.current = chartRef.current.addCandlestickSeries({
-        upColor: '#4ade80', downColor: '#f87171',
-        borderVisible: false, wickUpColor: '#4ade80', wickDownColor: '#f87171',
+        upColor: '#22c55e', downColor: '#ef4444',
+        borderVisible: false, wickUpColor: '#22c55e', wickDownColor: '#ef4444',
     });
     candleSeriesRef.current.setData(candles);
 
-    // 2. The "Laser Line" Series (Hidden by default, shown on hover)
     tradeLineSeriesRef.current = chartRef.current.addLineSeries({
-        color: '#fbbf24', // Amber for visibility
-        lineWidth: 3,
+        color: '#fbbf24',
+        lineWidth: 2,
         crosshairMarkerVisible: false,
-        lineStyle: 0, // Solid
+        lineStyle: 2, 
         lastValueVisible: false,
         priceLineVisible: false,
     });
 
-    // 3. Add Static Markers for ALL Entries/Exits
     const markers = [];
     trades.forEach(t => {
-        // Entry Marker
         markers.push({
             time: t.entryTime,
             position: t.position === 'long' ? 'belowBar' : 'aboveBar',
-            color: t.position === 'long' ? '#2196F3' : '#E91E63',
+            color: t.position === 'long' ? '#3b82f6' : '#ec4899',
             shape: t.position === 'long' ? 'arrowUp' : 'arrowDown',
-            text: `E` // Simple E for Entry
+            text: 'E',
+            size: 0.5 
         });
-        // Exit Marker
         if (t.exitTime) {
             markers.push({
                 time: t.exitTime,
                 position: t.position === 'long' ? 'aboveBar' : 'belowBar',
-                color: t.profit > 0 ? '#4CAF50' : '#F44336',
+                color: t.profit > 0 ? '#22c55e' : '#ef4444',
                 shape: 'circle',
-                text: `X` // X for Exit
+                text: 'X',
+                size: 0.5 
             });
         }
     });
-    // Sort markers by time
     markers.sort((a, b) => a.time - b.time);
     candleSeriesRef.current.setMarkers(markers);
 
     chartRef.current.timeScale().fitContent();
 
-    // Resize Handler
     const handleResize = () => {
         if (chartRef.current && chartContainerRef.current) {
-            setChartWidth(chartContainerRef.current.clientWidth);
-            chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+            chartRef.current.applyOptions({ 
+                width: chartContainerRef.current.clientWidth,
+                height: chartContainerRef.current.clientHeight
+            });
         }
     };
     window.addEventListener('resize', handleResize);
@@ -120,100 +120,130 @@ export const ChartIndependent = ({ results, symbol }) => {
   }, [candles, trades]);
 
 
-  // --- 3. HOVER EFFECT (The Laser Line Logic) ---
+  // --- 3. LASER LINE & AUTO-FOCUS LOGIC ---
   useEffect(() => {
-    if (!tradeLineSeriesRef.current) return;
+    if (!tradeLineSeriesRef.current || !chartRef.current) return;
 
     if (highlightedTrade) {
-        // 1. Prepare Line Data
-        // We only want a line from Entry to Exit.
-        // Lightweight charts interpolates. So we just give it two points.
+        // A. Draw the Laser Line
         const lineData = [
             { time: highlightedTrade.entryTime, value: highlightedTrade.entryPrice },
             { time: highlightedTrade.exitTime, value: highlightedTrade.exitPrice }
         ];
-
-        // 2. Set Data
         tradeLineSeriesRef.current.setData(lineData);
-
-        // 3. Update Options (Color based on Profit)
+        
+        const isWin = highlightedTrade.profit > 0;
         tradeLineSeriesRef.current.applyOptions({
-            color: highlightedTrade.profit > 0 ? '#4ade80' : '#f87171', // Green or Red laser
-            lineStyle: 0 // Solid
+            color: isWin ? '#4ade80' : '#f87171', 
+            lineWidth: 3,
+            lineStyle: 0 
+        });
+
+        // B. AUTO-FOCUS LOGIC (Pan & Zoom to Trade)
+        const duration = highlightedTrade.exitTime - highlightedTrade.entryTime;
+        
+        // Calculate "Breathing Room" (Padding)
+        // If duration is 0 (same bar exit), use ~20 bars padding (assuming hourly: 20 * 3600)
+        // Otherwise use 50% of the trade duration as padding on each side
+        let padding = duration === 0 ? 3600 * 20 : duration * 0.5;
+        
+        // Enforce a minimum padding of 10 hours so we don't zoom in excessively on quick scalps
+        padding = Math.max(padding, 3600 * 10); 
+
+        chartRef.current.timeScale().setVisibleRange({
+            from: highlightedTrade.entryTime - padding,
+            to: highlightedTrade.exitTime + padding
         });
         
-        // 4. Optional: Zoom/Pan to trade (Distracting? Let's skip auto-zoom, just highlight)
-        
     } else {
-        // Clear Line
         tradeLineSeriesRef.current.setData([]);
     }
   }, [highlightedTrade]);
 
-  if (!results) return <div>No Data</div>;
+  if (!results) return <div className="loading-chart">No Data Available</div>;
 
   return (
-    <div className="flex flex-col gap-4 bg-[#1e1e2e] p-4 rounded-lg text-gray-200">
-      <div className="flex justify-between items-center pb-2 border-b border-gray-700">
-          <h2 className="text-xl font-bold text-white">Independent Bot Visualizer</h2>
-          <div className="text-sm text-gray-400">Hover over the list to trace specific trades</div>
+    <div className="independent-container">
+      {/* HEADER */}
+      <div className="independent-header">
+          <h2>
+             <span style={{fontSize:'1.2rem'}}>🔭</span> 
+             Independent Trade Inspector 
+             <span className="stat-badge">{symbol}</span>
+          </h2>
+          <div style={{display:'flex', gap:'12px', fontSize:'0.9rem'}}>
+              <span style={{color:'#94a3b8'}}>Trades: <b style={{color:'#fff'}}>{trades.length}</b></span>
+              <span style={{color:'#94a3b8'}}>Net PnL: <b style={{color: totalPnL >= 0 ? '#4ade80' : '#f87171'}}>${totalPnL.toFixed(2)}</b></span>
+          </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-4 h-[600px]">
-          {/* LEFT: The Chart */}
-          <div className="flex-1 relative border border-gray-700 rounded bg-[#16161e]">
-             <div ref={chartContainerRef} className="w-full h-full" />
+      {/* BODY */}
+      <div className="independent-body">
+          
+          {/* LEFT: CHART */}
+          <div className="chart-section">
+             <div ref={chartContainerRef} style={{ width: '100%', height: '100%' }} />
+             
              {highlightedTrade && (
-                 <div className="absolute top-4 left-4 bg-black/80 p-2 rounded border border-gray-600 z-10 text-xs">
-                     <div className="font-bold text-yellow-400">TRACING TRADE #{highlightedTrade.id + 1}</div>
-                     <div>Entry: ${highlightedTrade.entryPrice.toFixed(2)}</div>
-                     <div>Exit: ${highlightedTrade.exitPrice.toFixed(2)}</div>
-                     <div className={highlightedTrade.profit > 0 ? 'text-green-400' : 'text-red-400'}>
-                        PnL: ${highlightedTrade.profit.toFixed(2)}
+                 <div className={`chart-hud ${highlightedTrade.profit > 0 ? 'win' : 'loss'}`}>
+                     <div className="hud-title">Trade #{highlightedTrade.id + 1} Analysis</div>
+                     <div className="hud-row">
+                         <span>Status</span>
+                         <span className="hud-val" style={{color: highlightedTrade.profit > 0 ? '#4ade80' : '#f87171'}}>
+                            {highlightedTrade.profit > 0 ? 'WIN' : 'LOSS'}
+                         </span>
+                     </div>
+                     <div className="hud-row">
+                         <span>Entry</span>
+                         <span className="hud-val">${highlightedTrade.entryPrice.toFixed(2)}</span>
+                     </div>
+                     <div className="hud-row">
+                         <span>Exit</span>
+                         <span className="hud-val">${highlightedTrade.exitPrice.toFixed(2)}</span>
+                     </div>
+                     <div className="hud-row" style={{marginTop:'8px', borderTop:'1px solid #334155', paddingTop:'4px'}}>
+                         <span>Realized PnL</span>
+                         <span className="hud-val" style={{fontSize:'1rem', color: highlightedTrade.profit > 0 ? '#4ade80' : '#f87171'}}>
+                             {highlightedTrade.profit > 0 ? '+' : ''}{highlightedTrade.profit.toFixed(2)}
+                         </span>
                      </div>
                  </div>
              )}
           </div>
 
-          {/* RIGHT: The Independent Trade List */}
-          <div className="w-full lg:w-80 overflow-y-auto border-l border-gray-700 bg-[#1e1e2e] pr-2">
-              <table className="w-full text-sm border-collapse">
-                  <thead className="sticky top-0 bg-[#2d2d3f] z-10 text-xs uppercase text-gray-400">
-                      <tr>
-                          <th className="p-2 text-left">Type</th>
-                          <th className="p-2 text-right">Entry</th>
-                          <th className="p-2 text-right">PnL</th>
-                      </tr>
-                  </thead>
-                  <tbody>
-                      {trades.map((t) => (
-                          <tr 
-                            key={t.id}
-                            className={`border-b border-gray-700 cursor-pointer transition-colors
-                                ${highlightedTrade?.id === t.id ? 'bg-gray-700' : 'hover:bg-[#2a2a35]'}
-                            `}
-                            onMouseEnter={() => setHighlightedTrade(t)}
-                            onMouseLeave={() => setHighlightedTrade(null)}
-                          >
-                              <td className="p-2">
-                                  <div className={`font-bold text-xs ${t.position === 'long' ? 'text-blue-400' : 'text-pink-400'}`}>
-                                      {t.position.toUpperCase()}
-                                  </div>
-                                  <div className="text-[10px] text-gray-500">
-                                      {new Date(t.entryTime * 1000).toLocaleDateString()}
-                                  </div>
-                              </td>
-                              <td className="p-2 text-right">
-                                  ${t.entryPrice.toFixed(0)}
-                                  <div className="text-[10px] text-gray-500">{t.duration}h</div>
-                              </td>
-                              <td className={`p-2 text-right font-mono ${t.profit > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                  {t.profit > 0 ? '+' : ''}{t.profit.toFixed(2)}
-                              </td>
-                          </tr>
-                      ))}
-                  </tbody>
-              </table>
+          {/* RIGHT: LIST */}
+          <div className="list-section">
+              <div className="trade-list-header">
+                  <span>Signal</span>
+                  <span style={{textAlign:'right'}}>Entry</span>
+                  <span style={{textAlign:'right'}}>Result</span>
+              </div>
+              <div className="trade-list-scroll">
+                  {trades.map((t) => (
+                      <div 
+                        key={t.id}
+                        className={`trade-row ${highlightedTrade?.id === t.id ? 'active' : ''}`}
+                        onMouseEnter={() => setHighlightedTrade(t)}
+                        onMouseLeave={() => setHighlightedTrade(null)}
+                      >
+                          <div>
+                              <span className={`badge ${t.position}`}>
+                                  {t.position}
+                              </span>
+                              <div className="date-sub">
+                                  {new Date(t.entryTime * 1000).toLocaleDateString(undefined, {month:'numeric', day:'numeric', year:'2-digit'})}
+                              </div>
+                          </div>
+                          <div className="price-cell">
+                              ${t.entryPrice.toFixed(0)}
+                              <div className="date-sub">{t.duration}h hold</div>
+                          </div>
+                          <div className={`pnl-cell ${t.profit > 0 ? 'pnl-pos' : 'pnl-neg'}`}>
+                              {t.profit > 0 ? '+' : ''}{t.profit.toFixed(2)}
+                          </div>
+                      </div>
+                  ))}
+              </div>
           </div>
       </div>
     </div>
