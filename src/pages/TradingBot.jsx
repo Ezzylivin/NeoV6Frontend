@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: Complete Integration (Saved Setups + Golden Strategies + Live Bot)
+// 🚀 UPGRADE: v28.0 - Full Integration (Saved Setups + Golden Strategies + Live Logic)
 
 import React, { useState, useEffect, useRef, useContext } from "react";
 import { useBot } from '../hooks/useBot.js';
@@ -9,9 +9,10 @@ import { StrategyContext } from "../context/StrategyContext.jsx";
 import LiveTradingChart from "../components/LiveTradingChart.jsx"; 
 import "./TradingBot.css";
 
-// --- METRICS COMPONENT ---
+// --- HELPER: Robustly Find Metrics ---
 const getRobustMetrics = (status) => {
     const pm = status?.performanceMetrics || {};
+    
     const totalProfit = pm.totalProfit ?? status?.totalProfit ?? 0;
     const totalTrades = pm.totalTrades ?? status?.trades?.length ?? 0;
     const currentBalance = pm.currentBalance ?? status?.currentBalance ?? status?.capitalAllocation ?? 0;
@@ -32,8 +33,10 @@ const getRobustMetrics = (status) => {
     };
 };
 
+// --- METRICS DISPLAY ---
 const MetricsDisplay = ({ data }) => {
     const metrics = getRobustMetrics(data);
+
     const formatValue = (key, value) => {
         if (value === undefined || value === null) return "N/A";
         if (typeof value !== "number") return String(value);
@@ -65,8 +68,8 @@ export default function TradingBot() {
     } = useBot();
 
     // 2. Data Sources
-    const { setups } = useBacktestSetupFunction(); // Saved Setups (DB)
-    const { state: backtestState } = useBacktest(); // Golden Strategies (ML Files)
+    const { setups } = useBacktestSetupFunction(); // DB Saved Setups
+    const { state: backtestState } = useBacktest(); // ML Golden Files
     const winners = (botWinners && botWinners.length > 0) ? botWinners : (backtestState?.winners || []);
     
     const logsEndRef = useRef(null);
@@ -102,16 +105,24 @@ export default function TradingBot() {
     const handleSetupSelect = (e) => {
         const setupId = e.target.value;
         setSelectedSetupId(setupId);
-        setSelectedWinnerId(""); // Clear other dropdown
+        setSelectedWinnerId(""); // Clear Golden dropdown
         
         const setup = setups.find(s => s._id === setupId);
         if (setup) {
             console.log("📂 Loaded Saved Setup:", setup);
             
-            // Determine if Combo
+            // Robust Combo Detection
             const isCombo = setup.isCombo || (setup.strategies && setup.strategies.length > 1);
-            const strategyCodes = isCombo ? setup.strategies.map(s => s.code) : [setup.code];
             
+            // Ensure Combo Config Exists
+            let comboConfig = setup.comboConfig;
+            if (!comboConfig && isCombo) {
+                comboConfig = {
+                    strategyCodes: setup.strategies.map(s => s.code),
+                    combinationRule: setup.params?.hybridMode || 'AND'
+                };
+            }
+
             setFormConfig(prev => ({
                 ...prev,
                 symbol: setup.symbol,
@@ -119,7 +130,7 @@ export default function TradingBot() {
                 capitalAllocation: setup.initialBalance || 1000,
                 isCombo: isCombo,
                 strategies: setup.strategies || [],
-                comboConfig: setup.comboConfig || { strategyCodes, combinationRule: 'OR' },
+                comboConfig: comboConfig || { strategyCodes: [], combinationRule: 'OR' },
                 params: setup.params || {},
                 mlMode: setup.mlMode || 'off',
                 mlModel: setup.mlModel || '',
@@ -132,7 +143,7 @@ export default function TradingBot() {
     const handleWinnerSelect = (e) => {
         const filename = e.target.value;
         setSelectedWinnerId(filename);
-        setSelectedSetupId(""); // Clear other dropdown
+        setSelectedSetupId(""); // Clear DB dropdown
 
         const selectedWinner = winners.find(w => w.id === filename);
         if (selectedWinner && selectedWinner.config) {
@@ -142,23 +153,29 @@ export default function TradingBot() {
             let symbol = config.symbol || "BTC-USD";
             let timeframe = config.timeframe || "1h";
 
-            // If missing in config, parse filename
+            // Parse Filename for Symbol/Timeframe if missing
             if(!config.symbol && filename.includes('_')) {
                  const parts = filename.split('_');
                  if(parts[1]) symbol = parts[1];
                  if(parts[2] && ['1h','4h','1d'].includes(parts[2])) timeframe = parts[2];
             }
 
-            // Parse Strategies
+            // Parse Strategies (Handle Legacy Lists vs Objects)
             let strategies = [];
             if(Array.isArray(config.strategies)) strategies = config.strategies;
             else if(Array.isArray(config)) strategies = config;
             
-            // Normalize list format
+            // Normalize to Object format
             strategies = strategies.map(s => ({
                 code: s.code || s.trend_strategy || "unknown",
                 params: s.params || s
             }));
+
+            // Auto-Detect ML
+            let mlMode = config.mlMode || "off";
+            let mlModel = config.mlModel || "";
+            if(config.params?.mlModel) mlModel = config.params.mlModel;
+            if(mlModel && mlMode === "off") mlMode = "predictions";
 
             setFormConfig(prev => ({
                 ...prev,
@@ -167,12 +184,12 @@ export default function TradingBot() {
                 strategies: strategies,
                 comboConfig: { 
                     strategyCodes: strategies.map(s=>s.code), 
-                    combinationRule: config.params?.hybridMode || 'AND' 
+                    combinationRule: config.params?.hybridMode || 'REGIME' 
                 },
                 params: config.params || {},
-                mlMode: 'predictions', // Default for winners
-                mlModel: config.mlModel || config.params?.mlModel || 'btc_1h_xgboost_model',
-                mlThreshold: 0.5
+                mlMode: mlMode, 
+                mlModel: mlModel || 'btc_1h_xgboost_model',
+                mlThreshold: config.mlThreshold || 0.5
             }));
         }
     };
@@ -193,6 +210,9 @@ export default function TradingBot() {
         catch (err) { console.error(err); }
     };
 
+    const handleClearLogs = () => setLogsClearedTime(Date.now());
+    const handleRefreshChart = () => refreshBotData();
+    
     const isRunning = botStatus?.status === 'running';
 
     return (
@@ -276,8 +296,9 @@ export default function TradingBot() {
                     <div className="bot-card chart-panel">
                         <div className="card-header-row" style={{display:'flex', justifyContent:'space-between'}}>
                              <h3 className="card-title" style={{margin:0}}>Live Chart</h3>
-                             <button onClick={refreshBotData} style={{background:'none', border:'none', color:'#4ade80', cursor:'pointer'}}>↻ Refresh</button>
-                        {/* 🚀 NEW PROP: activePositions */}
+                             <button onClick={handleRefreshChart} style={{background:'none', border:'none', color:'#4ade80', cursor:'pointer'}}>↻ Refresh</button>
+                        </div>
+                        {/* 🚀 PASS ACTIVE POSITIONS TO CHART */}
                         <LiveTradingChart 
                             candles={botStatus.candles || []} 
                             trades={botStatus.trades || []} 
@@ -290,7 +311,7 @@ export default function TradingBot() {
                             <h3 className="card-title" style={{ margin: 0 }}>Logs</h3>
                             <div style={{display:'flex', gap:'10px'}}>
                                 <button onClick={refreshBotData} className="clear-logs-btn">Refresh</button>
-                                <button onClick={() => setLogsClearedTime(Date.now())} className="clear-logs-btn" style={{color:'#ef4444', borderColor:'#ef4444'}}>Clear</button>
+                                <button onClick={handleClearLogs} className="clear-logs-btn" style={{color:'#ef4444', borderColor:'#ef4444'}}>Clear</button>
                             </div>
                         </div>
                         <div className="logs-container">
