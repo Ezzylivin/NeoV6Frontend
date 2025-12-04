@@ -1,21 +1,28 @@
 /* File: src/components/LiveTradingChart.css */
 
+/* File: src/components/LiveTradingChart.css */
 .live-chart-wrapper {
     position: relative;
     width: 100%;
-    height: 400px; /* Matches the height set in JS */
-    background-color: #0f0f0f; /* Dark background */
+    height: 400px;
+    background-color: #0f0f0f;
     border: 1px solid #333;
     border-radius: 8px;
     overflow: hidden;
     margin-top: 15px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
 }
 
-.live-chart-container {
-    width: 100%;
-    height: 100%;
-}
+.live-chart-container { width: 100%; height: 100%; }
+
+/* 🚀 OVERLAY STYLES */
+.chart-trade-overlay {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 220px;
+    max-height: 150px;
+    background: rgba(0, 0, 0, 0.65);
+    border: 1px solid #444;
 
 /* --- Placeholder / Loading State --- */
 .chart-placeholder {
