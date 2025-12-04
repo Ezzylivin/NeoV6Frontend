@@ -1,5 +1,5 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Smart Regime Detection + Removed Saved Setups Dropdown
+// 🚀 UPGRADE: Integrated Independent Chart Visualizer
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -9,6 +9,7 @@ import {
   PieChart, Pie, Cell, Legend
 } from "recharts";
 import { ChartReplay } from "../components/ChartReplay.jsx";
+import { ChartIndependent } from "../components/ChartIndependent.jsx"; // 👈 IMPORTED
 import "../components/ChartReplay.css";
 import "./Backtests.css";
 import api from "../api/apiClient"; 
@@ -402,6 +403,7 @@ export default function Backtests() {
   const [comboData, setComboData] = useState(initialComboData);
   const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
   const [activeTab, setActiveTab] = useState('single');
+  const [chartView, setChartView] = useState('visualizer'); // 👈 NEW STATE for Chart Toggle
 
   const strategyOptions = useMemo(() => {
     const dbStrats = options?.strategies || [];
@@ -706,9 +708,9 @@ export default function Backtests() {
                 </div>
                 <button type="button" onClick={addStrategyCard} disabled={loading !== 'idle'}>Add Strategy</button>
                 <div className="button-group" style={{display:'flex', gap:'10px'}}>
-                     <button type="submit" disabled={isComboSubmitDisabled} style={{flex:1}}>{loading !== 'idle' ? getStatusMessage() : "Run Combo Backtest"}</button>
-                     {/* 🚀 SAVE BUTTON */}
-                     <button type="button" onClick={handleSaveStrategy} style={{flex:1, backgroundColor:'#22c55e', border:'none', cursor:'pointer'}}>💾 Save Strategy</button>
+                      <button type="submit" disabled={isComboSubmitDisabled} style={{flex:1}}>{loading !== 'idle' ? getStatusMessage() : "Run Combo Backtest"}</button>
+                      {/* 🚀 SAVE BUTTON */}
+                      <button type="button" onClick={handleSaveStrategy} style={{flex:1, backgroundColor:'#22c55e', border:'none', cursor:'pointer'}}>💾 Save Strategy</button>
                 </div>
              </form>
           )}
@@ -723,7 +725,53 @@ export default function Backtests() {
             {loading === 'idle' && combinedMetrics && !error && (
               <>
                 <MetricsDisplay metrics={combinedMetrics} />
-                {mainResult && mainResult.candleData?.length > 0 && <ChartReplay results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} />}
+                
+                {/* 🚀 CHART TOGGLE SECTION */}
+                {mainResult && mainResult.candleData?.length > 0 && (
+                  <div className="chart-wrapper" style={{ marginTop: '20px' }}>
+                    <div className="chart-controls" style={{ marginBottom: '10px', display:'flex', gap:'10px' }}>
+                       <button
+                           onClick={() => setChartView('visualizer')}
+                           className={chartView === 'visualizer' ? 'active-chart-btn' : ''}
+                           style={{
+                               padding:'6px 14px', 
+                               cursor:'pointer', 
+                               background: chartView === 'visualizer' ? '#3b82f6' : '#1e293b', 
+                               border:'1px solid #475569', 
+                               color:'white', 
+                               borderRadius:'6px',
+                               fontWeight: 'bold',
+                               transition: 'all 0.2s'
+                           }}
+                       >
+                           🔍 Independent Visualizer (v37)
+                       </button>
+                       <button
+                           onClick={() => setChartView('replay')}
+                           className={chartView === 'replay' ? 'active-chart-btn' : ''}
+                           style={{
+                               padding:'6px 14px', 
+                               cursor:'pointer', 
+                               background: chartView === 'replay' ? '#3b82f6' : '#1e293b', 
+                               border:'1px solid #475569', 
+                               color:'white', 
+                               borderRadius:'6px',
+                               fontWeight: 'bold',
+                               transition: 'all 0.2s'
+                           }}
+                       >
+                           ▶ Replay Mode (Standard)
+                       </button>
+                    </div>
+
+                    {chartView === 'visualizer' ? (
+                       <ChartIndependent results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} />
+                    ) : (
+                       <ChartReplay results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} />
+                    )}
+                  </div>
+                )}
+                
                 <div className="charts-container">
                   <div className="chart"><h3>Equity Curve</h3><ResponsiveContainer width="100%" height={300}><LineChart data={combinedEquityCurve}><XAxis dataKey="timestamp" tickFormatter={formatChartDate} /><YAxis domain={['auto', 'auto']} /><Tooltip /><CartesianGrid stroke="#555" /><Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false} /></LineChart></ResponsiveContainer></div>
                   <div className="chart"><h3>Win / Loss</h3><ResponsiveContainer width="100%" height={300}><PieChart><Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} fill="#8884d8" label>{pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}</Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer></div>
