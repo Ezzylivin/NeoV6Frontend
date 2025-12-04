@@ -1,7 +1,7 @@
 // File: src/components/ChartReplay.jsx
-// 🚀 UPGRADE: Real-time "Decision" Rendering + Zoom Controls + Live Logs Overlay
+// 🚀 UPGRADE: Detailed Logs (Entry vs Exit) + Zoom + Enhanced HUD
 
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { createChart, CrosshairMode } from 'lightweight-charts';
 import './ChartReplay.css';
 
@@ -62,7 +62,6 @@ export const ChartReplay = ({ results, symbol }) => {
   useEffect(() => {
     if (!chartContainerRef.current || candles.length === 0) return;
 
-    // Cleanup
     if (chartRef.current) { chartRef.current.remove(); }
 
     chartRef.current = createChart(chartContainerRef.current, {
@@ -79,7 +78,6 @@ export const ChartReplay = ({ results, symbol }) => {
       borderVisible: false, wickUpColor: '#26a69a', wickDownColor: '#ef5350',
     });
 
-    // Initial Render: Full Data
     candlestickSeriesRef.current.setData(candles);
     chartRef.current.timeScale().fitContent();
 
@@ -94,21 +92,20 @@ export const ChartReplay = ({ results, symbol }) => {
     };
   }, [candles]); 
 
-  // --- 4. THE LOOP: Update Chart & Markers on Index Change ---
+  // --- 4. THE LOOP ---
   useEffect(() => {
     if (!candlestickSeriesRef.current || candles.length === 0) return;
     
     const currentCandle = candles[currentIndex];
     if (!currentCandle) return;
 
-    // A. Update Price (The Worm)
+    // Update Price
     const visibleCandles = candles.slice(0, currentIndex + 1);
     candlestickSeriesRef.current.setData(visibleCandles);
 
-    // B. Update Markers (The Decisions)
+    // Update Markers
     const activeMarkers = [];
     trades.forEach(t => {
-        // 1. ENTRY MARKER
         if (t.time <= currentCandle.time) {
             activeMarkers.push({
                 time: t.time,
@@ -118,7 +115,6 @@ export const ChartReplay = ({ results, symbol }) => {
                 text: `BUY @ ${t.price.toFixed(2)}`
             });
         }
-        // 2. EXIT MARKER
         if (t.exitTime && t.exitTime <= currentCandle.time) {
             activeMarkers.push({
                 time: t.exitTime,
@@ -152,14 +148,13 @@ export const ChartReplay = ({ results, symbol }) => {
     return () => clearInterval(interval);
   }, [isPlaying, playbackSpeed, candles.length]);
 
-  // --- 6. CONTROLS & ZOOM ---
+  // --- 6. Controls ---
   const handlePlay = () => { if (currentIndex >= candles.length - 1) setCurrentIndex(0); setIsPlaying(true); };
   const handlePause = () => setIsPlaying(false);
   const handleReset = () => { setIsPlaying(false); setCurrentIndex(0); };
   const handleStepBack = () => setCurrentIndex(prev => Math.max(0, prev - 1));
   const handleStepFwd = () => setCurrentIndex(prev => Math.min(candles.length - 1, prev + 1));
 
-  // 🚀 ZOOM FUNCTIONS
   const handleZoomIn = () => {
       if (!chartRef.current) return;
       const ts = chartRef.current.timeScale();
@@ -180,7 +175,7 @@ export const ChartReplay = ({ results, symbol }) => {
 
   if (!results || !candles.length) return <div className="chart-loading">Loading Chart Data...</div>;
 
-  // HUD Data
+  // --- HUD CALCULATIONS ---
   const currentCandleData = candles[currentIndex] || {};
   const openTrade = trades.find(t => t.time <= currentCandleData.time && (!t.exitTime || t.exitTime > currentCandleData.time));
   
@@ -190,8 +185,8 @@ export const ChartReplay = ({ results, symbol }) => {
       if (openTrade.position === 'short') pnl = -pnl;
   }
 
-  // 🚀 LIVE TRADES FOR OVERLAY
-  const visibleTrades = trades.filter(t => t.time <= currentCandleData.time).reverse().slice(0, 10); // Show last 10 executed
+  // Filter for Overlay
+  const visibleTrades = trades.filter(t => t.time <= currentCandleData.time).reverse().slice(0, 10); 
 
   return (
     <div className="chart-replay-container">
@@ -209,6 +204,15 @@ export const ChartReplay = ({ results, symbol }) => {
                 <span className="hud-label">Price</span>
                 <span className="hud-value">${currentCandleData.close?.toFixed(2) || '-'}</span>
              </div>
+             
+             {/* 🚀 NEW: Show ENTRY Price if a trade is Open */}
+             {openTrade && (
+                 <div className="hud-item">
+                    <span className="hud-label">Entry</span>
+                    <span className="hud-value" style={{ color: '#fbbf24' }}>${openTrade.price.toFixed(2)}</span>
+                 </div>
+             )}
+
              <div className="hud-item">
                 <span className="hud-label">Active PnL</span>
                 <span className="hud-value" style={{ color: pnl >= 0 ? '#4ade80' : '#ef4444' }}>
@@ -218,7 +222,6 @@ export const ChartReplay = ({ results, symbol }) => {
         </div>
 
         <div className="playback-controls">
-          {/* Zoom Buttons */}
           <button onClick={handleZoomOut} title="Zoom Out" style={{marginRight:'5px', fontSize:'1.2em', padding:'5px 10px'}}> - </button>
           <button onClick={handleZoomIn} title="Zoom In" style={{marginRight:'15px', fontSize:'1.2em', padding:'5px 10px'}}> + </button>
 
@@ -241,41 +244,53 @@ export const ChartReplay = ({ results, symbol }) => {
       </div>
       
       <div style={{ position: 'relative', width: '100%', height: '500px' }}>
-          {/* 🚀 CHART CANVAS */}
           <div ref={chartContainerRef} className="chart-canvas" style={{ width: '100%', height: '100%' }} />
 
-          {/* 🚀 LIVE LOGS OVERLAY */}
+          {/* 🚀 OVERLAY: Shows Entry AND Exit */}
           <div className="replay-logs-overlay" style={{
               position: 'absolute',
               top: '10px',
               left: '10px',
-              width: '250px',
-              maxHeight: '300px',
+              width: '320px', // Widened to fit columns
+              maxHeight: '350px',
               overflowY: 'auto',
-              backgroundColor: 'rgba(20, 20, 30, 0.85)',
+              backgroundColor: 'rgba(20, 20, 30, 0.9)',
               border: '1px solid #334155',
               borderRadius: '8px',
-              padding: '10px',
+              padding: '12px',
               zIndex: 20,
               backdropFilter: 'blur(4px)',
-              pointerEvents: 'none' // Let clicks pass through to chart
+              pointerEvents: 'none'
           }}>
-              <h4 style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: '#94a3b8', borderBottom: '1px solid #333', paddingBottom: '4px' }}>Live Trade Log</h4>
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '0.85rem', color: '#94a3b8', borderBottom: '1px solid #444', paddingBottom: '5px', display:'flex', justifyContent:'space-between' }}>
+                  <span>Type</span>
+                  <span>Entry</span>
+                  <span>Exit</span>
+                  <span>PnL</span>
+              </h4>
               {visibleTrades.length === 0 ? (
                   <div style={{ fontSize: '0.8rem', color: '#666' }}>Waiting for signals...</div>
               ) : (
                   visibleTrades.map((t, i) => (
-                      <div key={i} style={{ marginBottom: '6px', fontSize: '0.8rem', display: 'flex', justifyContent: 'space-between' }}>
+                      <div key={i} style={{ marginBottom: '8px', fontSize: '0.8rem', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '5px', alignItems: 'center' }}>
                           <span style={{ color: t.position === 'short' ? '#f87171' : '#4ade80', fontWeight: 'bold' }}>
                               {t.position.toUpperCase()}
                           </span>
-                          <span style={{ color: '#ccc' }}>${t.price.toFixed(2)}</span>
+                          
+                          <span style={{ color: '#ccc' }}>${t.price.toFixed(0)}</span>
+                          
                           {t.exitTime && t.exitTime <= currentCandleData.time ? (
-                             <span style={{ color: t.profit > 0 ? '#4ade80' : '#f87171' }}>
-                                 {t.profit > 0 ? '+' : ''}{t.profit.toFixed(2)}
-                             </span>
+                             <>
+                                <span style={{ color: '#ccc' }}>${t.exitPrice?.toFixed(0) || '-'}</span>
+                                <span style={{ color: t.profit > 0 ? '#4ade80' : '#f87171', textAlign:'right' }}>
+                                    {t.profit > 0 ? '+' : ''}{t.profit.toFixed(0)}
+                                </span>
+                             </>
                           ) : (
-                             <span style={{ color: '#fbbf24' }}>OPEN</span>
+                             <>
+                                <span style={{ color: '#fbbf24' }}>---</span>
+                                <span style={{ color: '#fbbf24', textAlign:'right' }}>OPEN</span>
+                             </>
                           )}
                       </div>
                   ))
