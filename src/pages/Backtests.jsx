@@ -1,12 +1,12 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Trade Logs Table + Zoomable Equity Curve (Brush)
+// 🚀 UPGRADE: Split View (Chart + Logs Side-by-Side) + Zoom Buttons
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { StrategyContext } from "../context/StrategyContext.jsx";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, Brush // <--- Added Brush for Zooming
+  PieChart, Pie, Cell, Legend, Brush
 } from "recharts";
 import { ChartReplay } from "../components/ChartReplay.jsx";
 import "../components/ChartReplay.css";
@@ -232,36 +232,32 @@ const MetricsDisplay = ({ metrics }) => {
   );
 };
 
-// 🆕 NEW COMPONENT: Trade Logs Table
-const TradeLogsTable = ({ trades }) => {
-    if (!trades || trades.length === 0) return <div className="no-trades-msg" style={{padding:'20px', textAlign:'center', color:'#888'}}>No trades found in this backtest.</div>;
+// 🆕 COMPACT LOGS TABLE (FOR SIDE PANEL)
+const TradeLogsTable = ({ trades, height = "400px" }) => {
+    if (!trades || trades.length === 0) return <div className="no-trades-msg" style={{padding:'20px', textAlign:'center', color:'#888'}}>No trades found.</div>;
     
     // Sort trades by entry time descending (newest first)
     const sortedTrades = [...trades].sort((a, b) => new Date(a.entry_time || a.entryTime) - new Date(b.entry_time || b.entryTime));
 
-    const formatDateFull = (ts) => {
+    const formatDateShort = (ts) => {
         if (!ts) return '-';
         const d = new Date(ts);
-        return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+        return `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
     };
 
-    const formatPrice = (p) => p ? `$${parseFloat(p).toFixed(2)}` : '-';
+    const formatPrice = (p) => p ? parseFloat(p).toFixed(2) : '-';
 
     return (
-        <div className="trade-logs-container" style={{ marginTop: '20px', background: '#0f172a', padding: '15px', borderRadius: '8px', border: '1px solid #334155' }}>
-            <h3 style={{ color: 'white', marginBottom: '10px' }}>Trade Logs</h3>
-            <div style={{ overflowX: 'auto', maxHeight: '400px', overflowY: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9em', color: '#e2e8f0' }}>
+        <div className="trade-logs-container" style={{ background: '#0f172a', borderRadius: '8px', border: '1px solid #334155', height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <h3 style={{ color: 'white', padding: '10px', borderBottom: '1px solid #334155', margin: 0, fontSize: '1rem' }}>Trade Logs</h3>
+            <div style={{ overflowX: 'auto', flex: 1, overflowY: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85em', color: '#e2e8f0' }}>
                     <thead style={{ background: '#1e293b', position: 'sticky', top: 0, zIndex: 5 }}>
                         <tr>
-                            <th style={{ padding: '10px', textAlign: 'left' }}>#</th>
-                            <th style={{ padding: '10px', textAlign: 'left' }}>Type</th>
-                            <th style={{ padding: '10px', textAlign: 'left' }}>Entry Time</th>
-                            <th style={{ padding: '10px', textAlign: 'right' }}>Entry Price</th>
-                            <th style={{ padding: '10px', textAlign: 'left' }}>Exit Time</th>
-                            <th style={{ padding: '10px', textAlign: 'right' }}>Exit Price</th>
-                            <th style={{ padding: '10px', textAlign: 'right' }}>PnL ($)</th>
-                            <th style={{ padding: '10px', textAlign: 'right' }}>PnL (%)</th>
+                            <th style={{ padding: '8px', textAlign: 'left' }}>Type</th>
+                            <th style={{ padding: '8px', textAlign: 'left' }}>Time</th>
+                            <th style={{ padding: '8px', textAlign: 'right' }}>Price</th>
+                            <th style={{ padding: '8px', textAlign: 'right' }}>PnL</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -271,19 +267,13 @@ const TradeLogsTable = ({ trades }) => {
                             const direction = t.direction || t.type || 'LONG';
                             return (
                                 <tr key={i} style={{ borderBottom: '1px solid #334155', background: i % 2 === 0 ? 'transparent' : '#162032' }}>
-                                    <td style={{ padding: '8px' }}>{i + 1}</td>
                                     <td style={{ padding: '8px', color: direction.toLowerCase() === 'short' ? '#f87171' : '#4ade80', fontWeight: 'bold' }}>
-                                        {direction.toUpperCase()}
+                                        {direction.toUpperCase().substring(0,1)}
                                     </td>
-                                    <td style={{ padding: '8px' }}>{formatDateFull(t.entry_time || t.entryTime)}</td>
+                                    <td style={{ padding: '8px' }}>{formatDateShort(t.entry_time || t.entryTime)}</td>
                                     <td style={{ padding: '8px', textAlign: 'right' }}>{formatPrice(t.entry_price || t.entryPrice)}</td>
-                                    <td style={{ padding: '8px' }}>{formatDateFull(t.exit_time || t.exitTime)}</td>
-                                    <td style={{ padding: '8px', textAlign: 'right' }}>{formatPrice(t.exit_price || t.exitPrice)}</td>
                                     <td style={{ padding: '8px', textAlign: 'right', color: isWin ? '#4ade80' : '#f87171' }}>
                                         {profit > 0 ? '+' : ''}{profit.toFixed(2)}
-                                    </td>
-                                    <td style={{ padding: '8px', textAlign: 'right', color: isWin ? '#4ade80' : '#f87171' }}>
-                                        {((t.return_pct || t.returnPct || 0) * 100).toFixed(2)}%
                                     </td>
                                 </tr>
                             );
@@ -729,7 +719,6 @@ export default function Backtests() {
             <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo Strategy</button>
           </div>
           
-          {/* 🚀 OPTIMIZED STRATEGIES (ML) DROPDOWN ONLY */}
           <div className="form-group" style={{ marginBottom: '20px', padding: '15px', background: '#1e293b', borderRadius: '8px', border: '1px solid #334155' }}>
                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                    <label style={{ color: '#4ade80', fontWeight: 'bold', margin: 0 }}>🏆 Load Optimized Strategy (ML)</label>
@@ -752,7 +741,6 @@ export default function Backtests() {
               <CommonBacktestInputs data={formData} onChange={handleFormChange} options={{ symbolOptions, timeframeOptions, modelOptions }} availableModelData={availableModelData} isCombo={false} />
               <div className="button-group" style={{display:'flex', gap:'10px'}}>
                 <button type="submit" disabled={isSingleSubmitDisabled} style={{flex:1}}>{loading !== 'idle' ? getStatusMessage() : "Run Backtest"}</button>
-                {/* 🚀 SAVE BUTTON */}
                 <button type="button" onClick={handleSaveStrategy} style={{flex:1, backgroundColor:'#22c55e', border:'none', cursor:'pointer'}}>💾 Save Strategy</button>
               </div>
             </form>
@@ -769,7 +757,6 @@ export default function Backtests() {
                 <button type="button" onClick={addStrategyCard} disabled={loading !== 'idle'}>Add Strategy</button>
                 <div className="button-group" style={{display:'flex', gap:'10px'}}>
                      <button type="submit" disabled={isComboSubmitDisabled} style={{flex:1}}>{loading !== 'idle' ? getStatusMessage() : "Run Combo Backtest"}</button>
-                     {/* 🚀 SAVE BUTTON */}
                      <button type="button" onClick={handleSaveStrategy} style={{flex:1, backgroundColor:'#22c55e', border:'none', cursor:'pointer'}}>💾 Save Strategy</button>
                 </div>
              </form>
@@ -785,10 +772,22 @@ export default function Backtests() {
             {loading === 'idle' && combinedMetrics && !error && (
               <>
                 <MetricsDisplay metrics={combinedMetrics} />
-                {mainResult && mainResult.candleData?.length > 0 && <ChartReplay results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} />}
-                <div className="charts-container">
+                
+                {/* 🚀 UPGRADED: SPLIT VIEW FOR CHART & LOGS */}
+                {mainResult && mainResult.candleData?.length > 0 && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: '20px', marginTop: '20px', height: '450px' }}>
+                        <div style={{ width: '100%', height: '100%' }}>
+                            <ChartReplay results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} />
+                        </div>
+                        <div style={{ width: '100%', height: '100%' }}>
+                            <TradeLogsTable trades={mainResult?.trades} height="100%" />
+                        </div>
+                    </div>
+                )}
+
+                <div className="charts-container" style={{ marginTop: '30px' }}>
                   <div className="chart">
-                    <h3>Equity Curve (Zoomable)</h3>
+                    <h3>Equity Curve</h3>
                     <ResponsiveContainer width="100%" height={350}>
                         <LineChart data={combinedEquityCurve}>
                             <XAxis dataKey="timestamp" tickFormatter={formatChartDate} />
@@ -796,7 +795,7 @@ export default function Backtests() {
                             <Tooltip />
                             <CartesianGrid stroke="#555" />
                             <Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false} />
-                            {/* 🚀 ADDED BRUSH FOR ZOOMING */}
+                            {/* 🚀 ZOOM SLIDER ADDED */}
                             <Brush dataKey="timestamp" height={30} stroke="#8884d8" tickFormatter={formatChartDate} />
                         </LineChart>
                     </ResponsiveContainer>
@@ -814,8 +813,6 @@ export default function Backtests() {
                     </ResponsiveContainer>
                   </div>
                 </div>
-                {/* 🚀 ADDED TRADE LOGS TABLE */}
-                <TradeLogsTable trades={mainResult?.trades} />
               </>
             )}
           </div>
