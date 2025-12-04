@@ -13,15 +13,11 @@ export const ChartReplay = ({ results, symbol }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // --- 1. PARSE DATA (ROBUST VERSION) ---
+  // --- 1. PARSE DATA ---
   const parseTime = (t) => {
       if (!t) return null;
       if (typeof t === 'object' && t.$date) t = t.$date;
-      
-      // Handle Python/Unix seconds vs JS milliseconds
-      // If it's a number and small (e.g. < 2 billion), it's likely seconds.
       if (typeof t === 'number' && t < 10000000000) return t; 
-      
       const d = new Date(t);
       return isNaN(d.getTime()) ? null : d.getTime() / 1000;
   };
@@ -41,10 +37,8 @@ export const ChartReplay = ({ results, symbol }) => {
     if (!results?.tradeBreakdown || !Array.isArray(results.tradeBreakdown)) return [];
     
     return results.tradeBreakdown.map(t => {
-      // Try multiple keys for entry/exit times to be safe
       const entryTime = parseTime(t.entryTime || t.entry_time || t.time || t.date);
       const exitTime = parseTime(t.exitTime || t.exit_time || t.close_time || t.date_out);
-      
       const profit = parseFloat(t.profit || t.realized_pnl || t.pnl || 0);
       const exitPrice = parseFloat(t.exitPrice || t.exit_price || t.close_price || 0);
 
@@ -55,7 +49,6 @@ export const ChartReplay = ({ results, symbol }) => {
         profit: profit,
         exitTime: exitTime,
         exitPrice: exitPrice,
-        // Helper to detect if it SHOULD be closed but lacks time
         isRealized: profit !== 0 || exitPrice > 0 
       } : null;
     }).filter(t => t !== null).sort((a, b) => a.time - b.time);
@@ -103,21 +96,18 @@ export const ChartReplay = ({ results, symbol }) => {
     };
   }, [candles]); 
 
-  // --- 4. THE LOOP (Update Visuals) ---
+  // --- 4. THE LOOP ---
   useEffect(() => {
     if (!candlestickSeriesRef.current || candles.length === 0) return;
     
     const currentCandle = candles[currentIndex];
     if (!currentCandle) return;
 
-    // Update Price Series
     const visibleCandles = candles.slice(0, currentIndex + 1);
     candlestickSeriesRef.current.setData(visibleCandles);
 
-    // Update Markers
     const activeMarkers = [];
     trades.forEach(t => {
-        // Entry Marker
         if (t.time <= currentCandle.time) {
             activeMarkers.push({
                 time: t.time,
@@ -127,7 +117,6 @@ export const ChartReplay = ({ results, symbol }) => {
                 text: `BUY @ ${t.price.toFixed(2)}`
             });
         }
-        // Exit Marker (Only if we have a valid exit time)
         if (t.exitTime && t.exitTime <= currentCandle.time) {
             activeMarkers.push({
                 time: t.exitTime,
@@ -161,32 +150,52 @@ export const ChartReplay = ({ results, symbol }) => {
     return () => clearInterval(interval);
   }, [isPlaying, playbackSpeed, candles.length]);
 
-  // --- 6. Controls ---
+  // --- 6. CONTROLS (Fixed Zoom Logic) ---
   const handlePlay = () => { if (currentIndex >= candles.length - 1) setCurrentIndex(0); setIsPlaying(true); };
   const handlePause = () => setIsPlaying(false);
   const handleReset = () => { setIsPlaying(false); setCurrentIndex(0); };
   const handleStepBack = () => setCurrentIndex(prev => Math.max(0, prev - 1));
   const handleStepFwd = () => setCurrentIndex(prev => Math.min(candles.length - 1, prev + 1));
-  const handleZoomIn = () => { if (chartRef.current) chartRef.current.timeScale().applyOptions({ shiftVisibleRangeOnNewBar: false }); chartRef.current.timeScale().scaleIn(); };
-  const handleZoomOut = () => { if (chartRef.current) chartRef.current.timeScale().scaleOut(); };
+
+  // 🚀 FIXED ZOOM IN
+  const handleZoomIn = () => { 
+      if (!chartRef.current) return;
+      const ts = chartRef.current.timeScale();
+      const range = ts.getVisibleLogicalRange();
+      if (!range) return;
+      
+      const width = range.to - range.from;
+      const center = (range.from + range.to) / 2;
+      const newWidth = width * 0.7; // Shrink range by 30%
+      
+      ts.setVisibleLogicalRange({ from: center - newWidth / 2, to: center + newWidth / 2 });
+  };
+
+  // 🚀 FIXED ZOOM OUT
+  const handleZoomOut = () => { 
+      if (!chartRef.current) return;
+      const ts = chartRef.current.timeScale();
+      const range = ts.getVisibleLogicalRange();
+      if (!range) return;
+      
+      const width = range.to - range.from;
+      const center = (range.from + range.to) / 2;
+      const newWidth = width * 1.3; // Expand range by 30%
+      
+      ts.setVisibleLogicalRange({ from: center - newWidth / 2, to: center + newWidth / 2 });
+  };
 
   if (!results || !candles.length) return <div className="chart-loading">Loading Chart Data...</div>;
 
   // --- HUD CALCULATIONS ---
   const currentCandleData = candles[currentIndex] || {};
-  
-  // HUD FIX: Find the *latest* trade that is effectively open
-  // A trade is open if we are past entry, AND (we are before exit OR exit is unknown)
-  // We filter out trades that are "Realized" (have profit) but missing timestamps to avoid zombies in HUD
   const openTradesList = trades.filter(t => {
       const isStarted = t.time <= currentCandleData.time;
       const isNotEnded = !t.exitTime || t.exitTime > currentCandleData.time;
-      // Safety: If it has realized profit, don't count it as open in HUD even if time is missing
       const isZombie = !t.exitTime && t.isRealized; 
       return isStarted && isNotEnded && !isZombie;
   });
-  
-  const openTrade = openTradesList[openTradesList.length - 1]; // Get the most recent one
+  const openTrade = openTradesList[openTradesList.length - 1]; 
   
   let pnl = 0;
   if (openTrade && currentCandleData && openTrade.price > 0) {
@@ -194,7 +203,6 @@ export const ChartReplay = ({ results, symbol }) => {
       if (openTrade.position === 'short') pnl = -pnl;
   }
 
-  // Filter for Log Panel
   const visibleTrades = trades.filter(t => t.time <= currentCandleData.time).reverse();
 
   return (
@@ -282,11 +290,7 @@ export const ChartReplay = ({ results, symbol }) => {
                  </thead>
                  <tbody>
                      {visibleTrades.map((t, i) => {
-                         // LOGIC FIX: Check strict time, OR check if profit implies it's done
                          const isTechnicallyOpen = !t.exitTime || t.exitTime > currentCandleData.time;
-                         
-                         // If it's technically open, BUT we have realized profit/exit price, it's a "Zombie" (Closed but missing time)
-                         // We display it as CLOSED to clean up the UI.
                          const isZombie = isTechnicallyOpen && t.isRealized;
                          const isOpen = isTechnicallyOpen && !isZombie;
 
