@@ -1,12 +1,12 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Smart Regime Detection + Removed Saved Setups Dropdown
+// 🚀 UPGRADE: Trade Logs Table + Zoomable Equity Curve (Brush)
 
 import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { StrategyContext } from "../context/StrategyContext.jsx";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
+  PieChart, Pie, Cell, Legend, Brush // <--- Added Brush for Zooming
 } from "recharts";
 import { ChartReplay } from "../components/ChartReplay.jsx";
 import "../components/ChartReplay.css";
@@ -14,7 +14,6 @@ import "./Backtests.css";
 import api from "../api/apiClient"; 
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
-const ESTIMATED_DURATION = 60; 
 
 // --- 1. CONSTANTS ---
 const STRATEGY_TYPE_TO_CODE_MAP = {
@@ -231,6 +230,69 @@ const MetricsDisplay = ({ metrics }) => {
       ))}
     </div>
   );
+};
+
+// 🆕 NEW COMPONENT: Trade Logs Table
+const TradeLogsTable = ({ trades }) => {
+    if (!trades || trades.length === 0) return <div className="no-trades-msg" style={{padding:'20px', textAlign:'center', color:'#888'}}>No trades found in this backtest.</div>;
+    
+    // Sort trades by entry time descending (newest first)
+    const sortedTrades = [...trades].sort((a, b) => new Date(a.entry_time || a.entryTime) - new Date(b.entry_time || b.entryTime));
+
+    const formatDateFull = (ts) => {
+        if (!ts) return '-';
+        const d = new Date(ts);
+        return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+    };
+
+    const formatPrice = (p) => p ? `$${parseFloat(p).toFixed(2)}` : '-';
+
+    return (
+        <div className="trade-logs-container" style={{ marginTop: '20px', background: '#0f172a', padding: '15px', borderRadius: '8px', border: '1px solid #334155' }}>
+            <h3 style={{ color: 'white', marginBottom: '10px' }}>Trade Logs</h3>
+            <div style={{ overflowX: 'auto', maxHeight: '400px', overflowY: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9em', color: '#e2e8f0' }}>
+                    <thead style={{ background: '#1e293b', position: 'sticky', top: 0, zIndex: 5 }}>
+                        <tr>
+                            <th style={{ padding: '10px', textAlign: 'left' }}>#</th>
+                            <th style={{ padding: '10px', textAlign: 'left' }}>Type</th>
+                            <th style={{ padding: '10px', textAlign: 'left' }}>Entry Time</th>
+                            <th style={{ padding: '10px', textAlign: 'right' }}>Entry Price</th>
+                            <th style={{ padding: '10px', textAlign: 'left' }}>Exit Time</th>
+                            <th style={{ padding: '10px', textAlign: 'right' }}>Exit Price</th>
+                            <th style={{ padding: '10px', textAlign: 'right' }}>PnL ($)</th>
+                            <th style={{ padding: '10px', textAlign: 'right' }}>PnL (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sortedTrades.map((t, i) => {
+                            const profit = t.profit || t.pnl || 0;
+                            const isWin = profit > 0;
+                            const direction = t.direction || t.type || 'LONG';
+                            return (
+                                <tr key={i} style={{ borderBottom: '1px solid #334155', background: i % 2 === 0 ? 'transparent' : '#162032' }}>
+                                    <td style={{ padding: '8px' }}>{i + 1}</td>
+                                    <td style={{ padding: '8px', color: direction.toLowerCase() === 'short' ? '#f87171' : '#4ade80', fontWeight: 'bold' }}>
+                                        {direction.toUpperCase()}
+                                    </td>
+                                    <td style={{ padding: '8px' }}>{formatDateFull(t.entry_time || t.entryTime)}</td>
+                                    <td style={{ padding: '8px', textAlign: 'right' }}>{formatPrice(t.entry_price || t.entryPrice)}</td>
+                                    <td style={{ padding: '8px' }}>{formatDateFull(t.exit_time || t.exitTime)}</td>
+                                    <td style={{ padding: '8px', textAlign: 'right' }}>{formatPrice(t.exit_price || t.exitPrice)}</td>
+                                    <td style={{ padding: '8px', textAlign: 'right', color: isWin ? '#4ade80' : '#f87171' }}>
+                                        {profit > 0 ? '+' : ''}{profit.toFixed(2)}
+                                    </td>
+                                    <td style={{ padding: '8px', textAlign: 'right', color: isWin ? '#4ade80' : '#f87171' }}>
+                                        {((t.return_pct || t.returnPct || 0) * 100).toFixed(2)}%
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
 };
 
 const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isCombo = false }) => {
@@ -725,9 +787,35 @@ export default function Backtests() {
                 <MetricsDisplay metrics={combinedMetrics} />
                 {mainResult && mainResult.candleData?.length > 0 && <ChartReplay results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} />}
                 <div className="charts-container">
-                  <div className="chart"><h3>Equity Curve</h3><ResponsiveContainer width="100%" height={300}><LineChart data={combinedEquityCurve}><XAxis dataKey="timestamp" tickFormatter={formatChartDate} /><YAxis domain={['auto', 'auto']} /><Tooltip /><CartesianGrid stroke="#555" /><Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false} /></LineChart></ResponsiveContainer></div>
-                  <div className="chart"><h3>Win / Loss</h3><ResponsiveContainer width="100%" height={300}><PieChart><Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} fill="#8884d8" label>{pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}</Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer></div>
+                  <div className="chart">
+                    <h3>Equity Curve (Zoomable)</h3>
+                    <ResponsiveContainer width="100%" height={350}>
+                        <LineChart data={combinedEquityCurve}>
+                            <XAxis dataKey="timestamp" tickFormatter={formatChartDate} />
+                            <YAxis domain={['auto', 'auto']} />
+                            <Tooltip />
+                            <CartesianGrid stroke="#555" />
+                            <Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false} />
+                            {/* 🚀 ADDED BRUSH FOR ZOOMING */}
+                            <Brush dataKey="timestamp" height={30} stroke="#8884d8" tickFormatter={formatChartDate} />
+                        </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="chart">
+                    <h3>Win / Loss</h3>
+                    <ResponsiveContainer width="100%" height={350}>
+                        <PieChart>
+                            <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} fill="#8884d8" label>
+                                {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                            </Pie>
+                            <Tooltip />
+                            <Legend />
+                        </PieChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
+                {/* 🚀 ADDED TRADE LOGS TABLE */}
+                <TradeLogsTable trades={mainResult?.trades} />
               </>
             )}
           </div>
