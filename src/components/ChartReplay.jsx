@@ -1,8 +1,7 @@
 // File: src/components/ChartReplay.jsx
-// 🚀 UPGRADE: Real-time "Decision" Rendering. 
-// Markers appear exactly when the candle closes.
+// 🚀 UPGRADE: Real-time "Decision" Rendering + Zoom Controls + Live Logs Overlay
 
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { createChart, CrosshairMode } from 'lightweight-charts';
 import './ChartReplay.css';
 
@@ -103,15 +102,13 @@ export const ChartReplay = ({ results, symbol }) => {
     if (!currentCandle) return;
 
     // A. Update Price (The Worm)
-    // Use setData for replay effect (hides future), or update() for live append.
-    // For replay, we slice the array.
     const visibleCandles = candles.slice(0, currentIndex + 1);
     candlestickSeriesRef.current.setData(visibleCandles);
 
     // B. Update Markers (The Decisions)
     const activeMarkers = [];
     trades.forEach(t => {
-        // 1. ENTRY MARKER (If entry time is in the past/now)
+        // 1. ENTRY MARKER
         if (t.time <= currentCandle.time) {
             activeMarkers.push({
                 time: t.time,
@@ -121,7 +118,7 @@ export const ChartReplay = ({ results, symbol }) => {
                 text: `BUY @ ${t.price.toFixed(2)}`
             });
         }
-        // 2. EXIT MARKER (Only if exit time is reached)
+        // 2. EXIT MARKER
         if (t.exitTime && t.exitTime <= currentCandle.time) {
             activeMarkers.push({
                 time: t.exitTime,
@@ -133,17 +130,10 @@ export const ChartReplay = ({ results, symbol }) => {
         }
     });
 
-    // Lightweight Charts requires markers sorted by time
     activeMarkers.sort((a, b) => a.time - b.time);
     candlestickSeriesRef.current.setMarkers(activeMarkers);
 
-    // Auto-Scroll if playing
-    if (isPlaying && currentIndex > 0 && currentIndex < candles.length - 1) {
-        // Keeping the latest candle visible
-        // chartRef.current.timeScale().scrollToPosition(0, false); 
-    }
-
-  }, [currentIndex, candles, trades, isPlaying]);
+  }, [currentIndex, candles, trades]);
 
   // --- 5. Playback Interval ---
   useEffect(() => {
@@ -162,12 +152,31 @@ export const ChartReplay = ({ results, symbol }) => {
     return () => clearInterval(interval);
   }, [isPlaying, playbackSpeed, candles.length]);
 
-  // Controls
+  // --- 6. CONTROLS & ZOOM ---
   const handlePlay = () => { if (currentIndex >= candles.length - 1) setCurrentIndex(0); setIsPlaying(true); };
   const handlePause = () => setIsPlaying(false);
   const handleReset = () => { setIsPlaying(false); setCurrentIndex(0); };
   const handleStepBack = () => setCurrentIndex(prev => Math.max(0, prev - 1));
   const handleStepFwd = () => setCurrentIndex(prev => Math.min(candles.length - 1, prev + 1));
+
+  // 🚀 ZOOM FUNCTIONS
+  const handleZoomIn = () => {
+      if (!chartRef.current) return;
+      const ts = chartRef.current.timeScale();
+      const range = ts.getVisibleLogicalRange();
+      if (!range) return;
+      const rangeWidth = range.to - range.from;
+      ts.setVisibleLogicalRange({ from: range.from + rangeWidth * 0.1, to: range.to - rangeWidth * 0.1 });
+  };
+
+  const handleZoomOut = () => {
+      if (!chartRef.current) return;
+      const ts = chartRef.current.timeScale();
+      const range = ts.getVisibleLogicalRange();
+      if (!range) return;
+      const rangeWidth = range.to - range.from;
+      ts.setVisibleLogicalRange({ from: range.from - rangeWidth * 0.1, to: range.to + rangeWidth * 0.1 });
+  };
 
   if (!results || !candles.length) return <div className="chart-loading">Loading Chart Data...</div>;
 
@@ -177,8 +186,12 @@ export const ChartReplay = ({ results, symbol }) => {
   
   let pnl = 0;
   if (openTrade && currentCandleData && openTrade.price > 0) {
-      pnl = (currentCandleData.close - openTrade.price) * (1000 / openTrade.price); // Example $1000 pos size logic
+      pnl = (currentCandleData.close - openTrade.price) * (1000 / openTrade.price); 
+      if (openTrade.position === 'short') pnl = -pnl;
   }
+
+  // 🚀 LIVE TRADES FOR OVERLAY
+  const visibleTrades = trades.filter(t => t.time <= currentCandleData.time).reverse().slice(0, 10); // Show last 10 executed
 
   return (
     <div className="chart-replay-container">
@@ -205,6 +218,10 @@ export const ChartReplay = ({ results, symbol }) => {
         </div>
 
         <div className="playback-controls">
+          {/* Zoom Buttons */}
+          <button onClick={handleZoomOut} title="Zoom Out" style={{marginRight:'5px', fontSize:'1.2em', padding:'5px 10px'}}> - </button>
+          <button onClick={handleZoomIn} title="Zoom In" style={{marginRight:'15px', fontSize:'1.2em', padding:'5px 10px'}}> + </button>
+
           <button onClick={handleStepBack}>Prev</button>
           {!isPlaying ? 
             <button onClick={handlePlay} className="play-btn">▶ Play</button> : 
@@ -223,7 +240,48 @@ export const ChartReplay = ({ results, symbol }) => {
         </div>
       </div>
       
-      <div ref={chartContainerRef} className="chart-canvas" />
+      <div style={{ position: 'relative', width: '100%', height: '500px' }}>
+          {/* 🚀 CHART CANVAS */}
+          <div ref={chartContainerRef} className="chart-canvas" style={{ width: '100%', height: '100%' }} />
+
+          {/* 🚀 LIVE LOGS OVERLAY */}
+          <div className="replay-logs-overlay" style={{
+              position: 'absolute',
+              top: '10px',
+              left: '10px',
+              width: '250px',
+              maxHeight: '300px',
+              overflowY: 'auto',
+              backgroundColor: 'rgba(20, 20, 30, 0.85)',
+              border: '1px solid #334155',
+              borderRadius: '8px',
+              padding: '10px',
+              zIndex: 20,
+              backdropFilter: 'blur(4px)',
+              pointerEvents: 'none' // Let clicks pass through to chart
+          }}>
+              <h4 style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: '#94a3b8', borderBottom: '1px solid #333', paddingBottom: '4px' }}>Live Trade Log</h4>
+              {visibleTrades.length === 0 ? (
+                  <div style={{ fontSize: '0.8rem', color: '#666' }}>Waiting for signals...</div>
+              ) : (
+                  visibleTrades.map((t, i) => (
+                      <div key={i} style={{ marginBottom: '6px', fontSize: '0.8rem', display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: t.position === 'short' ? '#f87171' : '#4ade80', fontWeight: 'bold' }}>
+                              {t.position.toUpperCase()}
+                          </span>
+                          <span style={{ color: '#ccc' }}>${t.price.toFixed(2)}</span>
+                          {t.exitTime && t.exitTime <= currentCandleData.time ? (
+                             <span style={{ color: t.profit > 0 ? '#4ade80' : '#f87171' }}>
+                                 {t.profit > 0 ? '+' : ''}{t.profit.toFixed(2)}
+                             </span>
+                          ) : (
+                             <span style={{ color: '#fbbf24' }}>OPEN</span>
+                          )}
+                      </div>
+                  ))
+              )}
+          </div>
+      </div>
     </div>
   );
 };
