@@ -1,5 +1,5 @@
 // File: src/components/ChartReplay.jsx
-// 🚀 UPGRADE: Detailed Logs (Entry vs Exit) + Zoom + Enhanced HUD
+// 🚀 UPGRADE: Logs moved to dedicated panel (No overlapping)
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { createChart, CrosshairMode } from 'lightweight-charts';
@@ -66,7 +66,7 @@ export const ChartReplay = ({ results, symbol }) => {
 
     chartRef.current = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
-      height: 500,
+      height: 450, // Slightly reduced to make room for logs
       layout: { backgroundColor: '#1e1e1e', textColor: '#ddd' },
       grid: { vertLines: { color: '#2b2b2b' }, horzLines: { color: '#2b2b2b' } },
       crosshair: { mode: CrosshairMode.Normal },
@@ -185,12 +185,13 @@ export const ChartReplay = ({ results, symbol }) => {
       if (openTrade.position === 'short') pnl = -pnl;
   }
 
-  // Filter for Overlay
-  const visibleTrades = trades.filter(t => t.time <= currentCandleData.time).reverse().slice(0, 10); 
+  // Filter for Log Panel
+  const visibleTrades = trades.filter(t => t.time <= currentCandleData.time).reverse();
 
   return (
     <div className="chart-replay-container">
-      <div className="chart-header-row">
+      {/* --- HEADER: Info & Controls --- */}
+      <div className="chart-header-row" style={{borderBottom:'none', paddingBottom:'5px'}}>
         <h3>Replay: {symbol}</h3>
         
         <div className="replay-hud">
@@ -205,7 +206,6 @@ export const ChartReplay = ({ results, symbol }) => {
                 <span className="hud-value">${currentCandleData.close?.toFixed(2) || '-'}</span>
              </div>
              
-             {/* 🚀 NEW: Show ENTRY Price if a trade is Open */}
              {openTrade && (
                  <div className="hud-item">
                     <span className="hud-label">Entry</span>
@@ -243,59 +243,60 @@ export const ChartReplay = ({ results, symbol }) => {
         </div>
       </div>
       
-      <div style={{ position: 'relative', width: '100%', height: '500px' }}>
-          <div ref={chartContainerRef} className="chart-canvas" style={{ width: '100%', height: '100%' }} />
+      {/* --- DEDICATED LOG PANEL (Below Header, Above Chart) --- */}
+      <div className="replay-log-panel" style={{
+          height: '120px', 
+          backgroundColor: '#161621', 
+          borderTop: '1px solid #334155',
+          borderBottom: '1px solid #334155',
+          marginBottom: '0', 
+          overflowY: 'auto',
+          padding: '8px 15px',
+          display: 'flex',
+          flexDirection: 'column'
+      }}>
+          {visibleTrades.length === 0 ? (
+             <div style={{color:'#666', fontSize:'0.9rem', fontStyle:'italic'}}>No trades executed yet...</div>
+          ) : (
+             <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.85rem'}}>
+                 <thead>
+                     <tr style={{color:'#94a3b8', borderBottom:'1px solid #333', textAlign:'left'}}>
+                         <th style={{paddingBottom:'4px'}}>Direction</th>
+                         <th style={{paddingBottom:'4px'}}>Entry Price</th>
+                         <th style={{paddingBottom:'4px'}}>Status</th>
+                         <th style={{paddingBottom:'4px'}}>Exit Price</th>
+                         <th style={{paddingBottom:'4px', textAlign:'right'}}>Realized PnL</th>
+                     </tr>
+                 </thead>
+                 <tbody>
+                     {visibleTrades.map((t, i) => {
+                         const isOpen = !t.exitTime || t.exitTime > currentCandleData.time;
+                         return (
+                            <tr key={i} style={{borderBottom:'1px solid #222'}}>
+                                <td style={{padding:'4px 0', color: t.position === 'short' ? '#f87171' : '#4ade80', fontWeight:'bold'}}>
+                                    {t.position.toUpperCase()}
+                                </td>
+                                <td style={{padding:'4px 0', color:'#ccc'}}>${t.price.toFixed(2)}</td>
+                                <td style={{padding:'4px 0'}}>
+                                    {isOpen ? <span style={{color:'#fbbf24', background:'rgba(251, 191, 36, 0.1)', padding:'2px 6px', borderRadius:'4px'}}>OPEN</span> : <span style={{color:'#94a3b8'}}>CLOSED</span>}
+                                </td>
+                                <td style={{padding:'4px 0', color:'#ccc'}}>
+                                    {!isOpen ? `$${t.exitPrice?.toFixed(2)}` : '-'}
+                                </td>
+                                <td style={{padding:'4px 0', textAlign:'right', fontWeight: isOpen ? 'normal' : 'bold', color: !isOpen ? (t.profit > 0 ? '#4ade80' : '#f87171') : '#666'}}>
+                                    {!isOpen ? (t.profit > 0 ? `+$${t.profit.toFixed(2)}` : `$${t.profit.toFixed(2)}`) : '-'}
+                                </td>
+                            </tr>
+                         );
+                     })}
+                 </tbody>
+             </table>
+          )}
+      </div>
 
-          {/* 🚀 OVERLAY: Shows Entry AND Exit */}
-          <div className="replay-logs-overlay" style={{
-              position: 'absolute',
-              top: '10px',
-              left: '10px',
-              width: '320px', // Widened to fit columns
-              maxHeight: '350px',
-              overflowY: 'auto',
-              backgroundColor: 'rgba(20, 20, 30, 0.9)',
-              border: '1px solid #334155',
-              borderRadius: '8px',
-              padding: '12px',
-              zIndex: 20,
-              backdropFilter: 'blur(4px)',
-              pointerEvents: 'none'
-          }}>
-              <h4 style={{ margin: '0 0 10px 0', fontSize: '0.85rem', color: '#94a3b8', borderBottom: '1px solid #444', paddingBottom: '5px', display:'flex', justifyContent:'space-between' }}>
-                  <span>Type</span>
-                  <span>Entry</span>
-                  <span>Exit</span>
-                  <span>PnL</span>
-              </h4>
-              {visibleTrades.length === 0 ? (
-                  <div style={{ fontSize: '0.8rem', color: '#666' }}>Waiting for signals...</div>
-              ) : (
-                  visibleTrades.map((t, i) => (
-                      <div key={i} style={{ marginBottom: '8px', fontSize: '0.8rem', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '5px', alignItems: 'center' }}>
-                          <span style={{ color: t.position === 'short' ? '#f87171' : '#4ade80', fontWeight: 'bold' }}>
-                              {t.position.toUpperCase()}
-                          </span>
-                          
-                          <span style={{ color: '#ccc' }}>${t.price.toFixed(0)}</span>
-                          
-                          {t.exitTime && t.exitTime <= currentCandleData.time ? (
-                             <>
-                                <span style={{ color: '#ccc' }}>${t.exitPrice?.toFixed(0) || '-'}</span>
-                                <span style={{ color: t.profit > 0 ? '#4ade80' : '#f87171', textAlign:'right' }}>
-                                    {t.profit > 0 ? '+' : ''}{t.profit.toFixed(0)}
-                                </span>
-                             </>
-                          ) : (
-                             <>
-                                <span style={{ color: '#fbbf24' }}>---</span>
-                                <span style={{ color: '#fbbf24', textAlign:'right' }}>OPEN</span>
-                             </>
-                          )}
-                      </div>
-                  ))
-              )}
-          </div>
+      {/* --- CHART CANVAS --- */}
+      <div style={{ position: 'relative', width: '100%', height: '450px' }}>
+          <div ref={chartContainerRef} className="chart-canvas" style={{ width: '100%', height: '100%' }} />
       </div>
     </div>
   );
