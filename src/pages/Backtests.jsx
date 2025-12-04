@@ -469,13 +469,9 @@ export default function Backtests() {
           }
           const globalParams = normalizeParams(rawGlobalParams);
 
-          // 🚀 SMART DETECT REGIME MODE
-          // If regime_threshold exists, enforce REGIME mode even if JSON says AND
-          let hybridMode = globalParams.hybridMode || 'AND';
-          if (globalParams.regime_threshold !== undefined) {
-              hybridMode = 'REGIME';
-              globalParams.hybridMode = 'REGIME';
-          }
+          // ✅ USE THIS INSTEAD ✅
+          // Respect the saved mode, default to 'OR' if missing
+          let hybridMode = globalParams.hybridMode || 'OR';
 
           let detectedModel = config.mlModel || config.params?.mlModel || "";
           let detectedMode = config.mlMode || config.params?.mlMode || "off";
