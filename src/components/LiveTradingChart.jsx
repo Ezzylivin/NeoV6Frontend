@@ -1,5 +1,5 @@
 // File: src/components/LiveTradingChart.jsx
-// 🚀 UPGRADE: "Full History" Log (Splits trades into Entry and Exit events)
+// 🚀 UPGRADE: Added Manual Zoom Controls (+ / - / Fit)
 
 import React, { useEffect, useRef, useMemo } from 'react';
 import { createChart, CrosshairMode } from 'lightweight-charts';
@@ -10,50 +10,27 @@ const LiveTradingChart = ({ candles = [], trades = [], activePositions = [] }) =
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
 
-  // --- 🚀 LOGIC: SPLIT TRADES INTO EVENTS ---
+  // --- MERGE TRADES FOR LOG ---
   const tradeLog = useMemo(() => {
-      const events = [];
-
-      // 1. Add Active Positions (Current Entries)
-      activePositions.forEach(p => {
-          events.push({
-              id: `active-${p.entry_time}-${Math.random()}`,
-              action: 'OPEN',
-              side: p.side,
-              price: p.entry_price,
-              time: p.entry_time,
-              profit: null,
-              isLive: true
-          });
-      });
-
-      // 2. Add Closed Trades (Split into Entry & Exit)
-      trades.forEach(t => {
-          // The Entry Event (Historical)
-          events.push({
-              id: `hist-entry-${t.entryTime}-${Math.random()}`,
-              action: 'OPEN',
-              side: t.position,
-              price: t.price, // Original entry price
-              time: t.entryTime,
-              profit: null,
-              isLive: false
-          });
-
-          // The Exit Event
-          events.push({
-              id: `hist-exit-${t.exitTime}-${Math.random()}`,
-              action: 'CLOSE',
-              side: t.position,
-              price: t.exitPrice,
-              time: t.exitTime,
-              profit: t.profit,
-              isLive: false
-          });
-      });
-
-      // 3. Sort by Time (Newest First)
-      return events.sort((a, b) => new Date(b.time) - new Date(a.time));
+      const closed = trades.map(t => ({
+          type: 'CLOSED', 
+          side: t.position, 
+          price: t.exitPrice, 
+          profit: t.profit, 
+          time: t.exitTime || t.entryTime,
+          id: `closed-${t.exitTime}-${Math.random()}`
+      }));
+      
+      const open = activePositions.map(p => ({
+          type: 'OPEN', 
+          side: p.side, 
+          price: p.entry_price, 
+          profit: 0, 
+          time: p.entry_time,
+          id: `open-${p.entry_time}-${Math.random()}`
+      }));
+      
+      return [...open, ...closed].sort((a, b) => new Date(b.time) - new Date(a.time));
   }, [trades, activePositions]);
 
   const parseTime = (t) => {
@@ -64,7 +41,7 @@ const LiveTradingChart = ({ candles = [], trades = [], activePositions = [] }) =
       return d.getTime() / 1000; 
   };
 
-  // --- DATA PREP ---
+  // --- PREPARE DATA ---
   const chartData = useMemo(() => {
       if (!Array.isArray(candles) || candles.length === 0) return [];
       const dataMap = new Map();
@@ -85,14 +62,12 @@ const LiveTradingChart = ({ candles = [], trades = [], activePositions = [] }) =
 
   const markers = useMemo(() => {
       const m = [];
-      // Historical Markers
       trades.forEach(t => {
           const t1 = parseTime(t.entryTime);
           const t2 = parseTime(t.exitTime);
           if(t1) m.push({ time: t1, position: 'belowBar', color: '#2196F3', shape: 'arrowUp', text: 'BUY' });
-          if(t2) m.push({ time: t2, position: 'aboveBar', color: t.profit > 0 ? '#4CAF50' : '#EF4444', shape: 'arrowDown', text: `SELL` });
+          if(t2) m.push({ time: t2, position: 'aboveBar', color: t.profit > 0 ? '#4CAF50' : '#EF4444', shape: 'arrowDown', text: `EXIT` });
       });
-      // Active Markers
       activePositions.forEach(p => {
           const t1 = parseTime(p.entry_time);
           if(t1) m.push({ time: t1, position: 'belowBar', color: '#F59E0B', shape: 'arrowUp', text: 'OPEN' });
@@ -100,12 +75,44 @@ const LiveTradingChart = ({ candles = [], trades = [], activePositions = [] }) =
       return m.sort((a, b) => a.time - b.time);
   }, [trades, activePositions]);
 
-  // --- FIT BUTTON ---
+  // --- ZOOM CONTROLS ---
   const handleFitContent = () => {
       if (chartRef.current) chartRef.current.timeScale().fitContent();
   };
 
-  // --- CHART SETUP ---
+  const handleZoomIn = () => {
+      if (!chartRef.current) return;
+      const timeScale = chartRef.current.timeScale();
+      const range = timeScale.getVisibleLogicalRange();
+      if (!range) return;
+      
+      const bars = range.to - range.from;
+      const newBars = bars * 0.8; // Shrink range by 20%
+      const center = (range.from + range.to) / 2;
+      
+      timeScale.setVisibleLogicalRange({
+          from: center - newBars / 2,
+          to: center + newBars / 2,
+      });
+  };
+
+  const handleZoomOut = () => {
+      if (!chartRef.current) return;
+      const timeScale = chartRef.current.timeScale();
+      const range = timeScale.getVisibleLogicalRange();
+      if (!range) return;
+      
+      const bars = range.to - range.from;
+      const newBars = bars * 1.25; // Expand range by 25%
+      const center = (range.from + range.to) / 2;
+      
+      timeScale.setVisibleLogicalRange({
+          from: center - newBars / 2,
+          to: center + newBars / 2,
+      });
+  };
+
+  // --- CHART LIFECYCLE ---
   useEffect(() => {
       if (!chartContainerRef.current) return;
 
@@ -126,7 +133,10 @@ const LiveTradingChart = ({ candles = [], trades = [], activePositions = [] }) =
       if (chartData.length > 0) {
           seriesRef.current.setData(chartData);
           seriesRef.current.setMarkers(markers);
-          // Only auto-fit on first load if needed, removed to prevent jumps on updates
+          // Only auto-fit on initial data load if range is empty
+          if (chartRef.current.timeScale().getVisibleLogicalRange() === null) {
+              chartRef.current.timeScale().fitContent();
+          }
       }
 
       const resizeObserver = new ResizeObserver(entries => {
@@ -138,22 +148,33 @@ const LiveTradingChart = ({ candles = [], trades = [], activePositions = [] }) =
       return () => resizeObserver.disconnect();
   }, [chartData, markers]);
 
+  // Button Styles
+  const btnStyle = {
+      background: 'rgba(255,255,255,0.1)', border: '1px solid #555', color: '#ccc',
+      fontSize: '12px', cursor: 'pointer', padding: '2px 8px', borderRadius: '4px',
+      marginLeft: '4px', pointerEvents: 'auto'
+  };
+
   return (
       <div className="live-chart-wrapper">
           
-          {/* 🚀 UPGRADED OVERLAY */}
+          {/* 🚀 OVERLAY WITH ZOOM CONTROLS */}
           <div className="chart-trade-overlay">
               <div className="overlay-header">
-                  <h4>Live Feed</h4>
-                  <button onClick={handleFitContent}>⤢ Fit</button>
+                  <h4 style={{margin:0}}>Live Feed</h4>
+                  <div style={{display:'flex'}}>
+                      <button onClick={handleZoomOut} style={btnStyle} title="Zoom Out">-</button>
+                      <button onClick={handleZoomIn} style={btnStyle} title="Zoom In">+</button>
+                      <button onClick={handleFitContent} style={btnStyle} title="Fit All">⤢</button>
+                  </div>
               </div>
               
               <div className="overlay-list">
                   {tradeLog.length === 0 ? <div className="empty">Waiting for trades...</div> : tradeLog.map((t, i) => (
-                      <div key={i} className={`overlay-item ${t.action}`}>
+                      <div key={t.id || i} className={`overlay-item ${t.type}`}>
                           <div className="row-top">
-                              <span className={`badge ${t.action}`}>{t.action}</span>
-                              <span className={`side ${t.side}`}>{t.side.toUpperCase()}</span>
+                              <span className={`badge ${t.type}`}>{t.type}</span>
+                              <span className={`side ${t.side}`}>{t.side?.toUpperCase()}</span>
                               <span className="time">{new Date(t.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
                           </div>
                           <div className="row-bot">
