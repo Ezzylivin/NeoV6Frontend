@@ -2,399 +2,311 @@
 
 /* --- General Container --- */
 .dashboard-container {
-    padding: 20px 30px;
-    background-color: #1b1b2b; /* Dark background */
-    color: #ffffff; /* White text */
+    padding: 30px 40px; /* Increased padding */
+    background-color: #1b1b2b;
+    color: #ffffff;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     min-height: 100vh;
 }
 
 /* --- Headings --- */
 .dashboard-container h1 {
-    font-size: 2rem;
-    margin-bottom: 20px;
-    color: #f3f4f6; /* Light gray text */
-    text-align: center; 
+    font-size: 2.2rem;
+    margin-bottom: 30px; /* More space below title */
+    color: #f3f4f6;
+    text-align: center;
+    letter-spacing: 0.5px;
 }
 .dashboard-container h2 {
-    font-size: 1.5rem;
-    margin-bottom: 15px;
-    color: #e5e7eb; 
-    border-bottom: 1px solid #3f3f55; 
-    padding-bottom: 8px;
+    font-size: 1.6rem;
+    margin-bottom: 25px; /* Spread out */
+    color: #e5e7eb;
+    border-bottom: 1px solid #3f3f55;
+    padding-bottom: 15px;
 }
 .dashboard-container h3 {
     font-size: 1.2rem;
-    margin-bottom: 10px;
-    color: #d1d5db; 
+    margin-bottom: 15px;
+    color: #d1d5db;
+    font-weight: 500;
 }
 
-/* --- Main Layout for Forms and Results --- */
+/* --- Main Layout --- */
 .backtest-main {
     display: flex;
-    flex-wrap: wrap; /* Allow wrapping on smaller screens */
-    gap: 30px; /* Space between forms and results */
+    flex-wrap: wrap;
+    gap: 40px; /* 🚀 INCREASED GAP between Form and Results */
+    align-items: flex-start;
 }
 
 /* --- Forms Container --- */
 .backtest-forms {
-    flex: 1 1 450px; /* Allow forms container to grow, base width 450px */
-    min-width: 300px;
-    background-color: #27293d; /* Slightly lighter dark */
+    flex: 0 0 400px; /* Fixed width for form, doesn't grow */
+    background-color: #27293d;
     border-radius: 12px;
-    padding: 25px;
+    padding: 30px; /* Breathing room inside form */
     box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-    align-self: flex-start; /* Prevent stretching */
+    position: sticky; /* Keep form in view while scrolling results */
+    top: 20px;
 }
 
 /* --- Tabs --- */
 .tabs {
     display: flex;
-    margin-bottom: 20px;
-    border-bottom: 1px solid #3f3f55;
+    margin-bottom: 25px;
+    border-bottom: 2px solid #3f3f55;
 }
 .tabs button {
-    padding: 10px 20px;
+    flex: 1; /* Make tabs full width */
+    padding: 12px 20px;
     background-color: transparent;
     border: none;
-    border-bottom: 3px solid transparent; 
-    color: #9ca3af; /* Inactive tab color */
+    border-bottom: 3px solid transparent;
+    color: #9ca3af;
     cursor: pointer;
     font-size: 1rem;
-    font-weight: 500;
-    transition: color 0.2s, border-color 0.2s;
+    font-weight: 600;
+    transition: all 0.3s ease;
 }
 .tabs button:hover {
     color: #e5e7eb;
+    background-color: rgba(255,255,255,0.02);
 }
 .tabs button.active {
-    color: #3b82f6; /* Active tab color (blue) */
+    color: #3b82f6;
     border-bottom-color: #3b82f6;
-    font-weight: 600;
 }
 
-
-/* --- General Form Styling --- */
+/* --- Inputs & Form Elements --- */
 .backtest-form label {
     display: flex;
     flex-direction: column;
-    margin-bottom: 15px; 
+    margin-bottom: 18px; /* Spread out inputs */
     font-size: 0.9rem;
-    color: #e5e7eb; 
+    color: #cbd5e1;
+    font-weight: 500;
 }
 
 .backtest-form input,
-.backtest-form select,
-.backtest-form textarea {
-    margin-top: 6px;
-    padding: 10px 12px; 
+.backtest-form select {
+    margin-top: 8px;
+    padding: 12px 14px; /* Taller inputs */
     border-radius: 6px;
-    border: 1px solid #555770; 
-    background-color: #1f2031; 
+    border: 1px solid #555770;
+    background-color: #1f2031;
     color: #fff;
-    font-size: 0.95rem; 
-    width: 100%; 
-    box-sizing: border-box; 
-}
-.backtest-form input:focus,
-.backtest-form select:focus,
-.backtest-form textarea:focus {
-    outline: none;
-    border-color: #3b82f6; 
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3); 
+    font-size: 0.95rem;
+    transition: border-color 0.2s;
 }
 
-.backtest-form input[type="date"] {
-    color-scheme: dark; 
-}
-
-/* Hide number input spinners */
-.backtest-form input[type="number"]::-webkit-inner-spin-button,
-.backtest-form input[type="number"]::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-}
-.backtest-form input[type="number"] {
-    -moz-appearance: textfield; /* Firefox */
-}
-
-/* --- 🚀 UPGRADE: Fieldset Styling --- */
 .backtest-form fieldset {
     border: 1px solid #3f3f55;
     border-radius: 8px;
-    padding: 20px; /* More padding */
-    margin-bottom: 25px; 
-    background-color: rgba(255, 255, 255, 0.02); /* Very subtle lighter bg */
+    padding: 25px; /* More internal space */
+    margin-bottom: 30px; /* separation between sections */
+    background-color: rgba(255, 255, 255, 0.02);
 }
+
 .backtest-form legend {
-    padding: 0 10px;
-    font-weight: 700; 
-    color: #93c5fd; /* Light blue accent */
-    font-size: 0.95rem;
+    padding: 0 12px;
+    font-weight: 700;
+    color: #60a5fa;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
 }
 
-
-/* --- 🚀 UPGRADE: Primary Action Button --- */
+/* --- Buttons --- */
 .backtest-form button {
-    display: inline-block;
-    margin-top: 15px;
-    margin-right: 10px;
-    padding: 12px 20px;
-    background-color: #3b82f6;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
+    padding: 12px 24px;
+    border-radius: 6px;
     cursor: pointer;
     font-weight: 600;
-    font-size: 0.95rem;
-    transition: background-color 0.2s, opacity 0.2s, transform 0.1s;
+    border: none;
+    transition: transform 0.1s, background-color 0.2s;
 }
-
-/* Specific style for the main Submit button */
 .backtest-form button[type="submit"] {
-    width: 100%; 
-    padding: 14px;
+    width: 100%;
+    padding: 16px;
     font-size: 1.1rem;
     background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-    box-shadow: 0 4px 6px rgba(37, 99, 235, 0.3);
-    margin-top: 25px;
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+    margin-top: 20px;
 }
 .backtest-form button[type="submit"]:hover:not(:disabled) {
-    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-    transform: translateY(-1px);
-    box-shadow: 0 6px 8px rgba(37, 99, 235, 0.4);
-}
-.backtest-form button[type="submit"]:active {
-    transform: translateY(1px);
-}
-
-.backtest-form button:last-of-type {
-    margin-right: 0;
-}
-
-.backtest-form button:disabled {
-    background: #4b5563 !important; /* Override gradient */
-    opacity: 0.7;
-    cursor: not-allowed;
-    box-shadow: none;
-    transform: none;
-}
-
-
-/* --- 🚀 UPGRADE: Combo Strategy Card --- */
-.combo-strategy-list {
-    margin-top: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 15px; 
-}
-.combo-card {
-    background-color: #1f2031; 
-    border: 1px solid #3f3f55;
-    border-left: 4px solid #3b82f6; /* Accent border */
-    border-radius: 8px;
-    padding: 15px;
-    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
-}
-.combo-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    border-color: #5b607a;
-}
-.combo-card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #3f3f55;
-}
-.combo-card-header strong {
-    color: #f3f4f6;
-    font-size: 1rem;
-}
-.combo-card .remove-btn { 
-    background-color: #ef4444; 
-    padding: 4px 8px;
-    font-size: 0.8rem;
-    margin: 0;
-    border-radius: 4px;
-}
-.combo-card .remove-btn:hover:not(:disabled) {
-    background-color: #dc2626; 
+    box-shadow: 0 6px 15px rgba(37, 99, 235, 0.4);
 }
 
-
-/* --- Results Section --- */
+/* --- Results Section (The Right Side) --- */
 .results-section {
-    flex: 1 1 600px; 
-    min-width: 300px;
+    flex: 1; /* Take remaining width */
+    min-width: 0; /* Prevents flex items from overflowing container */
     background-color: #27293d;
     border-radius: 12px;
-    padding: 25px;
+    padding: 35px; /* Spread out content */
     box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-    position: relative; 
-    align-self: flex-start;
+    display: flex;
+    flex-direction: column;
+    gap: 40px; /* 🚀 KEY: Vertical spacing between Metrics, Replay, and Charts */
 }
 
 /* --- Metrics Grid --- */
 .metrics-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); 
-    gap: 15px;
-    margin-bottom: 30px; 
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); /* Adaptive columns */
+    gap: 20px;
 }
 
 .metric-item {
-    background-color: #1f2031; 
-    padding: 15px; 
-    border-radius: 8px;
+    background-color: #1f2031;
+    padding: 20px 15px;
+    border-radius: 10px;
     text-align: center;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    border: 1px solid #3f3f55;
+    transition: transform 0.2s;
+}
+.metric-item:hover {
+    transform: translateY(-3px);
+    border-color: #3b82f6;
 }
 
 .metric-label {
     display: block;
-    font-size: 0.8rem; 
-    margin-bottom: 8px; 
-    color: #9ca3af; 
-    text-transform: uppercase; 
+    font-size: 0.75rem;
+    margin-bottom: 10px;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .metric-value {
-    font-size: 1.25rem; 
-    font-weight: 600;
+    font-size: 1.4rem;
+    font-weight: 700;
     color: #f3f4f6;
 }
 
-/* --- Charts --- */
+/* --- 🚀 REPLAY SPLIT VIEW (New CSS Class) --- */
+/* Note: You need to add className="replay-container" to the div wrapping Replay & Logs in JSX */
+.replay-container {
+    display: grid;
+    grid-template-columns: 3fr 1fr; /* Chart 75%, Logs 25% */
+    gap: 25px;
+    height: 500px;
+    width: 100%;
+}
+
+/* --- Trade Logs Table Styling --- */
+.trade-logs-container {
+    background: #1f2031;
+    border-radius: 8px;
+    border: 1px solid #3f3f55;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.trade-logs-container h3 {
+    padding: 15px;
+    background: #2d2e42;
+    margin: 0;
+    font-size: 1rem;
+    border-bottom: 1px solid #3f3f55;
+}
+
+/* Make table header sticky */
+.trade-logs-container thead th {
+    background: #2d2e42;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    font-weight: 600;
+    color: #cbd5e1;
+    padding: 12px 8px;
+    font-size: 0.85rem;
+}
+
+.trade-logs-container tbody td {
+    padding: 10px 8px;
+    border-bottom: 1px solid #333;
+    font-size: 0.85rem;
+}
+
+.trade-logs-container tbody tr:hover {
+    background-color: rgba(59, 130, 246, 0.1) !important; /* Highlight row on hover */
+}
+
+/* Custom Scrollbar for the table */
+.trade-logs-container > div::-webkit-scrollbar {
+    width: 6px;
+}
+.trade-logs-container > div::-webkit-scrollbar-track {
+    background: #1b1b2b;
+}
+.trade-logs-container > div::-webkit-scrollbar-thumb {
+    background: #4b5563;
+    border-radius: 3px;
+}
+
+
+/* --- Bottom Charts (Equity & Pie) --- */
 .charts-container {
     display: flex;
-    flex-wrap: wrap; 
-    gap: 20px;
-    margin-top: 20px;
+    flex-wrap: wrap;
+    gap: 30px; /* Space between the two bottom charts */
 }
+
 .chart {
-    flex: 1 1 400px; 
-    min-width: 280px;
-    background-color: #1f2031; 
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-    height: 340px; 
+    flex: 1; /* Grow to fill space */
+    min-width: 400px; /* Don't get too small */
+    background-color: #1f2031;
+    padding: 25px;
+    border-radius: 12px;
+    border: 1px solid #3f3f55;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
 }
+
 .chart h3 {
     text-align: center;
-    margin-bottom: 20px;
-    color: #cbd5e1;
-}
-/* Style Recharts tooltips/legends */
-.recharts-tooltip-wrapper {
-    background: #374151 !important; 
-    border: 1px solid #4b5563 !important;
-    border-radius: 4px !important;
-}
-.recharts-tooltip-label {
-    color: #f3f4f6 !important;
-}
-.recharts-legend-item-text {
-    color: #d1d5db !important; 
+    margin-bottom: 25px;
+    color: #e5e7eb;
+    font-size: 1.1rem;
 }
 
-
-/* --- Loading / Placeholder States --- */
-.metrics-grid-loading {
-    text-align: center;
-    padding: 40px;
-    color: #9ca3af;
-}
-.no-results-message {
-    text-align: center;
-    padding: 50px;
-    color: #6b7280; 
-    font-style: italic;
-}
-
+/* --- Helper Classes --- */
 .loading-overlay {
-    position: absolute; 
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(31, 32, 49, 0.85); 
-    display: flex;
-    flex-direction: column; 
-    justify-content: center;
-    align-items: center;
-    z-index: 10; 
-    border-radius: 12px; 
-    color: #e5e7eb;
-    text-align: center;
-    padding: 20px;
+    background-color: rgba(27, 27, 43, 0.9);
+    z-index: 50;
+    backdrop-filter: blur(2px);
 }
 
-/* --- Spinner --- */
-.spinner {
-    border: 4px solid rgba(255, 255, 255, 0.3);
-    border-radius: 50%;
-    border-top: 4px solid #fff; 
-    width: 40px;
-    height: 40px;
-    animation: spin 1s linear infinite;
-    margin: 20px auto; 
+/* --- Responsive Design --- */
+@media (max-width: 1200px) {
+    /* Stack Replay and Logs vertically on medium screens */
+    .replay-container {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+    
+    /* Give the logs a fixed height when stacked */
+    .trade-logs-container {
+        height: 300px;
+    }
 }
 
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-.loading-overlay h3 {
-    margin-bottom: 10px; 
-    font-size: 1.1rem; 
-    color: #e5e7eb;
-}
-
-.read-only-display {
-    background-color: #4b5563; 
-    color: #d1d5db; 
-    cursor: not-allowed;
-    opacity: 0.8;
-}
-
-/* --- Error Box --- */
-.error-box {
-    background-color: rgba(239, 68, 68, 0.2); 
-    border: 1px solid #ef4444; 
-    color: #fecaca; 
-    padding: 12px 15px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-}
-
-.error-box h4 {
-    margin: 0 0 5px 0;
-    color: #f87171; 
-}
-
-/* --- Responsive Adjustments --- */
 @media (max-width: 900px) {
     .backtest-main {
-        flex-direction: column; 
+        flex-direction: column; /* Stack Form on top of Results */
     }
-    .backtest-forms, .results-section {
-        flex-basis: auto; 
+    
+    .backtest-forms {
+        width: 100%;
+        position: static; /* Unstick */
+        flex: auto;
     }
-}
-
-@media (max-width: 600px) {
-    .dashboard-container { padding: 15px; }
-    .dashboard-container h1 { font-size: 1.8rem; }
-    .backtest-forms, .results-section { padding: 15px; }
-    .tabs button { padding: 8px 12px; font-size: 0.9rem; }
-    .metric-item { padding: 10px; }
-    .metric-value { font-size: 1.1rem; }
-    .chart { 
-        padding: 15px; 
+    
+    .chart {
+        min-width: 100%; /* Charts take full width */
     }
 }
