@@ -1,11 +1,12 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: Split View Replay + Robust Param Loading + Active Config Debugger
+// 🚀 UPGRADE: Smart Regime Detection + Removed Saved Setups Dropdown
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useContext, useRef } from "react";
 import { useBacktest } from "../hooks/useBacktest.js";
+import { StrategyContext } from "../context/StrategyContext.jsx";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, Brush
+  PieChart, Pie, Cell, Legend
 } from "recharts";
 import { ChartReplay } from "../components/ChartReplay.jsx";
 import "../components/ChartReplay.css";
@@ -13,6 +14,7 @@ import "./Backtests.css";
 import api from "../api/apiClient"; 
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
+const ESTIMATED_DURATION = 60; 
 
 // --- 1. CONSTANTS ---
 const STRATEGY_TYPE_TO_CODE_MAP = {
@@ -102,15 +104,15 @@ const defaultFilterParams = {
     minAtrPct: 0, 
     trendFilterPeriod: 200, 
     minAdxLevel: 0,
-    tslAtrMult: 0, // Default to 0 to prevent accidental TSL
+    tslAtrMult: 3.5,
     regime_threshold: 25 
 };
 
 const initialFormData = {
   strategyId: "", 
   code: "", 
-  symbol: "BTC-USD",
-  timeframe: "1h",
+  symbol: "",
+  timeframe: "",
   startDate: getDefaultDates().startDate,
   endDate: getDefaultDates().endDate,
   initialBalance: 1000,
@@ -126,13 +128,13 @@ const initialFormData = {
 
 const initialComboData = {
   strategies: [ 
-    { strategyId: "", code: "", params: {} },
-    { strategyId: "", code: "", params: {} }
+    { strategyId: "", code: "", params: { tslAtrMult: 3.5 } },
+    { strategyId: "", code: "", params: { tslAtrMult: 3.5 } }
   ],
   params: { ...defaultFilterParams },
   comboConfig: { strategyCodes: [], combinationRule: 'AND' },
-  symbol: "BTC-USD",
-  timeframe: "1h", 
+  symbol: "",
+  timeframe: "", 
   startDate: getDefaultDates().startDate,
   endDate: getDefaultDates().endDate,
   initialBalance: 1000,
@@ -149,7 +151,10 @@ const initialComboData = {
 function rebuildStrategiesFromParams(raw) {
   if (Array.isArray(raw.strategies) && raw.strategies.length > 0) return raw.strategies; 
   if (typeof raw.strategies === "string") {
-      return raw.strategies.split(",").map(code => ({ code: code.trim(), params: {} }));
+      return raw.strategies.split(",").map(code => ({
+          code: code.trim(),
+          params: {} 
+      }));
   }
   if (Array.isArray(raw)) {
       const expanded = [];
@@ -226,100 +231,6 @@ const MetricsDisplay = ({ metrics }) => {
       ))}
     </div>
   );
-};
-
-// 🆕 NEW COMPONENT: Trade Logs Table (The big one at the bottom)
-const TradeLogsTable = ({ trades }) => {
-    if (!trades || trades.length === 0) return <div className="no-trades-msg" style={{padding:'20px', textAlign:'center', color:'#888'}}>No trades found in this backtest.</div>;
-    
-    // Sort trades by entry time descending
-    const sortedTrades = [...trades].sort((a, b) => new Date(a.entry_time || a.entryTime) - new Date(b.entry_time || b.entryTime));
-
-    const formatDateFull = (ts) => {
-        if (!ts) return '-';
-        const d = new Date(ts);
-        return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
-    };
-
-    const formatPrice = (p) => p ? `$${parseFloat(p).toFixed(2)}` : '-';
-
-    return (
-        <div className="trade-logs-container" style={{ marginTop: '30px', background: '#0f172a', padding: '15px', borderRadius: '8px', border: '1px solid #334155', height: '400px' }}>
-            <h3 style={{ color: 'white', marginBottom: '10px' }}>Full Trade History</h3>
-            <div style={{ overflowX: 'auto', height: '340px', overflowY: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9em', color: '#e2e8f0' }}>
-                    <thead style={{ background: '#1e293b', position: 'sticky', top: 0, zIndex: 5 }}>
-                        <tr>
-                            <th style={{ padding: '10px', textAlign: 'left' }}>#</th>
-                            <th style={{ padding: '10px', textAlign: 'left' }}>Type</th>
-                            <th style={{ padding: '10px', textAlign: 'left' }}>Entry Time</th>
-                            <th style={{ padding: '10px', textAlign: 'right' }}>Entry Price</th>
-                            <th style={{ padding: '10px', textAlign: 'left' }}>Exit Time</th>
-                            <th style={{ padding: '10px', textAlign: 'right' }}>Exit Price</th>
-                            <th style={{ padding: '10px', textAlign: 'right' }}>PnL ($)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {sortedTrades.map((t, i) => {
-                            const profit = t.profit || t.pnl || 0;
-                            const isWin = profit > 0;
-                            const direction = t.direction || t.type || t.position || 'LONG';
-                            return (
-                                <tr key={i} style={{ borderBottom: '1px solid #334155', background: i % 2 === 0 ? 'transparent' : '#162032' }}>
-                                    <td style={{ padding: '8px' }}>{i + 1}</td>
-                                    <td style={{ padding: '8px', color: direction.toLowerCase().includes('short') ? '#f87171' : '#4ade80', fontWeight: 'bold' }}>
-                                        {direction.toUpperCase()}
-                                    </td>
-                                    <td style={{ padding: '8px' }}>{formatDateFull(t.entry_time || t.entryTime)}</td>
-                                    <td style={{ padding: '8px', textAlign: 'right' }}>{formatPrice(t.entry_price || t.entryPrice || t.price)}</td>
-                                    <td style={{ padding: '8px' }}>{formatDateFull(t.exit_time || t.exitTime)}</td>
-                                    <td style={{ padding: '8px', textAlign: 'right' }}>{formatPrice(t.exit_price || t.exitPrice)}</td>
-                                    <td style={{ padding: '8px', textAlign: 'right', color: isWin ? '#4ade80' : '#f87171' }}>
-                                        {profit > 0 ? '+' : ''}{profit.toFixed(2)}
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-};
-
-// 🆕 NEW COMPONENT: Compact Logs for Split View
-const CompactTradeLogs = ({ trades }) => {
-    if (!trades || trades.length === 0) return <div style={{padding:'20px', color:'#666', textAlign:'center'}}>No trades yet.</div>;
-    const sortedTrades = [...trades].sort((a, b) => new Date(a.entryTime || a.entry_time) - new Date(b.entryTime || b.entry_time));
-    
-    return (
-        <div style={{height: '100%', overflowY: 'auto', background: '#161621'}}>
-            <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem'}}>
-                <thead style={{position: 'sticky', top: 0, background: '#25263a', zIndex: 2}}>
-                    <tr>
-                        <th style={{padding: '8px', textAlign: 'left', color: '#9ca3af'}}>Type</th>
-                        <th style={{padding: '8px', textAlign: 'right', color: '#9ca3af'}}>Price</th>
-                        <th style={{padding: '8px', textAlign: 'right', color: '#9ca3af'}}>PnL</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {sortedTrades.map((t, i) => (
-                        <tr key={i} style={{borderBottom: '1px solid #333'}}>
-                            <td style={{padding: '8px', color: (t.position || t.type) === 'short' ? '#f87171' : '#4ade80'}}>
-                                {(t.position || t.type || 'LONG').toUpperCase()}
-                            </td>
-                            <td style={{padding: '8px', textAlign: 'right', color: '#cbd5e1'}}>
-                                ${(t.entryPrice || t.price || 0).toFixed(0)}
-                            </td>
-                            <td style={{padding: '8px', textAlign: 'right', color: (t.profit || 0) > 0 ? '#4ade80' : '#f87171'}}>
-                                {(t.profit || 0).toFixed(2)}
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    );
 };
 
 const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isCombo = false }) => {
@@ -441,6 +352,12 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
                 <label>Trailing Stop (ATR Mult): <input type="number" name="tslAtrMult" value={params.tslAtrMult ?? 0} onChange={handleParamChange} step="0.1" min="0" /></label>
                 <label>Trend Filter SMA Period: <input type="number" name="trendFilterPeriod" value={params.trendFilterPeriod ?? 200} onChange={handleParamChange} step="1" min="0" /></label>
             </fieldset>
+            {(params.tslAtrMult ?? 0) === 0 && !isCombo && (
+                <>
+                    <label>Stop Loss (%): <input type="number" name="SL" value={params.SL ?? 5.0} onChange={handleParamChange} step="0.1" min="0.1" required /></label>
+                    <label>Take Profit (%): <input type="number" name="TP" value={params.TP ?? 10.0} onChange={handleParamChange} step="0.1" min="0.1" required /></label>
+                </>
+            )}
         </>
     );
 };
@@ -526,7 +443,6 @@ export default function Backtests() {
     return { availableSymbols, availableTimeframes, lookup };
   }, [modelOptions]); 
 
-  // 🚀 ROBUST WINNER LOADER: Ensures params are correctly mapped from Optimizer
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
@@ -538,8 +454,6 @@ export default function Backtests() {
           
           let loadedSymbol = config.symbol || comboData.symbol || "BTC-USD";
           let loadedTimeframe = config.timeframe || comboData.timeframe || "1h";
-          
-          // Fallback if symbol isn't in config
           if (!config.symbol && filename.includes('_')) {
               const parts = filename.split('_');
               if(parts[1]) loadedSymbol = parts[1];
@@ -554,8 +468,9 @@ export default function Backtests() {
           const globalParams = normalizeParams(rawGlobalParams);
 
           // 🚀 SMART DETECT REGIME MODE
+          // If regime_threshold exists, enforce REGIME mode even if JSON says AND
           let hybridMode = globalParams.hybridMode || 'AND';
-          if (globalParams.regime_threshold !== undefined && globalParams.regime_threshold !== null) {
+          if (globalParams.regime_threshold !== undefined) {
               hybridMode = 'REGIME';
               globalParams.hybridMode = 'REGIME';
           }
@@ -582,7 +497,6 @@ export default function Backtests() {
               if(Array.isArray(config)) config.forEach(item => Object.assign(allParams, item.params || item));
               const specificParams = {};
               Object.entries(allParams).forEach(([key, val]) => {
-                  // Pass specific params + global fallbacks
                   if (prefix && key.startsWith(prefix)) {
                        const uiKey = PARAM_MAPPING[key] || key;
                        specificParams[uiKey] = val;
@@ -598,7 +512,7 @@ export default function Backtests() {
               strategies: strategiesList, params: globalParams, 
               comboConfig: { 
                   strategyCodes: strategiesList.map(s => s.code), 
-                  combinationRule: hybridMode 
+                  combinationRule: hybridMode // 🚀 Auto-Selected Correct Mode
               }
           }));
       }
@@ -739,10 +653,8 @@ export default function Backtests() {
 
   const isComboSubmitDisabled = loading !== 'idle' || (comboData.mlMode !== 'off' && !comboData.mlModel) || (comboData.strategies.length < 1);
   const isSingleSubmitDisabled = loading !== 'idle' || (formData.mlMode !== 'off' && !formData.mlModel);
+  const currentFormDataForStatus = activeTab === 'single' ? formData : comboData;
   const getStatusMessage = () => loading === 'running_ml' ? `Running ML... (${countdown}s)` : "Processing...";
-
-  // 🚀 DEBUGGER: Show the active config to user
-  const activeConfig = activeTab === 'single' ? formData : comboData;
 
   return (
     <div className="dashboard-container">
@@ -755,6 +667,7 @@ export default function Backtests() {
             <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo Strategy</button>
           </div>
           
+          {/* 🚀 OPTIMIZED STRATEGIES (ML) DROPDOWN ONLY */}
           <div className="form-group" style={{ marginBottom: '20px', padding: '15px', background: '#1e293b', borderRadius: '8px', border: '1px solid #334155' }}>
                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                    <label style={{ color: '#4ade80', fontWeight: 'bold', margin: 0 }}>🏆 Load Optimized Strategy (ML)</label>
@@ -777,6 +690,7 @@ export default function Backtests() {
               <CommonBacktestInputs data={formData} onChange={handleFormChange} options={{ symbolOptions, timeframeOptions, modelOptions }} availableModelData={availableModelData} isCombo={false} />
               <div className="button-group" style={{display:'flex', gap:'10px'}}>
                 <button type="submit" disabled={isSingleSubmitDisabled} style={{flex:1}}>{loading !== 'idle' ? getStatusMessage() : "Run Backtest"}</button>
+                {/* 🚀 SAVE BUTTON */}
                 <button type="button" onClick={handleSaveStrategy} style={{flex:1, backgroundColor:'#22c55e', border:'none', cursor:'pointer'}}>💾 Save Strategy</button>
               </div>
             </form>
@@ -793,6 +707,7 @@ export default function Backtests() {
                 <button type="button" onClick={addStrategyCard} disabled={loading !== 'idle'}>Add Strategy</button>
                 <div className="button-group" style={{display:'flex', gap:'10px'}}>
                      <button type="submit" disabled={isComboSubmitDisabled} style={{flex:1}}>{loading !== 'idle' ? getStatusMessage() : "Run Combo Backtest"}</button>
+                     {/* 🚀 SAVE BUTTON */}
                      <button type="button" onClick={handleSaveStrategy} style={{flex:1, backgroundColor:'#22c55e', border:'none', cursor:'pointer'}}>💾 Save Strategy</button>
                 </div>
              </form>
@@ -805,65 +720,14 @@ export default function Backtests() {
             {loading !== 'idle' && (
               <div className="loading-overlay"><h3>{getStatusMessage()}</h3><div className="spinner"></div></div>
             )}
-            
-            {/* 🚀 ACTIVE DEBUGGER: Shows active parameters so user is sure "Golden" is loaded */}
-            {loading === 'idle' && combinedMetrics && (
-                <div style={{marginBottom:'20px', padding:'10px', background:'#2d2e42', borderRadius:'6px', fontSize:'0.85rem', color:'#aaa'}}>
-                    <strong>Active Config: </strong>
-                    Symbol: <span style={{color:'white'}}>{activeConfig.symbol}</span> | 
-                    TF: <span style={{color:'white'}}>{activeConfig.timeframe}</span> | 
-                    Strategies: <span style={{color:'white'}}>{activeConfig.strategies.map(s=>s.code).join(' + ') || activeConfig.code}</span>
-                </div>
-            )}
-
             {loading === 'idle' && combinedMetrics && !error && (
               <>
                 <MetricsDisplay metrics={combinedMetrics} />
-                
-                {/* 🚀 REPLAY SPLIT VIEW (Chart Left / Logs Right) */}
-                {mainResult && mainResult.candleData?.length > 0 && (
-                    <div className="replay-container">
-                        <div style={{ width: '100%', height: '100%' }}>
-                            <ChartReplay results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} />
-                        </div>
-                        <div className="trade-logs-container">
-                            <h3 style={{ padding:'10px', background:'#2d2e42', margin:0, fontSize:'1rem', borderBottom:'1px solid #3f3f55'}}>Trade Log</h3>
-                            <CompactTradeLogs trades={mainResult?.trades} />
-                        </div>
-                    </div>
-                )}
-
-                <div className="charts-container" style={{ marginTop: '30px' }}>
-                  <div className="chart">
-                    <h3>Equity Curve</h3>
-                    <ResponsiveContainer width="100%" height={350}>
-                        <LineChart data={combinedEquityCurve}>
-                            <XAxis dataKey="timestamp" tickFormatter={formatChartDate} />
-                            <YAxis domain={['auto', 'auto']} />
-                            <Tooltip />
-                            <CartesianGrid stroke="#555" />
-                            <Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false} strokeWidth={2} />
-                            {/* 🚀 ZOOM SLIDER */}
-                            <Brush dataKey="timestamp" height={30} stroke="#8884d8" tickFormatter={formatChartDate} />
-                        </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="chart">
-                    <h3>Win / Loss</h3>
-                    <ResponsiveContainer width="100%" height={350}>
-                        <PieChart>
-                            <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} fill="#8884d8" label>
-                                {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                            </Pie>
-                            <Tooltip />
-                            <Legend />
-                        </PieChart>
-                    </ResponsiveContainer>
-                  </div>
+                {mainResult && mainResult.candleData?.length > 0 && <ChartReplay results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} />}
+                <div className="charts-container">
+                  <div className="chart"><h3>Equity Curve</h3><ResponsiveContainer width="100%" height={300}><LineChart data={combinedEquityCurve}><XAxis dataKey="timestamp" tickFormatter={formatChartDate} /><YAxis domain={['auto', 'auto']} /><Tooltip /><CartesianGrid stroke="#555" /><Line type="monotone" dataKey="balance" stroke="#8884d8" dot={false} /></LineChart></ResponsiveContainer></div>
+                  <div className="chart"><h3>Win / Loss</h3><ResponsiveContainer width="100%" height={300}><PieChart><Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} fill="#8884d8" label>{pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}</Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer></div>
                 </div>
-                
-                {/* Full History Table */}
-                <TradeLogsTable trades={mainResult?.trades} />
               </>
             )}
           </div>
