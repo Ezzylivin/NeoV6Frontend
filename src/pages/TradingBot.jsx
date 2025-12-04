@@ -277,8 +277,12 @@ export default function TradingBot() {
                         <div className="card-header-row" style={{display:'flex', justifyContent:'space-between'}}>
                              <h3 className="card-title" style={{margin:0}}>Live Chart</h3>
                              <button onClick={refreshBotData} style={{background:'none', border:'none', color:'#4ade80', cursor:'pointer'}}>↻ Refresh</button>
-                        </div>
-                        <LiveTradingChart candles={botStatus.candles || []} trades={botStatus.trades || []} />
+                        {/* 🚀 NEW PROP: activePositions */}
+                        <LiveTradingChart 
+                            candles={botStatus.candles || []} 
+                            trades={botStatus.trades || []} 
+                            activePositions={botStatus.activePositions || []} 
+                        />
                     </div>
 
                     <div className="bot-card logs-panel">
