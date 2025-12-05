@@ -1,88 +1,106 @@
-/* File: src/styles/Backtests.css */
+/* File: src/styles/Backtests.css - Modernized 2026 */
 
 /* --- General Container --- */
 .dashboard-container {
-    padding: 30px 40px; /* Increased padding */
-    background-color: #1b1b2b;
+    padding: 24px 32px;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
     color: #ffffff;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
     min-height: 100vh;
 }
 
 /* --- Headings --- */
 .dashboard-container h1 {
-    font-size: 2.2rem;
-    margin-bottom: 30px; /* More space below title */
-    color: #f3f4f6;
+    font-size: 2rem;
+    margin-bottom: 32px;
+    color: #f8fafc;
     text-align: center;
-    letter-spacing: 0.5px;
+    letter-spacing: -0.025em;
+    font-weight: 700;
+    background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
+
 .dashboard-container h2 {
-    font-size: 1.6rem;
-    margin-bottom: 25px; /* Spread out */
-    color: #e5e7eb;
-    border-bottom: 1px solid #3f3f55;
-    padding-bottom: 15px;
+    font-size: 1.5rem;
+    margin-bottom: 24px;
+    color: #f1f5f9;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    padding-bottom: 16px;
+    font-weight: 600;
+    letter-spacing: -0.025em;
 }
+
 .dashboard-container h3 {
-    font-size: 1.2rem;
-    margin-bottom: 15px;
-    color: #d1d5db;
-    font-weight: 500;
+    font-size: 1.125rem;
+    margin-bottom: 16px;
+    color: #e2e8f0;
+    font-weight: 600;
 }
 
 /* --- Main Layout --- */
 .backtest-main {
     display: flex;
     flex-wrap: wrap;
-    gap: 40px; /* 🚀 INCREASED GAP between Form and Results */
+    gap: 24px;
     align-items: flex-start;
 }
 
 /* --- Forms Container --- */
 .backtest-forms {
-    flex: 0 0 400px; /* Fixed width for form, doesn't grow */
-    background-color: #27293d;
-    border-radius: 12px;
-    padding: 30px; /* Breathing room inside form */
-    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-    position: sticky; /* Keep form in view while scrolling results */
-    top: 20px;
+    flex: 0 0 420px;
+    background: rgba(30, 41, 59, 0.5);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    position: sticky;
+    top: 24px;
 }
 
 /* --- Tabs --- */
 .tabs {
     display: flex;
-    margin-bottom: 25px;
-    border-bottom: 2px solid #3f3f55;
+    margin-bottom: 28px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    gap: 8px;
 }
+
 .tabs button {
-    flex: 1; /* Make tabs full width */
+    flex: 1;
     padding: 12px 20px;
     background-color: transparent;
     border: none;
-    border-bottom: 3px solid transparent;
-    color: #9ca3af;
+    border-bottom: 2px solid transparent;
+    color: #94a3b8;
     cursor: pointer;
-    font-size: 1rem;
+    font-size: 0.9375rem;
     font-weight: 600;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
+    border-radius: 8px 8px 0 0;
 }
+
 .tabs button:hover {
-    color: #e5e7eb;
-    background-color: rgba(255,255,255,0.02);
+    color: #cbd5e1;
+    background-color: rgba(59, 130, 246, 0.05);
 }
+
 .tabs button.active {
-    color: #3b82f6;
+    color: #60a5fa;
     border-bottom-color: #3b82f6;
+    background-color: rgba(59, 130, 246, 0.1);
 }
 
 /* --- Inputs & Form Elements --- */
 .backtest-form label {
     display: flex;
     flex-direction: column;
-    margin-bottom: 18px; /* Spread out inputs */
-    font-size: 0.9rem;
+    margin-bottom: 20px;
+    font-size: 0.875rem;
     color: #cbd5e1;
     font-weight: 500;
 }
@@ -90,99 +108,304 @@
 .backtest-form input,
 .backtest-form select {
     margin-top: 8px;
-    padding: 12px 14px; /* Taller inputs */
-    border-radius: 6px;
-    border: 1px solid #555770;
-    background-color: #1f2031;
-    color: #fff;
-    font-size: 0.95rem;
-    transition: border-color 0.2s;
+    padding: 12px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(71, 85, 105, 0.5);
+    background-color: rgba(15, 23, 42, 0.5);
+    color: #f1f5f9;
+    font-size: 0.9375rem;
+    transition: all 0.2s ease;
+}
+
+.backtest-form input:focus,
+.backtest-form select:focus {
+    outline: none;
+    border-color: rgba(59, 130, 246, 0.5);
+    background-color: rgba(15, 23, 42, 0.7);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.backtest-form input:hover,
+.backtest-form select:hover {
+    border-color: rgba(100, 116, 139, 0.7);
 }
 
 .backtest-form fieldset {
-    border: 1px solid #3f3f55;
-    border-radius: 8px;
-    padding: 25px; /* More internal space */
-    margin-bottom: 30px; /* separation between sections */
-    background-color: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+    background: rgba(15, 23, 42, 0.3);
 }
 
 .backtest-form legend {
     padding: 0 12px;
-    font-weight: 700;
+    font-weight: 600;
     color: #60a5fa;
     text-transform: uppercase;
-    font-size: 0.85rem;
-    letter-spacing: 1px;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
 }
 
 /* --- Buttons --- */
 .backtest-form button {
     padding: 12px 24px;
-    border-radius: 6px;
+    border-radius: 12px;
     cursor: pointer;
     font-weight: 600;
     border: none;
-    transition: transform 0.1s, background-color 0.2s;
+    transition: all 0.2s ease;
+    color: white;
 }
+
 .backtest-form button[type="submit"] {
     width: 100%;
     padding: 16px;
-    font-size: 1.1rem;
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
-    margin-top: 20px;
-}
-.backtest-form button[type="submit"]:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 15px rgba(37, 99, 235, 0.4);
+    font-size: 1rem;
+    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.25);
+    margin-top: 24px;
 }
 
-/* --- Results Section (The Right Side) --- */
+.backtest-form button[type="submit"]:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(59, 130, 246, 0.4);
+}
+
+.backtest-form button[type="submit"]:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.backtest-form button[type="submit"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: linear-gradient(135deg, #475569 0%, #64748b 100%);
+    box-shadow: none;
+}
+
+.backtest-form button:not([type="submit"]) {
+    background: rgba(51, 65, 85, 0.5);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.backtest-form button:not([type="submit"]):hover {
+    background: rgba(71, 85, 105, 0.7);
+    border-color: rgba(148, 163, 184, 0.3);
+}
+
+/* --- Results Section --- */
 .results-section {
-    flex: 1; /* Take remaining width */
-    min-width: 0; /* Prevents flex items from overflowing container */
-    background-color: #27293d;
-    border-radius: 12px;
-    padding: 35px; /* Spread out content */
-    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    flex: 1;
+    min-width: 0;
+    background: rgba(30, 41, 59, 0.5);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     display: flex;
     flex-direction: column;
-    gap: 40px; /* 🚀 KEY: Vertical spacing between Metrics, Replay, and Charts */
+    gap: 32px;
 }
 
 /* --- Metrics Grid --- */
 .metrics-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); /* Adaptive columns */
-    gap: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 16px;
 }
 
 .metric-item {
-    background-color: #1f2031;
-    padding: 20px 15px;
-    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.4);
+    padding: 20px 16px;
+    border-radius: 16px;
     text-align: center;
-    border: 1px solid #3f3f55;
-    transition: transform 0.2s;
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
 }
+
+.metric-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
 .metric-item:hover {
-    transform: translateY(-3px);
-    border-color: #3b82f6;
+    transform: translateY(-4px);
+    border-color: rgba(59, 130, 246, 0.3);
+    box-shadow: 0 8px 24px rgba(59, 130, 246, 0.15);
+}
+
+.metric-item:hover::before {
+    opacity: 1;
 }
 
 .metric-label {
     display: block;
     font-size: 0.75rem;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
     color: #94a3b8;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.05em;
+    font-weight: 500;
 }
 
 .metric-value {
-    font-size: 1.4rem;
+    font-size: 1.5rem;
     font-weight: 700;
-    color: #f3f4f6;
+    color: #f1f5f9;
+    letter-spacing: -0.025em;
 }
 
+/* Positive/Negative value colors */
+.metric-value.positive {
+    color: #34d399;
+}
+
+.metric-value.negative {
+    color: #f87171;
+}
+
+/* --- Loading & Empty States --- */
+.loading-state,
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 64px 32px;
+    text-align: center;
+    color: #94a3b8;
+}
+
+.loading-state svg,
+.empty-state svg {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+/* --- Responsive Design --- */
+@media (max-width: 1024px) {
+    .backtest-forms {
+        flex: 0 0 100%;
+        position: static;
+    }
+    
+    .backtest-main {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 640px) {
+    .dashboard-container {
+        padding: 16px 20px;
+    }
+    
+    .backtest-forms,
+    .results-section {
+        padding: 24px;
+    }
+    
+    .metrics-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 12px;
+    }
+    
+    .metric-item {
+        padding: 16px 12px;
+    }
+    
+    .metric-value {
+        font-size: 1.25rem;
+    }
+}
+
+/* --- Charts Section --- */
+.charts-section {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.chart-container {
+    background: rgba(15, 23, 42, 0.3);
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    border-radius: 16px;
+    padding: 24px;
+}
+
+.chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.chart-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #f1f5f9;
+}
+
+/* --- Trade Replay Section --- */
+.replay-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.3);
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    border-radius: 12px;
+}
+
+.replay-controls button {
+    padding: 10px 20px;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 8px;
+    color: #60a5fa;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.replay-controls button:hover {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: rgba(59, 130, 246, 0.5);
+}
+
+.replay-controls button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* --- Scrollbar Styling --- */
+.results-section::-webkit-scrollbar {
+    width: 8px;
+}
+
+.results-section::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.3);
+    border-radius: 4px;
+}
+
+.results-section::-webkit-scrollbar-thumb {
+    background: rgba(59, 130, 246, 0.3);
+    border-radius: 4px;
+}
+
+.results-section::-webkit-scrollbar-thumb:hover {
+    background: rgba(59, 130, 246, 0.5);
+}
