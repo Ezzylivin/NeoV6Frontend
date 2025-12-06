@@ -1,5 +1,5 @@
 // File: src/components/ChartIndependent.jsx
-// 🚀 UPGRADE: v33.1 - "Bulletproof Rendering" (Auto-Validates Data)
+// 🚀 UPGRADE: v33.2 - "Debug Mode" (Added Console Logs)
 
 import React, { useEffect, useRef } from "react";
 import { createChart, ColorType } from "lightweight-charts";
@@ -9,10 +9,13 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
   const chartRef = useRef(null);
 
   useEffect(() => {
+    // 🔍 DEBUGGING LOGS (Added as requested)
+    console.log("Chart results:", results);
+    console.log("Candle Data:", results?.candleData);
+
     // 1. Safety Check: If no container or data, abort
     if (!chartContainerRef.current) return;
     if (!results || !results.candleData || results.candleData.length === 0) {
-        // Optional: Render a placeholder or just return
         return; 
     }
 
@@ -44,7 +47,7 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
       upColor: "#22c55e", downColor: "#ef4444", borderVisible: false, wickUpColor: "#22c55e", wickDownColor: "#ef4444",
     });
 
-    // 4. 🚀 ROBUST DATA PARSING (The Fix)
+    // 4. 🚀 ROBUST DATA PARSING
     const validData = [];
     const timeSet = new Set();
 
