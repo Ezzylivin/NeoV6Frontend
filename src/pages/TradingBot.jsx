@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v32.0 - "Memory & Visuals" (Persistent Logs + Chart Fixes)
+// 🚀 UPGRADE: v33.0 - "Robust Interface" (Case-Insensitive Logic + Chart Recovery)
 
 import React, { useState, useEffect, useRef } from "react";
 import { useBot } from '../hooks/useBot.js';
@@ -10,18 +10,22 @@ import "./TradingBot.css";
 
 // --- HELPER: Parse Date ---
 const formatLogDate = (isoString) => {
-    if (!isoString) return "--:--";
+    if (!isoString) return "--/--";
     const d = new Date(isoString);
+    if (isNaN(d.getTime())) return "Invalid Date";
     const date = `${d.getMonth()+1}/${d.getDate()}`;
     const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     return `${date}, ${time}`;
 };
 
-// --- HELPER: Thought Bubble ---
+// --- HELPER: Thought Bubble (Case-Insensitive) ---
 const ThinkingMessage = ({ text }) => {
-    if (text.includes("Checked combo")) {
-        const parts = text.split("Final signal:");
-        const signal = parts[1] ? parts[1].trim().replace('.', '').toUpperCase() : "UNKNOWN";
+    const lowerText = text.toLowerCase();
+    
+    if (lowerText.includes("checked combo")) {
+        // Safe split that works regardless of casing
+        const parts = text.split(/Final signal:/i); 
+        const signal = parts[1] ? parts[1].trim().replace('.', '').toUpperCase() : "ANALYZING";
         
         let signalClass = "signal-hold";
         if (signal.includes("BUY") || signal.includes("LONG")) signalClass = "signal-buy";
@@ -39,37 +43,49 @@ const ThinkingMessage = ({ text }) => {
 
 // --- COMPONENT: AI DECISION STREAM ---
 const DecisionStream = ({ logs }) => {
-    // Only show unique major events
-    const thoughts = logs.filter(l => 
-        l.message.includes("Checked combo") || 
-        l.message.includes("Entered") || 
-        l.message.includes("Closed") ||
-        l.message.includes("Bot started")
-    ).map(l => {
-        let signal = "WAIT";
+    // Robust Filter: Case-insensitive checks
+    const thoughts = logs.filter(l => {
+        const msg = l.message.toLowerCase();
+        return msg.includes("checked combo") || 
+               msg.includes("entered") || 
+               msg.includes("closed") ||
+               msg.includes("bot started") ||
+               msg.includes("bot stopped") ||
+               msg.includes("error");
+    }).map(l => {
+        const msg = l.message.toLowerCase();
+        let signal = "INFO";
         let color = "#64748b"; 
-        let detail = "Scanning markets...";
+        let detail = l.message;
 
-        if (l.message.includes("hold")) {
+        if (msg.includes("hold")) {
             signal = "HOLD";
             color = "#f59e0b"; 
-            detail = "No valid entry signal detected.";
-        } else if (l.message.includes("Entered long") || l.message.includes("buy")) {
+            detail = "No high-probability setup found.";
+        } else if (msg.includes("entered long") || msg.includes("buy")) {
             signal = "LONG";
             color = "#22c55e"; 
-            detail = "Bullish criteria met. Entry executed.";
-        } else if (l.message.includes("Entered short") || l.message.includes("sell")) {
+            detail = "Bullish signals confirmed. Entry executed.";
+        } else if (msg.includes("entered short") || msg.includes("sell")) {
             signal = "SHORT";
             color = "#ef4444"; 
-            detail = "Bearish criteria met. Entry executed.";
-        } else if (l.message.includes("Closed")) {
+            detail = "Bearish signals confirmed. Entry executed.";
+        } else if (msg.includes("closed")) {
             signal = "CLOSE";
             color = "#3b82f6"; 
-            detail = l.message;
-        } else if (l.message.includes("Bot started")) {
-            signal = "INIT";
+            detail = "Position closed based on exit logic.";
+        } else if (msg.includes("bot started")) {
+            signal = "ONLINE";
             color = "#a855f7";
-            detail = "System initialized and ready.";
+            detail = "System initialized. Polling market data.";
+        } else if (msg.includes("bot stopped")) {
+            signal = "OFFLINE";
+            color = "#ef4444";
+            detail = "System shutdown initiated.";
+        } else if (msg.includes("error")) {
+            signal = "ERROR";
+            color = "#ef4444";
+            detail = "System encountered an anomaly.";
         }
 
         return { timestamp: l.timestamp, signal, color, detail, id: l.timestamp + l.message };
@@ -93,12 +109,17 @@ const DecisionStream = ({ logs }) => {
                             {t.signal === "HOLD" && "⏸ "}
                             {t.signal === "LONG" && "🚀 "}
                             {t.signal === "SHORT" && "🔻 "}
-                            {t.signal === "INIT" && "⚡ "}
+                            {t.signal === "ONLINE" && "⚡ "}
+                            {t.signal === "OFFLINE" && "🛑 "}
                             {t.signal}
                         </span>
                         <span className="d-detail">{t.detail}</span>
                     </div>
-                )) : <div className="d-row" style={{justifyContent:'center', fontStyle:'italic', color:'#475569'}}>Waiting for market data...</div>}
+                )) : (
+                    <div className="d-row" style={{justifyContent:'center', fontStyle:'italic', color:'#475569', padding:'20px'}}>
+                        Waiting for AI activity...
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -163,7 +184,7 @@ export default function TradingBot() {
     const [selectedWinnerId, setSelectedWinnerId] = useState("");
     const [selectedSetupId, setSelectedSetupId] = useState("");
     
-    // 🚀 NEW: Persistent Log State
+    // Persistent Log State
     const [persistentLogs, setPersistentLogs] = useState([]);
 
     const [formConfig, setFormConfig] = useState({
@@ -174,18 +195,18 @@ export default function TradingBot() {
 
     const [logsClearedTime, setLogsClearedTime] = useState(0);
 
-    // 🚀 LOG ACCUMULATION LOGIC
+    // 🚀 IMPROVED LOG ACCUMULATION
     useEffect(() => {
         if (apiLogs && apiLogs.length > 0) {
             setPersistentLogs(prevLogs => {
-                // Combine and deduplicate based on timestamp + message
                 const newLogs = apiLogs.filter(apiLog => 
                     !prevLogs.some(prevLog => 
                         prevLog.timestamp === apiLog.timestamp && prevLog.message === apiLog.message
                     )
                 );
-                // Keep last 500 logs to prevent memory issues
-                return [...prevLogs, ...newLogs].sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp)).slice(-500);
+                // Sort by time and keep last 500
+                const combined = [...prevLogs, ...newLogs].sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
+                return combined.slice(-500);
             });
         }
     }, [apiLogs]);
@@ -198,7 +219,7 @@ export default function TradingBot() {
             const { scrollHeight, clientHeight } = logsContainerRef.current;
             logsContainerRef.current.scrollTo({ top: scrollHeight - clientHeight, behavior: 'smooth' });
         }
-    }, [persistentLogs]); // Scroll on new persistent log
+    }, [persistentLogs]);
 
     // Auto-Polling
     useEffect(() => {
@@ -282,9 +303,8 @@ export default function TradingBot() {
     const handleStart = async (e) => {
         e.preventDefault();
         if (formConfig.tradingMode === 'live' && !window.confirm("⚠️ Real Money Trading. Proceed?")) return;
-        
         setLogsClearedTime(0); 
-        setPersistentLogs([]); // Clear local logs on new start
+        setPersistentLogs([]); 
         
         const cleanStrategies = (formConfig.strategies || []).map(s => ({
             code: s.code || "unknown",
@@ -328,7 +348,6 @@ export default function TradingBot() {
     
     const isRunning = botStatus?.status === 'running';
     
-    // Prepare data for visualizer
     const chartData = {
         candleData: botStatus?.candles || [],
         tradeBreakdown: (botStatus?.trades || []).map(t => ({
@@ -341,6 +360,7 @@ export default function TradingBot() {
         }))
     };
 
+    // 🚀 ROBUST CHECK: Does chart data exist?
     const hasData = chartData.candleData && chartData.candleData.length > 0;
 
     return (
@@ -382,14 +402,7 @@ export default function TradingBot() {
                     <div className="form-grid">
                         <label>Symbol<input value={formConfig.symbol} disabled /></label>
                         <label>Timeframe<input value={formConfig.timeframe} disabled /></label>
-                        <label>Capital Allocation
-                            <input 
-                                type="number" 
-                                value={formConfig.capitalAllocation} 
-                                onChange={e=>setFormConfig(p=>({...p, capitalAllocation:e.target.value}))} 
-                                disabled={isRunning}
-                            />
-                        </label>
+                        <label>Capital Allocation<input type="number" value={formConfig.capitalAllocation} onChange={e=>setFormConfig(p=>({...p, capitalAllocation:e.target.value}))} disabled={isRunning} /></label>
                     </div>
 
                     <div className="mode-switch-container">
@@ -419,13 +432,14 @@ export default function TradingBot() {
                              <button onClick={handleRefreshChart} style={{background:'none', border:'none', color:'#4ade80', cursor:'pointer', fontSize:'0.8rem'}}>↻ SYNC</button>
                         </div>
                         <div style={{height: '500px'}}>
-                            {/* 🚀 CHART GUARD: Only render if data exists */}
+                            {/* 🚀 CHART FIX: Fallback if no data yet */}
                             {hasData ? (
                                 <ChartIndependent results={chartData} symbol={formConfig.symbol} />
                             ) : (
                                 <div style={{height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', color:'#64748b', gap:'15px'}}>
                                     <div className="spinner"></div>
-                                    <p>Acquiring Exchange Data Feed...</p>
+                                    <p>Acquiring Exchange Data...</p>
+                                    <button onClick={handleRefreshChart} style={{padding:'8px 16px', background:'#334155', border:'none', color:'#e2e8f0', borderRadius:'6px', cursor:'pointer'}}>Force Retry</button>
                                 </div>
                             )}
                         </div>
@@ -444,7 +458,7 @@ export default function TradingBot() {
 
                         <div className="logs-container" ref={logsContainerRef} style={{borderTop:'1px solid #334155', paddingTop:'10px'}}>
                             {visibleLogs.length > 0 ? visibleLogs.map((log, i) => {
-                                const isThinking = log.message.includes("Checked combo");
+                                const isThinking = log.message.toLowerCase().includes("checked combo");
                                 return (
                                     <div key={i} className={`log-entry log-${log.type} ${isThinking ? 'log-thinking' : ''}`}>
                                         <span className="log-timestamp">{formatLogDate(log.timestamp)}</span>
