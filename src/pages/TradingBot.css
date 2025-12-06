@@ -1,115 +1,128 @@
-/* Container Layout */
+/* TradingBot.css - Premium Fintech UI */
+
 .trading-bot-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
+  padding: 30px;
+  background-color: #0b0f19; /* Deepest Space Blue */
   color: #e2e8f0;
-  font-family: 'Inter', sans-serif;
+  min-height: 100vh;
+  font-family: 'Inter', system-ui, sans-serif;
 }
 
 .header {
-  font-size: 2rem;
+  font-size: 1.8rem;
   font-weight: 700;
-  margin-bottom: 2rem;
-  color: #fff;
-  border-bottom: 2px solid #334155;
-  padding-bottom: 10px;
+  margin-bottom: 25px;
+  background: linear-gradient(90deg, #60a5fa, #c084fc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.02em;
 }
 
-/* Bot Cards */
+/* --- CARD STYLES --- */
 .bot-card {
-  background-color: #1e293b;
+  background: #161b28;
+  border: 1px solid #2d3748;
   border-radius: 12px;
-  padding: 24px;
-  margin-bottom: 24px;
-  border: 1px solid #334155;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s;
 }
 
-.card-title {
-  margin-top: 0;
-  margin-bottom: 20px;
-  font-size: 1.25rem;
-  color: #f8fafc;
+.control-panel {
+  border-top: 4px solid #3b82f6;
+}
+
+.panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #2d3748;
 }
 
-/* Mode Badge (The "PAPER" tag) */
-.mode-badge {
-  font-size: 0.75rem;
-  padding: 4px 12px;
-  border-radius: 999px;
+.card-title {
+  font-size: 1.1rem;
   font-weight: 600;
+  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* --- STATUS BADGES --- */
+.status-indicator {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
-.mode-badge.paper {
-  background-color: #0f172a;
-  color: #38bdf8;
-  border: 1px solid #38bdf8;
+.status-indicator.running {
+  background: rgba(34, 197, 94, 0.1);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.2);
+  animation: pulse 2s infinite;
 }
 
-.mode-badge.live {
-  background-color: #450a0a;
+.status-indicator.stopped {
+  background: rgba(239, 68, 68, 0.1);
   color: #f87171;
-  border: 1px solid #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
-/* Mode Toggle Switch */
-.mode-switch-container {
-  display: flex;
-  align-items: center;
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(74, 222, 128, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+}
+
+.mode-badge {
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #334155;
+  color: #94a3b8;
+}
+
+.mode-badge.live { background: #7f1d1d; color: #fca5a5; }
+.mode-badge.paper { background: #1e3a8a; color: #bfdbfe; }
+
+/* --- METRICS GRID (HUD) --- */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 15px;
-  margin-bottom: 25px;
-  background: #0f172a;
-  padding: 10px;
+}
+
+.metric-item {
+  background: #1e293b;
+  padding: 15px;
   border-radius: 8px;
+  text-align: center;
   border: 1px solid #334155;
 }
 
-.switch-label {
-  font-weight: 500;
+.metric-label {
+  display: block;
+  font-size: 0.75rem;
   color: #94a3b8;
+  text-transform: uppercase;
+  margin-bottom: 6px;
 }
 
-.mode-toggle {
-  display: flex;
-  background-color: #1e293b;
-  border-radius: 6px;
-  padding: 4px;
-  border: 1px solid #475569;
+.metric-value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  font-family: 'Roboto Mono', monospace;
 }
 
-.mode-toggle button {
-  background: transparent;
-  border: none;
-  color: #94a3b8;
-  padding: 6px 16px;
-  font-size: 0.9rem;
-  cursor: pointer;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-}
-
-.mode-toggle button:hover {
-  color: #fff;
-}
-
-.mode-toggle button.active {
-  background-color: #3b82f6;
-  color: white;
-  font-weight: 600;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-}
-
-.mode-toggle button.active.danger {
-  background-color: #ef4444; /* Red for Real Money */
-}
-
-/* Form Elements */
+/* --- FORM ELEMENTS --- */
 .selectors-row {
   display: flex;
   gap: 20px;
@@ -121,232 +134,137 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  font-weight: 500;
+  font-size: 0.85rem;
   color: #cbd5e1;
 }
 
 select, input {
-  background-color: #0f172a;
+  background: #0f172a;
   border: 1px solid #475569;
   color: white;
-  padding: 10px 12px;
+  padding: 10px;
   border-radius: 6px;
-  font-size: 1rem;
-  outline: none;
+  width: 100%;
+  font-size: 0.9rem;
   transition: border-color 0.2s;
 }
 
 select:focus, input:focus {
   border-color: #3b82f6;
-}
-
-select:disabled, input:disabled {
-  background-color: #1e293b;
-  color: #64748b;
-  cursor: not-allowed;
+  outline: none;
 }
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
-  margin-bottom: 25px;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 15px;
+  margin-bottom: 20px;
 }
 
 .form-grid label {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  font-size: 0.8rem;
   color: #94a3b8;
-  font-size: 0.9rem;
 }
 
-/* Strategy Details Box */
-.strategy-details-display {
-  background: rgba(59, 130, 246, 0.1);
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  padding: 15px;
-  border-radius: 8px;
-  margin-bottom: 25px;
-}
-
-.strategy-details-display h4 {
-  margin-top: 0;
-  color: #60a5fa;
-  margin-bottom: 10px;
-}
-
-.strategy-details-display ul {
-  padding-left: 20px;
-  margin: 0;
-  color: #cbd5e1;
-}
-
-/* Actions */
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.button-start {
-  background-color: #22c55e;
-  color: white;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.button-start:hover {
-  background-color: #16a34a;
-}
-
-.button-start:disabled {
-  background-color: #334155;
-  cursor: not-allowed;
-  opacity: 0.7;
-}
-
-.button-start.live-btn {
-  background-color: #ef4444;
-}
-
-.button-start.live-btn:hover {
-  background-color: #dc2626;
-}
-
-.button-stop-main {
-  width: 100%;
-  padding: 15px;
-  background-color: #ef4444;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 1.1rem;
-  font-weight: bold;
-  cursor: pointer;
-  margin-top: 20px;
-}
-
-.button-stop-main:hover {
-  background-color: #dc2626;
-}
-
-/* Status Indicators */
-.status-header {
+.mode-switch-container {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #2d3748;
 }
 
-.status-indicator {
-  padding: 6px 12px;
+.mode-toggle button {
+  padding: 8px 16px;
+  background: #1e293b;
+  border: 1px solid #475569;
+  color: #cbd5e1;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.mode-toggle button:first-child { border-radius: 6px 0 0 6px; }
+.mode-toggle button:last-child { border-radius: 0 6px 6px 0; }
+
+.mode-toggle button.active {
+  background: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+}
+
+.mode-toggle button.active.danger {
+  background: #ef4444;
+  border-color: #ef4444;
+}
+
+.button-start {
+  background: #22c55e;
+  color: white;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.button-start:hover { background: #16a34a; }
+
+.button-stop-main {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 12px 30px;
   border-radius: 6px;
   font-weight: 700;
-  text-transform: uppercase;
+  width: 100%;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.button-stop-main:hover { background: #dc2626; }
+
+/* --- LOGS --- */
+.logs-panel {
+  max-height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.logs-container {
+  flex: 1;
+  overflow-y: auto;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 10px;
+  font-family: 'Roboto Mono', monospace;
   font-size: 0.8rem;
 }
 
-.status-indicator.running {
-  background-color: rgba(34, 197, 94, 0.2);
-  color: #4ade80;
-  border: 1px solid #22c55e;
-}
-
-.status-indicator.stopped {
-  background-color: rgba(148, 163, 184, 0.2);
-  color: #94a3b8;
-  border: 1px solid #475569;
-}
-
-.status-details {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-  margin-bottom: 20px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #334155;
-}
-
-.balance-highlight {
-  color: #4ade80;
-  font-weight: bold;
-  font-family: 'Monaco', monospace;
-}
-
-/* Metrics Grid */
-.metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 15px;
-}
-
-.metric-item {
-  background: #0f172a;
-  padding: 12px;
-  border-radius: 8px;
-  text-align: center;
-  border: 1px solid #334155;
-}
-
-.metric-label {
-  display: block;
-  font-size: 0.75rem;
-  color: #94a3b8;
-  margin-bottom: 4px;
-  text-transform: uppercase;
-}
-
-.metric-value {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #f8fafc;
-}
-
-/* Logs */
-.logs-container {
-  background-color: #0f172a;
-  border-radius: 8px;
-  height: 300px;
-  overflow-y: auto;
-  padding: 15px;
-  border: 1px solid #334155;
-  font-family: 'Monaco', 'Consolas', monospace;
-  font-size: 0.9rem;
-}
-
 .log-entry {
-  margin-bottom: 8px;
-  line-height: 1.4;
+  padding: 4px 0;
+  border-bottom: 1px solid #1e293b;
   display: flex;
   gap: 10px;
 }
 
-.log-timestamp {
-  color: #64748b;
-  min-width: 85px;
+.log-timestamp { color: #64748b; min-width: 70px; }
+.log-message { color: #cbd5e1; }
+.log-error .log-message { color: #f87171; }
+.log-trade .log-message { color: #fbbf24; }
+
+.clear-logs-btn {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  background: transparent;
+  border: 1px solid #475569;
+  color: #94a3b8;
+  border-radius: 4px;
+  cursor: pointer;
 }
 
-.log-info .log-message { color: #e2e8f0; }
-.log-buy .log-message { color: #4ade80; }
-.log-sell .log-message { color: #f87171; }
-.log-error .log-message { color: #ef4444; font-weight: bold; }
-
-.no-logs {
-  color: #64748b;
-  text-align: center;
-  padding-top: 120px;
-}
-
-.no-metrics {
-  text-align: center;
-  color: #64748b;
-  font-style: italic;
-}
+.clear-logs-btn:hover { border-color: #cbd5e1; color: #cbd5e1; }
