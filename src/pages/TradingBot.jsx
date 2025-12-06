@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v29.1 - Fixed 400 Bad Request (Payload Sanitization)
+// 🚀 UPGRADE: v29.2 - Fixed 400 Error (Strict Payload Sanitization)
 
 import React, { useState, useEffect, useRef } from "react";
 import { useBot } from '../hooks/useBot.js';
@@ -128,7 +128,6 @@ export default function TradingBot() {
             let symbol = config.symbol || "BTC-USD";
             let timeframe = config.timeframe || "1h";
 
-            // Attempt to parse filename if metadata missing
             if(!config.symbol && filename.includes('_')) {
                  const parts = filename.split('_');
                  if(parts[1]) symbol = parts[1];
@@ -168,8 +167,14 @@ export default function TradingBot() {
         
         setLogsClearedTime(0); 
         
-        // 🚀 FIX: Sanitizing Payload to prevent 400 Bad Request
-        // Convert Strings to Numbers & Clean Structure
+        // 🚀 CRITICAL FIX: Sanitize Strategies List
+        // Ensure strategies only have { code, params } and no extra junk from DB objects
+        const sanitizedStrategies = (formConfig.strategies || []).map(s => ({
+            code: s.code || "unknown",
+            params: s.params || {}
+        }));
+
+        // 🚀 CRITICAL FIX: Ensure Types are Correct
         const cleanPayload = {
             symbol: formConfig.symbol,
             timeframe: formConfig.timeframe,
@@ -177,12 +182,14 @@ export default function TradingBot() {
             mlMode: formConfig.mlMode,
             mlModel: formConfig.mlModel,
             mlThreshold: Number(formConfig.mlThreshold),
-            isCombo: formConfig.isCombo,
-            strategies: formConfig.strategies,
-            params: formConfig.params,
-            // Important: Extract maxPyramiding from params if it exists there, default to 1
-            maxPyramiding: Number(formConfig.params?.maxPyramiding || 1)
+            isCombo: !!formConfig.isCombo, // Force Boolean
+            strategies: sanitizedStrategies, // Use clean list
+            params: formConfig.params || {},
+            // Force Integer for Pyramiding
+            maxPyramiding: parseInt(formConfig.params?.maxPyramiding || 1, 10)
         };
+
+        console.log("🚀 Sending Payload:", cleanPayload); // Debugging
 
         try { 
             await startBot(cleanPayload); 
@@ -203,7 +210,6 @@ export default function TradingBot() {
     
     const isRunning = botStatus?.status === 'running';
     
-    // Transform Bot Data for Visualizer
     const chartData = {
         candleData: botStatus?.candles || [],
         tradeBreakdown: (botStatus?.trades || []).map(t => ({
