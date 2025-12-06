@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v29.2 - Fixed 400 Error (Strict Payload Sanitization)
+// 🚀 UPGRADE: v29.3 - Fixed 400 Bad Request (Added currentBalance & comboConfig)
 
 import React, { useState, useEffect, useRef } from "react";
 import { useBot } from '../hooks/useBot.js';
@@ -167,29 +167,38 @@ export default function TradingBot() {
         
         setLogsClearedTime(0); 
         
-        // 🚀 CRITICAL FIX: Sanitize Strategies List
-        // Ensure strategies only have { code, params } and no extra junk from DB objects
-        const sanitizedStrategies = (formConfig.strategies || []).map(s => ({
+        // 🚀 CRITICAL FIX: Robust Payload Construction
+        const cleanStrategies = (formConfig.strategies || []).map(s => ({
             code: s.code || "unknown",
             params: s.params || {}
         }));
 
-        // 🚀 CRITICAL FIX: Ensure Types are Correct
         const cleanPayload = {
             symbol: formConfig.symbol,
             timeframe: formConfig.timeframe,
             capitalAllocation: Number(formConfig.capitalAllocation),
+            
+            // 🛑 CRITICAL FIX: Adding currentBalance equal to capital
+            currentBalance: Number(formConfig.capitalAllocation),
+            
             mlMode: formConfig.mlMode,
             mlModel: formConfig.mlModel,
             mlThreshold: Number(formConfig.mlThreshold),
-            isCombo: !!formConfig.isCombo, // Force Boolean
-            strategies: sanitizedStrategies, // Use clean list
+            
+            isCombo: !!formConfig.isCombo,
+            
+            // 🛑 CRITICAL FIX: Sending comboConfig explicitly
+            comboConfig: formConfig.comboConfig || { 
+                strategyCodes: cleanStrategies.map(s => s.code), 
+                combinationRule: 'AND' 
+            },
+            
+            strategies: cleanStrategies, 
             params: formConfig.params || {},
-            // Force Integer for Pyramiding
             maxPyramiding: parseInt(formConfig.params?.maxPyramiding || 1, 10)
         };
 
-        console.log("🚀 Sending Payload:", cleanPayload); // Debugging
+        console.log("🚀 Payload Sent:", cleanPayload);
 
         try { 
             await startBot(cleanPayload); 
