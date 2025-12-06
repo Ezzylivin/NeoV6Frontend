@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v30.1 - "Timestamp Precision" (Added Date to Logs)
+// 🚀 UPGRADE: v31.0 - "AI Thought Process" (Visualized Decision Stream)
 
 import React, { useState, useEffect, useRef } from "react";
 import { useBot } from '../hooks/useBot.js';
@@ -7,6 +7,76 @@ import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { useBacktest } from "../hooks/useBacktest.js"; 
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
 import "./TradingBot.css";
+
+// --- HELPER: Parse Date to "MM/DD, HH:MM:SS AM/PM" ---
+const formatLogDate = (isoString) => {
+    const d = new Date(isoString);
+    const date = `${d.getMonth()+1}/${d.getDate()}`;
+    const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return `${date}, ${time}`;
+};
+
+// --- COMPONENT: AI DECISION STREAM ---
+const DecisionStream = ({ logs }) => {
+    // Filter and parse logs to find "Thoughts"
+    const thoughts = logs.filter(l => 
+        l.message.includes("Checked combo") || 
+        l.message.includes("Entered") || 
+        l.message.includes("Closed") ||
+        l.message.includes("Bot started")
+    ).map(l => {
+        let signal = "WAIT";
+        let color = "#64748b"; // Grey
+        let detail = "Scanning markets...";
+
+        if (l.message.includes("hold")) {
+            signal = "HOLD";
+            color = "#f59e0b"; // Yellow
+            detail = "No strong signal detected.";
+        } else if (l.message.includes("Entered long")) {
+            signal = "LONG";
+            color = "#22c55e"; // Green
+            detail = "Bullish divergence detected. Entry Executed.";
+        } else if (l.message.includes("Entered short")) {
+            signal = "SHORT";
+            color = "#ef4444"; // Red
+            detail = "Bearish crossover detected. Entry Executed.";
+        } else if (l.message.includes("Closed")) {
+            signal = "CLOSE";
+            color = "#3b82f6"; // Blue
+            detail = l.message; // "Closed position at..."
+        }
+
+        return { timestamp: l.timestamp, signal, color, detail };
+    }).reverse().slice(0, 5); // Show last 5 decisions
+
+    return (
+        <div className="decision-stream">
+            <h4 style={{color:'#94a3b8', fontSize:'0.8rem', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'10px'}}>
+                AI Logic Stream
+            </h4>
+            <div className="decision-table">
+                <div className="d-row d-header">
+                    <span style={{flex:1}}>Time</span>
+                    <span style={{flex:1}}>Signal</span>
+                    <span style={{flex:3}}>Context / Result</span>
+                </div>
+                {thoughts.length > 0 ? thoughts.map((t, i) => (
+                    <div key={i} className="d-row">
+                        <span className="d-time">{formatLogDate(t.timestamp)}</span>
+                        <span className="d-signal" style={{color: t.color, fontWeight:'bold'}}>
+                            {t.signal === "HOLD" && "⏸ "}
+                            {t.signal === "LONG" && "🚀 "}
+                            {t.signal === "SHORT" && "🔻 "}
+                            {t.signal}
+                        </span>
+                        <span className="d-detail">{t.detail}</span>
+                    </div>
+                )) : <div className="d-row" style={{justifyContent:'center', fontStyle:'italic', color:'#475569'}}>Waiting for first decision...</div>}
+            </div>
+        </div>
+    );
+};
 
 // --- HELPER: Robustly Find Metrics ---
 const getRobustMetrics = (status) => {
@@ -65,7 +135,6 @@ export default function TradingBot() {
     const winners = (botWinners && botWinners.length > 0) ? botWinners : (backtestState?.winners || []);
     
     const logsContainerRef = useRef(null);
-    
     const [selectedWinnerId, setSelectedWinnerId] = useState("");
     const [selectedSetupId, setSelectedSetupId] = useState("");
     
@@ -286,8 +355,9 @@ export default function TradingBot() {
 
             {(botStatus?.isConfigured || isRunning) && (
                 <>
-                    <h3 style={{color: '#94a3b8', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '30px', marginBottom: '15px'}}>Performance Telemetry</h3>
-                    <div className="bot-card status-dashboard"><MetricsDisplay data={botStatus} /></div>
+                    <div className="bot-card status-dashboard">
+                         <MetricsDisplay data={botStatus} />
+                    </div>
                     
                     <div className="bot-card chart-panel">
                         <div className="card-header-row" style={{display:'flex', justifyContent:'space-between', paddingBottom: '10px', borderBottom: '1px solid #2d3748', marginBottom: '10px'}}>
@@ -305,15 +375,15 @@ export default function TradingBot() {
                                 <button onClick={handleClearLogs} className="clear-logs-btn" style={{color:'#ef4444', borderColor:'#ef4444'}}>Purge</button>
                             </div>
                         </div>
-                        <div className="logs-container" ref={logsContainerRef}>
+                        
+                        {/* 🚀 NEW: AI DECISION STREAM */}
+                        <DecisionStream logs={logs} />
+
+                        {/* RAW LOGS BELOW */}
+                        <div className="logs-container" ref={logsContainerRef} style={{borderTop:'1px solid #334155', paddingTop:'10px'}}>
                             {visibleLogs.length > 0 ? visibleLogs.map((log, i) => (
                                 <div key={i} className={`log-entry log-${log.type}`}>
-                                    {/* 🚀 DATE ADDED HERE */}
-                                    <span className="log-timestamp">
-                                        {new Date(log.timestamp).toLocaleString('en-US', {
-                                            month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit'
-                                        })}
-                                    </span>
+                                    <span className="log-timestamp">{formatLogDate(log.timestamp)}</span>
                                     <span className="log-message">{log.message}</span>
                                 </div>
                             )) : <p className="no-logs" style={{color:'#475569', fontStyle:'italic', padding:'10px'}}>Waiting for incoming data stream...</p>}
