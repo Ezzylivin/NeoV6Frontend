@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v31.0 - "AI Thought Process" (Visualized Decision Stream)
+// 🚀 UPGRADE: v32.0 - "Memory & Visuals" (Persistent Logs + Chart Fixes)
 
 import React, { useState, useEffect, useRef } from "react";
 import { useBot } from '../hooks/useBot.js';
@@ -8,17 +8,38 @@ import { useBacktest } from "../hooks/useBacktest.js";
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
 import "./TradingBot.css";
 
-// --- HELPER: Parse Date to "MM/DD, HH:MM:SS AM/PM" ---
+// --- HELPER: Parse Date ---
 const formatLogDate = (isoString) => {
+    if (!isoString) return "--:--";
     const d = new Date(isoString);
     const date = `${d.getMonth()+1}/${d.getDate()}`;
     const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     return `${date}, ${time}`;
 };
 
+// --- HELPER: Thought Bubble ---
+const ThinkingMessage = ({ text }) => {
+    if (text.includes("Checked combo")) {
+        const parts = text.split("Final signal:");
+        const signal = parts[1] ? parts[1].trim().replace('.', '').toUpperCase() : "UNKNOWN";
+        
+        let signalClass = "signal-hold";
+        if (signal.includes("BUY") || signal.includes("LONG")) signalClass = "signal-buy";
+        if (signal.includes("SELL") || signal.includes("SHORT")) signalClass = "signal-sell";
+
+        return (
+            <>
+                <span className="thinking-tag">AI SCAN</span>
+                <span>Market Analysis Complete. Decision: <span className={signalClass}>{signal}</span></span>
+            </>
+        );
+    }
+    return <span>{text}</span>;
+};
+
 // --- COMPONENT: AI DECISION STREAM ---
 const DecisionStream = ({ logs }) => {
-    // Filter and parse logs to find "Thoughts"
+    // Only show unique major events
     const thoughts = logs.filter(l => 
         l.message.includes("Checked combo") || 
         l.message.includes("Entered") || 
@@ -26,29 +47,33 @@ const DecisionStream = ({ logs }) => {
         l.message.includes("Bot started")
     ).map(l => {
         let signal = "WAIT";
-        let color = "#64748b"; // Grey
+        let color = "#64748b"; 
         let detail = "Scanning markets...";
 
         if (l.message.includes("hold")) {
             signal = "HOLD";
-            color = "#f59e0b"; // Yellow
-            detail = "No strong signal detected.";
-        } else if (l.message.includes("Entered long")) {
+            color = "#f59e0b"; 
+            detail = "No valid entry signal detected.";
+        } else if (l.message.includes("Entered long") || l.message.includes("buy")) {
             signal = "LONG";
-            color = "#22c55e"; // Green
-            detail = "Bullish divergence detected. Entry Executed.";
-        } else if (l.message.includes("Entered short")) {
+            color = "#22c55e"; 
+            detail = "Bullish criteria met. Entry executed.";
+        } else if (l.message.includes("Entered short") || l.message.includes("sell")) {
             signal = "SHORT";
-            color = "#ef4444"; // Red
-            detail = "Bearish crossover detected. Entry Executed.";
+            color = "#ef4444"; 
+            detail = "Bearish criteria met. Entry executed.";
         } else if (l.message.includes("Closed")) {
             signal = "CLOSE";
-            color = "#3b82f6"; // Blue
-            detail = l.message; // "Closed position at..."
+            color = "#3b82f6"; 
+            detail = l.message;
+        } else if (l.message.includes("Bot started")) {
+            signal = "INIT";
+            color = "#a855f7";
+            detail = "System initialized and ready.";
         }
 
-        return { timestamp: l.timestamp, signal, color, detail };
-    }).reverse().slice(0, 5); // Show last 5 decisions
+        return { timestamp: l.timestamp, signal, color, detail, id: l.timestamp + l.message };
+    }).reverse().slice(0, 5); 
 
     return (
         <div className="decision-stream">
@@ -61,24 +86,25 @@ const DecisionStream = ({ logs }) => {
                     <span style={{flex:1}}>Signal</span>
                     <span style={{flex:3}}>Context / Result</span>
                 </div>
-                {thoughts.length > 0 ? thoughts.map((t, i) => (
-                    <div key={i} className="d-row">
+                {thoughts.length > 0 ? thoughts.map((t) => (
+                    <div key={t.id} className="d-row">
                         <span className="d-time">{formatLogDate(t.timestamp)}</span>
                         <span className="d-signal" style={{color: t.color, fontWeight:'bold'}}>
                             {t.signal === "HOLD" && "⏸ "}
                             {t.signal === "LONG" && "🚀 "}
                             {t.signal === "SHORT" && "🔻 "}
+                            {t.signal === "INIT" && "⚡ "}
                             {t.signal}
                         </span>
                         <span className="d-detail">{t.detail}</span>
                     </div>
-                )) : <div className="d-row" style={{justifyContent:'center', fontStyle:'italic', color:'#475569'}}>Waiting for first decision...</div>}
+                )) : <div className="d-row" style={{justifyContent:'center', fontStyle:'italic', color:'#475569'}}>Waiting for market data...</div>}
             </div>
         </div>
     );
 };
 
-// --- HELPER: Robustly Find Metrics ---
+// --- HELPER: Metrics ---
 const getRobustMetrics = (status) => {
     const pm = status?.performanceMetrics || {};
     const totalProfit = pm.totalProfit ?? status?.totalProfit ?? 0;
@@ -99,7 +125,6 @@ const getRobustMetrics = (status) => {
     };
 };
 
-// --- METRICS DISPLAY ---
 const MetricsDisplay = ({ data }) => {
     const metrics = getRobustMetrics(data);
     const formatValue = (key, value) => {
@@ -126,7 +151,7 @@ const MetricsDisplay = ({ data }) => {
 // --- MAIN COMPONENT ---
 export default function TradingBot() {
     const { 
-        botStatus, logs, winners: botWinners, loading: botLoading, 
+        botStatus, logs: apiLogs, winners: botWinners, loading: botLoading, 
         error, startBot, stopBot, refreshBotData 
     } = useBot();
 
@@ -138,6 +163,9 @@ export default function TradingBot() {
     const [selectedWinnerId, setSelectedWinnerId] = useState("");
     const [selectedSetupId, setSelectedSetupId] = useState("");
     
+    // 🚀 NEW: Persistent Log State
+    const [persistentLogs, setPersistentLogs] = useState([]);
+
     const [formConfig, setFormConfig] = useState({
         isCombo: false, strategyId: '', comboConfig: { strategyCodes: [], combinationRule: 'AND' },
         symbol: 'BTC-USD', timeframe: '1h', capitalAllocation: 1000, tradingMode: 'paper',
@@ -145,19 +173,34 @@ export default function TradingBot() {
     });
 
     const [logsClearedTime, setLogsClearedTime] = useState(0);
-    const visibleLogs = logs.filter(log => new Date(log.timestamp).getTime() > logsClearedTime);
+
+    // 🚀 LOG ACCUMULATION LOGIC
+    useEffect(() => {
+        if (apiLogs && apiLogs.length > 0) {
+            setPersistentLogs(prevLogs => {
+                // Combine and deduplicate based on timestamp + message
+                const newLogs = apiLogs.filter(apiLog => 
+                    !prevLogs.some(prevLog => 
+                        prevLog.timestamp === apiLog.timestamp && prevLog.message === apiLog.message
+                    )
+                );
+                // Keep last 500 logs to prevent memory issues
+                return [...prevLogs, ...newLogs].sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp)).slice(-500);
+            });
+        }
+    }, [apiLogs]);
+
+    const visibleLogs = persistentLogs.filter(log => new Date(log.timestamp).getTime() > logsClearedTime);
 
     // Auto-Scroll Logs
     useEffect(() => {
         if (logsContainerRef.current) {
             const { scrollHeight, clientHeight } = logsContainerRef.current;
-            logsContainerRef.current.scrollTo({
-                top: scrollHeight - clientHeight,
-                behavior: 'smooth'
-            });
+            logsContainerRef.current.scrollTo({ top: scrollHeight - clientHeight, behavior: 'smooth' });
         }
-    }, [logs, visibleLogs]);
+    }, [persistentLogs]); // Scroll on new persistent log
 
+    // Auto-Polling
     useEffect(() => {
         let interval;
         if (botStatus?.status === 'running') {
@@ -239,7 +282,9 @@ export default function TradingBot() {
     const handleStart = async (e) => {
         e.preventDefault();
         if (formConfig.tradingMode === 'live' && !window.confirm("⚠️ Real Money Trading. Proceed?")) return;
+        
         setLogsClearedTime(0); 
+        setPersistentLogs([]); // Clear local logs on new start
         
         const cleanStrategies = (formConfig.strategies || []).map(s => ({
             code: s.code || "unknown",
@@ -283,6 +328,7 @@ export default function TradingBot() {
     
     const isRunning = botStatus?.status === 'running';
     
+    // Prepare data for visualizer
     const chartData = {
         candleData: botStatus?.candles || [],
         tradeBreakdown: (botStatus?.trades || []).map(t => ({
@@ -294,6 +340,8 @@ export default function TradingBot() {
             exitPrice: t.exit_price || t.exitPrice
         }))
     };
+
+    const hasData = chartData.candleData && chartData.candleData.length > 0;
 
     return (
         <div className="trading-bot-container">
@@ -334,7 +382,14 @@ export default function TradingBot() {
                     <div className="form-grid">
                         <label>Symbol<input value={formConfig.symbol} disabled /></label>
                         <label>Timeframe<input value={formConfig.timeframe} disabled /></label>
-                        <label>Capital Allocation<input type="number" value={formConfig.capitalAllocation} onChange={e=>setFormConfig(p=>({...p, capitalAllocation:e.target.value}))} disabled={isRunning} /></label>
+                        <label>Capital Allocation
+                            <input 
+                                type="number" 
+                                value={formConfig.capitalAllocation} 
+                                onChange={e=>setFormConfig(p=>({...p, capitalAllocation:e.target.value}))} 
+                                disabled={isRunning}
+                            />
+                        </label>
                     </div>
 
                     <div className="mode-switch-container">
@@ -355,16 +410,25 @@ export default function TradingBot() {
 
             {(botStatus?.isConfigured || isRunning) && (
                 <>
-                    <div className="bot-card status-dashboard">
-                         <MetricsDisplay data={botStatus} />
-                    </div>
+                    <h3 style={{color: '#94a3b8', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '30px', marginBottom: '15px'}}>Performance Telemetry</h3>
+                    <div className="bot-card status-dashboard"><MetricsDisplay data={botStatus} /></div>
                     
                     <div className="bot-card chart-panel">
                         <div className="card-header-row" style={{display:'flex', justifyContent:'space-between', paddingBottom: '10px', borderBottom: '1px solid #2d3748', marginBottom: '10px'}}>
                              <h3 className="card-title" style={{margin:0, fontSize:'0.9rem'}}>Live Market Data</h3>
                              <button onClick={handleRefreshChart} style={{background:'none', border:'none', color:'#4ade80', cursor:'pointer', fontSize:'0.8rem'}}>↻ SYNC</button>
                         </div>
-                        <div style={{height: '500px'}}><ChartIndependent results={chartData} symbol={formConfig.symbol} /></div>
+                        <div style={{height: '500px'}}>
+                            {/* 🚀 CHART GUARD: Only render if data exists */}
+                            {hasData ? (
+                                <ChartIndependent results={chartData} symbol={formConfig.symbol} />
+                            ) : (
+                                <div style={{height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', color:'#64748b', gap:'15px'}}>
+                                    <div className="spinner"></div>
+                                    <p>Acquiring Exchange Data Feed...</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     <div className="bot-card logs-panel">
@@ -376,17 +440,18 @@ export default function TradingBot() {
                             </div>
                         </div>
                         
-                        {/* 🚀 NEW: AI DECISION STREAM */}
-                        <DecisionStream logs={logs} />
+                        <DecisionStream logs={persistentLogs} />
 
-                        {/* RAW LOGS BELOW */}
                         <div className="logs-container" ref={logsContainerRef} style={{borderTop:'1px solid #334155', paddingTop:'10px'}}>
-                            {visibleLogs.length > 0 ? visibleLogs.map((log, i) => (
-                                <div key={i} className={`log-entry log-${log.type}`}>
-                                    <span className="log-timestamp">{formatLogDate(log.timestamp)}</span>
-                                    <span className="log-message">{log.message}</span>
-                                </div>
-                            )) : <p className="no-logs" style={{color:'#475569', fontStyle:'italic', padding:'10px'}}>Waiting for incoming data stream...</p>}
+                            {visibleLogs.length > 0 ? visibleLogs.map((log, i) => {
+                                const isThinking = log.message.includes("Checked combo");
+                                return (
+                                    <div key={i} className={`log-entry log-${log.type} ${isThinking ? 'log-thinking' : ''}`}>
+                                        <span className="log-timestamp">{formatLogDate(log.timestamp)}</span>
+                                        <span className="log-message"><ThinkingMessage text={log.message} /></span>
+                                    </div>
+                                )
+                            }) : <p className="no-logs" style={{color:'#475569', fontStyle:'italic', padding:'10px'}}>Waiting for incoming data stream...</p>}
                         </div>
                     </div>
                 </>
