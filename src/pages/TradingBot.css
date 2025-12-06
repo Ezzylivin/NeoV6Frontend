@@ -1,7 +1,8 @@
-/* TradingBot.css - Premium Fintech UI */
+/* TradingBot.css - Premium Fintech UI (Fixed Layout) */
 
 .trading-bot-container {
   padding: 30px;
+  padding-bottom: 100px; /* Extra space at bottom for scrolling */
   background-color: #0b0f19; /* Deepest Space Blue */
   color: #e2e8f0;
   min-height: 100vh;
@@ -27,10 +28,32 @@
   margin-bottom: 20px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
   transition: transform 0.2s;
+  position: relative; /* Establish stacking context */
 }
 
 .control-panel {
   border-top: 4px solid #3b82f6;
+  z-index: 10;
+}
+
+/* 🚀 FIX: Chart Panel Container Logic */
+.chart-panel {
+  min-height: 650px; /* Ensure enough room for the 600px Visualizer */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* Prevent bleeding */
+  margin-bottom: 40px; /* Push logs down */
+  z-index: 5;
+}
+
+/* 🚀 FIX: Logs Panel Container Logic */
+.logs-panel {
+  max-height: 500px;
+  display: flex;
+  flex-direction: column;
+  z-index: 6; /* Ensure logs sit ON TOP of chart if overlap happens */
+  border-top: 1px solid #334155;
+  background: #0f172a; /* Darker bg for contrast */
 }
 
 .panel-header {
@@ -127,6 +150,7 @@
   display: flex;
   gap: 20px;
   margin-bottom: 20px;
+  flex-wrap: wrap; /* Handle small screens */
 }
 
 .setup-selector {
@@ -136,6 +160,7 @@
   gap: 8px;
   font-size: 0.85rem;
   color: #cbd5e1;
+  min-width: 200px;
 }
 
 select, input {
@@ -156,7 +181,7 @@ select:focus, input:focus {
 
 .form-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 15px;
   margin-bottom: 20px;
 }
@@ -175,6 +200,12 @@ select:focus, input:focus {
   align-items: center;
   padding-top: 15px;
   border-top: 1px solid #2d3748;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.mode-toggle {
+  display: flex;
 }
 
 .mode-toggle button {
@@ -212,6 +243,7 @@ select:focus, input:focus {
 }
 
 .button-start:hover { background: #16a34a; }
+.button-start:disabled { background: #334155; cursor: not-allowed; color: #94a3b8; }
 
 .button-stop-main {
   background: #ef4444;
@@ -227,13 +259,7 @@ select:focus, input:focus {
 
 .button-stop-main:hover { background: #dc2626; }
 
-/* --- LOGS --- */
-.logs-panel {
-  max-height: 400px;
-  display: flex;
-  flex-direction: column;
-}
-
+/* --- LOGS CONTAINER --- */
 .logs-container {
   flex: 1;
   overflow-y: auto;
@@ -243,6 +269,7 @@ select:focus, input:focus {
   padding: 10px;
   font-family: 'Roboto Mono', monospace;
   font-size: 0.8rem;
+  min-height: 200px;
 }
 
 .log-entry {
@@ -252,10 +279,10 @@ select:focus, input:focus {
   gap: 10px;
 }
 
-.log-timestamp { color: #64748b; min-width: 70px; }
-.log-message { color: #cbd5e1; }
+.log-timestamp { color: #64748b; min-width: 75px; font-size: 0.75rem; }
+.log-message { color: #cbd5e1; word-break: break-word; }
 .log-error .log-message { color: #f87171; }
-.log-trade .log-message { color: #fbbf24; }
+.log-trade .log-message { color: #fbbf24; font-weight: bold; }
 
 .clear-logs-btn {
   padding: 4px 10px;
