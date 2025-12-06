@@ -1,5 +1,5 @@
 // File: src/components/ChartIndependent.jsx
-// 🚀 UPGRADE: v34.0 - "Professional Visualizer" (Tooltip + Live Header)
+// 🚀 UPGRADE: v35.0 - "Investor Clarity" (Big Bold Win/Loss Tags)
 
 import React, { useEffect, useRef, useState } from "react";
 import { createChart, ColorType, CrosshairMode } from "lightweight-charts";
@@ -9,7 +9,7 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
   
-  // 🚀 HUD STATE
+  // HUD STATE
   const [legend, setLegend] = useState({ 
       open: "--", high: "--", low: "--", close: "--", 
       time: "--", color: "#e2e8f0" 
@@ -17,20 +17,19 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
   const [currentPrice, setCurrentPrice] = useState("--");
 
   useEffect(() => {
-    // 1. Safety Check
     if (!chartContainerRef.current) return;
     
-    // Destroy old chart to prevent duplicates
+    // Cleanup
     if (chartRef.current) {
         chartRef.current.remove();
         chartRef.current = null;
     }
 
-    // 2. Initialize Chart with Premium Styling
+    // 1. Initialize Chart
     const chart = createChart(chartContainerRef.current, {
       layout: { 
           background: { type: ColorType.Solid, color: "#0b0f19" }, 
-          textColor: "#64748b",
+          textColor: "#94a3b8",
           fontFamily: "'Inter', sans-serif"
       },
       grid: { 
@@ -46,7 +45,7 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
       },
       rightPriceScale: {
           borderColor: "#334155",
-          scaleMargins: { top: 0.1, bottom: 0.1 }
+          scaleMargins: { top: 0.2, bottom: 0.2 } // More breathing room for tags
       },
       crosshair: {
           mode: CrosshairMode.Normal,
@@ -67,7 +66,7 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
     });
     seriesRef.current = candleSeries;
 
-    // 3. Robust Data Parsing
+    // 2. Data Processing
     if (results && results.candleData && results.candleData.length > 0) {
         const validData = [];
         const timeSet = new Set();
@@ -93,7 +92,6 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
         if (validData.length > 0) {
             candleSeries.setData(validData);
             
-            // Set Initial Legend to Latest Candle
             const last = validData[validData.length - 1];
             setCurrentPrice(last.close.toFixed(2));
             setLegend({
@@ -106,56 +104,55 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
             });
         }
 
-        // 4. Markers
+        // 3. 🚀 INVESTOR-GRADE MARKERS
         const markers = [];
         (results.tradeBreakdown || []).forEach((t) => {
             const entryTime = new Date(t.entryTime).getTime() / 1000;
             const exitTime = t.exitTime ? new Date(t.exitTime).getTime() / 1000 : null;
 
+            // ENTRY MARKER (Arrow)
             if (timeSet.has(entryTime)) {
                 markers.push({
                     time: entryTime,
                     position: t.position === "long" ? "belowBar" : "aboveBar",
-                    color: t.position === "long" ? "#22c55e" : "#ef4444",
+                    color: t.position === "long" ? "#3b82f6" : "#f59e0b", // Blue for Long, Orange for Short
                     shape: t.position === "long" ? "arrowUp" : "arrowDown",
-                    text: "ENTRY",
-                    size: 2
+                    text: t.position === "long" ? "L ENTRY" : "S ENTRY",
+                    size: 2 // Bigger
                 });
             }
 
+            // EXIT MARKER (Profit Tag)
             if (exitTime && timeSet.has(exitTime)) {
+                const isWin = t.profit >= 0;
+                // Format profit: "+$520.50" or "-$120.00"
+                const profitText = `${isWin ? '💰 +' : '🔻 '}$${Math.abs(t.profit).toFixed(2)}`;
+                
                 markers.push({
                     time: exitTime,
                     position: t.position === "long" ? "aboveBar" : "belowBar",
-                    color: t.profit >= 0 ? "#3b82f6" : "#f59e0b",
-                    shape: "circle",
-                    text: t.profit >= 0 ? "WIN" : "LOSS",
-                    size: 2
+                    color: isWin ? "#22c55e" : "#ef4444", // Bright Green or Red
+                    shape: "custom", // Uses text as main indicator
+                    text: profitText,
+                    size: 3 // Huge visibility
                 });
             }
         });
         candleSeries.setMarkers(markers.sort((a,b) => a.time - b.time));
     }
 
-    // 🚀 INTERACTIVE TOOLTIP (CROSSHAIR MOVE)
+    // Crosshair Logic
     chart.subscribeCrosshairMove((param) => {
         if (
-            param.point === undefined ||
-            !param.time ||
-            param.point.x < 0 ||
-            param.point.x > chartContainerRef.current.clientWidth ||
-            param.point.y < 0 ||
-            param.point.y > chartContainerRef.current.clientHeight
-        ) {
-            // Mouse leaves chart -> Reset to last candle (optional, or keep last hover)
-            return; 
-        }
+            param.point === undefined || !param.time ||
+            param.point.x < 0 || param.point.x > chartContainerRef.current.clientWidth ||
+            param.point.y < 0 || param.point.y > chartContainerRef.current.clientHeight
+        ) return;
 
         const data = param.seriesData.get(candleSeries);
         if (data) {
             const dateStr = new Date(param.time * 1000).toLocaleString();
             const isGreen = data.close >= data.open;
-            
             setLegend({
                 open: data.open.toFixed(2),
                 high: data.high.toFixed(2),
@@ -167,10 +164,8 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
         }
     });
 
-    // Fit Content
     chart.timeScale().fitContent();
 
-    // Resize Observer
     const resizeObserver = new ResizeObserver((entries) => {
       if (entries.length === 0 || !entries[0]) return;
       const { width } = entries[0].contentRect;
@@ -189,18 +184,17 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
-        {/* 🚀 CHART HEADER (Symbol + Price) */}
+        {/* HEADER OVERLAY */}
         <div style={{
             position: "absolute",
             top: "10px",
             left: "10px",
             zIndex: 20,
-            background: "rgba(15, 23, 42, 0.8)",
+            background: "rgba(15, 23, 42, 0.9)",
             padding: "8px 12px",
             borderRadius: "6px",
-            backdropFilter: "blur(4px)",
             border: "1px solid #334155",
-            pointerEvents: "none" // Let mouse pass through to chart
+            pointerEvents: "none"
         }}>
             <div style={{ fontSize: "1.2rem", fontWeight: "bold", color: "#e2e8f0" }}>{symbol}</div>
             <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: legend.color }}>
@@ -208,23 +202,12 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
             </div>
         </div>
 
-        {/* 🚀 HOVER LEGEND (OHLC) */}
+        {/* OHLC LEGEND */}
         <div style={{
-            position: "absolute",
-            top: "10px",
-            right: "60px", // Avoid price scale
-            zIndex: 20,
-            background: "rgba(15, 23, 42, 0.8)",
-            padding: "6px 12px",
-            borderRadius: "6px",
-            backdropFilter: "blur(4px)",
-            border: "1px solid #334155",
-            fontSize: "0.85rem",
-            color: "#94a3b8",
-            display: "flex",
-            gap: "15px",
-            fontFamily: "monospace",
-            pointerEvents: "none"
+            position: "absolute", top: "10px", right: "60px", zIndex: 20,
+            background: "rgba(15, 23, 42, 0.9)", padding: "6px 12px", borderRadius: "6px",
+            border: "1px solid #334155", fontSize: "0.85rem", color: "#94a3b8",
+            display: "flex", gap: "15px", fontFamily: "monospace", pointerEvents: "none"
         }}>
             <div><span style={{color:"#64748b"}}>O:</span> <span style={{color:"#cbd5e1"}}>{legend.open}</span></div>
             <div><span style={{color:"#64748b"}}>H:</span> <span style={{color:"#cbd5e1"}}>{legend.high}</span></div>
@@ -233,7 +216,6 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
             <div style={{borderLeft:"1px solid #475569", paddingLeft:"15px", color:"#e2e8f0"}}>{legend.time}</div>
         </div>
 
-        {/* CHART CONTAINER */}
         <div ref={chartContainerRef} style={{ width: "100%", height: "100%" }} />
     </div>
   );
