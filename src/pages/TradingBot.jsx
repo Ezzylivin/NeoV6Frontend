@@ -1,28 +1,24 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v29.0 - "The Hedge Fund Terminal" (Premium UI)
+// 🚀 UPGRADE: v29.1 - Fixed 400 Bad Request (Payload Sanitization)
 
-import React, { useState, useEffect, useRef, useContext } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useBot } from '../hooks/useBot.js';
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx"; 
 import { useBacktest } from "../hooks/useBacktest.js"; 
-import { StrategyContext } from "../context/StrategyContext.jsx";
-import { ChartIndependent } from "../components/ChartIndependent.jsx"; // 🚀 UPGRADED VISUALIZER
+import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
 import "./TradingBot.css";
 
 // --- HELPER: Robustly Find Metrics ---
 const getRobustMetrics = (status) => {
     const pm = status?.performanceMetrics || {};
-    
     const totalProfit = pm.totalProfit ?? status?.totalProfit ?? 0;
     const totalTrades = pm.totalTrades ?? status?.trades?.length ?? 0;
     const currentBalance = pm.currentBalance ?? status?.currentBalance ?? status?.capitalAllocation ?? 0;
-    
     let winRate = pm.winRate ?? 0;
     if (status?.trades?.length > 0) {
         const wins = status.trades.filter(t => t.profit > 0).length;
         winRate = (wins / status.trades.length) * 100;
     }
-
     return {
         "Total Profit": totalProfit,
         "Total Trades": totalTrades,
@@ -36,7 +32,6 @@ const getRobustMetrics = (status) => {
 // --- METRICS DISPLAY ---
 const MetricsDisplay = ({ data }) => {
     const metrics = getRobustMetrics(data);
-
     const formatValue = (key, value) => {
         if (value === undefined || value === null) return "N/A";
         if (typeof value !== "number") return String(value);
@@ -44,7 +39,6 @@ const MetricsDisplay = ({ data }) => {
         if (key.includes("Profit") || key.includes("Balance")) return `$${value.toFixed(2)}`;
         return value.toFixed(2);
     };
-
     return (
         <div className="metrics-grid">
             {Object.entries(metrics).map(([key, value]) => (
@@ -61,20 +55,16 @@ const MetricsDisplay = ({ data }) => {
 
 // --- MAIN COMPONENT ---
 export default function TradingBot() {
-    // 1. Bot State
     const { 
         botStatus, logs, winners: botWinners, loading: botLoading, 
         error, startBot, stopBot, refreshBotData 
     } = useBot();
 
-    // 2. Data Sources
     const { setups } = useBacktestSetupFunction(); 
     const { state: backtestState } = useBacktest(); 
     const winners = (botWinners && botWinners.length > 0) ? botWinners : (backtestState?.winners || []);
     
     const logsEndRef = useRef(null);
-
-    // 3. Local State
     const [selectedWinnerId, setSelectedWinnerId] = useState("");
     const [selectedSetupId, setSelectedSetupId] = useState("");
     
@@ -87,12 +77,10 @@ export default function TradingBot() {
     const [logsClearedTime, setLogsClearedTime] = useState(0);
     const visibleLogs = logs.filter(log => new Date(log.timestamp).getTime() > logsClearedTime);
 
-    // Auto-Scroll Logs
     useEffect(() => {
         if (logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: "smooth" });
     }, [logs, visibleLogs]);
 
-    // Auto-Polling (Every 2s)
     useEffect(() => {
         let interval;
         if (botStatus?.status === 'running') {
@@ -140,6 +128,13 @@ export default function TradingBot() {
             let symbol = config.symbol || "BTC-USD";
             let timeframe = config.timeframe || "1h";
 
+            // Attempt to parse filename if metadata missing
+            if(!config.symbol && filename.includes('_')) {
+                 const parts = filename.split('_');
+                 if(parts[1]) symbol = parts[1];
+                 if(parts[2] && ['1h','4h','1d'].includes(parts[2])) timeframe = parts[2];
+            }
+
             let strategies = [];
             if(Array.isArray(config.strategies)) strategies = config.strategies;
             else if(Array.isArray(config)) strategies = config;
@@ -170,11 +165,32 @@ export default function TradingBot() {
     const handleStart = async (e) => {
         e.preventDefault();
         if (formConfig.tradingMode === 'live' && !window.confirm("⚠️ Real Money Trading. Proceed?")) return;
+        
         setLogsClearedTime(0); 
+        
+        // 🚀 FIX: Sanitizing Payload to prevent 400 Bad Request
+        // Convert Strings to Numbers & Clean Structure
+        const cleanPayload = {
+            symbol: formConfig.symbol,
+            timeframe: formConfig.timeframe,
+            capitalAllocation: Number(formConfig.capitalAllocation),
+            mlMode: formConfig.mlMode,
+            mlModel: formConfig.mlModel,
+            mlThreshold: Number(formConfig.mlThreshold),
+            isCombo: formConfig.isCombo,
+            strategies: formConfig.strategies,
+            params: formConfig.params,
+            // Important: Extract maxPyramiding from params if it exists there, default to 1
+            maxPyramiding: Number(formConfig.params?.maxPyramiding || 1)
+        };
+
         try { 
-            await startBot(formConfig); 
+            await startBot(cleanPayload); 
             setTimeout(refreshBotData, 1000);
-        } catch (err) { console.error(err); alert(err.message); }
+        } catch (err) { 
+            console.error("Bot Start Error:", err); 
+            alert(`Failed to start: ${err.message}`); 
+        }
     };
 
     const handleStop = async () => {
@@ -195,7 +211,7 @@ export default function TradingBot() {
             entryTime: t.entryTime, 
             exitTime: t.exitTime,
             profit: t.profit,
-            price: t.entry_price || t.price, // Normalize key
+            price: t.entry_price || t.price, 
             exitPrice: t.exit_price || t.exitPrice
         }))
     };
@@ -241,7 +257,7 @@ export default function TradingBot() {
                             <div className="form-grid">
                                 <label>Symbol<input value={formConfig.symbol} disabled /></label>
                                 <label>Timeframe<input value={formConfig.timeframe} disabled /></label>
-                                <label>Capital Allocation<input type="number" value={formConfig.capitalAllocation} onChange={e=>setFormConfig(p=>({...p, capitalAllocation:Number(e.target.value)}))} /></label>
+                                <label>Capital Allocation<input type="number" value={formConfig.capitalAllocation} onChange={e=>setFormConfig(p=>({...p, capitalAllocation:e.target.value}))} /></label>
                             </div>
 
                             <div className="mode-switch-container">
@@ -281,7 +297,6 @@ export default function TradingBot() {
                              <h3 className="card-title" style={{margin:0, fontSize:'0.9rem'}}>Live Market Data</h3>
                              <button onClick={handleRefreshChart} style={{background:'none', border:'none', color:'#4ade80', cursor:'pointer', fontSize:'0.8rem'}}>↻ SYNC</button>
                         </div>
-                        {/* 🚀 PREMIUM VISUALIZER INSTEAD OF BASIC CHART */}
                         <div style={{height: '500px'}}>
                              <ChartIndependent results={chartData} symbol={formConfig.symbol} />
                         </div>
