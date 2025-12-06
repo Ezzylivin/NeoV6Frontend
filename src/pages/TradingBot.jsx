@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v29.3 - Fixed 400 Bad Request (Added currentBalance & comboConfig)
+// 🚀 UPGRADE: v30.0 - "Investor Dashboard" (Fixed Scroll + Persistent Config)
 
 import React, { useState, useEffect, useRef } from "react";
 import { useBot } from '../hooks/useBot.js';
@@ -64,7 +64,9 @@ export default function TradingBot() {
     const { state: backtestState } = useBacktest(); 
     const winners = (botWinners && botWinners.length > 0) ? botWinners : (backtestState?.winners || []);
     
-    const logsEndRef = useRef(null);
+    // 🚀 SCROLL FIX: Use ref on the CONTAINER, not the dummy div
+    const logsContainerRef = useRef(null);
+    
     const [selectedWinnerId, setSelectedWinnerId] = useState("");
     const [selectedSetupId, setSelectedSetupId] = useState("");
     
@@ -77,8 +79,15 @@ export default function TradingBot() {
     const [logsClearedTime, setLogsClearedTime] = useState(0);
     const visibleLogs = logs.filter(log => new Date(log.timestamp).getTime() > logsClearedTime);
 
+    // 🚀 SCROLL FIX: Only scroll the logs box, not the window
     useEffect(() => {
-        if (logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: "smooth" });
+        if (logsContainerRef.current) {
+            const { scrollHeight, clientHeight } = logsContainerRef.current;
+            logsContainerRef.current.scrollTo({
+                top: scrollHeight - clientHeight,
+                behavior: 'smooth'
+            });
+        }
     }, [logs, visibleLogs]);
 
     useEffect(() => {
@@ -89,7 +98,6 @@ export default function TradingBot() {
         return () => clearInterval(interval);
     }, [botStatus?.status, refreshBotData]);
 
-    // --- HANDLER 1: Load Saved Setup (DB) ---
     const handleSetupSelect = (e) => {
         const setupId = e.target.value;
         setSelectedSetupId(setupId);
@@ -116,7 +124,6 @@ export default function TradingBot() {
         }
     };
 
-    // --- HANDLER 2: Load Golden Strategy (ML) ---
     const handleWinnerSelect = (e) => {
         const filename = e.target.value;
         setSelectedWinnerId(filename);
@@ -164,10 +171,8 @@ export default function TradingBot() {
     const handleStart = async (e) => {
         e.preventDefault();
         if (formConfig.tradingMode === 'live' && !window.confirm("⚠️ Real Money Trading. Proceed?")) return;
-        
         setLogsClearedTime(0); 
         
-        // 🚀 CRITICAL FIX: Robust Payload Construction
         const cleanStrategies = (formConfig.strategies || []).map(s => ({
             code: s.code || "unknown",
             params: s.params || {}
@@ -177,28 +182,19 @@ export default function TradingBot() {
             symbol: formConfig.symbol,
             timeframe: formConfig.timeframe,
             capitalAllocation: Number(formConfig.capitalAllocation),
-            
-            // 🛑 CRITICAL FIX: Adding currentBalance equal to capital
             currentBalance: Number(formConfig.capitalAllocation),
-            
             mlMode: formConfig.mlMode,
             mlModel: formConfig.mlModel,
             mlThreshold: Number(formConfig.mlThreshold),
-            
             isCombo: !!formConfig.isCombo,
-            
-            // 🛑 CRITICAL FIX: Sending comboConfig explicitly
             comboConfig: formConfig.comboConfig || { 
                 strategyCodes: cleanStrategies.map(s => s.code), 
                 combinationRule: 'AND' 
             },
-            
             strategies: cleanStrategies, 
             params: formConfig.params || {},
             maxPyramiding: parseInt(formConfig.params?.maxPyramiding || 1, 10)
         };
-
-        console.log("🚀 Payload Sent:", cleanPayload);
 
         try { 
             await startBot(cleanPayload); 
@@ -249,49 +245,69 @@ export default function TradingBot() {
                 </div>
                 
                 <form onSubmit={handleStart} className="bot-form">
-                    {!isRunning && (
-                        <>
-                            <div className="selectors-row">
-                                <label className="setup-selector">
-                                    Load Strategy (Database)
-                                    <select value={selectedSetupId} onChange={handleSetupSelect}>
-                                        <option value="">-- Select Saved Setup --</option>
-                                        {setups.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
-                                    </select>
-                                </label>
+                    {/* 🚀 VISIBILITY FIX: Always show form, just disable when running */}
+                    <div className="selectors-row">
+                        <label className="setup-selector">
+                            Load Strategy (Database)
+                            <select value={selectedSetupId} onChange={handleSetupSelect} disabled={isRunning}>
+                                <option value="">-- Select Saved Setup --</option>
+                                {setups.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+                            </select>
+                        </label>
 
-                                <label className="setup-selector">
-                                    Load Alpha (ML Optimizer)
-                                    <select value={selectedWinnerId} onChange={handleWinnerSelect} style={{borderColor: selectedWinnerId ? '#3b82f6' : '#444'}}>
-                                        <option value="">-- Select Verified Alpha --</option>
-                                        {winners.map(w => <option key={w.id} value={w.id}>🏆 {w.name}</option>)}
-                                    </select>
-                                </label>
-                            </div>
-                            
-                            <div className="form-grid">
-                                <label>Symbol<input value={formConfig.symbol} disabled /></label>
-                                <label>Timeframe<input value={formConfig.timeframe} disabled /></label>
-                                <label>Capital Allocation<input type="number" value={formConfig.capitalAllocation} onChange={e=>setFormConfig(p=>({...p, capitalAllocation:e.target.value}))} /></label>
-                            </div>
-
-                            <div className="mode-switch-container">
-                                <div className="mode-toggle">
-                                    <button type="button" className={formConfig.tradingMode === 'paper' ? 'active' : ''} onClick={() => setFormConfig(p => ({...p, tradingMode: 'paper'}))}>Paper Trade</button>
-                                    <button type="button" className={formConfig.tradingMode === 'live' ? 'active danger' : ''} onClick={() => setFormConfig(p => ({...p, tradingMode: 'live'}))}>Live Execution</button>
-                                </div>
-                                <button type="submit" className="button-start" disabled={botLoading}>
-                                    {botLoading ? 'Initializing...' : '🚀 EXECUTE STRATEGY'}
-                                </button>
-                            </div>
-                        </>
-                    )}
+                        <label className="setup-selector">
+                            Load Alpha (ML Optimizer)
+                            <select value={selectedWinnerId} onChange={handleWinnerSelect} disabled={isRunning} style={{borderColor: selectedWinnerId ? '#3b82f6' : '#444'}}>
+                                <option value="">-- Select Verified Alpha --</option>
+                                {winners.map(w => <option key={w.id} value={w.id}>🏆 {w.name}</option>)}
+                            </select>
+                        </label>
+                    </div>
                     
-                    {isRunning && (
-                        <div className="running-actions">
-                            <button type="button" onClick={handleStop} className="button-stop-main" disabled={botLoading}>TERMINATE SEQUENCE</button>
+                    <div className="form-grid">
+                        <label>Symbol<input value={formConfig.symbol} disabled /></label>
+                        <label>Timeframe<input value={formConfig.timeframe} disabled /></label>
+                        <label>Capital Allocation
+                            <input 
+                                type="number" 
+                                value={formConfig.capitalAllocation} 
+                                onChange={e=>setFormConfig(p=>({...p, capitalAllocation:e.target.value}))} 
+                                disabled={isRunning} // Disabled when running
+                            />
+                        </label>
+                    </div>
+
+                    <div className="mode-switch-container">
+                        <div className="mode-toggle">
+                            <button 
+                                type="button" 
+                                className={formConfig.tradingMode === 'paper' ? 'active' : ''} 
+                                onClick={() => setFormConfig(p => ({...p, tradingMode: 'paper'}))}
+                                disabled={isRunning} // Disabled
+                            >
+                                Paper Trade
+                            </button>
+                            <button 
+                                type="button" 
+                                className={formConfig.tradingMode === 'live' ? 'active danger' : ''} 
+                                onClick={() => setFormConfig(p => ({...p, tradingMode: 'live'}))}
+                                disabled={isRunning} // Disabled
+                            >
+                                Live Execution
+                            </button>
                         </div>
-                    )}
+
+                        {/* Swap Buttons Based on State */}
+                        {!isRunning ? (
+                            <button type="submit" className="button-start" disabled={botLoading}>
+                                {botLoading ? 'Initializing...' : '🚀 EXECUTE STRATEGY'}
+                            </button>
+                        ) : (
+                            <button type="button" onClick={handleStop} className="button-stop-main" disabled={botLoading}>
+                                TERMINATE SEQUENCE
+                            </button>
+                        )}
+                    </div>
                 </form>
             </div>
 
@@ -325,14 +341,14 @@ export default function TradingBot() {
                                 <button onClick={handleClearLogs} className="clear-logs-btn" style={{color:'#ef4444', borderColor:'#ef4444'}}>Purge</button>
                             </div>
                         </div>
-                        <div className="logs-container">
+                        {/* 🚀 SCROLL FIX: Ref attaches here */}
+                        <div className="logs-container" ref={logsContainerRef}>
                             {visibleLogs.length > 0 ? visibleLogs.map((log, i) => (
                                 <div key={i} className={`log-entry log-${log.type}`}>
                                     <span className="log-timestamp">{new Date(log.timestamp).toLocaleTimeString()}</span>
                                     <span className="log-message">{log.message}</span>
                                 </div>
                             )) : <p className="no-logs" style={{color:'#475569', fontStyle:'italic', padding:'10px'}}>Waiting for incoming data stream...</p>}
-                            <div ref={logsEndRef} />
                         </div>
                     </div>
                 </>
