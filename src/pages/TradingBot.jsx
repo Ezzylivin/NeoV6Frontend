@@ -1,12 +1,12 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v28.0 - Full Integration (Saved Setups + Golden Strategies + Live Logic)
+// 🚀 UPGRADE: v29.0 - "The Hedge Fund Terminal" (Premium UI)
 
 import React, { useState, useEffect, useRef, useContext } from "react";
 import { useBot } from '../hooks/useBot.js';
-import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx"; // Hook for DB Setups
-import { useBacktest } from "../hooks/useBacktest.js"; // Hook for Golden Strategies
+import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx"; 
+import { useBacktest } from "../hooks/useBacktest.js"; 
 import { StrategyContext } from "../context/StrategyContext.jsx";
-import LiveTradingChart from "../components/LiveTradingChart.jsx"; 
+import { ChartIndependent } from "../components/ChartIndependent.jsx"; // 🚀 UPGRADED VISUALIZER
 import "./TradingBot.css";
 
 // --- HELPER: Robustly Find Metrics ---
@@ -51,7 +51,7 @@ const MetricsDisplay = ({ data }) => {
                 <div key={key} className="metric-item">
                     <span className="metric-label">{key}</span>
                     <span className="metric-value" style={{
-                        color: (key.includes("Profit") || key.includes("Balance")) && value < 0 ? '#ef4444' : '#f3f4f6'
+                        color: (key.includes("Profit") || key.includes("Balance")) ? (value < 0 ? '#ef4444' : '#4ade80') : '#f3f4f6'
                     }}>{formatValue(key, value)}</span>
                 </div>
             ))}
@@ -68,8 +68,8 @@ export default function TradingBot() {
     } = useBot();
 
     // 2. Data Sources
-    const { setups } = useBacktestSetupFunction(); // DB Saved Setups
-    const { state: backtestState } = useBacktest(); // ML Golden Files
+    const { setups } = useBacktestSetupFunction(); 
+    const { state: backtestState } = useBacktest(); 
     const winners = (botWinners && botWinners.length > 0) ? botWinners : (backtestState?.winners || []);
     
     const logsEndRef = useRef(null);
@@ -105,16 +105,11 @@ export default function TradingBot() {
     const handleSetupSelect = (e) => {
         const setupId = e.target.value;
         setSelectedSetupId(setupId);
-        setSelectedWinnerId(""); // Clear Golden dropdown
+        setSelectedWinnerId(""); 
         
         const setup = setups.find(s => s._id === setupId);
         if (setup) {
-            console.log("📂 Loaded Saved Setup:", setup);
-            
-            // Robust Combo Detection
             const isCombo = setup.isCombo || (setup.strategies && setup.strategies.length > 1);
-            
-            // Ensure Combo Config Exists
             let comboConfig = setup.comboConfig;
             if (!comboConfig && isCombo) {
                 comboConfig = {
@@ -122,19 +117,13 @@ export default function TradingBot() {
                     combinationRule: setup.params?.hybridMode || 'AND'
                 };
             }
-
             setFormConfig(prev => ({
                 ...prev,
-                symbol: setup.symbol,
-                timeframe: setup.timeframe,
-                capitalAllocation: setup.initialBalance || 1000,
-                isCombo: isCombo,
-                strategies: setup.strategies || [],
+                symbol: setup.symbol, timeframe: setup.timeframe, capitalAllocation: setup.initialBalance || 1000,
+                isCombo: isCombo, strategies: setup.strategies || [],
                 comboConfig: comboConfig || { strategyCodes: [], combinationRule: 'OR' },
                 params: setup.params || {},
-                mlMode: setup.mlMode || 'off',
-                mlModel: setup.mlModel || '',
-                mlThreshold: setup.mlThreshold || 0.5
+                mlMode: setup.mlMode || 'off', mlModel: setup.mlModel || '', mlThreshold: setup.mlThreshold || 0.5
             }));
         }
     };
@@ -143,35 +132,23 @@ export default function TradingBot() {
     const handleWinnerSelect = (e) => {
         const filename = e.target.value;
         setSelectedWinnerId(filename);
-        setSelectedSetupId(""); // Clear DB dropdown
+        setSelectedSetupId(""); 
 
         const selectedWinner = winners.find(w => w.id === filename);
         if (selectedWinner && selectedWinner.config) {
             const config = selectedWinner.config;
-            console.log("🏆 Loaded Golden Strategy:", config);
-
             let symbol = config.symbol || "BTC-USD";
             let timeframe = config.timeframe || "1h";
 
-            // Parse Filename for Symbol/Timeframe if missing
-            if(!config.symbol && filename.includes('_')) {
-                 const parts = filename.split('_');
-                 if(parts[1]) symbol = parts[1];
-                 if(parts[2] && ['1h','4h','1d'].includes(parts[2])) timeframe = parts[2];
-            }
-
-            // Parse Strategies (Handle Legacy Lists vs Objects)
             let strategies = [];
             if(Array.isArray(config.strategies)) strategies = config.strategies;
             else if(Array.isArray(config)) strategies = config;
             
-            // Normalize to Object format
             strategies = strategies.map(s => ({
                 code: s.code || s.trend_strategy || "unknown",
                 params: s.params || s
             }));
 
-            // Auto-Detect ML
             let mlMode = config.mlMode || "off";
             let mlModel = config.mlModel || "";
             if(config.params?.mlModel) mlModel = config.params.mlModel;
@@ -179,17 +156,13 @@ export default function TradingBot() {
 
             setFormConfig(prev => ({
                 ...prev,
-                isCombo: true,
-                symbol, timeframe,
-                strategies: strategies,
+                isCombo: true, symbol, timeframe, strategies: strategies,
                 comboConfig: { 
                     strategyCodes: strategies.map(s=>s.code), 
                     combinationRule: config.params?.hybridMode || 'REGIME' 
                 },
                 params: config.params || {},
-                mlMode: mlMode, 
-                mlModel: mlModel || 'btc_1h_xgboost_model',
-                mlThreshold: config.mlThreshold || 0.5
+                mlMode: mlMode, mlModel: mlModel || 'btc_1h_xgboost_model', mlThreshold: config.mlThreshold || 0.5
             }));
         }
     };
@@ -197,7 +170,6 @@ export default function TradingBot() {
     const handleStart = async (e) => {
         e.preventDefault();
         if (formConfig.tradingMode === 'live' && !window.confirm("⚠️ Real Money Trading. Proceed?")) return;
-        
         setLogsClearedTime(0); 
         try { 
             await startBot(formConfig); 
@@ -214,17 +186,30 @@ export default function TradingBot() {
     const handleRefreshChart = () => refreshBotData();
     
     const isRunning = botStatus?.status === 'running';
+    
+    // Transform Bot Data for Visualizer
+    const chartData = {
+        candleData: botStatus?.candles || [],
+        tradeBreakdown: (botStatus?.trades || []).map(t => ({
+            ...t,
+            entryTime: t.entryTime, 
+            exitTime: t.exitTime,
+            profit: t.profit,
+            price: t.entry_price || t.price, // Normalize key
+            exitPrice: t.exit_price || t.exitPrice
+        }))
+    };
 
     return (
         <div className="trading-bot-container">
-            <h2 className="header">Live Trading Bot</h2>
+            <h2 className="header">Live Trading Terminal</h2>
             
             <div className="bot-card control-panel">
                 <div className="panel-header">
                     <h3 className="card-title">
-                        {isRunning ? 'Bot is Live' : 'Deploy Strategy'}
+                        {isRunning ? 'SYSTEM ONLINE' : 'SYSTEM OFFLINE'}
                         <span className={`mode-badge ${formConfig.tradingMode}`}>
-                            {formConfig.tradingMode === 'paper' ? 'PAPER' : 'LIVE'}
+                            {formConfig.tradingMode === 'paper' ? 'SIMULATION' : 'LIVE EXECUTION'}
                         </span>
                     </h3>
                     <div className={`status-indicator ${botStatus?.status || 'stopped'}`}>
@@ -235,21 +220,19 @@ export default function TradingBot() {
                 <form onSubmit={handleStart} className="bot-form">
                     {!isRunning && (
                         <>
-                            <div className="selectors-row" style={{display:'flex', gap:'20px', marginBottom:'15px'}}>
-                                {/* 📂 SAVED SETUPS DROPDOWN */}
-                                <label className="setup-selector" style={{flex:1}}>
-                                    Saved Setups (DB)
+                            <div className="selectors-row">
+                                <label className="setup-selector">
+                                    Load Strategy (Database)
                                     <select value={selectedSetupId} onChange={handleSetupSelect}>
-                                        <option value="">-- Select Setup --</option>
+                                        <option value="">-- Select Saved Setup --</option>
                                         {setups.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
                                     </select>
                                 </label>
 
-                                {/* 🏆 GOLDEN STRATEGIES DROPDOWN */}
-                                <label className="setup-selector" style={{flex:1}}>
-                                    Optimized Strategies (ML)
+                                <label className="setup-selector">
+                                    Load Alpha (ML Optimizer)
                                     <select value={selectedWinnerId} onChange={handleWinnerSelect} style={{borderColor: selectedWinnerId ? '#3b82f6' : '#444'}}>
-                                        <option value="">-- Select Winner --</option>
+                                        <option value="">-- Select Verified Alpha --</option>
                                         {winners.map(w => <option key={w.id} value={w.id}>🏆 {w.name}</option>)}
                                     </select>
                                 </label>
@@ -258,16 +241,16 @@ export default function TradingBot() {
                             <div className="form-grid">
                                 <label>Symbol<input value={formConfig.symbol} disabled /></label>
                                 <label>Timeframe<input value={formConfig.timeframe} disabled /></label>
-                                <label>Capital ($)<input type="number" value={formConfig.capitalAllocation} onChange={e=>setFormConfig(p=>({...p, capitalAllocation:Number(e.target.value)}))} /></label>
+                                <label>Capital Allocation<input type="number" value={formConfig.capitalAllocation} onChange={e=>setFormConfig(p=>({...p, capitalAllocation:Number(e.target.value)}))} /></label>
                             </div>
 
-                            <div className="mode-switch-container" style={{marginTop:'15px'}}>
+                            <div className="mode-switch-container">
                                 <div className="mode-toggle">
-                                    <button type="button" className={formConfig.tradingMode === 'paper' ? 'active' : ''} onClick={() => setFormConfig(p => ({...p, tradingMode: 'paper'}))}>Paper</button>
-                                    <button type="button" className={formConfig.tradingMode === 'live' ? 'active danger' : ''} onClick={() => setFormConfig(p => ({...p, tradingMode: 'live'}))}>Real Money</button>
+                                    <button type="button" className={formConfig.tradingMode === 'paper' ? 'active' : ''} onClick={() => setFormConfig(p => ({...p, tradingMode: 'paper'}))}>Paper Trade</button>
+                                    <button type="button" className={formConfig.tradingMode === 'live' ? 'active danger' : ''} onClick={() => setFormConfig(p => ({...p, tradingMode: 'live'}))}>Live Execution</button>
                                 </div>
                                 <button type="submit" className="button-start" disabled={botLoading}>
-                                    {botLoading ? 'Deploying...' : '🚀 Launch Bot'}
+                                    {botLoading ? 'Initializing...' : '🚀 EXECUTE STRATEGY'}
                                 </button>
                             </div>
                         </>
@@ -275,7 +258,7 @@ export default function TradingBot() {
                     
                     {isRunning && (
                         <div className="running-actions">
-                            <button type="button" onClick={handleStop} className="button-stop-main" disabled={botLoading}>Stop Bot</button>
+                            <button type="button" onClick={handleStop} className="button-stop-main" disabled={botLoading}>TERMINATE SEQUENCE</button>
                         </div>
                     )}
                 </form>
@@ -285,8 +268,8 @@ export default function TradingBot() {
 
             {(botStatus?.isConfigured || isRunning) && (
                 <>
-                    <h3 style={{color: '#ccc', marginTop: '30px', marginBottom: '10px', borderBottom:'1px solid #444', paddingBottom:'5px'}}>
-                        Live Performance Dashboard
+                    <h3 style={{color: '#94a3b8', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '30px', marginBottom: '15px'}}>
+                        Performance Telemetry
                     </h3>
 
                     <div className="bot-card status-dashboard">
@@ -294,24 +277,22 @@ export default function TradingBot() {
                     </div>
                     
                     <div className="bot-card chart-panel">
-                        <div className="card-header-row" style={{display:'flex', justifyContent:'space-between'}}>
-                             <h3 className="card-title" style={{margin:0}}>Live Chart</h3>
-                             <button onClick={handleRefreshChart} style={{background:'none', border:'none', color:'#4ade80', cursor:'pointer'}}>↻ Refresh</button>
+                        <div className="card-header-row" style={{display:'flex', justifyContent:'space-between', paddingBottom: '10px', borderBottom: '1px solid #2d3748', marginBottom: '10px'}}>
+                             <h3 className="card-title" style={{margin:0, fontSize:'0.9rem'}}>Live Market Data</h3>
+                             <button onClick={handleRefreshChart} style={{background:'none', border:'none', color:'#4ade80', cursor:'pointer', fontSize:'0.8rem'}}>↻ SYNC</button>
                         </div>
-                        {/* 🚀 PASS ACTIVE POSITIONS TO CHART */}
-                        <LiveTradingChart 
-                            candles={botStatus.candles || []} 
-                            trades={botStatus.trades || []} 
-                            activePositions={botStatus.activePositions || []} 
-                        />
+                        {/* 🚀 PREMIUM VISUALIZER INSTEAD OF BASIC CHART */}
+                        <div style={{height: '500px'}}>
+                             <ChartIndependent results={chartData} symbol={formConfig.symbol} />
+                        </div>
                     </div>
 
                     <div className="bot-card logs-panel">
                         <div className="card-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                            <h3 className="card-title" style={{ margin: 0 }}>Logs</h3>
+                            <h3 className="card-title" style={{ margin: 0, fontSize:'0.9rem' }}>System Logs</h3>
                             <div style={{display:'flex', gap:'10px'}}>
-                                <button onClick={refreshBotData} className="clear-logs-btn">Refresh</button>
-                                <button onClick={handleClearLogs} className="clear-logs-btn" style={{color:'#ef4444', borderColor:'#ef4444'}}>Clear</button>
+                                <button onClick={refreshBotData} className="clear-logs-btn">Fetch</button>
+                                <button onClick={handleClearLogs} className="clear-logs-btn" style={{color:'#ef4444', borderColor:'#ef4444'}}>Purge</button>
                             </div>
                         </div>
                         <div className="logs-container">
@@ -320,7 +301,7 @@ export default function TradingBot() {
                                     <span className="log-timestamp">{new Date(log.timestamp).toLocaleTimeString()}</span>
                                     <span className="log-message">{log.message}</span>
                                 </div>
-                            )) : <p className="no-logs">Waiting for logs...</p>}
+                            )) : <p className="no-logs" style={{color:'#475569', fontStyle:'italic', padding:'10px'}}>Waiting for incoming data stream...</p>}
                             <div ref={logsEndRef} />
                         </div>
                     </div>
