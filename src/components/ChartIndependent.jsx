@@ -1,20 +1,23 @@
 // File: src/components/ChartIndependent.jsx
-// 🚀 UPGRADE: v35.0 - "Investor Clarity" (Big Bold Win/Loss Tags)
+// 🚀 UPGRADE: v37.0 - "The Ultimate Dashboard" (Linked to Modern 2026 CSS)
 
 import React, { useEffect, useRef, useState } from "react";
 import { createChart, ColorType, CrosshairMode } from "lightweight-charts";
+import "./ChartIndependent.css"; // Uses the CSS you provided
 
 export function ChartIndependent({ results, symbol = "BTC-USD" }) {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
   
-  // HUD STATE
+  // HUD State
   const [legend, setLegend] = useState({ 
       open: "--", high: "--", low: "--", close: "--", 
       time: "--", color: "#e2e8f0" 
   });
-  const [currentPrice, setCurrentPrice] = useState("--");
+  
+  // Trade List State
+  const [trades, setTrades] = useState([]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -28,16 +31,16 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
     // 1. Initialize Chart
     const chart = createChart(chartContainerRef.current, {
       layout: { 
-          background: { type: ColorType.Solid, color: "#0b0f19" }, 
+          background: { type: ColorType.Solid, color: "transparent" }, // Transparent to let CSS gradient show
           textColor: "#94a3b8",
           fontFamily: "'Inter', sans-serif"
       },
       grid: { 
-          vertLines: { color: "#1e293b", style: 2 }, 
-          horzLines: { color: "#1e293b", style: 2 } 
+          vertLines: { color: "rgba(30, 41, 59, 0.3)", style: 2 }, 
+          horzLines: { color: "rgba(30, 41, 59, 0.3)", style: 2 } 
       },
       width: chartContainerRef.current.clientWidth,
-      height: 500,
+      height: chartContainerRef.current.clientHeight,
       timeScale: { 
           timeVisible: true, 
           secondsVisible: false,
@@ -45,7 +48,7 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
       },
       rightPriceScale: {
           borderColor: "#334155",
-          scaleMargins: { top: 0.2, bottom: 0.2 } // More breathing room for tags
+          scaleMargins: { top: 0.2, bottom: 0.2 }
       },
       crosshair: {
           mode: CrosshairMode.Normal,
@@ -57,12 +60,9 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
     chartRef.current = chart;
 
     const candleSeries = chart.addCandlestickSeries({
-      upColor: "#22c55e", 
-      downColor: "#ef4444", 
-      borderUpColor: "#22c55e",
-      borderDownColor: "#ef4444", 
-      wickUpColor: "#22c55e", 
-      wickDownColor: "#ef4444",
+      upColor: "#22c55e", downColor: "#ef4444", 
+      borderUpColor: "#22c55e", borderDownColor: "#ef4444", 
+      wickUpColor: "#22c55e", wickDownColor: "#ef4444",
     });
     seriesRef.current = candleSeries;
 
@@ -93,7 +93,6 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
             candleSeries.setData(validData);
             
             const last = validData[validData.length - 1];
-            setCurrentPrice(last.close.toFixed(2));
             setLegend({
                 open: last.open.toFixed(2),
                 high: last.high.toFixed(2),
@@ -104,62 +103,64 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
             });
         }
 
-        // 3. 🚀 INVESTOR-GRADE MARKERS
+        // 3. Markers & Trade List
         const markers = [];
-        (results.tradeBreakdown || []).forEach((t) => {
+        const tradeList = [];
+        
+        (results.tradeBreakdown || []).forEach((t, i) => {
             const entryTime = new Date(t.entryTime).getTime() / 1000;
             const exitTime = t.exitTime ? new Date(t.exitTime).getTime() / 1000 : null;
+            const isWin = t.profit >= 0;
 
-            // ENTRY MARKER (Arrow)
+            // Populate Right Panel List
+            tradeList.push({
+                id: i,
+                side: t.position,
+                entryPrice: t.price || t.entry_price,
+                profit: t.profit,
+                date: new Date(t.entryTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+            });
+
+            // Entry Marker
             if (timeSet.has(entryTime)) {
                 markers.push({
                     time: entryTime,
                     position: t.position === "long" ? "belowBar" : "aboveBar",
-                    color: t.position === "long" ? "#3b82f6" : "#f59e0b", // Blue for Long, Orange for Short
+                    color: t.position === "long" ? "#3b82f6" : "#f59e0b",
                     shape: t.position === "long" ? "arrowUp" : "arrowDown",
-                    text: t.position === "long" ? "L ENTRY" : "S ENTRY",
-                    size: 2 // Bigger
+                    text: "ENTRY", size: 2
                 });
             }
 
-            // EXIT MARKER (Profit Tag)
+            // Exit Marker
             if (exitTime && timeSet.has(exitTime)) {
-                const isWin = t.profit >= 0;
-                // Format profit: "+$520.50" or "-$120.00"
-                const profitText = `${isWin ? '💰 +' : '🔻 '}$${Math.abs(t.profit).toFixed(2)}`;
-                
                 markers.push({
                     time: exitTime,
                     position: t.position === "long" ? "aboveBar" : "belowBar",
-                    color: isWin ? "#22c55e" : "#ef4444", // Bright Green or Red
-                    shape: "custom", // Uses text as main indicator
-                    text: profitText,
-                    size: 3 // Huge visibility
+                    color: isWin ? "#22c55e" : "#ef4444",
+                    shape: "circle",
+                    text: isWin ? `+$${t.profit.toFixed(2)}` : `-$${Math.abs(t.profit).toFixed(2)}`,
+                    size: 2
                 });
             }
         });
+        
         candleSeries.setMarkers(markers.sort((a,b) => a.time - b.time));
+        setTrades(tradeList.reverse()); // Show newest trades first
     }
 
-    // Crosshair Logic
+    // Crosshair Update
     chart.subscribeCrosshairMove((param) => {
-        if (
-            param.point === undefined || !param.time ||
-            param.point.x < 0 || param.point.x > chartContainerRef.current.clientWidth ||
-            param.point.y < 0 || param.point.y > chartContainerRef.current.clientHeight
-        ) return;
-
+        if (!param.point || !param.time) return;
         const data = param.seriesData.get(candleSeries);
         if (data) {
-            const dateStr = new Date(param.time * 1000).toLocaleString();
-            const isGreen = data.close >= data.open;
             setLegend({
                 open: data.open.toFixed(2),
                 high: data.high.toFixed(2),
                 low: data.low.toFixed(2),
                 close: data.close.toFixed(2),
-                time: dateStr,
-                color: isGreen ? "#22c55e" : "#ef4444"
+                time: new Date(param.time * 1000).toLocaleString(),
+                color: data.close >= data.open ? "#22c55e" : "#ef4444"
             });
         }
     });
@@ -168,8 +169,8 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
 
     const resizeObserver = new ResizeObserver((entries) => {
       if (entries.length === 0 || !entries[0]) return;
-      const { width } = entries[0].contentRect;
-      chart.applyOptions({ width });
+      const { width, height } = entries[0].contentRect;
+      chart.applyOptions({ width, height });
     });
     resizeObserver.observe(chartContainerRef.current);
 
@@ -183,40 +184,54 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
   }, [results]);
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%" }}>
-        {/* HEADER OVERLAY */}
-        <div style={{
-            position: "absolute",
-            top: "10px",
-            left: "10px",
-            zIndex: 20,
-            background: "rgba(15, 23, 42, 0.9)",
-            padding: "8px 12px",
-            borderRadius: "6px",
-            border: "1px solid #334155",
-            pointerEvents: "none"
-        }}>
-            <div style={{ fontSize: "1.2rem", fontWeight: "bold", color: "#e2e8f0" }}>{symbol}</div>
-            <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: legend.color }}>
-                {legend.close}
+    <div className="independent-container">
+        {/* TOP BAR */}
+        <div className="independent-header">
+            <h2>
+                <span style={{ color: "#e2e8f0" }}>{symbol}</span>
+                <span style={{ color: legend.color, fontSize: "1.4rem" }}>${legend.close}</span>
+            </h2>
+            <div className="stat-badge">{results?.candleData?.length || 0} Candles Loaded</div>
+        </div>
+
+        <div className="independent-body">
+            {/* LEFT: CHART */}
+            <div className="chart-section" ref={chartContainerRef}>
+                {/* HUD OVERLAY */}
+                <div className={`chart-hud ${legend.color === "#22c55e" ? "win" : "loss"}`}>
+                    <div className="hud-title">{legend.time}</div>
+                    <div className="hud-row"><span>OPEN</span> <span className="hud-val">{legend.open}</span></div>
+                    <div className="hud-row"><span>HIGH</span> <span className="hud-val">{legend.high}</span></div>
+                    <div className="hud-row"><span>LOW</span> <span className="hud-val">{legend.low}</span></div>
+                    <div className="hud-row"><span>CLOSE</span> <span className="hud-val">{legend.close}</span></div>
+                </div>
+            </div>
+
+            {/* RIGHT: TRADE LIST */}
+            <div className="list-section">
+                <div className="trade-list-header">
+                    <span>Side</span>
+                    <span style={{textAlign:'right'}}>Entry</span>
+                    <span style={{textAlign:'right'}}>PnL</span>
+                </div>
+                <div className="trade-list-scroll">
+                    {trades.length > 0 ? trades.map((t) => (
+                        <div key={t.id} className="trade-row">
+                            <div>
+                                <span className={`badge ${t.side}`}>{t.side}</span>
+                                <div className="date-sub">{t.date}</div>
+                            </div>
+                            <div className="price-cell">${t.entryPrice?.toFixed(2)}</div>
+                            <div className={`pnl-cell ${t.profit >= 0 ? "pnl-pos" : "pnl-neg"}`}>
+                                {t.profit >= 0 ? "+" : "-"}${Math.abs(t.profit).toFixed(2)}
+                            </div>
+                        </div>
+                    )) : (
+                        <div className="empty-trades">No trades executed yet.</div>
+                    )}
+                </div>
             </div>
         </div>
-
-        {/* OHLC LEGEND */}
-        <div style={{
-            position: "absolute", top: "10px", right: "60px", zIndex: 20,
-            background: "rgba(15, 23, 42, 0.9)", padding: "6px 12px", borderRadius: "6px",
-            border: "1px solid #334155", fontSize: "0.85rem", color: "#94a3b8",
-            display: "flex", gap: "15px", fontFamily: "monospace", pointerEvents: "none"
-        }}>
-            <div><span style={{color:"#64748b"}}>O:</span> <span style={{color:"#cbd5e1"}}>{legend.open}</span></div>
-            <div><span style={{color:"#64748b"}}>H:</span> <span style={{color:"#cbd5e1"}}>{legend.high}</span></div>
-            <div><span style={{color:"#64748b"}}>L:</span> <span style={{color:"#cbd5e1"}}>{legend.low}</span></div>
-            <div><span style={{color:"#64748b"}}>C:</span> <span style={{color: legend.color}}>{legend.close}</span></div>
-            <div style={{borderLeft:"1px solid #475569", paddingLeft:"15px", color:"#e2e8f0"}}>{legend.time}</div>
-        </div>
-
-        <div ref={chartContainerRef} style={{ width: "100%", height: "100%" }} />
     </div>
   );
 }
