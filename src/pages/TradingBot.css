@@ -29,7 +29,15 @@
 }
 
 .control-panel { border-top: 4px solid #3b82f6; z-index: 10; }
-.chart-panel { min-height: 650px; overflow: hidden; margin-bottom: 40px; z-index: 5; }
+.chart-panel {
+  min-height: 600px; /* Force the panel open */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin-bottom: 40px;
+  z-index: 5;
+  background: #161b28; /* Ensure background isn't transparent */
+}
 .logs-panel { max-height: 600px; display: flex; flex-direction: column; z-index: 6; border-top: 1px solid #334155; }
 
 .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #2d3748; }
