@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v39.0 - "The Universal Loader" (Perfect JSON Parsing)
+// 🚀 UPGRADE: v45.2 - "Fixed Reference Error" (Restored handleSetupSelect)
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios"; 
@@ -8,7 +8,7 @@ import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
 import "./TradingBot.css";
 
-// --- HELPER: Parse Date ---
+// --- HELPER: Parse Date (Forces EST/New York) ---
 const formatLogDate = (isoString) => {
     if (!isoString) return "--/--";
     const d = new Date(isoString);
@@ -192,6 +192,7 @@ export default function TradingBot() {
 
     const { setups } = useBacktestSetupFunction(); 
     
+    // 🚀 LIVE STATE FOR WINNERS
     const [liveWinners, setLiveWinners] = useState([]);
     const [scanningWinners, setScanningWinners] = useState(false);
 
@@ -199,6 +200,7 @@ export default function TradingBot() {
     const [selectedWinnerId, setSelectedWinnerId] = useState("");
     const [selectedSetupId, setSelectedSetupId] = useState("");
     
+    // Persistent Log State
     const [persistentLogs, setPersistentLogs] = useState([]);
 
     const [formConfig, setFormConfig] = useState({
@@ -209,99 +211,155 @@ export default function TradingBot() {
 
     const [logsClearedTime, setLogsClearedTime] = useState(0);
 
-   // 🚀 FETCH WINNERS (With Authentication)
+    // 🚀 FETCH WINNERS FROM DISK (With Auth)
     const fetchWinners = async () => {
         setScanningWinners(true);
         try {
-            // 1. Get the Token from Local Storage (your ID badge)
             const token = localStorage.getItem("token"); 
-            
-            // 2. Attach it to the request header
             const res = await axios.get("https://neov6backend.onrender.com/api/bot/winners", {
-                headers: {
-                    Authorization: `Bearer ${token}` 
-                }
+                headers: { Authorization: `Bearer ${token}` }
             });
+            if (res.data) setLiveWinners(res.data);
+        } catch (err) { console.error("Failed to load winners:", err); } 
+        finally { setScanningWinners(false); }
+    };
 
-            if (res.data) {
-                setLiveWinners(res.data);
-                console.log(`✅ Loaded ${res.data.length} Alpha Files`);
+    useEffect(() => { fetchWinners(); }, []);
+
+    // Log Accumulation
+    useEffect(() => {
+        if (apiLogs && apiLogs.length > 0) {
+            setPersistentLogs(prevLogs => {
+                const newLogs = apiLogs.filter(apiLog => 
+                    !prevLogs.some(prevLog => 
+                        prevLog.timestamp === apiLog.timestamp && prevLog.message === apiLog.message
+                    )
+                );
+                const combined = [...prevLogs, ...newLogs].sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
+                return combined.slice(-500);
+            });
+        }
+    }, [apiLogs]);
+
+    const visibleLogs = persistentLogs.filter(log => new Date(log.timestamp).getTime() > logsClearedTime);
+
+    // Auto-Scroll Logs
+    useEffect(() => {
+        if (logsContainerRef.current) {
+            const { scrollHeight, clientHeight } = logsContainerRef.current;
+            logsContainerRef.current.scrollTo({ top: scrollHeight - clientHeight, behavior: 'smooth' });
+        }
+    }, [persistentLogs]);
+
+    // Auto-Polling
+    useEffect(() => {
+        let interval;
+        if (botStatus?.status === 'running') {
+            interval = setInterval(() => refreshBotData(), 2000);
+        }
+        return () => clearInterval(interval);
+    }, [botStatus?.status, refreshBotData]);
+
+    // 🚀 RESTORED: DATABASE SETUP HANDLER (Fixed ReferenceError)
+    const handleSetupSelect = (e) => {
+        const setupId = e.target.value;
+        setSelectedSetupId(setupId);
+        setSelectedWinnerId(""); 
+        
+        const setup = setups.find(s => s._id === setupId);
+        if (setup) {
+            const isCombo = setup.isCombo || (setup.strategies && setup.strategies.length > 1);
+            let comboConfig = setup.comboConfig;
+            if (!comboConfig && isCombo) {
+                comboConfig = {
+                    strategyCodes: setup.strategies.map(s => s.code),
+                    combinationRule: setup.params?.hybridMode || 'AND'
+                };
             }
-        } catch (err) {
-            console.error("Failed to load winners:", err);
-            // Optional: If 401, redirect to login?
-            if (err.response && err.response.status === 401) {
-                alert("Session expired. Please log in again.");
-            }
-        } finally {
-            setScanningWinners(false);
+            setFormConfig(prev => ({
+                ...prev,
+                symbol: setup.symbol, timeframe: setup.timeframe, capitalAllocation: setup.initialBalance || 1000,
+                isCombo: isCombo, strategies: setup.strategies || [],
+                comboConfig: comboConfig || { strategyCodes: [], combinationRule: 'OR' },
+                params: setup.params || {},
+                mlMode: setup.mlMode || 'off', mlModel: setup.mlModel || '', mlThreshold: setup.mlThreshold || 0.5
+            }));
         }
     };
 
-    // 🚀 UPGRADED: UNIVERSAL WINNER LOADER
+    // 🚀 UNIVERSAL WINNER ADAPTER
     const handleWinnerSelect = (e) => {
         const filename = e.target.value;
         setSelectedWinnerId(filename);
         setSelectedSetupId(""); 
 
         const selectedWinner = liveWinners.find(w => w.id === filename);
-        if (selectedWinner && selectedWinner.config) {
-            const config = selectedWinner.config;
-            console.log("🏆 Universal Loader - Selected Config:", config);
-
-            // 1. Core Params
-            let symbol = config.symbol || "BTC-USD";
-            let timeframe = config.timeframe || "1h";
-
-            // Fallback: Parse Filename if config is legacy
-            if(!config.symbol && filename.includes('_')) {
-                 const parts = filename.split('_');
-                 if(parts[1]) symbol = parts[1];
-                 if(parts[2] && ['1h','4h','1d','15m'].includes(parts[2])) timeframe = parts[2];
-            }
-
-            // 2. Strategies Normalization
-            let strategies = [];
-            if(Array.isArray(config.strategies)) strategies = config.strategies;
-            else if(Array.isArray(config)) strategies = config;
-            
-            strategies = strategies.map(s => {
-                if (typeof s === 'string') return { code: s, params: {} }; // Handle old string arrays
-                return {
-                    code: s.code || s.trend_strategy || "unknown",
-                    params: s.params || s
-                };
-            });
-
-            // 3. ML Config
-            let mlMode = config.mlMode || "off";
-            let mlModel = config.mlModel || "";
-            if(config.params?.mlModel) mlModel = config.params.mlModel;
-            if(mlModel && mlMode === "off") mlMode = "predictions";
-
-            // 4. Global Params & Risk
-            const globalParams = config.params || {};
-            // Extract critical params if they exist in root but not in params object
-            if (config.riskManagementMode) globalParams.riskManagementMode = config.riskManagementMode;
-            if (config.riskPercentage) globalParams.riskPercentage = config.riskPercentage;
-            if (config.maxPyramiding) globalParams.maxPyramiding = config.maxPyramiding;
-
-            setFormConfig(prev => ({
-                ...prev,
-                isCombo: true, 
-                symbol, 
-                timeframe, 
-                strategies: strategies,
-                comboConfig: { 
-                    strategyCodes: strategies.map(s=>s.code), 
-                    combinationRule: globalParams.hybridMode || 'OR' 
-                },
-                params: globalParams,
-                mlMode: mlMode, 
-                mlModel: mlModel || 'btc_1h_xgboost_model', 
-                mlThreshold: config.mlThreshold || 0.5
-            }));
+        
+        if (!selectedWinner || !selectedWinner.config) {
+            console.warn("⚠️ Winner file not found or empty:", filename);
+            return;
         }
+
+        const data = selectedWinner.config;
+        console.log("🏆 Loading Alpha File:", filename, data);
+
+        // --- A. PARSE SYMBOL & TIMEFRAME ---
+        let symbol = data.symbol || "BTC-USD";
+        let timeframe = data.timeframe || "1h";
+
+        if (!data.symbol && filename.includes('_')) {
+             const parts = filename.split('_');
+             if (parts[1] && parts[1].includes('-')) symbol = parts[1];
+             if (parts[2] && ['1m','5m','15m','1h','4h','1d'].includes(parts[2])) timeframe = parts[2];
+        }
+
+        // --- B. PARSE STRATEGIES ---
+        let rawStrategies = [];
+        if (Array.isArray(data.strategies)) rawStrategies = data.strategies;
+        else if (Array.isArray(data)) rawStrategies = data; 
+        
+        const cleanStrategies = rawStrategies.map(s => {
+            if (typeof s === 'string') return { code: s, params: {} };
+            return {
+                code: s.code || s.trend_strategy || "unknown",
+                params: s.params || s 
+            };
+        });
+
+        // --- C. PARSE ML SETTINGS ---
+        let mlMode = data.mlMode || "off";
+        let mlModel = data.mlModel || "";
+        if (data.params?.mlModel) mlModel = data.params.mlModel;
+        if (mlModel && mlMode === "off") mlMode = "predictions";
+        if (!mlModel && mlMode !== "off") mlModel = 'btc_1h_xgboost_model'; 
+
+        // --- D. PARSE GLOBAL PARAMS ---
+        const globalParams = { ...data.params };
+        if (data.riskManagementMode) globalParams.riskManagementMode = data.riskManagementMode;
+        if (data.riskPercentage) globalParams.riskPercentage = Number(data.riskPercentage);
+        if (data.maxPyramiding) globalParams.maxPyramiding = Number(data.maxPyramiding);
+        if (data.initialBalance) globalParams.initialBalance = Number(data.initialBalance);
+
+        // --- E. UPDATE FORM STATE ---
+        const newState = {
+            symbol: symbol.toUpperCase(),
+            timeframe: timeframe,
+            isCombo: true,
+            strategies: cleanStrategies,
+            comboConfig: { 
+                strategyCodes: cleanStrategies.map(s => s.code),
+                combinationRule: globalParams.hybridMode || 'OR' 
+            },
+            mlMode,
+            mlModel, 
+            mlThreshold: Number(data.mlThreshold) || 0.5,
+            params: globalParams
+        };
+
+        setFormConfig(prev => ({ 
+            ...prev, ...newState, 
+            capitalAllocation: globalParams.initialBalance || 1000 
+        }));
     };
 
     const handleStart = async (e) => {
@@ -393,7 +451,6 @@ export default function TradingBot() {
                             </select>
                         </label>
 
-                        {/* 🚀 LIVE FILE EXPLORER DROPDOWN */}
                         <label className="setup-selector" style={{position: 'relative'}}>
                             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                                 <span>Load Alpha (Data Folder)</span>
