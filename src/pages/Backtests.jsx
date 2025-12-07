@@ -6,7 +6,7 @@ import axios from "axios";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx"; // DB Setups
 import ChartIndependent from "../components/ChartIndependent.jsx"; // Or ChartIndependent if you prefer
-import "./Backtest.css"; // Ensure this exists
+import "./Backtests.css"; // Ensure this exists
 
 export default function Backtest() {
     const { 
