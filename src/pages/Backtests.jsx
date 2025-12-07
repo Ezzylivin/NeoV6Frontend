@@ -479,9 +479,9 @@ export default function Backtests() {
               <>
                 <MetricsDisplay metrics={combinedMetrics} />
                 
-                {/* 🚀 PREMIUM CHART VISUALIZER */}
+                {/* 🚀 PREMIUM CHART VISUALIZER (Now 850px Tall) */}
                 {mainResult && mainResult.candleData?.length > 0 && (
-                    <div style={{height: '600px', marginTop: '30px', marginBottom:'40px'}}>
+                    <div style={{height: '850px', marginTop: '30px', marginBottom:'40px'}}>
                         <ChartIndependent results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} />
                     </div>
                 )}
