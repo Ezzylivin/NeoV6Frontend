@@ -1,5 +1,5 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v42.0 - "Unified Backtest Terminal" (Premium Visualizer Integration)
+// 🚀 UPGRADE: v48.0 - "The Perfected Backtest" (Restored Missing Helpers)
 
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios"; 
@@ -9,9 +9,8 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
 } from "recharts";
-import { ChartIndependent } from "../components/ChartIndependent.jsx"; // 🚀 PREMIUM CHART
-import "./Backtests.css";
-import api from "../api/apiClient"; 
+import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
+import "./Backtest.css"; // Ensure you have v42.1 CSS
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
 
@@ -37,9 +36,34 @@ const defaultFilterParams = {
     regime_threshold: 25 
 };
 
+// --- 2. HELPER FUNCTIONS (Restored!) ---
+const formatDate = dateString => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+};
+
+// 🚀 RESTORED: This was causing the crash
+const formatChartDate = timestamp => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return '';
+    return `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`;
+};
+
+const getDefaultDates = () => {
+  const today = new Date();
+  const start = new Date(today); start.setFullYear(today.getFullYear() - 1);
+  const end = new Date(today); end.setDate(today.getDate() - 1);
+  return { startDate: formatDate(start), endDate: formatDate(end) };
+};
+
+// --- 3. INITIAL STATE ---
 const initialFormData = {
   strategyId: "", code: "", symbol: "", timeframe: "",
-  startDate: "2023-01-01", endDate: new Date().toISOString().split('T')[0],
+  startDate: getDefaultDates().startDate, 
+  endDate: getDefaultDates().endDate,
   initialBalance: 1000, params: { ...defaultFilterParams },
   riskManagementMode: 'standard', riskPercentage: 1, growthCapitalTarget: 2000,
   mlMode: "off", mlModel: "", mlThreshold: 0.5, mlHorizon: 1
@@ -53,13 +77,14 @@ const initialComboData = {
   params: { ...defaultFilterParams },
   comboConfig: { strategyCodes: [], combinationRule: 'AND' },
   symbol: "", timeframe: "", 
-  startDate: "2023-01-01", endDate: new Date().toISOString().split('T')[0],
+  startDate: getDefaultDates().startDate, 
+  endDate: getDefaultDates().endDate,
   initialBalance: 1000,
   riskManagementMode: 'standard', riskPercentage: 1, growthCapitalTarget: 2000,
   mlMode: "off", mlModel: "", mlThreshold: 0.5, mlHorizon: 1
 };
 
-// --- 2. COMPONENTS ---
+// --- 4. COMPONENTS ---
 const MetricsDisplay = ({ metrics }) => {
   if (!metrics) return <div className="metrics-grid-loading">Calculating metrics...</div>;
   const formatValue = (value, format) => {
@@ -109,8 +134,6 @@ const CommonBacktestInputs = ({ data, onChange, options, availableModelData, isC
     };
     const handleGlobalChange = (e) => { onChange(e); };
 
-    const params = data.params || {};
-    
     return (
         <>
             <div className="form-grid">
