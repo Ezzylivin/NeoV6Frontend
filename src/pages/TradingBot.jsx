@@ -9,13 +9,22 @@ import { ChartIndependent } from "../components/ChartIndependent.jsx";
 import "./TradingBot.css";
 
 // --- HELPER: Parse Date ---
+// --- HELPER: Force Date to New York Time (EST/EDT) ---
 const formatLogDate = (isoString) => {
     if (!isoString) return "--/--";
     const d = new Date(isoString);
     if (isNaN(d.getTime())) return "Invalid Date";
-    const date = `${d.getMonth()+1}/${d.getDate()}`;
-    const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    return `${date}, ${time}`;
+
+    // 🚀 FORCE NEW YORK TIME
+    return d.toLocaleString('en-US', {
+        timeZone: 'America/New_York',
+        month: 'numeric',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+    });
 };
 
 // --- HELPER: Thought Bubble (Case-Insensitive) ---
