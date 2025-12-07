@@ -1,8 +1,8 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v38.0 - "Live File Explorer" (Direct Disk Scanning)
+// 🚀 UPGRADE: v39.0 - "The Universal Loader" (Perfect JSON Parsing)
 
 import React, { useState, useEffect, useRef } from "react";
-import axios from "axios"; // 🚀 Added for direct fetching
+import axios from "axios"; 
 import { useBot } from '../hooks/useBot.js';
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx"; 
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
@@ -192,7 +192,6 @@ export default function TradingBot() {
 
     const { setups } = useBacktestSetupFunction(); 
     
-    // 🚀 LIVE STATE FOR WINNERS
     const [liveWinners, setLiveWinners] = useState([]);
     const [scanningWinners, setScanningWinners] = useState(false);
 
@@ -200,7 +199,6 @@ export default function TradingBot() {
     const [selectedWinnerId, setSelectedWinnerId] = useState("");
     const [selectedSetupId, setSelectedSetupId] = useState("");
     
-    // Persistent Log State
     const [persistentLogs, setPersistentLogs] = useState([]);
 
     const [formConfig, setFormConfig] = useState({
@@ -211,28 +209,17 @@ export default function TradingBot() {
 
     const [logsClearedTime, setLogsClearedTime] = useState(0);
 
-    // 🚀 FETCH WINNERS FROM DISK
     const fetchWinners = async () => {
         setScanningWinners(true);
         try {
-            // Hitting the endpoint that scans data/optimizer_results/
             const res = await axios.get("https://neov6backend.onrender.com/api/bot/winners");
-            if (res.data) {
-                setLiveWinners(res.data);
-            }
-        } catch (err) {
-            console.error("Failed to load winners:", err);
-        } finally {
-            setScanningWinners(false);
-        }
+            if (res.data) setLiveWinners(res.data);
+        } catch (err) { console.error("Failed to load winners:", err); } 
+        finally { setScanningWinners(false); }
     };
 
-    // Load winners on mount
-    useEffect(() => {
-        fetchWinners();
-    }, []);
+    useEffect(() => { fetchWinners(); }, []);
 
-    // Log Accumulation
     useEffect(() => {
         if (apiLogs && apiLogs.length > 0) {
             setPersistentLogs(prevLogs => {
@@ -290,6 +277,7 @@ export default function TradingBot() {
         }
     };
 
+    // 🚀 UPGRADED: UNIVERSAL WINNER LOADER
     const handleWinnerSelect = (e) => {
         const filename = e.target.value;
         setSelectedWinnerId(filename);
@@ -298,38 +286,59 @@ export default function TradingBot() {
         const selectedWinner = liveWinners.find(w => w.id === filename);
         if (selectedWinner && selectedWinner.config) {
             const config = selectedWinner.config;
+            console.log("🏆 Universal Loader - Selected Config:", config);
+
+            // 1. Core Params
             let symbol = config.symbol || "BTC-USD";
             let timeframe = config.timeframe || "1h";
 
+            // Fallback: Parse Filename if config is legacy
             if(!config.symbol && filename.includes('_')) {
                  const parts = filename.split('_');
                  if(parts[1]) symbol = parts[1];
-                 if(parts[2] && ['1h','4h','1d'].includes(parts[2])) timeframe = parts[2];
+                 if(parts[2] && ['1h','4h','1d','15m'].includes(parts[2])) timeframe = parts[2];
             }
 
+            // 2. Strategies Normalization
             let strategies = [];
             if(Array.isArray(config.strategies)) strategies = config.strategies;
             else if(Array.isArray(config)) strategies = config;
             
-            strategies = strategies.map(s => ({
-                code: s.code || s.trend_strategy || "unknown",
-                params: s.params || s
-            }));
+            strategies = strategies.map(s => {
+                if (typeof s === 'string') return { code: s, params: {} }; // Handle old string arrays
+                return {
+                    code: s.code || s.trend_strategy || "unknown",
+                    params: s.params || s
+                };
+            });
 
+            // 3. ML Config
             let mlMode = config.mlMode || "off";
             let mlModel = config.mlModel || "";
             if(config.params?.mlModel) mlModel = config.params.mlModel;
             if(mlModel && mlMode === "off") mlMode = "predictions";
 
+            // 4. Global Params & Risk
+            const globalParams = config.params || {};
+            // Extract critical params if they exist in root but not in params object
+            if (config.riskManagementMode) globalParams.riskManagementMode = config.riskManagementMode;
+            if (config.riskPercentage) globalParams.riskPercentage = config.riskPercentage;
+            if (config.maxPyramiding) globalParams.maxPyramiding = config.maxPyramiding;
+
             setFormConfig(prev => ({
                 ...prev,
-                isCombo: true, symbol, timeframe, strategies: strategies,
+                isCombo: true, 
+                symbol, 
+                timeframe, 
+                strategies: strategies,
                 comboConfig: { 
                     strategyCodes: strategies.map(s=>s.code), 
-                    combinationRule: config.params?.hybridMode || 'REGIME' 
+                    combinationRule: globalParams.hybridMode || 'OR' 
                 },
-                params: config.params || {},
-                mlMode: mlMode, mlModel: mlModel || 'btc_1h_xgboost_model', mlThreshold: config.mlThreshold || 0.5
+                params: globalParams,
+                mlMode: mlMode, 
+                mlModel: mlModel || 'btc_1h_xgboost_model', 
+                mlThreshold: config.mlThreshold || 0.5
             }));
         }
     };
@@ -469,13 +478,6 @@ export default function TradingBot() {
                     </div>
                 </form>
             </div>
-
-            {/* ERROR BANNER */}
-            {/* {(error || (liveWinners.length === 0 && !scanningWinners)) && (
-                <div className="error-banner">
-                    {error || "No strategy files found in /data/optimizer_results. Run the optimizer first!"}
-                </div>
-            )} */}
 
             {(botStatus?.isConfigured || isRunning) && (
                 <>
