@@ -5,7 +5,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx"; // DB Setups
-import BacktestChart from "../components/BacktestChart.jsx"; // Or ChartIndependent if you prefer
+import ChartIndependent from "../components/ChartIndependent.jsx"; // Or ChartIndependent if you prefer
 import "./Backtest.css"; // Ensure this exists
 
 export default function Backtest() {
