@@ -1,5 +1,5 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v48.0 - "The Perfected Backtest" (Restored Missing Helpers)
+// 🚀 UPGRADE: v49.0 - "Smart Mapper" (Fixes Missing Strategy Names in Dropdowns)
 
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios"; 
@@ -10,7 +10,7 @@ import {
   PieChart, Pie, Cell, Legend
 } from "recharts";
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
-import "./Backtests.css"; // Ensure you have v42.1 CSS
+import "./Backtests.css"; 
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
 
@@ -36,7 +36,7 @@ const defaultFilterParams = {
     regime_threshold: 25 
 };
 
-// --- 2. HELPER FUNCTIONS (Restored!) ---
+// --- 2. HELPER FUNCTIONS ---
 const formatDate = dateString => {
   if (!dateString) return '';
   const date = new Date(dateString);
@@ -44,7 +44,6 @@ const formatDate = dateString => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 };
 
-// 🚀 RESTORED: This was causing the crash
 const formatChartDate = timestamp => {
     if (!timestamp) return '';
     const date = new Date(timestamp);
@@ -227,10 +226,10 @@ export default function Backtests() {
   const [backtestResults, setBacktestResults] = useState({ main: null, individuals: [] });
   const [activeTab, setActiveTab] = useState('single');
   
-  // 🚀 LIVE WINNER STATE
   const [liveWinners, setLiveWinners] = useState([]);
   const [scanningWinners, setScanningWinners] = useState(false);
 
+  // 🚀 STRATEGY OPTIONS (Base List)
   const strategyOptions = useMemo(() => {
     const dbStrats = options?.strategies || [];
     const baseStrats = Object.entries(STRATEGY_TYPE_TO_CODE_MAP).map(([name, code], idx) => ({
@@ -257,7 +256,7 @@ export default function Backtests() {
 
   useEffect(() => { fetchWinners(); }, []);
 
-  // 🚀 UNIVERSAL WINNER ADAPTER
+  // 🚀 UNIVERSAL WINNER ADAPTER (With "Smart Mapping")
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
@@ -280,8 +279,18 @@ export default function Backtests() {
       else if(Array.isArray(data)) strategies = data;
       
       const cleanStrategies = strategies.map(s => {
-          if (typeof s === 'string') return { code: s, params: {} };
-          return { code: s.code || "unknown", params: s.params || s };
+          const code = (typeof s === 'string') ? s : (s.code || "unknown");
+          const params = (typeof s === 'string') ? {} : (s.params || s);
+          
+          // 🚀 SMART MAP: Find the ID that matches this code so Dropdown populates
+          const matchedOption = strategyOptions.find(opt => opt.code === code);
+          const strategyId = matchedOption ? matchedOption._id : ""; // If found, use ID; else blank
+
+          return { 
+              strategyId, // This makes the dropdown show the name!
+              code, 
+              params 
+          };
       });
 
       let mlMode = data.mlMode || "off";
@@ -425,7 +434,7 @@ export default function Backtests() {
             </div>
             <select value={selectedWinnerId} onChange={handleWinnerSelect} style={{ width: '100%', padding: '10px', background: '#0f172a', color: 'white', border: '1px solid #475569' }}>
                 <option value="">-- Select a Golden Strategy --</option>
-                {liveWinners.map(w => <option key={w.id} value={w.id}>🏆 {w.name}</option>)}
+                {liveWinners.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
         </div>
 
