@@ -209,71 +209,32 @@ export default function TradingBot() {
 
     const [logsClearedTime, setLogsClearedTime] = useState(0);
 
+   // 🚀 FETCH WINNERS (With Authentication)
     const fetchWinners = async () => {
         setScanningWinners(true);
         try {
-            const res = await axios.get("https://neov6backend.onrender.com/api/bot/winners");
-            if (res.data) setLiveWinners(res.data);
-        } catch (err) { console.error("Failed to load winners:", err); } 
-        finally { setScanningWinners(false); }
-    };
-
-    useEffect(() => { fetchWinners(); }, []);
-
-    useEffect(() => {
-        if (apiLogs && apiLogs.length > 0) {
-            setPersistentLogs(prevLogs => {
-                const newLogs = apiLogs.filter(apiLog => 
-                    !prevLogs.some(prevLog => 
-                        prevLog.timestamp === apiLog.timestamp && prevLog.message === apiLog.message
-                    )
-                );
-                const combined = [...prevLogs, ...newLogs].sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
-                return combined.slice(-500);
+            // 1. Get the Token from Local Storage (your ID badge)
+            const token = localStorage.getItem("token"); 
+            
+            // 2. Attach it to the request header
+            const res = await axios.get("https://neov6backend.onrender.com/api/bot/winners", {
+                headers: {
+                    Authorization: `Bearer ${token}` 
+                }
             });
-        }
-    }, [apiLogs]);
 
-    const visibleLogs = persistentLogs.filter(log => new Date(log.timestamp).getTime() > logsClearedTime);
-
-    useEffect(() => {
-        if (logsContainerRef.current) {
-            const { scrollHeight, clientHeight } = logsContainerRef.current;
-            logsContainerRef.current.scrollTo({ top: scrollHeight - clientHeight, behavior: 'smooth' });
-        }
-    }, [persistentLogs]);
-
-    useEffect(() => {
-        let interval;
-        if (botStatus?.status === 'running') {
-            interval = setInterval(() => refreshBotData(), 2000);
-        }
-        return () => clearInterval(interval);
-    }, [botStatus?.status, refreshBotData]);
-
-    const handleSetupSelect = (e) => {
-        const setupId = e.target.value;
-        setSelectedSetupId(setupId);
-        setSelectedWinnerId(""); 
-        
-        const setup = setups.find(s => s._id === setupId);
-        if (setup) {
-            const isCombo = setup.isCombo || (setup.strategies && setup.strategies.length > 1);
-            let comboConfig = setup.comboConfig;
-            if (!comboConfig && isCombo) {
-                comboConfig = {
-                    strategyCodes: setup.strategies.map(s => s.code),
-                    combinationRule: setup.params?.hybridMode || 'AND'
-                };
+            if (res.data) {
+                setLiveWinners(res.data);
+                console.log(`✅ Loaded ${res.data.length} Alpha Files`);
             }
-            setFormConfig(prev => ({
-                ...prev,
-                symbol: setup.symbol, timeframe: setup.timeframe, capitalAllocation: setup.initialBalance || 1000,
-                isCombo: isCombo, strategies: setup.strategies || [],
-                comboConfig: comboConfig || { strategyCodes: [], combinationRule: 'OR' },
-                params: setup.params || {},
-                mlMode: setup.mlMode || 'off', mlModel: setup.mlModel || '', mlThreshold: setup.mlThreshold || 0.5
-            }));
+        } catch (err) {
+            console.error("Failed to load winners:", err);
+            // Optional: If 401, redirect to login?
+            if (err.response && err.response.status === 401) {
+                alert("Session expired. Please log in again.");
+            }
+        } finally {
+            setScanningWinners(false);
         }
     };
 
