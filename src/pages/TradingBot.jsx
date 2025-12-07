@@ -1,21 +1,19 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v33.0 - "Robust Interface" (Case-Insensitive Logic + Chart Recovery)
+// 🚀 UPGRADE: v38.0 - "Live File Explorer" (Direct Disk Scanning)
 
 import React, { useState, useEffect, useRef } from "react";
+import axios from "axios"; // 🚀 Added for direct fetching
 import { useBot } from '../hooks/useBot.js';
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx"; 
-import { useBacktest } from "../hooks/useBacktest.js"; 
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
 import "./TradingBot.css";
 
 // --- HELPER: Parse Date ---
-// --- HELPER: Force Date to New York Time (EST/EDT) ---
 const formatLogDate = (isoString) => {
     if (!isoString) return "--/--";
     const d = new Date(isoString);
     if (isNaN(d.getTime())) return "Invalid Date";
 
-    // 🚀 FORCE NEW YORK TIME
     return d.toLocaleString('en-US', {
         timeZone: 'America/New_York',
         month: 'numeric',
@@ -27,24 +25,31 @@ const formatLogDate = (isoString) => {
     });
 };
 
-// --- HELPER: Thought Bubble (Case-Insensitive) ---
+// --- HELPER: Thought Bubble ---
 const ThinkingMessage = ({ text }) => {
     const lowerText = text.toLowerCase();
-    
     if (lowerText.includes("checked combo")) {
-        // Safe split that works regardless of casing
-        const parts = text.split(/Final signal:/i); 
-        const signal = parts[1] ? parts[1].trim().replace('.', '').toUpperCase() : "ANALYZING";
+        const parts = text.split(/Final signal:/i);
+        let rawSignal = parts[1] ? parts[1].split('|')[0].trim() : "ANALYZING";
+        const metrics = text.includes('|') ? text.split('|').slice(1).join('|').trim() : "";
+        const signal = rawSignal.replace('.', '').toUpperCase();
         
         let signalClass = "signal-hold";
         if (signal.includes("BUY") || signal.includes("LONG")) signalClass = "signal-buy";
         if (signal.includes("SELL") || signal.includes("SHORT")) signalClass = "signal-sell";
 
         return (
-            <>
-                <span className="thinking-tag">AI SCAN</span>
-                <span>Market Analysis Complete. Decision: <span className={signalClass}>{signal}</span></span>
-            </>
+            <div style={{display:'flex', flexDirection:'column', gap:'4px'}}>
+                <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+                    <span className="thinking-tag">AI SCAN</span>
+                    <span>Decision: <span className={signalClass}>{signal}</span></span>
+                </div>
+                {metrics && (
+                    <div style={{fontSize:'0.75rem', color:'#64748b', marginLeft:'68px', fontFamily:'monospace'}}>
+                        🔍 Telemetry: {metrics}
+                    </div>
+                )}
+            </div>
         );
     }
     return <span>{text}</span>;
@@ -52,7 +57,6 @@ const ThinkingMessage = ({ text }) => {
 
 // --- COMPONENT: AI DECISION STREAM ---
 const DecisionStream = ({ logs }) => {
-    // Robust Filter: Case-insensitive checks
     const thoughts = logs.filter(l => {
         const msg = l.message.toLowerCase();
         return msg.includes("checked combo") || 
@@ -120,6 +124,7 @@ const DecisionStream = ({ logs }) => {
                             {t.signal === "SHORT" && "🔻 "}
                             {t.signal === "ONLINE" && "⚡ "}
                             {t.signal === "OFFLINE" && "🛑 "}
+                            {t.signal === "ERROR" && "⚠️ "}
                             {t.signal}
                         </span>
                         <span className="d-detail">{t.detail}</span>
@@ -181,14 +186,16 @@ const MetricsDisplay = ({ data }) => {
 // --- MAIN COMPONENT ---
 export default function TradingBot() {
     const { 
-        botStatus, logs: apiLogs, winners: botWinners, loading: botLoading, 
-        error, startBot, stopBot, refreshBotData 
+        botStatus, logs: apiLogs, loading: botLoading, 
+        startBot, stopBot, refreshBotData 
     } = useBot();
 
     const { setups } = useBacktestSetupFunction(); 
-    const { state: backtestState } = useBacktest(); 
-    const winners = (botWinners && botWinners.length > 0) ? botWinners : (backtestState?.winners || []);
     
+    // 🚀 LIVE STATE FOR WINNERS
+    const [liveWinners, setLiveWinners] = useState([]);
+    const [scanningWinners, setScanningWinners] = useState(false);
+
     const logsContainerRef = useRef(null);
     const [selectedWinnerId, setSelectedWinnerId] = useState("");
     const [selectedSetupId, setSelectedSetupId] = useState("");
@@ -204,7 +211,28 @@ export default function TradingBot() {
 
     const [logsClearedTime, setLogsClearedTime] = useState(0);
 
-    // 🚀 IMPROVED LOG ACCUMULATION
+    // 🚀 FETCH WINNERS FROM DISK
+    const fetchWinners = async () => {
+        setScanningWinners(true);
+        try {
+            // Hitting the endpoint that scans data/optimizer_results/
+            const res = await axios.get("https://neov6backend.onrender.com/api/bot/winners");
+            if (res.data) {
+                setLiveWinners(res.data);
+            }
+        } catch (err) {
+            console.error("Failed to load winners:", err);
+        } finally {
+            setScanningWinners(false);
+        }
+    };
+
+    // Load winners on mount
+    useEffect(() => {
+        fetchWinners();
+    }, []);
+
+    // Log Accumulation
     useEffect(() => {
         if (apiLogs && apiLogs.length > 0) {
             setPersistentLogs(prevLogs => {
@@ -213,7 +241,6 @@ export default function TradingBot() {
                         prevLog.timestamp === apiLog.timestamp && prevLog.message === apiLog.message
                     )
                 );
-                // Sort by time and keep last 500
                 const combined = [...prevLogs, ...newLogs].sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
                 return combined.slice(-500);
             });
@@ -222,7 +249,6 @@ export default function TradingBot() {
 
     const visibleLogs = persistentLogs.filter(log => new Date(log.timestamp).getTime() > logsClearedTime);
 
-    // Auto-Scroll Logs
     useEffect(() => {
         if (logsContainerRef.current) {
             const { scrollHeight, clientHeight } = logsContainerRef.current;
@@ -230,7 +256,6 @@ export default function TradingBot() {
         }
     }, [persistentLogs]);
 
-    // Auto-Polling
     useEffect(() => {
         let interval;
         if (botStatus?.status === 'running') {
@@ -270,7 +295,7 @@ export default function TradingBot() {
         setSelectedWinnerId(filename);
         setSelectedSetupId(""); 
 
-        const selectedWinner = winners.find(w => w.id === filename);
+        const selectedWinner = liveWinners.find(w => w.id === filename);
         if (selectedWinner && selectedWinner.config) {
             const config = selectedWinner.config;
             let symbol = config.symbol || "BTC-USD";
@@ -369,7 +394,6 @@ export default function TradingBot() {
         }))
     };
 
-    // 🚀 ROBUST CHECK: Does chart data exist?
     const hasData = chartData.candleData && chartData.candleData.length > 0;
 
     return (
@@ -399,11 +423,22 @@ export default function TradingBot() {
                             </select>
                         </label>
 
-                        <label className="setup-selector">
-                            Load Alpha (ML Optimizer)
+                        {/* 🚀 LIVE FILE EXPLORER DROPDOWN */}
+                        <label className="setup-selector" style={{position: 'relative'}}>
+                            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                <span>Load Alpha (Data Folder)</span>
+                                <button 
+                                    type="button" 
+                                    onClick={fetchWinners} 
+                                    disabled={scanningWinners}
+                                    style={{background:'none', border:'none', cursor:'pointer', color:'#4ade80', fontSize:'0.8rem'}}
+                                >
+                                    {scanningWinners ? 'Scanning...' : '🔄 Scan'}
+                                </button>
+                            </div>
                             <select value={selectedWinnerId} onChange={handleWinnerSelect} disabled={isRunning} style={{borderColor: selectedWinnerId ? '#3b82f6' : '#444'}}>
-                                <option value="">-- Select Verified Alpha --</option>
-                                {winners.map(w => <option key={w.id} value={w.id}>🏆 {w.name}</option>)}
+                                <option value="">-- Select File from Disk --</option>
+                                {liveWinners.map(w => <option key={w.id} value={w.id}>🏆 {w.name}</option>)}
                             </select>
                         </label>
                     </div>
@@ -411,7 +446,14 @@ export default function TradingBot() {
                     <div className="form-grid">
                         <label>Symbol<input value={formConfig.symbol} disabled /></label>
                         <label>Timeframe<input value={formConfig.timeframe} disabled /></label>
-                        <label>Capital Allocation<input type="number" value={formConfig.capitalAllocation} onChange={e=>setFormConfig(p=>({...p, capitalAllocation:e.target.value}))} disabled={isRunning} /></label>
+                        <label>Capital Allocation
+                            <input 
+                                type="number" 
+                                value={formConfig.capitalAllocation} 
+                                onChange={e=>setFormConfig(p=>({...p, capitalAllocation:e.target.value}))} 
+                                disabled={isRunning}
+                            />
+                        </label>
                     </div>
 
                     <div className="mode-switch-container">
@@ -428,7 +470,12 @@ export default function TradingBot() {
                 </form>
             </div>
 
-            {error && <div className="error-banner">{error}</div>}
+            {/* ERROR BANNER */}
+            {/* {(error || (liveWinners.length === 0 && !scanningWinners)) && (
+                <div className="error-banner">
+                    {error || "No strategy files found in /data/optimizer_results. Run the optimizer first!"}
+                </div>
+            )} */}
 
             {(botStatus?.isConfigured || isRunning) && (
                 <>
@@ -441,7 +488,6 @@ export default function TradingBot() {
                              <button onClick={handleRefreshChart} style={{background:'none', border:'none', color:'#4ade80', cursor:'pointer', fontSize:'0.8rem'}}>↻ SYNC</button>
                         </div>
                         <div style={{height: '500px'}}>
-                            {/* 🚀 CHART FIX: Fallback if no data yet */}
                             {hasData ? (
                                 <ChartIndependent results={chartData} symbol={formConfig.symbol} />
                             ) : (
