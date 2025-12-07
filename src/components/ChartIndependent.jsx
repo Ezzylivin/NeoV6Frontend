@@ -98,7 +98,7 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
                 high: last.high.toFixed(2),
                 low: last.low.toFixed(2),
                 close: last.close.toFixed(2),
-                time: new Date(last.time * 1000).toLocaleString(),
+                time: new Date(last.time * 1000).toLocaleString("en-US", { timeZone: "America/New_York" }),
                 color: last.close >= last.open ? "#22c55e" : "#ef4444"
             });
         }
