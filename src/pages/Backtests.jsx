@@ -1,6 +1,6 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v62.0 - "Result-Driven Workflow"
-// Changes: Removed DB Loader, Added "Save Strategy" to Results Panel
+// 🚀 UPGRADE: v64.0 - "Max Pyramiding Restored"
+// Fixes: UI Input for Pyramiding was missing.
 
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios"; 
@@ -10,7 +10,7 @@ import {
   PieChart, Pie, Cell, Legend
 } from "recharts";
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
-import api from "../api/apiClient"; // 🚀 Needed for Saving
+import api from "../api/apiClient"; 
 import "./Backtests.css"; 
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
@@ -57,13 +57,15 @@ const downloadCSV = (trades) => {
 // --- 3. INITIAL STATES ---
 const initialFormData = {
   strategyId: "", code: "", symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate,
-  initialBalance: 1000, params: { ...defaultFilterParams }, riskManagementMode: 'standard', riskPercentage: 1, growthCapitalTarget: 2000,
+  initialBalance: 1000, params: { ...defaultFilterParams, maxPyramiding: 1 }, // Default to 1
+  riskManagementMode: 'standard', riskPercentage: 1, growthCapitalTarget: 2000,
   mlMode: "off", mlModel: "", mlThreshold: 0.5, mlHorizon: 1
 };
 
 const initialComboData = {
   strategies: [ { strategyId: "", code: "", params: { tslAtrMult: 3.5 } }, { strategyId: "", code: "", params: { tslAtrMult: 3.5 } } ],
-  params: { ...defaultFilterParams }, comboConfig: { strategyCodes: [], combinationRule: 'AND' },
+  params: { ...defaultFilterParams, maxPyramiding: 1 }, 
+  comboConfig: { strategyCodes: [], combinationRule: 'AND' },
   symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, initialBalance: 1000,
   riskManagementMode: 'standard', riskPercentage: 1, growthCapitalTarget: 2000, mlMode: "off", mlModel: "", mlThreshold: 0.5, mlHorizon: 1
 };
@@ -143,6 +145,10 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
                 <legend style={{color:'#94a3b8', padding:'0 5px'}}>Risk & Machine Learning</legend>
                 <div className="form-grid">
                     <label>Risk %: <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={handleGlobalChange} step="0.1" /></label>
+                    
+                    {/* 🚀 RESTORED: MAX PYRAMIDING */}
+                    <label>Max Pyramiding: <input type="number" name="maxPyramiding" value={params.maxPyramiding || 1} onChange={handleParamChange} min="1" max="10" /></label>
+
                     <label>ML Mode: <select name="mlMode" value={data.mlMode || "off"} onChange={handleGlobalChange}><option value="off">Off (Pure TA)</option><option value="predictions">Hybrid (TA+ML)</option><option value="on">Pure ML</option></select></label>
                     
                     {data.mlMode === 'predictions' && (
@@ -389,9 +395,7 @@ export default function Backtests() {
             <h3 className="card-title">Configuration</h3>
         </div>
         
-        {/* 🚀 REMOVED: Database Loader (Per request) */}
-        
-        {/* 🚀 FILE LOADER (Only) */}
+        {/* 🚀 FILE LOADER */}
         <div className="form-group" style={{ marginBottom: '20px', padding: '15px', background: '#1e293b', borderRadius: '8px', border: '1px solid #334155' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                 <label style={{ color: '#4ade80', fontWeight: 'bold' }}>🏆 Load Alpha (ML)</label>
@@ -431,7 +435,6 @@ export default function Backtests() {
             
             {loading === 'idle' && combinedMetrics && !error && (
               <>
-                {/* 🚀 SAVE BUTTON ADDED TO RESULTS */}
                 <div style={{display:'flex', justifyContent:'flex-end', gap:'10px', marginBottom:'15px'}}>
                     <button onClick={handleSaveStrategy} style={{background:'#22c55e', color:'white', border:'none', padding:'8px 16px', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}>💾 Save Strategy</button>
                     <button onClick={() => downloadCSV(mainResult.tradeBreakdown)} style={{background:'#3b82f6', color:'white', border:'none', padding:'8px 16px', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}>⬇ Export CSV</button>
