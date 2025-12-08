@@ -1,6 +1,6 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v60.0 - "The Perfected Backtest Terminal"
-// Fixed: Missing Strategies, Missing Charts, Advanced Filters, Visual Polish
+// 🚀 UPGRADE: v60.1 - "The Missing Functions Fix"
+// Restored: Combo Logic, Strategy Adding/Removing, Config Updates
 
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios"; 
@@ -11,7 +11,7 @@ import {
   PieChart, Pie, Cell, Legend
 } from "recharts";
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
-import "./Backtests.css"; // Matches your file name
+import "./Backtests.css"; 
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
 
@@ -69,8 +69,6 @@ const initialComboData = {
 };
 
 // --- 4. SUB-COMPONENTS ---
-
-// 📅 Monthly Heatmap
 const MonthlyHeatmap = ({ equityCurve }) => {
     if (!equityCurve || equityCurve.length === 0) return null;
     const monthlyReturns = {};
@@ -95,7 +93,6 @@ const MonthlyHeatmap = ({ equityCurve }) => {
     );
 };
 
-// 🔢 Key Metrics
 const MetricsDisplay = ({ metrics }) => {
   if (!metrics) return null;
   const items = [
@@ -122,7 +119,6 @@ const MetricsDisplay = ({ metrics }) => {
   );
 };
 
-// ⚙️ Common Inputs
 const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
     const handleGlobalChange = (e) => onChange(e);
     const handleParamChange = (e) => {
@@ -148,6 +144,7 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
                 <div className="form-grid">
                     <label>Risk %: <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={handleGlobalChange} step="0.1" /></label>
                     <label>ML Mode: <select name="mlMode" value={data.mlMode || "off"} onChange={handleGlobalChange}><option value="off">Off (Pure TA)</option><option value="predictions">Hybrid (TA+ML)</option><option value="on">Pure ML</option></select></label>
+                    
                     {data.mlMode === 'predictions' && (
                         <label>Hybrid Logic:
                             <select name="hybridMode" value={params.hybridMode || "AND"} onChange={handleParamChange}>
@@ -157,12 +154,14 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
                             </select>
                         </label>
                     )}
+
                     {data.mlMode !== 'off' && (
                         <>
                             <label>Model: <select name="mlModel" value={data.mlModel} onChange={handleGlobalChange}><option value="">-- Select --</option>{options.modelOptions.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></label>
                             <label>Threshold: <input type="number" name="mlThreshold" value={data.mlThreshold} step="0.05" onChange={handleGlobalChange} /></label>
                         </>
                     )}
+                    
                     {params.hybridMode === 'REGIME' && <label>Regime Thresh: <input type="number" name="regime_threshold" value={params.regime_threshold ?? 25} onChange={handleParamChange} step="1" /></label>}
                 </div>
             </fieldset>
@@ -180,7 +179,6 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
     );
 };
 
-// 🎴 Combo Strategy Card
 const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, disableRemove }) => {
   const handleChange = (e) => onChange(e, idx);
   return (
@@ -322,6 +320,43 @@ export default function Backtests() {
     }
   };
 
+  // 🚀 RESTORED: Combo Handlers
+  const handleComboChange = (e) => {
+    const { name, value, type } = e.target;
+    let val = type === 'number' ? parseFloat(value) : value;
+    if (name.startsWith("param_")) {
+      setComboData(prev => ({ ...prev, params: { ...prev.params, [name.substring(6)]: val } }));
+    } else {
+      setComboData(prev => ({ ...prev, [name]: val }));
+    }
+  };
+
+  const handleStrategyConfigChange = (e, index) => {
+    const { name, value } = e.target;
+    const updatedStrategies = [...comboData.strategies];
+    const currentConfig = { ...updatedStrategies[index] };
+    if (name === 'strategyId') { 
+      const selectedStrategy = strategyOptions.find(s => s._id === value);
+      if (selectedStrategy) {
+          currentConfig.strategyId = value;
+          currentConfig.code = selectedStrategy.code;
+          currentConfig.params = { ...(selectedStrategy.params || {}), ...currentConfig.params };
+      }
+    }
+    updatedStrategies[index] = currentConfig;
+    setComboData(prev => ({ ...prev, strategies: updatedStrategies }));
+  };
+
+  const addStrategyCard = () => {
+    const defaultStrategy = strategyOptions[0] || {};
+    setComboData(prev => ({ ...prev, strategies: [...prev.strategies, { strategyId: defaultStrategy._id || "", code: defaultStrategy.code || "", params: {} }] }));
+  };
+
+  const removeStrategyCard = (index) => {
+    if (comboData.strategies.length <= 1) return;
+    setComboData(prev => ({ ...prev, strategies: prev.strategies.filter((_, i) => i !== index) }));
+  };
+
   const handleRun = async (e, isCombo) => {
     e.preventDefault();
     setBacktestResults({ main: null });
@@ -372,7 +407,7 @@ export default function Backtests() {
             <div className="setup-selector" style={{flex:1}}>
                 <div style={{display:'flex', justifyContent:'space-between'}}>
                     <label style={{color:'#4ade80'}}>Load Alpha (ML)</label>
-                    <button onClick={fetchWinners} disabled={scanningWinners}>{scanningWinners ? '...' : '🔄'}</button>
+                    <button onClick={fetchWinners} disabled={scanningWinners} style={{background:'none', border:'none', color:'#4ade80', cursor:'pointer'}}>{scanningWinners ? '...' : '🔄'}</button>
                 </div>
                 <select value={selectedWinnerId} onChange={handleWinnerSelect}><option value="">-- Select Golden Strategy --</option>{liveWinners.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select>
             </div>
@@ -391,7 +426,7 @@ export default function Backtests() {
                 </>
             ) : (
                 <>
-                    <CommonBacktestInputs data={comboData} onChange={(e) => handleFormChange(e, setComboData)} options={{ symbolOptions, timeframeOptions, modelOptions }} isCombo={true} />
+                    <CommonBacktestInputs data={comboData} onChange={handleComboChange} options={{ symbolOptions, timeframeOptions, modelOptions }} isCombo={true} />
                     <div className="combo-strategy-list" style={{marginTop:'20px'}}>
                         {comboData.strategies.map((config, idx) => (<ComboStrategyCard key={idx} idx={idx} config={config} strategies={strategyOptions} onChange={handleStrategyConfigChange} onRemove={removeStrategyCard} disableRemove={comboData.strategies.length <= 1} />))}
                     </div>
