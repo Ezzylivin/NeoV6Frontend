@@ -1,5 +1,6 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v56.0 - "The Complete Professional Backtester" (All Features Restored & Integrated)
+// 🚀 UPGRADE: v60.0 - "The Perfected Backtest Terminal"
+// Fixed: Missing Strategies, Missing Charts, Advanced Filters, Visual Polish
 
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios"; 
@@ -10,11 +11,11 @@ import {
   PieChart, Pie, Cell, Legend
 } from "recharts";
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
-import "./Backtests.css"; 
+import "./Backtests.css"; // Matches your file name
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
 
-// --- 1. CONSTANTS ---
+// --- 1. MAPPINGS & CONSTANTS ---
 const STRATEGY_TYPE_TO_CODE_MAP = {
   "Moving Average Crossover": "sma_crossover", "RSI": "rsi_divergence", "MACD": "macd_crossover",
   "Stochastic Oscillator": "stochastic_crossover", "CCI": "cci_oversold", "Bollinger Bands": "bollinger_bands",
@@ -53,7 +54,7 @@ const downloadCSV = (trades) => {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
 };
 
-// --- 3. INITIAL STATE ---
+// --- 3. INITIAL STATES ---
 const initialFormData = {
   strategyId: "", code: "", symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate,
   initialBalance: 1000, params: { ...defaultFilterParams }, riskManagementMode: 'standard', riskPercentage: 1, growthCapitalTarget: 2000,
@@ -67,7 +68,9 @@ const initialComboData = {
   riskManagementMode: 'standard', riskPercentage: 1, growthCapitalTarget: 2000, mlMode: "off", mlModel: "", mlThreshold: 0.5, mlHorizon: 1
 };
 
-// --- 4. VISUAL COMPONENTS ---
+// --- 4. SUB-COMPONENTS ---
+
+// 📅 Monthly Heatmap
 const MonthlyHeatmap = ({ equityCurve }) => {
     if (!equityCurve || equityCurve.length === 0) return null;
     const monthlyReturns = {};
@@ -92,6 +95,7 @@ const MonthlyHeatmap = ({ equityCurve }) => {
     );
 };
 
+// 🔢 Key Metrics
 const MetricsDisplay = ({ metrics }) => {
   if (!metrics) return null;
   const items = [
@@ -118,6 +122,7 @@ const MetricsDisplay = ({ metrics }) => {
   );
 };
 
+// ⚙️ Common Inputs
 const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
     const handleGlobalChange = (e) => onChange(e);
     const handleParamChange = (e) => {
@@ -138,14 +143,11 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
                 <label>End Date: <input type="date" name="endDate" value={data.endDate} onChange={handleGlobalChange} /></label>
             </div>
             
-            {/* 🚀 RISK & MACHINE LEARNING & HYBRID LOGIC */}
             <fieldset style={{border:'1px solid #334155', padding:'15px', borderRadius:'8px', marginTop:'15px'}}>
                 <legend style={{color:'#94a3b8', padding:'0 5px'}}>Risk & Machine Learning</legend>
                 <div className="form-grid">
                     <label>Risk %: <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={handleGlobalChange} step="0.1" /></label>
                     <label>ML Mode: <select name="mlMode" value={data.mlMode || "off"} onChange={handleGlobalChange}><option value="off">Off (Pure TA)</option><option value="predictions">Hybrid (TA+ML)</option><option value="on">Pure ML</option></select></label>
-                    
-                    {/* HYBRID LOGIC SELECTOR */}
                     {data.mlMode === 'predictions' && (
                         <label>Hybrid Logic:
                             <select name="hybridMode" value={params.hybridMode || "AND"} onChange={handleParamChange}>
@@ -155,19 +157,16 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
                             </select>
                         </label>
                     )}
-
                     {data.mlMode !== 'off' && (
                         <>
                             <label>Model: <select name="mlModel" value={data.mlModel} onChange={handleGlobalChange}><option value="">-- Select --</option>{options.modelOptions.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></label>
                             <label>Threshold: <input type="number" name="mlThreshold" value={data.mlThreshold} step="0.05" onChange={handleGlobalChange} /></label>
                         </>
                     )}
-                    
                     {params.hybridMode === 'REGIME' && <label>Regime Thresh: <input type="number" name="regime_threshold" value={params.regime_threshold ?? 25} onChange={handleParamChange} step="1" /></label>}
                 </div>
             </fieldset>
 
-            {/* 🚀 ADVANCED FILTERS */}
             <fieldset style={{border:'1px solid #334155', padding:'15px', borderRadius:'8px', marginTop:'15px'}}>
                 <legend style={{color:'#94a3b8', padding:'0 5px'}}>Advanced Filters</legend>
                 <div className="form-grid">
@@ -181,6 +180,7 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
     );
 };
 
+// 🎴 Combo Strategy Card
 const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, disableRemove }) => {
   const handleChange = (e) => onChange(e, idx);
   return (
@@ -199,12 +199,14 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
   );
 };
 
-// --- MAIN PAGE ---
+// --- MAIN PAGE COMPONENT ---
 export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest } = useBacktest(); 
   const { loading = 'idle', error = null, options = {}, winners = [] } = state || {};
+  const { setups } = useBacktestSetupFunction(); // 📦 DB Setups
 
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
+  const [selectedSetupId, setSelectedSetupId] = useState("");
   const [formData, setFormData] = useState(initialFormData);
   const [comboData, setComboData] = useState(initialComboData);
   const [backtestResults, setBacktestResults] = useState({ main: null });
@@ -212,7 +214,7 @@ export default function Backtests() {
   const [liveWinners, setLiveWinners] = useState([]);
   const [scanningWinners, setScanningWinners] = useState(false);
 
-  // Loaders
+  // 🔄 Loaders for Dropdowns
   const strategyOptions = useMemo(() => {
     const dbStrats = options?.strategies || [];
     const baseStrats = Object.entries(STRATEGY_TYPE_TO_CODE_MAP).map(([name, code], idx) => ({ _id: `base-${code}-${idx}`, name, code, params: {} }));
@@ -223,7 +225,7 @@ export default function Backtests() {
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
   const modelOptions = useMemo(() => options?.models || [], [options]);
 
-  // Fetch Winners
+  // 📡 Fetch Winners (File System)
   const fetchWinners = async () => {
       setScanningWinners(true);
       try {
@@ -235,10 +237,47 @@ export default function Backtests() {
   };
   useEffect(() => { fetchWinners(); }, []);
 
-  // Universal Winner Adapter
+  // 📂 Adapter: Load Strategy from Database (MongoDB)
+  const handleSetupSelect = (e) => {
+      const setupId = e.target.value;
+      setSelectedSetupId(setupId);
+      setSelectedWinnerId(""); // Reset file loader
+      
+      const setup = setups.find(s => s._id === setupId);
+      if (!setup) return;
+
+      const isCombo = setup.isCombo || (setup.strategies && setup.strategies.length > 1);
+      
+      if (isCombo) {
+          setActiveTab('combo');
+          setComboData(prev => ({
+              ...prev,
+              symbol: setup.symbol, timeframe: setup.timeframe, initialBalance: setup.initialBalance || 1000,
+              strategies: setup.strategies,
+              comboConfig: setup.comboConfig || { strategyCodes: [], combinationRule: 'OR' },
+              params: setup.params || {},
+              mlMode: setup.mlMode || 'off', mlModel: setup.mlModel || '', mlThreshold: setup.mlThreshold || 0.5
+          }));
+      } else {
+          setActiveTab('single');
+          const code = setup.strategies?.[0]?.code;
+          const stratOption = strategyOptions.find(s => s.code === code);
+          setFormData(prev => ({
+              ...prev,
+              strategyId: stratOption?._id || "",
+              code: code,
+              symbol: setup.symbol, timeframe: setup.timeframe, initialBalance: setup.initialBalance || 1000,
+              params: setup.params || {},
+              mlMode: setup.mlMode || 'off', mlModel: setup.mlModel || '', mlThreshold: setup.mlThreshold || 0.5
+          }));
+      }
+  };
+
+  // 📂 Adapter: Load Strategy from File (Optimized)
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
+      setSelectedSetupId(""); // Reset DB loader
       const selectedWinner = liveWinners.find(w => w.id === filename);
       if (!selectedWinner || !selectedWinner.config) return;
       
@@ -266,12 +305,7 @@ export default function Backtests() {
           ...prev, symbol, timeframe, isCombo: true, strategies,
           comboConfig: { strategyCodes: strategies.map(s => s.code), combinationRule: data.params?.hybridMode || 'OR' },
           mlMode, mlModel, mlThreshold: Number(data.mlThreshold) || 0.5,
-          params: { 
-              ...data.params, 
-              riskPercentage: Number(data.riskPercentage), 
-              maxPyramiding: Number(data.maxPyramiding),
-              hybridMode: data.params?.hybridMode || 'OR' // Ensure logic mode is carried over
-          }
+          params: { ...data.params, riskPercentage: Number(data.riskPercentage), maxPyramiding: Number(data.maxPyramiding) }
       }));
   };
 
@@ -325,34 +359,51 @@ export default function Backtests() {
       <h2 className="header">Strategy Backtester</h2>
       
       <div className="bot-card control-panel">
-        <div className="form-group" style={{ marginBottom: '20px', padding: '15px', background: '#1e293b', borderRadius: '8px', border: '1px solid #334155' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <label style={{ color: '#4ade80', fontWeight: 'bold' }}>🏆 Load Alpha (ML)</label>
-                <button onClick={fetchWinners} disabled={scanningWinners} style={{background:'none', border:'none', color:'#4ade80', cursor:'pointer'}}>{scanningWinners ? '...' : '🔄'}</button>
+        <div className="panel-header">
+            <h3 className="card-title">Configuration</h3>
+        </div>
+        
+        {/* 🚀 LOADERS: FILE + DATABASE */}
+        <div style={{display:'flex', gap:'20px', marginBottom:'20px'}}>
+            <div className="setup-selector" style={{flex:1}}>
+                <label>Load Strategy (Database)</label>
+                <select value={selectedSetupId} onChange={handleSetupSelect}><option value="">-- Select Saved Setup --</option>{setups.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}</select>
             </div>
-            <select value={selectedWinnerId} onChange={handleWinnerSelect}><option value="">-- Select Golden Strategy --</option>{liveWinners.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select>
+            <div className="setup-selector" style={{flex:1}}>
+                <div style={{display:'flex', justifyContent:'space-between'}}>
+                    <label style={{color:'#4ade80'}}>Load Alpha (ML)</label>
+                    <button onClick={fetchWinners} disabled={scanningWinners}>{scanningWinners ? '...' : '🔄'}</button>
+                </div>
+                <select value={selectedWinnerId} onChange={handleWinnerSelect}><option value="">-- Select Golden Strategy --</option>{liveWinners.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select>
+            </div>
         </div>
 
         <div className="tabs" style={{marginBottom:'20px'}}>
-            <button className={activeTab === 'single' ? 'active' : ''} onClick={() => setActiveTab('single')} style={{marginRight:'10px'}}>Single</button>
-            <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo</button>
+            <button className={activeTab === 'single' ? 'active' : ''} onClick={() => setActiveTab('single')} style={{marginRight:'10px'}}>Single Strategy</button>
+            <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo Strategy</button>
         </div>
 
         <form onSubmit={(e) => handleRun(e, activeTab === 'combo')} className="backtest-form">
             {activeTab === 'single' ? (
                 <>
-                    <label>Strategy: <select name="strategyId" value={formData.strategyId} onChange={(e) => handleFormChange(e, setFormData)}><option value="">-- Select --</option>{strategyOptions.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}</select></label>
+                    <label>Strategy: <select name="strategyId" value={formData.strategyId} onChange={(e) => handleFormChange(e, setFormData)}><option value="">-- Select TA Strategy --</option>{strategyOptions.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}</select></label>
                     <CommonBacktestInputs data={formData} onChange={(e) => handleFormChange(e, setFormData)} options={{ symbolOptions, timeframeOptions, modelOptions }} />
                 </>
             ) : (
-                <CommonBacktestInputs data={comboData} onChange={(e) => handleFormChange(e, setComboData)} options={{ symbolOptions, timeframeOptions, modelOptions }} isCombo={true} />
+                <>
+                    <CommonBacktestInputs data={comboData} onChange={(e) => handleFormChange(e, setComboData)} options={{ symbolOptions, timeframeOptions, modelOptions }} isCombo={true} />
+                    <div className="combo-strategy-list" style={{marginTop:'20px'}}>
+                        {comboData.strategies.map((config, idx) => (<ComboStrategyCard key={idx} idx={idx} config={config} strategies={strategyOptions} onChange={handleStrategyConfigChange} onRemove={removeStrategyCard} disableRemove={comboData.strategies.length <= 1} />))}
+                    </div>
+                    <button type="button" onClick={addStrategyCard} style={{marginTop:'10px', marginBottom:'20px', width:'100%', padding:'10px', background:'#3b82f6', color:'white', border:'none', borderRadius:'6px'}}>+ Add Strategy Layer</button>
+                </>
             )}
             <button type="submit" className="button-start" disabled={loading !== 'idle'} style={{marginTop:'20px'}}>{loading !== 'idle' ? 'Processing...' : 'Run Simulation'}</button>
         </form>
       </div>
 
       {(loading !== 'idle' || combinedMetrics || error) && (
-          <div className="bot-card results-panel">
+          <div className="bot-card results-panel" style={{marginTop:'30px'}}>
             <h3 className="card-title">Backtest Results</h3>
             {loading !== 'idle' && <div className="loading-overlay"><div className="spinner"></div></div>}
             
