@@ -1,5 +1,5 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v55.0 - "The Complete Backtester" (Restored Advanced Filters)
+// 🚀 UPGRADE: v56.0 - "The Complete Professional Backtester" (All Features Restored & Integrated)
 
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios"; 
@@ -124,7 +124,7 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
         const { name, value, type } = e.target;
         onChange({ target: { name: `param_${name}`, value: type === 'number' ? parseFloat(value) : value, type } });
     };
-    const params = data.params || {}; // Access nested params
+    const params = data.params || {};
 
     return (
         <>
@@ -137,16 +137,37 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
                 <label>Start Date: <input type="date" name="startDate" value={data.startDate} onChange={handleGlobalChange} /></label>
                 <label>End Date: <input type="date" name="endDate" value={data.endDate} onChange={handleGlobalChange} /></label>
             </div>
+            
+            {/* 🚀 RISK & MACHINE LEARNING & HYBRID LOGIC */}
             <fieldset style={{border:'1px solid #334155', padding:'15px', borderRadius:'8px', marginTop:'15px'}}>
-                <legend style={{color:'#94a3b8', padding:'0 5px'}}>Risk & ML</legend>
+                <legend style={{color:'#94a3b8', padding:'0 5px'}}>Risk & Machine Learning</legend>
                 <div className="form-grid">
                     <label>Risk %: <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={handleGlobalChange} step="0.1" /></label>
-                    <label>ML Mode: <select name="mlMode" value={data.mlMode} onChange={handleGlobalChange}><option value="off">Off</option><option value="predictions">Hybrid</option><option value="on">Pure ML</option></select></label>
-                    {data.mlMode !== 'off' && <label>Model: <select name="mlModel" value={data.mlModel} onChange={handleGlobalChange}><option value="">-- Select --</option>{options.modelOptions.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></label>}
+                    <label>ML Mode: <select name="mlMode" value={data.mlMode || "off"} onChange={handleGlobalChange}><option value="off">Off (Pure TA)</option><option value="predictions">Hybrid (TA+ML)</option><option value="on">Pure ML</option></select></label>
+                    
+                    {/* HYBRID LOGIC SELECTOR */}
+                    {data.mlMode === 'predictions' && (
+                        <label>Hybrid Logic:
+                            <select name="hybridMode" value={params.hybridMode || "AND"} onChange={handleParamChange}>
+                                <option value="AND">Strict (TA + ML Agree)</option>
+                                <option value="OR">Loose (TA OR ML Signal)</option>
+                                <option value="REGIME">Regime (ML Filters TA)</option>
+                            </select>
+                        </label>
+                    )}
+
+                    {data.mlMode !== 'off' && (
+                        <>
+                            <label>Model: <select name="mlModel" value={data.mlModel} onChange={handleGlobalChange}><option value="">-- Select --</option>{options.modelOptions.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></label>
+                            <label>Threshold: <input type="number" name="mlThreshold" value={data.mlThreshold} step="0.05" onChange={handleGlobalChange} /></label>
+                        </>
+                    )}
+                    
+                    {params.hybridMode === 'REGIME' && <label>Regime Thresh: <input type="number" name="regime_threshold" value={params.regime_threshold ?? 25} onChange={handleParamChange} step="1" /></label>}
                 </div>
             </fieldset>
 
-            {/* 🚀 RESTORED: ADVANCED FILTERS */}
+            {/* 🚀 ADVANCED FILTERS */}
             <fieldset style={{border:'1px solid #334155', padding:'15px', borderRadius:'8px', marginTop:'15px'}}>
                 <legend style={{color:'#94a3b8', padding:'0 5px'}}>Advanced Filters</legend>
                 <div className="form-grid">
@@ -158,6 +179,24 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
             </fieldset>
         </>
     );
+};
+
+const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, disableRemove }) => {
+  const handleChange = (e) => onChange(e, idx);
+  return (
+    <div className="bot-card" style={{padding:'15px', background:'#0f172a', border:'1px solid #334155'}}>
+      <div style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}>
+        <strong>Strategy #{idx + 1}</strong>
+        {!disableRemove && <button type="button" onClick={() => onRemove(idx)} style={{background:'none', border:'none', color:'#ef4444', cursor:'pointer'}}>✕</button>}
+      </div>
+      <label>Strategy:
+          <select name="strategyId" value={config.strategyId} onChange={handleChange} disabled={!strategies.length} style={{width:'100%', padding:'8px', background:'#1e293b', color:'white', border:'1px solid #475569'}}>
+            <option value="">-- Select --</option>
+            {strategies.length ? strategies.map(s => <option key={s._id} value={s._id}>{s.name}</option>) : <option disabled>Loading...</option>}
+          </select>
+      </label>
+    </div>
+  );
 };
 
 // --- MAIN PAGE ---
@@ -227,7 +266,12 @@ export default function Backtests() {
           ...prev, symbol, timeframe, isCombo: true, strategies,
           comboConfig: { strategyCodes: strategies.map(s => s.code), combinationRule: data.params?.hybridMode || 'OR' },
           mlMode, mlModel, mlThreshold: Number(data.mlThreshold) || 0.5,
-          params: { ...data.params, riskPercentage: Number(data.riskPercentage), maxPyramiding: Number(data.maxPyramiding) }
+          params: { 
+              ...data.params, 
+              riskPercentage: Number(data.riskPercentage), 
+              maxPyramiding: Number(data.maxPyramiding),
+              hybridMode: data.params?.hybridMode || 'OR' // Ensure logic mode is carried over
+          }
       }));
   };
 
