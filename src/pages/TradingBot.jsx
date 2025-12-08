@@ -495,7 +495,8 @@ export default function TradingBot() {
                              <h3 className="card-title" style={{margin:0, fontSize:'0.9rem'}}>Live Market Data</h3>
                              <button onClick={handleRefreshChart} style={{background:'none', border:'none', color:'#4ade80', cursor:'pointer', fontSize:'0.8rem'}}>↻ SYNC</button>
                         </div>
-                        <div style={{height: '500px'}}>
+                        {/* 🚀 INCREASED HEIGHT TO 800px */}
+                        <div style={{height: '800px'}}>
                             {hasData ? (
                                 <ChartIndependent results={chartData} symbol={formConfig.symbol} />
                             ) : (
