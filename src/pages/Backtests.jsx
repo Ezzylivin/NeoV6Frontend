@@ -1,17 +1,22 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v64.0 - "Max Pyramiding Restored"
-// Fixes: UI Input for Pyramiding was missing.
+// 🚀 UPGRADE: v65.0 - "2026 Aesthetic Integration"
+// Features: Glass-morphism, gradient accents, modern dark theme, enhanced UX
 
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios"; 
 import { useBacktest } from "../hooks/useBacktest.js";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
+  PieChart, Pie, Cell, Legend, AreaChart, Area, BarChart, Bar
 } from "recharts";
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
 import api from "../api/apiClient"; 
-import "./Backtests.css"; 
+import { 
+  Activity, TrendingUp, TrendingDown, DollarSign, Percent, Target, 
+  BarChart3, Play, Settings, Download, Save, RefreshCw, Clock,
+  Calendar, Zap, Brain, Shield, Filter
+} from 'lucide-react';
+import "../styles/Backtests.css"; 
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
 
@@ -57,7 +62,7 @@ const downloadCSV = (trades) => {
 // --- 3. INITIAL STATES ---
 const initialFormData = {
   strategyId: "", code: "", symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate,
-  initialBalance: 1000, params: { ...defaultFilterParams, maxPyramiding: 1 }, // Default to 1
+  initialBalance: 1000, params: { ...defaultFilterParams, maxPyramiding: 1 },
   riskManagementMode: 'standard', riskPercentage: 1, growthCapitalTarget: 2000,
   mlMode: "off", mlModel: "", mlThreshold: 0.5, mlHorizon: 1
 };
@@ -80,15 +85,37 @@ const MonthlyHeatmap = ({ equityCurve }) => {
         if (!monthlyReturns[monthKey]) monthlyReturns[monthKey] = { start: point.balance, end: point.balance };
         monthlyReturns[monthKey].end = point.balance;
     });
+    
     return (
-        <div className="bot-card" style={{marginTop:'20px'}}>
-            <h3 className="card-title">Monthly Performance</h3>
-            <div className="heatmap-grid">
+        <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6" style={{marginTop:'24px'}}>
+            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800/50">
+                <div className="w-10 h-10 bg-gradient-to-br from-violet-500/20 to-pink-500/20 rounded-xl flex items-center justify-center">
+                    <Calendar className="w-5 h-5 text-violet-400" />
+                </div>
+                <h3 className="text-white">Monthly Performance Heatmap</h3>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
                 {Object.keys(monthlyReturns).sort().map(month => {
                     const data = monthlyReturns[month];
                     const ret = ((data.end - data.start) / data.start) * 100;
-                    const bg = ret >= 0 ? `rgba(34, 197, 94, ${Math.min(ret/10, 1)})` : `rgba(239, 68, 68, ${Math.min(Math.abs(ret)/10, 1)})`;
-                    return (<div key={month} className="heatmap-cell" style={{backgroundColor: bg, border: '1px solid #334155'}}><div className="month-label">{month}</div><div className="month-val">{ret > 0 ? '+' : ''}{ret.toFixed(2)}%</div></div>)
+                    const intensity = Math.min(Math.abs(ret) / 10, 1);
+                    const bg = ret >= 0 
+                        ? `rgba(34, 197, 94, ${intensity * 0.3})` 
+                        : `rgba(239, 68, 68, ${intensity * 0.3})`;
+                    const borderColor = ret >= 0 ? 'border-emerald-500/30' : 'border-rose-500/30';
+                    
+                    return (
+                        <div 
+                            key={month} 
+                            className={`bg-slate-800/30 border ${borderColor} rounded-xl p-4 text-center hover:scale-105 transition-all`}
+                            style={{backgroundColor: bg}}
+                        >
+                            <div className="text-slate-400 text-xs mb-2">{month}</div>
+                            <div className={`font-mono ${ret > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                {ret > 0 ? '+' : ''}{ret.toFixed(2)}%
+                            </div>
+                        </div>
+                    )
                 })}
             </div>
         </div>
@@ -97,26 +124,58 @@ const MonthlyHeatmap = ({ equityCurve }) => {
 
 const MetricsDisplay = ({ metrics }) => {
   if (!metrics) return null;
-  const items = [
-    { label: "Total Return", value: metrics.totalReturn, format: 'percent' },
-    { label: "Profit Factor", value: metrics.profitFactor, format: 'number' },
-    { label: "Max Drawdown", value: metrics.maxDrawdown, format: 'percent' },
-    { label: "Win Rate", value: metrics.winRate, format: 'percent' },
-    { label: "Total Trades", value: metrics.totalTrades, format: null },
-    { label: "Avg. Win", value: metrics.averageWin, format: 'currency' },
-    { label: "Avg. Loss", value: metrics.averageLoss, format: 'currency' },
-    { label: "Final Balance", value: metrics.finalBalance, format: 'currency' }
+  
+  const metricsConfig = [
+    { label: "Total Return", value: metrics.totalReturn, format: 'percent', icon: TrendingUp, color: 'emerald' },
+    { label: "Profit Factor", value: metrics.profitFactor, format: 'number', icon: Target, color: 'blue' },
+    { label: "Max Drawdown", value: metrics.maxDrawdown, format: 'percent', icon: TrendingDown, color: 'amber' },
+    { label: "Win Rate", value: metrics.winRate, format: 'percent', icon: Percent, color: 'violet' },
+    { label: "Total Trades", value: metrics.totalTrades, format: null, icon: Activity, color: 'cyan' },
+    { label: "Avg. Win", value: metrics.averageWin, format: 'currency', icon: TrendingUp, color: 'emerald' },
+    { label: "Avg. Loss", value: metrics.averageLoss, format: 'currency', icon: TrendingDown, color: 'rose' },
+    { label: "Final Balance", value: metrics.finalBalance, format: 'currency', icon: DollarSign, color: 'blue' }
   ];
+
+  const colorMap = {
+    emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/30', glow: 'shadow-emerald-500/20' },
+    blue: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/30', glow: 'shadow-blue-500/20' },
+    amber: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/30', glow: 'shadow-amber-500/20' },
+    violet: { bg: 'bg-violet-500/10', text: 'text-violet-400', border: 'border-violet-500/30', glow: 'shadow-violet-500/20' },
+    cyan: { bg: 'bg-cyan-500/10', text: 'text-cyan-400', border: 'border-cyan-500/30', glow: 'shadow-cyan-500/20' },
+    rose: { bg: 'bg-rose-500/10', text: 'text-rose-400', border: 'border-rose-500/30', glow: 'shadow-rose-500/20' },
+    pink: { bg: 'bg-pink-500/10', text: 'text-pink-400', border: 'border-pink-500/30', glow: 'shadow-pink-500/20' }
+  };
+
   return (
-    <div className="metrics-grid">
-      {items.map(m => (
-        <div key={m.label} className="metric-item">
-          <span className="metric-label">{m.label}</span>
-          <span className="metric-value" style={{color: (m.label.includes("Return") || m.label.includes("Balance")) && m.value < 0 ? '#ef4444' : '#f1f5f9'}}>
-              {m.format === 'currency' ? `$${m.value?.toFixed(2)}` : m.format === 'percent' ? `${m.value?.toFixed(2)}%` : m.value?.toFixed(2)}
-          </span>
-        </div>
-      ))}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {metricsConfig.map((m, idx) => {
+        const Icon = m.icon;
+        const colors = colorMap[m.color];
+        const isNegativeMetric = m.label.includes("Loss") || m.label.includes("Drawdown");
+        const displayValue = m.format === 'currency' 
+          ? `$${m.value?.toFixed(2)}` 
+          : m.format === 'percent' 
+          ? `${m.value?.toFixed(2)}%` 
+          : m.value?.toFixed(2);
+
+        return (
+          <div
+            key={idx}
+            className={`bg-slate-900/50 backdrop-blur-sm border ${colors.border} rounded-2xl p-5 hover:shadow-lg ${colors.glow} transition-all group`}
+          >
+            <div className="flex items-start justify-between mb-3">
+              <div className={`p-2.5 ${colors.bg} rounded-xl group-hover:scale-110 transition-transform`}>
+                <Icon className={`w-5 h-5 ${colors.text}`} />
+              </div>
+              <span className="text-slate-500 text-xs">YTD</span>
+            </div>
+            <div className="space-y-1">
+              <p className="text-slate-400 text-sm">{m.label}</p>
+              <p className={`text-2xl font-mono ${colors.text}`}>{displayValue}</p>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 };
@@ -131,56 +190,245 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
 
     return (
         <>
-            <div className="form-grid">
-                <label>Symbol: <select name="symbol" value={data.symbol} onChange={handleGlobalChange}><option value="">-- Select --</option>{options.symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
-                <label>Timeframe: <select name="timeframe" value={data.timeframe} onChange={handleGlobalChange}><option value="">-- Select --</option>{options.timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}</select></label>
-                <label>Initial Balance: <input type="number" name="initialBalance" value={data.initialBalance} onChange={handleGlobalChange} /></label>
-            </div>
-            <div className="form-grid">
-                <label>Start Date: <input type="date" name="startDate" value={data.startDate} onChange={handleGlobalChange} /></label>
-                <label>End Date: <input type="date" name="endDate" value={data.endDate} onChange={handleGlobalChange} /></label>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                <div className="space-y-2">
+                    <label className="text-slate-400 text-sm flex items-center gap-2">
+                        <BarChart3 className="w-4 h-4" />
+                        Symbol
+                    </label>
+                    <select 
+                        name="symbol" 
+                        value={data.symbol} 
+                        onChange={handleGlobalChange}
+                        className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all hover:border-slate-600"
+                    >
+                        <option value="">-- Select Symbol --</option>
+                        {options.symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                </div>
+                
+                <div className="space-y-2">
+                    <label className="text-slate-400 text-sm flex items-center gap-2">
+                        <Clock className="w-4 h-4" />
+                        Timeframe
+                    </label>
+                    <select 
+                        name="timeframe" 
+                        value={data.timeframe} 
+                        onChange={handleGlobalChange}
+                        className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all hover:border-slate-600"
+                    >
+                        <option value="">-- Select Timeframe --</option>
+                        {options.timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                </div>
+
+                <div className="space-y-2">
+                    <label className="text-slate-400 text-sm flex items-center gap-2">
+                        <DollarSign className="w-4 h-4" />
+                        Initial Balance
+                    </label>
+                    <input 
+                        type="number" 
+                        name="initialBalance" 
+                        value={data.initialBalance} 
+                        onChange={handleGlobalChange}
+                        className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all hover:border-slate-600"
+                    />
+                </div>
             </div>
             
-            <fieldset style={{border:'1px solid #334155', padding:'15px', borderRadius:'8px', marginTop:'15px'}}>
-                <legend style={{color:'#94a3b8', padding:'0 5px'}}>Risk & Machine Learning</legend>
-                <div className="form-grid">
-                    <label>Risk %: <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={handleGlobalChange} step="0.1" /></label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div className="space-y-2">
+                    <label className="text-slate-400 text-sm flex items-center gap-2">
+                        <Calendar className="w-4 h-4" />
+                        Start Date
+                    </label>
+                    <input 
+                        type="date" 
+                        name="startDate" 
+                        value={data.startDate} 
+                        onChange={handleGlobalChange}
+                        className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all hover:border-slate-600"
+                    />
+                </div>
+                <div className="space-y-2">
+                    <label className="text-slate-400 text-sm flex items-center gap-2">
+                        <Calendar className="w-4 h-4" />
+                        End Date
+                    </label>
+                    <input 
+                        type="date" 
+                        name="endDate" 
+                        value={data.endDate} 
+                        onChange={handleGlobalChange}
+                        className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all hover:border-slate-600"
+                    />
+                </div>
+            </div>
+            
+            <div className="bg-slate-800/30 border border-slate-700/50 rounded-2xl p-6 mb-6">
+                <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-700/50">
+                    <Shield className="w-5 h-5 text-blue-400" />
+                    <h4 className="text-white">Risk & ML Configuration</h4>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                        <label className="text-slate-400 text-sm">Risk Percentage</label>
+                        <input 
+                            type="number" 
+                            name="riskPercentage" 
+                            value={data.riskPercentage} 
+                            onChange={handleGlobalChange} 
+                            step="0.1"
+                            className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                    </div>
                     
-                    {/* 🚀 RESTORED: MAX PYRAMIDING */}
-                    <label>Max Pyramiding: <input type="number" name="maxPyramiding" value={params.maxPyramiding || 1} onChange={handleParamChange} min="1" max="10" /></label>
+                    <div className="space-y-2">
+                        <label className="text-slate-400 text-sm">Max Pyramiding</label>
+                        <input 
+                            type="number" 
+                            name="maxPyramiding" 
+                            value={params.maxPyramiding || 1} 
+                            onChange={handleParamChange} 
+                            min="1" 
+                            max="10"
+                            className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                    </div>
 
-                    <label>ML Mode: <select name="mlMode" value={data.mlMode || "off"} onChange={handleGlobalChange}><option value="off">Off (Pure TA)</option><option value="predictions">Hybrid (TA+ML)</option><option value="on">Pure ML</option></select></label>
+                    <div className="space-y-2">
+                        <label className="text-slate-400 text-sm flex items-center gap-2">
+                            <Brain className="w-4 h-4" />
+                            ML Mode
+                        </label>
+                        <select 
+                            name="mlMode" 
+                            value={data.mlMode || "off"} 
+                            onChange={handleGlobalChange}
+                            className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        >
+                            <option value="off">Off (Pure TA)</option>
+                            <option value="predictions">Hybrid (TA+ML)</option>
+                            <option value="on">Pure ML</option>
+                        </select>
+                    </div>
                     
                     {data.mlMode === 'predictions' && (
-                        <label>Hybrid Logic:
-                            <select name="hybridMode" value={params.hybridMode || "AND"} onChange={handleParamChange}>
+                        <div className="space-y-2">
+                            <label className="text-slate-400 text-sm">Hybrid Logic</label>
+                            <select 
+                                name="hybridMode" 
+                                value={params.hybridMode || "AND"} 
+                                onChange={handleParamChange}
+                                className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                            >
                                 <option value="AND">Strict (TA + ML Agree)</option>
                                 <option value="OR">Loose (TA OR ML Signal)</option>
                                 <option value="REGIME">Regime (ML Filters TA)</option>
                             </select>
-                        </label>
+                        </div>
                     )}
 
                     {data.mlMode !== 'off' && (
                         <>
-                            <label>Model: <select name="mlModel" value={data.mlModel} onChange={handleGlobalChange}><option value="">-- Select --</option>{options.modelOptions.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></label>
-                            <label>Threshold: <input type="number" name="mlThreshold" value={data.mlThreshold} step="0.05" onChange={handleGlobalChange} /></label>
+                            <div className="space-y-2">
+                                <label className="text-slate-400 text-sm">ML Model</label>
+                                <select 
+                                    name="mlModel" 
+                                    value={data.mlModel} 
+                                    onChange={handleGlobalChange}
+                                    className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                                >
+                                    <option value="">-- Select Model --</option>
+                                    {options.modelOptions.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-slate-400 text-sm">ML Threshold</label>
+                                <input 
+                                    type="number" 
+                                    name="mlThreshold" 
+                                    value={data.mlThreshold} 
+                                    step="0.05" 
+                                    onChange={handleGlobalChange}
+                                    className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                                />
+                            </div>
                         </>
                     )}
                     
-                    {params.hybridMode === 'REGIME' && <label>Regime Thresh: <input type="number" name="regime_threshold" value={params.regime_threshold ?? 25} onChange={handleParamChange} step="1" /></label>}
+                    {params.hybridMode === 'REGIME' && (
+                        <div className="space-y-2">
+                            <label className="text-slate-400 text-sm">Regime Threshold</label>
+                            <input 
+                                type="number" 
+                                name="regime_threshold" 
+                                value={params.regime_threshold ?? 25} 
+                                onChange={handleParamChange} 
+                                step="1"
+                                className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                            />
+                        </div>
+                    )}
                 </div>
-            </fieldset>
+            </div>
 
-            <fieldset style={{border:'1px solid #334155', padding:'15px', borderRadius:'8px', marginTop:'15px'}}>
-                <legend style={{color:'#94a3b8', padding:'0 5px'}}>Advanced Filters</legend>
-                <div className="form-grid">
-                    <label>Volatility Filter (Min ATR %): <input type="number" name="minAtrPct" value={params.minAtrPct ?? 0} onChange={handleParamChange} step="0.05" /></label>
-                    <label>Chop Filter (Min ADX): <input type="number" name="minAdxLevel" value={params.minAdxLevel ?? 0} onChange={handleParamChange} step="1" /></label>
-                    <label>Trailing Stop (ATR Mult): <input type="number" name="tslAtrMult" value={params.tslAtrMult ?? 0} onChange={handleParamChange} step="0.1" /></label>
-                    <label>Trend Filter SMA: <input type="number" name="trendFilterPeriod" value={params.trendFilterPeriod ?? 200} onChange={handleParamChange} step="1" /></label>
+            <div className="bg-slate-800/30 border border-slate-700/50 rounded-2xl p-6">
+                <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-700/50">
+                    <Filter className="w-5 h-5 text-violet-400" />
+                    <h4 className="text-white">Advanced Filters</h4>
                 </div>
-            </fieldset>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="space-y-2">
+                        <label className="text-slate-400 text-sm">Min ATR %</label>
+                        <input 
+                            type="number" 
+                            name="minAtrPct" 
+                            value={params.minAtrPct ?? 0} 
+                            onChange={handleParamChange} 
+                            step="0.05"
+                            className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-slate-400 text-sm">Min ADX</label>
+                        <input 
+                            type="number" 
+                            name="minAdxLevel" 
+                            value={params.minAdxLevel ?? 0} 
+                            onChange={handleParamChange} 
+                            step="1"
+                            className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-slate-400 text-sm">TSL ATR Multiplier</label>
+                        <input 
+                            type="number" 
+                            name="tslAtrMult" 
+                            value={params.tslAtrMult ?? 0} 
+                            onChange={handleParamChange} 
+                            step="0.1"
+                            className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-slate-400 text-sm">Trend Filter SMA</label>
+                        <input 
+                            type="number" 
+                            name="trendFilterPeriod" 
+                            value={params.trendFilterPeriod ?? 200} 
+                            onChange={handleParamChange} 
+                            step="1"
+                            className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                        />
+                    </div>
+                </div>
+            </div>
         </>
     );
 };
@@ -188,17 +436,34 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
 const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, disableRemove }) => {
   const handleChange = (e) => onChange(e, idx);
   return (
-    <div className="bot-card" style={{padding:'15px', background:'#0f172a', border:'1px solid #334155'}}>
-      <div style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}>
-        <strong>Strategy #{idx + 1}</strong>
-        {!disableRemove && <button type="button" onClick={() => onRemove(idx)} style={{background:'none', border:'none', color:'#ef4444', cursor:'pointer'}}>✕</button>}
+    <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-4 hover:border-slate-600/50 transition-all">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-gradient-to-br from-blue-500/20 to-violet-500/20 rounded-lg flex items-center justify-center">
+            <Zap className="w-4 h-4 text-blue-400" />
+          </div>
+          <span className="text-white">Strategy #{idx + 1}</span>
+        </div>
+        {!disableRemove && (
+          <button 
+            type="button" 
+            onClick={() => onRemove(idx)} 
+            className="text-rose-400 hover:text-rose-300 transition-colors"
+          >
+            ✕
+          </button>
+        )}
       </div>
-      <label>Strategy:
-          <select name="strategyId" value={config.strategyId} onChange={handleChange} disabled={!strategies.length} style={{width:'100%', padding:'8px', background:'#1e293b', color:'white', border:'1px solid #475569'}}>
-            <option value="">-- Select --</option>
-            {strategies.length ? strategies.map(s => <option key={s._id} value={s._id}>{s.name}</option>) : <option disabled>Loading...</option>}
-          </select>
-      </label>
+      <select 
+        name="strategyId" 
+        value={config.strategyId} 
+        onChange={handleChange} 
+        disabled={!strategies.length}
+        className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 hover:border-slate-600 transition-all"
+      >
+        <option value="">-- Select Strategy --</option>
+        {strategies.length ? strategies.map(s => <option key={s._id} value={s._id}>{s.name}</option>) : <option disabled>Loading...</option>}
+      </select>
     </div>
   );
 };
@@ -379,7 +644,7 @@ export default function Backtests() {
        });
 
        return { processedData: curve, combinedMetrics: res.metrics, mainResult: res };
-  }, [backtestResults]);
+  }, [backtestResults, activeTab, formData.initialBalance, comboData.initialBalance]);
 
   const pieData = useMemo(() => {
     if (!combinedMetrics) return [];
@@ -387,100 +652,297 @@ export default function Backtests() {
   }, [combinedMetrics]);
 
   return (
-    <div className="backtest-container">
-      <h2 className="header">Strategy Backtester</h2>
-      
-      <div className="bot-card control-panel">
-        <div className="panel-header">
-            <h3 className="card-title">Configuration</h3>
-        </div>
-        
-        {/* 🚀 FILE LOADER */}
-        <div className="form-group" style={{ marginBottom: '20px', padding: '15px', background: '#1e293b', borderRadius: '8px', border: '1px solid #334155' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <label style={{ color: '#4ade80', fontWeight: 'bold' }}>🏆 Load Alpha (ML)</label>
-                <button onClick={fetchWinners} disabled={scanningWinners} style={{background:'none', border:'none', color:'#4ade80', cursor:'pointer'}}>{scanningWinners ? '...' : '🔄'}</button>
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      {/* Header */}
+      <div className="border-b border-slate-800/50 bg-slate-900/50 backdrop-blur-xl">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-blue-500 to-violet-600 rounded-xl shadow-lg shadow-blue-500/20">
+                <Activity className="w-7 h-7 text-white" />
+              </div>
+              <div>
+                <h1 className="text-white">Strategy Backtester</h1>
+                <p className="text-slate-400 text-sm">Advanced Performance Testing Platform</p>
+              </div>
             </div>
-            <select value={selectedWinnerId} onChange={handleWinnerSelect}><option value="">-- Select Golden Strategy --</option>{liveWinners.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select>
+            <div className="flex items-center gap-2">
+              <div className="px-4 py-2 bg-slate-800/50 rounded-xl border border-slate-700/50">
+                <span className="text-slate-400 text-sm">API Connected</span>
+                <span className="ml-2 w-2 h-2 bg-emerald-500 rounded-full inline-block animate-pulse"></span>
+              </div>
+            </div>
+          </div>
         </div>
-
-        <div className="tabs" style={{marginBottom:'20px'}}>
-            <button className={activeTab === 'single' ? 'active' : ''} onClick={() => setActiveTab('single')} style={{marginRight:'10px'}}>Single Strategy</button>
-            <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo Strategy</button>
-        </div>
-
-        <form onSubmit={(e) => handleRun(e, activeTab === 'combo')} className="backtest-form">
-            {activeTab === 'single' ? (
-                <>
-                    <label>Strategy: <select name="strategyId" value={formData.strategyId} onChange={(e) => handleFormChange(e, setFormData)}><option value="">-- Select TA Strategy --</option>{strategyOptions.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}</select></label>
-                    <CommonBacktestInputs data={formData} onChange={(e) => handleFormChange(e, setFormData)} options={{ symbolOptions, timeframeOptions, modelOptions }} />
-                </>
-            ) : (
-                <>
-                    <CommonBacktestInputs data={comboData} onChange={handleComboChange} options={{ symbolOptions, timeframeOptions, modelOptions }} isCombo={true} />
-                    <div className="combo-strategy-list" style={{marginTop:'20px'}}>
-                        {comboData.strategies.map((config, idx) => (<ComboStrategyCard key={idx} idx={idx} config={config} strategies={strategyOptions} onChange={handleStrategyConfigChange} onRemove={removeStrategyCard} disableRemove={comboData.strategies.length <= 1} />))}
-                    </div>
-                    <button type="button" onClick={addStrategyCard} style={{marginTop:'10px', marginBottom:'20px', width:'100%', padding:'10px', background:'#3b82f6', color:'white', border:'none', borderRadius:'6px'}}>+ Add Strategy Layer</button>
-                </>
-            )}
-            <button type="submit" className="button-start" disabled={loading !== 'idle'} style={{marginTop:'20px'}}>{loading !== 'idle' ? 'Processing...' : 'Run Simulation'}</button>
-        </form>
       </div>
 
-      {(loading !== 'idle' || combinedMetrics || error) && (
-          <div className="bot-card results-panel" style={{marginTop:'30px'}}>
-            <h3 className="card-title">Backtest Results</h3>
-            {loading !== 'idle' && <div className="loading-overlay"><div className="spinner"></div></div>}
-            
-            {loading === 'idle' && combinedMetrics && !error && (
-              <>
-                <div style={{display:'flex', justifyContent:'flex-end', gap:'10px', marginBottom:'15px'}}>
-                    <button onClick={handleSaveStrategy} style={{background:'#22c55e', color:'white', border:'none', padding:'8px 16px', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}>💾 Save Strategy</button>
-                    <button onClick={() => downloadCSV(mainResult.tradeBreakdown)} style={{background:'#3b82f6', color:'white', border:'none', padding:'8px 16px', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}>⬇ Export CSV</button>
+      <div className="container mx-auto px-6 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Configuration */}
+          <div className="lg:col-span-1">
+            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6 space-y-6 sticky top-6">
+              <div className="flex items-center gap-3 pb-4 border-b border-slate-800/50">
+                <Settings className="w-5 h-5 text-blue-400" />
+                <h2 className="text-white">Configuration</h2>
+              </div>
+              
+              {/* Winner Loader */}
+              <div className="bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 border border-emerald-500/30 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-emerald-400 flex items-center gap-2">
+                    <Brain className="w-4 h-4" />
+                    Load Alpha Strategy
+                  </label>
+                  <button 
+                    onClick={fetchWinners} 
+                    disabled={scanningWinners}
+                    className="text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${scanningWinners ? 'animate-spin' : ''}`} />
+                  </button>
                 </div>
+                <select 
+                  value={selectedWinnerId} 
+                  onChange={handleWinnerSelect}
+                  className="w-full bg-slate-800/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                >
+                  <option value="">-- Select Golden Strategy --</option>
+                  {liveWinners.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </select>
+              </div>
 
-                <MetricsDisplay metrics={combinedMetrics} />
-                
-                {mainResult && mainResult.candleData?.length > 0 && (
-                    <div style={{height: '850px', margin: '30px 0'}}>
-                        <ChartIndependent results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} />
+              {/* Tabs */}
+              <div className="flex gap-2">
+                <button 
+                  className={`flex-1 py-2.5 px-4 rounded-xl transition-all ${
+                    activeTab === 'single' 
+                      ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50' 
+                      : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
+                  }`}
+                  onClick={() => setActiveTab('single')}
+                >
+                  Single Strategy
+                </button>
+                <button 
+                  className={`flex-1 py-2.5 px-4 rounded-xl transition-all ${
+                    activeTab === 'combo' 
+                      ? 'bg-violet-500/20 text-violet-400 border border-violet-500/50' 
+                      : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
+                  }`}
+                  onClick={() => setActiveTab('combo')}
+                >
+                  Combo Strategy
+                </button>
+              </div>
+
+              {/* Form */}
+              <form onSubmit={(e) => handleRun(e, activeTab === 'combo')} className="space-y-4">
+                {activeTab === 'single' ? (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-slate-400 text-sm flex items-center gap-2">
+                        <Zap className="w-4 h-4" />
+                        Strategy Type
+                      </label>
+                      <select 
+                        name="strategyId" 
+                        value={formData.strategyId} 
+                        onChange={(e) => handleFormChange(e, setFormData)}
+                        className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all hover:border-slate-600"
+                      >
+                        <option value="">-- Select TA Strategy --</option>
+                        {strategyOptions.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+                      </select>
                     </div>
+                    <CommonBacktestInputs data={formData} onChange={(e) => handleFormChange(e, setFormData)} options={{ symbolOptions, timeframeOptions, modelOptions }} />
+                  </>
+                ) : (
+                  <>
+                    <CommonBacktestInputs data={comboData} onChange={handleComboChange} options={{ symbolOptions, timeframeOptions, modelOptions }} isCombo={true} />
+                    <div className="space-y-3">
+                      <label className="text-slate-400 text-sm">Strategy Layers</label>
+                      {comboData.strategies.map((config, idx) => (
+                        <ComboStrategyCard 
+                          key={idx} 
+                          idx={idx} 
+                          config={config} 
+                          strategies={strategyOptions} 
+                          onChange={handleStrategyConfigChange} 
+                          onRemove={removeStrategyCard} 
+                          disableRemove={comboData.strategies.length <= 1} 
+                        />
+                      ))}
+                      <button 
+                        type="button" 
+                        onClick={addStrategyCard}
+                        className="w-full py-2.5 bg-slate-800/50 border border-slate-700/50 rounded-xl text-blue-400 hover:bg-slate-800 hover:border-blue-500/50 transition-all"
+                      >
+                        + Add Strategy Layer
+                      </button>
+                    </div>
+                  </>
+                )}
+                
+                <button 
+                  type="submit" 
+                  disabled={loading !== 'idle'}
+                  className="w-full bg-gradient-to-r from-blue-500 to-violet-600 hover:from-blue-600 hover:to-violet-700 disabled:from-slate-700 disabled:to-slate-700 text-white py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 disabled:shadow-none"
+                >
+                  {loading !== 'idle' ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-5 h-5" />
+                      Run Simulation
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+          </div>
+
+          {/* Right Column - Results */}
+          <div className="lg:col-span-2 space-y-6">
+            {(loading !== 'idle' || combinedMetrics || error) ? (
+              <>
+                {loading !== 'idle' && (
+                  <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-12 flex flex-col items-center justify-center min-h-[400px]">
+                    <div className="w-20 h-20 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-6"></div>
+                    <h3 className="text-white text-xl mb-2">Running Backtest...</h3>
+                    <p className="text-slate-400 text-center">Analyzing historical data and executing strategy</p>
+                  </div>
+                )}
+                
+                {loading === 'idle' && combinedMetrics && !error && (
+                  <>
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-end gap-3">
+                      <button 
+                        onClick={handleSaveStrategy}
+                        className="px-4 py-2.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl hover:bg-emerald-500/20 transition-all flex items-center gap-2"
+                      >
+                        <Save className="w-4 h-4" />
+                        Save Strategy
+                      </button>
+                      <button 
+                        onClick={() => downloadCSV(mainResult.tradeBreakdown)}
+                        className="px-4 py-2.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-xl hover:bg-blue-500/20 transition-all flex items-center gap-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        Export CSV
+                      </button>
+                    </div>
+
+                    {/* Metrics */}
+                    <MetricsDisplay metrics={combinedMetrics} />
+                    
+                    {/* Chart Independent */}
+                    {mainResult && mainResult.candleData?.length > 0 && (
+                      <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6">
+                        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800/50">
+                          <TrendingUp className="w-5 h-5 text-blue-400" />
+                          <h3 className="text-white">Price Action & Signals</h3>
+                        </div>
+                        <div style={{height: '850px'}}>
+                          <ChartIndependent results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Charts Container */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      {/* Equity Curve */}
+                      <div className="lg:col-span-2 bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6">
+                        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800/50">
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500/20 to-violet-500/20 rounded-xl flex items-center justify-center">
+                            <TrendingUp className="w-5 h-5 text-blue-400" />
+                          </div>
+                          <h3 className="text-white">Equity vs Buy & Hold</h3>
+                        </div>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <AreaChart data={processedData}>
+                            <defs>
+                              <linearGradient id="colorEquity" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
+                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                              </linearGradient>
+                              <linearGradient id="colorBuyHold" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.2}/>
+                                <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} vertical={false} />
+                            <XAxis dataKey="timestamp" tickFormatter={formatChartDate} stroke="#64748b" tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                            <YAxis domain={['auto', 'auto']} stroke="#64748b" tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '12px', color: '#fff' }}
+                            />
+                            <Legend />
+                            <Area type="monotone" dataKey="balance" stroke="#8b5cf6" strokeWidth={2} fillOpacity={1} fill="url(#colorEquity)" name="Strategy" />
+                            <Area type="monotone" dataKey="buyHold" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 5" fillOpacity={1} fill="url(#colorBuyHold)" name="Buy & Hold" />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                      
+                      {/* Win Ratio Pie */}
+                      <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6">
+                        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800/50">
+                          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-rose-500/20 rounded-xl flex items-center justify-center">
+                            <BarChart3 className="w-5 h-5 text-emerald-400" />
+                          </div>
+                          <h3 className="text-white">Win Ratio</h3>
+                        </div>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <PieChart>
+                            <Pie 
+                              data={pieData} 
+                              dataKey="value" 
+                              nameKey="name" 
+                              cx="50%" 
+                              cy="50%" 
+                              innerRadius={60} 
+                              outerRadius={100} 
+                              paddingAngle={5} 
+                              stroke="none"
+                            >
+                              {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                            </Pie>
+                            <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155' }} />
+                            <Legend wrapperStyle={{ color: '#e2e8f0' }} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    {/* Monthly Heatmap */}
+                    <MonthlyHeatmap equityCurve={processedData} />
+                  </>
                 )}
 
-                <div className="charts-container" style={{display:'flex', gap:'20px', flexWrap:'wrap'}}>
-                  <div className="chart" style={{flex:2, minWidth:'400px', background:'#161b28', padding:'15px', borderRadius:'12px', border:'1px solid #334155'}}>
-                      <h3 style={{color:'#e2e8f0', marginBottom:'15px'}}>Equity vs Buy & Hold</h3>
-                      <ResponsiveContainer width="100%" height={300}>
-                          <LineChart data={processedData}>
-                              <XAxis dataKey="timestamp" tickFormatter={formatChartDate} tick={{ fill: '#94a3b8' }} stroke="#475569" />
-                              <YAxis domain={['auto', 'auto']} tick={{ fill: '#94a3b8' }} stroke="#475569" />
-                              <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155' }} />
-                              <CartesianGrid stroke="#334155" strokeDasharray="3 3" vertical={false} />
-                              <Line type="monotone" dataKey="balance" stroke="#8b5cf6" strokeWidth={2} dot={false} name="Strategy" />
-                              <Line type="monotone" dataKey="buyHold" stroke="#f59e0b" strokeWidth={2} dot={false} strokeDasharray="5 5" name="Buy & Hold (BTC)" />
-                          </LineChart>
-                      </ResponsiveContainer>
+                {error && (
+                  <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-6 text-center">
+                    <h3 className="text-rose-400 text-lg mb-2">Error</h3>
+                    <p className="text-slate-400">{error}</p>
                   </div>
-                  <div className="chart" style={{flex:1, minWidth:'300px', background:'#161b28', padding:'15px', borderRadius:'12px', border:'1px solid #334155'}}>
-                      <h3 style={{color:'#e2e8f0', marginBottom:'15px'}}>Win Ratio</h3>
-                      <ResponsiveContainer width="100%" height={300}>
-                          <PieChart>
-                              <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} stroke="none">
-                                  {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                              </Pie>
-                              <Tooltip contentStyle={{ backgroundColor: '#0f172a' }} />
-                              <Legend wrapperStyle={{ color: '#e2e8f0' }} />
-                          </PieChart>
-                      </ResponsiveContainer>
-                  </div>
-                </div>
-
-                <MonthlyHeatmap equityCurve={processedData} />
+                )}
               </>
+            ) : (
+              <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-12 flex flex-col items-center justify-center min-h-[600px]">
+                <div className="w-20 h-20 bg-gradient-to-br from-blue-500/20 to-violet-600/20 rounded-2xl flex items-center justify-center mb-6">
+                  <Activity className="w-10 h-10 text-blue-400" />
+                </div>
+                <h3 className="text-white text-xl mb-2">Ready to Test Your Strategy</h3>
+                <p className="text-slate-400 text-center max-w-md">
+                  Configure your strategy parameters and run a backtest to see detailed performance metrics, equity curves, and trade analysis.
+                </p>
+              </div>
             )}
           </div>
-      )}
+        </div>
+      </div>
     </div>
   );
 }
