@@ -1,16 +1,16 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v60.1 - "The Missing Functions Fix"
-// Restored: Combo Logic, Strategy Adding/Removing, Config Updates
+// 🚀 UPGRADE: v62.0 - "Result-Driven Workflow"
+// Changes: Removed DB Loader, Added "Save Strategy" to Results Panel
 
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios"; 
 import { useBacktest } from "../hooks/useBacktest.js";
-import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx"; 
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
 } from "recharts";
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
+import api from "../api/apiClient"; // 🚀 Needed for Saving
 import "./Backtests.css"; 
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
@@ -201,10 +201,8 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
 export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest } = useBacktest(); 
   const { loading = 'idle', error = null, options = {}, winners = [] } = state || {};
-  const { setups } = useBacktestSetupFunction(); // 📦 DB Setups
 
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
-  const [selectedSetupId, setSelectedSetupId] = useState("");
   const [formData, setFormData] = useState(initialFormData);
   const [comboData, setComboData] = useState(initialComboData);
   const [backtestResults, setBacktestResults] = useState({ main: null });
@@ -212,7 +210,7 @@ export default function Backtests() {
   const [liveWinners, setLiveWinners] = useState([]);
   const [scanningWinners, setScanningWinners] = useState(false);
 
-  // 🔄 Loaders for Dropdowns
+  // 🔄 Loaders
   const strategyOptions = useMemo(() => {
     const dbStrats = options?.strategies || [];
     const baseStrats = Object.entries(STRATEGY_TYPE_TO_CODE_MAP).map(([name, code], idx) => ({ _id: `base-${code}-${idx}`, name, code, params: {} }));
@@ -223,7 +221,6 @@ export default function Backtests() {
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
   const modelOptions = useMemo(() => options?.models || [], [options]);
 
-  // 📡 Fetch Winners (File System)
   const fetchWinners = async () => {
       setScanningWinners(true);
       try {
@@ -235,47 +232,10 @@ export default function Backtests() {
   };
   useEffect(() => { fetchWinners(); }, []);
 
-  // 📂 Adapter: Load Strategy from Database (MongoDB)
-  const handleSetupSelect = (e) => {
-      const setupId = e.target.value;
-      setSelectedSetupId(setupId);
-      setSelectedWinnerId(""); // Reset file loader
-      
-      const setup = setups.find(s => s._id === setupId);
-      if (!setup) return;
-
-      const isCombo = setup.isCombo || (setup.strategies && setup.strategies.length > 1);
-      
-      if (isCombo) {
-          setActiveTab('combo');
-          setComboData(prev => ({
-              ...prev,
-              symbol: setup.symbol, timeframe: setup.timeframe, initialBalance: setup.initialBalance || 1000,
-              strategies: setup.strategies,
-              comboConfig: setup.comboConfig || { strategyCodes: [], combinationRule: 'OR' },
-              params: setup.params || {},
-              mlMode: setup.mlMode || 'off', mlModel: setup.mlModel || '', mlThreshold: setup.mlThreshold || 0.5
-          }));
-      } else {
-          setActiveTab('single');
-          const code = setup.strategies?.[0]?.code;
-          const stratOption = strategyOptions.find(s => s.code === code);
-          setFormData(prev => ({
-              ...prev,
-              strategyId: stratOption?._id || "",
-              code: code,
-              symbol: setup.symbol, timeframe: setup.timeframe, initialBalance: setup.initialBalance || 1000,
-              params: setup.params || {},
-              mlMode: setup.mlMode || 'off', mlModel: setup.mlModel || '', mlThreshold: setup.mlThreshold || 0.5
-          }));
-      }
-  };
-
-  // 📂 Adapter: Load Strategy from File (Optimized)
+  // 📂 File Adapter
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
-      setSelectedSetupId(""); // Reset DB loader
       const selectedWinner = liveWinners.find(w => w.id === filename);
       if (!selectedWinner || !selectedWinner.config) return;
       
@@ -307,6 +267,38 @@ export default function Backtests() {
       }));
   };
 
+  // 💾 SAVE STRATEGY TO DB
+  const handleSaveStrategy = async () => {
+    const name = prompt("Enter a name for this strategy setup:");
+    if (!name) return;
+
+    const config = activeTab === 'single' ? formData : comboData;
+    const payload = {
+        name,
+        symbol: config.symbol,
+        timeframe: config.timeframe,
+        initialBalance: config.initialBalance,
+        strategies: activeTab === 'single' 
+            ? [{ code: config.code, params: config.params }] 
+            : config.strategies.map(s => ({ code: s.code, params: s.params })),
+        comboConfig: activeTab === 'combo' ? config.comboConfig : null,
+        params: config.params,
+        mlMode: config.mlMode,
+        mlModel: config.mlModel,
+        mlThreshold: config.mlThreshold,
+        isCombo: activeTab === 'combo'
+    };
+
+    try {
+        await api.post('/strategies', payload);
+        alert("✅ Strategy saved successfully! Check the Live Bot to load it.");
+    } catch (e) {
+        console.error(e);
+        alert("❌ Error saving: " + (e.response?.data?.message || e.message));
+    }
+  };
+
+  // Handlers
   const handleFormChange = (e, setFunc) => {
     const { name, value, type } = e.target;
     let val = type === 'number' ? parseFloat(value) : value;
@@ -320,7 +312,6 @@ export default function Backtests() {
     }
   };
 
-  // 🚀 RESTORED: Combo Handlers
   const handleComboChange = (e) => {
     const { name, value, type } = e.target;
     let val = type === 'number' ? parseFloat(value) : value;
@@ -398,19 +389,15 @@ export default function Backtests() {
             <h3 className="card-title">Configuration</h3>
         </div>
         
-        {/* 🚀 LOADERS: FILE + DATABASE */}
-        <div style={{display:'flex', gap:'20px', marginBottom:'20px'}}>
-            <div className="setup-selector" style={{flex:1}}>
-                <label>Load Strategy (Database)</label>
-                <select value={selectedSetupId} onChange={handleSetupSelect}><option value="">-- Select Saved Setup --</option>{setups.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}</select>
+        {/* 🚀 REMOVED: Database Loader (Per request) */}
+        
+        {/* 🚀 FILE LOADER (Only) */}
+        <div className="form-group" style={{ marginBottom: '20px', padding: '15px', background: '#1e293b', borderRadius: '8px', border: '1px solid #334155' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <label style={{ color: '#4ade80', fontWeight: 'bold' }}>🏆 Load Alpha (ML)</label>
+                <button onClick={fetchWinners} disabled={scanningWinners} style={{background:'none', border:'none', color:'#4ade80', cursor:'pointer'}}>{scanningWinners ? '...' : '🔄'}</button>
             </div>
-            <div className="setup-selector" style={{flex:1}}>
-                <div style={{display:'flex', justifyContent:'space-between'}}>
-                    <label style={{color:'#4ade80'}}>Load Alpha (ML)</label>
-                    <button onClick={fetchWinners} disabled={scanningWinners} style={{background:'none', border:'none', color:'#4ade80', cursor:'pointer'}}>{scanningWinners ? '...' : '🔄'}</button>
-                </div>
-                <select value={selectedWinnerId} onChange={handleWinnerSelect}><option value="">-- Select Golden Strategy --</option>{liveWinners.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select>
-            </div>
+            <select value={selectedWinnerId} onChange={handleWinnerSelect}><option value="">-- Select Golden Strategy --</option>{liveWinners.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select>
         </div>
 
         <div className="tabs" style={{marginBottom:'20px'}}>
@@ -444,7 +431,9 @@ export default function Backtests() {
             
             {loading === 'idle' && combinedMetrics && !error && (
               <>
-                <div style={{display:'flex', justifyContent:'flex-end', marginBottom:'15px'}}>
+                {/* 🚀 SAVE BUTTON ADDED TO RESULTS */}
+                <div style={{display:'flex', justifyContent:'flex-end', gap:'10px', marginBottom:'15px'}}>
+                    <button onClick={handleSaveStrategy} style={{background:'#22c55e', color:'white', border:'none', padding:'8px 16px', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}>💾 Save Strategy</button>
                     <button onClick={() => downloadCSV(mainResult.tradeBreakdown)} style={{background:'#3b82f6', color:'white', border:'none', padding:'8px 16px', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}>⬇ Export CSV</button>
                 </div>
 
