@@ -16,7 +16,7 @@ import {
   BarChart3, Play, Settings, Download, Save, RefreshCw, Clock,
   Calendar, Zap, Brain, Shield, Filter
 } from 'lucide-react';
-import "../styles/Backtests.css"; 
+import "./Backtests.css"; 
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
 
