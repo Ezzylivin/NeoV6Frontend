@@ -1,9 +1,9 @@
 // ./pages/Dashboard.jsx
 // FULL UPGRADED VERSION
 // Features:
-// 1. Dynamic Dropdown for all available symbols
+// 1. Dynamic Dropdown for all available symbols (excluding BTC/ETH)
 // 2. Selected Symbol Chart rendered ABOVE BTC/ETH charts
-// 3. 1D, 1W, 1M, 3M Intervals
+// 3. Live Price Metric for the selected symbol
 
 import React, { useState, useEffect } from 'react';
 import { 
@@ -55,7 +55,8 @@ const CustomTooltip = ({ active, payload, label }) => {
 function MetricCard({ title, value, unit = '' }) {
   let displayValue = 'N/A';
   if (value !== null && value !== undefined && !isNaN(value)) {
-    if (title.includes('Price')) {
+    // Basic heuristic: if title looks like a ticker or "Price", format as currency
+    if (title.includes('Price') || title.includes('-USD')) {
       displayValue = value.toLocaleString('en-US', {
         style: 'currency',
         currency: 'USD',
@@ -145,15 +146,16 @@ function Dashboard() {
         const fixedText = text.replace(/NaN/g, 'null');
         const result = JSON.parse(fixedText);
         
-        // 1. Populate Dropdown Options
-        const symbols = Object.keys(result).sort();
-        setAvailableSymbols(symbols);
+        // 1. Populate Dropdown Options (exclude BTC/ETH)
+        const allSymbols = Object.keys(result).sort();
+        const otherSymbols = allSymbols.filter(s => s !== 'BTC-USD' && s !== 'ETH-USD');
+        setAvailableSymbols(otherSymbols);
 
-        // 2. Set Default Selection if empty
-        if (!selectedSymbol && symbols.length > 0) {
-            // Prefer a symbol that isn't BTC/ETH if possible, otherwise just the first one
-            const defaultSym = symbols.find(s => s !== 'BTC-USD' && s !== 'ETH-USD') || symbols[0];
-            setSelectedSymbol(defaultSym);
+        // 2. Set Default Selection if empty and others exist
+        let currentSym = selectedSymbol;
+        if (!currentSym && otherSymbols.length > 0) {
+            currentSym = otherSymbols[0];
+            setSelectedSymbol(currentSym);
         }
 
         // 3. Process BTC & ETH (Fixed Charts)
@@ -164,17 +166,18 @@ function Dashboard() {
         setMasterEthData(cleanEth);
         
         // 4. Process Selected Symbol (Dynamic Chart)
-        // Note: We use the current selectedSymbol state variable here. 
-        // If it was just set in step 2, it might not be updated in this closure yet, 
-        // so we check if we have a valid key.
-        const currentSym = selectedSymbol || symbols.find(s => s !== 'BTC-USD' && s !== 'ETH-USD') || symbols[0];
-        const cleanSelected = processDataArray(result[currentSym]);
-        setMasterSelectedData(cleanSelected);
+        if (currentSym && result[currentSym]) {
+            const cleanSelected = processDataArray(result[currentSym]);
+            setMasterSelectedData(cleanSelected);
+            
+            if (cleanSelected.length > 0) {
+                setLatestSelectedPrice(cleanSelected[cleanSelected.length - 1].close);
+            }
+        }
 
-        // 5. Update Latest Prices
+        // 5. Update Latest BTC/ETH Prices
         if (cleanBtc.length > 0) setLatestBtcPrice(cleanBtc[cleanBtc.length - 1].close);
         if (cleanEth.length > 0) setLatestEthPrice(cleanEth[cleanEth.length - 1].close);
-        if (cleanSelected.length > 0) setLatestSelectedPrice(cleanSelected[cleanSelected.length - 1].close);
 
         // 6. Extract Macro Metrics
         let metricsFound = { cpi: null, fedRate: null };
@@ -202,7 +205,7 @@ function Dashboard() {
     const intervalId = setInterval(fetchData, POLLING_INTERVAL_MS);
     return () => clearInterval(intervalId);
     
-  }, [loading, selectedSymbol]); // Re-fetch/Update when selectedSymbol changes
+  }, [loading, selectedSymbol]); // Re-run when selectedSymbol changes to fetch/process its data
 
   // Helper function to filter data by time interval
   const filterByInterval = (data, interval) => {
@@ -250,11 +253,11 @@ function Dashboard() {
         
         {/* --- NEW: Symbol Selector Dropdown --- */}
         <div className="symbol-selector">
-          <span style={{ marginRight: '10px', fontWeight: 'bold' }}>Select Chart:</span>
+          <span style={{ marginRight: '10px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>Select Asset:</span>
           <select 
             value={selectedSymbol} 
             onChange={(e) => setSelectedSymbol(e.target.value)}
-            style={{ padding: '5px 10px', fontSize: '1rem', borderRadius: '5px' }}
+            className="symbol-dropdown"
           >
             {availableSymbols.map(sym => (
               <option key={sym} value={sym}>{sym}</option>
@@ -267,10 +270,12 @@ function Dashboard() {
       <div className="card-row">
         <MetricCard title="Live BTC Price" value={latestBtcPrice} />
         <MetricCard title="Live ETH Price" value={latestEthPrice} />
-        {/* Optional: Show selected symbol price card */}
-        {selectedSymbol && selectedSymbol !== 'BTC-USD' && selectedSymbol !== 'ETH-USD' && (
+        
+        {/* --- NEW: Dynamic Metric for Selected Symbol --- */}
+        {selectedSymbol && (
              <MetricCard title={`Live ${selectedSymbol}`} value={latestSelectedPrice} />
         )}
+        
         <MetricCard title="Latest CPI" value={latestMetrics.cpi} />
         <MetricCard title="Fed Funds Rate" value={latestMetrics.fedRate} unit="%" />
       </div>
