@@ -1,31 +1,25 @@
 // ./pages/Dashboard.jsx
-// 🚀 UPGRADE: v67.0 - "Precision Dashboard"
-// Fixes: Tooltip dates, Live Price updates, Symbol Dropdown
+// 🚀 UPGRADE: v69.0 - "Flask Integration"
+// Features: Connects to Flask Backend for Symbols and Candles
 
 import React, { useState, useEffect } from 'react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from 'recharts';
-import { dashboard } from "../api/dashboard.js"; 
 import './Dashboard.css';
 
-const POLLING_INTERVAL_MS = 30000;
+// 🚀 CONFIG: Pointing to your Flask Backend
+const FLASK_API_URL = "https://crypto-lpzi.onrender.com/api";
+const POLLING_INTERVAL_MS = 60000; // 1 minute
 const chartIntervals = ['1D', '1W', '1M', '3M'];
 
-// --- CUSTOM TOOLTIP (Fixed Date Parsing) ---
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     const formatCurrency = (val) => val ? parseFloat(val).toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : 'N/A';
     
-    // 🚀 FIX: Use 'start' (timestamp) if available, otherwise parse 'time'
-    let dateObj;
-    if (data.start) {
-        dateObj = new Date(data.start * 1000);
-    } else {
-        dateObj = new Date(label);
-    }
-    
+    // Convert 'start' timestamp (seconds) to Date
+    const dateObj = data.start ? new Date(data.start * 1000) : new Date(label);
     const formattedDate = dateObj.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' });
 
     return (
@@ -41,7 +35,6 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-// --- METRIC CARD ---
 function MetricCard({ title, value, unit = '' }) {
   let displayValue = 'Loading...';
   if (value !== null && value !== undefined && !isNaN(value)) {
@@ -53,7 +46,6 @@ function MetricCard({ title, value, unit = '' }) {
   } else if (value === null) {
       displayValue = 'N/A';
   }
-  
   return (
     <div className="metric-card">
       <h3 className="card-title">{title}</h3>
@@ -62,18 +54,16 @@ function MetricCard({ title, value, unit = '' }) {
   );
 }
 
-// --- INTERVAL BUTTONS ---
 const IntervalButtons = ({ intervals, activeInterval, onIntervalChange }) => (
   <div className="interval-controls">
     {intervals.map((interval) => (
-      <button key={interval} className={`interval-button ${activeInterval === activeInterval ? (activeInterval === interval ? 'active' : '') : ''}`} onClick={() => onIntervalChange(interval)}>
+      <button key={interval} className={`interval-button ${activeInterval === interval ? 'active' : ''}`} onClick={() => onIntervalChange(interval)}>
         {interval}
       </button>
     ))}
   </div>
 );
 
-// --- MAIN DASHBOARD ---
 function Dashboard() {
   const [availableSymbols, setAvailableSymbols] = useState([]);
   const [selectedSymbol, setSelectedSymbol] = useState('');
@@ -98,35 +88,36 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // 1. Initial Data Fetch (Symbols + Macro + BTC/ETH)
+  // 1. Initial Load: Symbols + Macro Data (from Flask)
   useEffect(() => {
     const initFetch = async () => {
         try {
-            // A. Fetch Symbols from your ML Server
+            // A. Fetch Supported Symbols
             try {
-                const res = await api.get('/data/symbols');
-                if (Array.isArray(res.data)) {
-                    setAvailableSymbols(res.data);
-                    if (res.data.length > 0) setSelectedSymbol(res.data[0]);
+                const symRes = await fetch(`${FLASK_API_URL}/symbols`);
+                if (symRes.ok) {
+                    const symbols = await symRes.json();
+                    setAvailableSymbols(symbols);
+                    if (symbols.length > 0) setSelectedSymbol(symbols[0]); 
+                } else {
+                    throw new Error("Symbols endpoint failed");
                 }
-            } catch (err) {
-                console.warn("ML Server symbol fetch failed, using fallback.");
-                setAvailableSymbols(["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "DOGE-USD"]);
+            } catch (e) {
+                console.warn("Using fallback symbols:", e);
+                setAvailableSymbols(["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD"]);
                 setSelectedSymbol("BTC-USD");
             }
 
-            // B. Fetch Macro/BTC/ETH from Legacy API
-            const response = await fetch('https://crypto-lpzi.onrender.com/api/data');
+            // B. Fetch Legacy Bulk Data (Macro + BTC/ETH)
+            const response = await fetch(`${FLASK_API_URL}/data`);
             if (response.ok) {
-                const text = await response.text();
-                const result = JSON.parse(text.replace(/NaN/g, 'null'));
+                const result = await response.json();
                 
                 const process = (arr) => arr.map(d => ({ 
                     ...d, 
                     close: parseFloat(d.close), 
-                    // Use 'start' timestamp if available for accurate sorting/filtering
-                    start: d.start ? parseFloat(d.start) : (new Date(d.date).getTime() / 1000),
-                    time: d.start ? new Date(parseFloat(d.start) * 1000).toLocaleDateString() : d.date 
+                    start: d.start ? parseFloat(d.start) : (new Date(d.time).getTime() / 1000),
+                    time: d.time // already ISO string
                 }));
 
                 const cleanBtc = process(result['BTC-USD'] || []);
@@ -138,7 +129,6 @@ function Dashboard() {
                 if(cleanBtc.length) setLatestBtc(cleanBtc[cleanBtc.length-1].close);
                 if(cleanEth.length) setLatestEth(cleanEth[cleanEth.length-1].close);
 
-                // Extract Macro Metrics
                 let metrics = { cpi: null, fedRate: null };
                 const reversed = [...cleanBtc].reverse();
                 for (const obs of reversed) {
@@ -150,7 +140,7 @@ function Dashboard() {
             }
         } catch (e) {
             console.error("Init Error:", e);
-            setError("Failed to load initial data. Check console.");
+            setError("Failed to connect to data server.");
         } finally {
             setLoading(false);
         }
@@ -158,29 +148,30 @@ function Dashboard() {
     initFetch();
   }, []);
 
-  // 2. Fetch Selected Symbol Data (Dynamic)
+  // 2. Fetch Selected Symbol Candles (from Flask)
   useEffect(() => {
       if (!selectedSymbol) return;
       
       const fetchSelected = async () => {
           try {
-              // 🚀 Request data from your ML Server
-              const res = await api.get(`/data/candles?symbol=${selectedSymbol}&timeframe=1h`);
+              // 🚀 Call Flask Endpoint
+              const res = await fetch(`${FLASK_API_URL}/candles?product_id=${selectedSymbol}&granularity=ONE_HOUR`);
               
-              if (Array.isArray(res.data) && res.data.length > 0) {
-                  const clean = res.data.map(d => ({
-                      ...d,
-                      close: parseFloat(d.close),
-                      start: d.start, // Keep raw timestamp for logic
-                      time: new Date(d.start * 1000).toLocaleDateString() // Readable string for XAxis
-                  }));
-                  
-                  setSelectedChartData(clean);
-                  setLatestSelected(clean[clean.length - 1].close);
-              } else {
-                  console.warn(`No data returned for ${selectedSymbol}`);
-                  setLatestSelected(null);
-                  setSelectedChartData([]);
+              if (res.ok) {
+                  const data = await res.json();
+                  if (Array.isArray(data) && data.length > 0) {
+                      const clean = data.map(d => ({
+                          ...d,
+                          close: parseFloat(d.close),
+                          start: parseFloat(d.start),
+                          time: new Date(d.start * 1000).toLocaleDateString()
+                      }));
+                      setSelectedChartData(clean);
+                      setLatestSelected(clean[clean.length - 1].close);
+                  } else {
+                      setSelectedChartData([]);
+                      setLatestSelected(null);
+                  }
               }
           } catch (e) {
               console.error(`Failed to fetch ${selectedSymbol}:`, e);
@@ -260,7 +251,7 @@ function Dashboard() {
                 <Line type="monotone" dataKey="close" stroke="#82ca9d" name={`${selectedSymbol} Close`} dot={false} strokeWidth={2} />
                 </LineChart>
             ) : (
-                <div style={{color: '#aaa', textAlign: 'center', paddingTop: '100px'}}>Loading Data or No Data Available...</div>
+                <div style={{color: '#aaa', textAlign: 'center', paddingTop: '100px'}}>Loading Data...</div>
             )}
           </ResponsiveContainer>
         </div>
