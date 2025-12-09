@@ -1,26 +1,20 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v65.0 - "2026 Aesthetic Integration"
-// Features: Glass-morphism, gradient accents, modern dark theme, enhanced UX
+// 🚀 UPGRADE: v63.0 - "Bulletproof Client"
+// Fixes: React Error #31 (White Screen), Safe Error Handling
 
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios"; 
 import { useBacktest } from "../hooks/useBacktest.js";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, AreaChart, Area, BarChart, Bar
+  PieChart, Pie, Cell, Legend, AreaChart, Area
 } from "recharts";
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
 import api from "../api/apiClient"; 
-import { 
-  Activity, TrendingUp, TrendingDown, DollarSign, Percent, Target, 
-  BarChart3, Play, Settings, Download, Save, RefreshCw, Clock,
-  Calendar, Zap, Brain, Shield, Filter
-} from 'lucide-react';
-import "./Backtests.css"; 
+import "../styles/Backtests.css"; 
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
 
-// --- 1. MAPPINGS & CONSTANTS ---
 const STRATEGY_TYPE_TO_CODE_MAP = {
   "Moving Average Crossover": "sma_crossover", "RSI": "rsi_divergence", "MACD": "macd_crossover",
   "Stochastic Oscillator": "stochastic_crossover", "CCI": "cci_oversold", "Bollinger Bands": "bollinger_bands",
@@ -29,7 +23,7 @@ const STRATEGY_TYPE_TO_CODE_MAP = {
 
 const defaultFilterParams = { minAtrPct: 0, trendFilterPeriod: 200, minAdxLevel: 0, tslAtrMult: 3.5, regime_threshold: 25 };
 
-// --- 2. HELPER FUNCTIONS ---
+// --- HELPER FUNCTIONS ---
 const formatDate = dateString => {
   if (!dateString) return '';
   const date = new Date(dateString);
@@ -59,7 +53,7 @@ const downloadCSV = (trades) => {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
 };
 
-// --- 3. INITIAL STATES ---
+// --- INITIAL STATES ---
 const initialFormData = {
   strategyId: "", code: "", symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate,
   initialBalance: 1000, params: { ...defaultFilterParams, maxPyramiding: 1 },
@@ -75,7 +69,7 @@ const initialComboData = {
   riskManagementMode: 'standard', riskPercentage: 1, growthCapitalTarget: 2000, mlMode: "off", mlModel: "", mlThreshold: 0.5, mlHorizon: 1
 };
 
-// --- 4. SUB-COMPONENTS ---
+// --- SUB-COMPONENTS ---
 const MonthlyHeatmap = ({ equityCurve }) => {
     if (!equityCurve || equityCurve.length === 0) return null;
     const monthlyReturns = {};
@@ -89,8 +83,8 @@ const MonthlyHeatmap = ({ equityCurve }) => {
     return (
         <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6" style={{marginTop:'24px'}}>
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800/50">
-                <div className="w-10 h-10 bg-gradient-to-br from-violet-500/20 to-pink-500/20 rounded-xl flex items-center justify-center">
-                    <Calendar className="w-5 h-5 text-violet-400" />
+                <div className="w-10 h-10 bg-gradient-to-br from-violet-500/20 to-pink-500/20 rounded-xl flex items-center justify-center text-xl">
+                    📅
                 </div>
                 <h3 className="text-white">Monthly Performance Heatmap</h3>
             </div>
@@ -124,55 +118,25 @@ const MonthlyHeatmap = ({ equityCurve }) => {
 
 const MetricsDisplay = ({ metrics }) => {
   if (!metrics) return null;
-  
-  const metricsConfig = [
-    { label: "Total Return", value: metrics.totalReturn, format: 'percent', icon: TrendingUp, color: 'emerald' },
-    { label: "Profit Factor", value: metrics.profitFactor, format: 'number', icon: Target, color: 'blue' },
-    { label: "Max Drawdown", value: metrics.maxDrawdown, format: 'percent', icon: TrendingDown, color: 'amber' },
-    { label: "Win Rate", value: metrics.winRate, format: 'percent', icon: Percent, color: 'violet' },
-    { label: "Total Trades", value: metrics.totalTrades, format: null, icon: Activity, color: 'cyan' },
-    { label: "Avg. Win", value: metrics.averageWin, format: 'currency', icon: TrendingUp, color: 'emerald' },
-    { label: "Avg. Loss", value: metrics.averageLoss, format: 'currency', icon: TrendingDown, color: 'rose' },
-    { label: "Final Balance", value: metrics.finalBalance, format: 'currency', icon: DollarSign, color: 'blue' }
+  const items = [
+    { label: "Total Return", value: metrics.totalReturn, format: 'percent', color: 'text-emerald-400' },
+    { label: "Profit Factor", value: metrics.profitFactor, format: 'number', color: 'text-blue-400' },
+    { label: "Max Drawdown", value: metrics.maxDrawdown, format: 'percent', color: 'text-amber-400' },
+    { label: "Win Rate", value: metrics.winRate, format: 'percent', color: 'text-violet-400' },
+    { label: "Total Trades", value: metrics.totalTrades, format: null, color: 'text-cyan-400' },
+    { label: "Avg. Win", value: metrics.averageWin, format: 'currency', color: 'text-emerald-400' },
+    { label: "Avg. Loss", value: metrics.averageLoss, format: 'currency', color: 'text-rose-400' },
+    { label: "Final Balance", value: metrics.finalBalance, format: 'currency', color: 'text-blue-400' }
   ];
-
-  const colorMap = {
-    emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/30', glow: 'shadow-emerald-500/20' },
-    blue: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/30', glow: 'shadow-blue-500/20' },
-    amber: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/30', glow: 'shadow-amber-500/20' },
-    violet: { bg: 'bg-violet-500/10', text: 'text-violet-400', border: 'border-violet-500/30', glow: 'shadow-violet-500/20' },
-    cyan: { bg: 'bg-cyan-500/10', text: 'text-cyan-400', border: 'border-cyan-500/30', glow: 'shadow-cyan-500/20' },
-    rose: { bg: 'bg-rose-500/10', text: 'text-rose-400', border: 'border-rose-500/30', glow: 'shadow-rose-500/20' },
-    pink: { bg: 'bg-pink-500/10', text: 'text-pink-400', border: 'border-pink-500/30', glow: 'shadow-pink-500/20' }
-  };
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      {metricsConfig.map((m, idx) => {
-        const Icon = m.icon;
-        const colors = colorMap[m.color];
-        const isNegativeMetric = m.label.includes("Loss") || m.label.includes("Drawdown");
-        const displayValue = m.format === 'currency' 
-          ? `$${m.value?.toFixed(2)}` 
-          : m.format === 'percent' 
-          ? `${m.value?.toFixed(2)}%` 
-          : m.value?.toFixed(2);
-
+      {items.map((m, idx) => {
+        const displayValue = m.format === 'currency' ? `$${m.value?.toFixed(2)}` : m.format === 'percent' ? `${m.value?.toFixed(2)}%` : m.value?.toFixed(2);
         return (
-          <div
-            key={idx}
-            className={`bg-slate-900/50 backdrop-blur-sm border ${colors.border} rounded-2xl p-5 hover:shadow-lg ${colors.glow} transition-all group`}
-          >
-            <div className="flex items-start justify-between mb-3">
-              <div className={`p-2.5 ${colors.bg} rounded-xl group-hover:scale-110 transition-transform`}>
-                <Icon className={`w-5 h-5 ${colors.text}`} />
-              </div>
-              <span className="text-slate-500 text-xs">YTD</span>
-            </div>
-            <div className="space-y-1">
-              <p className="text-slate-400 text-sm">{m.label}</p>
-              <p className={`text-2xl font-mono ${colors.text}`}>{displayValue}</p>
-            </div>
+          <div key={idx} className="bg-slate-900/50 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-5 hover:shadow-lg transition-all group">
+            <span className="text-slate-500 text-xs uppercase font-bold tracking-wider">{m.label}</span>
+            <div className={`text-2xl font-mono mt-1 ${m.color}`}>{displayValue}</div>
           </div>
         );
       })}
@@ -192,185 +156,86 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
         <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                 <div className="space-y-2">
-                    <label className="text-slate-400 text-sm flex items-center gap-2">
-                        <BarChart3 className="w-4 h-4" />
-                        Symbol
-                    </label>
-                    <select 
-                        name="symbol" 
-                        value={data.symbol} 
-                        onChange={handleGlobalChange}
-                        className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all hover:border-slate-600"
-                    >
+                    <label className="text-slate-400 text-sm">Symbol</label>
+                    <select name="symbol" value={data.symbol} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white">
                         <option value="">-- Select Symbol --</option>
                         {options.symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                 </div>
-                
                 <div className="space-y-2">
-                    <label className="text-slate-400 text-sm flex items-center gap-2">
-                        <Clock className="w-4 h-4" />
-                        Timeframe
-                    </label>
-                    <select 
-                        name="timeframe" 
-                        value={data.timeframe} 
-                        onChange={handleGlobalChange}
-                        className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all hover:border-slate-600"
-                    >
+                    <label className="text-slate-400 text-sm">Timeframe</label>
+                    <select name="timeframe" value={data.timeframe} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white">
                         <option value="">-- Select Timeframe --</option>
                         {options.timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
                 </div>
-
                 <div className="space-y-2">
-                    <label className="text-slate-400 text-sm flex items-center gap-2">
-                        <DollarSign className="w-4 h-4" />
-                        Initial Balance
-                    </label>
-                    <input 
-                        type="number" 
-                        name="initialBalance" 
-                        value={data.initialBalance} 
-                        onChange={handleGlobalChange}
-                        className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all hover:border-slate-600"
-                    />
+                    <label className="text-slate-400 text-sm">Initial Balance</label>
+                    <input type="number" name="initialBalance" value={data.initialBalance} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white" />
                 </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div className="space-y-2">
-                    <label className="text-slate-400 text-sm flex items-center gap-2">
-                        <Calendar className="w-4 h-4" />
-                        Start Date
-                    </label>
-                    <input 
-                        type="date" 
-                        name="startDate" 
-                        value={data.startDate} 
-                        onChange={handleGlobalChange}
-                        className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all hover:border-slate-600"
-                    />
+                    <label className="text-slate-400 text-sm">Start Date</label>
+                    <input type="date" name="startDate" value={data.startDate} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white" />
                 </div>
                 <div className="space-y-2">
-                    <label className="text-slate-400 text-sm flex items-center gap-2">
-                        <Calendar className="w-4 h-4" />
-                        End Date
-                    </label>
-                    <input 
-                        type="date" 
-                        name="endDate" 
-                        value={data.endDate} 
-                        onChange={handleGlobalChange}
-                        className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all hover:border-slate-600"
-                    />
+                    <label className="text-slate-400 text-sm">End Date</label>
+                    <input type="date" name="endDate" value={data.endDate} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white" />
                 </div>
             </div>
             
             <div className="bg-slate-800/30 border border-slate-700/50 rounded-2xl p-6 mb-6">
                 <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-700/50">
-                    <Shield className="w-5 h-5 text-blue-400" />
-                    <h4 className="text-white">Risk & ML Configuration</h4>
+                    <h4 className="text-white font-bold">Risk & ML Configuration</h4>
                 </div>
-                
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="space-y-2">
                         <label className="text-slate-400 text-sm">Risk Percentage</label>
-                        <input 
-                            type="number" 
-                            name="riskPercentage" 
-                            value={data.riskPercentage} 
-                            onChange={handleGlobalChange} 
-                            step="0.1"
-                            className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                        />
+                        <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={handleGlobalChange} step="0.1" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
                     </div>
-                    
                     <div className="space-y-2">
                         <label className="text-slate-400 text-sm">Max Pyramiding</label>
-                        <input 
-                            type="number" 
-                            name="maxPyramiding" 
-                            value={params.maxPyramiding || 1} 
-                            onChange={handleParamChange} 
-                            min="1" 
-                            max="10"
-                            className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                        />
+                        <input type="number" name="maxPyramiding" value={params.maxPyramiding || 1} onChange={handleParamChange} min="1" max="10" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
                     </div>
-
                     <div className="space-y-2">
-                        <label className="text-slate-400 text-sm flex items-center gap-2">
-                            <Brain className="w-4 h-4" />
-                            ML Mode
-                        </label>
-                        <select 
-                            name="mlMode" 
-                            value={data.mlMode || "off"} 
-                            onChange={handleGlobalChange}
-                            className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                        >
+                        <label className="text-slate-400 text-sm">ML Mode</label>
+                        <select name="mlMode" value={data.mlMode || "off"} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm">
                             <option value="off">Off (Pure TA)</option>
                             <option value="predictions">Hybrid (TA+ML)</option>
                             <option value="on">Pure ML</option>
                         </select>
                     </div>
-                    
                     {data.mlMode === 'predictions' && (
                         <div className="space-y-2">
                             <label className="text-slate-400 text-sm">Hybrid Logic</label>
-                            <select 
-                                name="hybridMode" 
-                                value={params.hybridMode || "AND"} 
-                                onChange={handleParamChange}
-                                className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                            >
+                            <select name="hybridMode" value={params.hybridMode || "AND"} onChange={handleParamChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm">
                                 <option value="AND">Strict (TA + ML Agree)</option>
                                 <option value="OR">Loose (TA OR ML Signal)</option>
                                 <option value="REGIME">Regime (ML Filters TA)</option>
                             </select>
                         </div>
                     )}
-
                     {data.mlMode !== 'off' && (
                         <>
                             <div className="space-y-2">
                                 <label className="text-slate-400 text-sm">ML Model</label>
-                                <select 
-                                    name="mlModel" 
-                                    value={data.mlModel} 
-                                    onChange={handleGlobalChange}
-                                    className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                                >
+                                <select name="mlModel" value={data.mlModel} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm">
                                     <option value="">-- Select Model --</option>
                                     {options.modelOptions.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                                 </select>
                             </div>
                             <div className="space-y-2">
                                 <label className="text-slate-400 text-sm">ML Threshold</label>
-                                <input 
-                                    type="number" 
-                                    name="mlThreshold" 
-                                    value={data.mlThreshold} 
-                                    step="0.05" 
-                                    onChange={handleGlobalChange}
-                                    className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                                />
+                                <input type="number" name="mlThreshold" value={data.mlThreshold} step="0.05" onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
                             </div>
                         </>
                     )}
-                    
                     {params.hybridMode === 'REGIME' && (
                         <div className="space-y-2">
                             <label className="text-slate-400 text-sm">Regime Threshold</label>
-                            <input 
-                                type="number" 
-                                name="regime_threshold" 
-                                value={params.regime_threshold ?? 25} 
-                                onChange={handleParamChange} 
-                                step="1"
-                                className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                            />
+                            <input type="number" name="regime_threshold" value={params.regime_threshold ?? 25} onChange={handleParamChange} step="1" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
                         </div>
                     )}
                 </div>
@@ -378,54 +243,24 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
 
             <div className="bg-slate-800/30 border border-slate-700/50 rounded-2xl p-6">
                 <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-700/50">
-                    <Filter className="w-5 h-5 text-violet-400" />
-                    <h4 className="text-white">Advanced Filters</h4>
+                    <h4 className="text-white font-bold">Advanced Filters</h4>
                 </div>
-                
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="space-y-2">
                         <label className="text-slate-400 text-sm">Min ATR %</label>
-                        <input 
-                            type="number" 
-                            name="minAtrPct" 
-                            value={params.minAtrPct ?? 0} 
-                            onChange={handleParamChange} 
-                            step="0.05"
-                            className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50"
-                        />
+                        <input type="number" name="minAtrPct" value={params.minAtrPct ?? 0} onChange={handleParamChange} step="0.05" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
                     </div>
                     <div className="space-y-2">
                         <label className="text-slate-400 text-sm">Min ADX</label>
-                        <input 
-                            type="number" 
-                            name="minAdxLevel" 
-                            value={params.minAdxLevel ?? 0} 
-                            onChange={handleParamChange} 
-                            step="1"
-                            className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50"
-                        />
+                        <input type="number" name="minAdxLevel" value={params.minAdxLevel ?? 0} onChange={handleParamChange} step="1" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
                     </div>
                     <div className="space-y-2">
                         <label className="text-slate-400 text-sm">TSL ATR Multiplier</label>
-                        <input 
-                            type="number" 
-                            name="tslAtrMult" 
-                            value={params.tslAtrMult ?? 0} 
-                            onChange={handleParamChange} 
-                            step="0.1"
-                            className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50"
-                        />
+                        <input type="number" name="tslAtrMult" value={params.tslAtrMult ?? 0} onChange={handleParamChange} step="0.1" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
                     </div>
                     <div className="space-y-2">
                         <label className="text-slate-400 text-sm">Trend Filter SMA</label>
-                        <input 
-                            type="number" 
-                            name="trendFilterPeriod" 
-                            value={params.trendFilterPeriod ?? 200} 
-                            onChange={handleParamChange} 
-                            step="1"
-                            className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50"
-                        />
+                        <input type="number" name="trendFilterPeriod" value={params.trendFilterPeriod ?? 200} onChange={handleParamChange} step="1" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
                     </div>
                 </div>
             </div>
@@ -440,27 +275,15 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-gradient-to-br from-blue-500/20 to-violet-500/20 rounded-lg flex items-center justify-center">
-            <Zap className="w-4 h-4 text-blue-400" />
+            <span className="text-blue-400 font-bold">{idx + 1}</span>
           </div>
           <span className="text-white">Strategy #{idx + 1}</span>
         </div>
         {!disableRemove && (
-          <button 
-            type="button" 
-            onClick={() => onRemove(idx)} 
-            className="text-rose-400 hover:text-rose-300 transition-colors"
-          >
-            ✕
-          </button>
+          <button type="button" onClick={() => onRemove(idx)} className="text-rose-400 hover:text-rose-300 transition-colors">✕</button>
         )}
       </div>
-      <select 
-        name="strategyId" 
-        value={config.strategyId} 
-        onChange={handleChange} 
-        disabled={!strategies.length}
-        className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 hover:border-slate-600 transition-all"
-      >
+      <select name="strategyId" value={config.strategyId} onChange={handleChange} disabled={!strategies.length} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm">
         <option value="">-- Select Strategy --</option>
         {strategies.length ? strategies.map(s => <option key={s._id} value={s._id}>{s.name}</option>) : <option disabled>Loading...</option>}
       </select>
@@ -534,7 +357,7 @@ export default function Backtests() {
           ...prev, symbol, timeframe, isCombo: true, strategies,
           comboConfig: { strategyCodes: strategies.map(s => s.code), combinationRule: data.params?.hybridMode || 'OR' },
           mlMode, mlModel, mlThreshold: Number(data.mlThreshold) || 0.5,
-          params: { ...data.params, riskPercentage: Number(data.riskPercentage), maxPyramiding: Number(data.maxPyramiding || 1) }
+          params: { ...data.params, riskPercentage: Number(data.riskPercentage), maxPyramiding: Number(data.maxPyramiding) }
       }));
   };
 
@@ -659,10 +482,10 @@ export default function Backtests() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-blue-500 to-violet-600 rounded-xl shadow-lg shadow-blue-500/20">
-                <Activity className="w-7 h-7 text-white" />
+                <span className="text-2xl">📈</span>
               </div>
               <div>
-                <h1 className="text-white">Strategy Backtester</h1>
+                <h1 className="text-white font-bold text-xl">Strategy Backtester</h1>
                 <p className="text-slate-400 text-sm">Advanced Performance Testing Platform</p>
               </div>
             </div>
@@ -682,23 +505,22 @@ export default function Backtests() {
           <div className="lg:col-span-1">
             <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6 space-y-6 sticky top-6">
               <div className="flex items-center gap-3 pb-4 border-b border-slate-800/50">
-                <Settings className="w-5 h-5 text-blue-400" />
-                <h2 className="text-white">Configuration</h2>
+                <span className="text-blue-400 text-lg">⚙️</span>
+                <h2 className="text-white font-bold">Configuration</h2>
               </div>
               
               {/* Winner Loader */}
               <div className="bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 border border-emerald-500/30 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <label className="text-emerald-400 flex items-center gap-2">
-                    <Brain className="w-4 h-4" />
-                    Load Alpha Strategy
+                  <label className="text-emerald-400 flex items-center gap-2 font-semibold text-sm">
+                    🏆 Load Alpha Strategy
                   </label>
                   <button 
                     onClick={fetchWinners} 
                     disabled={scanningWinners}
                     className="text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-50"
                   >
-                    <RefreshCw className={`w-4 h-4 ${scanningWinners ? 'animate-spin' : ''}`} />
+                    {scanningWinners ? '...' : '🔄'}
                   </button>
                 </div>
                 <select 
@@ -714,7 +536,7 @@ export default function Backtests() {
               {/* Tabs */}
               <div className="flex gap-2">
                 <button 
-                  className={`flex-1 py-2.5 px-4 rounded-xl transition-all ${
+                  className={`flex-1 py-2.5 px-4 rounded-xl transition-all font-medium text-sm ${
                     activeTab === 'single' 
                       ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50' 
                       : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
@@ -724,7 +546,7 @@ export default function Backtests() {
                   Single Strategy
                 </button>
                 <button 
-                  className={`flex-1 py-2.5 px-4 rounded-xl transition-all ${
+                  className={`flex-1 py-2.5 px-4 rounded-xl transition-all font-medium text-sm ${
                     activeTab === 'combo' 
                       ? 'bg-violet-500/20 text-violet-400 border border-violet-500/50' 
                       : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
@@ -741,8 +563,7 @@ export default function Backtests() {
                   <>
                     <div className="space-y-2">
                       <label className="text-slate-400 text-sm flex items-center gap-2">
-                        <Zap className="w-4 h-4" />
-                        Strategy Type
+                        ⚡ Strategy Type
                       </label>
                       <select 
                         name="strategyId" 
@@ -760,7 +581,7 @@ export default function Backtests() {
                   <>
                     <CommonBacktestInputs data={comboData} onChange={handleComboChange} options={{ symbolOptions, timeframeOptions, modelOptions }} isCombo={true} />
                     <div className="space-y-3">
-                      <label className="text-slate-400 text-sm">Strategy Layers</label>
+                      <label className="text-slate-400 text-sm font-semibold">Strategy Layers</label>
                       {comboData.strategies.map((config, idx) => (
                         <ComboStrategyCard 
                           key={idx} 
@@ -775,7 +596,7 @@ export default function Backtests() {
                       <button 
                         type="button" 
                         onClick={addStrategyCard}
-                        className="w-full py-2.5 bg-slate-800/50 border border-slate-700/50 rounded-xl text-blue-400 hover:bg-slate-800 hover:border-blue-500/50 transition-all"
+                        className="w-full py-2.5 bg-slate-800/50 border border-slate-700/50 rounded-xl text-blue-400 hover:bg-slate-800 hover:border-blue-500/50 transition-all text-sm font-medium"
                       >
                         + Add Strategy Layer
                       </button>
@@ -786,19 +607,9 @@ export default function Backtests() {
                 <button 
                   type="submit" 
                   disabled={loading !== 'idle'}
-                  className="w-full bg-gradient-to-r from-blue-500 to-violet-600 hover:from-blue-600 hover:to-violet-700 disabled:from-slate-700 disabled:to-slate-700 text-white py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 disabled:shadow-none"
+                  className="w-full bg-gradient-to-r from-blue-500 to-violet-600 hover:from-blue-600 hover:to-violet-700 disabled:from-slate-700 disabled:to-slate-700 text-white py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 disabled:shadow-none font-bold"
                 >
-                  {loading !== 'idle' ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-5 h-5" />
-                      Run Simulation
-                    </>
-                  )}
+                  {loading !== 'idle' ? 'Processing...' : '▶ Run Simulation'}
                 </button>
               </form>
             </div>
@@ -811,7 +622,7 @@ export default function Backtests() {
                 {loading !== 'idle' && (
                   <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-12 flex flex-col items-center justify-center min-h-[400px]">
                     <div className="w-20 h-20 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-6"></div>
-                    <h3 className="text-white text-xl mb-2">Running Backtest...</h3>
+                    <h3 className="text-white text-xl mb-2 font-bold">Running Backtest...</h3>
                     <p className="text-slate-400 text-center">Analyzing historical data and executing strategy</p>
                   </div>
                 )}
@@ -822,17 +633,15 @@ export default function Backtests() {
                     <div className="flex items-center justify-end gap-3">
                       <button 
                         onClick={handleSaveStrategy}
-                        className="px-4 py-2.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl hover:bg-emerald-500/20 transition-all flex items-center gap-2"
+                        className="px-4 py-2.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl hover:bg-emerald-500/20 transition-all flex items-center gap-2 font-medium text-sm"
                       >
-                        <Save className="w-4 h-4" />
-                        Save Strategy
+                        💾 Save Strategy
                       </button>
                       <button 
                         onClick={() => downloadCSV(mainResult.tradeBreakdown)}
-                        className="px-4 py-2.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-xl hover:bg-blue-500/20 transition-all flex items-center gap-2"
+                        className="px-4 py-2.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-xl hover:bg-blue-500/20 transition-all flex items-center gap-2 font-medium text-sm"
                       >
-                        <Download className="w-4 h-4" />
-                        Export CSV
+                        ⬇ Export CSV
                       </button>
                     </div>
 
@@ -843,8 +652,8 @@ export default function Backtests() {
                     {mainResult && mainResult.candleData?.length > 0 && (
                       <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6">
                         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800/50">
-                          <TrendingUp className="w-5 h-5 text-blue-400" />
-                          <h3 className="text-white">Price Action & Signals</h3>
+                          <span className="text-blue-400 text-lg">📈</span>
+                          <h3 className="text-white font-bold">Price Action & Signals</h3>
                         </div>
                         <div style={{height: '850px'}}>
                           <ChartIndependent results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} />
@@ -857,10 +666,10 @@ export default function Backtests() {
                       {/* Equity Curve */}
                       <div className="lg:col-span-2 bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6">
                         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800/50">
-                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500/20 to-violet-500/20 rounded-xl flex items-center justify-center">
-                            <TrendingUp className="w-5 h-5 text-blue-400" />
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500/20 to-violet-500/20 rounded-xl flex items-center justify-center text-xl">
+                            🚀
                           </div>
-                          <h3 className="text-white">Equity vs Buy & Hold</h3>
+                          <h3 className="text-white font-bold">Equity vs Buy & Hold</h3>
                         </div>
                         <ResponsiveContainer width="100%" height={300}>
                           <AreaChart data={processedData}>
@@ -890,10 +699,10 @@ export default function Backtests() {
                       {/* Win Ratio Pie */}
                       <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6">
                         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800/50">
-                          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-rose-500/20 rounded-xl flex items-center justify-center">
-                            <BarChart3 className="w-5 h-5 text-emerald-400" />
+                          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-rose-500/20 rounded-xl flex items-center justify-center text-xl">
+                            📊
                           </div>
-                          <h3 className="text-white">Win Ratio</h3>
+                          <h3 className="text-white font-bold">Win Ratio</h3>
                         </div>
                         <ResponsiveContainer width="100%" height={300}>
                           <PieChart>
@@ -924,25 +733,19 @@ export default function Backtests() {
 
                 {error && (
                   <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-6 text-center">
-                    <h3 className="text-rose-400 text-lg mb-2">Error</h3>
-                    
-                    {/* 🚀 FIX: Prevent Object-in-React-Node Crash */}
+                    <h3 className="text-rose-400 text-lg mb-2 font-bold">Error</h3>
                     <p className="text-slate-400">
-                        {typeof error === 'object' 
-                            ? (error.message || JSON.stringify(error)) 
-                            : String(error)
-                        }
+                        {typeof error === 'object' ? (error.message || JSON.stringify(error)) : String(error)}
                     </p>
                   </div>
-                )}
                 )}
               </>
             ) : (
               <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-12 flex flex-col items-center justify-center min-h-[600px]">
-                <div className="w-20 h-20 bg-gradient-to-br from-blue-500/20 to-violet-600/20 rounded-2xl flex items-center justify-center mb-6">
-                  <Activity className="w-10 h-10 text-blue-400" />
+                <div className="w-20 h-20 bg-gradient-to-br from-blue-500/20 to-violet-600/20 rounded-2xl flex items-center justify-center mb-6 text-4xl">
+                  👋
                 </div>
-                <h3 className="text-white text-xl mb-2">Ready to Test Your Strategy</h3>
+                <h3 className="text-white text-xl mb-2 font-bold">Ready to Test Your Strategy</h3>
                 <p className="text-slate-400 text-center max-w-md">
                   Configure your strategy parameters and run a backtest to see detailed performance metrics, equity curves, and trade analysis.
                 </p>
