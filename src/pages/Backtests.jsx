@@ -743,7 +743,7 @@ export default function Backtests() {
             ) : (
               <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-12 flex flex-col items-center justify-center min-h-[600px]">
                 <div className="w-20 h-20 bg-gradient-to-br from-blue-500/20 to-violet-600/20 rounded-2xl flex items-center justify-center mb-6 text-4xl">
-                  👋
+                 🏆 
                 </div>
                 <h3 className="text-white text-xl mb-2 font-bold">Ready to Test Your Strategy</h3>
                 <p className="text-slate-400 text-center max-w-md">
