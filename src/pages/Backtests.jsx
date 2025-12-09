@@ -11,7 +11,7 @@ import {
 } from "recharts";
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
 import api from "../api/apiClient"; 
-import "../styles/Backtests.css"; 
+import "./Backtests.css"; 
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
 
