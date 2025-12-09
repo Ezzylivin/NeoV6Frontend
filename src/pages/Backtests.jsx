@@ -925,8 +925,16 @@ export default function Backtests() {
                 {error && (
                   <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-6 text-center">
                     <h3 className="text-rose-400 text-lg mb-2">Error</h3>
-                    <p className="text-slate-400">{error}</p>
+                    
+                    {/* 🚀 FIX: Prevent Object-in-React-Node Crash */}
+                    <p className="text-slate-400">
+                        {typeof error === 'object' 
+                            ? (error.message || JSON.stringify(error)) 
+                            : String(error)
+                        }
+                    </p>
                   </div>
+                )}
                 )}
               </>
             ) : (
