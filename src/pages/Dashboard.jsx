@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from 'recharts';
-import api from "../api/apiClient"; 
+import api from "../api/dashboard.js"; 
 import './Dashboard.css';
 
 const POLLING_INTERVAL_MS = 30000;
