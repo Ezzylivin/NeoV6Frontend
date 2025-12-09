@@ -534,7 +534,7 @@ export default function Backtests() {
           ...prev, symbol, timeframe, isCombo: true, strategies,
           comboConfig: { strategyCodes: strategies.map(s => s.code), combinationRule: data.params?.hybridMode || 'OR' },
           mlMode, mlModel, mlThreshold: Number(data.mlThreshold) || 0.5,
-          params: { ...data.params, riskPercentage: Number(data.riskPercentage), maxPyramiding: Number(data.maxPyramiding) }
+          params: { ...data.params, riskPercentage: Number(data.riskPercentage), maxPyramiding: Number(data.maxPyramiding || 1) }
       }));
   };
 
