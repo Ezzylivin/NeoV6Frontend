@@ -9,7 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from 'recharts';
-import api from "../api/apiClient"; // Assuming you have an axios instance pointing to ML server
+import { dashboard } from "../api/dashboard"; // Assuming you have an axios instance pointing to ML server
 import './Dashboard.css';
 
 const POLLING_INTERVAL_MS = 30000;
