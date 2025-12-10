@@ -1,9 +1,7 @@
 // ./pages/Dashboard.jsx
-// 🚀 UPGRADE: v72.0 - "Unified Charts"
-// Features: 
-// 1. BTC & ETH now use the new high-speed Candle API (same as the dropdown).
-// 2. Dropdown explicitly removes BTC/ETH (no duplicates).
-// 3. Reusable 'CryptoChart' component for cleaner code.
+// 🚀 UPGRADE: v73.0 - "Reactive Metrics"
+// Fixes: Live Price not updating when changing symbols.
+// Changes: Added 'key' prop to charts, price reset logic, and race-condition guards.
 
 import React, { useState, useEffect } from 'react';
 import { 
@@ -15,14 +13,13 @@ const FLASK_API_URL = "https://crypto-lpzi.onrender.com/api";
 const POLLING_INTERVAL_MS = 60000;
 const CHART_INTERVALS = ['1D', '1W', '1M', '3M'];
 
-// --- SHARED COMPONENTS ---
+// --- SHARED HELPERS ---
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     const formatCurrency = (val) => val ? parseFloat(val).toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : 'N/A';
     
-    // Handle both timestamp (seconds) and ISO string dates
     const dateObj = data.start ? new Date(data.start * 1000) : new Date(label);
     const formattedDate = !isNaN(dateObj) 
         ? dateObj.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' })
@@ -42,7 +39,8 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 const MetricCard = ({ title, value, unit = '' }) => {
-  let displayValue = 'Loading...';
+  let displayValue = 'Loading...'; // Default state
+  
   if (value !== null && value !== undefined && !isNaN(value)) {
     if (title.includes('Price') || title.includes('-USD')) {
       displayValue = value.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
@@ -50,8 +48,9 @@ const MetricCard = ({ title, value, unit = '' }) => {
       displayValue = value;
     }
   } else if (value === null) {
-      displayValue = 'N/A';
+      displayValue = '...'; // Show dots while fetching
   }
+  
   return (
     <div className="metric-card">
       <h3 className="card-title">{title}</h3>
@@ -61,24 +60,20 @@ const MetricCard = ({ title, value, unit = '' }) => {
 };
 
 // --- REUSABLE CHART COMPONENT ---
-// This ensures BTC, ETH, and Selected charts all behave exactly the same.
-const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
+const CryptoChart = ({ symbol, color, onPriceUpdate, isHighlight = false }) => {
   const [data, setData] = useState([]);
   const [interval, setInterval] = useState('1M');
   const [loading, setLoading] = useState(true);
 
-  // Fetch Logic
   useEffect(() => {
+    let isMounted = true; // 🛡️ Prevent race conditions
     if (!symbol) return;
+
     const fetchData = async () => {
-      // Map frontend interval to backend granularity if needed
-      // (Your backend handles ONE_HOUR vs ONE_DAY logic based on granularity arg)
-      // For this simplified version, we request ONE_HOUR and filter locally, 
-      // or we could ask backend for specific granularity.
-      // Let's stick to the working ONE_HOUR fetch and local filter for responsiveness.
       try {
         const res = await fetch(`${FLASK_API_URL}/candles?product_id=${symbol}&granularity=ONE_HOUR`);
-        if (res.ok) {
+        
+        if (res.ok && isMounted) {
           const rawData = await res.json();
           if (Array.isArray(rawData) && rawData.length > 0) {
             // Standardize Data
@@ -89,7 +84,7 @@ const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
               time: new Date(d.start * 1000).toLocaleDateString()
             }));
             
-            // Notify Parent of latest price
+            // ✅ Update Parent Metric immediately
             if (onPriceUpdate) {
                 onPriceUpdate(cleanData[cleanData.length - 1].close);
             }
@@ -101,17 +96,23 @@ const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
         }
       } catch (e) {
         console.error(`Chart Error (${symbol}):`, e);
+        if (isMounted && onPriceUpdate) onPriceUpdate(null);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     fetchData();
     const id = setInterval(fetchData, POLLING_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, [symbol, onPriceUpdate]);
+    
+    // Cleanup
+    return () => {
+        isMounted = false;
+        clearInterval(id);
+    };
+  }, [symbol]); // Dependencies: only re-run if symbol changes
 
-  // Filtering Logic
+  // Local Filtering Logic
   const filteredData = React.useMemo(() => {
     if (!data.length) return [];
     const now = Date.now() / 1000;
@@ -127,7 +128,7 @@ const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
   }, [data, interval]);
 
   return (
-    <div className="chart-container">
+    <div className={`chart-container ${isHighlight ? 'highlight-chart' : ''}`}>
       <div className="chart-header">
         <h3>{symbol} Closing Price</h3>
         <div className="interval-controls">
@@ -167,12 +168,12 @@ function Dashboard() {
   const [availableSymbols, setAvailableSymbols] = useState([]);
   const [selectedSymbol, setSelectedSymbol] = useState('');
   
-  // Prices State (Lifted up for Metrics Cards)
+  // Prices State
   const [prices, setPrices] = useState({ btc: null, eth: null, selected: null });
   const [macroMetrics, setMacroMetrics] = useState({ cpi: null, fedRate: null });
   const [error, setError] = useState(null);
 
-  // 1. Initial Load: Symbols & Macro
+  // 1. Initial Load
   useEffect(() => {
     const initFetch = async () => {
         try {
@@ -180,19 +181,17 @@ function Dashboard() {
             const symRes = await fetch(`${FLASK_API_URL}/symbols`);
             if (symRes.ok) {
                 const allSyms = await symRes.json();
-                // 🚀 FILTER: Remove BTC and ETH from the dropdown list
+                // Remove BTC/ETH from dropdown
                 const filteredSyms = allSyms.filter(s => s !== 'BTC-USD' && s !== 'ETH-USD');
                 
                 setAvailableSymbols(filteredSyms);
                 if (filteredSyms.length > 0) setSelectedSymbol(filteredSyms[0]);
             }
 
-            // B. Fetch Macro Data (Legacy Endpoint)
-            // We only need this for CPI and Fed Rate now
+            // B. Fetch Macro Data
             const dataRes = await fetch(`${FLASK_API_URL}/data`);
             if (dataRes.ok) {
                 const result = await dataRes.json();
-                // Extract Macro from BTC data (it's embedded there)
                 const btcData = result['BTC-USD'] || [];
                 let metrics = { cpi: null, fedRate: null };
                 const reversed = [...btcData].reverse();
@@ -211,12 +210,19 @@ function Dashboard() {
     initFetch();
   }, []);
 
+  // 2. Reset Selected Price when Symbol Changes
+  // This ensures the "Live Price" card shows "..." while loading the new coin
+  useEffect(() => {
+      setPrices(prev => ({ ...prev, selected: null }));
+  }, [selectedSymbol]);
+
   return (
     <div className="dashboard-container">
       {error && <div className="error-banner">{error}</div>}
       
       <div className="header-row">
         <h1 className="header">Crypto & Macro Dashboard</h1>
+        
         <div className="symbol-selector">
           <span>Select Chart:</span>
           <select value={selectedSymbol} onChange={(e) => setSelectedSymbol(e.target.value)}>
@@ -239,26 +245,30 @@ function Dashboard() {
 
       <h2 className="sub-header">Live Price Charts</h2>
       
-      {/* 1. Dynamic Chart */}
+      {/* 1. DYNAMIC CHART (Using Key to force re-render) */}
       {selectedSymbol && (
         <div className="highlight-chart-wrapper">
             <CryptoChart 
+                key={selectedSymbol}  // 🚀 CRITICAL: Forces fresh mount on change
                 symbol={selectedSymbol} 
                 color="#82ca9d" 
                 onPriceUpdate={(p) => setPrices(prev => ({...prev, selected: p}))} 
+                isHighlight={true}
             />
         </div>
       )}
 
-      {/* 2. BTC Chart (Now uses same component) */}
+      {/* 2. BTC CHART */}
       <CryptoChart 
+        key="BTC-USD"
         symbol="BTC-USD" 
         color="var(--btc-color)" 
         onPriceUpdate={(p) => setPrices(prev => ({...prev, btc: p}))} 
       />
 
-      {/* 3. ETH Chart (Now uses same component) */}
+      {/* 3. ETH CHART */}
       <CryptoChart 
+        key="ETH-USD"
         symbol="ETH-USD" 
         color="var(--eth-color)" 
         onPriceUpdate={(p) => setPrices(prev => ({...prev, eth: p}))} 
