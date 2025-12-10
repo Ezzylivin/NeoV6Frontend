@@ -3,7 +3,7 @@
 .independent-container {
   display: flex;
   flex-direction: column;
-  background: #020617; /* Darker Slate/Black */
+  background: #000000; /* JET BLACK */
   border: 1px solid #064e3b; /* Emerald-900 */
   border-radius: 12px;
   overflow: hidden;
@@ -51,7 +51,7 @@
 .chart-section {
   flex: 1; /* Chart takes remaining space */
   position: relative;
-  background: #020617; /* Very dark/black */
+  background: #000000; /* JET BLACK */
 }
 
 .list-section {
@@ -59,7 +59,7 @@
   border-left: 1px solid #064e3b; /* Emerald-900 */
   display: flex;
   flex-direction: column;
-  background: #0f172a;
+  background: #050505; /* Almost Black */
 }
 
 /* HUD (Head-Up Display) */
@@ -68,7 +68,7 @@
   top: 15px;
   left: 15px;
   z-index: 10;
-  background: rgba(2, 6, 23, 0.85);
+  background: rgba(0, 0, 0, 0.85); /* Black Glass */
   backdrop-filter: blur(8px);
   padding: 10px 15px;
   border-radius: 8px;
