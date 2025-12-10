@@ -1,4 +1,11 @@
-/* File: Dashboard.css - "2026 Carbon Grey Edition" */
+Here is the updated CSS.
+
+I have replaced the blue "Slate" text colors with **neutral greys** to remove the navy tint. To ensure the design isn't "all grey," I have swapped the blue accents, glows, and gradients with a vibrant **Emerald Green**, which was already present in your success metrics.
+
+This creates a sharp "Carbon & Emerald" theme.
+
+```css
+/* File: Dashboard.css - "2026 Carbon Grey & Emerald Edition" */
 
 /* --- 1. LAYOUT STABILITY FIX --- */
 html {
@@ -12,7 +19,6 @@ html {
 /* --- CONTAINER --- */
 .dashboard-container {
   min-height: 100vh;
-  /* CHANGED: From Black to Carbon Grey Gradient */
   background-color: #121212;
   /* Neutral Grey Gradient - No Blue Tones */
   background: radial-gradient(circle at top right, #2d2d2d 0%, #121212 100%);
@@ -35,7 +41,8 @@ html {
   font-size: 2.2rem;
   font-weight: 800;
   margin: 0;
-  background: linear-gradient(135deg, #a78bfa 0%, #60a5fa 100%);
+  /* CHANGED: Blue to Emerald in Gradient */
+  background: linear-gradient(135deg, #a78bfa 0%, #34d399 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -57,7 +64,6 @@ html {
   display: flex;
   align-items: center;
   gap: 12px;
-  /* CHANGED: Grey background */
   background: rgba(30, 30, 30, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -73,7 +79,6 @@ html {
 }
 
 .symbol-selector select {
-  /* CHANGED: Dark Grey input */
   background: #1a1a1a;
   border: 1px solid #404040;
   color: #ffffff;
@@ -87,10 +92,11 @@ html {
 }
 
 .symbol-selector select:focus {
-  border-color: #60a5fa;
+  /* CHANGED: Focus color from Blue to Emerald Green */
+  border-color: #34d399;
   background: #2a2a2a;
   outline: none;
-  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2);
 }
 
 .symbol-selector select:hover {
@@ -113,7 +119,6 @@ html {
 
 .metric-card,
 .metric-card-modern {
-  /* CHANGED: Solid Grey Glass */
   background: rgba(30, 30, 30, 0.6);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -132,7 +137,8 @@ html {
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%);
+  /* CHANGED: Hover glow from Blue to Emerald */
+  background: linear-gradient(90deg, #34d399 0%, #8b5cf6 100%);
   opacity: 0;
   transition: opacity 0.3s ease;
 }
@@ -146,13 +152,15 @@ html {
 .metric-card-modern:hover {
   transform: translateY(-4px);
   background: rgba(40, 40, 40, 0.8);
-  border-color: rgba(96, 165, 250, 0.5);
+  /* CHANGED: Hover border from Blue to Emerald */
+  border-color: rgba(52, 211, 153, 0.5);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
 }
 
 .card-title {
   font-size: 0.875rem;
-  color: #94a3b8;
+  /* CHANGED: Slate Blue-Grey to Neutral Grey */
+  color: #a3a3a3;
   text-transform: uppercase;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -170,7 +178,6 @@ html {
 /* --- CHART CONTAINERS (Modern) --- */
 .chart-container,
 .chart-container-modern {
-  /* CHANGED: Grey Glass */
   background: rgba(30, 30, 30, 0.6);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -184,7 +191,8 @@ html {
 
 .chart-container:hover,
 .chart-container-modern:hover {
-  border-color: rgba(59, 130, 246, 0.3);
+  /* CHANGED: Hover border from Blue to Emerald */
+  border-color: rgba(16, 185, 129, 0.3);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
 }
 
@@ -199,7 +207,8 @@ html {
   content: '';
   position: absolute;
   inset: -2px;
-  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #10b981 100%);
+  /* CHANGED: Start of gradient from Blue to Emerald */
+  background: linear-gradient(135deg, #34d399 0%, #8b5cf6 50%, #10b981 100%);
   border-radius: 18px;
   z-index: -1;
   opacity: 0.3;
@@ -235,7 +244,6 @@ html {
 .interval-controls-modern {
   display: flex;
   gap: 8px;
-  /* CHANGED: Lighter grey for controls */
   background: rgba(45, 45, 45, 0.8);
   padding: 4px;
   border-radius: 10px;
@@ -246,7 +254,8 @@ html {
 .interval-button-modern {
   background: transparent;
   border: none;
-  color: #a0a0a0;
+  /* CHANGED: Neutral Grey */
+  color: #a3a3a3;
   padding: 8px 16px;
   border-radius: 6px;
   font-weight: 600;
@@ -282,14 +291,16 @@ html {
   align-items: center;
   justify-content: center;
   height: 300px;
-  color: #64748b;
+  /* CHANGED: Slate Blue-Grey to Neutral Dark Grey */
+  color: #808080;
 }
 
 .loading-spinner {
   width: 48px;
   height: 48px;
   border: 4px solid rgba(255, 255, 255, 0.1);
-  border-top-color: #3b82f6;
+  /* CHANGED: Spinner color from Blue to Emerald */
+  border-top-color: #34d399;
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 16px;
@@ -305,12 +316,12 @@ html {
   align-items: center;
   justify-content: center;
   height: 300px;
-  color: #475569;
+  /* CHANGED: Slate Blue-Grey to Neutral Dark Grey */
+  color: #707070;
 }
 
 /* --- TOOLTIPS (Modern) --- */
 .custom-tooltip {
-  /* CHANGED: Deep Grey Tooltip */
   background: rgba(30, 30, 30, 0.95);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -323,7 +334,8 @@ html {
 
 .tooltip-label {
   font-size: 0.875rem;
-  color: #94a3b8;
+  /* CHANGED: Slate Blue-Grey to Neutral Grey */
+  color: #a3a3a3;
   font-weight: 700;
   margin-bottom: 12px;
   text-align: center;
@@ -348,7 +360,8 @@ html {
 }
 
 .tooltip-key {
-  color: #a0a0a0;
+  /* CHANGED: Neutral Grey */
+  color: #a3a3a3;
   font-weight: 500;
 }
 
@@ -359,6 +372,7 @@ html {
 }
 
 .tooltip-value-high {
+  /* Kept Emerald Green */
   color: #34d399;
   font-weight: 700;
   font-family: 'Roboto Mono', monospace;
@@ -371,7 +385,8 @@ html {
 }
 
 .tooltip-value-close {
-  color: #60a5fa;
+  /* CHANGED: Blue to Neutral Grey (it's just a label now) */
+  color: #a3a3a3;
   font-weight: 700;
   font-family: 'Roboto Mono', monospace;
   font-size: 1rem;
@@ -462,8 +477,6 @@ html {
 }
 
 /* --- OVERRIDES FOR REACT TAILWIND UTILS --- */
-/* These force the React components to adhere to the GREY theme */
-/* Overrides bg-slate-900 with Carbon Grey */
 .bg-slate-900\/50 {
   background-color: rgba(30, 30, 30, 0.8) !important;
 }
@@ -527,5 +540,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 p, span, div {
-  color: #e0e0e0;
+  /* CHANGED: Slightly warmer neutral grey */
+  color: #e6e6e6;
 }
+```
