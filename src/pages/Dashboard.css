@@ -536,3 +536,43 @@ p, span, div {
   /* CHANGED: Slightly warmer neutral grey */
   color: #e6e6e6;
 }
+/* --- GLOBAL THEME OVERRIDES: SLATE TO CARBON --- */
+/* This strips the blue out of standard Tailwind classes used on other pages */
+
+/* 1. Force Page Backgrounds to Grey */
+body, 
+.min-h-screen, 
+.bg-slate-950 {
+  background-color: #121212 !important;
+  background-image: radial-gradient(circle at top right, #2d2d2d 0%, #121212 100%) !important;
+}
+
+/* 2. Force Container/Sidebar Backgrounds (Slate-900) to Grey */
+.bg-slate-900 {
+  background-color: #1a1a1a !important;
+}
+
+/* 3. Force Card/Input Backgrounds (Slate-800) to Lighter Grey */
+.bg-slate-800,
+.bg-slate-800\/50 {
+  background-color: #262626 !important;
+}
+
+/* 4. Force Borders to Neutral Grey */
+.border-slate-700,
+.border-slate-800 {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* 5. Fix Form Inputs (Selects, Text Inputs) specifically */
+input, select, textarea {
+  background-color: #0a0a0a !important; 
+  border-color: #404040 !important;
+  color: #e5e5e5 !important;
+}
+
+/* 6. Fix Text Colors */
+.text-slate-400,
+.text-slate-500 {
+  color: #a3a3a3 !important; /* Neutral Grey Text */
+}
