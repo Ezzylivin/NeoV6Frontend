@@ -1,6 +1,6 @@
 // ./pages/Dashboard.jsx
-// 🚀 UPGRADE: v69.0 - "Flask Integration"
-// Features: Connects to Flask Backend for Symbols and Candles
+// 🚀 UPGRADE: v71.0 - "Unified Flask Frontend"
+// Fixes: "api is not defined" error, N/A data, missing charts.
 
 import React, { useState, useEffect } from 'react';
 import { 
@@ -8,19 +8,24 @@ import {
 } from 'recharts';
 import './Dashboard.css';
 
-// 🚀 CONFIG: Pointing to your Flask Backend
-const FLASK_API_URL = "https://crypto-lpzi.onrender.com/api";
-const POLLING_INTERVAL_MS = 60000; // 1 minute
+// 🚀 CONFIG: Everything now points to FLASK
+const API_URL = "https://crypto-lpzi.onrender.com/api";
+const POLLING_INTERVAL_MS = 60000;
 const chartIntervals = ['1D', '1W', '1M', '3M'];
 
+// --- HELPERS ---
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     const formatCurrency = (val) => val ? parseFloat(val).toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : 'N/A';
     
-    // Convert 'start' timestamp (seconds) to Date
-    const dateObj = data.start ? new Date(data.start * 1000) : new Date(label);
-    const formattedDate = dateObj.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' });
+    let dateObj;
+    if (data.start) dateObj = new Date(data.start * 1000);
+    else dateObj = new Date(label);
+    
+    const formattedDate = !isNaN(dateObj) 
+        ? dateObj.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' })
+        : label;
 
     return (
       <div className="custom-tooltip">
@@ -64,6 +69,7 @@ const IntervalButtons = ({ intervals, activeInterval, onIntervalChange }) => (
   </div>
 );
 
+// --- MAIN COMPONENT ---
 function Dashboard() {
   const [availableSymbols, setAvailableSymbols] = useState([]);
   const [selectedSymbol, setSelectedSymbol] = useState('');
@@ -88,13 +94,13 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // 1. Initial Load: Symbols + Macro Data (from Flask)
+  // 1. Initial Data Fetch
   useEffect(() => {
     const initFetch = async () => {
         try {
-            // A. Fetch Supported Symbols
+            // A. Fetch Symbols (From Flask)
             try {
-                const symRes = await fetch(`${FLASK_API_URL}/symbols`);
+                const symRes = await fetch(`${API_URL}/symbols`);
                 if (symRes.ok) {
                     const symbols = await symRes.json();
                     setAvailableSymbols(symbols);
@@ -102,22 +108,21 @@ function Dashboard() {
                 } else {
                     throw new Error("Symbols endpoint failed");
                 }
-            } catch (e) {
-                console.warn("Using fallback symbols:", e);
+            } catch (err) {
+                console.warn("Symbol fetch failed, using fallback.", err);
                 setAvailableSymbols(["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD"]);
                 setSelectedSymbol("BTC-USD");
             }
 
-            // B. Fetch Legacy Bulk Data (Macro + BTC/ETH)
-            const response = await fetch(`${FLASK_API_URL}/data`);
+            // B. Fetch Legacy Data (BTC/ETH/Macro) (From Flask)
+            const response = await fetch(`${API_URL}/data`);
             if (response.ok) {
                 const result = await response.json();
-                
                 const process = (arr) => arr.map(d => ({ 
                     ...d, 
                     close: parseFloat(d.close), 
                     start: d.start ? parseFloat(d.start) : (new Date(d.time).getTime() / 1000),
-                    time: d.time // already ISO string
+                    time: d.time 
                 }));
 
                 const cleanBtc = process(result['BTC-USD'] || []);
@@ -130,17 +135,19 @@ function Dashboard() {
                 if(cleanEth.length) setLatestEth(cleanEth[cleanEth.length-1].close);
 
                 let metrics = { cpi: null, fedRate: null };
-                const reversed = [...cleanBtc].reverse();
-                for (const obs of reversed) {
-                    if (metrics.cpi === null && obs.cpi) metrics.cpi = obs.cpi;
-                    if (metrics.fedRate === null && obs.fed_funds_rate) metrics.fedRate = obs.fed_funds_rate;
-                    if (metrics.cpi && metrics.fedRate) break;
+                if (cleanBtc.length > 0) {
+                    const reversed = [...cleanBtc].reverse();
+                    for (const obs of reversed) {
+                        if (metrics.cpi === null && obs.cpi) metrics.cpi = obs.cpi;
+                        if (metrics.fedRate === null && obs.fed_funds_rate) metrics.fedRate = obs.fed_funds_rate;
+                        if (metrics.cpi && metrics.fedRate) break;
+                    }
                 }
                 setMacroMetrics(metrics);
             }
         } catch (e) {
             console.error("Init Error:", e);
-            setError("Failed to connect to data server.");
+            setError("Failed to load dashboard data.");
         } finally {
             setLoading(false);
         }
@@ -148,14 +155,13 @@ function Dashboard() {
     initFetch();
   }, []);
 
-  // 2. Fetch Selected Symbol Candles (from Flask)
+  // 2. Fetch Selected Symbol Data (From Flask)
   useEffect(() => {
       if (!selectedSymbol) return;
       
       const fetchSelected = async () => {
           try {
-              // 🚀 Call Flask Endpoint
-              const res = await fetch(`${FLASK_API_URL}/candles?product_id=${selectedSymbol}&granularity=ONE_HOUR`);
+              const res = await fetch(`${API_URL}/candles?product_id=${selectedSymbol}&granularity=ONE_HOUR`);
               
               if (res.ok) {
                   const data = await res.json();
@@ -176,6 +182,7 @@ function Dashboard() {
           } catch (e) {
               console.error(`Failed to fetch ${selectedSymbol}:`, e);
               setLatestSelected(null);
+              setSelectedChartData([]);
           }
       };
       
@@ -243,15 +250,17 @@ function Dashboard() {
           <ResponsiveContainer width="100%" height={300}>
             {displayedSelected.length > 0 ? (
                 <LineChart data={displayedSelected}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" minTickGap={30} />
-                <YAxis domain={['auto', 'auto']} />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend />
-                <Line type="monotone" dataKey="close" stroke="#82ca9d" name={`${selectedSymbol} Close`} dot={false} strokeWidth={2} />
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="time" minTickGap={30} />
+                    <YAxis domain={['auto', 'auto']} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend />
+                    <Line type="monotone" dataKey="close" stroke="#82ca9d" name={`${selectedSymbol} Close`} dot={false} strokeWidth={2} />
                 </LineChart>
             ) : (
-                <div style={{color: '#aaa', textAlign: 'center', paddingTop: '100px'}}>Loading Data...</div>
+                <div style={{color: '#aaa', textAlign: 'center', paddingTop: '100px'}}>
+                    {availableSymbols.length === 0 ? "Loading Symbols..." : "Loading Data or No Data Available..."}
+                </div>
             )}
           </ResponsiveContainer>
         </div>
