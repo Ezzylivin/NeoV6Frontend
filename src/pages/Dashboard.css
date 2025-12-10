@@ -1,7 +1,6 @@
-/* File: Dashboard.css - "2026 Midnight Black Edition" */
+/* File: Dashboard.css - "2026 Carbon Grey Edition" */
 
 /* --- 1. LAYOUT STABILITY FIX --- */
-/* Prevents the page from jumping when scrollbars appear/disappear */
 html {
   scrollbar-gutter: stable;
 }
@@ -13,9 +12,10 @@ html {
 /* --- CONTAINER --- */
 .dashboard-container {
   min-height: 100vh;
-  /* CHANGED: From Slate Blue to Deep Black Gradient */
-  background-color: #000000;
-  background: radial-gradient(circle at top right, #111111 0%, #000000 60%);
+  /* CHANGED: From Black to Carbon Grey Gradient */
+  background-color: #121212;
+  /* Neutral Grey Gradient - No Blue Tones */
+  background: radial-gradient(circle at top right, #2d2d2d 0%, #121212 100%);
   padding: 0;
 }
 
@@ -26,7 +26,6 @@ html {
   align-items: center;
   margin-bottom: 30px;
   padding-bottom: 20px;
-  /* CHANGED: Grey border instead of blue-grey */
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   flex-wrap: wrap;
   gap: 20px;
@@ -36,7 +35,6 @@ html {
   font-size: 2.2rem;
   font-weight: 800;
   margin: 0;
-  /* Kept the gradient text as it pops on black */
   background: linear-gradient(135deg, #a78bfa 0%, #60a5fa 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -59,11 +57,10 @@ html {
   display: flex;
   align-items: center;
   gap: 12px;
-  /* CHANGED: Very dark background */
-  background: rgba(10, 10, 10, 0.85);
+  /* CHANGED: Grey background */
+  background: rgba(30, 30, 30, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  /* CHANGED: Lighter, sharper border for contrast against black */
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 12px;
   padding: 12px 20px;
@@ -76,9 +73,9 @@ html {
 }
 
 .symbol-selector select {
-  /* CHANGED: Pure black input background */
-  background: #000000;
-  border: 1px solid #333333;
+  /* CHANGED: Dark Grey input */
+  background: #1a1a1a;
+  border: 1px solid #404040;
   color: #ffffff;
   padding: 10px 16px;
   border-radius: 8px;
@@ -91,7 +88,7 @@ html {
 
 .symbol-selector select:focus {
   border-color: #60a5fa;
-  background: #111111;
+  background: #2a2a2a;
   outline: none;
   box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
 }
@@ -101,7 +98,7 @@ html {
 }
 
 .symbol-selector option {
-  background: #000000;
+  background: #1a1a1a;
   color: white;
   padding: 10px;
 }
@@ -116,11 +113,10 @@ html {
 
 .metric-card,
 .metric-card-modern {
-  /* CHANGED: Deep black with slight transparency */
-  background: rgba(5, 5, 5, 0.85);
+  /* CHANGED: Solid Grey Glass */
+  background: rgba(30, 30, 30, 0.6);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  /* CHANGED: Sharper white border */
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 16px;
   padding: 24px;
@@ -149,8 +145,9 @@ html {
 .metric-card:hover,
 .metric-card-modern:hover {
   transform: translateY(-4px);
+  background: rgba(40, 40, 40, 0.8);
   border-color: rgba(96, 165, 250, 0.5);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
 }
 
 .card-title {
@@ -173,23 +170,22 @@ html {
 /* --- CHART CONTAINERS (Modern) --- */
 .chart-container,
 .chart-container-modern {
-  /* CHANGED: Black glass */
-  background: rgba(5, 5, 5, 0.85);
+  /* CHANGED: Grey Glass */
+  background: rgba(30, 30, 30, 0.6);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  /* CHANGED: Subtle border */
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 16px;
   padding: 28px;
   margin-bottom: 24px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   transition: all 0.3s ease;
 }
 
 .chart-container:hover,
 .chart-container-modern:hover {
   border-color: rgba(59, 130, 246, 0.3);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.9);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
 }
 
 .highlight-chart,
@@ -206,7 +202,7 @@ html {
   background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #10b981 100%);
   border-radius: 18px;
   z-index: -1;
-  opacity: 0.4;
+  opacity: 0.3;
   filter: blur(12px);
 }
 
@@ -239,8 +235,8 @@ html {
 .interval-controls-modern {
   display: flex;
   gap: 8px;
-  /* CHANGED: Darker background */
-  background: rgba(20, 20, 20, 0.8);
+  /* CHANGED: Lighter grey for controls */
+  background: rgba(45, 45, 45, 0.8);
   padding: 4px;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -250,7 +246,7 @@ html {
 .interval-button-modern {
   background: transparent;
   border: none;
-  color: #64748b;
+  color: #a0a0a0;
   padding: 8px 16px;
   border-radius: 6px;
   font-weight: 600;
@@ -261,15 +257,15 @@ html {
 
 .interval-button:hover,
 .interval-button-modern:hover {
-  color: #f8fafc;
-  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .interval-button.active,
 .interval-button-modern.active {
-  background: #333; /* Dark grey for active */
+  background: #505050; 
   color: white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(255,255,255,0.1);
 }
 
@@ -314,14 +310,14 @@ html {
 
 /* --- TOOLTIPS (Modern) --- */
 .custom-tooltip {
-  /* CHANGED: Solid Black Tooltip */
-  background: rgba(0, 0, 0, 0.95);
+  /* CHANGED: Deep Grey Tooltip */
+  background: rgba(30, 30, 30, 0.95);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 12px;
   padding: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   min-width: 200px;
 }
 
@@ -352,7 +348,7 @@ html {
 }
 
 .tooltip-key {
-  color: #64748b;
+  color: #a0a0a0;
   font-weight: 500;
 }
 
@@ -466,9 +462,10 @@ html {
 }
 
 /* --- OVERRIDES FOR REACT TAILWIND UTILS --- */
-/* These force the React components to adhere to the black theme */
+/* These force the React components to adhere to the GREY theme */
+/* Overrides bg-slate-900 with Carbon Grey */
 .bg-slate-900\/50 {
-  background-color: rgba(5, 5, 5, 0.8) !important;
+  background-color: rgba(30, 30, 30, 0.8) !important;
 }
 
 .border-slate-800\/50 {
@@ -503,25 +500,25 @@ html {
   animation: fadeIn 0.5s ease-out;
 }
 
-/* --- SCROLLBAR STYLING (Black) --- */
+/* --- SCROLLBAR STYLING (Grey) --- */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #000000;
+  background: #1a1a1a;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333333;
+  background: #404040;
   border-radius: 4px;
-  border: 1px solid #000000;
+  border: 1px solid #1a1a1a;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #444444;
+  background: #505050;
 }
 
 /* --- TEXT COLORS --- */
@@ -530,5 +527,5 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 p, span, div {
-  color: #cbd5e1;
+  color: #e0e0e0;
 }
