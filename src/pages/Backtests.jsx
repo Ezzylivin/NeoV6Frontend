@@ -186,9 +186,10 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
                 </div>
             </div>
             
-            <div className="bg-slate-800/30 border border-slate-700/50 rounded-2xl p-6 mb-6">
-                <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-700/50">
-                    <h4 className="text-white font-bold">Risk & ML Configuration</h4>
+            {/* 🟢 MODIFIED: Emerald Background for Risk & ML */}
+            <div className="bg-emerald-900/10 border border-emerald-500/20 rounded-2xl p-6 mb-6">
+                <div className="flex items-center gap-3 mb-4 pb-3 border-b border-emerald-500/20">
+                    <h4 className="text-emerald-400 font-bold">Risk & ML Configuration</h4>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="space-y-2">
@@ -241,9 +242,10 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
                 </div>
             </div>
 
-            <div className="bg-slate-800/30 border border-slate-700/50 rounded-2xl p-6">
-                <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-700/50">
-                    <h4 className="text-white font-bold">Advanced Filters</h4>
+            {/* 🟢 MODIFIED: Emerald Background for Advanced Filters */}
+            <div className="bg-emerald-900/10 border border-emerald-500/20 rounded-2xl p-6">
+                <div className="flex items-center gap-3 mb-4 pb-3 border-b border-emerald-500/20">
+                    <h4 className="text-emerald-400 font-bold">Advanced Filters</h4>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="space-y-2">
@@ -271,11 +273,13 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
 const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, disableRemove }) => {
   const handleChange = (e) => onChange(e, idx);
   return (
-    <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-4 hover:border-slate-600/50 transition-all">
+    // 🟢 MODIFIED: Emerald Background for Strategy Layers
+    <div className="bg-emerald-900/10 border border-emerald-500/20 rounded-xl p-4 hover:border-emerald-500/40 transition-all">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-gradient-to-br from-blue-500/20 to-violet-500/20 rounded-lg flex items-center justify-center">
-            <span className="text-blue-400 font-bold">{idx + 1}</span>
+          {/* 🟢 MODIFIED: Emerald Badge */}
+          <div className="w-8 h-8 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-lg flex items-center justify-center">
+            <span className="text-emerald-400 font-bold">{idx + 1}</span>
           </div>
           <span className="text-white">Strategy #{idx + 1}</span>
         </div>
@@ -533,13 +537,13 @@ export default function Backtests() {
                 </select>
               </div>
 
-              {/* Tabs */}
+              {/* Tabs - 🟢 MODIFIED: Emerald Green Tabs */}
               <div className="flex gap-2">
                 <button 
                   className={`flex-1 py-2.5 px-4 rounded-xl transition-all font-medium text-sm ${
                     activeTab === 'single' 
-                      ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50' 
-                      : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50' 
+                      : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-emerald-500/30 hover:text-emerald-400'
                   }`}
                   onClick={() => setActiveTab('single')}
                 >
@@ -548,8 +552,8 @@ export default function Backtests() {
                 <button 
                   className={`flex-1 py-2.5 px-4 rounded-xl transition-all font-medium text-sm ${
                     activeTab === 'combo' 
-                      ? 'bg-violet-500/20 text-violet-400 border border-violet-500/50' 
-                      : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50' 
+                      : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-emerald-500/30 hover:text-emerald-400'
                   }`}
                   onClick={() => setActiveTab('combo')}
                 >
