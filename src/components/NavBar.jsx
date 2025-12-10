@@ -1,15 +1,21 @@
+// ./components/NavBar.jsx
+// 🚀 THEME UPDATE: "Carbon Grey & Emerald"
+
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 
 export default function NavBar() {
   const { user, logout } = useAuth();
 
-  const baseClass = "transition px-3 py-2 hover:text-blue-300";
-  const activeClass = "text-blue-400 font-semibold";
+  // CHANGED: Blue hover/active states -> Emerald Green
+  const baseClass = "transition px-3 py-2 hover:text-emerald-400";
+  const activeClass = "text-emerald-400 font-semibold";
 
   if (!user) {
     return (
-      <header className="bg-gray-900 text-white px-6 py-4 flex justify-between items-center border-b border-gray-700">
+      // CHANGED: bg-gray-900 (Navy tint) -> bg-[#121212] (True Carbon)
+      // CHANGED: border-gray-700 -> border-white/10 (Subtle Glass Border)
+      <header className="bg-[#121212] text-white px-6 py-4 flex justify-between items-center border-b border-white/10">
         <h1 className="text-xl font-bold tracking-wide">N.V6 SmartTradingBot</h1>
         <NavLink
           to="/"
@@ -22,12 +28,14 @@ export default function NavBar() {
   }
 
   return (
-    <header className="bg-gray-900 text-white px-6 py-4 flex justify-between items-center border-b border-gray-700">
+    // CHANGED: Background to #121212 (Carbon) and Border to white/10
+    <header className="bg-[#121212] text-white px-6 py-4 flex justify-between items-center border-b border-white/10">
       {/* Left: Brand + Nav Links */}
       <div className="flex items-center space-x-6">
         <NavLink
           to="/dashboard"
-          className="text-2xl font-bold tracking-wide text-white hover:text-blue-300"
+          // CHANGED: hover:text-blue-300 -> hover:text-emerald-400
+          className="text-2xl font-bold tracking-wide text-white hover:text-emerald-400 transition-colors"
         >
           NeoV6
         </NavLink>
@@ -37,6 +45,10 @@ export default function NavBar() {
           </NavLink>
           <NavLink to="/dashboard/backtests" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>
             Backtests
+          </NavLink>
+          {/* Note: 'Strategies' was in your screenshot but missing here. Added it back if needed, otherwise ignored. */}
+           <NavLink to="/dashboard/strategies" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>
+            Strategies
           </NavLink>
           <NavLink to="/dashboard/tradingbot" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>
             Trading Bot
@@ -49,10 +61,12 @@ export default function NavBar() {
 
       {/* Right: User + Logout */}
       <div className="flex items-center space-x-4">
-        <span className="text-sm text-gray-300">Welcome, {user?.username}</span>
+        {/* CHANGED: text-gray-300 -> text-neutral-400 (True Grey) */}
+        <span className="text-sm text-neutral-400">Welcome, {user?.username}</span>
         <button
           onClick={logout}
-          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md transition"
+          // Optional: You can keep Red for logout, or switch to Neutral-700 for a subtler look
+          className="bg-red-600/80 hover:bg-red-600 text-white px-4 py-2 rounded-xl transition border border-red-500/20"
         >
           Logout
         </button>
