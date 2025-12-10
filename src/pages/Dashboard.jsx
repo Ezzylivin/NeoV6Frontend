@@ -1,6 +1,9 @@
 // ./pages/Dashboard.jsx
-// 🚀 UPGRADE: v71.0 - "Unified Flask Frontend"
-// Fixes: "api is not defined" error, N/A data, missing charts.
+// 🚀 UPGRADE: v72.0 - "Unified Charts"
+// Features: 
+// 1. BTC & ETH now use the new high-speed Candle API (same as the dropdown).
+// 2. Dropdown explicitly removes BTC/ETH (no duplicates).
+// 3. Reusable 'CryptoChart' component for cleaner code.
 
 import React, { useState, useEffect } from 'react';
 import { 
@@ -8,21 +11,19 @@ import {
 } from 'recharts';
 import './Dashboard.css';
 
-// 🚀 CONFIG: Everything now points to FLASK
-const API_URL = "https://crypto-lpzi.onrender.com/api";
+const FLASK_API_URL = "https://crypto-lpzi.onrender.com/api";
 const POLLING_INTERVAL_MS = 60000;
-const chartIntervals = ['1D', '1W', '1M', '3M'];
+const CHART_INTERVALS = ['1D', '1W', '1M', '3M'];
 
-// --- HELPERS ---
+// --- SHARED COMPONENTS ---
+
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     const formatCurrency = (val) => val ? parseFloat(val).toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : 'N/A';
     
-    let dateObj;
-    if (data.start) dateObj = new Date(data.start * 1000);
-    else dateObj = new Date(label);
-    
+    // Handle both timestamp (seconds) and ISO string dates
+    const dateObj = data.start ? new Date(data.start * 1000) : new Date(label);
     const formattedDate = !isNaN(dateObj) 
         ? dateObj.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' })
         : label;
@@ -40,7 +41,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-function MetricCard({ title, value, unit = '' }) {
+const MetricCard = ({ title, value, unit = '' }) => {
   let displayValue = 'Loading...';
   if (value !== null && value !== undefined && !isNaN(value)) {
     if (title.includes('Price') || title.includes('-USD')) {
@@ -57,143 +58,62 @@ function MetricCard({ title, value, unit = '' }) {
       <div className="card-value">{displayValue}{unit}</div>
     </div>
   );
-}
+};
 
-const IntervalButtons = ({ intervals, activeInterval, onIntervalChange }) => (
-  <div className="interval-controls">
-    {intervals.map((interval) => (
-      <button key={interval} className={`interval-button ${activeInterval === interval ? 'active' : ''}`} onClick={() => onIntervalChange(interval)}>
-        {interval}
-      </button>
-    ))}
-  </div>
-);
-
-// --- MAIN COMPONENT ---
-function Dashboard() {
-  const [availableSymbols, setAvailableSymbols] = useState([]);
-  const [selectedSymbol, setSelectedSymbol] = useState('');
-  
-  const [masterBtcData, setMasterBtcData] = useState([]);
-  const [masterEthData, setMasterEthData] = useState([]);
-  const [selectedChartData, setSelectedChartData] = useState([]);
-
-  const [displayedBtc, setDisplayedBtc] = useState([]);
-  const [displayedEth, setDisplayedEth] = useState([]);
-  const [displayedSelected, setDisplayedSelected] = useState([]);
-
-  const [btcInterval, setBtcInterval] = useState('1M');
-  const [ethInterval, setEthInterval] = useState('1M');
-  const [selectedInterval, setSelectedInterval] = useState('1M');
-
-  const [macroMetrics, setMacroMetrics] = useState({ cpi: null, fedRate: null });
-  const [latestBtc, setLatestBtc] = useState(null);
-  const [latestEth, setLatestEth] = useState(null);
-  const [latestSelected, setLatestSelected] = useState(null);
-
+// --- REUSABLE CHART COMPONENT ---
+// This ensures BTC, ETH, and Selected charts all behave exactly the same.
+const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
+  const [data, setData] = useState([]);
+  const [interval, setInterval] = useState('1M');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
-  // 1. Initial Data Fetch
+  // Fetch Logic
   useEffect(() => {
-    const initFetch = async () => {
-        try {
-            // A. Fetch Symbols (From Flask)
-            try {
-                const symRes = await fetch(`${API_URL}/symbols`);
-                if (symRes.ok) {
-                    const symbols = await symRes.json();
-                    setAvailableSymbols(symbols);
-                    if (symbols.length > 0) setSelectedSymbol(symbols[0]); 
-                } else {
-                    throw new Error("Symbols endpoint failed");
-                }
-            } catch (err) {
-                console.warn("Symbol fetch failed, using fallback.", err);
-                setAvailableSymbols(["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD"]);
-                setSelectedSymbol("BTC-USD");
+    if (!symbol) return;
+    const fetchData = async () => {
+      // Map frontend interval to backend granularity if needed
+      // (Your backend handles ONE_HOUR vs ONE_DAY logic based on granularity arg)
+      // For this simplified version, we request ONE_HOUR and filter locally, 
+      // or we could ask backend for specific granularity.
+      // Let's stick to the working ONE_HOUR fetch and local filter for responsiveness.
+      try {
+        const res = await fetch(`${FLASK_API_URL}/candles?product_id=${symbol}&granularity=ONE_HOUR`);
+        if (res.ok) {
+          const rawData = await res.json();
+          if (Array.isArray(rawData) && rawData.length > 0) {
+            // Standardize Data
+            const cleanData = rawData.map(d => ({
+              ...d,
+              close: parseFloat(d.close),
+              start: parseFloat(d.start),
+              time: new Date(d.start * 1000).toLocaleDateString()
+            }));
+            
+            // Notify Parent of latest price
+            if (onPriceUpdate) {
+                onPriceUpdate(cleanData[cleanData.length - 1].close);
             }
-
-            // B. Fetch Legacy Data (BTC/ETH/Macro) (From Flask)
-            const response = await fetch(`${API_URL}/data`);
-            if (response.ok) {
-                const result = await response.json();
-                const process = (arr) => arr.map(d => ({ 
-                    ...d, 
-                    close: parseFloat(d.close), 
-                    start: d.start ? parseFloat(d.start) : (new Date(d.time).getTime() / 1000),
-                    time: d.time 
-                }));
-
-                const cleanBtc = process(result['BTC-USD'] || []);
-                const cleanEth = process(result['ETH-USD'] || []);
-                
-                setMasterBtcData(cleanBtc);
-                setMasterEthData(cleanEth);
-                
-                if(cleanBtc.length) setLatestBtc(cleanBtc[cleanBtc.length-1].close);
-                if(cleanEth.length) setLatestEth(cleanEth[cleanEth.length-1].close);
-
-                let metrics = { cpi: null, fedRate: null };
-                if (cleanBtc.length > 0) {
-                    const reversed = [...cleanBtc].reverse();
-                    for (const obs of reversed) {
-                        if (metrics.cpi === null && obs.cpi) metrics.cpi = obs.cpi;
-                        if (metrics.fedRate === null && obs.fed_funds_rate) metrics.fedRate = obs.fed_funds_rate;
-                        if (metrics.cpi && metrics.fedRate) break;
-                    }
-                }
-                setMacroMetrics(metrics);
-            }
-        } catch (e) {
-            console.error("Init Error:", e);
-            setError("Failed to load dashboard data.");
-        } finally {
-            setLoading(false);
-        }
-    };
-    initFetch();
-  }, []);
-
-  // 2. Fetch Selected Symbol Data (From Flask)
-  useEffect(() => {
-      if (!selectedSymbol) return;
-      
-      const fetchSelected = async () => {
-          try {
-              const res = await fetch(`${API_URL}/candles?product_id=${selectedSymbol}&granularity=ONE_HOUR`);
-              
-              if (res.ok) {
-                  const data = await res.json();
-                  if (Array.isArray(data) && data.length > 0) {
-                      const clean = data.map(d => ({
-                          ...d,
-                          close: parseFloat(d.close),
-                          start: parseFloat(d.start),
-                          time: new Date(d.start * 1000).toLocaleDateString()
-                      }));
-                      setSelectedChartData(clean);
-                      setLatestSelected(clean[clean.length - 1].close);
-                  } else {
-                      setSelectedChartData([]);
-                      setLatestSelected(null);
-                  }
-              }
-          } catch (e) {
-              console.error(`Failed to fetch ${selectedSymbol}:`, e);
-              setLatestSelected(null);
-              setSelectedChartData([]);
+            setData(cleanData);
+          } else {
+            setData([]);
+            if (onPriceUpdate) onPriceUpdate(null);
           }
-      };
-      
-      fetchSelected();
-      const id = setInterval(fetchSelected, POLLING_INTERVAL_MS);
-      return () => clearInterval(id);
-  }, [selectedSymbol]);
+        }
+      } catch (e) {
+        console.error(`Chart Error (${symbol}):`, e);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+    const id = setInterval(fetchData, POLLING_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [symbol, onPriceUpdate]);
 
   // Filtering Logic
-  const filterByInterval = (data, interval) => {
-    if (!data || data.length === 0) return [];
+  const filteredData = React.useMemo(() => {
+    if (!data.length) return [];
     const now = Date.now() / 1000;
     let cutoff = 0;
     switch (interval) {
@@ -203,14 +123,93 @@ function Dashboard() {
       case '3M': cutoff = now - 7776000; break;
       default: return data;
     }
-    return data.filter(d => parseFloat(d.start) >= cutoff);
-  };
+    return data.filter(d => d.start >= cutoff);
+  }, [data, interval]);
 
-  useEffect(() => setDisplayedBtc(filterByInterval(masterBtcData, btcInterval)), [masterBtcData, btcInterval]);
-  useEffect(() => setDisplayedEth(filterByInterval(masterEthData, ethInterval)), [masterEthData, ethInterval]);
-  useEffect(() => setDisplayedSelected(filterByInterval(selectedChartData, selectedInterval)), [selectedChartData, selectedInterval]);
+  return (
+    <div className="chart-container">
+      <div className="chart-header">
+        <h3>{symbol} Closing Price</h3>
+        <div className="interval-controls">
+          {CHART_INTERVALS.map((int) => (
+            <button 
+              key={int} 
+              className={`interval-button ${interval === int ? 'active' : ''}`} 
+              onClick={() => setInterval(int)}
+            >
+              {int}
+            </button>
+          ))}
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={300}>
+        {loading ? (
+            <div style={{color: '#aaa', textAlign: 'center', paddingTop: '100px'}}>Loading {symbol}...</div>
+        ) : filteredData.length > 0 ? (
+            <LineChart data={filteredData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="time" minTickGap={30} />
+                <YAxis domain={['auto', 'auto']} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend />
+                <Line type="monotone" dataKey="close" stroke={color} name={`${symbol} Close`} dot={false} strokeWidth={2} />
+            </LineChart>
+        ) : (
+            <div style={{color: '#aaa', textAlign: 'center', paddingTop: '100px'}}>No Data Available</div>
+        )}
+      </ResponsiveContainer>
+    </div>
+  );
+};
 
-  if (loading) return <div className="dashboard-container">Loading Dashboard...</div>;
+// --- MAIN DASHBOARD ---
+function Dashboard() {
+  const [availableSymbols, setAvailableSymbols] = useState([]);
+  const [selectedSymbol, setSelectedSymbol] = useState('');
+  
+  // Prices State (Lifted up for Metrics Cards)
+  const [prices, setPrices] = useState({ btc: null, eth: null, selected: null });
+  const [macroMetrics, setMacroMetrics] = useState({ cpi: null, fedRate: null });
+  const [error, setError] = useState(null);
+
+  // 1. Initial Load: Symbols & Macro
+  useEffect(() => {
+    const initFetch = async () => {
+        try {
+            // A. Fetch Symbols
+            const symRes = await fetch(`${FLASK_API_URL}/symbols`);
+            if (symRes.ok) {
+                const allSyms = await symRes.json();
+                // 🚀 FILTER: Remove BTC and ETH from the dropdown list
+                const filteredSyms = allSyms.filter(s => s !== 'BTC-USD' && s !== 'ETH-USD');
+                
+                setAvailableSymbols(filteredSyms);
+                if (filteredSyms.length > 0) setSelectedSymbol(filteredSyms[0]);
+            }
+
+            // B. Fetch Macro Data (Legacy Endpoint)
+            // We only need this for CPI and Fed Rate now
+            const dataRes = await fetch(`${FLASK_API_URL}/data`);
+            if (dataRes.ok) {
+                const result = await dataRes.json();
+                // Extract Macro from BTC data (it's embedded there)
+                const btcData = result['BTC-USD'] || [];
+                let metrics = { cpi: null, fedRate: null };
+                const reversed = [...btcData].reverse();
+                for (const obs of reversed) {
+                    if (metrics.cpi === null && obs.cpi) metrics.cpi = obs.cpi;
+                    if (metrics.fedRate === null && obs.fed_funds_rate) metrics.fedRate = obs.fed_funds_rate;
+                    if (metrics.cpi && metrics.fedRate) break;
+                }
+                setMacroMetrics(metrics);
+            }
+        } catch (e) {
+            console.error("Init Error:", e);
+            setError("Failed to load dashboard configuration.");
+        }
+    };
+    initFetch();
+  }, []);
 
   return (
     <div className="dashboard-container">
@@ -231,76 +230,39 @@ function Dashboard() {
       
       <h2 className="sub-header">Key Metrics</h2>
       <div className="card-row">
-        <MetricCard title="Live BTC Price" value={latestBtc} />
-        <MetricCard title="Live ETH Price" value={latestEth} />
-        <MetricCard title={`Live ${selectedSymbol || 'Asset'}`} value={latestSelected} />
+        <MetricCard title="Live BTC Price" value={prices.btc} />
+        <MetricCard title="Live ETH Price" value={prices.eth} />
+        <MetricCard title={`Live ${selectedSymbol || 'Asset'}`} value={prices.selected} />
         <MetricCard title="Latest CPI" value={macroMetrics.cpi} />
         <MetricCard title="Fed Funds Rate" value={macroMetrics.fedRate} unit="%" />
       </div>
 
       <h2 className="sub-header">Live Price Charts</h2>
       
-      {/* Dynamic Chart */}
+      {/* 1. Dynamic Chart */}
       {selectedSymbol && (
-        <div className="chart-container highlight-chart">
-          <div className="chart-header">
-            <h3>{selectedSymbol} Closing Price</h3>
-            <IntervalButtons intervals={chartIntervals} activeInterval={selectedInterval} onIntervalChange={setSelectedInterval} />
-          </div>
-          <ResponsiveContainer width="100%" height={300}>
-            {displayedSelected.length > 0 ? (
-                <LineChart data={displayedSelected}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="time" minTickGap={30} />
-                    <YAxis domain={['auto', 'auto']} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend />
-                    <Line type="monotone" dataKey="close" stroke="#82ca9d" name={`${selectedSymbol} Close`} dot={false} strokeWidth={2} />
-                </LineChart>
-            ) : (
-                <div style={{color: '#aaa', textAlign: 'center', paddingTop: '100px'}}>
-                    {availableSymbols.length === 0 ? "Loading Symbols..." : "Loading Data or No Data Available..."}
-                </div>
-            )}
-          </ResponsiveContainer>
+        <div className="highlight-chart-wrapper">
+            <CryptoChart 
+                symbol={selectedSymbol} 
+                color="#82ca9d" 
+                onPriceUpdate={(p) => setPrices(prev => ({...prev, selected: p}))} 
+            />
         </div>
       )}
 
-      {/* BTC Chart */}
-      <div className="chart-container">
-        <div className="chart-header">
-          <h3>BTC-USD Closing Price</h3>
-          <IntervalButtons intervals={chartIntervals} activeInterval={btcInterval} onIntervalChange={setBtcInterval} />
-        </div>
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={displayedBtc}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="time" minTickGap={30} />
-            <YAxis domain={['auto', 'auto']} />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend />
-            <Line type="monotone" dataKey="close" stroke="var(--btc-color)" name="BTC Close" dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      {/* 2. BTC Chart (Now uses same component) */}
+      <CryptoChart 
+        symbol="BTC-USD" 
+        color="var(--btc-color)" 
+        onPriceUpdate={(p) => setPrices(prev => ({...prev, btc: p}))} 
+      />
 
-      {/* ETH Chart */}
-      <div className="chart-container">
-        <div className="chart-header">
-          <h3>ETH-USD Closing Price</h3>
-          <IntervalButtons intervals={chartIntervals} activeInterval={ethInterval} onIntervalChange={setEthInterval} />
-        </div>
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={displayedEth}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="time" minTickGap={30} />
-            <YAxis domain={['auto', 'auto']} />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend />
-            <Line type="monotone" dataKey="close" stroke="var(--eth-color)" name="ETH Close" dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      {/* 3. ETH Chart (Now uses same component) */}
+      <CryptoChart 
+        symbol="ETH-USD" 
+        color="var(--eth-color)" 
+        onPriceUpdate={(p) => setPrices(prev => ({...prev, eth: p}))} 
+      />
     </div>
   );
 }
