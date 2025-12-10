@@ -1,7 +1,9 @@
 // ./pages/Dashboard.jsx
-// 🚀 UPGRADE: v73.0 - "Reactive Metrics"
-// Fixes: Live Price not updating when changing symbols.
-// Changes: Added 'key' prop to charts, price reset logic, and race-condition guards.
+// 🚀 UPGRADE: v73.0 - "Fast-Fetch Dashboard"
+// Features: 
+// 1. Instant Price Load: Fetches single candle immediately on selection.
+// 2. Parallel Loading: Chart loads separately without blocking the price card.
+// 3. Dropdown Filtering: Removes BTC/ETH from the selector.
 
 import React, { useState, useEffect } from 'react';
 import { 
@@ -39,8 +41,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 const MetricCard = ({ title, value, unit = '' }) => {
-  let displayValue = 'Loading...'; // Default state
-  
+  let displayValue = 'Loading...';
   if (value !== null && value !== undefined && !isNaN(value)) {
     if (title.includes('Price') || title.includes('-USD')) {
       displayValue = value.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
@@ -48,9 +49,8 @@ const MetricCard = ({ title, value, unit = '' }) => {
       displayValue = value;
     }
   } else if (value === null) {
-      displayValue = '...'; // Show dots while fetching
+      displayValue = '...'; 
   }
-  
   return (
     <div className="metric-card">
       <h3 className="card-title">{title}</h3>
@@ -66,17 +66,17 @@ const CryptoChart = ({ symbol, color, onPriceUpdate, isHighlight = false }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let isMounted = true; // 🛡️ Prevent race conditions
+    let isMounted = true; 
     if (!symbol) return;
 
     const fetchData = async () => {
       try {
+        // Request 300 candles for the chart
         const res = await fetch(`${FLASK_API_URL}/candles?product_id=${symbol}&granularity=ONE_HOUR`);
         
         if (res.ok && isMounted) {
           const rawData = await res.json();
           if (Array.isArray(rawData) && rawData.length > 0) {
-            // Standardize Data
             const cleanData = rawData.map(d => ({
               ...d,
               close: parseFloat(d.close),
@@ -84,19 +84,17 @@ const CryptoChart = ({ symbol, color, onPriceUpdate, isHighlight = false }) => {
               time: new Date(d.start * 1000).toLocaleDateString()
             }));
             
-            // ✅ Update Parent Metric immediately
+            // Redundant update to ensure sync, but Fast-Fetch handles the initial load
             if (onPriceUpdate) {
                 onPriceUpdate(cleanData[cleanData.length - 1].close);
             }
             setData(cleanData);
           } else {
             setData([]);
-            if (onPriceUpdate) onPriceUpdate(null);
           }
         }
       } catch (e) {
         console.error(`Chart Error (${symbol}):`, e);
-        if (isMounted && onPriceUpdate) onPriceUpdate(null);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -104,15 +102,10 @@ const CryptoChart = ({ symbol, color, onPriceUpdate, isHighlight = false }) => {
 
     fetchData();
     const id = setInterval(fetchData, POLLING_INTERVAL_MS);
-    
-    // Cleanup
-    return () => {
-        isMounted = false;
-        clearInterval(id);
-    };
-  }, [symbol]); // Dependencies: only re-run if symbol changes
+    return () => { isMounted = false; clearInterval(id); };
+  }, [symbol]); 
 
-  // Local Filtering Logic
+  // Filtering Logic
   const filteredData = React.useMemo(() => {
     if (!data.length) return [];
     const now = Date.now() / 1000;
@@ -145,7 +138,7 @@ const CryptoChart = ({ symbol, color, onPriceUpdate, isHighlight = false }) => {
       </div>
       <ResponsiveContainer width="100%" height={300}>
         {loading ? (
-            <div style={{color: '#aaa', textAlign: 'center', paddingTop: '100px'}}>Loading {symbol}...</div>
+            <div style={{color: '#aaa', textAlign: 'center', paddingTop: '100px'}}>Loading Chart...</div>
         ) : filteredData.length > 0 ? (
             <LineChart data={filteredData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -173,7 +166,7 @@ function Dashboard() {
   const [macroMetrics, setMacroMetrics] = useState({ cpi: null, fedRate: null });
   const [error, setError] = useState(null);
 
-  // 1. Initial Load
+  // 1. Initial Load: Symbols & Macro
   useEffect(() => {
     const initFetch = async () => {
         try {
@@ -181,9 +174,8 @@ function Dashboard() {
             const symRes = await fetch(`${FLASK_API_URL}/symbols`);
             if (symRes.ok) {
                 const allSyms = await symRes.json();
-                // Remove BTC/ETH from dropdown
+                // Filter out BTC/ETH
                 const filteredSyms = allSyms.filter(s => s !== 'BTC-USD' && s !== 'ETH-USD');
-                
                 setAvailableSymbols(filteredSyms);
                 if (filteredSyms.length > 0) setSelectedSymbol(filteredSyms[0]);
             }
@@ -210,10 +202,30 @@ function Dashboard() {
     initFetch();
   }, []);
 
-  // 2. Reset Selected Price when Symbol Changes
-  // This ensures the "Live Price" card shows "..." while loading the new coin
+  // 🚀 FAST-FETCH LOGIC: Get just the price immediately when symbol changes
   useEffect(() => {
+      if (!selectedSymbol) return;
+      
+      // Reset price to show loading indicator
       setPrices(prev => ({ ...prev, selected: null }));
+
+      const fetchPriceFast = async () => {
+          try {
+              // Fetch only 1 candle for maximum speed
+              const res = await fetch(`${FLASK_API_URL}/candles?product_id=${selectedSymbol}&granularity=ONE_HOUR&limit=1`);
+              if (res.ok) {
+                  const data = await res.json();
+                  if (Array.isArray(data) && data.length > 0) {
+                      // Update price state instantly
+                      setPrices(prev => ({ ...prev, selected: parseFloat(data[0].close) }));
+                  }
+              }
+          } catch (e) {
+              console.error("Fast price fetch failed:", e);
+          }
+      };
+
+      fetchPriceFast();
   }, [selectedSymbol]);
 
   return (
@@ -245,14 +257,15 @@ function Dashboard() {
 
       <h2 className="sub-header">Live Price Charts</h2>
       
-      {/* 1. DYNAMIC CHART (Using Key to force re-render) */}
+      {/* 1. DYNAMIC CHART */}
       {selectedSymbol && (
         <div className="highlight-chart-wrapper">
             <CryptoChart 
-                key={selectedSymbol}  // 🚀 CRITICAL: Forces fresh mount on change
+                key={selectedSymbol} 
                 symbol={selectedSymbol} 
                 color="#82ca9d" 
-                onPriceUpdate={(p) => setPrices(prev => ({...prev, selected: p}))} 
+                // We don't need onPriceUpdate here anymore because the Fast-Fetch handles it better
+                onPriceUpdate={null}
                 isHighlight={true}
             />
         </div>
