@@ -3,8 +3,8 @@
 .independent-container {
   display: flex;
   flex-direction: column;
-  background: #0f172a;
-  border: 1px solid #334155;
+  background: #020617; /* Darker Slate/Black */
+  border: 1px solid #064e3b; /* Emerald-900 */
   border-radius: 12px;
   overflow: hidden;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -15,8 +15,8 @@
 
 .independent-header {
   padding: 15px 20px;
-  background: #1e293b;
-  border-bottom: 1px solid #334155;
+  background: #062c21; /* Dark Emerald */
+  border-bottom: 1px solid #064e3b;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -31,13 +31,13 @@
 }
 
 .stat-badge {
-  background: rgba(59, 130, 246, 0.1);
-  color: #60a5fa;
+  background: rgba(16, 185, 129, 0.1); /* Emerald-500 10% */
+  color: #34d399; /* Emerald-400 */
   padding: 4px 10px;
   border-radius: 6px;
   font-size: 0.8rem;
   font-weight: 600;
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(16, 185, 129, 0.2);
 }
 
 /* 🚀 SIDEBAR LAYOUT */
@@ -51,15 +51,15 @@
 .chart-section {
   flex: 1; /* Chart takes remaining space */
   position: relative;
-  background: #0b0f19;
+  background: #020617; /* Very dark/black */
 }
 
 .list-section {
   width: 320px; /* Sidebar Width */
-  border-left: 1px solid #334155;
+  border-left: 1px solid #064e3b; /* Emerald-900 */
   display: flex;
   flex-direction: column;
-  background: #161b28;
+  background: #0f172a;
 }
 
 /* HUD (Head-Up Display) */
@@ -68,16 +68,16 @@
   top: 15px;
   left: 15px;
   z-index: 10;
-  background: rgba(15, 23, 42, 0.85);
+  background: rgba(2, 6, 23, 0.85);
   backdrop-filter: blur(8px);
   padding: 10px 15px;
   border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  border: 1px solid rgba(16, 185, 129, 0.2); /* Emerald border */
   min-width: 140px;
   pointer-events: none;
 }
 
-.chart-hud.win { border-left: 3px solid #22c55e; }
+.chart-hud.win { border-left: 3px solid #10b981; } /* Emerald-500 */
 .chart-hud.loss { border-left: 3px solid #ef4444; }
 
 .hud-title {
@@ -102,11 +102,11 @@
 .trade-list-header {
   display: flex;
   padding: 12px 15px;
-  background: #1e293b;
-  border-bottom: 1px solid #334155;
+  background: #062c21; /* Dark Emerald */
+  border-bottom: 1px solid #064e3b;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #94a3b8;
+  color: #6ee7b7; /* Emerald-300 */
   text-transform: uppercase;
 }
 
@@ -120,14 +120,14 @@
   display: flex;
   align-items: center;
   padding: 10px 15px;
-  border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+  border-bottom: 1px solid rgba(6, 78, 59, 0.3); /* Emerald-900 */
   font-size: 0.85rem;
   transition: background 0.1s;
   cursor: pointer;
 }
 
 .trade-row:hover, .trade-row.active {
-  background: rgba(59, 130, 246, 0.1); /* Highlight on hover */
+  background: rgba(16, 185, 129, 0.1); /* Highlight on hover */
 }
 
 .badge {
@@ -137,7 +137,7 @@
   font-weight: 700;
   text-transform: uppercase;
 }
-.badge.long { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
+.badge.long { background: rgba(16, 185, 129, 0.2); color: #34d399; } /* Emerald */
 .badge.short { background: rgba(239, 68, 68, 0.2); color: #f87171; }
 
 .date-sub {
@@ -157,7 +157,7 @@
   font-family: 'Roboto Mono', monospace;
   font-weight: 700;
 }
-.pnl-pos { color: #4ade80; }
+.pnl-pos { color: #34d399; } /* Emerald-400 */
 .pnl-neg { color: #f87171; }
 
 .empty-trades {
