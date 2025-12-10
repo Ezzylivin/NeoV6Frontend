@@ -93,7 +93,14 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
             }
         });
         validData.sort((a, b) => a.time - b.time);
-        candleSeries.setData(validData);
+       candleSeries.setData(validData);
+
+// 🔥 Force full visible range (fixes 100% of fitContent issues)
+      if (validData.length > 0) {
+      const first = validData[0].time;
+      const last = validData[validData.length - 1].time;
+      chart.timeScale().setVisibleRange({ from: first, to: last });
+}
 
         // Initial Legend
         const last = validData[validData.length - 1];
@@ -164,8 +171,11 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
         setTrades(tradeList.reverse());
 
         // 🚀 FIX: This forces the chart to zoom out and show the entire date range
-        chart.timeScale().fitContent();
-    }
+       chart.timeScale().setVisibleRange({
+    from: new Date(uiStart).getTime() / 1000,
+    to: new Date(uiEnd).getTime() / 1000
+});
+
 
     chart.subscribeCrosshairMove((param) => {
         if (!param.point || !param.time) return;
