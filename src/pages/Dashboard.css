@@ -1,9 +1,21 @@
-/* File: Dashboard.css - "2026 Black Aesthetic & High Contrast Edition" */
+/* File: Dashboard.css - "2026 Midnight Black Edition" */
+
+/* --- 1. LAYOUT STABILITY FIX --- */
+/* Prevents the page from jumping when scrollbars appear/disappear */
+html {
+  scrollbar-gutter: stable;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
 
 /* --- CONTAINER --- */
 .dashboard-container {
   min-height: 100vh;
-  background: radial-gradient(circle at top right, #1e293b 0%, #0b0f19 60%);
+  /* CHANGED: From Slate Blue to Deep Black Gradient */
+  background-color: #000000;
+  background: radial-gradient(circle at top right, #111111 0%, #000000 60%);
   padding: 0;
 }
 
@@ -14,7 +26,8 @@
   align-items: center;
   margin-bottom: 30px;
   padding-bottom: 20px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  /* CHANGED: Grey border instead of blue-grey */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   flex-wrap: wrap;
   gap: 20px;
 }
@@ -23,6 +36,7 @@
   font-size: 2.2rem;
   font-weight: 800;
   margin: 0;
+  /* Kept the gradient text as it pops on black */
   background: linear-gradient(135deg, #a78bfa 0%, #60a5fa 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -45,23 +59,26 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  background: rgba(30, 41, 59, 0.85);
+  /* CHANGED: Very dark background */
+  background: rgba(10, 10, 10, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(148, 163, 184, 0.25);
+  /* CHANGED: Lighter, sharper border for contrast against black */
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 12px;
   padding: 12px 20px;
 }
 
 .symbol-selector span {
-  color: #cbd5e1;
+  color: #e2e8f0;
   font-weight: 600;
   font-size: 0.95rem;
 }
 
 .symbol-selector select {
-  background: #1e293b;
-  border: 1px solid #64748b;
+  /* CHANGED: Pure black input background */
+  background: #000000;
+  border: 1px solid #333333;
   color: #ffffff;
   padding: 10px 16px;
   border-radius: 8px;
@@ -74,17 +91,17 @@
 
 .symbol-selector select:focus {
   border-color: #60a5fa;
-  background: #334155;
+  background: #111111;
   outline: none;
   box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
 }
 
 .symbol-selector select:hover {
-  border-color: #94a3b8;
+  border-color: #666666;
 }
 
 .symbol-selector option {
-  background: #1e293b;
+  background: #000000;
   color: white;
   padding: 10px;
 }
@@ -99,10 +116,12 @@
 
 .metric-card,
 .metric-card-modern {
-  background: rgba(15, 23, 42, 0.85);
+  /* CHANGED: Deep black with slight transparency */
+  background: rgba(5, 5, 5, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(148, 163, 184, 0.25);
+  /* CHANGED: Sharper white border */
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 16px;
   padding: 24px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -130,13 +149,13 @@
 .metric-card:hover,
 .metric-card-modern:hover {
   transform: translateY(-4px);
-  border-color: rgba(59, 130, 246, 0.4);
-  box-shadow: 0 12px 32px rgba(59, 130, 246, 0.2);
+  border-color: rgba(96, 165, 250, 0.5);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.8);
 }
 
 .card-title {
   font-size: 0.875rem;
-  color: #cbd5e1;
+  color: #94a3b8;
   text-transform: uppercase;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -154,21 +173,23 @@
 /* --- CHART CONTAINERS (Modern) --- */
 .chart-container,
 .chart-container-modern {
-  background: rgba(15, 23, 42, 0.85);
+  /* CHANGED: Black glass */
+  background: rgba(5, 5, 5, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(148, 163, 184, 0.25);
+  /* CHANGED: Subtle border */
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 16px;
   padding: 28px;
   margin-bottom: 24px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
   transition: all 0.3s ease;
 }
 
 .chart-container:hover,
 .chart-container-modern:hover {
   border-color: rgba(59, 130, 246, 0.3);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.9);
 }
 
 .highlight-chart,
@@ -185,8 +206,8 @@
   background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #10b981 100%);
   border-radius: 18px;
   z-index: -1;
-  opacity: 0.5;
-  filter: blur(8px);
+  opacity: 0.4;
+  filter: blur(12px);
 }
 
 /* --- CHART HEADER (Modern) --- */
@@ -197,7 +218,7 @@
   align-items: center;
   margin-bottom: 24px;
   padding-bottom: 16px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   flex-wrap: wrap;
   gap: 16px;
 }
@@ -218,17 +239,18 @@
 .interval-controls-modern {
   display: flex;
   gap: 8px;
-  background: rgba(30, 41, 59, 0.8);
+  /* CHANGED: Darker background */
+  background: rgba(20, 20, 20, 0.8);
   padding: 4px;
   border-radius: 10px;
-  border: 1px solid rgba(100, 116, 139, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .interval-button,
 .interval-button-modern {
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: #64748b;
   padding: 8px 16px;
   border-radius: 6px;
   font-weight: 600;
@@ -239,15 +261,16 @@
 
 .interval-button:hover,
 .interval-button-modern:hover {
-  color: #cbd5e1;
-  background: rgba(59, 130, 246, 0.1);
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .interval-button.active,
 .interval-button-modern.active {
-  background: #3b82f6;
+  background: #333; /* Dark grey for active */
   color: white;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255,255,255,0.1);
 }
 
 /* --- CHART CONTENT --- */
@@ -263,13 +286,13 @@
   align-items: center;
   justify-content: center;
   height: 300px;
-  color: #94a3b8;
+  color: #64748b;
 }
 
 .loading-spinner {
   width: 48px;
   height: 48px;
-  border: 4px solid rgba(59, 130, 246, 0.2);
+  border: 4px solid rgba(255, 255, 255, 0.1);
   border-top-color: #3b82f6;
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -286,24 +309,25 @@
   align-items: center;
   justify-content: center;
   height: 300px;
-  color: #64748b;
+  color: #475569;
 }
 
 /* --- TOOLTIPS (Modern) --- */
 .custom-tooltip {
-  background: rgba(15, 23, 42, 0.98);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(148, 163, 184, 0.3);
+  /* CHANGED: Solid Black Tooltip */
+  background: rgba(0, 0, 0, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 12px;
   padding: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 1);
   min-width: 200px;
 }
 
 .tooltip-label {
   font-size: 0.875rem;
-  color: #60a5fa;
+  color: #94a3b8;
   font-weight: 700;
   margin-bottom: 12px;
   text-align: center;
@@ -313,7 +337,7 @@
 
 .tooltip-divider {
   height: 1px;
-  background: rgba(148, 163, 184, 0.2);
+  background: rgba(255, 255, 255, 0.1);
   margin-bottom: 8px;
 }
 
@@ -328,7 +352,7 @@
 }
 
 .tooltip-key {
-  color: #94a3b8;
+  color: #64748b;
   font-weight: 500;
 }
 
@@ -358,15 +382,15 @@
 }
 
 .tooltip-item-close {
-  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   padding-top: 8px;
   margin-top: 8px;
 }
 
 /* --- ERROR BANNER --- */
 .error-banner {
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.4);
+  background: rgba(127, 29, 29, 0.2);
+  border: 1px solid rgba(248, 113, 113, 0.2);
   border-radius: 12px;
   padding: 16px 24px;
   margin-bottom: 24px;
@@ -374,7 +398,6 @@
   text-align: center;
   font-weight: 600;
   backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 
 /* --- RESPONSIVE DESIGN --- */
@@ -442,9 +465,14 @@
   max-width: 1400px;
 }
 
-/* Tailwind-like utilities for React components */
+/* --- OVERRIDES FOR REACT TAILWIND UTILS --- */
+/* These force the React components to adhere to the black theme */
 .bg-slate-900\/50 {
-  background-color: rgba(15, 23, 42, 0.5);
+  background-color: rgba(5, 5, 5, 0.8) !important;
+}
+
+.border-slate-800\/50 {
+  border-color: rgba(255, 255, 255, 0.12) !important;
 }
 
 .backdrop-blur-sm {
@@ -452,28 +480,11 @@
   -webkit-backdrop-filter: blur(8px);
 }
 
-.border-slate-800\/50 {
-  border-color: rgba(30, 41, 59, 0.5);
-}
-
 .rounded-2xl {
   border-radius: 16px;
 }
 
 /* --- ANIMATIONS --- */
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-.animate-pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -492,44 +503,32 @@
   animation: fadeIn 0.5s ease-out;
 }
 
-/* --- ACCESSIBILITY --- */
-button:focus-visible,
-select:focus-visible {
-  outline: 2px solid #60a5fa;
-  outline-offset: 2px;
-}
-
-/* --- SCROLLBAR STYLING --- */
+/* --- SCROLLBAR STYLING (Black) --- */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.3);
+  background: #000000;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(59, 130, 246, 0.3);
+  background: #333333;
   border-radius: 4px;
+  border: 1px solid #000000;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(59, 130, 246, 0.5);
+  background: #444444;
 }
 
-/* --- DARK MODE OPTIMIZATIONS --- */
-::selection {
-  background-color: rgba(59, 130, 246, 0.3);
-  color: #ffffff;
-}
-
-/* Ensure high contrast for all text elements */
+/* --- TEXT COLORS --- */
 h1, h2, h3, h4, h5, h6 {
   color: #ffffff;
 }
 
 p, span, div {
-  color: #e2e8f0;
+  color: #cbd5e1;
 }
