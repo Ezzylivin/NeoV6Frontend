@@ -1,10 +1,3 @@
-Here is the updated CSS.
-
-I have replaced the blue "Slate" text colors with **neutral greys** to remove the navy tint. To ensure the design isn't "all grey," I have swapped the blue accents, glows, and gradients with a vibrant **Emerald Green**, which was already present in your success metrics.
-
-This creates a sharp "Carbon & Emerald" theme.
-
-```css
 /* File: Dashboard.css - "2026 Carbon Grey & Emerald Edition" */
 
 /* --- 1. LAYOUT STABILITY FIX --- */
