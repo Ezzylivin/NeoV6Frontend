@@ -1,18 +1,13 @@
 // ./pages/Dashboard.jsx
-// 🚀 UPGRADE: v73.0 - "2026 Black Aesthetic & Modern UX"
-// Features: 
-// 1. Modern glass-morphism design with deep black gradients
-// 2. Enhanced visual hierarchy with Lucide icons
-// 3. Improved metrics cards with color-coded indicators
-// 4. Smooth animations and hover effects
-// 5. Responsive layout optimized for all devices
+// 🚀 UPGRADE: v73.1 - "Stable Layout & 2026 Aesthetic"
+// Fixes: Layout jumping on selection, Scrollbar stability, Persistent containers
 
 import React, { useState, useEffect } from 'react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from 'recharts';
 import { 
-  TrendingUp, TrendingDown, Activity, DollarSign, Percent, 
+  TrendingUp, Activity, DollarSign, Percent, 
   BarChart3, RefreshCw, Clock, Zap, Eye
 } from 'lucide-react';
 import './Dashboard.css';
@@ -59,17 +54,14 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-const MetricCard = ({ title, value, unit = '', icon: Icon, color = 'blue', isChange = false }) => {
+const MetricCard = ({ title, value, unit = '', icon: Icon, color = 'blue' }) => {
   let displayValue = 'Loading...';
-  let isPositive = false;
   
   if (value !== null && value !== undefined && !isNaN(value)) {
-    if (title.includes('Price') || title.includes('-USD')) {
+    if (title.includes('Price') || title.includes('-USD') || title.includes('USD')) {
       displayValue = value.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
-      isPositive = value > 0;
     } else {
       displayValue = value;
-      isPositive = value > 0;
     }
   } else if (value === null) {
       displayValue = 'N/A';
@@ -116,6 +108,10 @@ const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
   // Fetch Logic
   useEffect(() => {
     if (!symbol) return;
+    
+    // Set loading true immediately on symbol change to trigger loading state
+    setLoading(true);
+    
     const fetchData = async () => {
       try {
         const res = await fetch(`${FLASK_API_URL}/candles?product_id=${symbol}&granularity=ONE_HOUR`);
@@ -149,7 +145,7 @@ const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
     fetchData();
     const id = setInterval(fetchData, POLLING_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [symbol, onPriceUpdate]);
+  }, [symbol, onPriceUpdate]); // Dependency on symbol ensures refetch on change
 
   // Filtering Logic
   const filteredData = React.useMemo(() => {
@@ -167,7 +163,7 @@ const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
   }, [data, interval]);
 
   return (
-    <div className="chart-container-modern bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6">
+    <div className="chart-container-modern bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6 h-full flex flex-col">
       <div className="chart-header-modern">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-br from-blue-500/20 to-violet-500/20 rounded-xl flex items-center justify-center">
@@ -196,11 +192,14 @@ const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
         </div>
       </div>
       
-      <div className="chart-content" style={{ marginTop: '20px' }}>
+      {/* STABILITY FIX: 
+          Fixed min-height ensures container doesn't collapse during loading 
+      */}
+      <div className="chart-content flex-grow relative min-h-[300px]" style={{ marginTop: '20px' }}>
         <ResponsiveContainer width="100%" height={300}>
           {loading ? (
-            <div className="chart-loading-state">
-              <div className="loading-spinner"></div>
+            <div className="chart-loading-state h-[300px] flex flex-col items-center justify-center text-slate-500">
+              <div className="loading-spinner mb-4"></div>
               <p>Loading {symbol}...</p>
             </div>
           ) : filteredData.length > 0 ? (
@@ -238,7 +237,7 @@ const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
               />
             </LineChart>
           ) : (
-            <div className="chart-empty-state">
+            <div className="chart-empty-state h-[300px] flex flex-col items-center justify-center text-slate-500">
               <BarChart3 className="w-12 h-12 text-slate-600 mb-3" />
               <p>No Data Available</p>
             </div>
@@ -258,6 +257,13 @@ function Dashboard() {
   const [macroMetrics, setMacroMetrics] = useState({ cpi: null, fedRate: null });
   const [error, setError] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // 🚀 STABILITY FIX: Force scrollbar gutter to prevent horizontal jumps
+  useEffect(() => {
+    document.documentElement.style.scrollbarGutter = 'stable';
+    // Cleanup not strictly necessary for root style, but good practice
+    return () => { document.documentElement.style.scrollbarGutter = ''; };
+  }, []);
 
   // Initial Load: Symbols & Macro
   useEffect(() => {
@@ -323,7 +329,7 @@ function Dashboard() {
               <button 
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="p-2.5 bg-slate-800/50 border border-slate-700/50 rounded-xl text-slate-400 hover:text-blue-400 hover:border-blue-500/50 transition-all disabled:opacity-50"
+                className="p-2.5 bg-slate-800/50 border border-slate-700/50 rounded-xl text-slate-400 hover:text-blue-400 hover:border-blue-500/50 transition-all disabled:opacity-50 cursor-pointer"
               >
                 <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
               </button>
@@ -334,16 +340,16 @@ function Dashboard() {
                 <select 
                   value={selectedSymbol} 
                   onChange={(e) => setSelectedSymbol(e.target.value)}
-                  className="bg-transparent border-none text-white focus:outline-none cursor-pointer"
+                  className="bg-transparent border-none text-white focus:outline-none cursor-pointer w-32"
                 >
                   {availableSymbols.length > 0 
-                    ? availableSymbols.map(sym => <option key={sym} value={sym}>{sym}</option>)
-                    : <option>Loading...</option>
+                    ? availableSymbols.map(sym => <option key={sym} value={sym} className="text-black">{sym}</option>)
+                    : <option className="text-black">Loading...</option>
                   }
                 </select>
               </div>
               
-              <div className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
+              <div className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl hidden md:block">
                 <span className="text-emerald-400 text-sm flex items-center gap-2">
                   <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
                   Live
@@ -412,30 +418,39 @@ function Dashboard() {
           </div>
           
           <div className="space-y-6">
-            {/* Dynamic Chart */}
-            {selectedSymbol && (
-              <div className="highlight-chart">
+            {/* Dynamic Chart - Always Render Container for Stability */}
+            <div className="highlight-chart min-h-[420px]">
+              {selectedSymbol ? (
                 <CryptoChart 
                   symbol={selectedSymbol} 
                   color="#10b981" 
                   onPriceUpdate={(p) => setPrices(prev => ({...prev, selected: p}))} 
                 />
-              </div>
-            )}
+              ) : (
+                // Fallback container to maintain height if no symbol selected
+                <div className="chart-container-modern h-[420px] flex items-center justify-center text-slate-500">
+                    <p>Select a symbol above to view data</p>
+                </div>
+              )}
+            </div>
 
             {/* BTC & ETH Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <CryptoChart 
-                symbol="BTC-USD" 
-                color="#3b82f6" 
-                onPriceUpdate={(p) => setPrices(prev => ({...prev, btc: p}))} 
-              />
+              <div className="min-h-[420px]">
+                  <CryptoChart 
+                    symbol="BTC-USD" 
+                    color="#3b82f6" 
+                    onPriceUpdate={(p) => setPrices(prev => ({...prev, btc: p}))} 
+                  />
+              </div>
               
-              <CryptoChart 
-                symbol="ETH-USD" 
-                color="#8b5cf6" 
-                onPriceUpdate={(p) => setPrices(prev => ({...prev, eth: p}))} 
-              />
+              <div className="min-h-[420px]">
+                  <CryptoChart 
+                    symbol="ETH-USD" 
+                    color="#8b5cf6" 
+                    onPriceUpdate={(p) => setPrices(prev => ({...prev, eth: p}))} 
+                  />
+              </div>
             </div>
           </div>
         </div>
