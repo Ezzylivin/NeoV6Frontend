@@ -1,6 +1,6 @@
 // File: src/components/ChartIndependent.jsx
-// 🚀 UPGRADE: v63.0 - "The Analyst's View"
-// Changes: Sidebar Layout, Added Exit Price Column, Persistent Hover Effects
+// 🚀 UPGRADE: v63.1 - "Full Vision"
+// Fixes: Chart now auto-zooms to fit the entire backtest duration
 
 import React, { useEffect, useRef, useState } from "react";
 import { createChart, ColorType, CrosshairMode, LineStyle } from "lightweight-charts";
@@ -131,7 +131,7 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
                 id: i, 
                 side: t.position, 
                 entryPrice: t.price || t.entry_price, 
-                exitPrice: t.exitPrice || t.exit_price, // 🚀 NEW: Explicit Exit Price
+                exitPrice: t.exitPrice || t.exit_price, // Explicit Exit Price
                 profit: t.profit,
                 date: new Date(t.entryTime).toLocaleDateString() + " " + new Date(t.entryTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
                 chartEntryTime: entryTime,
@@ -162,6 +162,9 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
         
         candleSeries.setMarkers(markers.sort((a,b) => a.time - b.time));
         setTrades(tradeList.reverse());
+
+        // 🚀 FIX: This forces the chart to zoom out and show the entire date range
+        chart.timeScale().fitContent();
     }
 
     chart.subscribeCrosshairMove((param) => {
@@ -209,7 +212,6 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
             <div className="stat-badge">{trades.length} Trades</div>
         </div>
         
-        {/* 🚀 SIDEBAR LAYOUT BODY */}
         <div className="independent-body">
             <div className="chart-section" ref={chartContainerRef}>
                 <div className={`chart-hud ${legend.color === "#22c55e" ? "win" : "loss"}`}>
