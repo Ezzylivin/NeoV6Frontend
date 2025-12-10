@@ -1,11 +1,5 @@
 // ./pages/Dashboard.jsx
-// 🚀 UPGRADE: v73.0 - "2026 Black Aesthetic & Modern UX"
-// Features: 
-// 1. Modern glass-morphism design with deep black gradients
-// 2. Enhanced visual hierarchy with Lucide icons
-// 3. Improved metrics cards with color-coded indicators
-// 4. Smooth animations and hover effects
-// 5. Responsive layout optimized for all devices
+// 🚀 UPGRADE: v73.1 - "2026 Carbon & Emerald Edition"
 
 import React, { useState, useEffect } from 'react';
 import { 
@@ -59,7 +53,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-const MetricCard = ({ title, value, unit = '', icon: Icon, color = 'blue', isChange = false }) => {
+const MetricCard = ({ title, value, unit = '', icon: Icon, color = 'emerald', isChange = false }) => {
   let displayValue = 'Loading...';
   let isPositive = false;
   
@@ -76,28 +70,32 @@ const MetricCard = ({ title, value, unit = '', icon: Icon, color = 'blue', isCha
   }
 
   const colorMap = {
-    blue: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/30', glow: 'shadow-blue-500/20', icon: 'text-blue-400' },
+    // CHANGED: "Blue" key now uses Emerald tones to prevent accidental blue default
+    blue: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/30', glow: 'shadow-emerald-500/20', icon: 'text-emerald-400' },
     emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/30', glow: 'shadow-emerald-500/20', icon: 'text-emerald-400' },
     violet: { bg: 'bg-violet-500/10', text: 'text-violet-400', border: 'border-violet-500/30', glow: 'shadow-violet-500/20', icon: 'text-violet-400' },
     amber: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/30', glow: 'shadow-amber-500/20', icon: 'text-amber-400' },
     cyan: { bg: 'bg-cyan-500/10', text: 'text-cyan-400', border: 'border-cyan-500/30', glow: 'shadow-cyan-500/20', icon: 'text-cyan-400' }
   };
 
-  const colors = colorMap[color] || colorMap.blue;
+  const colors = colorMap[color] || colorMap.emerald;
 
   return (
-    <div className={`metric-card-modern bg-slate-900/50 backdrop-blur-sm border ${colors.border} rounded-2xl p-5 hover:shadow-lg ${colors.glow} transition-all group`}>
+    // CHANGED: bg-slate-900/50 -> bg-neutral-900/60 (Carbon Grey)
+    <div className={`metric-card-modern bg-neutral-900/60 backdrop-blur-sm border ${colors.border} rounded-2xl p-5 hover:shadow-lg ${colors.glow} transition-all group`}>
       <div className="flex items-start justify-between mb-3">
         <div className={`p-2.5 ${colors.bg} rounded-xl group-hover:scale-110 transition-transform`}>
           {Icon && <Icon className={`w-5 h-5 ${colors.icon}`} />}
         </div>
-        <span className="text-slate-500 text-xs flex items-center gap-1">
+        {/* CHANGED: text-slate-500 -> text-neutral-500 */}
+        <span className="text-neutral-500 text-xs flex items-center gap-1">
           <Activity className="w-3 h-3" />
           LIVE
         </span>
       </div>
       <div className="space-y-1">
-        <p className="text-slate-400 text-sm">{title}</p>
+        {/* CHANGED: text-slate-400 -> text-neutral-400 */}
+        <p className="text-neutral-400 text-sm">{title}</p>
         <p className={`text-2xl font-mono ${colors.text}`}>
           {displayValue}{unit}
         </p>
@@ -167,16 +165,21 @@ const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
   }, [data, interval]);
 
   return (
-    <div className="chart-container-modern bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6">
+    // CHANGED: bg-slate-900/50 -> bg-neutral-900/60 (Matches CSS .chart-container)
+    // CHANGED: border-slate-800/50 -> border-white/10
+    <div className="chart-container-modern bg-neutral-900/60 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
       <div className="chart-header-modern">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500/20 to-violet-500/20 rounded-xl flex items-center justify-center">
-            <TrendingUp className="w-5 h-5 text-blue-400" />
+          {/* CHANGED: Gradient blue/violet -> Emerald/Violet */}
+          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-violet-500/20 rounded-xl flex items-center justify-center">
+            {/* CHANGED: text-blue-400 -> text-emerald-400 */}
+            <TrendingUp className="w-5 h-5 text-emerald-400" />
           </div>
           <div>
             <h3 className="text-white">{symbol} Closing Price</h3>
             {lastUpdate && (
-              <p className="text-slate-500 text-xs flex items-center gap-1 mt-1">
+              // CHANGED: text-slate-500 -> text-neutral-500
+              <p className="text-neutral-500 text-xs flex items-center gap-1 mt-1">
                 <Clock className="w-3 h-3" />
                 Updated: {lastUpdate.toLocaleTimeString()}
               </p>
@@ -211,19 +214,22 @@ const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
                   <stop offset="95%" stopColor={color} stopOpacity={0}/>
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} vertical={false} />
+              {/* CHANGED: stroke="#334155" (Slate) -> stroke="#404040" (Neutral) */}
+              <CartesianGrid strokeDasharray="3 3" stroke="#404040" opacity={0.2} vertical={false} />
               <XAxis 
                 dataKey="time" 
                 minTickGap={30} 
-                stroke="#64748b"
-                tick={{ fill: '#94a3b8', fontSize: 12 }}
-                tickLine={{ stroke: '#475569' }}
+                // CHANGED: stroke="#64748b" -> stroke="#525252"
+                stroke="#525252"
+                // CHANGED: fill: '#94a3b8' -> fill: '#a3a3a3' (Neutral text)
+                tick={{ fill: '#a3a3a3', fontSize: 12 }}
+                tickLine={{ stroke: '#404040' }}
               />
               <YAxis 
                 domain={['auto', 'auto']} 
-                stroke="#64748b"
-                tick={{ fill: '#94a3b8', fontSize: 12 }}
-                tickLine={{ stroke: '#475569' }}
+                stroke="#525252"
+                tick={{ fill: '#a3a3a3', fontSize: 12 }}
+                tickLine={{ stroke: '#404040' }}
               />
               <Tooltip content={<CustomTooltip />} />
               <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '14px' }} />
@@ -239,7 +245,8 @@ const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
             </LineChart>
           ) : (
             <div className="chart-empty-state">
-              <BarChart3 className="w-12 h-12 text-slate-600 mb-3" />
+              {/* CHANGED: text-slate-600 -> text-neutral-600 */}
+              <BarChart3 className="w-12 h-12 text-neutral-600 mb-3" />
               <p>No Data Available</p>
             </div>
           )}
@@ -304,18 +311,23 @@ function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+    // CHANGED: Removed "bg-gradient-to-br from-slate-950..."
+    // Added "dashboard-container" class which relies on your CSS file (Radial #2d2d2d -> #121212)
+    <div className="dashboard-container min-h-screen">
       {/* Header */}
-      <div className="border-b border-slate-800/50 bg-slate-900/50 backdrop-blur-xl sticky top-0 z-50">
+      {/* CHANGED: bg-slate-900 -> bg-neutral-900 (Carbon) */}
+      <div className="border-b border-white/10 bg-neutral-900/80 backdrop-blur-xl sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-blue-500 to-violet-600 rounded-xl shadow-lg shadow-blue-500/20">
+              {/* CHANGED: from-blue-500 -> from-emerald-500 */}
+              <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-emerald-500 to-violet-600 rounded-xl shadow-lg shadow-emerald-500/20">
                 <Activity className="w-7 h-7 text-white" />
               </div>
               <div>
                 <h1 className="text-white text-2xl font-bold">Crypto & Macro Dashboard</h1>
-                <p className="text-slate-400 text-sm">Real-time market data & analytics</p>
+                {/* CHANGED: text-slate-400 -> text-neutral-400 */}
+                <p className="text-neutral-400 text-sm">Real-time market data & analytics</p>
               </div>
             </div>
             
@@ -323,14 +335,17 @@ function Dashboard() {
               <button 
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="p-2.5 bg-slate-800/50 border border-slate-700/50 rounded-xl text-slate-400 hover:text-blue-400 hover:border-blue-500/50 transition-all disabled:opacity-50"
+                // CHANGED: text-slate-400 -> text-neutral-400, hover:text-blue -> hover:text-emerald
+                // CHANGED: bg-slate-800 -> bg-neutral-800
+                className="p-2.5 bg-neutral-800/50 border border-white/10 rounded-xl text-neutral-400 hover:text-emerald-400 hover:border-emerald-500/50 transition-all disabled:opacity-50"
               >
                 <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
               </button>
               
-              <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-2">
-                <Eye className="w-4 h-4 text-slate-400" />
-                <span className="text-slate-400 text-sm">Select Chart:</span>
+              {/* CHANGED: bg-slate-800 -> bg-neutral-800 */}
+              <div className="flex items-center gap-2 bg-neutral-800/50 border border-white/10 rounded-xl px-4 py-2">
+                <Eye className="w-4 h-4 text-neutral-400" />
+                <span className="text-neutral-400 text-sm">Select Chart:</span>
                 <select 
                   value={selectedSymbol} 
                   onChange={(e) => setSelectedSymbol(e.target.value)}
@@ -366,7 +381,8 @@ function Dashboard() {
         {/* Metrics Section */}
         <div>
           <div className="flex items-center gap-3 mb-4">
-            <Zap className="w-5 h-5 text-blue-400" />
+            {/* CHANGED: text-blue-400 -> text-emerald-400 */}
+            <Zap className="w-5 h-5 text-emerald-400" />
             <h2 className="text-white text-xl font-semibold">Key Metrics</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -374,7 +390,8 @@ function Dashboard() {
               title="Bitcoin (BTC)" 
               value={prices.btc} 
               icon={TrendingUp}
-              color="blue"
+              // CHANGED: color="blue" -> color="emerald"
+              color="emerald"
             />
             <MetricCard 
               title="Ethereum (ETH)" 
@@ -427,7 +444,8 @@ function Dashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <CryptoChart 
                 symbol="BTC-USD" 
-                color="#3b82f6" 
+                // CHANGED: Blue hex (#3b82f6) -> Emerald hex (#10b981)
+                color="#10b981" 
                 onPriceUpdate={(p) => setPrices(prev => ({...prev, btc: p}))} 
               />
               
