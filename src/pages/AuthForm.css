@@ -35,7 +35,8 @@
 
 .form-toggle button.active {
   color: #ffffff;
-  border-bottom: 2px solid #3b82f6;
+  /* CHANGED: From Blue to Emerald Green */
+  border-bottom: 2px solid #10b981; 
 }
 
 .form h2 {
@@ -62,7 +63,8 @@
 .form button {
   width: 100%;
   padding: 0.75rem;
-  background-color: #3b82f6;
+  /* CHANGED: From Blue to Emerald Green */
+  background-color: #10b981; 
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -72,7 +74,8 @@
 }
 
 .form button:hover {
-  background-color: #2563eb;
+  /* CHANGED: Darker Emerald Green for hover state */
+  background-color: #059669; 
 }
 
 /* --- NEW STYLE --- */
