@@ -1,8 +1,8 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v63.0 - "Bulletproof Client"
-// Fixes: React Error #31 (White Screen), Safe Error Handling
+// 🚀 UPGRADE: v64.1 - "Chart Mode Toggle"
+// Features: Toggle between Static Analysis and Market Replay directly in the results view
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios"; 
 import { useBacktest } from "../hooks/useBacktest.js";
 import {
@@ -10,6 +10,7 @@ import {
   PieChart, Pie, Cell, Legend, AreaChart, Area
 } from "recharts";
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
+import { createChart, CrosshairMode } from 'lightweight-charts'; 
 import api from "../api/apiClient"; 
 import "./Backtests.css"; 
 
@@ -51,6 +52,233 @@ const downloadCSV = (trades) => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", "backtest_trades.csv");
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
+};
+
+// --- CHART REPLAY COMPONENT (Integrated) ---
+const ChartReplay = ({ results, symbol }) => {
+  const chartContainerRef = useRef(null);
+  const chartRef = useRef(null);
+  const candlestickSeriesRef = useRef(null);
+  
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(100); 
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // --- 1. PARSE DATA ---
+  const parseTime = (t) => {
+      if (!t) return null;
+      if (typeof t === 'object' && t.$date) t = t.$date;
+      if (typeof t === 'number' && t < 10000000000) return t; 
+      const d = new Date(t);
+      return isNaN(d.getTime()) ? null : d.getTime() / 1000;
+  };
+
+  const candles = useMemo(() => {
+    if (!results?.candleData || !Array.isArray(results.candleData)) return [];
+    return results.candleData.map(c => ({
+      time: parseTime(c.timestamp || c.time || c.datetime || c.date), 
+      open: parseFloat(c.open),
+      high: parseFloat(c.high),
+      low: parseFloat(c.low),
+      close: parseFloat(c.close),
+    })).filter(c => c.time).sort((a, b) => a.time - b.time);
+  }, [results]);
+
+  const trades = useMemo(() => {
+    if (!results?.tradeBreakdown || !Array.isArray(results.tradeBreakdown)) return [];
+    
+    return results.tradeBreakdown.map(t => {
+      const entryTime = parseTime(t.entryTime || t.entry_time || t.time || t.date);
+      const exitTime = parseTime(t.exitTime || t.exit_time || t.close_time || t.date_out);
+      const profit = parseFloat(t.profit || t.realized_pnl || t.pnl || 0);
+      const exitPrice = parseFloat(t.exitPrice || t.exit_price || t.close_price || 0);
+
+      return entryTime ? {
+        time: entryTime, 
+        position: (t.position || t.side || 'long').toLowerCase(), 
+        price: parseFloat(t.entryPrice || t.entry_price || t.price || 0),
+        profit: profit,
+        exitTime: exitTime,
+        exitPrice: exitPrice,
+        isRealized: profit !== 0 || exitPrice > 0 
+      } : null;
+    }).filter(t => t !== null).sort((a, b) => a.time - b.time);
+  }, [results]);
+
+  // --- 2. AUTO-INIT ---
+  useEffect(() => {
+      if (candles.length > 0 && !isLoaded) {
+          setCurrentIndex(candles.length - 1); 
+          setIsLoaded(true);
+      }
+  }, [candles, isLoaded]);
+
+  // --- 3. INITIALIZE CHART ---
+  useEffect(() => {
+    if (!chartContainerRef.current || candles.length === 0) return;
+
+    if (chartRef.current) { chartRef.current.remove(); }
+
+    chartRef.current = createChart(chartContainerRef.current, {
+      width: chartContainerRef.current.clientWidth,
+      height: 450,
+      layout: { backgroundColor: '#0f172a', textColor: '#94a3b8', fontFamily: "'Inter', sans-serif" }, 
+      grid: { vertLines: { color: 'rgba(51, 65, 85, 0.2)' }, horzLines: { color: 'rgba(51, 65, 85, 0.2)' } },
+      crosshair: { mode: CrosshairMode.Normal },
+      timeScale: { borderColor: '#334155', timeVisible: true },
+      rightPriceScale: { borderColor: '#334155' },
+    });
+
+    candlestickSeriesRef.current = chartRef.current.addCandlestickSeries({
+      upColor: '#22c55e', downColor: '#ef4444',
+      borderUpColor: "#22c55e", borderDownColor: "#ef4444", 
+      wickUpColor: "#22c55e", wickDownColor: "#ef4444",
+    });
+
+    candlestickSeriesRef.current.setData(candles);
+    chartRef.current.timeScale().fitContent();
+
+    const handleResize = () => {
+        if (chartRef.current) chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => { 
+        window.removeEventListener('resize', handleResize);
+        if (chartRef.current) chartRef.current.remove(); 
+    };
+  }, [candles]); 
+
+  // --- 4. THE LOOP ---
+  useEffect(() => {
+    if (!candlestickSeriesRef.current || candles.length === 0) return;
+    
+    const currentCandle = candles[currentIndex];
+    if (!currentCandle) return;
+
+    const visibleCandles = candles.slice(0, currentIndex + 1);
+    candlestickSeriesRef.current.setData(visibleCandles);
+
+    const activeMarkers = [];
+    trades.forEach(t => {
+        if (t.time <= currentCandle.time) {
+            activeMarkers.push({
+                time: t.time,
+                position: t.position === 'long' ? 'belowBar' : 'aboveBar',
+                color: t.position === 'long' ? '#3b82f6' : '#f59e0b',
+                shape: t.position === 'long' ? 'arrowUp' : 'arrowDown',
+                text: `E`
+            });
+        }
+        if (t.exitTime && t.exitTime <= currentCandle.time) {
+            activeMarkers.push({
+                time: t.exitTime,
+                position: t.position === 'long' ? 'aboveBar' : 'belowBar',
+                color: t.profit > 0 ? '#22c55e' : '#ef4444',
+                shape: 'circle',
+                text: `X`
+            });
+        }
+    });
+
+    activeMarkers.sort((a, b) => a.time - b.time);
+    candlestickSeriesRef.current.setMarkers(activeMarkers);
+
+  }, [currentIndex, candles, trades]);
+
+  // --- 5. Playback Interval ---
+  useEffect(() => {
+    let interval = null;
+    if (isPlaying) {
+      interval = setInterval(() => {
+        setCurrentIndex(prev => {
+          if (prev >= candles.length - 1) {
+            setIsPlaying(false);
+            return prev;
+          }
+          return prev + 1;
+        });
+      }, playbackSpeed);
+    }
+    return () => clearInterval(interval);
+  }, [isPlaying, playbackSpeed, candles.length]);
+
+  // --- 6. CONTROLS ---
+  const handlePlay = () => { if (currentIndex >= candles.length - 1) setCurrentIndex(0); setIsPlaying(true); };
+  const handlePause = () => setIsPlaying(false);
+  const handleReset = () => { setIsPlaying(false); setCurrentIndex(0); };
+  const handleStepBack = () => setCurrentIndex(prev => Math.max(0, prev - 1));
+  const handleStepFwd = () => setCurrentIndex(prev => Math.min(candles.length - 1, prev + 1));
+  
+  // ZOOM HANDLERS
+  const handleZoomIn = () => { 
+      if (!chartRef.current) return;
+      const ts = chartRef.current.timeScale();
+      const range = ts.getVisibleLogicalRange();
+      if (!range) return;
+      const width = range.to - range.from;
+      const center = (range.from + range.to) / 2;
+      const newWidth = width * 0.7; 
+      ts.setVisibleLogicalRange({ from: center - newWidth / 2, to: center + newWidth / 2 });
+  };
+
+  const handleZoomOut = () => { 
+      if (!chartRef.current) return;
+      const ts = chartRef.current.timeScale();
+      const range = ts.getVisibleLogicalRange();
+      if (!range) return;
+      const width = range.to - range.from;
+      const center = (range.from + range.to) / 2;
+      const newWidth = width * 1.3; 
+      ts.setVisibleLogicalRange({ from: center - newWidth / 2, to: center + newWidth / 2 });
+  };
+
+  if (!results || !candles.length) return <div className="text-slate-400 p-10 text-center">Loading Replay Data...</div>;
+
+  const currentCandleData = candles[currentIndex] || {};
+
+  return (
+    <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6 h-full flex flex-col">
+       <div className="flex items-center justify-between mb-4 border-b border-slate-800/50 pb-4">
+           <div>
+               <h3 className="text-white font-bold text-lg">Market Replay: {symbol}</h3>
+               <p className="text-slate-400 text-xs">
+                   {currentCandleData.time ? new Date(currentCandleData.time * 1000).toLocaleString() : '-'} | 
+                   Price: <span className="text-white font-mono">${currentCandleData.close?.toFixed(2)}</span>
+               </p>
+           </div>
+           <div className="flex items-center gap-2">
+               <button onClick={handleZoomOut} className="p-2 bg-slate-800 rounded hover:bg-slate-700 text-slate-300 font-mono">-</button>
+               <button onClick={handleZoomIn} className="p-2 bg-slate-800 rounded hover:bg-slate-700 text-slate-300 font-mono">+</button>
+               <button onClick={handleStepBack} className="p-2 bg-slate-800 rounded hover:bg-slate-700 text-slate-300 text-sm">Prev</button>
+               {!isPlaying ? 
+                   <button onClick={handlePlay} className="px-4 py-2 bg-emerald-500 text-white rounded hover:bg-emerald-600 font-bold text-sm">▶ Play</button> : 
+                   <button onClick={handlePause} className="px-4 py-2 bg-amber-500 text-white rounded hover:bg-amber-600 font-bold text-sm">⏸ Pause</button>
+               }
+               <button onClick={handleStepFwd} className="p-2 bg-slate-800 rounded hover:bg-slate-700 text-slate-300 text-sm">Next</button>
+               <button onClick={handleReset} className="p-2 bg-slate-800 rounded hover:bg-slate-700 text-slate-300 text-sm">Reset</button>
+           </div>
+       </div>
+       
+       <div className="relative flex-1 min-h-[450px]" style={{width: '100%'}}>
+           <div ref={chartContainerRef} style={{ width: '100%', height: '100%' }} />
+       </div>
+       
+       <div className="mt-4 flex items-center gap-4">
+           <span className="text-slate-400 text-sm">Playback Speed:</span>
+           <input 
+               type="range" 
+               min="10" 
+               max="500" 
+               step="10" 
+               value={510 - playbackSpeed} 
+               onChange={(e) => setPlaybackSpeed(510 - Number(e.target.value))} 
+               className="w-48 accent-blue-500"
+           />
+       </div>
+    </div>
+  );
 };
 
 // --- INITIAL STATES ---
@@ -186,7 +414,6 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
                 </div>
             </div>
             
-            {/* 🟢 MODIFIED: Emerald Background for Risk & ML */}
             <div className="bg-emerald-900/10 border border-emerald-500/20 rounded-2xl p-6 mb-6">
                 <div className="flex items-center gap-3 mb-4 pb-3 border-b border-emerald-500/20">
                     <h4 className="text-emerald-400 font-bold">Risk & ML Configuration</h4>
@@ -242,7 +469,6 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
                 </div>
             </div>
 
-            {/* 🟢 MODIFIED: Emerald Background for Advanced Filters */}
             <div className="bg-emerald-900/10 border border-emerald-500/20 rounded-2xl p-6">
                 <div className="flex items-center gap-3 mb-4 pb-3 border-b border-emerald-500/20">
                     <h4 className="text-emerald-400 font-bold">Advanced Filters</h4>
@@ -273,11 +499,9 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
 const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, disableRemove }) => {
   const handleChange = (e) => onChange(e, idx);
   return (
-    // 🟢 MODIFIED: Emerald Background for Strategy Layers
     <div className="bg-emerald-900/10 border border-emerald-500/20 rounded-xl p-4 hover:border-emerald-500/40 transition-all">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          {/* 🟢 MODIFIED: Emerald Badge */}
           <div className="w-8 h-8 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-lg flex items-center justify-center">
             <span className="text-emerald-400 font-bold">{idx + 1}</span>
           </div>
@@ -307,6 +531,9 @@ export default function Backtests() {
   const [activeTab, setActiveTab] = useState('single');
   const [liveWinners, setLiveWinners] = useState([]);
   const [scanningWinners, setScanningWinners] = useState(false);
+  
+  // 🚀 NEW: Chart Mode State (Standard vs Replay)
+  const [chartMode, setChartMode] = useState('standard'); 
 
   // 🔄 Loaders
   const strategyOptions = useMemo(() => {
@@ -537,7 +764,7 @@ export default function Backtests() {
                 </select>
               </div>
 
-              {/* Tabs - 🟢 MODIFIED: Emerald Green Tabs */}
+              {/* Tabs */}
               <div className="flex gap-2">
                 <button 
                   className={`flex-1 py-2.5 px-4 rounded-xl transition-all font-medium text-sm ${
@@ -652,15 +879,39 @@ export default function Backtests() {
                     {/* Metrics */}
                     <MetricsDisplay metrics={combinedMetrics} />
                     
-                    {/* Chart Independent */}
+                    {/* 🚀 CHART CARD WITH TOGGLE */}
                     {mainResult && mainResult.candleData?.length > 0 && (
                       <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6">
-                        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800/50">
-                          <span className="text-blue-400 text-lg">📈</span>
-                          <h3 className="text-white font-bold">Price Action & Signals</h3>
+                        <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-800/50">
+                            <div className="flex items-center gap-3">
+                              <span className="text-blue-400 text-lg">📈</span>
+                              <h3 className="text-white font-bold">Price Action & Signals</h3>
+                            </div>
+                            
+                            {/* 🚀 TOGGLE BUTTONS */}
+                            <div className="flex bg-slate-800/50 rounded-lg p-1 border border-slate-700/50">
+                                <button 
+                                    onClick={() => setChartMode('standard')}
+                                    className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${chartMode === 'standard' ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                                >
+                                    Standard View
+                                </button>
+                                <button 
+                                    onClick={() => setChartMode('replay')}
+                                    className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${chartMode === 'replay' ? 'bg-violet-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                                >
+                                    Replay Mode
+                                </button>
+                            </div>
                         </div>
+
+                        {/* 🚀 CONDITIONAL RENDER */}
                         <div style={{height: '850px'}}>
-                          <ChartIndependent results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} />
+                          {chartMode === 'standard' ? (
+                              <ChartIndependent results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} />
+                          ) : (
+                              <ChartReplay results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} />
+                          )}
                         </div>
                       </div>
                     )}
