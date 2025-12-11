@@ -1,6 +1,6 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v64.1 - "Chart Mode Toggle"
-// Features: Toggle between Static Analysis and Market Replay directly in the results view
+// 🚀 UPGRADE: v64.2 - "Date Filters Applied"
+// Fixes: Passes UI start/end dates to the Chart component to prevent data leakage.
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios"; 
@@ -905,12 +905,20 @@ export default function Backtests() {
                             </div>
                         </div>
 
-                        {/* 🚀 CONDITIONAL RENDER */}
+                        {/* 🚀 CONDITIONAL RENDER WITH DATES PASSED */}
                         <div style={{height: '850px'}}>
                           {chartMode === 'standard' ? (
-                              <ChartIndependent results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} />
+                              <ChartIndependent 
+                                  results={mainResult} 
+                                  symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} 
+                                  startDate={activeTab === 'single' ? formData.startDate : comboData.startDate}
+                                  endDate={activeTab === 'single' ? formData.endDate : comboData.endDate}
+                              />
                           ) : (
-                              <ChartReplay results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} />
+                              <ChartReplay 
+                                  results={mainResult} 
+                                  symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} 
+                              />
                           )}
                         </div>
                       </div>
