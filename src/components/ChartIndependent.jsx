@@ -1,17 +1,21 @@
 // File: src/components/ChartIndependent.jsx
-// 🚀 UPGRADE: v63.5 - "Deep Zoom & Diagnostics + LOGS"
+// 🚀 UPGRADE: v64.0 - "Date Filtering Enabled"
 // Fixes: 
-// 1. Adds 'Data Range' display.
-// 2. Adds 'Reset Zoom' button.
-// 3. Improves timestamp parsing.
-// 4. [DEBUG] Added detailed console logs for data tracing.
+// 1. Accepts 'startDate' and 'endDate' props to strictly filter data.
+// 2. Ensures Chart matches UI Date Pickers even if API returns extra history.
+// 3. Keeps previous Deep Zoom & Diagnostic features.
 
 import React, { useEffect, useRef, useState } from "react";
 import { createChart, ColorType, CrosshairMode, LineStyle } from "lightweight-charts";
 import { Maximize, Calendar } from "lucide-react"; 
 import "./ChartIndependent.css"; 
 
-export function ChartIndependent({ results, symbol = "BTC-USD" }) {
+export function ChartIndependent({ 
+    results, 
+    symbol = "BTC-USD", 
+    startDate = null, // e.g. "2024-12-11"
+    endDate = null    // e.g. "2024-12-31"
+}) {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
@@ -34,23 +38,19 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
 
   // --- 1. Initialize & Update Chart ---
   useEffect(() => {
-    // [DEBUG] 1. Log Raw Input
+    // [DEBUG] Log Incoming Filters
     console.group("🔥 [ChartIndependent] Data Pipeline");
-    console.log("1. Raw Results Prop Received:", results);
+    console.log(`1. Filters Received -> Start: ${startDate || "None"}, End: ${endDate || "None"}`);
+    console.log("2. Raw Results:", results);
 
-    if (!chartContainerRef.current) {
-        console.log("❌ Chart container ref is missing.");
-        console.groupEnd();
-        return;
-    }
+    if (!chartContainerRef.current) return;
     
-    // Clean up previous chart instance
     if (chartRef.current) {
         chartRef.current.remove();
         chartRef.current = null;
     }
 
-    // A. Configure Chart Layout (Emerald Theme)
+    // A. Configure Chart Layout
     const chart = createChart(chartContainerRef.current, {
       layout: { 
           background: { type: ColorType.Solid, color: "transparent" },
@@ -89,50 +89,44 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
 
     chartRef.current = chart;
 
-    // B. Main Candle Series
+    // B. Series Setup
     const candleSeries = chart.addCandlestickSeries({
-      upColor: "#10b981",          
-      downColor: "#ef4444",        
-      borderUpColor: "#10b981", 
-      borderDownColor: "#ef4444", 
-      wickUpColor: "#10b981", 
-      wickDownColor: "#ef4444",
+      upColor: "#10b981", downColor: "#ef4444",        
+      borderUpColor: "#10b981", borderDownColor: "#ef4444", 
+      wickUpColor: "#10b981", wickDownColor: "#ef4444",
     });
     seriesRef.current = candleSeries;
 
-    // C. Connection Line
     const connectionSeries = chart.addLineSeries({
-        color: '#34d399', 
-        lineWidth: 2,
-        lineStyle: LineStyle.Dashed,
-        crosshairMarkerVisible: false,
-        lastValueVisible: false,
-        priceLineVisible: false,
+        color: '#34d399', lineWidth: 2, lineStyle: LineStyle.Dashed,
+        crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false,
     });
     connectionSeriesRef.current = connectionSeries;
 
-    // D. Data Processing
+    // C. Data Processing & Filtering
     if (results && results.candleData && results.candleData.length > 0) {
-        console.log(`2. Processing ${results.candleData.length} raw candles...`);
-        
         const validData = [];
         const timeSet = new Set();
+        let filteredCount = 0;
+
+        // Parse Filters to Timestamps for easy comparison
+        const startTs = startDate ? new Date(startDate).getTime() / 1000 : null;
+        const endTs = endDate ? new Date(endDate).getTime() / 1000 + 86400 : null; // Add buffer for end of day
         
-        // 1. Process Candles
-        results.candleData.forEach((c, index) => {
-            // Handle various timestamp formats from API
+        results.candleData.forEach((c) => {
+            // 1. Normalize Date
             let dateObj;
-            if (typeof c.time === 'number') dateObj = new Date(c.time * 1000); // Unix timestamp
-            else if (c.start) dateObj = new Date(c.start * 1000);              // Alternative key
-            else dateObj = new Date(c.time || c.date || c.datetime);           // ISO String
+            if (typeof c.time === 'number') dateObj = new Date(c.time * 1000);
+            else if (c.start) dateObj = new Date(c.start * 1000);
+            else dateObj = new Date(c.time || c.date || c.datetime);
 
             const timeStamp = Math.floor(dateObj.getTime() / 1000); 
-            
-            // [DEBUG] Log first failed parse if any
-            if (isNaN(timeStamp) && index < 5) {
-                console.warn("⚠️ Found invalid timestamp in candle:", c);
-            }
 
+            // 2. 🛑 APPLY DATE FILTER
+            if (startTs && timeStamp < startTs) { filteredCount++; return; }
+            if (endTs && timeStamp > endTs) { filteredCount++; return; }
+            
+            // 3. Validate & Push
             if (!isNaN(timeStamp) && !timeSet.has(timeStamp)) {
                 validData.push({
                     time: timeStamp,
@@ -147,13 +141,12 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
         
         validData.sort((a, b) => a.time - b.time);
         
-        // [DEBUG] 3. Log Final Chart Data
-        console.log(`3. Valid Chart Data ready: ${validData.length} bars.`);
-        if(validData.length > 0) {
-            console.log("   First Bar:", new Date(validData[0].time * 1000).toLocaleString());
-            console.log("   Last Bar:", new Date(validData[validData.length - 1].time * 1000).toLocaleString());
-        }
-
+        // [DEBUG] Log Filter Results
+        console.log(`3. Data Processing:`);
+        console.log(`   - Raw: ${results.candleData.length}`);
+        console.log(`   - Hidden by Date Filter: ${filteredCount}`);
+        console.log(`   - Shown on Chart: ${validData.length}`);
+        
         candleSeries.setData(validData);
 
         // Update Diagnostic Info
@@ -165,8 +158,6 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
                 end: new Date(last.time * 1000).toLocaleDateString(),
                 count: validData.length
             });
-
-            // Set Initial Legend
             setLegend({
                 open: last.open.toFixed(2), high: last.high.toFixed(2), low: last.low.toFixed(2), close: last.close.toFixed(2),
                 time: new Date(last.time * 1000).toLocaleString(),
@@ -174,9 +165,7 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
             });
         }
 
-        // 2. Map Trades
-        console.log(`4. Mapping Trades... (Total: ${results.tradeBreakdown ? results.tradeBreakdown.length : 0})`);
-        
+        // 4. Map Trades (Filter these too!)
         const markers = [];
         const tradeList = [];
         const validTimes = Array.from(timeSet).sort((a,b)=>a-b);
@@ -189,23 +178,22 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
                 const diff = Math.abs(targetTime - t);
                 if (diff < minDiff) { minDiff = diff; closest = t; }
             }
-            // Allow up to 2 hours diff, else assume missing data
             return minDiff < 7200 ? closest : null; 
         };
 
         if (results.tradeBreakdown) {
             results.tradeBreakdown.forEach((t, i) => {
                 const entryTimeRaw = Math.floor(new Date(t.entryTime).getTime() / 1000);
+                
+                // 🛑 Skip trades outside our visual range
+                if (startTs && entryTimeRaw < startTs) return;
+                if (endTs && entryTimeRaw > endTs) return;
+
                 const exitTimeRaw = t.exitTime ? Math.floor(new Date(t.exitTime).getTime() / 1000) : null;
                 const isWin = t.profit >= 0;
 
                 const entryTime = findNearestTime(entryTimeRaw);
                 const exitTime = exitTimeRaw ? findNearestTime(exitTimeRaw) : null;
-
-                // [DEBUG] Log if a trade cannot be mapped to the chart
-                if (!entryTime && i < 3) {
-                     console.warn(`⚠️ Trade #${i} Entry time ${t.entryTime} not found on chart range.`);
-                }
 
                 tradeList.push({
                     id: i, 
@@ -243,21 +231,17 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
             });
         }
         
-        console.log(`5. Markers created: ${markers.length}`);
         candleSeries.setMarkers(markers.sort((a,b) => a.time - b.time));
         setTrades(tradeList.reverse());
 
-        // 3. AUTO-ZOOM
         window.requestAnimationFrame(() => {
             chart.timeScale().fitContent();
         });
-    } else {
-        console.warn("⚠️ No candle data found in results.");
     }
 
-    console.groupEnd(); // End Log Group
+    console.groupEnd(); 
 
-    // E. Crosshair
+    // E. Crosshair & Resize Observers (Unchanged)
     chart.subscribeCrosshairMove((param) => {
         if (!param.point || !param.time || !param.seriesData) return;
         const data = param.seriesData.get(candleSeries);
@@ -270,7 +254,6 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
         }
     });
 
-    // F. Resize
     const resizeObserver = new ResizeObserver((entries) => {
       if (entries.length === 0 || !entries[0]) return;
       const { width, height } = entries[0].contentRect;
@@ -285,9 +268,9 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
           chartRef.current = null; 
       }
     };
-  }, [results]);
+  }, [results, startDate, endDate]); // 👈 Added dependencies
 
-  // --- 2. Hover Connection Logic ---
+  // --- 2. Hover Connection Logic (Unchanged) ---
   useEffect(() => {
       if (!connectionSeriesRef.current) return;
       if (hoveredTrade && hoveredTrade.chartEntryTime && hoveredTrade.chartExitTime) {
@@ -355,7 +338,7 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
                                 {t.profit >= 0 ? "+" : "-"}${Math.abs(t.profit).toFixed(2)}
                             </div>
                         </div>
-                    )) : <div className="empty-trades">No trades executed.</div>}
+                    )) : <div className="empty-trades">No trades executed in this range.</div>}
                 </div>
             </div>
         </div>
