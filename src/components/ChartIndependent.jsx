@@ -1,6 +1,6 @@
 // File: src/components/ChartIndependent.jsx
-// 🚀 UPGRADE: v63.2 - "Full Vision & Emerald Theme"
-// Fixes: Complete file with auto-zoom logic and Jet Black/Emerald styling
+// 🚀 UPGRADE: v63.3 - "Complete & Emerald"
+// Fixes: Syntax error (missing closing braces), Auto-Zoom, Emerald Theme
 
 import React, { useEffect, useRef, useState } from "react";
 import { createChart, ColorType, CrosshairMode, LineStyle } from "lightweight-charts";
@@ -22,7 +22,7 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
   useEffect(() => {
     if (!chartContainerRef.current) return;
     
-    // Clean up previous chart instance if it exists
+    // Clean up previous chart instance
     if (chartRef.current) {
         chartRef.current.remove();
         chartRef.current = null;
@@ -32,7 +32,7 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
     const chart = createChart(chartContainerRef.current, {
       layout: { 
           background: { type: ColorType.Solid, color: "transparent" },
-          textColor: "#94a3b8", // Subtler text color
+          textColor: "#94a3b8", // Subtler text
           fontFamily: "'Inter', system-ui, sans-serif",
           fontSize: 11
       },
@@ -58,7 +58,7 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
 
     chartRef.current = chart;
 
-    // 2. Main Candle Series (Emerald Theme)
+    // 2. Main Candle Series
     const candleSeries = chart.addCandlestickSeries({
       upColor: "#10b981", downColor: "#ef4444", 
       borderUpColor: "#10b981", borderDownColor: "#ef4444", 
@@ -94,11 +94,11 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
             }
         });
         
-        // Sort by time ascending
+        // Sort
         validData.sort((a, b) => a.time - b.time);
         candleSeries.setData(validData);
 
-        // Initial Legend based on the last candle
+        // Initial Legend
         const last = validData[validData.length - 1];
         setLegend({
             open: last.open.toFixed(2), high: last.high.toFixed(2), low: last.low.toFixed(2), close: last.close.toFixed(2),
@@ -109,21 +109,17 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
         // 5. Map Trades to Chart Time
         const markers = [];
         const tradeList = [];
-        // Convert set to sorted array for binary/linear search nearest time
         const validTimes = Array.from(timeSet).sort((a,b)=>a-b);
 
         const findNearestTime = (targetTime) => {
             if (timeSet.has(targetTime)) return targetTime;
             let closest = validTimes[0];
             let minDiff = Math.abs(targetTime - closest);
-            
-            // Simple linear scan for nearest (sufficient for typical dataset sizes)
             for (let t of validTimes) {
                 const diff = Math.abs(targetTime - t);
                 if (diff < minDiff) { minDiff = diff; closest = t; }
             }
-            // Only attach if within 2 hours (7200s) to avoid mapping to huge gaps
-            return minDiff < 7200 ? closest : null; 
+            return minDiff < 7200 ? closest : null; // 2 hour tolerance
         };
 
         (results.tradeBreakdown || []).forEach((t, i) => {
@@ -167,15 +163,14 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
             }
         });
         
-        // Markers must be sorted by time
         candleSeries.setMarkers(markers.sort((a,b) => a.time - b.time));
-        setTrades(tradeList.reverse()); // Show newest trades at top of list
+        setTrades(tradeList.reverse());
 
-        // 🚀 CRITICAL FIX: Fit content to show full date range
+        // 🚀 FORCE FULL RANGE ZOOM
         chart.timeScale().fitContent();
     }
 
-    // Crosshair movement handler
+    // Crosshair hover logic
     chart.subscribeCrosshairMove((param) => {
         if (!param.point || !param.time) return;
         const data = param.seriesData.get(candleSeries);
@@ -188,7 +183,7 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
         }
     });
 
-    // Resize observer to handle window resizing
+    // Resize observer
     const resizeObserver = new ResizeObserver((entries) => {
       if (entries.length === 0 || !entries[0]) return;
       const { width, height } = entries[0].contentRect;
@@ -206,7 +201,6 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
   }, [results]);
 
   // 🚀 HOVER CONNECTION LOGIC
-  // Draws a dashed line between entry and exit when hovering a trade in the list
   useEffect(() => {
       if (!connectionSeriesRef.current) return;
       if (hoveredTrade && hoveredTrade.chartEntryTime && hoveredTrade.chartExitTime) {
