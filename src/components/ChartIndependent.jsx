@@ -1,9 +1,13 @@
 // File: src/components/ChartIndependent.jsx
-// 🚀 UPGRADE: v63.3 - "Complete & Emerald"
-// Fixes: Syntax error (missing closing braces), Auto-Zoom, Emerald Theme
+// 🚀 UPGRADE: v63.4 - "Deep Zoom & Diagnostics"
+// Fixes: 
+// 1. Adds 'Data Range' display to verify if the API is truncating history.
+// 2. Adds 'Reset Zoom' button to force the chart to view all data.
+// 3. Improves timestamp parsing logic.
 
 import React, { useEffect, useRef, useState } from "react";
 import { createChart, ColorType, CrosshairMode, LineStyle } from "lightweight-charts";
+import { Maximize, Calendar } from "lucide-react"; 
 import "./ChartIndependent.css"; 
 
 export function ChartIndependent({ results, symbol = "BTC-USD" }) {
@@ -18,7 +22,16 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
   });
   const [trades, setTrades] = useState([]);
   const [hoveredTrade, setHoveredTrade] = useState(null);
+  const [dataRange, setDataRange] = useState({ start: "--", end: "--", count: 0 });
 
+  // Helper: Reset Zoom
+  const handleResetZoom = () => {
+      if (chartRef.current) {
+          chartRef.current.timeScale().fitContent();
+      }
+  };
+
+  // --- 1. Initialize & Update Chart ---
   useEffect(() => {
     if (!chartContainerRef.current) return;
     
@@ -28,45 +41,57 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
         chartRef.current = null;
     }
 
-    // 1. Initialize Chart
+    // A. Configure Chart Layout (Emerald Theme)
     const chart = createChart(chartContainerRef.current, {
       layout: { 
           background: { type: ColorType.Solid, color: "transparent" },
-          textColor: "#94a3b8", // Subtler text
-          fontFamily: "'Inter', system-ui, sans-serif",
+          textColor: "#94a3b8", 
+          fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
           fontSize: 11
       },
       grid: { 
-          vertLines: { color: "rgba(6, 78, 59, 0.3)", style: 2 }, // Emerald-900 hint
-          horzLines: { color: "rgba(6, 78, 59, 0.3)", style: 2 } 
+          vertLines: { color: "rgba(6, 78, 59, 0.2)", style: 2 }, 
+          horzLines: { color: "rgba(6, 78, 59, 0.2)", style: 2 }  
       },
       width: chartContainerRef.current.clientWidth,
       height: chartContainerRef.current.clientHeight,
       timeScale: { 
-          timeVisible: true, secondsVisible: false, borderColor: "#064e3b",
-          rightOffset: 15, barSpacing: 6
+          timeVisible: true, 
+          secondsVisible: false, 
+          borderColor: "rgba(52, 211, 153, 0.1)", 
+          rightOffset: 5, 
+          barSpacing: 6,
+          fixLeftEdge: true,
+          fixRightEdge: true
       },
       rightPriceScale: { 
-          borderColor: "#064e3b", scaleMargins: { top: 0.1, bottom: 0.1 } 
+          borderColor: "rgba(52, 211, 153, 0.1)", 
+          scaleMargins: { top: 0.1, bottom: 0.1 },
+          visible: true
       },
       crosshair: {
           mode: CrosshairMode.Normal,
           vertLine: { width: 1, color: '#34d399', style: 3, labelBackgroundColor: '#064e3b' },
           horzLine: { width: 1, color: '#34d399', style: 3, labelBackgroundColor: '#064e3b' },
-      }
+      },
+      handleScroll: { mouseWheel: true, pressedMouseMove: true },
+      handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
     });
 
     chartRef.current = chart;
 
-    // 2. Main Candle Series
+    // B. Main Candle Series
     const candleSeries = chart.addCandlestickSeries({
-      upColor: "#10b981", downColor: "#ef4444", 
-      borderUpColor: "#10b981", borderDownColor: "#ef4444", 
-      wickUpColor: "#10b981", wickDownColor: "#ef4444",
+      upColor: "#10b981",         
+      downColor: "#ef4444",       
+      borderUpColor: "#10b981", 
+      borderDownColor: "#ef4444", 
+      wickUpColor: "#10b981", 
+      wickDownColor: "#ef4444",
     });
     seriesRef.current = candleSeries;
 
-    // 3. Connection Line (Emerald Dashed)
+    // C. Connection Line
     const connectionSeries = chart.addLineSeries({
         color: '#34d399', 
         lineWidth: 2,
@@ -77,36 +102,55 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
     });
     connectionSeriesRef.current = connectionSeries;
 
-    // 4. Data Processing
+    // D. Data Processing
     if (results && results.candleData && results.candleData.length > 0) {
         const validData = [];
         const timeSet = new Set();
         
+        // 1. Process Candles
         results.candleData.forEach((c) => {
-            const d = new Date(c.time || c.date || c.datetime);
-            const timeStamp = d.getTime() / 1000; 
+            // Handle various timestamp formats from API
+            let dateObj;
+            if (typeof c.time === 'number') dateObj = new Date(c.time * 1000); // Unix timestamp
+            else if (c.start) dateObj = new Date(c.start * 1000);              // Alternative key
+            else dateObj = new Date(c.time || c.date || c.datetime);           // ISO String
+
+            const timeStamp = Math.floor(dateObj.getTime() / 1000); 
+            
             if (!isNaN(timeStamp) && !timeSet.has(timeStamp)) {
                 validData.push({
                     time: timeStamp,
-                    open: Number(c.open), high: Number(c.high), low: Number(c.low), close: Number(c.close),
+                    open: Number(c.open), 
+                    high: Number(c.high), 
+                    low: Number(c.low), 
+                    close: Number(c.close),
                 });
                 timeSet.add(timeStamp);
             }
         });
         
-        // Sort
         validData.sort((a, b) => a.time - b.time);
         candleSeries.setData(validData);
 
-        // Initial Legend
-        const last = validData[validData.length - 1];
-        setLegend({
-            open: last.open.toFixed(2), high: last.high.toFixed(2), low: last.low.toFixed(2), close: last.close.toFixed(2),
-            time: new Date(last.time * 1000).toLocaleString(),
-            color: last.close >= last.open ? "#10b981" : "#ef4444"
-        });
+        // Update Diagnostic Info
+        if (validData.length > 0) {
+            const first = validData[0];
+            const last = validData[validData.length - 1];
+            setDataRange({
+                start: new Date(first.time * 1000).toLocaleDateString(),
+                end: new Date(last.time * 1000).toLocaleDateString(),
+                count: validData.length
+            });
 
-        // 5. Map Trades to Chart Time
+            // Set Initial Legend
+            setLegend({
+                open: last.open.toFixed(2), high: last.high.toFixed(2), low: last.low.toFixed(2), close: last.close.toFixed(2),
+                time: new Date(last.time * 1000).toLocaleString(),
+                color: last.close >= last.open ? "#10b981" : "#ef4444"
+            });
+        }
+
+        // 2. Map Trades
         const markers = [];
         const tradeList = [];
         const validTimes = Array.from(timeSet).sort((a,b)=>a-b);
@@ -119,60 +163,66 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
                 const diff = Math.abs(targetTime - t);
                 if (diff < minDiff) { minDiff = diff; closest = t; }
             }
-            return minDiff < 7200 ? closest : null; // 2 hour tolerance
+            return minDiff < 7200 ? closest : null; 
         };
 
-        (results.tradeBreakdown || []).forEach((t, i) => {
-            const entryTimeRaw = new Date(t.entryTime).getTime() / 1000;
-            const exitTimeRaw = t.exitTime ? new Date(t.exitTime).getTime() / 1000 : null;
-            const isWin = t.profit >= 0;
+        if (results.tradeBreakdown) {
+            results.tradeBreakdown.forEach((t, i) => {
+                const entryTimeRaw = Math.floor(new Date(t.entryTime).getTime() / 1000);
+                const exitTimeRaw = t.exitTime ? Math.floor(new Date(t.exitTime).getTime() / 1000) : null;
+                const isWin = t.profit >= 0;
 
-            const entryTime = findNearestTime(entryTimeRaw);
-            const exitTime = exitTimeRaw ? findNearestTime(exitTimeRaw) : null;
+                const entryTime = findNearestTime(entryTimeRaw);
+                const exitTime = exitTimeRaw ? findNearestTime(exitTimeRaw) : null;
 
-            tradeList.push({
-                id: i, 
-                side: t.position, 
-                entryPrice: t.price || t.entry_price, 
-                exitPrice: t.exitPrice || t.exit_price,
-                profit: t.profit,
-                date: new Date(t.entryTime).toLocaleDateString() + " " + new Date(t.entryTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-                chartEntryTime: entryTime,
-                chartExitTime: exitTime,
-                chartEntryPrice: t.price || t.entry_price,
-                chartExitPrice: t.exitPrice || t.exit_price
+                tradeList.push({
+                    id: i, 
+                    side: t.position, 
+                    entryPrice: t.price || t.entry_price || t.entryPrice, 
+                    exitPrice: t.exitPrice || t.exit_price,
+                    profit: t.profit,
+                    date: new Date(t.entryTime).toLocaleDateString() + " " + new Date(t.entryTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                    chartEntryTime: entryTime,
+                    chartExitTime: exitTime,
+                    chartEntryPrice: t.price || t.entry_price || t.entryPrice,
+                    chartExitPrice: t.exitPrice || t.exit_price
+                });
+
+                if (entryTime) {
+                    markers.push({
+                        time: entryTime, 
+                        position: t.position === "long" ? "belowBar" : "aboveBar",
+                        color: t.position === "long" ? "#34d399" : "#f59e0b",
+                        shape: t.position === "long" ? "arrowUp" : "arrowDown",
+                        text: "E", size: 1
+                    });
+                }
+
+                if (exitTime) {
+                    markers.push({
+                        time: exitTime, 
+                        position: t.position === "long" ? "aboveBar" : "belowBar",
+                        color: isWin ? "#10b981" : "#ef4444",
+                        shape: "circle",
+                        text: isWin ? `+$${t.profit.toFixed(2)}` : `-$${Math.abs(t.profit).toFixed(2)}`,
+                        size: 1
+                    });
+                }
             });
-
-            if (entryTime) {
-                markers.push({
-                    time: entryTime, position: t.position === "long" ? "belowBar" : "aboveBar",
-                    color: t.position === "long" ? "#34d399" : "#f59e0b",
-                    shape: t.position === "long" ? "arrowUp" : "arrowDown",
-                    text: "E", size: 1
-                });
-            }
-
-            if (exitTime) {
-                markers.push({
-                    time: exitTime, position: t.position === "long" ? "aboveBar" : "belowBar",
-                    color: isWin ? "#10b981" : "#ef4444",
-                    shape: "circle",
-                    text: isWin ? `+$${t.profit.toFixed(2)}` : `-$${Math.abs(t.profit).toFixed(2)}`,
-                    size: 1
-                });
-            }
-        });
+        }
         
         candleSeries.setMarkers(markers.sort((a,b) => a.time - b.time));
         setTrades(tradeList.reverse());
 
-        // 🚀 FORCE FULL RANGE ZOOM
-        chart.timeScale().fitContent();
+        // 3. AUTO-ZOOM
+        window.requestAnimationFrame(() => {
+            chart.timeScale().fitContent();
+        });
     }
 
-    // Crosshair hover logic
+    // E. Crosshair
     chart.subscribeCrosshairMove((param) => {
-        if (!param.point || !param.time) return;
+        if (!param.point || !param.time || !param.seriesData) return;
         const data = param.seriesData.get(candleSeries);
         if (data) {
             setLegend({
@@ -183,7 +233,7 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
         }
     });
 
-    // Resize observer
+    // F. Resize
     const resizeObserver = new ResizeObserver((entries) => {
       if (entries.length === 0 || !entries[0]) return;
       const { width, height } = entries[0].contentRect;
@@ -200,7 +250,7 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
     };
   }, [results]);
 
-  // 🚀 HOVER CONNECTION LOGIC
+  // --- 2. Hover Connection Logic ---
   useEffect(() => {
       if (!connectionSeriesRef.current) return;
       if (hoveredTrade && hoveredTrade.chartEntryTime && hoveredTrade.chartExitTime) {
@@ -216,8 +266,20 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
   return (
     <div className="independent-container">
         <div className="independent-header">
-            <h2><span style={{ color: "#e2e8f0" }}>{symbol}</span> <span style={{ color: legend.color }}>${legend.close}</span></h2>
-            <div className="stat-badge">{trades.length} Trades</div>
+            <div className="flex items-center gap-4">
+                <h2><span style={{ color: "#e2e8f0" }}>{symbol}</span> <span style={{ color: legend.color }}>${legend.close}</span></h2>
+                <div className="data-range-badge">
+                    <Calendar className="w-3 h-3 inline mr-1" />
+                    {dataRange.start} - {dataRange.end} ({dataRange.count} bars)
+                </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+                <button onClick={handleResetZoom} className="reset-zoom-btn" title="Reset Zoom">
+                    <Maximize className="w-4 h-4" />
+                </button>
+                <div className="stat-badge">{trades.length} Trades</div>
+            </div>
         </div>
         
         <div className="independent-body">
