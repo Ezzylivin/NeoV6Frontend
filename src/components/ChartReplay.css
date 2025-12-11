@@ -1,5 +1,5 @@
 /* File: src/components/ChartReplay.css */
-/* 🚀 UPGRADE: v64.2 - "Jet Black & Emerald Replay Theme" */
+/* 🚀 UPGRADE: v64.4 - "Jet Black & Emerald Replay Theme" */
 
 .chart-replay-container {
   display: flex;
@@ -7,7 +7,7 @@
   background: #000000; /* JET BLACK */
   border: 1px solid #064e3b; /* Emerald-900 */
   border-radius: 12px;
-  padding: 0; /* Remove internal padding to match Independent layout */
+  padding: 0;
   overflow: hidden;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   color: #e2e8f0;
@@ -35,41 +35,58 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 20px;
+  padding: 12px 20px;
   background: #062c21; /* Dark Emerald Header */
   border-bottom: 1px solid #064e3b;
-  margin-bottom: 0;
   flex-wrap: wrap;
   gap: 15px;
 }
 
 .chart-header-row h3 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   font-weight: 700;
   color: #ffffff;
   white-space: nowrap;
+}
+
+/* Data Range Badge */
+.data-range-badge {
+    display: inline-flex;
+    align-items: center;
+    background-color: rgba(6, 78, 59, 0.5);
+    border: 1px solid #064e3b;
+    padding: 4px 10px;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    color: #34d399;
+    font-family: 'Roboto Mono', monospace;
 }
 
 /* --- CONTROLS --- */
 .playback-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .playback-controls button {
-  background-color: rgba(6, 78, 59, 0.4); /* Emerald-900 transparent */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background-color: rgba(6, 78, 59, 0.3);
   color: #a0a0a0;
   border: 1px solid #064e3b;
-  padding: 6px 12px;
+  padding: 6px 10px;
   border-radius: 6px;
   cursor: pointer;
   font-weight: 600;
   font-size: 0.8rem;
   transition: all 0.2s;
+  height: 32px;
 }
+
 .playback-controls button:hover { 
   background-color: rgba(16, 185, 129, 0.1); 
   color: #fff;
@@ -80,7 +97,10 @@
   background-color: #064e3b; 
   color: #34d399; 
   border-color: #10b981;
+  padding-left: 14px;
+  padding-right: 14px;
 }
+
 .playback-controls .play-btn:hover { 
   background-color: #10b981; 
   color: #000;
@@ -92,48 +112,73 @@
   border-color: #f59e0b;
 }
 
-/* --- CHART CANVAS (Bottom) --- */
-.chart-canvas {
-  width: 100%;
-  height: 500px; 
-  background: #000000; /* JET BLACK */
-  /* Remove border/margin as container handles it */
-  border: none;
-  border-radius: 0; 
-  overflow: hidden; 
-  margin-top: 0; 
+.speed-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 10px;
+    font-size: 0.75rem;
+    color: #64748b;
 }
 
-/* --- LOG PANEL (Now styled like the Independent List) --- */
+.speed-control input[type="range"] {
+    width: 80px;
+    accent-color: #10b981;
+}
+
+/* --- CHART CANVAS --- */
+.chart-wrapper {
+    flex: 1;
+    position: relative;
+    width: 100%;
+    min-height: 400px;
+    background: #000000;
+}
+
+.chart-canvas {
+  width: 100%;
+  height: 100%; 
+}
+
+/* --- LOG PANEL --- */
 .replay-log-panel {
-  background: #050505; /* Almost Black */
-  border-top: 1px solid #064e3b;
+  height: 140px; 
+  background: #020617; /* Very Dark */
+  border-bottom: 1px solid #064e3b;
   overflow-y: auto;
+}
+
+.empty-log {
+    padding: 20px;
+    color: #475569;
+    font-style: italic;
+    font-size: 0.9rem;
+    text-align: center;
 }
 
 .trade-log-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: #94a3b8;
 }
 
 .trade-log-table th {
-  background-color: #062c21; /* Dark Emerald Header */
+  background-color: #062c21; 
   position: sticky;
   top: 0;
   text-align: left;
   padding: 8px 15px;
   font-weight: 700;
-  color: #6ee7b7; /* Emerald-300 */
+  color: #6ee7b7; 
   border-bottom: 1px solid #064e3b;
   text-transform: uppercase;
-  font-size: 0.75rem;
-  z-index: 5;
+  font-size: 0.7rem;
+  z-index: 10;
 }
 
 .trade-log-table td {
-  padding: 8px 15px;
+  padding: 6px 15px;
   border-bottom: 1px solid #1e293b;
   font-family: 'Roboto Mono', monospace;
 }
@@ -142,22 +187,37 @@
   background-color: rgba(16, 185, 129, 0.05);
 }
 
+.status-open {
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.status-closed {
+    color: #64748b;
+    font-size: 0.7rem;
+}
+
 /* --- HUD --- */
 .replay-hud {
   display: flex;
   gap: 15px;
-  background: rgba(0, 0, 0, 0.6); 
+  background: #000000; 
   border-radius: 8px;
-  padding: 6px 16px;
-  border: 1px solid #064e3b;
+  padding: 4px 12px;
+  border: 1px solid #1f2937;
   align-items: center;
+  height: 32px;
 }
 
 .hud-item {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  min-width: 60px;
+  gap: 6px;
 }
 
 .hud-label { 
@@ -165,11 +225,10 @@
   color: #64748b; 
   text-transform: uppercase; 
   font-weight: 700;
-  letter-spacing: 0.05em;
 }
 
 .hud-value { 
-  font-size: 0.95rem; 
+  font-size: 0.85rem; 
   font-weight: 700; 
   font-family: 'Roboto Mono', monospace;
   color: #fff;
