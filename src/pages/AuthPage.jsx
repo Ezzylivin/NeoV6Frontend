@@ -30,18 +30,19 @@ export default function AuthPage() {
     }
   };
 
-  if (initializing) return <div className="flex h-screen w-full items-center justify-center bg-gray-900 text-emerald-500">Loading...</div>;
+  if (initializing) return <div className="flex h-screen w-full items-center justify-center bg-gray-900 text-lime-400">Loading...</div>;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-900 p-4">
-      {/* 🟢 CHANGED: Background to Dark Emerald (bg-emerald-950) with a subtle border */}
-      <div className="w-full max-w-md space-y-6 rounded-xl bg-emerald-950 p-8 border border-emerald-900 shadow-2xl">
+      {/* 🟢 CHANGED: Background to Neon Green (bg-lime-400) */}
+      <div className="w-full max-w-md space-y-6 rounded-xl bg-lime-400 p-8 border border-lime-300 shadow-[0_0_40px_-10px_rgba(163,230,53,0.3)]">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-white">Welcome</h1>
-          <p className="text-emerald-200/70">{isRegister ? 'Create an account to get started' : 'Sign in to your account'}</p>
+          {/* 🟢 CHANGED: Text to Dark Emerald for contrast against Neon */}
+          <h1 className="text-3xl font-bold text-emerald-950">Welcome</h1>
+          <p className="text-emerald-800 font-medium">{isRegister ? 'Create an account to get started' : 'Sign in to your account'}</p>
         </div>
         
-        {error && <div className="rounded-md bg-red-900/50 p-3 text-center text-red-300 border border-red-800">{error}</div>}
+        {error && <div className="rounded-md bg-red-100 p-3 text-center text-red-600 border border-red-200 font-semibold">{error}</div>}
         
         <form onSubmit={handleSubmit} className="space-y-4">
           {isRegister && (
@@ -52,8 +53,8 @@ export default function AuthPage() {
               onChange={handleChange} 
               placeholder="Username" 
               required 
-              // 🟢 CHANGED: Inputs are now a dark transparent green to match
-              className="w-full rounded-md border-emerald-800 bg-emerald-900/20 p-3 text-white placeholder-emerald-700/50 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" 
+              // 🟢 CHANGED: Inputs are semi-transparent white/emerald with dark text
+              className="w-full rounded-md border-emerald-600 bg-emerald-50/50 p-3 text-emerald-950 placeholder-emerald-700 focus:border-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-700" 
               disabled={loading} 
             />
           )}
@@ -64,8 +65,8 @@ export default function AuthPage() {
             onChange={handleChange} 
             placeholder="Email" 
             required 
-            // 🟢 CHANGED: Inputs are now a dark transparent green to match
-            className="w-full rounded-md border-emerald-800 bg-emerald-900/20 p-3 text-white placeholder-emerald-700/50 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" 
+            // 🟢 CHANGED: Inputs are semi-transparent white/emerald with dark text
+            className="w-full rounded-md border-emerald-600 bg-emerald-50/50 p-3 text-emerald-950 placeholder-emerald-700 focus:border-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-700" 
             disabled={loading} 
           />
           <input 
@@ -75,26 +76,27 @@ export default function AuthPage() {
             onChange={handleChange} 
             placeholder="Password" 
             required 
-            // 🟢 CHANGED: Inputs are now a dark transparent green to match
-            className="w-full rounded-md border-emerald-800 bg-emerald-900/20 p-3 text-white placeholder-emerald-700/50 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" 
+            // 🟢 CHANGED: Inputs are semi-transparent white/emerald with dark text
+            className="w-full rounded-md border-emerald-600 bg-emerald-50/50 p-3 text-emerald-950 placeholder-emerald-700 focus:border-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-700" 
             disabled={loading} 
           />
           
           <button 
             type="submit" 
             disabled={loading} 
-            className="w-full rounded-md bg-emerald-600 py-3 font-bold text-white transition hover:bg-emerald-500 disabled:bg-emerald-800/50"
+            // 🟢 CHANGED: Button is Dark Emerald to pop off the Neon background
+            className="w-full rounded-md bg-emerald-800 py-3 font-bold text-lime-300 transition hover:bg-emerald-900 disabled:bg-emerald-700/50"
           >
             {loading ? 'Processing...' : (isRegister ? 'Create Account' : 'Login')}
           </button>
         </form>
 
-        <p className="text-center text-sm text-emerald-200/60">
+        <p className="text-center text-sm text-emerald-900">
           {isRegister ? 'Already have an account?' : "Don't have an account?"}
           <button 
             type="button" 
             onClick={() => setIsRegister(!isRegister)} 
-            className="ml-2 font-semibold text-emerald-400 hover:text-emerald-300 hover:underline" 
+            className="ml-2 font-bold text-emerald-700 hover:text-emerald-950 hover:underline" 
             disabled={loading}
           >
             {isRegister ? 'Sign in' : 'Sign up'}
