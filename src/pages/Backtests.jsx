@@ -1,6 +1,9 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v64.2 - "Date Filters Applied"
-// Fixes: Passes UI start/end dates to the Chart component to prevent data leakage.
+// 🚀 UPGRADE: v64.5 - "Dynamic Loading State"
+// Fixes: 
+// 1. Distinguishes between initial page load ("Loading setup") and active run ("Running Backtest").
+// 2. Passes strict date filters to ChartIndependent.
+// 3. Integrates ChartReplay toggle.
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios"; 
@@ -10,7 +13,7 @@ import {
   PieChart, Pie, Cell, Legend, AreaChart, Area
 } from "recharts";
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
-import { createChart, CrosshairMode } from 'lightweight-charts'; 
+import { ChartReplay } from "../components/ChartReplay.jsx"; // Ensure this is imported
 import api from "../api/apiClient"; 
 import "./Backtests.css"; 
 
@@ -52,233 +55,6 @@ const downloadCSV = (trades) => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", "backtest_trades.csv");
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
-};
-
-// --- CHART REPLAY COMPONENT (Integrated) ---
-const ChartReplay = ({ results, symbol }) => {
-  const chartContainerRef = useRef(null);
-  const chartRef = useRef(null);
-  const candlestickSeriesRef = useRef(null);
-  
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState(100); 
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  // --- 1. PARSE DATA ---
-  const parseTime = (t) => {
-      if (!t) return null;
-      if (typeof t === 'object' && t.$date) t = t.$date;
-      if (typeof t === 'number' && t < 10000000000) return t; 
-      const d = new Date(t);
-      return isNaN(d.getTime()) ? null : d.getTime() / 1000;
-  };
-
-  const candles = useMemo(() => {
-    if (!results?.candleData || !Array.isArray(results.candleData)) return [];
-    return results.candleData.map(c => ({
-      time: parseTime(c.timestamp || c.time || c.datetime || c.date), 
-      open: parseFloat(c.open),
-      high: parseFloat(c.high),
-      low: parseFloat(c.low),
-      close: parseFloat(c.close),
-    })).filter(c => c.time).sort((a, b) => a.time - b.time);
-  }, [results]);
-
-  const trades = useMemo(() => {
-    if (!results?.tradeBreakdown || !Array.isArray(results.tradeBreakdown)) return [];
-    
-    return results.tradeBreakdown.map(t => {
-      const entryTime = parseTime(t.entryTime || t.entry_time || t.time || t.date);
-      const exitTime = parseTime(t.exitTime || t.exit_time || t.close_time || t.date_out);
-      const profit = parseFloat(t.profit || t.realized_pnl || t.pnl || 0);
-      const exitPrice = parseFloat(t.exitPrice || t.exit_price || t.close_price || 0);
-
-      return entryTime ? {
-        time: entryTime, 
-        position: (t.position || t.side || 'long').toLowerCase(), 
-        price: parseFloat(t.entryPrice || t.entry_price || t.price || 0),
-        profit: profit,
-        exitTime: exitTime,
-        exitPrice: exitPrice,
-        isRealized: profit !== 0 || exitPrice > 0 
-      } : null;
-    }).filter(t => t !== null).sort((a, b) => a.time - b.time);
-  }, [results]);
-
-  // --- 2. AUTO-INIT ---
-  useEffect(() => {
-      if (candles.length > 0 && !isLoaded) {
-          setCurrentIndex(candles.length - 1); 
-          setIsLoaded(true);
-      }
-  }, [candles, isLoaded]);
-
-  // --- 3. INITIALIZE CHART ---
-  useEffect(() => {
-    if (!chartContainerRef.current || candles.length === 0) return;
-
-    if (chartRef.current) { chartRef.current.remove(); }
-
-    chartRef.current = createChart(chartContainerRef.current, {
-      width: chartContainerRef.current.clientWidth,
-      height: 450,
-      layout: { backgroundColor: '#0f172a', textColor: '#94a3b8', fontFamily: "'Inter', sans-serif" }, 
-      grid: { vertLines: { color: 'rgba(51, 65, 85, 0.2)' }, horzLines: { color: 'rgba(51, 65, 85, 0.2)' } },
-      crosshair: { mode: CrosshairMode.Normal },
-      timeScale: { borderColor: '#334155', timeVisible: true },
-      rightPriceScale: { borderColor: '#334155' },
-    });
-
-    candlestickSeriesRef.current = chartRef.current.addCandlestickSeries({
-      upColor: '#22c55e', downColor: '#ef4444',
-      borderUpColor: "#22c55e", borderDownColor: "#ef4444", 
-      wickUpColor: "#22c55e", wickDownColor: "#ef4444",
-    });
-
-    candlestickSeriesRef.current.setData(candles);
-    chartRef.current.timeScale().fitContent();
-
-    const handleResize = () => {
-        if (chartRef.current) chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
-    };
-    window.addEventListener('resize', handleResize);
-
-    return () => { 
-        window.removeEventListener('resize', handleResize);
-        if (chartRef.current) chartRef.current.remove(); 
-    };
-  }, [candles]); 
-
-  // --- 4. THE LOOP ---
-  useEffect(() => {
-    if (!candlestickSeriesRef.current || candles.length === 0) return;
-    
-    const currentCandle = candles[currentIndex];
-    if (!currentCandle) return;
-
-    const visibleCandles = candles.slice(0, currentIndex + 1);
-    candlestickSeriesRef.current.setData(visibleCandles);
-
-    const activeMarkers = [];
-    trades.forEach(t => {
-        if (t.time <= currentCandle.time) {
-            activeMarkers.push({
-                time: t.time,
-                position: t.position === 'long' ? 'belowBar' : 'aboveBar',
-                color: t.position === 'long' ? '#3b82f6' : '#f59e0b',
-                shape: t.position === 'long' ? 'arrowUp' : 'arrowDown',
-                text: `E`
-            });
-        }
-        if (t.exitTime && t.exitTime <= currentCandle.time) {
-            activeMarkers.push({
-                time: t.exitTime,
-                position: t.position === 'long' ? 'aboveBar' : 'belowBar',
-                color: t.profit > 0 ? '#22c55e' : '#ef4444',
-                shape: 'circle',
-                text: `X`
-            });
-        }
-    });
-
-    activeMarkers.sort((a, b) => a.time - b.time);
-    candlestickSeriesRef.current.setMarkers(activeMarkers);
-
-  }, [currentIndex, candles, trades]);
-
-  // --- 5. Playback Interval ---
-  useEffect(() => {
-    let interval = null;
-    if (isPlaying) {
-      interval = setInterval(() => {
-        setCurrentIndex(prev => {
-          if (prev >= candles.length - 1) {
-            setIsPlaying(false);
-            return prev;
-          }
-          return prev + 1;
-        });
-      }, playbackSpeed);
-    }
-    return () => clearInterval(interval);
-  }, [isPlaying, playbackSpeed, candles.length]);
-
-  // --- 6. CONTROLS ---
-  const handlePlay = () => { if (currentIndex >= candles.length - 1) setCurrentIndex(0); setIsPlaying(true); };
-  const handlePause = () => setIsPlaying(false);
-  const handleReset = () => { setIsPlaying(false); setCurrentIndex(0); };
-  const handleStepBack = () => setCurrentIndex(prev => Math.max(0, prev - 1));
-  const handleStepFwd = () => setCurrentIndex(prev => Math.min(candles.length - 1, prev + 1));
-  
-  // ZOOM HANDLERS
-  const handleZoomIn = () => { 
-      if (!chartRef.current) return;
-      const ts = chartRef.current.timeScale();
-      const range = ts.getVisibleLogicalRange();
-      if (!range) return;
-      const width = range.to - range.from;
-      const center = (range.from + range.to) / 2;
-      const newWidth = width * 0.7; 
-      ts.setVisibleLogicalRange({ from: center - newWidth / 2, to: center + newWidth / 2 });
-  };
-
-  const handleZoomOut = () => { 
-      if (!chartRef.current) return;
-      const ts = chartRef.current.timeScale();
-      const range = ts.getVisibleLogicalRange();
-      if (!range) return;
-      const width = range.to - range.from;
-      const center = (range.from + range.to) / 2;
-      const newWidth = width * 1.3; 
-      ts.setVisibleLogicalRange({ from: center - newWidth / 2, to: center + newWidth / 2 });
-  };
-
-  if (!results || !candles.length) return <div className="text-slate-400 p-10 text-center">Loading Replay Data...</div>;
-
-  const currentCandleData = candles[currentIndex] || {};
-
-  return (
-    <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6 h-full flex flex-col">
-       <div className="flex items-center justify-between mb-4 border-b border-slate-800/50 pb-4">
-           <div>
-               <h3 className="text-white font-bold text-lg">Market Replay: {symbol}</h3>
-               <p className="text-slate-400 text-xs">
-                   {currentCandleData.time ? new Date(currentCandleData.time * 1000).toLocaleString() : '-'} | 
-                   Price: <span className="text-white font-mono">${currentCandleData.close?.toFixed(2)}</span>
-               </p>
-           </div>
-           <div className="flex items-center gap-2">
-               <button onClick={handleZoomOut} className="p-2 bg-slate-800 rounded hover:bg-slate-700 text-slate-300 font-mono">-</button>
-               <button onClick={handleZoomIn} className="p-2 bg-slate-800 rounded hover:bg-slate-700 text-slate-300 font-mono">+</button>
-               <button onClick={handleStepBack} className="p-2 bg-slate-800 rounded hover:bg-slate-700 text-slate-300 text-sm">Prev</button>
-               {!isPlaying ? 
-                   <button onClick={handlePlay} className="px-4 py-2 bg-emerald-500 text-white rounded hover:bg-emerald-600 font-bold text-sm">▶ Play</button> : 
-                   <button onClick={handlePause} className="px-4 py-2 bg-amber-500 text-white rounded hover:bg-amber-600 font-bold text-sm">⏸ Pause</button>
-               }
-               <button onClick={handleStepFwd} className="p-2 bg-slate-800 rounded hover:bg-slate-700 text-slate-300 text-sm">Next</button>
-               <button onClick={handleReset} className="p-2 bg-slate-800 rounded hover:bg-slate-700 text-slate-300 text-sm">Reset</button>
-           </div>
-       </div>
-       
-       <div className="relative flex-1 min-h-[450px]" style={{width: '100%'}}>
-           <div ref={chartContainerRef} style={{ width: '100%', height: '100%' }} />
-       </div>
-       
-       <div className="mt-4 flex items-center gap-4">
-           <span className="text-slate-400 text-sm">Playback Speed:</span>
-           <input 
-               type="range" 
-               min="10" 
-               max="500" 
-               step="10" 
-               value={510 - playbackSpeed} 
-               onChange={(e) => setPlaybackSpeed(510 - Number(e.target.value))} 
-               className="w-48 accent-blue-500"
-           />
-       </div>
-    </div>
-  );
 };
 
 // --- INITIAL STATES ---
@@ -521,7 +297,7 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
 
 // --- MAIN PAGE COMPONENT ---
 export default function Backtests() {
-  const { state, runNewBacktest, runComboBacktest } = useBacktest(); 
+  const { state, runNewBacktest, runComboBacktest, resetBacktest } = useBacktest(); 
   const { loading = 'idle', error = null, options = {}, winners = [] } = state || {};
 
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
@@ -532,8 +308,15 @@ export default function Backtests() {
   const [liveWinners, setLiveWinners] = useState([]);
   const [scanningWinners, setScanningWinners] = useState(false);
   
-  // 🚀 NEW: Chart Mode State (Standard vs Replay)
+  // 🚀 STATES for Chart & UI
   const [chartMode, setChartMode] = useState('standard'); 
+  const [isSimulating, setIsSimulating] = useState(false); // 👈 Tracks active run
+
+  // 1. Reset state on mount
+  useEffect(() => {
+    if (resetBacktest) resetBacktest();
+    setBacktestResults({ main: null });
+  }, []);
 
   // 🔄 Loaders
   const strategyOptions = useMemo(() => {
@@ -676,10 +459,16 @@ export default function Backtests() {
   const handleRun = async (e, isCombo) => {
     e.preventDefault();
     setBacktestResults({ main: null });
+    setIsSimulating(true); // 👈 START SIMULATION FLAG
+    
     try {
       const res = isCombo ? await runComboBacktest?.(comboData) : await runNewBacktest?.(formData);
       if (res) setBacktestResults(res.combinedResult ? res : { main: res });
-    } catch (err) { console.error(err); }
+    } catch (err) { 
+        console.error(err); 
+    } finally {
+        setIsSimulating(false); // 👈 END SIMULATION FLAG
+    }
   };
 
   // 🚀 DATA PROCESSING
@@ -853,8 +642,15 @@ export default function Backtests() {
                 {loading !== 'idle' && (
                   <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-12 flex flex-col items-center justify-center min-h-[400px]">
                     <div className="w-20 h-20 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-6"></div>
-                    <h3 className="text-white text-xl mb-2 font-bold">Running Backtest...</h3>
-                    <p className="text-slate-400 text-center">Analyzing historical data and executing strategy</p>
+                    
+                    {/* 🚀 DYNAMIC TEXT BASED ON ACTION */}
+                    <h3 className="text-white text-xl mb-2 font-bold">
+                        {isSimulating ? "Running Backtest..." : "Loading the backtest setup..."}
+                    </h3>
+                    
+                    <p className="text-slate-400 text-center">
+                        {isSimulating ? "Analyzing historical data and executing strategy" : "Initializing environment..."}
+                    </p>
                   </div>
                 )}
                 
