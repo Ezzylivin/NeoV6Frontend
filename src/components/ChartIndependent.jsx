@@ -1,9 +1,10 @@
 // File: src/components/ChartIndependent.jsx
-// 🚀 UPGRADE: v63.4 - "Deep Zoom & Diagnostics"
+// 🚀 UPGRADE: v63.5 - "Deep Zoom & Diagnostics + LOGS"
 // Fixes: 
-// 1. Adds 'Data Range' display to verify if the API is truncating history.
-// 2. Adds 'Reset Zoom' button to force the chart to view all data.
-// 3. Improves timestamp parsing logic.
+// 1. Adds 'Data Range' display.
+// 2. Adds 'Reset Zoom' button.
+// 3. Improves timestamp parsing.
+// 4. [DEBUG] Added detailed console logs for data tracing.
 
 import React, { useEffect, useRef, useState } from "react";
 import { createChart, ColorType, CrosshairMode, LineStyle } from "lightweight-charts";
@@ -15,7 +16,7 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
   const connectionSeriesRef = useRef(null); 
-  
+   
   const [legend, setLegend] = useState({ 
       open: "--", high: "--", low: "--", close: "--", 
       time: "--", color: "#e2e8f0" 
@@ -33,7 +34,15 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
 
   // --- 1. Initialize & Update Chart ---
   useEffect(() => {
-    if (!chartContainerRef.current) return;
+    // [DEBUG] 1. Log Raw Input
+    console.group("🔥 [ChartIndependent] Data Pipeline");
+    console.log("1. Raw Results Prop Received:", results);
+
+    if (!chartContainerRef.current) {
+        console.log("❌ Chart container ref is missing.");
+        console.groupEnd();
+        return;
+    }
     
     // Clean up previous chart instance
     if (chartRef.current) {
@@ -82,8 +91,8 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
 
     // B. Main Candle Series
     const candleSeries = chart.addCandlestickSeries({
-      upColor: "#10b981",         
-      downColor: "#ef4444",       
+      upColor: "#10b981",          
+      downColor: "#ef4444",        
       borderUpColor: "#10b981", 
       borderDownColor: "#ef4444", 
       wickUpColor: "#10b981", 
@@ -104,11 +113,13 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
 
     // D. Data Processing
     if (results && results.candleData && results.candleData.length > 0) {
+        console.log(`2. Processing ${results.candleData.length} raw candles...`);
+        
         const validData = [];
         const timeSet = new Set();
         
         // 1. Process Candles
-        results.candleData.forEach((c) => {
+        results.candleData.forEach((c, index) => {
             // Handle various timestamp formats from API
             let dateObj;
             if (typeof c.time === 'number') dateObj = new Date(c.time * 1000); // Unix timestamp
@@ -117,6 +128,11 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
 
             const timeStamp = Math.floor(dateObj.getTime() / 1000); 
             
+            // [DEBUG] Log first failed parse if any
+            if (isNaN(timeStamp) && index < 5) {
+                console.warn("⚠️ Found invalid timestamp in candle:", c);
+            }
+
             if (!isNaN(timeStamp) && !timeSet.has(timeStamp)) {
                 validData.push({
                     time: timeStamp,
@@ -130,6 +146,14 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
         });
         
         validData.sort((a, b) => a.time - b.time);
+        
+        // [DEBUG] 3. Log Final Chart Data
+        console.log(`3. Valid Chart Data ready: ${validData.length} bars.`);
+        if(validData.length > 0) {
+            console.log("   First Bar:", new Date(validData[0].time * 1000).toLocaleString());
+            console.log("   Last Bar:", new Date(validData[validData.length - 1].time * 1000).toLocaleString());
+        }
+
         candleSeries.setData(validData);
 
         // Update Diagnostic Info
@@ -151,6 +175,8 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
         }
 
         // 2. Map Trades
+        console.log(`4. Mapping Trades... (Total: ${results.tradeBreakdown ? results.tradeBreakdown.length : 0})`);
+        
         const markers = [];
         const tradeList = [];
         const validTimes = Array.from(timeSet).sort((a,b)=>a-b);
@@ -163,6 +189,7 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
                 const diff = Math.abs(targetTime - t);
                 if (diff < minDiff) { minDiff = diff; closest = t; }
             }
+            // Allow up to 2 hours diff, else assume missing data
             return minDiff < 7200 ? closest : null; 
         };
 
@@ -174,6 +201,11 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
 
                 const entryTime = findNearestTime(entryTimeRaw);
                 const exitTime = exitTimeRaw ? findNearestTime(exitTimeRaw) : null;
+
+                // [DEBUG] Log if a trade cannot be mapped to the chart
+                if (!entryTime && i < 3) {
+                     console.warn(`⚠️ Trade #${i} Entry time ${t.entryTime} not found on chart range.`);
+                }
 
                 tradeList.push({
                     id: i, 
@@ -211,6 +243,7 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
             });
         }
         
+        console.log(`5. Markers created: ${markers.length}`);
         candleSeries.setMarkers(markers.sort((a,b) => a.time - b.time));
         setTrades(tradeList.reverse());
 
@@ -218,7 +251,11 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
         window.requestAnimationFrame(() => {
             chart.timeScale().fitContent();
         });
+    } else {
+        console.warn("⚠️ No candle data found in results.");
     }
+
+    console.groupEnd(); // End Log Group
 
     // E. Crosshair
     chart.subscribeCrosshairMove((param) => {
