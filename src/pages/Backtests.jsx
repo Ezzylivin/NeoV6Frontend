@@ -1,9 +1,9 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v64.5 - "Dynamic Loading State"
+// 🚀 UPGRADE: v64.6 - "Risk UI Fixed"
 // Fixes: 
-// 1. Distinguishes between initial page load ("Loading setup") and active run ("Running Backtest").
-// 2. Passes strict date filters to ChartIndependent.
-// 3. Integrates ChartReplay toggle.
+// 1. Added missing UI inputs for Risk Management (Static vs Dynamic).
+// 2. Added Growth Capital Target input.
+// 3. Preserved Dynamic Loading State and Chart Replay toggles.
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios"; 
@@ -13,7 +13,7 @@ import {
   PieChart, Pie, Cell, Legend, AreaChart, Area
 } from "recharts";
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
-import { ChartReplay } from "../components/ChartReplay.jsx"; // Ensure this is imported
+import { ChartReplay } from "../components/ChartReplay.jsx"; 
 import api from "../api/apiClient"; 
 import "./Backtests.css"; 
 
@@ -148,127 +148,149 @@ const MetricsDisplay = ({ metrics }) => {
   );
 };
 
+// 🚀 UPDATED INPUT COMPONENT
 const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
     const handleGlobalChange = (e) => onChange(e);
     const handleParamChange = (e) => {
-        const { name, value, type } = e.target;
-        onChange({ target: { name: `param_${name}`, value: type === 'number' ? parseFloat(value) : value, type } });
+      const { name, value, type } = e.target;
+      onChange({ target: { name: `param_${name}`, value: type === 'number' ? parseFloat(value) : value, type } });
     };
     const params = data.params || {};
-
+  
     return (
-        <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                <div className="space-y-2">
-                    <label className="text-slate-400 text-sm">Symbol</label>
-                    <select name="symbol" value={data.symbol} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white">
-                        <option value="">-- Select Symbol --</option>
-                        {options.symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                </div>
-                <div className="space-y-2">
-                    <label className="text-slate-400 text-sm">Timeframe</label>
-                    <select name="timeframe" value={data.timeframe} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white">
-                        <option value="">-- Select Timeframe --</option>
-                        {options.timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                </div>
-                <div className="space-y-2">
-                    <label className="text-slate-400 text-sm">Initial Balance</label>
-                    <input type="number" name="initialBalance" value={data.initialBalance} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white" />
-                </div>
-            </div>
+      <>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <div className="space-y-2">
+            <label className="text-slate-400 text-sm">Symbol</label>
+            <select name="symbol" value={data.symbol} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white">
+              <option value="">-- Select Symbol --</option>
+              {options.symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-slate-400 text-sm">Timeframe</label>
+            <select name="timeframe" value={data.timeframe} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white">
+              <option value="">-- Select Timeframe --</option>
+              {options.timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-slate-400 text-sm">Initial Balance</label>
+            <input type="number" name="initialBalance" value={data.initialBalance} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white" />
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="space-y-2">
+            <label className="text-slate-400 text-sm">Start Date</label>
+            <input type="date" name="startDate" value={data.startDate} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-slate-400 text-sm">End Date</label>
+            <input type="date" name="endDate" value={data.endDate} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white" />
+          </div>
+        </div>
+        
+        <div className="bg-emerald-900/10 border border-emerald-500/20 rounded-2xl p-6 mb-6">
+          <div className="flex items-center gap-3 mb-4 pb-3 border-b border-emerald-500/20">
+            <h4 className="text-emerald-400 font-bold">Risk & ML Configuration</h4>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div className="space-y-2">
-                    <label className="text-slate-400 text-sm">Start Date</label>
-                    <input type="date" name="startDate" value={data.startDate} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white" />
-                </div>
-                <div className="space-y-2">
-                    <label className="text-slate-400 text-sm">End Date</label>
-                    <input type="date" name="endDate" value={data.endDate} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white" />
-                </div>
+            {/* 🚀 RISK CONFIGURATION SECTION */}
+            <div className="space-y-2">
+              <label className="text-slate-400 text-sm">Risk Mode</label>
+              <select name="riskManagementMode" value={data.riskManagementMode || 'standard'} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm">
+                <option value="standard">Standard (Static %)</option>
+                <option value="dynamic">Dynamic (Growth Target)</option>
+              </select>
             </div>
-            
-            <div className="bg-emerald-900/10 border border-emerald-500/20 rounded-2xl p-6 mb-6">
-                <div className="flex items-center gap-3 mb-4 pb-3 border-b border-emerald-500/20">
-                    <h4 className="text-emerald-400 font-bold">Risk & ML Configuration</h4>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                        <label className="text-slate-400 text-sm">Risk Percentage</label>
-                        <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={handleGlobalChange} step="0.1" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-slate-400 text-sm">Max Pyramiding</label>
-                        <input type="number" name="maxPyramiding" value={params.maxPyramiding || 1} onChange={handleParamChange} min="1" max="10" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-slate-400 text-sm">ML Mode</label>
-                        <select name="mlMode" value={data.mlMode || "off"} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm">
-                            <option value="off">Off (Pure TA)</option>
-                            <option value="predictions">Hybrid (TA+ML)</option>
-                            <option value="on">Pure ML</option>
-                        </select>
-                    </div>
-                    {data.mlMode === 'predictions' && (
-                        <div className="space-y-2">
-                            <label className="text-slate-400 text-sm">Hybrid Logic</label>
-                            <select name="hybridMode" value={params.hybridMode || "AND"} onChange={handleParamChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm">
-                                <option value="AND">Strict (TA + ML Agree)</option>
-                                <option value="OR">Loose (TA OR ML Signal)</option>
-                                <option value="REGIME">Regime (ML Filters TA)</option>
-                            </select>
-                        </div>
-                    )}
-                    {data.mlMode !== 'off' && (
-                        <>
-                            <div className="space-y-2">
-                                <label className="text-slate-400 text-sm">ML Model</label>
-                                <select name="mlModel" value={data.mlModel} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm">
-                                    <option value="">-- Select Model --</option>
-                                    {options.modelOptions.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                                </select>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-slate-400 text-sm">ML Threshold</label>
-                                <input type="number" name="mlThreshold" value={data.mlThreshold} step="0.05" onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
-                            </div>
-                        </>
-                    )}
-                    {params.hybridMode === 'REGIME' && (
-                        <div className="space-y-2">
-                            <label className="text-slate-400 text-sm">Regime Threshold</label>
-                            <input type="number" name="regime_threshold" value={params.regime_threshold ?? 25} onChange={handleParamChange} step="1" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
-                        </div>
-                    )}
-                </div>
+  
+            <div className="space-y-2">
+              <label className="text-slate-400 text-sm">Risk Percentage</label>
+              <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={handleGlobalChange} step="0.1" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
+            </div>
+  
+            {/* Show Growth Target only if Dynamic is selected */}
+            {data.riskManagementMode === 'dynamic' && (
+               <div className="space-y-2">
+                  <label className="text-slate-400 text-sm">Growth Target ($)</label>
+                  <input type="number" name="growthCapitalTarget" value={data.growthCapitalTarget} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
+               </div>
+            )}
+  
+            <div className="space-y-2">
+              <label className="text-slate-400 text-sm">Max Pyramiding</label>
+              <input type="number" name="maxPyramiding" value={params.maxPyramiding || 1} onChange={handleParamChange} min="1" max="10" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
             </div>
 
-            <div className="bg-emerald-900/10 border border-emerald-500/20 rounded-2xl p-6">
-                <div className="flex items-center gap-3 mb-4 pb-3 border-b border-emerald-500/20">
-                    <h4 className="text-emerald-400 font-bold">Advanced Filters</h4>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="space-y-2">
-                        <label className="text-slate-400 text-sm">Min ATR %</label>
-                        <input type="number" name="minAtrPct" value={params.minAtrPct ?? 0} onChange={handleParamChange} step="0.05" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-slate-400 text-sm">Min ADX</label>
-                        <input type="number" name="minAdxLevel" value={params.minAdxLevel ?? 0} onChange={handleParamChange} step="1" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-slate-400 text-sm">TSL ATR Multiplier</label>
-                        <input type="number" name="tslAtrMult" value={params.tslAtrMult ?? 0} onChange={handleParamChange} step="0.1" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-slate-400 text-sm">Trend Filter SMA</label>
-                        <input type="number" name="trendFilterPeriod" value={params.trendFilterPeriod ?? 200} onChange={handleParamChange} step="1" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
-                    </div>
-                </div>
+            {/* ML CONFIGURATION */}
+            <div className="space-y-2">
+              <label className="text-slate-400 text-sm">ML Mode</label>
+              <select name="mlMode" value={data.mlMode || "off"} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm">
+                <option value="off">Off (Pure TA)</option>
+                <option value="predictions">Hybrid (TA+ML)</option>
+                <option value="on">Pure ML</option>
+              </select>
             </div>
-        </>
+            {data.mlMode === 'predictions' && (
+              <div className="space-y-2">
+                <label className="text-slate-400 text-sm">Hybrid Logic</label>
+                <select name="hybridMode" value={params.hybridMode || "AND"} onChange={handleParamChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm">
+                  <option value="AND">Strict (TA + ML Agree)</option>
+                  <option value="OR">Loose (TA OR ML Signal)</option>
+                  <option value="REGIME">Regime (ML Filters TA)</option>
+                </select>
+              </div>
+            )}
+            {data.mlMode !== 'off' && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-slate-400 text-sm">ML Model</label>
+                  <select name="mlModel" value={data.mlModel} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm">
+                    <option value="">-- Select Model --</option>
+                    {options.modelOptions.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-slate-400 text-sm">ML Threshold</label>
+                  <input type="number" name="mlThreshold" value={data.mlThreshold} step="0.05" onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
+                </div>
+              </>
+            )}
+            {params.hybridMode === 'REGIME' && (
+              <div className="space-y-2">
+                <label className="text-slate-400 text-sm">Regime Threshold</label>
+                <input type="number" name="regime_threshold" value={params.regime_threshold ?? 25} onChange={handleParamChange} step="1" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
+              </div>
+            )}
+          </div>
+        </div>
+  
+        <div className="bg-emerald-900/10 border border-emerald-500/20 rounded-2xl p-6">
+          <div className="flex items-center gap-3 mb-4 pb-3 border-b border-emerald-500/20">
+            <h4 className="text-emerald-400 font-bold">Advanced Filters</h4>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <label className="text-slate-400 text-sm">Min ATR %</label>
+              <input type="number" name="minAtrPct" value={params.minAtrPct ?? 0} onChange={handleParamChange} step="0.05" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-slate-400 text-sm">Min ADX</label>
+              <input type="number" name="minAdxLevel" value={params.minAdxLevel ?? 0} onChange={handleParamChange} step="1" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-slate-400 text-sm">TSL ATR Multiplier</label>
+              <input type="number" name="tslAtrMult" value={params.tslAtrMult ?? 0} onChange={handleParamChange} step="0.1" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-slate-400 text-sm">Trend Filter SMA</label>
+              <input type="number" name="trendFilterPeriod" value={params.trendFilterPeriod ?? 200} onChange={handleParamChange} step="1" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
+            </div>
+          </div>
+        </div>
+      </>
     );
 };
 
