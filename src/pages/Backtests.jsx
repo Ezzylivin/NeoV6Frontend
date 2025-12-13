@@ -1,9 +1,8 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v64.6 - "Risk UI Fixed"
+// 🚀 UPGRADE: v64.7 - "Warmup Filter & Risk Fix"
 // Fixes: 
-// 1. Added missing UI inputs for Risk Management (Static vs Dynamic).
-// 2. Added Growth Capital Target input.
-// 3. Preserved Dynamic Loading State and Chart Replay toggles.
+// 1. FILTERS OUT trades that happen before the user-selected Start Date (Warmup trades).
+// 2. CORRECETS Risk Mode value from "standard" to "static" to match backend.
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios"; 
@@ -61,7 +60,7 @@ const downloadCSV = (trades) => {
 const initialFormData = {
   strategyId: "", code: "", symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate,
   initialBalance: 1000, params: { ...defaultFilterParams, maxPyramiding: 1 },
-  riskManagementMode: 'standard', riskPercentage: 1, growthCapitalTarget: 2000,
+  riskManagementMode: 'static', riskPercentage: 1, growthCapitalTarget: 2000, // 🚀 FIXED DEFAULT
   mlMode: "off", mlModel: "", mlThreshold: 0.5, mlHorizon: 1
 };
 
@@ -70,7 +69,8 @@ const initialComboData = {
   params: { ...defaultFilterParams, maxPyramiding: 1 }, 
   comboConfig: { strategyCodes: [], combinationRule: 'AND' },
   symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, initialBalance: 1000,
-  riskManagementMode: 'standard', riskPercentage: 1, growthCapitalTarget: 2000, mlMode: "off", mlModel: "", mlThreshold: 0.5, mlHorizon: 1
+  riskManagementMode: 'static', riskPercentage: 1, growthCapitalTarget: 2000, // 🚀 FIXED DEFAULT
+  mlMode: "off", mlModel: "", mlThreshold: 0.5, mlHorizon: 1
 };
 
 // --- SUB-COMPONENTS ---
@@ -148,7 +148,6 @@ const MetricsDisplay = ({ metrics }) => {
   );
 };
 
-// 🚀 UPDATED INPUT COMPONENT
 const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
     const handleGlobalChange = (e) => onChange(e);
     const handleParamChange = (e) => {
@@ -197,11 +196,11 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             
-            {/* 🚀 RISK CONFIGURATION SECTION */}
+            {/* 🚀 FIXED: Risk Mode Value "static" instead of "standard" */}
             <div className="space-y-2">
               <label className="text-slate-400 text-sm">Risk Mode</label>
-              <select name="riskManagementMode" value={data.riskManagementMode || 'standard'} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm">
-                <option value="standard">Standard (Static %)</option>
+              <select name="riskManagementMode" value={data.riskManagementMode || 'static'} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm">
+                <option value="static">Standard (Static %)</option>
                 <option value="dynamic">Dynamic (Growth Target)</option>
               </select>
             </div>
@@ -211,7 +210,6 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
               <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={handleGlobalChange} step="0.1" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
             </div>
   
-            {/* Show Growth Target only if Dynamic is selected */}
             {data.riskManagementMode === 'dynamic' && (
                <div className="space-y-2">
                   <label className="text-slate-400 text-sm">Growth Target ($)</label>
@@ -224,7 +222,6 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
               <input type="number" name="maxPyramiding" value={params.maxPyramiding || 1} onChange={handleParamChange} min="1" max="10" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
             </div>
 
-            {/* ML CONFIGURATION */}
             <div className="space-y-2">
               <label className="text-slate-400 text-sm">ML Mode</label>
               <select name="mlMode" value={data.mlMode || "off"} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm">
@@ -330,17 +327,14 @@ export default function Backtests() {
   const [liveWinners, setLiveWinners] = useState([]);
   const [scanningWinners, setScanningWinners] = useState(false);
   
-  // 🚀 STATES for Chart & UI
   const [chartMode, setChartMode] = useState('standard'); 
-  const [isSimulating, setIsSimulating] = useState(false); // 👈 Tracks active run
+  const [isSimulating, setIsSimulating] = useState(false); 
 
-  // 1. Reset state on mount
   useEffect(() => {
     if (resetBacktest) resetBacktest();
     setBacktestResults({ main: null });
   }, []);
 
-  // 🔄 Loaders
   const strategyOptions = useMemo(() => {
     const dbStrats = options?.strategies || [];
     const baseStrats = Object.entries(STRATEGY_TYPE_TO_CODE_MAP).map(([name, code], idx) => ({ _id: `base-${code}-${idx}`, name, code, params: {} }));
@@ -362,7 +356,6 @@ export default function Backtests() {
   };
   useEffect(() => { fetchWinners(); }, []);
 
-  // 📂 File Adapter
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
@@ -397,7 +390,6 @@ export default function Backtests() {
       }));
   };
 
-  // 💾 SAVE STRATEGY TO DB
   const handleSaveStrategy = async () => {
     const name = prompt("Enter a name for this strategy setup:");
     if (!name) return;
@@ -428,7 +420,6 @@ export default function Backtests() {
     }
   };
 
-  // Handlers
   const handleFormChange = (e, setFunc) => {
     const { name, value, type } = e.target;
     let val = type === 'number' ? parseFloat(value) : value;
@@ -481,7 +472,7 @@ export default function Backtests() {
   const handleRun = async (e, isCombo) => {
     e.preventDefault();
     setBacktestResults({ main: null });
-    setIsSimulating(true); // 👈 START SIMULATION FLAG
+    setIsSimulating(true); 
     
     try {
       const res = isCombo ? await runComboBacktest?.(comboData) : await runNewBacktest?.(formData);
@@ -489,27 +480,35 @@ export default function Backtests() {
     } catch (err) { 
         console.error(err); 
     } finally {
-        setIsSimulating(false); // 👈 END SIMULATION FLAG
+        setIsSimulating(false); 
     }
   };
 
-  // 🚀 DATA PROCESSING
+  // 🚀 FILTER OUT WARMUP DATA
   const { processedData, combinedMetrics, mainResult } = useMemo(() => {
        const res = backtestResults.main || backtestResults.combinedResult;
        if (!res || !res.metrics) return { processedData: [], combinedMetrics: null, mainResult: null };
        
        const initialBalance = activeTab === 'single' ? formData.initialBalance : comboData.initialBalance;
        const startPrice = res.candleData?.[0]?.close || 1;
-       
-       const curve = (res.equityCurve || []).map((p, i) => {
-           const candle = res.candleData?.[i] || res.candleData?.[res.candleData.length-1];
-           const price = candle ? candle.close : startPrice;
-           const buyHold = (price / startPrice) * initialBalance;
-           return { timestamp: new Date(p.timestamp).getTime(), balance: p.balance, buyHold: buyHold };
+       const userStartDate = new Date(activeTab === 'single' ? formData.startDate : comboData.startDate).getTime();
+
+       // 🚀 FILTER: Remove data points before user's start date
+       const curve = (res.equityCurve || [])
+          .filter(p => new Date(p.timestamp).getTime() >= userStartDate)
+          .map((p, i) => {
+             const candle = res.candleData?.[i] || res.candleData?.[res.candleData.length-1];
+             const price = candle ? candle.close : startPrice;
+             const buyHold = (price / startPrice) * initialBalance;
+             return { timestamp: new Date(p.timestamp).getTime(), balance: p.balance, buyHold: buyHold };
        });
 
-       return { processedData: curve, combinedMetrics: res.metrics, mainResult: res };
-  }, [backtestResults, activeTab, formData.initialBalance, comboData.initialBalance]);
+       // 🚀 FILTER: Remove trades before user's start date from metrics (visual only)
+       const filteredTrades = (res.tradeBreakdown || []).filter(t => new Date(t.entryTime).getTime() >= userStartDate);
+       const filteredResult = { ...res, tradeBreakdown: filteredTrades };
+
+       return { processedData: curve, combinedMetrics: res.metrics, mainResult: filteredResult };
+  }, [backtestResults, activeTab, formData, comboData]);
 
   const pieData = useMemo(() => {
     if (!combinedMetrics) return [];
