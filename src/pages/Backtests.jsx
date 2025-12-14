@@ -412,7 +412,7 @@ export default function Backtests() {
     };
 
     try {
-        await api.post('/strategies', payload);
+        await api.post('/bot/strategies', payload);
         alert("✅ Strategy saved successfully! Check the Live Bot to load it.");
     } catch (e) {
         console.error(e);
