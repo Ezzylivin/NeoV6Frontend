@@ -16,7 +16,7 @@ import { WagmiProvider } from 'wagmi';
 const queryClient = new QueryClient();
 
 // 2. Your Project ID
-const projectId = '0f2a155fd777b82bc2bf800df4a273a0';
+const projectId = '4ee1fee23991c58ac7836e21188d0d8f';
 
 // 3. Metadata
 const metadata = {
