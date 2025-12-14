@@ -10,12 +10,13 @@ import { createAppKit } from '@reown/appkit/react';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
 import { mainnet, arbitrum, base, polygon } from '@reown/appkit/networks';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { WagmiProvider } from 'wagmi';
 
 // 1. Setup Query Client
 const queryClient = new QueryClient();
 
-// 2. Project ID (From Cloud Dashboard)
-const projectId = 'PASTE_YOUR_ID_HERE'; 
+// 2. Your Project ID
+const projectId = '0f2a155fd777b82bc2bf800df4a273a0';
 
 // 3. Metadata
 const metadata = {
@@ -57,8 +58,10 @@ const root = ReactDOM.createRoot(document.getElementById('root'));
 
 root.render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>
+    <WagmiProvider config={wagmiAdapter.wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>
+    </WagmiProvider>
   </React.StrictMode>
 );
