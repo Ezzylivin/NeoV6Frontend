@@ -1,12 +1,12 @@
 import React from "react";
 import { useUIMode } from "../context/UIModeContext";
-import "./ModeSwitcher.css"; // We'll add styles later
+import "./ModeSwitcher.css"; 
 
 const modes = [
   { id: "desk", label: "🏦 DESK", icon: "📊" },
   { id: "lab", label: "🧪 LAB", icon: "🔬" },
   { id: "command", label: "🚨 CMD", icon: "⚠️" },
-  { id: "journal", label: "📖 LOG", icon: "📜" },
+  // ❌ REMOVED: Journal/Log Mode
   { id: "ai", label: "🤖 AI", icon: "🧠" },
 ];
 
