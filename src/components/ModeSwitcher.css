@@ -1,0 +1,53 @@
+/* src/components/ModeSwitcher.css */
+
+.mode-switcher {
+  display: flex;
+  gap: 0.5rem;
+  background: var(--bg-panel); /* Adapts to theme */
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: all 0.3s ease;
+}
+
+.mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-family: var(--font-main);
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  border-radius: calc(var(--radius) - 2px);
+}
+
+.mode-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Active State - Uses the theme's accent color */
+.mode-btn.active {
+  background: var(--accent);
+  color: var(--bg-app); /* Contrast text against the accent */
+  font-weight: bold;
+  box-shadow: 0 0 10px var(--accent); /* Glow effect for neon themes */
+  border-color: var(--accent);
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .mode-label {
+    display: none; /* Hide text on small screens, keep icons */
+  }
+  
+  .mode-btn {
+    padding: 0.5rem;
+    justify-content: center;
+  }
+}
