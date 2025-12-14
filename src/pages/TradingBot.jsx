@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v45.2 - "Fixed Reference Error" (Restored handleSetupSelect)
+// 🚀 CYBERPUNK TERMINAL EDITION
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios"; 
@@ -39,13 +39,13 @@ const ThinkingMessage = ({ text }) => {
         if (signal.includes("SELL") || signal.includes("SHORT")) signalClass = "signal-sell";
 
         return (
-            <div style={{display:'flex', flexDirection:'column', gap:'4px'}}>
-                <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
-                    <span className="thinking-tag">AI SCAN</span>
-                    <span>Decision: <span className={signalClass}>{signal}</span></span>
+            <div className="thinking-wrapper">
+                <div className="thinking-line">
+                    <span className="thinking-badge">AI SCAN</span>
+                    <span className="thinking-text">Decision: <span className={signalClass}>{signal}</span></span>
                 </div>
                 {metrics && (
-                    <div style={{fontSize:'0.75rem', color:'#64748b', marginLeft:'68px', fontFamily:'monospace'}}>
+                    <div className="thinking-metrics">
                         🔍 Telemetry: {metrics}
                     </div>
                 )}
@@ -70,68 +70,70 @@ const DecisionStream = ({ logs }) => {
         let signal = "INFO";
         let color = "#64748b"; 
         let detail = l.message;
+        let emoji = "ℹ️";
 
         if (msg.includes("hold")) {
             signal = "HOLD";
-            color = "#f59e0b"; 
+            color = "#fbbf24"; 
             detail = "No high-probability setup found.";
+            emoji = "⏸";
         } else if (msg.includes("entered long") || msg.includes("buy")) {
             signal = "LONG";
-            color = "#22c55e"; 
+            color = "#10b981"; 
             detail = "Bullish signals confirmed. Entry executed.";
+            emoji = "↗";
         } else if (msg.includes("entered short") || msg.includes("sell")) {
             signal = "SHORT";
             color = "#ef4444"; 
             detail = "Bearish signals confirmed. Entry executed.";
+            emoji = "↘";
         } else if (msg.includes("closed")) {
             signal = "CLOSE";
-            color = "#3b82f6"; 
+            color = "#06b6d4"; 
             detail = "Position closed based on exit logic.";
+            emoji = "✓";
         } else if (msg.includes("bot started")) {
             signal = "ONLINE";
-            color = "#a855f7";
+            color = "#8b5cf6";
             detail = "System initialized. Polling market data.";
+            emoji = "⚡";
         } else if (msg.includes("bot stopped")) {
             signal = "OFFLINE";
             color = "#ef4444";
             detail = "System shutdown initiated.";
+            emoji = "■";
         } else if (msg.includes("error")) {
             signal = "ERROR";
             color = "#ef4444";
             detail = "System encountered an anomaly.";
+            emoji = "⚠";
         }
 
-        return { timestamp: l.timestamp, signal, color, detail, id: l.timestamp + l.message };
+        return { timestamp: l.timestamp, signal, color, detail, emoji, id: l.timestamp + l.message };
     }).reverse().slice(0, 5); 
 
     return (
         <div className="decision-stream">
-            <h4 style={{color:'#94a3b8', fontSize:'0.8rem', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'10px'}}>
-                AI Logic Stream
-            </h4>
-            <div className="decision-table">
-                <div className="d-row d-header">
-                    <span style={{flex:1}}>Time</span>
-                    <span style={{flex:1}}>Signal</span>
-                    <span style={{flex:3}}>Context / Result</span>
+            <div className="stream-header">
+                <span className="stream-title">╔═══ AI LOGIC STREAM ═══╗</span>
+            </div>
+            <div className="stream-table">
+                <div className="stream-row header-row">
+                    <span className="col-time">TIMESTAMP</span>
+                    <span className="col-signal">SIGNAL</span>
+                    <span className="col-detail">RESULT</span>
                 </div>
                 {thoughts.length > 0 ? thoughts.map((t) => (
-                    <div key={t.id} className="d-row">
-                        <span className="d-time">{formatLogDate(t.timestamp)}</span>
-                        <span className="d-signal" style={{color: t.color, fontWeight:'bold'}}>
-                            {t.signal === "HOLD" && "⏸ "}
-                            {t.signal === "LONG" && "🚀 "}
-                            {t.signal === "SHORT" && "🔻 "}
-                            {t.signal === "ONLINE" && "⚡ "}
-                            {t.signal === "OFFLINE" && "🛑 "}
-                            {t.signal === "ERROR" && "⚠️ "}
-                            {t.signal}
+                    <div key={t.id} className="stream-row">
+                        <span className="col-time">{formatLogDate(t.timestamp)}</span>
+                        <span className="col-signal" style={{color: t.color}}>
+                            {t.emoji} {t.signal}
                         </span>
-                        <span className="d-detail">{t.detail}</span>
+                        <span className="col-detail">{t.detail}</span>
                     </div>
                 )) : (
-                    <div className="d-row" style={{justifyContent:'center', fontStyle:'italic', color:'#475569', padding:'20px'}}>
-                        Waiting for AI activity...
+                    <div className="stream-row empty-row">
+                        <span className="empty-text">[ WAITING FOR AI ACTIVITY ]</span>
                     </div>
                 )}
             </div>
@@ -169,16 +171,27 @@ const MetricsDisplay = ({ data }) => {
         if (key.includes("Profit") || key.includes("Balance")) return `$${value.toFixed(2)}`;
         return value.toFixed(2);
     };
+
     return (
-        <div className="metrics-grid">
-            {Object.entries(metrics).map(([key, value]) => (
-                <div key={key} className="metric-item">
-                    <span className="metric-label">{key}</span>
-                    <span className="metric-value" style={{
-                        color: (key.includes("Profit") || key.includes("Balance")) ? (value < 0 ? '#ef4444' : '#4ade80') : '#f3f4f6'
-                    }}>{formatValue(key, value)}</span>
-                </div>
-            ))}
+        <div className="metrics-container">
+            {Object.entries(metrics).map(([key, value]) => {
+                const isProfit = key.includes("Profit") || key.includes("Balance");
+                const isPositive = typeof value === 'number' && value > 0 && isProfit;
+                const isNegative = typeof value === 'number' && value < 0;
+                
+                return (
+                    <div key={key} className="metric-box">
+                        <div className="metric-header">{key}</div>
+                        <div className={`metric-value ${isPositive ? 'positive' : ''} ${isNegative ? 'negative' : ''}`}>
+                            {formatValue(key, value)}
+                        </div>
+                        <div className="metric-corner tl"></div>
+                        <div className="metric-corner tr"></div>
+                        <div className="metric-corner bl"></div>
+                        <div className="metric-corner br"></div>
+                    </div>
+                );
+            })}
         </div>
     );
 };
@@ -192,7 +205,6 @@ export default function TradingBot() {
 
     const { setups } = useBacktestSetupFunction(); 
     
-    // 🚀 LIVE STATE FOR WINNERS
     const [liveWinners, setLiveWinners] = useState([]);
     const [scanningWinners, setScanningWinners] = useState(false);
 
@@ -200,7 +212,6 @@ export default function TradingBot() {
     const [selectedWinnerId, setSelectedWinnerId] = useState("");
     const [selectedSetupId, setSelectedSetupId] = useState("");
     
-    // Persistent Log State
     const [persistentLogs, setPersistentLogs] = useState([]);
 
     const [formConfig, setFormConfig] = useState({
@@ -211,7 +222,6 @@ export default function TradingBot() {
 
     const [logsClearedTime, setLogsClearedTime] = useState(0);
 
-    // 🚀 FETCH WINNERS FROM DISK (With Auth)
     const fetchWinners = async () => {
         setScanningWinners(true);
         try {
@@ -226,7 +236,6 @@ export default function TradingBot() {
 
     useEffect(() => { fetchWinners(); }, []);
 
-    // Log Accumulation
     useEffect(() => {
         if (apiLogs && apiLogs.length > 0) {
             setPersistentLogs(prevLogs => {
@@ -243,7 +252,6 @@ export default function TradingBot() {
 
     const visibleLogs = persistentLogs.filter(log => new Date(log.timestamp).getTime() > logsClearedTime);
 
-    // Auto-Scroll Logs
     useEffect(() => {
         if (logsContainerRef.current) {
             const { scrollHeight, clientHeight } = logsContainerRef.current;
@@ -251,7 +259,6 @@ export default function TradingBot() {
         }
     }, [persistentLogs]);
 
-    // Auto-Polling
     useEffect(() => {
         let interval;
         if (botStatus?.status === 'running') {
@@ -260,7 +267,6 @@ export default function TradingBot() {
         return () => clearInterval(interval);
     }, [botStatus?.status, refreshBotData]);
 
-    // 🚀 RESTORED: DATABASE SETUP HANDLER (Fixed ReferenceError)
     const handleSetupSelect = (e) => {
         const setupId = e.target.value;
         setSelectedSetupId(setupId);
@@ -287,68 +293,59 @@ export default function TradingBot() {
         }
     };
 
-     // 🚀 UNIVERSAL WINNER ADAPTER (With "Smart Mapping")
-  const handleWinnerSelect = (e) => {
-      const filename = e.target.value;
-      setSelectedWinnerId(filename);
-      const selectedWinner = liveWinners.find(w => w.id === filename);
-      
-      if (!selectedWinner || !selectedWinner.config) return;
-      const data = selectedWinner.config;
+    const handleWinnerSelect = (e) => {
+        const filename = e.target.value;
+        setSelectedWinnerId(filename);
+        const selectedWinner = liveWinners.find(w => w.id === filename);
+        
+        if (!selectedWinner || !selectedWinner.config) return;
+        const data = selectedWinner.config;
 
-      // PARSE CONFIG
-      let symbol = data.symbol || "BTC-USD";
-      let timeframe = data.timeframe || "1h";
-      if(!data.symbol && filename.includes('_')) {
-           const parts = filename.split('_');
-           if(parts[1]) symbol = parts[1];
-           if(parts[2]) timeframe = parts[2];
-      }
+        let symbol = data.symbol || "BTC-USD";
+        let timeframe = data.timeframe || "1h";
+        if(!data.symbol && filename.includes('_')) {
+            const parts = filename.split('_');
+            if(parts[1]) symbol = parts[1];
+            if(parts[2]) timeframe = parts[2];
+        }
 
-      let strategies = [];
-      if(Array.isArray(data.strategies)) strategies = data.strategies;
-      else if(Array.isArray(data)) strategies = data;
-      
-      const cleanStrategies = strategies.map(s => {
-          const code = (typeof s === 'string') ? s : (s.code || "unknown");
-          const params = (typeof s === 'string') ? {} : (s.params || s);
-          
-          // 🚀 SMART MAP: Find the ID that matches this code so Dropdown populates
-          const matchedOption = strategyOptions.find(opt => opt.code === code);
-          const strategyId = matchedOption ? matchedOption._id : ""; // If found, use ID; else blank
+        let strategies = [];
+        if(Array.isArray(data.strategies)) strategies = data.strategies;
+        else if(Array.isArray(data)) strategies = data;
+        
+        const cleanStrategies = strategies.map(s => {
+            const code = (typeof s === 'string') ? s : (s.code || "unknown");
+            const params = (typeof s === 'string') ? {} : (s.params || s);
+            return { 
+                strategyId: "",
+                code, 
+                params 
+            };
+        });
 
-          return { 
-              strategyId, // This makes the dropdown show the name!
-              code, 
-              params 
-          };
-      });
+        let mlMode = data.mlMode || "off";
+        let mlModel = data.params?.mlModel || data.mlModel || "";
+        if (mlModel && mlMode === "off") mlMode = "predictions";
+        if (!mlModel && mlMode !== "off") mlModel = 'btc_1h_xgboost_model'; 
 
-      let mlMode = data.mlMode || "off";
-      let mlModel = data.params?.mlModel || data.mlModel || "";
-      if (mlModel && mlMode === "off") mlMode = "predictions";
-      if (!mlModel && mlMode !== "off") mlModel = 'btc_1h_xgboost_model'; 
+        const globalParams = { ...data.params };
+        if (data.riskPercentage) globalParams.riskPercentage = Number(data.riskPercentage);
+        if (data.maxPyramiding) globalParams.maxPyramiding = Number(data.maxPyramiding);
 
-      const globalParams = { ...data.params };
-      if (data.riskPercentage) globalParams.riskPercentage = Number(data.riskPercentage);
-      if (data.maxPyramiding) globalParams.maxPyramiding = Number(data.maxPyramiding);
-
-      // APPLY TO COMBO FORM
-      setActiveTab('combo');
-      setComboData(prev => ({
-          ...prev,
-          symbol, timeframe,
-          isCombo: true,
-          strategies: cleanStrategies,
-          comboConfig: { 
-              strategyCodes: cleanStrategies.map(s => s.code),
-              combinationRule: globalParams.hybridMode || 'OR' 
-          },
-          mlMode, mlModel,
-          mlThreshold: Number(data.mlThreshold) || 0.5,
-          params: globalParams
-      }));
-  };
+        setFormConfig(prev => ({
+            ...prev,
+            symbol, timeframe,
+            isCombo: true,
+            strategies: cleanStrategies,
+            comboConfig: { 
+                strategyCodes: cleanStrategies.map(s => s.code),
+                combinationRule: globalParams.hybridMode || 'OR' 
+            },
+            mlMode, mlModel,
+            mlThreshold: Number(data.mlThreshold) || 0.5,
+            params: globalParams
+        }));
+    };
 
     const handleStart = async (e) => {
         e.preventDefault();
@@ -413,73 +410,131 @@ export default function TradingBot() {
     const hasData = chartData.candleData && chartData.candleData.length > 0;
 
     return (
-        <div className="trading-bot-container">
-            <h2 className="header">Live Trading Terminal</h2>
+        <div className="terminal-container">
+            {/* Header */}
+            <div className="terminal-header">
+                <div className="header-left">
+                    <span className="header-bracket">[</span>
+                    <span className="header-title">LIVE TRADING TERMINAL</span>
+                    <span className="header-bracket">]</span>
+                </div>
+                <div className={`system-status ${isRunning ? 'online' : 'offline'}`}>
+                    <span className="status-dot"></span>
+                    {isRunning ? 'SYSTEM ONLINE' : 'SYSTEM OFFLINE'}
+                </div>
+            </div>
             
-            <div className="bot-card control-panel">
-                <div className="panel-header">
-                    <h3 className="card-title">
-                        {isRunning ? 'SYSTEM ONLINE' : 'SYSTEM OFFLINE'}
-                        <span className={`mode-badge ${formConfig.tradingMode}`}>
-                            {formConfig.tradingMode === 'paper' ? 'SIMULATION' : 'LIVE EXECUTION'}
-                        </span>
-                    </h3>
-                    <div className={`status-indicator ${botStatus?.status || 'stopped'}`}>
-                        {botStatus?.status?.toUpperCase() || 'STOPPED'}
-                    </div>
+            {/* Control Panel */}
+            <div className="terminal-panel control-panel">
+                <div className="panel-title-bar">
+                    <span className="panel-title">╔═══ STRATEGY CONFIGURATION ═══╗</span>
+                    <span className={`mode-badge ${formConfig.tradingMode}`}>
+                        {formConfig.tradingMode === 'paper' ? '[ SIMULATION ]' : '[ LIVE EXECUTION ]'}
+                    </span>
                 </div>
                 
-                <form onSubmit={handleStart} className="bot-form">
-                    <div className="selectors-row">
-                        <label className="setup-selector">
-                            Load Strategy (Database)
-                            <select value={selectedSetupId} onChange={handleSetupSelect} disabled={isRunning}>
+                <form onSubmit={handleStart} className="control-form">
+                    {/* Strategy Selectors */}
+                    <div className="selector-row">
+                        <div className="input-group">
+                            <label className="input-label">
+                                <span className="label-icon">▸</span>
+                                LOAD STRATEGY (DATABASE)
+                            </label>
+                            <select 
+                                value={selectedSetupId} 
+                                onChange={handleSetupSelect} 
+                                disabled={isRunning}
+                                className="terminal-select"
+                            >
                                 <option value="">-- Select Saved Setup --</option>
                                 {setups.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
                             </select>
-                        </label>
+                        </div>
 
-                        <label className="setup-selector" style={{position: 'relative'}}>
-                            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                                <span>Load Alpha (Data Folder)</span>
+                        <div className="input-group">
+                            <label className="input-label">
+                                <span className="label-icon">▸</span>
+                                LOAD ALPHA (DATA FOLDER)
                                 <button 
                                     type="button" 
                                     onClick={fetchWinners} 
                                     disabled={scanningWinners}
-                                    style={{background:'none', border:'none', cursor:'pointer', color:'#4ade80', fontSize:'0.8rem'}}
+                                    className="scan-btn"
                                 >
-                                    {scanningWinners ? 'Scanning...' : '🔄 Scan'}
+                                    {scanningWinners ? '[ SCANNING... ]' : '[ 🔄 SCAN ]'}
                                 </button>
-                            </div>
-                            <select value={selectedWinnerId} onChange={handleWinnerSelect} disabled={isRunning} style={{borderColor: selectedWinnerId ? '#3b82f6' : '#444'}}>
+                            </label>
+                            <select 
+                                value={selectedWinnerId} 
+                                onChange={handleWinnerSelect} 
+                                disabled={isRunning}
+                                className="terminal-select"
+                            >
                                 <option value="">-- Select File from Disk --</option>
                                 {liveWinners.map(w => <option key={w.id} value={w.id}>🏆 {w.name}</option>)}
                             </select>
-                        </label>
+                        </div>
                     </div>
                     
-                    <div className="form-grid">
-                        <label>Symbol<input value={formConfig.symbol} disabled /></label>
-                        <label>Timeframe<input value={formConfig.timeframe} disabled /></label>
-                        <label>Capital Allocation
+                    {/* Parameters */}
+                    <div className="params-row">
+                        <div className="input-group">
+                            <label className="input-label">SYMBOL</label>
+                            <input 
+                                value={formConfig.symbol} 
+                                disabled 
+                                className="terminal-input"
+                            />
+                        </div>
+                        <div className="input-group">
+                            <label className="input-label">TIMEFRAME</label>
+                            <input 
+                                value={formConfig.timeframe} 
+                                disabled 
+                                className="terminal-input"
+                            />
+                        </div>
+                        <div className="input-group">
+                            <label className="input-label">CAPITAL ALLOCATION</label>
                             <input 
                                 type="number" 
                                 value={formConfig.capitalAllocation} 
                                 onChange={e=>setFormConfig(p=>({...p, capitalAllocation:e.target.value}))} 
                                 disabled={isRunning}
+                                className="terminal-input"
                             />
-                        </label>
+                        </div>
                     </div>
 
-                    <div className="mode-switch-container">
-                        <div className="mode-toggle">
-                            <button type="button" className={formConfig.tradingMode === 'paper' ? 'active' : ''} onClick={() => setFormConfig(p => ({...p, tradingMode: 'paper'}))} disabled={isRunning}>Paper Trade</button>
-                            <button type="button" className={formConfig.tradingMode === 'live' ? 'active danger' : ''} onClick={() => setFormConfig(p => ({...p, tradingMode: 'live'}))} disabled={isRunning}>Live Execution</button>
+                    {/* Action Bar */}
+                    <div className="action-bar">
+                        <div className="mode-selector">
+                            <button 
+                                type="button" 
+                                className={`mode-btn ${formConfig.tradingMode === 'paper' ? 'active' : ''}`} 
+                                onClick={() => setFormConfig(p => ({...p, tradingMode: 'paper'}))} 
+                                disabled={isRunning}
+                            >
+                                PAPER TRADE
+                            </button>
+                            <button 
+                                type="button" 
+                                className={`mode-btn danger ${formConfig.tradingMode === 'live' ? 'active' : ''}`} 
+                                onClick={() => setFormConfig(p => ({...p, tradingMode: 'live'}))} 
+                                disabled={isRunning}
+                            >
+                                LIVE EXECUTION
+                            </button>
                         </div>
                         {!isRunning ? (
-                            <button type="submit" className="button-start" disabled={botLoading}>{botLoading ? 'Initializing...' : '🚀 EXECUTE STRATEGY'}</button>
+                            <button type="submit" className="execute-btn" disabled={botLoading}>
+                                {botLoading ? '[ INITIALIZING... ]' : '[ ▶ EXECUTE STRATEGY ]'}
+                            </button>
                         ) : (
-                            <button type="button" onClick={handleStop} className="button-stop-main" disabled={botLoading}>TERMINATE SEQUENCE</button>
+                            <button type="button" onClick={handleStop} className="terminate-btn" disabled={botLoading}>
+                                [ ■ TERMINATE SEQUENCE ]
+                            </button>
                         )}
                     </div>
                 </form>
@@ -487,49 +542,69 @@ export default function TradingBot() {
 
             {(botStatus?.isConfigured || isRunning) && (
                 <>
-                    <h3 style={{color: '#94a3b8', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '30px', marginBottom: '15px'}}>Performance Telemetry</h3>
-                    <div className="bot-card status-dashboard"><MetricsDisplay data={botStatus} /></div>
+                    {/* Performance Metrics */}
+                    <div className="section-divider">
+                        <span>╔═══ PERFORMANCE TELEMETRY ═══╗</span>
+                    </div>
+                    <div className="terminal-panel">
+                        <MetricsDisplay data={botStatus} />
+                    </div>
                     
-                    <div className="bot-card chart-panel">
-                        <div className="card-header-row" style={{display:'flex', justifyContent:'space-between', paddingBottom: '10px', borderBottom: '1px solid #2d3748', marginBottom: '10px'}}>
-                             <h3 className="card-title" style={{margin:0, fontSize:'0.9rem'}}>Live Market Data</h3>
-                             <button onClick={handleRefreshChart} style={{background:'none', border:'none', color:'#4ade80', cursor:'pointer', fontSize:'0.8rem'}}>↻ SYNC</button>
-                        </div>
-                        {/* 🚀 INCREASED HEIGHT TO 800px */}
-                        <div style={{height: '800px'}}>
+                    {/* Chart Panel */}
+                    <div className="section-divider">
+                        <span>╔═══ LIVE MARKET DATA ═══╗</span>
+                        <button onClick={handleRefreshChart} className="sync-btn">
+                            [ ↻ SYNC ]
+                        </button>
+                    </div>
+                    <div className="terminal-panel chart-container">
+                        <div className="chart-wrapper">
                             {hasData ? (
                                 <ChartIndependent results={chartData} symbol={formConfig.symbol} />
                             ) : (
-                                <div style={{height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', color:'#64748b', gap:'15px'}}>
-                                    <div className="spinner"></div>
-                                    <p>Acquiring Exchange Data...</p>
-                                    <button onClick={handleRefreshChart} style={{padding:'8px 16px', background:'#334155', border:'none', color:'#e2e8f0', borderRadius:'6px', cursor:'pointer'}}>Force Retry</button>
+                                <div className="chart-loading">
+                                    <div className="loading-bars">
+                                        <div className="bar"></div>
+                                        <div className="bar"></div>
+                                        <div className="bar"></div>
+                                        <div className="bar"></div>
+                                        <div className="bar"></div>
+                                    </div>
+                                    <p className="loading-text">[ ACQUIRING EXCHANGE DATA ]</p>
+                                    <button onClick={handleRefreshChart} className="retry-btn">
+                                        [ FORCE RETRY ]
+                                    </button>
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    <div className="bot-card logs-panel">
-                        <div className="card-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                            <h3 className="card-title" style={{ margin: 0, fontSize:'0.9rem' }}>System Logs</h3>
-                            <div style={{display:'flex', gap:'10px'}}>
-                                <button onClick={refreshBotData} className="clear-logs-btn">Fetch</button>
-                                <button onClick={handleClearLogs} className="clear-logs-btn" style={{color:'#ef4444', borderColor:'#ef4444'}}>Purge</button>
-                            </div>
+                    {/* Logs Panel */}
+                    <div className="section-divider">
+                        <span>╔═══ SYSTEM LOGS ═══╗</span>
+                        <div className="log-controls">
+                            <button onClick={refreshBotData} className="log-btn">[ FETCH ]</button>
+                            <button onClick={handleClearLogs} className="log-btn danger">[ PURGE ]</button>
                         </div>
-                        
+                    </div>
+                    <div className="terminal-panel logs-panel">
                         <DecisionStream logs={persistentLogs} />
 
-                        <div className="logs-container" ref={logsContainerRef} style={{borderTop:'1px solid #334155', paddingTop:'10px'}}>
+                        <div className="logs-wrapper" ref={logsContainerRef}>
                             {visibleLogs.length > 0 ? visibleLogs.map((log, i) => {
                                 const isThinking = log.message.toLowerCase().includes("checked combo");
                                 return (
-                                    <div key={i} className={`log-entry log-${log.type} ${isThinking ? 'log-thinking' : ''}`}>
-                                        <span className="log-timestamp">{formatLogDate(log.timestamp)}</span>
-                                        <span className="log-message"><ThinkingMessage text={log.message} /></span>
+                                    <div key={i} className={`log-line ${log.type} ${isThinking ? 'thinking' : ''}`}>
+                                        <span className="log-time">{formatLogDate(log.timestamp)}</span>
+                                        <span className="log-separator">│</span>
+                                        <span className="log-msg">
+                                            <ThinkingMessage text={log.message} />
+                                        </span>
                                     </div>
                                 )
-                            }) : <p className="no-logs" style={{color:'#475569', fontStyle:'italic', padding:'10px'}}>Waiting for incoming data stream...</p>}
+                            }) : (
+                                <p className="empty-logs">[ WAITING FOR INCOMING DATA STREAM ]</p>
+                            )}
                         </div>
                     </div>
                 </>
