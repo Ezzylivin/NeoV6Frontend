@@ -1,99 +1,76 @@
 import React from "react";
-import { MetricsDisplay, ChartPanel, DecisionStream } from "./SharedComponents";
 
 const CommandLayout = (props) => {
-  const { formConfig, botStatus, logs, isRunning } = props;
+  const { botStatus, isRunning } = props;
+  const metrics = botStatus?.performanceMetrics || {};
+
+  const formatCurrency = (val) => val ? `$${val.toFixed(2)}` : "$0.00";
+  const formatPct = (val) => val ? `${val.toFixed(2)}%` : "0.00%";
 
   return (
     <div className="command-layout">
-      
-      {/* ZONE 1: SITUATION BOARD */}
-      <header className={`status-banner ${isRunning ? 'online' : 'offline'}`}>
-        <div className="status-text">
-          {isRunning ? "/// SYSTEM OPERATIONAL ///" : "/// SYSTEM HALTED ///"}
-        </div>
-        <div className="status-meta">
-          <span>MODE: {formConfig.tradingMode.toUpperCase()}</span>
-          <span>RISK: {formConfig.riskPercentage}%</span>
-        </div>
+      {/* HEADER: SYSTEM HEALTH */}
+      <header className={`cmd-banner ${isRunning ? 'online' : 'offline'}`}>
+        <h1>{isRunning ? "SYSTEM OPERATIONAL" : "SYSTEM OFFLINE"}</h1>
+        <div className="ping">LATENCY: 12ms</div>
       </header>
 
-      {/* ZONE 2: KPI ROW */}
-      <section className="kpi-row">
-        <MetricsDisplay data={botStatus} variant="command" />
-      </section>
-
-      {/* ZONE 3: BATTLEFIELD */}
-      <main className="command-grid">
+      {/* MAIN GRID: GIANT NUMBERS */}
+      <main className="stat-grid">
         
-        {/* LEFT: VISUAL SURVEILLANCE */}
-        <div className="grid-chart">
-          <div className="panel-label">MARKET_VISUALIZER_V6 // {formConfig.symbol}</div>
-          <div className="chart-frame">
-            <ChartPanel 
-              chartData={props.chartData} 
-              formConfig={formConfig} 
-              height="100%" 
-            />
-          </div>
+        <div className="stat-card primary">
+          <span className="stat-label">NET PROFIT / LOSS</span>
+          <span className={`stat-val huge ${metrics.totalProfit >= 0 ? 'green' : 'red'}`}>
+            {formatCurrency(metrics.totalProfit)}
+          </span>
         </div>
 
-        {/* RIGHT: TACTICAL READOUT */}
-        <aside className="grid-sidebar">
-          
-          {/* A. MISSION PARAMETERS (Read Only) */}
-          <div className="control-panel">
-            <div className="panel-label">MISSION_PARAMETERS</div>
-            <div className="param-grid">
-               <div className="param-item">
-                 <label>STRATEGY</label>
-                 <span>{props.setups.find(s => s._id === props.selectedSetupId)?.name || 'MANUAL_OVERRIDE'}</span>
-               </div>
-               <div className="param-item">
-                 <label>CAPITAL</label>
-                 <span>${formConfig.capitalAllocation}</span>
-               </div>
-               <div className="param-item">
-                 <label>RISK_MODE</label>
-                 <span>{formConfig.riskManagementMode.toUpperCase()}</span>
-               </div>
-            </div>
-          </div>
+        <div className="stat-card">
+          <span className="stat-label">TOTAL TRADES</span>
+          <span className="stat-val">{metrics.totalTrades || 0}</span>
+        </div>
 
-          {/* B. LIVE INTEL STREAM (Expanded) */}
-          <div className="intel-panel">
-            <div className="panel-label">LIVE_INTEL_FEED</div>
-            <div className="stream-wrapper">
-              <DecisionStream logs={logs} limit={20} />
-            </div>
-          </div>
+        <div className="stat-card">
+          <span className="stat-label">WIN RATE</span>
+          <span className="stat-val">{formatPct(metrics.winRate)}</span>
+        </div>
 
-        </aside>
+        <div className="stat-card">
+          <span className="stat-label">MAX DRAWDOWN</span>
+          <span className="stat-val red">{formatPct(metrics.maxDrawdown)}</span>
+        </div>
+
+        <div className="stat-card">
+          <span className="stat-label">PROFIT FACTOR</span>
+          <span className="stat-val">{metrics.profitFactor?.toFixed(2) || "0.00"}</span>
+        </div>
+
+        <div className="stat-card">
+          <span className="stat-label">CURRENT BALANCE</span>
+          <span className="stat-val">{formatCurrency(metrics.currentBalance)}</span>
+        </div>
+
       </main>
 
       <style>{`
-        .command-layout { display: grid; grid-template-rows: auto auto 1fr; height: 100vh; background-color: #000; color: var(--text-primary); font-family: 'Courier New', monospace; overflow: hidden; }
-        .status-banner { padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; font-weight: 900; letter-spacing: 2px; border-bottom: 2px solid; }
-        .status-banner.online { background: rgba(0, 255, 65, 0.1); color: #00ff41; border-color: #00ff41; }
-        .status-banner.offline { background: rgba(255, 0, 85, 0.1); color: #ff0055; border-color: #ff0055; }
-        .status-meta { font-size: 0.7rem; opacity: 0.8; display: flex; gap: 15px; }
-        .kpi-row { padding: 15px 20px; background: #050505; border-bottom: 1px solid #333; }
+        .command-layout { height: 100vh; display: flex; flex-direction: column; background: #000; font-family: 'Courier New', monospace; }
         
-        .command-grid { display: grid; grid-template-columns: 1fr 350px; overflow: hidden; }
-        .grid-chart { padding: 20px; display: flex; flex-direction: column; border-right: 1px solid #333; }
-        .chart-frame { flex: 1; border: 2px solid #333; position: relative; }
+        .cmd-banner { padding: 20px; border-bottom: 4px solid; display: flex; justify-content: space-between; align-items: center; }
+        .cmd-banner.online { background: rgba(0,255,0,0.1); color: #00ff41; border-color: #00ff41; }
+        .cmd-banner.offline { background: rgba(255,0,0,0.1); color: #ff0055; border-color: #ff0055; }
+        .cmd-banner h1 { margin: 0; letter-spacing: 4px; font-size: 1.5rem; }
         
-        .grid-sidebar { display: grid; grid-template-rows: auto 1fr; background: #080808; }
-        .panel-label { background: #111; color: #666; font-size: 0.7rem; padding: 5px 10px; border-bottom: 1px solid #333; font-weight: bold; }
+        .stat-grid { flex: 1; padding: 40px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-content: center; }
         
-        .control-panel { padding: 0; border-bottom: 1px solid #333; }
-        .param-grid { padding: 15px; display: grid; gap: 10px; }
-        .param-item { display: flex; justify-content: space-between; border-bottom: 1px dashed #333; padding-bottom: 5px; }
-        .param-item label { color: #666; font-size: 0.7rem; }
-        .param-item span { color: var(--text-primary); font-weight: bold; font-size: 0.8rem; }
-
-        .intel-panel { display: flex; flex-direction: column; overflow: hidden; }
-        .stream-wrapper { flex: 1; overflow-y: auto; padding: 10px; font-size: 0.8rem; }
+        .stat-card { background: #0a0a0a; border: 1px solid #333; padding: 30px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+        .stat-card.primary { grid-column: span 3; background: #111; border-color: #555; }
+        
+        .stat-label { font-size: 0.8rem; color: #666; letter-spacing: 2px; margin-bottom: 10px; text-transform: uppercase; }
+        .stat-val { font-size: 3rem; font-weight: 900; color: #fff; }
+        .stat-val.huge { font-size: 5rem; }
+        
+        .stat-val.green { color: #00ff41; text-shadow: 0 0 20px rgba(0,255,65,0.3); }
+        .stat-val.red { color: #ff0055; text-shadow: 0 0 20px rgba(255,0,85,0.3); }
       `}</style>
     </div>
   );
