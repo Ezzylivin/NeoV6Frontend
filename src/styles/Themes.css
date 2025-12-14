@@ -1,0 +1,82 @@
+/* Base Variables (Default/Desk) */
+:root {
+  --bg-app: #0f172a;
+  --bg-panel: #1e293b;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --accent: #3b82f6; /* Blue */
+  --border: #334155;
+  --font-main: 'Inter', sans-serif;
+  --radius: 12px;
+}
+
+/* 🏦 DESK MODE (Bloomberg Style) */
+[data-ui-mode="desk"] {
+  --bg-app: #111827;
+  --bg-panel: #1f2937;
+  --accent: #f59e0b; /* Amber */
+  --font-main: 'Roboto', sans-serif;
+}
+
+/* 🧪 LAB MODE (Clean, White/Gray, Technical) */
+[data-ui-mode="lab"] {
+  --bg-app: #f3f4f6;
+  --bg-panel: #ffffff;
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --accent: #0ea5e9; /* Sky Blue */
+  --border: #e5e7eb;
+  --radius: 4px; /* Square corners */
+  --font-main: 'JetBrains Mono', monospace;
+}
+
+/* 🚨 COMMAND MODE (High Contrast, Red/Green, Dark) */
+[data-ui-mode="command"] {
+  --bg-app: #000000;
+  --bg-panel: #0a0a0a;
+  --text-primary: #00ff41; /* Terminal Green */
+  --text-secondary: #008f11;
+  --accent: #ff0055; /* Danger Red */
+  --border: #00ff41;
+  --font-main: 'Courier New', monospace;
+}
+
+/* 📖 JOURNAL MODE (Serif, Readable, Paper-like) */
+[data-ui-mode="journal"] {
+  --bg-app: #fdfbf7; /* Warm white */
+  --bg-panel: #fff;
+  --text-primary: #292524;
+  --text-secondary: #57534e;
+  --accent: #78350f; /* Leather Brown */
+  --border: #e7e5e4;
+  --font-main: 'Merriweather', serif;
+}
+
+/* 🤖 AI MODE (Futuristic, Purple, Glassmorphism) */
+[data-ui-mode="ai"] {
+  --bg-app: radial-gradient(circle at top, #2e1065, #000000);
+  --bg-panel: rgba(255, 255, 255, 0.05); /* Glass */
+  --text-primary: #e9d5ff;
+  --text-secondary: #a855f7;
+  --accent: #d8b4fe;
+  --border: rgba(168, 85, 247, 0.3);
+  --radius: 24px;
+}
+
+/* Apply variables to common classes */
+.terminal-container, .trading-bot-root {
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-main);
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+.terminal-panel, .bot-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+button {
+  border-radius: var(--radius);
+}
