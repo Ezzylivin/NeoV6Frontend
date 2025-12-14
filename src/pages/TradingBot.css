@@ -1,16 +1,22 @@
-/* TradingBot.css - Cyberpunk Terminal Edition */
+/* TradingBot.css - Matrix Terminal Edition */
 
 :root {
-    --neon-cyan: #00ffff;
-    --neon-magenta: #ff00ff;
-    --neon-green: #00ff00;
-    --neon-red: #ff0055;
-    --neon-yellow: #ffff00;
+    /* 🟢 THE GREEN SHIFT */
+    --neon-green-primary: #00ff41; /* The classic Matrix green */
+    --neon-green-dim: #008f11;     /* Darker terminal green */
+    --neon-green-bright: #adff2f;  /* Green-Yellow for highlights */
+    
+    --neon-magenta: #ff00ff;       /* Kept for contrast/accents */
+    --neon-red: #ff0055;           /* Kept for errors/danger */
+    --neon-yellow: #ffff00;        /* Kept for warnings */
+    
     --terminal-bg: #000000;
-    --terminal-bg-alt: #0a0a0a;
-    --terminal-border: #00ffff;
-    --terminal-text: #00ffff;
-    --terminal-text-dim: #008b8b;
+    --terminal-bg-alt: #050a05;    /* Very dark green tint */
+    
+    /* Mapped Variables */
+    --terminal-border: var(--neon-green-primary);
+    --terminal-text: var(--neon-green-primary);
+    --terminal-text-dim: var(--neon-green-dim);
 }
 
 /* Container */
@@ -23,10 +29,10 @@
             0deg,
             transparent,
             transparent 2px,
-            rgba(0, 255, 255, 0.03) 2px,
-            rgba(0, 255, 255, 0.03) 4px
+            rgba(0, 255, 65, 0.03) 2px, /* Green tint scanlines */
+            rgba(0, 255, 65, 0.03) 4px
         ),
-        linear-gradient(90deg, #000000 0%, #0a0a0a 50%, #000000 100%);
+        linear-gradient(90deg, #000000 0%, #020502 50%, #000000 100%);
     color: var(--terminal-text);
     font-family: 'Courier New', 'Consolas', monospace;
     position: relative;
@@ -42,8 +48,8 @@
     height: 100%;
     background: repeating-linear-gradient(
         0deg,
-        rgba(0, 0, 0, 0.15),
-        rgba(0, 0, 0, 0.15) 1px,
+        rgba(0, 20, 0, 0.15), /* Greenish tint */
+        rgba(0, 20, 0, 0.15) 1px,
         transparent 1px,
         transparent 2px
     );
@@ -64,12 +70,12 @@
     align-items: center;
     margin-bottom: 1.5rem;
     padding: 1rem;
-    border: 2px solid var(--neon-cyan);
+    border: 2px solid var(--terminal-border);
     border-radius: 0;
-    background: rgba(0, 255, 255, 0.05);
+    background: rgba(0, 255, 65, 0.05); /* Green bg */
     box-shadow: 
-        0 0 10px rgba(0, 255, 255, 0.5),
-        inset 0 0 10px rgba(0, 255, 255, 0.1);
+        0 0 10px rgba(0, 255, 65, 0.5), /* Green glow */
+        inset 0 0 10px rgba(0, 255, 65, 0.1);
     position: relative;
     gap: 1rem;
     flex-wrap: wrap;
@@ -81,7 +87,7 @@
     position: absolute;
     width: 10px;
     height: 10px;
-    border: 2px solid var(--neon-cyan);
+    border: 2px solid var(--terminal-border);
 }
 
 .terminal-header::before {
@@ -106,16 +112,16 @@
 
 .header-bracket {
     font-size: 1.5rem;
-    color: var(--neon-cyan);
+    color: var(--neon-green-primary);
     font-weight: bold;
-    text-shadow: 0 0 10px var(--neon-cyan);
+    text-shadow: 0 0 10px var(--neon-green-primary);
 }
 
 .header-title {
     font-size: 1.5rem;
     font-weight: bold;
-    color: var(--neon-cyan);
-    text-shadow: 0 0 10px var(--neon-cyan);
+    color: var(--neon-green-primary);
+    text-shadow: 0 0 10px var(--neon-green-primary);
     letter-spacing: 0.1em;
 }
 
@@ -131,8 +137,8 @@
 }
 
 .system-status.online {
-    border-color: var(--neon-green);
-    color: var(--neon-green);
+    border-color: var(--neon-green-bright);
+    color: var(--neon-green-bright);
     background: rgba(0, 255, 0, 0.1);
     box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
     animation: statusPulse 2s ease-in-out infinite;
@@ -171,8 +177,8 @@
     border: 2px solid var(--terminal-border);
     background: var(--terminal-bg-alt);
     box-shadow: 
-        0 0 20px rgba(0, 255, 255, 0.3),
-        inset 0 0 20px rgba(0, 255, 255, 0.05);
+        0 0 20px rgba(0, 255, 65, 0.2),
+        inset 0 0 20px rgba(0, 255, 65, 0.05);
     position: relative;
 }
 
@@ -202,7 +208,7 @@
 }
 
 .control-panel {
-    border-color: var(--neon-cyan);
+    border-color: var(--neon-green-primary);
 }
 
 /* Panel Title Bar */
@@ -220,8 +226,8 @@
 .panel-title {
     font-size: 1rem;
     font-weight: bold;
-    color: var(--neon-cyan);
-    text-shadow: 0 0 10px var(--neon-cyan);
+    color: var(--neon-green-primary);
+    text-shadow: 0 0 10px var(--neon-green-primary);
     letter-spacing: 0.05em;
 }
 
@@ -234,9 +240,9 @@
 }
 
 .mode-badge.paper {
-    border-color: var(--neon-cyan);
-    color: var(--neon-cyan);
-    background: rgba(0, 255, 255, 0.1);
+    border-color: var(--neon-green-primary);
+    color: var(--neon-green-primary);
+    background: rgba(0, 255, 65, 0.1);
 }
 
 .mode-badge.live {
@@ -285,8 +291,8 @@
 .scan-btn {
     margin-left: auto;
     background: transparent;
-    border: 1px solid var(--neon-green);
-    color: var(--neon-green);
+    border: 1px solid var(--neon-green-bright);
+    color: var(--neon-green-bright);
     padding: 0.25rem 0.5rem;
     cursor: pointer;
     font-family: inherit;
@@ -325,8 +331,8 @@
 .terminal-select:focus,
 .terminal-input:focus {
     outline: none;
-    border-color: var(--neon-cyan);
-    box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+    border-color: var(--neon-green-bright);
+    box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
 }
 
 .terminal-select:disabled,
@@ -373,16 +379,16 @@
 }
 
 .mode-btn:hover:not(:disabled):not(.active) {
-    border-color: var(--neon-cyan);
-    color: var(--neon-cyan);
-    box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+    border-color: var(--neon-green-primary);
+    color: var(--neon-green-primary);
+    box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
 }
 
 .mode-btn.active {
-    border-color: var(--neon-cyan);
-    color: var(--neon-cyan);
-    background: rgba(0, 255, 255, 0.1);
-    box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+    border-color: var(--neon-green-primary);
+    color: var(--neon-green-primary);
+    background: rgba(0, 255, 65, 0.1);
+    box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
 }
 
 .mode-btn.danger.active {
@@ -412,14 +418,14 @@
 }
 
 .execute-btn {
-    background: rgba(0, 255, 0, 0.1);
-    border-color: var(--neon-green);
-    color: var(--neon-green);
+    background: rgba(0, 255, 65, 0.1);
+    border-color: var(--neon-green-bright);
+    color: var(--neon-green-bright);
 }
 
 .execute-btn:hover:not(:disabled) {
-    background: rgba(0, 255, 0, 0.2);
-    box-shadow: 0 0 20px rgba(0, 255, 0, 0.6);
+    background: rgba(0, 255, 65, 0.2);
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.6);
     transform: translateY(-2px);
 }
 
@@ -448,11 +454,11 @@
     justify-content: space-between;
     align-items: center;
     margin: 2rem 0 1rem 0;
-    color: var(--neon-cyan);
+    color: var(--neon-green-primary);
     font-weight: bold;
     font-size: 0.9rem;
     letter-spacing: 0.05em;
-    text-shadow: 0 0 10px var(--neon-cyan);
+    text-shadow: 0 0 10px var(--neon-green-primary);
     gap: 1rem;
     flex-wrap: wrap;
 }
@@ -460,8 +466,8 @@
 .sync-btn,
 .retry-btn {
     background: transparent;
-    border: 1px solid var(--neon-cyan);
-    color: var(--neon-cyan);
+    border: 1px solid var(--neon-green-primary);
+    color: var(--neon-green-primary);
     padding: 0.5rem 1rem;
     cursor: pointer;
     font-family: inherit;
@@ -472,8 +478,8 @@
 
 .sync-btn:hover,
 .retry-btn:hover {
-    background: rgba(0, 255, 255, 0.1);
-    box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+    background: rgba(0, 255, 65, 0.1);
+    box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
 }
 
 .log-controls {
@@ -494,10 +500,10 @@
 }
 
 .log-btn:hover {
-    background: rgba(0, 255, 255, 0.1);
-    border-color: var(--neon-cyan);
-    color: var(--neon-cyan);
-    box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+    background: rgba(0, 255, 65, 0.1);
+    border-color: var(--neon-green-primary);
+    color: var(--neon-green-primary);
+    box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
 }
 
 .log-btn.danger:hover {
@@ -523,8 +529,8 @@
 }
 
 .metric-box:hover {
-    border-color: var(--neon-cyan);
-    box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+    border-color: var(--neon-green-bright);
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.4);
     transform: translateY(-3px);
 }
 
@@ -579,8 +585,8 @@
 }
 
 .metric-value.positive {
-    color: var(--neon-green);
-    text-shadow: 0 0 10px var(--neon-green);
+    color: var(--neon-green-bright);
+    text-shadow: 0 0 10px var(--neon-green-bright);
 }
 
 .metric-value.negative {
@@ -618,8 +624,8 @@
 
 .loading-bars .bar {
     width: 8px;
-    background: var(--neon-cyan);
-    box-shadow: 0 0 10px var(--neon-cyan);
+    background: var(--neon-green-primary);
+    box-shadow: 0 0 10px var(--neon-green-primary);
     animation: barPulse 1.2s ease-in-out infinite;
 }
 
@@ -643,8 +649,8 @@
 /* Decision Stream */
 .decision-stream {
     padding: 1rem;
-    background: rgba(0, 255, 255, 0.05);
-    border: 1px solid var(--neon-cyan);
+    background: rgba(0, 255, 65, 0.05);
+    border: 1px solid var(--neon-green-primary);
     margin-bottom: 1rem;
 }
 
@@ -653,10 +659,10 @@
 }
 
 .stream-title {
-    color: var(--neon-cyan);
+    color: var(--neon-green-primary);
     font-weight: bold;
     font-size: 0.85rem;
-    text-shadow: 0 0 10px var(--neon-cyan);
+    text-shadow: 0 0 10px var(--neon-green-primary);
 }
 
 .stream-table {
@@ -666,13 +672,13 @@
 .stream-row {
     display: flex;
     padding: 0.5rem 0;
-    border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+    border-bottom: 1px solid rgba(0, 255, 65, 0.2);
     gap: 1rem;
     transition: all 0.2s ease;
 }
 
 .stream-row:hover:not(.header-row):not(.empty-row) {
-    background: rgba(0, 255, 255, 0.05);
+    background: rgba(0, 255, 65, 0.05);
     padding-left: 0.5rem;
     margin-left: -0.5rem;
 }
@@ -740,20 +746,20 @@
 }
 
 .logs-wrapper::-webkit-scrollbar-thumb {
-    background: var(--neon-cyan);
-    box-shadow: 0 0 10px var(--neon-cyan);
+    background: var(--neon-green-primary);
+    box-shadow: 0 0 10px var(--neon-green-primary);
 }
 
 .log-line {
     padding: 0.5rem 0;
-    border-bottom: 1px solid rgba(0, 255, 255, 0.1);
+    border-bottom: 1px solid rgba(0, 255, 65, 0.1);
     display: flex;
     gap: 0.75rem;
     transition: all 0.2s ease;
 }
 
 .log-line:hover {
-    background: rgba(0, 255, 255, 0.05);
+    background: rgba(0, 255, 65, 0.05);
     padding-left: 0.5rem;
     margin-left: -0.5rem;
 }
@@ -773,7 +779,7 @@
 }
 
 .log-separator {
-    color: var(--neon-cyan);
+    color: var(--neon-green-primary);
 }
 
 .log-msg {
@@ -835,9 +841,9 @@
 }
 
 .signal-buy {
-    color: var(--neon-green);
+    color: var(--neon-green-bright);
     font-weight: bold;
-    text-shadow: 0 0 8px var(--neon-green);
+    text-shadow: 0 0 8px var(--neon-green-bright);
 }
 
 .signal-sell {
