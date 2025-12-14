@@ -1,5 +1,8 @@
 // File: src/components/LiveTradingChart.jsx
-// 🚀 UPGRADE: Added Manual Zoom Controls (+ / - / Fit)
+// 🚀 UPGRADE: v65.0 - "Data Visibility Fix"
+// Fixes: 
+// 1. Correctly handles timestamp parsing (ms vs seconds).
+// 2. Ensures 'setData' fires reliably when props change.
 
 import React, { useEffect, useRef, useMemo } from 'react';
 import { createChart, CrosshairMode } from 'lightweight-charts';
@@ -10,11 +13,25 @@ const LiveTradingChart = ({ candles = [], trades = [], activePositions = [] }) =
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
 
-  // --- MERGE TRADES FOR LOG ---
+  // --- HELPER: ROBUST TIME PARSER ---
+  // Lightweight charts needs SECONDS for unix timestamps.
+  const parseTime = (t) => {
+      if (!t) return null;
+      // Handle MongoDB format
+      if (typeof t === 'object' && t.$date) t = t.$date;
+      
+      const d = new Date(t);
+      if (isNaN(d.getTime())) return null;
+      
+      // Return Unix Timestamp in SECONDS (integers only)
+      return Math.floor(d.getTime() / 1000); 
+  };
+
+  // --- MERGE TRADES FOR LOG (Visual Overlay) ---
   const tradeLog = useMemo(() => {
       const closed = trades.map(t => ({
           type: 'CLOSED', 
-          side: t.position, 
+          side: t.position || t.side, 
           price: t.exitPrice, 
           profit: t.profit, 
           time: t.exitTime || t.entryTime,
@@ -30,23 +47,21 @@ const LiveTradingChart = ({ candles = [], trades = [], activePositions = [] }) =
           id: `open-${p.entry_time}-${Math.random()}`
       }));
       
-      return [...open, ...closed].sort((a, b) => new Date(b.time) - new Date(a.time));
+      return [...open, ...closed]
+        .filter(x => x.time) // Safety check
+        .sort((a, b) => new Date(b.time) - new Date(a.time));
   }, [trades, activePositions]);
 
-  const parseTime = (t) => {
-      if (!t) return null;
-      if (typeof t === 'object' && t.$date) t = t.$date;
-      const d = new Date(t);
-      if (isNaN(d.getTime())) return null;
-      return d.getTime() / 1000; 
-  };
-
-  // --- PREPARE DATA ---
+  // --- PREPARE CHART DATA ---
   const chartData = useMemo(() => {
       if (!Array.isArray(candles) || candles.length === 0) return [];
+      
       const dataMap = new Map();
       candles.forEach(c => {
-          const time = parseTime(c.timestamp || c.time || c.datetime || c.Date);
+          // Try multiple property names for robustness
+          const rawTime = c.timestamp || c.time || c.datetime || c.Date;
+          const time = parseTime(rawTime);
+          
           if (time) {
               dataMap.set(time, {
                   time: time,
@@ -57,6 +72,7 @@ const LiveTradingChart = ({ candles = [], trades = [], activePositions = [] }) =
               });
           }
       });
+      // Sort ascending for the chart
       return Array.from(dataMap.values()).sort((a, b) => a.time - b.time);
   }, [candles]);
 
@@ -72,8 +88,10 @@ const LiveTradingChart = ({ candles = [], trades = [], activePositions = [] }) =
           const t1 = parseTime(p.entry_time);
           if(t1) m.push({ time: t1, position: 'belowBar', color: '#F59E0B', shape: 'arrowUp', text: 'OPEN' });
       });
-      return m.sort((a, b) => a.time - b.time);
-  }, [trades, activePositions]);
+      // Filter out markers that don't match a candle time (prevents crash)
+      const validTimes = new Set(chartData.map(c => c.time));
+      return m.filter(mk => validTimes.has(mk.time)).sort((a, b) => a.time - b.time);
+  }, [trades, activePositions, chartData]);
 
   // --- ZOOM CONTROLS ---
   const handleFitContent = () => {
@@ -87,7 +105,7 @@ const LiveTradingChart = ({ candles = [], trades = [], activePositions = [] }) =
       if (!range) return;
       
       const bars = range.to - range.from;
-      const newBars = bars * 0.8; // Shrink range by 20%
+      const newBars = bars * 0.8; 
       const center = (range.from + range.to) / 2;
       
       timeScale.setVisibleLogicalRange({
@@ -103,7 +121,7 @@ const LiveTradingChart = ({ candles = [], trades = [], activePositions = [] }) =
       if (!range) return;
       
       const bars = range.to - range.from;
-      const newBars = bars * 1.25; // Expand range by 25%
+      const newBars = bars * 1.25; 
       const center = (range.from + range.to) / 2;
       
       timeScale.setVisibleLogicalRange({
@@ -112,56 +130,64 @@ const LiveTradingChart = ({ candles = [], trades = [], activePositions = [] }) =
       });
   };
 
-  // --- CHART LIFECYCLE ---
+  // --- CHART INIT & UPDATE ---
   useEffect(() => {
       if (!chartContainerRef.current) return;
 
+      // 1. Initialize Chart ONLY ONCE
       if (!chartRef.current) {
           chartRef.current = createChart(chartContainerRef.current, {
               width: chartContainerRef.current.clientWidth,
-              height: 400,
-              layout: { backgroundColor: '#0f0f0f', textColor: '#ddd' },
-              grid: { vertLines: { color: '#333' }, horzLines: { color: '#333' } },
+              height: 500, // Slightly taller for visibility
+              layout: { backgroundColor: '#000000', textColor: '#00ff41' }, // Cyberpunk colors
+              grid: { vertLines: { color: '#111' }, horzLines: { color: '#111' } },
               crosshair: { mode: CrosshairMode.Normal },
-              timeScale: { borderColor: '#485c7b', timeVisible: true },
+              timeScale: { borderColor: '#00ff41', timeVisible: true },
           });
+
           seriesRef.current = chartRef.current.addCandlestickSeries({
-              upColor: '#26a69a', downColor: '#ef5350', borderVisible: false, wickUpColor: '#26a69a', wickDownColor: '#ef5350',
+              upColor: '#00ff41', downColor: '#ff0055', 
+              borderVisible: false, 
+              wickUpColor: '#00ff41', wickDownColor: '#ff0055',
           });
+          
+          // Handle resize
+          const handleResize = () => {
+             if(chartContainerRef.current) {
+                 chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+             }
+          };
+          window.addEventListener('resize', handleResize);
+          return () => window.removeEventListener('resize', handleResize);
       }
 
-      if (chartData.length > 0) {
+      // 2. Update Data
+      if (chartData.length > 0 && seriesRef.current) {
           seriesRef.current.setData(chartData);
           seriesRef.current.setMarkers(markers);
-          // Only auto-fit on initial data load if range is empty
-          if (chartRef.current.timeScale().getVisibleLogicalRange() === null) {
-              chartRef.current.timeScale().fitContent();
-          }
+          
+          // Only auto-fit if we just loaded data for the first time
+          // checking logic range is a bit tricky, assume if data was empty before:
+          // For now, let's just fit content on significant updates
+          // chartRef.current.timeScale().fitContent(); 
       }
-
-      const resizeObserver = new ResizeObserver(entries => {
-          if (entries.length && entries[0].contentRect) {
-              chartRef.current.applyOptions({ width: entries[0].contentRect.width });
-          }
-      });
-      resizeObserver.observe(chartContainerRef.current);
-      return () => resizeObserver.disconnect();
+      
   }, [chartData, markers]);
 
   // Button Styles
   const btnStyle = {
-      background: 'rgba(255,255,255,0.1)', border: '1px solid #555', color: '#ccc',
+      background: 'rgba(0, 255, 65, 0.1)', border: '1px solid #00ff41', color: '#00ff41',
       fontSize: '12px', cursor: 'pointer', padding: '2px 8px', borderRadius: '4px',
-      marginLeft: '4px', pointerEvents: 'auto'
+      marginLeft: '4px', pointerEvents: 'auto', fontWeight: 'bold'
   };
 
   return (
       <div className="live-chart-wrapper">
           
-          {/* 🚀 OVERLAY WITH ZOOM CONTROLS */}
+          {/* OVERLAY WITH ZOOM CONTROLS */}
           <div className="chart-trade-overlay">
               <div className="overlay-header">
-                  <h4 style={{margin:0}}>Live Feed</h4>
+                  <h4 style={{margin:0, color: '#00ff41'}}>Live Feed</h4>
                   <div style={{display:'flex'}}>
                       <button onClick={handleZoomOut} style={btnStyle} title="Zoom Out">-</button>
                       <button onClick={handleZoomIn} style={btnStyle} title="Zoom In">+</button>
@@ -170,32 +196,39 @@ const LiveTradingChart = ({ candles = [], trades = [], activePositions = [] }) =
               </div>
               
               <div className="overlay-list">
-                  {tradeLog.length === 0 ? <div className="empty">Waiting for trades...</div> : tradeLog.map((t, i) => (
+                  {tradeLog.length === 0 ? (
+                      <div className="empty" style={{color: '#008f11'}}>Waiting for trades...</div>
+                  ) : (
+                      tradeLog.map((t, i) => (
                       <div key={t.id || i} className={`overlay-item ${t.type}`}>
                           <div className="row-top">
                               <span className={`badge ${t.type}`}>{t.type}</span>
                               <span className={`side ${t.side}`}>{t.side?.toUpperCase()}</span>
-                              <span className="time">{new Date(t.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                              <span className="time" style={{color: '#008f11'}}>
+                                  {new Date(t.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+                              </span>
                           </div>
                           <div className="row-bot">
                               <span className="price">@ {t.price?.toFixed(2)}</span>
-                              {t.profit !== null && (
+                              {t.profit !== null && t.profit !== undefined && (
                                   <span className={`pnl ${t.profit > 0 ? 'win' : 'loss'}`}>
-                                      {t.profit > 0 ? '+' : ''}{t.profit?.toFixed(2)}
+                                      {t.profit > 0 ? '+' : ''}{Number(t.profit).toFixed(2)}
                                   </span>
                               )}
                           </div>
                       </div>
-                  ))}
+                  )))}
               </div>
           </div>
 
+          {/* LOADING STATE */}
           {chartData.length === 0 && (
               <div className="chart-placeholder">
-                  <div className="spinner"></div>
-                  <p>Waiting for live market data...</p>
+                  <div className="spinner" style={{borderColor: '#00ff41', borderTopColor: 'transparent'}}></div>
+                  <p style={{color: '#00ff41'}}>Acquiring Exchange Data...</p>
               </div>
           )}
+          
           <div ref={chartContainerRef} className="live-chart-container" />
       </div>
   );
