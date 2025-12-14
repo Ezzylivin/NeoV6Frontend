@@ -1,5 +1,5 @@
 // ./components/Header.jsx
-// 🚀 THEME UPDATE: AppKit Integration
+// 🚀 THEME UPDATE: Reown AppKit Integration
 
 import React from 'react';
 import { Link } from 'react-router-dom';
@@ -30,8 +30,7 @@ const Header = () => {
           </Link>
         </nav>
 
-        {/* 🚀 APPKIT BUTTON */}
-        {/* This web component handles the entire wallet flow */}
+        {/* 🚀 APPKIT BUTTON (Handles Connect/Disconnect/Networks) */}
         <appkit-button /> 
         
       </div>
