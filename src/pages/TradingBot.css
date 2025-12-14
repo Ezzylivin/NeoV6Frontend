@@ -1,22 +1,21 @@
 /* TradingBot.css - Matrix Terminal Edition */
 
 :root {
-    /* 🟢 THE GREEN SHIFT */
-    --neon-green-primary: #00ff41; /* The classic Matrix green */
-    --neon-green-dim: #008f11;     /* Darker terminal green */
-    --neon-green-bright: #adff2f;  /* Green-Yellow for highlights */
+    /* 🟡 RETRO AMBER */
+    --neon-green-primary: #ffb000; /* Classic Amber */
+    --neon-green-dim: #6b4a00;     /* Dark Brown/Amber */
+    --neon-green-bright: #ffe6a1;  /* Pale Gold */
     
-    --neon-magenta: #ff00ff;       /* Kept for contrast/accents */
-    --neon-red: #ff0055;           /* Kept for errors/danger */
-    --neon-yellow: #ffff00;        /* Kept for warnings */
+    --neon-magenta: #ffb000;       /* Keep it monochrome */
+    --neon-red: #cc3300;           /* Burnt Orange for errors */
+    --neon-yellow: #ffcc00;        /* Bright Yellow */
     
-    --terminal-bg: #000000;
-    --terminal-bg-alt: #050a05;    /* Very dark green tint */
+    --terminal-bg: #1a1200;        /* Very Dark Brown */
+    --terminal-bg-alt: #2e2000;    /* Dark Brown */
     
-    /* Mapped Variables */
-    --terminal-border: var(--neon-green-primary);
-    --terminal-text: var(--neon-green-primary);
-    --terminal-text-dim: var(--neon-green-dim);
+    --terminal-border: #ffb000;
+    --terminal-text: #ffb000;
+    --terminal-text-dim: #996600;
 }
 
 /* Container */
