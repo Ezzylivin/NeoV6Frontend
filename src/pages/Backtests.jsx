@@ -207,7 +207,7 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
   
             <div className="space-y-2">
               <label className="text-slate-400 text-sm">Risk Percentage</label>
-              <input type="number" name="riskPercentage" value={data.riskPercentage} onChange={handleGlobalChange} step="0.1" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
+              <input type="number" name="riskPercentage" value={data.riskPercentage ?? ''} onChange={handleGlobalChange} step="0.1" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm" />
             </div>
   
             {data.riskManagementMode === 'dynamic' && (
