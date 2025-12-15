@@ -22,7 +22,7 @@ const projectId = '5ddc52321c8690bb3e185eee432086df';
 const metadata = {
   name: 'NeoV6 Trading Bot',
   description: 'AI-Powered Algo Trading',
-  domain: "https://*.vercel.app", // Update with your actual domain
+  url: window.location.origin, // <--- This fixes the mismatch error
   icons: ['https://avatars.githubusercontent.com/u/37784886']
 };
 
