@@ -8,16 +8,17 @@ const Header = () => {
   const navigate = useNavigate();
   const { disconnect } = useDisconnect();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     // 1. Disconnect the wallet
     disconnect();
     
-    // 2. Clear any local session (if you use tokens)
-    localStorage.removeItem('token'); 
-    localStorage.removeItem('userInfo');
+    // 2. Clear all local storage (removes any lingering auth tokens or cache)
+    localStorage.clear(); 
 
-    // 3. Redirect to Auth Page (Root)
-    navigate('/');
+    // 3. Force navigation to the Root/Login page
+    // Using window.location.href forces a hard refresh, ensuring the App state resets completely.
+    // This prevents the router from "thinking" you are still logged in and redirecting you back to Dashboard.
+    window.location.href = '/'; 
   };
 
   return (
