@@ -4,85 +4,43 @@ import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import './index.css';
 
-import { createAppKit } from '@reown/appkit/react';
-import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
-import { mainnet, arbitrum, base, polygon } from '@reown/appkit/networks';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+// RainbowKit + Wagmi Imports
+import '@rainbow-me/rainbowkit/styles.css';
+import { getDefaultConfig, RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit';
 import { WagmiProvider } from 'wagmi';
+import { mainnet, arbitrum, base, polygon } from 'wagmi/chains';
+import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 
 // 1. Setup Query Client
 const queryClient = new QueryClient();
 
-// 2. Get Project ID
-const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID;
-
-// 3. Metadata
-const metadata = {
-  name: 'NeoV6 Trading Bot',
-  description: 'AI-Powered Algo Trading',
-  url: window.location.origin,
-  icons: ['https://avatars.githubusercontent.com/u/37784886']
-};
+// 2. Configure Chains
+// You can use the SAME Project ID you generated earlier
+const config = getDefaultConfig({
+  appName: 'NeoV6 Trading Bot',
+  projectId: '5ddc52321c8690bb3e185eee432086df', // Your ID works here too!
+  chains: [mainnet, arbitrum, base, polygon],
+  ssr: true, // Prevents hydration errors
+});
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
-// 🛡️ SAFETY CHECK: If ID is missing, don't even try to render the App
-if (!projectId) {
-  console.error("❌ Missing VITE_WALLETCONNECT_PROJECT_ID in .env file");
-  root.render(
-    <div style={{ 
-      height: '100vh', 
-      display: 'flex', 
-      flexDirection: 'column',
-      alignItems: 'center', 
-      justifyContent: 'center', 
-      background: '#121212', 
-      color: '#ef4444',
-      fontFamily: 'monospace' 
-    }}>
-      <h1 style={{ fontSize: '2rem' }}>Configuration Error</h1>
-      <p>Missing <code>VITE_WALLETCONNECT_PROJECT_ID</code></p>
-      <p style={{ color: '#888', marginTop: '1rem' }}>
-        Please add your Project ID to the <code>.env</code> file and restart the server.
-      </p>
-    </div>
-  );
-} else {
-  // 4. Initialize AppKit ONLY if ID exists
-  const wagmiAdapter = new WagmiAdapter({
-    networks: [mainnet, arbitrum, base, polygon],
-    projectId,
-    ssr: true
-  });
-
-  createAppKit({
-    adapters: [wagmiAdapter],
-    networks: [mainnet, arbitrum, base, polygon],
-    projectId,
-    metadata,
-    features: {
-      analytics: true,
-      email: false, 
-      socials: []
-    },
-    themeMode: 'dark',
-    themeVariables: {
-      '--w3m-font-family': 'Inter, sans-serif',
-      '--w3m-accent': '#34d399',
-      '--w3m-color-mix': '#000000',
-      '--w3m-color-mix-strength': 40,
-      '--w3m-border-radius-master': '2px'
-    }
-  });
-
-  // 5. Render App
-  root.render(
-    <React.StrictMode>
-      <WagmiProvider config={wagmiAdapter.wagmiConfig}>
-        <QueryClientProvider client={queryClient}>
+root.render(
+  <React.StrictMode>
+    <WagmiProvider config={config}>
+      <QueryClientProvider client={queryClient}>
+        {/* Theme: Matches your Emerald/Carbon look */}
+        <RainbowKitProvider 
+          theme={darkTheme({
+            accentColor: '#34d399', // Emerald-400
+            accentColorForeground: 'black',
+            borderRadius: 'medium',
+            overlayBlur: 'small',
+          })}
+        >
           <App />
-        </QueryClientProvider>
-      </WagmiProvider>
-    </React.StrictMode>
-  );
-}
+        </RainbowKitProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
+  </React.StrictMode>
+);
