@@ -10,17 +10,21 @@ export default function Settings() {
   const { user, logout } = useAuth();
   const { address, isConnected, chain } = useAccount();
   
-  // Local state for API Keys form
   const [keys, setKeys] = useState({ apiKey: '', apiSecret: '', exchange: 'coinbase' });
   const [loading, setLoading] = useState(false);
 
-  // Handler to save API keys to backend
+  // 🚀 HELPER: Dynamic Guide Links
+  const exchangeGuides = {
+    coinbase: "https://help.coinbase.com/en/exchange/managing-my-account/how-to-create-an-api-key",
+    binance: "https://www.binance.com/en/support/faq/how-to-create-api-on-binance-360002502072",
+    kraken: "https://support.kraken.com/hc/en-us/articles/360000919966-How-to-generate-an-API-key-pair-"
+  };
+
   const handleSaveKeys = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      // NOTE: You need to create this route on your backend later!
       await axios.post('https://neov6backend.onrender.com/api/users/keys', 
         { 
           exchange: keys.exchange,
@@ -30,7 +34,7 @@ export default function Settings() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       alert("✅ API Keys encrypted and saved successfully!");
-      setKeys({ apiKey: '', apiSecret: '', exchange: 'coinbase' }); // Clear form
+      setKeys({ apiKey: '', apiSecret: '', exchange: 'coinbase' }); 
     } catch (err) {
       console.error(err);
       alert("❌ Failed to save keys: " + (err.response?.data?.message || err.message));
@@ -65,12 +69,6 @@ export default function Settings() {
               <div>
                 <label className="text-xs font-bold text-neutral-500 uppercase tracking-wider">Email</label>
                 <div className="text-lg text-white font-medium">{user?.email || 'No Email Linked'}</div>
-              </div>
-              <div>
-                 <label className="text-xs font-bold text-neutral-500 uppercase tracking-wider">User ID (Database)</label>
-                 <div className="text-xs font-mono text-neutral-400 bg-black/30 p-2 rounded mt-1 overflow-x-auto">
-                   {user?._id || 'Not connected'}
-                 </div>
               </div>
             </div>
           </div>
@@ -115,7 +113,7 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* 3. EXCHANGE API KEYS (Full Width) */}
+        {/* 3. EXCHANGE API KEYS */}
         <div className="bg-[#1a1a1a] border border-white/5 rounded-xl p-6 shadow-lg">
           <div className="flex justify-between items-start mb-6">
             <div>
@@ -123,11 +121,11 @@ export default function Settings() {
                 <span className="text-2xl">🔑</span> Exchange API Keys
               </h2>
               <p className="text-sm text-neutral-400 mt-1">
-                Required for <strong>Live Trading</strong> mode. Keys are encrypted before storage.
+                Required for <strong>Live Trading</strong>. Keys are encrypted before storage.
               </p>
             </div>
             <span className="px-3 py-1 rounded-full bg-yellow-500/10 text-yellow-500 text-xs border border-yellow-500/20">
-              ⚠️ Never share your Secret Key
+              ⚠️ Never share your Secret
             </span>
           </div>
 
@@ -141,11 +139,22 @@ export default function Settings() {
                     value={keys.exchange}
                     onChange={(e) => setKeys({...keys, exchange: e.target.value})}
                   >
-                    <option value="coinbase">Coinbase Advanced</option>
+                    <option value="coinbase">Coinbase</option>
                     <option value="binance">Binance</option>
                     <option value="kraken">Kraken</option>
                   </select>
+
+                  {/* 🚀 ADDED: Dynamic Helper Link */}
+                  <a 
+                    href={exchangeGuides[keys.exchange]} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-xs text-purple-400 hover:text-purple-300 hover:underline mt-2 inline-flex items-center gap-1"
+                  >
+                    How to get {keys.exchange.charAt(0).toUpperCase() + keys.exchange.slice(1)} keys ↗
+                  </a>
                </div>
+
                {/* API Key Input */}
                <div className="md:col-span-2">
                   <label className="block text-sm text-neutral-400 mb-1">API Key</label>
