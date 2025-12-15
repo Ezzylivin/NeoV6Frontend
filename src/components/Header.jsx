@@ -2,8 +2,24 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useDisconnect } from 'wagmi';
 
 const Header = () => {
+  const navigate = useNavigate();
+  const { disconnect } = useDisconnect();
+
+  const handleLogout = () => {
+    // 1. Disconnect the wallet
+    disconnect();
+    
+    // 2. Clear any local session (if you use tokens)
+    localStorage.removeItem('token'); 
+    localStorage.removeItem('userInfo');
+
+    // 3. Redirect to Auth Page (Root)
+    navigate('/');
+  };
+
   return (
     <header className="flex items-center justify-between border-b border-white/10 bg-[#121212] px-6 py-4">
       
@@ -29,12 +45,26 @@ const Header = () => {
           </Link>
         </nav>
 
-        {/* 🚀 RAINBOWKIT BUTTON */}
-        <div className="custom-connect-wrapper">
-          <ConnectButton 
-            showBalance={{ smallScreen: false, largeScreen: true }} 
-            accountStatus="full"
-          />
+        {/* 🚀 WALLET & LOGOUT WRAPPER */}
+        <div className="flex items-center gap-4">
+          
+          {/* RainbowKit Button */}
+          <div className="custom-connect-wrapper">
+            <ConnectButton 
+              showBalance={{ smallScreen: false, largeScreen: true }} 
+              accountStatus="full"
+            />
+          </div>
+
+          {/* 🔴 LOGOUT BUTTON */}
+          <button 
+            onClick={handleLogout}
+            className="flex items-center justify-center rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-bold text-red-400 transition-all hover:bg-red-500 hover:text-white hover:shadow-[0_0_15px_rgba(220,38,38,0.4)]"
+            title="Disconnect & Logout"
+          >
+            Logout
+          </button>
+
         </div>
         
       </div>
