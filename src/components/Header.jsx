@@ -3,13 +3,13 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useDisconnect } from 'wagmi';
-import WalletBalance from './WalletBalance'; // 👈 1. IMPORT THIS
+import WalletBalance from './WalletBalance';
 
 const Header = () => {
   const navigate = useNavigate();
   const { disconnect } = useDisconnect();
 
-  // Retrieve user info from local storage (since we are in Header, not AuthContext)
+  // Retrieve user info from local storage
   const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
 
   const handleLogout = async () => {
@@ -41,6 +41,10 @@ const Header = () => {
           <Link to="/dashboard/tradingbot" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
             Live Bot
           </Link>
+          {/* 🚀 ADDED: Settings Link */}
+          <Link to="/dashboard/settings" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
+            Settings
+          </Link>
         </nav>
 
         {/* 🚀 RIGHT SIDE: WALLET + USER INFO + LOGOUT */}
@@ -50,7 +54,6 @@ const Header = () => {
           {userInfo.username && (
              <div className="flex flex-col items-end mr-2">
                 <span className="text-xs text-neutral-400">Welcome, {userInfo.username}</span>
-                {/* 👈 2. INSERT WALLET BALANCE HERE */}
                 <div className="text-xs text-neutral-500 font-mono flex items-center gap-1">
                    Wallet: <WalletBalance /> 
                 </div>
