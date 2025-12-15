@@ -1,19 +1,20 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v66.0 - "The Brain" (Logic Container)
-// Fixes: "botStatus is not defined" by fully implementing the logic layer.
+// 🚀 UPGRADE: v67.0 - Web3 Wallet Integration
+// Changes: Now uses the connected Wallet Address as the 'userId' for the bot.
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios"; 
+import { useAccount } from 'wagmi'; // 🚀 NEW: Import Wagmi Hook
 import { useBot } from '../hooks/useBot.js';
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx"; 
 import { UIModeProvider } from "../context/UIModeContext";
 import TradingBotShell from "./TradingBotShell"; 
-import "./TradingBot.css"; // Base styles
-import "../styles/Themes.css"; // The 5 Themes
+import "./TradingBot.css"; 
+import "../styles/Themes.css"; 
 
 // --- MAIN LOGIC CONTAINER ---
 const TradingBotContainer = () => {
-    // 1. 🧠 Core Bot Logic (The "Brain")
+    // 1. 🧠 Core Bot Logic
     const { 
         botStatus, logs: apiLogs, loading: botLoading, 
         startBot, stopBot, refreshBotData 
@@ -21,6 +22,9 @@ const TradingBotContainer = () => {
 
     const { setups } = useBacktestSetupFunction(); 
     
+    // 🚀 NEW: Get Wallet Address
+    const { address, isConnected } = useAccount();
+
     // 2. 📊 Local State
     const [liveWinners, setLiveWinners] = useState([]);
     const [scanningWinners, setScanningWinners] = useState(false);
@@ -48,7 +52,6 @@ const TradingBotContainer = () => {
                         prevLog.timestamp === apiLog.timestamp && prevLog.message === apiLog.message
                     )
                 );
-                // Keep last 500 logs, sorted by time
                 const combined = [...prevLogs, ...newLogs].sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
                 return combined.slice(-500);
             });
@@ -88,7 +91,7 @@ const TradingBotContainer = () => {
     };
     useEffect(() => { fetchWinners(); }, []);
 
-    // 7. 🎛️ Handlers (Setup & Winner Selection)
+    // 7. 🎛️ Handlers
     const handleSetupSelect = (e) => {
         const setupId = e.target.value;
         setSelectedSetupId(setupId);
@@ -174,6 +177,13 @@ const TradingBotContainer = () => {
     // 8. 🚀 Execution Handlers
     const handleStart = async (e) => {
         e.preventDefault();
+        
+        // 🛡️ Wallet Guard
+        if (!isConnected || !address) {
+            alert("⚠️ Please connect your Web3 Wallet first!");
+            return;
+        }
+
         if (formConfig.tradingMode === 'live' && !window.confirm("⚠️ Real Money Trading. Proceed?")) return;
         setLogsClearedTime(0); 
         setPersistentLogs([]); 
@@ -184,6 +194,9 @@ const TradingBotContainer = () => {
         }));
 
         const cleanPayload = {
+            // 🚀 NEW: Attach Wallet Address as ID
+            userId: address,
+            
             symbol: formConfig.symbol,
             timeframe: formConfig.timeframe,
             capitalAllocation: Number(formConfig.capitalAllocation),
@@ -239,26 +252,22 @@ const TradingBotContainer = () => {
 
     // 10. 🔌 Connect to Shell
     const botProps = {
-        // State
         botStatus,
         logs: persistentLogs,
         visibleLogs,
         loading: botLoading,
         isRunning,
         
-        // Data
         liveWinners,
         setups,
         chartData,
         hasData,
         
-        // Form
         formConfig,
         setFormConfig,
         selectedSetupId,
         selectedWinnerId,
         
-        // Actions
         handleStart,
         handleStop,
         handleSetupSelect,
@@ -268,7 +277,6 @@ const TradingBotContainer = () => {
         handleRefreshChart,
         handleClearLogs,
         
-        // Refs
         logsContainerRef
     };
 
@@ -279,7 +287,6 @@ const TradingBotContainer = () => {
     );
 };
 
-// Export with Provider
 export default function TradingBot() {
     return (
         <UIModeProvider>
