@@ -1,8 +1,9 @@
 // ./components/NavBar.jsx
-// 🚀 THEME UPDATE: "Carbon Grey & Emerald"
+// 🚀 THEME UPDATE: "Carbon Grey & Emerald" + Wallet Integration
 
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import WalletBalance from "./WalletBalance"; // 👈 IMPORT THIS
 
 export default function NavBar() {
   const { user, logout } = useAuth();
@@ -13,8 +14,6 @@ export default function NavBar() {
 
   if (!user) {
     return (
-      // CHANGED: bg-gray-900 (Navy tint) -> bg-[#121212] (True Carbon)
-      // CHANGED: border-gray-700 -> border-white/10 (Subtle Glass Border)
       <header className="bg-[#121212] text-white px-6 py-4 flex justify-between items-center border-b border-white/10">
         <h1 className="text-xl font-bold tracking-wide">N.V6 SmartTradingBot</h1>
         <NavLink
@@ -28,13 +27,11 @@ export default function NavBar() {
   }
 
   return (
-    // CHANGED: Background to #121212 (Carbon) and Border to white/10
     <header className="bg-[#121212] text-white px-6 py-4 flex justify-between items-center border-b border-white/10">
       {/* Left: Brand + Nav Links */}
       <div className="flex items-center space-x-6">
         <NavLink
           to="/dashboard"
-          // CHANGED: hover:text-blue-300 -> hover:text-emerald-400
           className="text-2xl font-bold tracking-wide text-white hover:text-emerald-400 transition-colors"
         >
           NeoV6
@@ -46,9 +43,8 @@ export default function NavBar() {
           <NavLink to="/dashboard/backtests" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>
             Backtests
           </NavLink>
-          {/* Note: 'Strategies' was in your screenshot but missing here. Added it back if needed, otherwise ignored. */}
-           <NavLink to="/dashboard/strategies" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>
-            Strategies
+          <NavLink to="/dashboard/strategies" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>
+             Strategies
           </NavLink>
           <NavLink to="/dashboard/tradingbot" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>
             Trading Bot
@@ -59,13 +55,20 @@ export default function NavBar() {
         </nav>
       </div>
 
-      {/* Right: User + Logout */}
-      <div className="flex items-center space-x-4">
-        {/* CHANGED: text-gray-300 -> text-neutral-400 (True Grey) */}
-        <span className="text-sm text-neutral-400">Welcome, {user?.username}</span>
+      {/* Right: User + Wallet + Logout */}
+      <div className="flex items-center space-x-6">
+        
+        {/* 🚀 ADDED: User Info Stack */}
+        <div className="flex flex-col items-end">
+             <span className="text-sm text-neutral-400">Welcome, {user?.username}</span>
+             {/* This renders the Component we made in Step 1 */}
+             <div className="text-xs text-neutral-500 font-mono flex items-center gap-2">
+                Wallet: <WalletBalance /> 
+             </div>
+        </div>
+
         <button
           onClick={logout}
-          // Optional: You can keep Red for logout, or switch to Neutral-700 for a subtler look
           className="bg-red-600/80 hover:bg-red-600 text-white px-4 py-2 rounded-xl transition border border-red-500/20"
         >
           Logout
