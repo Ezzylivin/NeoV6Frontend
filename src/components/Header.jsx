@@ -3,21 +3,18 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useDisconnect } from 'wagmi';
+import WalletBalance from './WalletBalance'; // 👈 1. IMPORT THIS
 
 const Header = () => {
   const navigate = useNavigate();
   const { disconnect } = useDisconnect();
 
-  const handleLogout = async () => {
-    // 1. Disconnect the wallet
-    disconnect();
-    
-    // 2. Clear all local storage (removes any lingering auth tokens or cache)
-    localStorage.clear(); 
+  // Retrieve user info from local storage (since we are in Header, not AuthContext)
+  const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
 
-    // 3. Force navigation to the Root/Login page
-    // Using window.location.href forces a hard refresh, ensuring the App state resets completely.
-    // This prevents the router from "thinking" you are still logged in and redirecting you back to Dashboard.
+  const handleLogout = async () => {
+    disconnect();
+    localStorage.clear(); 
     window.location.href = '/'; 
   };
 
@@ -46,18 +43,29 @@ const Header = () => {
           </Link>
         </nav>
 
-        {/* 🚀 WALLET & LOGOUT WRAPPER */}
+        {/* 🚀 RIGHT SIDE: WALLET + USER INFO + LOGOUT */}
         <div className="flex items-center gap-4">
           
+          {/* User Info & Wallet Balance Stack */}
+          {userInfo.username && (
+             <div className="flex flex-col items-end mr-2">
+                <span className="text-xs text-neutral-400">Welcome, {userInfo.username}</span>
+                {/* 👈 2. INSERT WALLET BALANCE HERE */}
+                <div className="text-xs text-neutral-500 font-mono flex items-center gap-1">
+                   Wallet: <WalletBalance /> 
+                </div>
+             </div>
+          )}
+
           {/* RainbowKit Button */}
           <div className="custom-connect-wrapper">
             <ConnectButton 
               showBalance={{ smallScreen: false, largeScreen: true }} 
-              accountStatus="full"
+              accountStatus="avatar" 
             />
           </div>
 
-          {/* 🔴 LOGOUT BUTTON */}
+          {/* Logout Button */}
           <button 
             onClick={handleLogout}
             className="flex items-center justify-center rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-bold text-red-400 transition-all hover:bg-red-500 hover:text-white hover:shadow-[0_0_15px_rgba(220,38,38,0.4)]"
