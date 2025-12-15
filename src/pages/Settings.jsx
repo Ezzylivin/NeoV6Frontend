@@ -125,7 +125,7 @@ export default function Settings() {
               </p>
             </div>
             <span className="px-3 py-1 rounded-full bg-yellow-500/10 text-yellow-500 text-xs border border-yellow-500/20">
-              ⚠️ Never share your Secret
+              ⚠️ Keys Stored Encrypted
             </span>
           </div>
 
@@ -144,14 +144,14 @@ export default function Settings() {
                     <option value="kraken">Kraken</option>
                   </select>
 
-                  {/* 🚀 ADDED: Dynamic Helper Link */}
+                  {/* Guide Link */}
                   <a 
                     href={exchangeGuides[keys.exchange]} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="text-xs text-purple-400 hover:text-purple-300 hover:underline mt-2 inline-flex items-center gap-1"
                   >
-                    How to get {keys.exchange.charAt(0).toUpperCase() + keys.exchange.slice(1)} keys ↗
+                    Get API Keys Guide ↗
                   </a>
                </div>
 
@@ -168,9 +168,14 @@ export default function Settings() {
                </div>
             </div>
 
-            {/* Secret Key Input */}
+            {/* Secret Key Input with Help Text */}
             <div>
-              <label className="block text-sm text-neutral-400 mb-1">API Secret</label>
+              <div className="flex justify-between items-baseline mb-1">
+                 <label className="block text-sm text-neutral-400">API Secret</label>
+                 <span className="text-[10px] text-yellow-500/80 uppercase font-bold tracking-wide">
+                   Shown only once at creation
+                 </span>
+              </div>
               <input 
                 type="password" 
                 placeholder="Enter private API secret..."
@@ -178,6 +183,9 @@ export default function Settings() {
                 value={keys.apiSecret}
                 onChange={(e) => setKeys({...keys, apiSecret: e.target.value})}
               />
+              <p className="text-xs text-neutral-600 mt-2">
+                We use AES-256 encryption. Your secret is never visible to our staff or frontend.
+              </p>
             </div>
 
             <button 
