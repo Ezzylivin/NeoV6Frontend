@@ -22,7 +22,7 @@ const projectId = '4ee1fee23991c58ac7836e21188d0d8f';
 const metadata = {
   name: 'NeoV6 Trading Bot',
   description: 'AI-Powered Algo Trading',
-  https://*.vercel.app // Update with your actual domain
+  domain: "https://*.vercel.app" // Update with your actual domain
   icons: ['https://avatars.githubusercontent.com/u/37784886']
 };
 
