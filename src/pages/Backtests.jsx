@@ -1,9 +1,8 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v65.9 - "Total Blue Eradication"
-// 1. REPLACED: All 'bg-slate-900' in MetricsDisplay, Charts, and Empty State with 'bot-card'.
-// 2. REPLACED: Inactive tabs 'bg-slate-800' with 'bg-black/40'.
-// 3. REPLACED: All 'slate' borders with 'white/10' or 'emerald'.
-// 4. RESULT: A strictly Black & Emerald interface.
+// 🚀 UPGRADE: v66.1 - "Manual Run Mode"
+// 1. CHANGED: Loading a strategy now ONLY populates the inputs.
+// 2. CHANGED: It clears existing charts so you know you need to click "Run".
+// 3. THEME: Kept strictly Jet Black & Emerald.
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios"; 
@@ -17,7 +16,7 @@ import { ChartReplay } from "../components/ChartReplay.jsx";
 import api from "../api/apiClient"; 
 import "./Backtests.css"; 
 
-const COLORS = ["#10b981", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#22c55e"];
+const COLORS = ["#10b981", "#ef4444", "#14b8a6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#22c55e"];
 const REASON_COLORS = ["#10b981", "#f59e0b", "#06b6d4", "#ec4899", "#64748b"]; 
 
 const STRATEGY_TYPE_TO_CODE_MAP = {
@@ -214,7 +213,8 @@ const MetricsDisplay = ({ metrics }) => {
   if (!metrics) return null;
   const items = [
     { label: "Total Return", value: metrics.totalReturn, format: 'percent', color: 'text-emerald-400' },
-    { label: "Profit Factor", value: metrics.profitFactor, format: 'number', color: 'text-blue-400' },
+    // 🎨 FIXED: Changed color from 'text-blue-400' to 'text-teal-400'
+    { label: "Profit Factor", value: metrics.profitFactor, format: 'number', color: 'text-teal-400' },
     { label: "Max Drawdown", value: metrics.maxDrawdown, format: 'percent', color: 'text-amber-400' },
     { label: "Win Rate", value: metrics.winRate, format: 'percent', color: 'text-violet-400' },
     { label: "Total Trades", value: metrics.totalTrades, format: null, color: 'text-cyan-400' },
@@ -495,9 +495,15 @@ export default function Backtests() {
       const filename = e.target.value;
       setSelectedWinnerId(filename);
       const selectedWinner = liveWinners.find(w => w.id === filename);
-      if (!selectedWinner || !selectedWinner.config) return;
       
-      const data = selectedWinner.config;
+      if (!selectedWinner) return;
+
+      // 🚀 UPDATE: Clear previous results so user must click "Run"
+      setBacktestResults({ main: null });
+
+      // Handle data structure (support both nested .config and flat JSON)
+      const data = selectedWinner.config || selectedWinner;
+      
       let symbol = data.symbol || "BTC-USD";
       let timeframe = data.timeframe || "1h";
       if(!data.symbol && filename.includes('_')) {
@@ -856,7 +862,7 @@ export default function Backtests() {
                     {/* Action Buttons */}
                     <div className="flex items-center justify-between mb-6">
                       <div className="px-4 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-xs text-yellow-400 font-mono font-bold">
-                         ⚠ Warmup Period: {warmupRemovedCount} bars excluded
+                          ⚠ Warmup Period: {warmupRemovedCount} bars excluded
                       </div>
 
                       <div className="flex gap-3">
