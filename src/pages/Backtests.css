@@ -1,8 +1,7 @@
-/* File: src/pages/Backtest.css - "Jet Black Edition" */
+/* File: src/pages/Backtests.css - "Jet Black & Emerald Edition" */
 
 .backtest-container {
   padding: 40px;
-  /* CHANGED: From Blue-Grey Gradient to Deep Carbon/Black */
   background: radial-gradient(circle at top right, #1a1a1a 0%, #000000 60%);
   background-color: #000000;
   color: #f8fafc;
@@ -14,21 +13,19 @@
   font-size: 2.2rem;
   font-weight: 800;
   margin-bottom: 30px;
-  /* Kept the accent gradient for pop against the black */
-  background: linear-gradient(135deg, #a78bfa 0%, #60a5fa 100%);
+  /* CHANGED: Back to Green/Emerald Gradient */
+  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   letter-spacing: -0.02em;
-  text-shadow: 0 4px 12px rgba(96, 165, 250, 0.3);
+  text-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
 /* --- CARD STYLES --- */
 .bot-card {
-  /* CHANGED: Deep Black Glass */
   background: rgba(10, 10, 10, 0.9); 
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  /* CHANGED: Border is now neutral grey, not blue-grey */
   border: 1px solid rgba(255, 255, 255, 0.15); 
   border-radius: 16px;
   padding: 28px;
@@ -50,7 +47,7 @@
   text-transform: uppercase;
 }
 
-/* --- FORM ELEMENTS (High Visibility) --- */
+/* --- FORM ELEMENTS --- */
 .selectors-row {
   display: flex;
   gap: 24px;
@@ -66,13 +63,12 @@
   font-size: 0.9rem;
   font-weight: 700;
   color: #e5e5e5;
-  min-width: 240px;
+  /* 🚀 FIX: Removed min-width that caused overflow */
+  min-width: 0; 
 }
 
 select, input {
-  /* CHANGED: Pure black background */
   background: #000000; 
-  /* CHANGED: Neutral Grey border */
   border: 1px solid #404040; 
   color: #ffffff;
   padding: 14px 18px;
@@ -83,21 +79,21 @@ select, input {
   font-family: inherit;
   transition: all 0.2s ease;
   box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  box-sizing: border-box; /* Ensures padding doesn't expand width */
 }
 
 select:focus, input:focus {
-  border-color: #60a5fa;
-  /* CHANGED: Dark Grey on focus */
+  /* CHANGED: Focus color to Green */
+  border-color: #10b981;
   background: #1a1a1a; 
   outline: none;
-  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.3);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.3);
 }
 
 select:hover, input:hover {
   border-color: #737373;
 }
 
-/* Make Dropdown Options Readable */
 option {
   background: #000000;
   color: white;
@@ -106,25 +102,18 @@ option {
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  /* Ensures items fit and wrap if necessary */
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 24px;
   margin-bottom: 28px;
 }
 
-.form-grid label {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #d4d4d4;
-}
-
 /* --- BUTTONS --- */
 .button-start {
-  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  /* CHANGED: Green Gradient */
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: white;
-  border: 1px solid #4ade80;
+  border: 1px solid #34d399;
   padding: 16px 24px;
   border-radius: 10px;
   font-weight: 800;
@@ -134,14 +123,14 @@ option {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   font-size: 1rem;
-  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
   text-shadow: 0 1px 2px rgba(0,0,0,0.3);
 }
 
 .button-start:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(34, 197, 94, 0.4);
-  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
+  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
 }
 
 .button-start:disabled {
@@ -156,41 +145,42 @@ option {
 /* --- TABS --- */
 .tabs {
   margin-bottom: 25px;
-  /* CHANGED: Near Black */
   background: #0a0a0a;
   padding: 6px;
   border-radius: 12px;
   display: inline-flex;
   border: 1px solid #262626;
+  width: 100%; /* Ensure tabs span full width if needed */
 }
 
 .tabs button {
   background: transparent;
   border: none;
   color: #a3a3a3;
-  padding: 10px 24px;
+  padding: 12px 24px;
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   font-size: 0.95rem;
+  flex: 1; /* Distribute space evenly */
 }
 
 .tabs button.active {
-  background: #3b82f6;
+  /* CHANGED: Active tab is now Green */
+  background: #10b981; 
   color: white;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
 }
 
 /* --- METRICS GRID --- */
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 16px;
 }
 
 .metric-item {
-  /* CHANGED: Near Black */
   background: #0a0a0a; 
   padding: 20px;
   border-radius: 12px;
@@ -216,26 +206,21 @@ option {
   letter-spacing: -0.03em;
 }
 
-/* --- SCAN BUTTON --- */
+/* --- SMALL BUTTONS --- */
 .setup-selector button {
   font-size: 0.8rem;
   font-weight: 700;
   color: #ffffff;
-  background: #15803d;
+  /* CHANGED: Green */
+  background: #059669; 
   padding: 6px 12px;
   border-radius: 6px;
-  border: 1px solid #22c55e;
+  border: 1px solid #10b981;
   transition: all 0.2s;
   cursor: pointer;
 }
 
 .setup-selector button:hover {
-  background: #16a34a;
-  box-shadow: 0 0 10px rgba(34, 197, 94, 0.4);
-}
-
-.setup-selector button:disabled {
-  background: #262626;
-  border-color: #404040;
-  color: #737373;
+  background: #10b981;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
 }
