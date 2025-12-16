@@ -1,8 +1,8 @@
 // File: src/pages/Backtests.jsx
 // 🚀 UPGRADE: v66.1 - "Manual Run Mode"
-// 1. CHANGED: Loading a strategy now ONLY populates the inputs.
-// 2. CHANGED: It clears existing charts so you know you need to click "Run".
-// 3. THEME: Kept strictly Jet Black & Emerald.
+// 1. CHANGED: Loading a strategy populates inputs but DOES NOT run the test.
+// 2. CHANGED: Clears existing charts on load so the user knows to click "Run".
+// 3. THEME: Strictly Jet Black & Emerald (Teal accents).
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios"; 
@@ -16,6 +16,7 @@ import { ChartReplay } from "../components/ChartReplay.jsx";
 import api from "../api/apiClient"; 
 import "./Backtests.css"; 
 
+// 🎨 THEME: Emerald & Teal Palette (No Blue)
 const COLORS = ["#10b981", "#ef4444", "#14b8a6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#22c55e"];
 const REASON_COLORS = ["#10b981", "#f59e0b", "#06b6d4", "#ec4899", "#64748b"]; 
 
@@ -498,7 +499,7 @@ export default function Backtests() {
       
       if (!selectedWinner) return;
 
-      // 🚀 UPDATE: Clear previous results so user must click "Run"
+      // 🚀 CRITICAL: Clear charts so user knows to run simulation manually
       setBacktestResults({ main: null });
 
       // Handle data structure (support both nested .config and flat JSON)
@@ -510,30 +511,31 @@ export default function Backtests() {
            const parts = filename.split('_'); if(parts[1]) symbol = parts[1]; if(parts[2]) timeframe = parts[2];
       }
 
-      let strategies = (Array.isArray(data.strategies) ? data.strategies : Array.isArray(data) ? data : []).map(s => {
-          const code = (typeof s === 'string') ? s : (s.code || "unknown");
-          const params = (typeof s === 'string') ? {} : (s.params || s);
+      let strategies = (Array.isArray(data.strategies) ? data.strategies : []).map(s => {
+          const code = s.code || "unknown";
+          const params = s.params || {};
           const matchedOption = strategyOptions.find(opt => opt.code === code);
           return { strategyId: matchedOption ? matchedOption._id : "", code, params };
       });
 
       let mlMode = data.mlMode || "off";
-      let mlModel = data.params?.mlModel || data.mlModel || "";
+      let mlModel = data.mlModel || ""; // 🚀 FIXED: Look at root for mlModel
       if (mlModel && mlMode === "off") mlMode = "predictions";
       if (!mlModel && mlMode !== "off") mlModel = 'btc_1h_xgboost_model'; 
 
-      // 🚀 FIXED: NaN Protection for imported numbers
       const safeNum = (v, def) => (isNaN(Number(v)) ? def : Number(v));
+      // 🚀 FIXED: Load root params for flat JSON structure
+      const rootParams = data.params || {};
 
       setActiveTab('combo');
       setComboData(prev => ({
           ...prev, symbol, timeframe, isCombo: true, strategies,
-          comboConfig: { strategyCodes: strategies.map(s => s.code), combinationRule: data.params?.hybridMode || 'OR' },
+          comboConfig: { strategyCodes: strategies.map(s => s.code), combinationRule: rootParams.hybridMode || 'OR' },
           mlMode, mlModel, mlThreshold: safeNum(data.mlThreshold, 0.5),
           params: { 
-            ...data.params, 
+            ...rootParams, // Load all params (tslAtrMult, minAdx, etc.)
             riskPercentage: safeNum(data.riskPercentage, 1), 
-            maxPyramiding: safeNum(data.maxPyramiding, 1),
+            maxPyramiding: safeNum(rootParams.maxPyramiding, 1),
             growthCapitalTarget: safeNum(data.growthCapitalTarget, 2000)
           }
       }));
