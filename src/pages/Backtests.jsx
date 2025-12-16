@@ -1,7 +1,7 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v65.0 - "Widescreen Configuration & Jet Black UI"
-// 1. Layout changed to 5:7 ratio (approx 42% width) for the config menu.
-// 2. Applied Jet Black UI class names.
+// 🚀 UPGRADE: v65.1 - "Jet Black & Emerald Restoration"
+// 1. Reverted all Blue accents to Emerald/Green.
+// 2. Fixed input overflow by adjusting grid and CSS classes.
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios"; 
@@ -15,8 +15,9 @@ import { ChartReplay } from "../components/ChartReplay.jsx";
 import api from "../api/apiClient"; 
 import "./Backtests.css"; 
 
-const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
-const REASON_COLORS = ["#8b5cf6", "#f59e0b", "#06b6d4", "#ec4899", "#64748b"]; 
+// 🚀 CHANGED: Colors adjusted for Green theme
+const COLORS = ["#10b981", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#22c55e"];
+const REASON_COLORS = ["#10b981", "#f59e0b", "#06b6d4", "#ec4899", "#64748b"]; 
 
 const STRATEGY_TYPE_TO_CODE_MAP = {
   "Moving Average Crossover": "sma_crossover", "RSI": "rsi_divergence", "MACD": "macd_crossover",
@@ -185,7 +186,7 @@ const MonthlyHeatmap = ({ equityCurve }) => {
                     const ret = ((data.end - data.start) / data.start) * 100;
                     const intensity = Math.min(Math.abs(ret) / 10, 1);
                     const bg = ret >= 0 
-                        ? `rgba(34, 197, 94, ${intensity * 0.3})` 
+                        ? `rgba(16, 185, 129, ${intensity * 0.3})` 
                         : `rgba(239, 68, 68, ${intensity * 0.3})`;
                     const borderColor = ret >= 0 ? 'border-emerald-500/30' : 'border-rose-500/30';
                     
@@ -211,13 +212,13 @@ const MetricsDisplay = ({ metrics }) => {
   if (!metrics) return null;
   const items = [
     { label: "Total Return", value: metrics.totalReturn, format: 'percent', color: 'text-emerald-400' },
-    { label: "Profit Factor", value: metrics.profitFactor, format: 'number', color: 'text-blue-400' },
+    { label: "Profit Factor", value: metrics.profitFactor, format: 'number', color: 'text-emerald-400' },
     { label: "Max Drawdown", value: metrics.maxDrawdown, format: 'percent', color: 'text-amber-400' },
     { label: "Win Rate", value: metrics.winRate, format: 'percent', color: 'text-violet-400' },
     { label: "Total Trades", value: metrics.totalTrades, format: null, color: 'text-cyan-400' },
     { label: "Avg. Win", value: metrics.averageWin, format: 'currency', color: 'text-emerald-400' },
     { label: "Avg. Loss", value: metrics.averageLoss, format: 'currency', color: 'text-rose-400' },
-    { label: "Final Balance", value: metrics.finalBalance, format: 'currency', color: 'text-blue-400' }
+    { label: "Final Balance", value: metrics.finalBalance, format: 'currency', color: 'text-emerald-400' }
   ];
 
   return (
@@ -235,14 +236,14 @@ const MetricsDisplay = ({ metrics }) => {
   );
 };
 
-// 🚀 NEW: Risk & Efficiency Card
+// 🚀 RISK & EFFICIENCY CARD
 const AdvancedMetricsDisplay = ({ metrics }) => {
     if (!metrics) return null;
     const items = [
-        { label: "Sharpe Ratio", value: metrics.sharpeRatio?.toFixed(2), desc: "Risk-Adjusted Return" },
-        { label: "Sortino Ratio", value: metrics.sortinoRatio?.toFixed(2), desc: "Downside Risk Only" },
-        { label: "Expectancy", value: `$${metrics.expectancy?.toFixed(2)}`, desc: "Avg Value Per Trade" },
-        { label: "Avg Hold Time", value: `${metrics.avgHoldTime?.toFixed(1)}h`, desc: "Duration in Market" },
+        { label: "Sharpe Ratio", value: metrics.sharpeRatio?.toFixed(2), desc: "Risk-Adjusted Return", color: 'text-white' },
+        { label: "Sortino Ratio", value: metrics.sortinoRatio?.toFixed(2), desc: "Downside Risk Only", color: 'text-white' },
+        { label: "Expectancy", value: `$${metrics.expectancy?.toFixed(2)}`, desc: "Avg Value Per Trade", color: 'text-white' },
+        { label: "Avg Hold Time", value: `${metrics.avgHoldTime?.toFixed(1)}h`, desc: "Duration in Market", color: 'text-white' },
         { label: "Max Lose Streak", value: metrics.maxLosingStreak, desc: "Consecutive Losses", color: "text-rose-400" }
     ];
 
@@ -251,7 +252,7 @@ const AdvancedMetricsDisplay = ({ metrics }) => {
             {items.map((m, idx) => (
                 <div key={idx} className="metric-item flex flex-col items-center justify-center text-center">
                     <span className="metric-label mb-1">{m.label}</span>
-                    <div className={`text-xl font-mono font-bold ${m.color || 'text-white'}`}>{m.value}</div>
+                    <div className={`text-xl font-mono font-bold ${m.color}`}>{m.value}</div>
                     <span className="text-slate-500 text-[10px] mt-1">{m.desc}</span>
                 </div>
             ))}
@@ -291,7 +292,7 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
           </div>
         </div>
         
-        {/* Row 2: Dates */}
+        {/* Row 2: Dates - Fixed Overflow here by CSS adjustment */}
         <div className="form-grid mb-6" style={{gridTemplateColumns: '1fr 1fr'}}>
           <div className="setup-selector">
             <label>Start Date</label>
@@ -661,7 +662,7 @@ export default function Backtests() {
       <div className="container mx-auto">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-blue-500 to-violet-600 rounded-xl shadow-lg shadow-blue-500/20">
+              <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl shadow-lg shadow-emerald-500/20">
                 <span className="text-2xl">📈</span>
               </div>
               <div>
@@ -685,7 +686,7 @@ export default function Backtests() {
             <div className="bot-card sticky top-6">
               {/* ... (Existing Config UI Code) ... */}
               <div className="panel-header flex items-center gap-3">
-                <span className="text-blue-400 text-lg">⚙️</span>
+                <span className="text-emerald-400 text-lg">⚙️</span>
                 <h2 className="card-title">Configuration</h2>
               </div>
               
@@ -833,7 +834,7 @@ export default function Backtests() {
                       <div className="bot-card">
                         <div className="panel-header flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                              <span className="text-blue-400 text-lg">📈</span>
+                              <span className="text-emerald-400 text-lg">📈</span>
                               <h3 className="card-title">Price Action & Signals</h3>
                             </div>
                             
@@ -878,7 +879,7 @@ export default function Backtests() {
                       {/* Equity Curve */}
                       <div className="bot-card">
                         <div className="panel-header flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500/20 to-violet-500/20 rounded-xl flex items-center justify-center text-xl">
+                          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl flex items-center justify-center text-xl">
                             🚀
                           </div>
                           <h3 className="card-title">Equity vs Buy & Hold</h3>
@@ -887,8 +888,8 @@ export default function Backtests() {
                           <AreaChart data={processedData}>
                             <defs>
                               <linearGradient id="colorEquity" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                                <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                               </linearGradient>
                               <linearGradient id="colorBuyHold" x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.2}/>
@@ -900,7 +901,7 @@ export default function Backtests() {
                             <YAxis domain={['auto', 'auto']} stroke="#525252" tick={{ fill: '#737373', fontSize: 12 }} />
                             <Tooltip contentStyle={{ backgroundColor: '#0a0a0a', border: '1px solid #333', borderRadius: '8px', color: '#fff' }} />
                             <Legend wrapperStyle={{paddingTop: '20px'}}/>
-                            <Area type="monotone" dataKey="balance" stroke="#8b5cf6" strokeWidth={2} fillOpacity={1} fill="url(#colorEquity)" name="Strategy" />
+                            <Area type="monotone" dataKey="balance" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorEquity)" name="Strategy" />
                             <Area type="monotone" dataKey="buyHold" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 5" fillOpacity={1} fill="url(#colorBuyHold)" name="Buy & Hold" />
                           </AreaChart>
                         </ResponsiveContainer>
@@ -909,7 +910,7 @@ export default function Backtests() {
                       {/* Trade Outcomes & Reasons */}
                       <div className="bot-card">
                         <div className="panel-header flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-rose-500/20 rounded-xl flex items-center justify-center text-xl">
+                          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl flex items-center justify-center text-xl">
                             📊
                           </div>
                           <h3 className="card-title">Trade Outcomes</h3>
