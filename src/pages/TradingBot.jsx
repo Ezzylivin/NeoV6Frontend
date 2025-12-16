@@ -1,6 +1,6 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v67.0 - Web3 Wallet Integration
-// Changes: Now uses the connected Wallet Address as the 'userId' for the bot.
+// 🚀 UPGRADE: v67.1 - Added Trading Mode Payload
+// Changes: Fixed bug where 'tradingMode' wasn't being sent to backend.
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios"; 
@@ -196,6 +196,9 @@ const TradingBotContainer = () => {
         const cleanPayload = {
             // 🚀 NEW: Attach Wallet Address as ID
             userId: address,
+
+            // 🚀 CRITICAL FIX: Send the Trading Mode ('paper' or 'live')
+            mode: formConfig.tradingMode, 
             
             symbol: formConfig.symbol,
             timeframe: formConfig.timeframe,
