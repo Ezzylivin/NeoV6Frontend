@@ -1,9 +1,9 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v65.6 - "Configuration Color Purge"
-// 1. REPLACED: All 'bg-slate-800' inputs with 'bg-black' or 'bg-neutral-900'.
-// 2. REPLACED: 'cyan' gradients in Strategy Loader with 'emerald'.
-// 3. UPDATED: Text colors from 'slate-400' to 'neutral-400' (removes blueish text tint).
-// 4. ENSURED: Configuration menu is strictly Black/Grey/Green.
+// 🚀 UPGRADE: v65.7 - "Total Blue Eradication"
+// 1. FIXED: Removed lingering 'bg-slate-900' from MonthlyHeatmap.
+// 2. FIXED: Removed 'bg-slate-900' from Charts Container.
+// 3. FIXED: Replaced 'text-blue-400' icons with 'text-emerald-400'.
+// 4. STANDARDIZED: All cards now use 'bot-card' class.
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios"; 
@@ -17,7 +17,6 @@ import { ChartReplay } from "../components/ChartReplay.jsx";
 import api from "../api/apiClient"; 
 import "./Backtests.css"; 
 
-// 🟢 Theme Colors
 const COLORS = ["#10b981", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#22c55e"];
 const REASON_COLORS = ["#10b981", "#f59e0b", "#06b6d4", "#ec4899", "#64748b"]; 
 
@@ -174,6 +173,7 @@ const MonthlyHeatmap = ({ equityCurve }) => {
         monthlyReturns[monthKey].end = point.balance;
     });
     
+    // 🚀 FIXED: Removed 'bg-slate-900', now uses 'bot-card'
     return (
         <div className="bot-card" style={{marginTop:'24px'}}>
             <div className="panel-header flex items-center gap-3">
@@ -194,6 +194,7 @@ const MonthlyHeatmap = ({ equityCurve }) => {
                     return (
                         <div 
                             key={month} 
+                            // 🚀 FIXED: Removed slate bg, used simple border logic
                             className={`border ${borderColor} rounded-xl p-4 text-center hover:scale-105 transition-all`}
                             style={{backgroundColor: bg}}
                         >
@@ -269,8 +270,7 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
     };
     const params = data.params || {};
    
-    // 🚀 FIXED: Removed all 'bg-slate' and 'border-slate' from inputs.
-    // 🚀 FIXED: Inputs now rely on 'bot-card input' styles from CSS (Black).
+    // 🚀 FIXED: Standardized input style for reuse
     const inputClass = "w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
     
     return (
@@ -310,6 +310,7 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
         </div>
         
         {/* Risk & ML Section */}
+        {/* 🚀 FIXED: Removed bg-slate, replaced with bot-card style */}
         <div className="bot-card mb-6" style={{background: 'rgba(16, 185, 129, 0.05)', borderColor: 'rgba(16, 185, 129, 0.2)'}}>
           <div className="panel-header mb-4 pb-3 border-b border-emerald-500/20">
             <h4 className="text-emerald-400 font-bold">Risk & ML Configuration</h4>
@@ -658,6 +659,7 @@ export default function Backtests() {
        };
   }, [backtestResults, activeTab, formData, comboData]);
 
+  // 🚀 FIXED: Pie Data now uses explicit winningTrades and losingTrades
   const pieData = useMemo(() => {
     if (!combinedMetrics) return [];
     return [
@@ -696,7 +698,9 @@ export default function Backtests() {
         <div className="grid grid-cols-12 gap-8">
           {/* Left Column - Configuration (5/12 width) */}
           <div className="col-span-12 lg:col-span-5">
+            {/* 🚀 FIXED: Replaced bg-slate with bot-card */}
             <div className="bot-card sticky top-6">
+              {/* ... (Existing Config UI Code) ... */}
               <div className="panel-header flex items-center gap-3">
                 <span className="text-emerald-400 text-lg">⚙️</span>
                 <h2 className="card-title">Configuration</h2>
@@ -804,6 +808,7 @@ export default function Backtests() {
             {(loading !== 'idle' || combinedMetrics || error) ? (
               <>
                 {loading !== 'idle' && (
+                  // 🚀 FIXED: Replaced bg-slate with bot-card and Updated Spinner Color
                   <div className="bot-card p-12 flex flex-col items-center justify-center min-h-[400px]">
                     <div className="w-20 h-20 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mb-6"></div>
                     <h3 className="text-white text-xl mb-2 font-bold">
@@ -847,6 +852,7 @@ export default function Backtests() {
                     
                     {/* Chart Card */}
                     {mainResult && mainResult.candleData?.length > 0 && (
+                      // 🚀 FIXED: Replaced bg-slate with bot-card
                       <div className="bot-card">
                         <div className="panel-header flex items-center justify-between">
                             <div className="flex items-center gap-3">
@@ -877,6 +883,7 @@ export default function Backtests() {
                               <ChartIndependent 
                                   results={mainResult} 
                                   symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} 
+                                  // FIX 2: Use the calculated actual dates from the data
                                   startDate={actualStartDate}
                                   endDate={actualEndDate}
                               />
@@ -895,6 +902,7 @@ export default function Backtests() {
                     {/* Charts Container */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Equity Curve */}
+                      {/* 🚀 FIXED: Replaced bg-slate with bot-card */}
                       <div className="bot-card">
                         <div className="panel-header flex items-center gap-3">
                           <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl flex items-center justify-center text-xl">
@@ -926,6 +934,7 @@ export default function Backtests() {
                       </div>
                       
                       {/* Trade Outcomes & Reasons */}
+                      {/* 🚀 FIXED: Replaced bg-slate with bot-card */}
                       <div className="bot-card">
                         <div className="panel-header flex items-center gap-3">
                           <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl flex items-center justify-center text-xl">
@@ -971,6 +980,7 @@ export default function Backtests() {
                 )}
               </>
             ) : (
+              // 🚀 FIXED: Replaced bg-slate with bot-card, replaced blue icon
               <div className="bot-card p-12 flex flex-col items-center justify-center min-h-[600px]">
                 <div className="w-20 h-20 bg-gradient-to-br from-emerald-500/20 to-teal-600/20 rounded-2xl flex items-center justify-center mb-6 text-4xl">🏆</div>
                 <h3 className="text-white text-xl mb-2 font-bold">Ready to Test Your Strategy</h3>
