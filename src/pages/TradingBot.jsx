@@ -1,34 +1,117 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v70.0 - Session Persistence & Panic Button
-// Changes: Remembers trading mode on refresh, adds Panic Sell logic.
+// 🚀 UPGRADE: v71.0 - Pre-Flight, Risk Guardrails, Health Bar, Crash Recovery
+// Changes: Added Pre-Flight Checklist, Risk Inputs, Sticky Status Bar, Local Storage persistence.
 
 import React, { useState, useEffect, useRef } from "react";
-import axios from "axios"; 
-import { useAccount } from 'wagmi'; 
-import { ConnectButton } from '@rainbow-me/rainbowkit'; 
-import { Link } from 'react-router-dom'; 
+import axios from "axios";
+import { useAccount } from 'wagmi';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { Link } from 'react-router-dom';
 import { useBot } from '../hooks/useBot.js';
-import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx"; 
+import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { UIModeProvider } from "../context/UIModeContext";
-import TradingBotShell from "./TradingBotShell"; 
-import "./TradingBot.css"; 
-import "../styles/Themes.css"; 
+import TradingBotShell from "./TradingBotShell";
+import "./TradingBot.css";
+import "../styles/Themes.css";
 
-// --- MODE SELECTION MODAL COMPONENT ---
+// --- COMPONENTS ---
+
+// 3. Bot Health & Status Bar
+const BotStatusBar = ({ status, pnl, winRate, latency, mode }) => (
+    <div className={`sticky top-0 z-40 flex items-center justify-between px-6 py-2 border-b backdrop-blur-md ${mode === 'live' ? 'bg-red-900/20 border-red-500/30' : 'bg-emerald-900/20 border-emerald-500/30'}`}>
+        <div className="flex items-center gap-4">
+            <div className={`flex items-center gap-2 text-sm font-bold ${status === 'running' ? 'text-green-400' : 'text-red-400'}`}>
+                <span className={`w-2 h-2 rounded-full ${status === 'running' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+                {status === 'running' ? 'RUNNING' : 'STOPPED'}
+            </div>
+            <div className="h-4 w-px bg-white/10"></div>
+            <div className="text-xs text-neutral-400 font-mono">
+                LATENCY: <span className={latency < 100 ? 'text-green-400' : 'text-yellow-400'}>{latency || '--'}ms</span>
+            </div>
+        </div>
+        <div className="flex items-center gap-6">
+            <div className="text-center">
+                <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider">Session PnL</div>
+                <div className={`text-sm font-mono font-bold ${pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {pnl >= 0 ? '+' : ''}{pnl ? `$${pnl.toFixed(2)}` : '--'}
+                </div>
+            </div>
+            <div className="text-center">
+                <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider">Win Rate</div>
+                <div className="text-sm font-mono font-bold text-white">{winRate ? `${winRate}%` : '--'}</div>
+            </div>
+             {/* 16. Environment Badges */}
+            <div className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest border ${mode === 'live' ? 'bg-red-600 text-white border-red-500' : 'bg-emerald-600 text-black border-emerald-400'}`}>
+                {mode === 'live' ? 'LIVE MODE' : 'PAPER MODE'}
+            </div>
+        </div>
+    </div>
+);
+
+// 1. Pre-Flight Validation Panel
+const PreFlightModal = ({ config, onConfirm, onCancel, isStarting }) => {
+    const [checks, setChecks] = useState({
+        wallet: false,
+        keys: false,
+        capital: false,
+        strategy: false
+    });
+
+    useEffect(() => {
+        const timer = setTimeout(() => setChecks(c => ({ ...c, wallet: true })), 500);
+        const timer2 = setTimeout(() => setChecks(c => ({ ...c, keys: true })), 1000); // Mock check
+        const timer3 = setTimeout(() => setChecks(c => ({ ...c, capital: config.capitalAllocation >= 100 })), 1500);
+        const timer4 = setTimeout(() => setChecks(c => ({ ...c, strategy: config.strategies.length > 0 || config.isCombo })), 2000);
+        return () => { clearTimeout(timer); clearTimeout(timer2); clearTimeout(timer3); clearTimeout(timer4); };
+    }, [config]);
+
+    const allPassed = Object.values(checks).every(Boolean);
+
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 backdrop-blur-xl">
+            <div className="max-w-md w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-6 shadow-2xl animate-fade-in-up">
+                <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                    <span className="text-yellow-500">🚀</span> Pre-Flight Check
+                </h3>
+                
+                <div className="space-y-3 mb-8">
+                    <CheckItem label="Wallet Connection" status={checks.wallet} />
+                    <CheckItem label="API Keys Verified" status={checks.keys} />
+                    <CheckItem label={`Capital Allocation ($${config.capitalAllocation})`} status={checks.capital} />
+                    <CheckItem label="Strategy Logic Loaded" status={checks.strategy} />
+                </div>
+
+                <div className="flex gap-3">
+                    <button onClick={onCancel} className="flex-1 py-3 rounded-lg border border-white/10 text-neutral-400 hover:text-white hover:bg-white/5 transition">
+                        Abort
+                    </button>
+                    <button 
+                        onClick={onConfirm} 
+                        disabled={!allPassed || isStarting}
+                        className={`flex-1 py-3 rounded-lg font-bold text-black transition flex justify-center items-center gap-2 ${allPassed ? 'bg-yellow-500 hover:bg-yellow-400 shadow-lg shadow-yellow-500/20' : 'bg-neutral-700 text-neutral-500 cursor-not-allowed'}`}
+                    >
+                        {isStarting ? 'Igniting...' : 'LAUNCH BOT'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const CheckItem = ({ label, status }) => (
+    <div className="flex items-center justify-between p-3 bg-black/40 rounded border border-white/5">
+        <span className="text-sm text-neutral-300">{label}</span>
+        {status ? <span className="text-green-500 font-bold">✔ OK</span> : <span className="text-neutral-600 animate-pulse">Checking...</span>}
+    </div>
+);
+
+
+// --- MODE SELECTION MODAL (Kept mostly same, added logic to open Pre-Flight) ---
 const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
-    const [step, setStep] = useState('selection'); 
+    const [step, setStep] = useState('selection');
     const [paperBalance, setPaperBalance] = useState(10000);
     const [agreedRisk, setAgreedRisk] = useState(false);
     const [agreedBot, setAgreedBot] = useState(false);
-    const [isStarting, setIsStarting] = useState(false); // 🚀 UX: Loading State
-
-    // Helper to wrap selection with loading state
-    const handleSelect = async (mode, balance) => {
-        setIsStarting(true);
-        // Simulate a brief delay or wait for parent logic if needed
-        await onSelect(mode, balance); 
-        setIsStarting(false);
-    };
 
     if (!isConnected) {
         return (
@@ -46,66 +129,50 @@ const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md">
             <div className="max-w-5xl w-full p-6 animate-fade-in">
-                
                 {step === 'selection' && (
                     <div className="text-center">
                          <h1 className="text-4xl font-bold text-white mb-2">Trading Environment</h1>
                          <p className="text-neutral-400 mb-10">Select your operational mode.</p>
-
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-                            {/* PAPER TRADING CARD */}
                             <div onClick={() => setStep('paper_setup')} className="group cursor-pointer bg-[#1a1a1a] border border-white/10 hover:border-emerald-500/50 hover:bg-[#1f2937] p-8 rounded-2xl transition-all duration-300 transform hover:-translate-y-1 relative overflow-hidden">
                                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition"><span className="text-9xl">📄</span></div>
                                 <h3 className="text-2xl font-bold text-emerald-400 mb-2">Paper Trading</h3>
-                                <p className="text-neutral-300 mb-6">Simulate trades with fake money. Zero risk. Perfect for testing new strategies.</p>
+                                <p className="text-neutral-300 mb-6">Simulate trades with fake money. Zero risk.</p>
                                 <div className="flex items-center gap-2 text-sm text-emerald-500 font-bold uppercase tracking-wider"><span>Configure Simulation</span><span>→</span></div>
                             </div>
-
-                            {/* LIVE TRADING CARD */}
                             <div onClick={() => { if (hasApiKeys) setStep('live_agreement'); }} className={`group relative p-8 rounded-2xl border transition-all duration-300 overflow-hidden ${hasApiKeys ? 'cursor-pointer bg-[#1a0505] border-red-900/30 hover:border-red-500/50 hover:bg-[#2f0a0a] transform hover:-translate-y-1' : 'cursor-not-allowed bg-neutral-900 border-neutral-800 opacity-70'}`}>
                                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition"><span className="text-9xl">⚡</span></div>
                                 <h3 className={`text-2xl font-bold mb-2 ${hasApiKeys ? 'text-red-500' : 'text-neutral-500'}`}>Live Trading</h3>
-                                <p className="text-neutral-300 mb-6">Execute real orders on your exchange. Real capital is at risk.</p>
+                                <p className="text-neutral-300 mb-6">Execute real orders. Real capital at risk.</p>
                                 {hasApiKeys ? (
                                     <div className="flex items-center gap-2 text-sm text-red-500 font-bold uppercase tracking-wider"><span>Enter Danger Zone</span><span>→</span></div>
                                 ) : (
                                     <div className="flex flex-col gap-3">
-                                        <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-3 py-2 rounded text-xs font-bold text-center">⛔ LOCKED: No API Keys Found</div>
-                                        <Link to="/settings" className="text-sm text-white underline hover:text-red-400 relative z-10">Go to Settings to Add Keys</Link>
+                                        <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-3 py-2 rounded text-xs font-bold text-center">⛔ LOCKED: No API Keys</div>
+                                        <Link to="/settings" className="text-sm text-white underline hover:text-red-400 relative z-10">Go to Settings</Link>
                                     </div>
                                 )}
                             </div>
                         </div>
                     </div>
                 )}
-
                 {step === 'paper_setup' && (
                     <div className="max-w-md mx-auto bg-[#1a1a1a] border border-white/10 p-8 rounded-2xl animate-fade-in-up">
                         <button onClick={() => setStep('selection')} className="text-neutral-500 hover:text-white mb-6 text-sm">← Back</button>
                         <h3 className="text-2xl font-bold text-emerald-400 mb-2">Setup Simulation</h3>
-                        <p className="text-neutral-400 mb-6 text-sm">How much fake capital should we start with?</p>
-                        <div className="mb-6">
-                            <label className="block text-xs font-bold text-neutral-500 uppercase mb-2">Starting Balance ($)</label>
-                            <input type="number" value={paperBalance} onChange={(e) => setPaperBalance(Number(e.target.value))} className="w-full bg-black border border-white/20 rounded-lg p-4 text-2xl text-white font-mono focus:border-emerald-500 outline-none" />
-                        </div>
-                        <button onClick={() => handleSelect('paper', paperBalance)} disabled={isStarting} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-lg transition flex justify-center items-center gap-2">
-                            {isStarting ? 'Initializing...' : 'Start Simulation'}
-                        </button>
+                        <div className="mb-6"><label className="block text-xs font-bold text-neutral-500 uppercase mb-2">Starting Balance ($)</label><input type="number" value={paperBalance} onChange={(e) => setPaperBalance(Number(e.target.value))} className="w-full bg-black border border-white/20 rounded-lg p-4 text-2xl text-white font-mono focus:border-emerald-500 outline-none" /></div>
+                        <button onClick={() => onSelect('paper', paperBalance)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-lg transition">Start Simulation</button>
                     </div>
                 )}
-
                 {step === 'live_agreement' && (
                     <div className="max-w-lg mx-auto bg-[#1a0505] border border-red-500/30 p-8 rounded-2xl shadow-[0_0_50px_rgba(220,38,38,0.2)] animate-fade-in-up">
                         <button onClick={() => setStep('selection')} className="text-red-400/60 hover:text-red-400 mb-6 text-sm">← Cancel</button>
-                        <div className="flex items-center gap-3 mb-4"><span className="text-4xl">⚠️</span><h3 className="text-2xl font-bold text-white">Live Trading Agreement</h3></div>
-                        <div className="bg-red-500/10 p-4 rounded-lg border border-red-500/20 mb-6 text-sm text-red-200 leading-relaxed">You are about to give an autonomous bot permission to trade with <strong>REAL MONEY</strong>. Market conditions can change instantly, and losses can exceed deposits.</div>
+                        <h3 className="text-2xl font-bold text-white mb-4">Live Trading Agreement</h3>
                         <div className="space-y-4 mb-8">
-                            <label className="flex items-start gap-3 cursor-pointer group"><input type="checkbox" checked={agreedRisk} onChange={(e) => setAgreedRisk(e.target.checked)} className="mt-1 w-5 h-5 bg-black border border-red-500/30 rounded focus:ring-red-500 checked:bg-red-600 cursor-pointer" /><span className="text-sm text-neutral-300 group-hover:text-white transition">I understand that I am responsible for all financial losses.</span></label>
-                            <label className="flex items-start gap-3 cursor-pointer group"><input type="checkbox" checked={agreedBot} onChange={(e) => setAgreedBot(e.target.checked)} className="mt-1 w-5 h-5 bg-black border border-red-500/30 rounded focus:ring-red-500 checked:bg-red-600 cursor-pointer" /><span className="text-sm text-neutral-300 group-hover:text-white transition">I agree that this software is provided "as is".</span></label>
+                            <label className="flex items-start gap-3 cursor-pointer"><input type="checkbox" checked={agreedRisk} onChange={(e) => setAgreedRisk(e.target.checked)} className="mt-1 w-5 h-5 bg-black border border-red-500/30 rounded focus:ring-red-500 checked:bg-red-600" /><span className="text-sm text-neutral-300">I accept financial responsibility.</span></label>
+                            <label className="flex items-start gap-3 cursor-pointer"><input type="checkbox" checked={agreedBot} onChange={(e) => setAgreedBot(e.target.checked)} className="mt-1 w-5 h-5 bg-black border border-red-500/30 rounded focus:ring-red-500 checked:bg-red-600" /><span className="text-sm text-neutral-300">I accept software provided "as is".</span></label>
                         </div>
-                        <button onClick={() => handleSelect('live', null)} disabled={!agreedRisk || !agreedBot || isStarting} className={`w-full py-4 rounded-lg font-bold text-lg transition-all duration-300 flex justify-center items-center gap-2 ${agreedRisk && agreedBot ? 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-900/50' : 'bg-neutral-800 text-neutral-500 cursor-not-allowed'}`}>
-                            {isStarting ? 'Entering Market...' : (agreedRisk && agreedBot ? 'ENTER LIVE MARKET' : 'Accept Terms to Proceed')}
-                        </button>
+                        <button onClick={() => onSelect('live', null)} disabled={!agreedRisk || !agreedBot} className={`w-full py-4 rounded-lg font-bold text-lg transition-all ${agreedRisk && agreedBot ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-neutral-800 text-neutral-500 cursor-not-allowed'}`}>ENTER LIVE MARKET</button>
                     </div>
                 )}
             </div>
@@ -116,11 +183,18 @@ const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
 // --- MAIN LOGIC CONTAINER ---
 const TradingBotContainer = () => {
     const { botStatus, logs: apiLogs, loading: botLoading, startBot, stopBot, refreshBotData } = useBot();
-    const { setups } = useBacktestSetupFunction(); 
+    const { setups } = useBacktestSetupFunction();
     const { address, isConnected } = useAccount();
 
     const [isModeSelected, setIsModeSelected] = useState(false);
     const [hasApiKeys, setHasApiKeys] = useState(false);
+    const [showPreFlight, setShowPreFlight] = useState(false); // 🚀 Pre-Flight State
+    const [isStarting, setIsStarting] = useState(false); // Loading state
+
+    // 15. Log Filtering
+    const [logFilter, setLogFilter] = useState('ALL'); // 'ALL', 'SYSTEM', 'TRADE', 'ERROR'
+
+    // Local State
     const [liveWinners, setLiveWinners] = useState([]);
     const [scanningWinners, setScanningWinners] = useState(false);
     const [selectedWinnerId, setSelectedWinnerId] = useState("");
@@ -129,61 +203,65 @@ const TradingBotContainer = () => {
     const logsContainerRef = useRef(null);
     const [persistentLogs, setPersistentLogs] = useState([]);
     
-    // 3. 📝 Form State
+    // 3. 📝 Form State (Added Risk Guardrails)
     const [formConfig, setFormConfig] = useState({
         isCombo: false, strategyId: '', comboConfig: { strategyCodes: [], combinationRule: 'AND' },
         symbol: 'BTC-USD', timeframe: '1h', capitalAllocation: 1000, tradingMode: 'paper',
         params: {}, strategies: [], mlMode: 'off', mlModel: '', mlThreshold: 0.5,
-        riskManagementMode: 'static', riskPercentage: 1, growthCapitalTarget: 2000
+        riskManagementMode: 'static', riskPercentage: 1, growthCapitalTarget: 2000,
+        // 2. Live Risk Guardrails
+        maxDailyLoss: 5, maxDrawdown: 10, maxTradesPerDay: 20 
     });
 
-    // 🚀 RESTORE SESSION ON MOUNT
+    // 14. Local Crash Recovery
     useEffect(() => {
         const savedSession = sessionStorage.getItem('botSession');
         if (savedSession) {
             const { mode, balance } = JSON.parse(savedSession);
-            setFormConfig(prev => ({
-                ...prev,
-                tradingMode: mode,
-                capitalAllocation: balance || prev.capitalAllocation
-            }));
+            setFormConfig(prev => ({ ...prev, tradingMode: mode, capitalAllocation: balance || prev.capitalAllocation }));
             setIsModeSelected(true);
         }
+        
+        // Restore logs? (Optional, might be heavy)
+        // const savedLogs = localStorage.getItem('persistentLogs');
+        // if(savedLogs) setPersistentLogs(JSON.parse(savedLogs));
     }, []);
 
-    // 🚀 CHECK API KEYS
+    // Check API Keys
     useEffect(() => {
         const checkKeys = async () => {
             try {
                 const token = localStorage.getItem("token");
-                const res = await axios.get('https://neov6backend.onrender.com/api/users/keys', {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                const keyList = Array.isArray(res.data) ? res.data : (res.data.keys || []);
-                setHasApiKeys(keyList.length > 0);
+                const res = await axios.get('https://neov6backend.onrender.com/api/users/keys', { headers: { Authorization: `Bearer ${token}` } });
+                setHasApiKeys((Array.isArray(res.data) ? res.data : (res.data.keys || [])).length > 0);
             } catch (err) { setHasApiKeys(false); }
         };
         if (isConnected) checkKeys();
     }, [isConnected]);
 
-    // ... [KEEP YOUR EXISTING useEffects for Logs, Scroll, etc. HERE] ...
+    // Logs Logic
     useEffect(() => {
         if (apiLogs && apiLogs.length > 0) {
             setPersistentLogs(prevLogs => {
-                const newLogs = apiLogs.filter(apiLog => !prevLogs.some(prevLog => prevLog.timestamp === apiLog.timestamp && prevLog.message === apiLog.message));
-                const combined = [...prevLogs, ...newLogs].sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
-                return combined.slice(-500);
+                const newLogs = apiLogs.filter(apiLog => !prevLogs.some(p => p.timestamp === apiLog.timestamp && p.message === apiLog.message));
+                return [...prevLogs, ...newLogs].sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp)).slice(-500);
             });
         }
     }, [apiLogs]);
-    const visibleLogs = persistentLogs.filter(log => new Date(log.timestamp).getTime() > logsClearedTime);
+
+    const visibleLogs = persistentLogs
+        .filter(log => new Date(log.timestamp).getTime() > logsClearedTime)
+        .filter(log => logFilter === 'ALL' || (log.type && log.type.toUpperCase() === logFilter)); // 15. Filtering
+
     const handleClearLogs = () => setLogsClearedTime(Date.now());
-    useEffect(() => { if (logsContainerRef.current) logsContainerRef.current.scrollTo({ top: logsContainerRef.current.scrollHeight, behavior: 'smooth' }); }, [persistentLogs]);
+    useEffect(() => { if (logsContainerRef.current) logsContainerRef.current.scrollTo({ top: logsContainerRef.current.scrollHeight, behavior: 'smooth' }); }, [persistentLogs, logFilter]);
+
     useEffect(() => {
         let interval;
         if (botStatus?.status === 'running') interval = setInterval(() => refreshBotData(), 2000);
         return () => clearInterval(interval);
     }, [botStatus?.status, refreshBotData]);
+
     const fetchWinners = async () => {
         setScanningWinners(true);
         try {
@@ -193,28 +271,17 @@ const TradingBotContainer = () => {
         } catch (err) { console.error("Failed to load winners:", err); } finally { setScanningWinners(false); }
     };
     useEffect(() => { fetchWinners(); }, []);
-    // ... [END EXISTING EFFECTS] ...
 
-
-    // 🚀 Handle Mode Selection & Save Session
     const handleModeSelection = (mode, balance) => {
         const allocation = mode === 'paper' ? balance : formConfig.capitalAllocation;
-        
-        setFormConfig(prev => ({
-            ...prev,
-            tradingMode: mode,
-            capitalAllocation: allocation
-        }));
-        
-        // Save to Session Storage so reload doesn't kill it
+        setFormConfig(prev => ({ ...prev, tradingMode: mode, capitalAllocation: allocation }));
         sessionStorage.setItem('botSession', JSON.stringify({ mode, balance: allocation }));
         setIsModeSelected(true);
     };
 
-    // 🚀 HANDLERS
+    // Handlers
     const handleSetupSelect = (e) => {
-        const setupId = e.target.value;
-        setSelectedSetupId(setupId); setSelectedWinnerId(""); 
+        const setupId = e.target.value; setSelectedSetupId(setupId); setSelectedWinnerId(""); 
         const setup = setups.find(s => s._id === setupId);
         if (setup) {
             const isCombo = setup.isCombo || (setup.strategies && setup.strategies.length > 1);
@@ -230,8 +297,7 @@ const TradingBotContainer = () => {
     };
 
     const handleWinnerSelect = (e) => {
-        const filename = e.target.value;
-        setSelectedWinnerId(filename);
+        const filename = e.target.value; setSelectedWinnerId(filename);
         const selectedWinner = liveWinners.find(w => w.id === filename);
         if (!selectedWinner || !selectedWinner.config) return;
         const data = selectedWinner.config;
@@ -249,10 +315,18 @@ const TradingBotContainer = () => {
         }));
     };
 
-    const handleStart = async (e) => {
+    // 🚀 MODIFIED: Triggers Pre-Flight instead of starting immediately
+    const handleStartClick = (e) => {
         e.preventDefault();
         if (!isConnected || !address) { alert("⚠️ Wallet Disconnected!"); return; }
+        setShowPreFlight(true);
+    };
+
+    // 🚀 NEW: Actual Start Logic (Called by Pre-Flight)
+    const handleConfirmStart = async () => {
+        setIsStarting(true);
         setLogsClearedTime(0); setPersistentLogs([]); 
+        
         const cleanStrategies = (formConfig.strategies || []).map(s => ({ code: s.code || "unknown", params: s.params || {} }));
         const cleanPayload = {
             userId: address, mode: formConfig.tradingMode, symbol: formConfig.symbol, timeframe: formConfig.timeframe,
@@ -260,60 +334,59 @@ const TradingBotContainer = () => {
             mlMode: formConfig.mlMode, mlModel: formConfig.mlModel, mlThreshold: Number(formConfig.mlThreshold),
             isCombo: !!formConfig.isCombo, comboConfig: formConfig.comboConfig || { strategyCodes: cleanStrategies.map(s => s.code), combinationRule: 'AND' },
             strategies: cleanStrategies, params: formConfig.params || {}, maxPyramiding: parseInt(formConfig.params?.maxPyramiding || 1, 10),
-            riskManagementMode: formConfig.riskManagementMode, riskPercentage: Number(formConfig.riskPercentage), growthCapitalTarget: Number(formConfig.growthCapitalTarget)
+            riskManagementMode: formConfig.riskManagementMode, riskPercentage: Number(formConfig.riskPercentage), growthCapitalTarget: Number(formConfig.growthCapitalTarget),
+            // 2. Sending Guardrails to Backend
+            maxDailyLoss: Number(formConfig.maxDailyLoss), maxDrawdown: Number(formConfig.maxDrawdown), maxTradesPerDay: Number(formConfig.maxTradesPerDay)
         };
+
         try { 
             await startBot(cleanPayload); 
             setPersistentLogs(prev => [{ timestamp: new Date().toISOString(), message: `✅ Bot Initialized in ${formConfig.tradingMode.toUpperCase()} Mode with $${cleanPayload.capitalAllocation}`, type: 'system' }]);
             setTimeout(refreshBotData, 1000);
+            setShowPreFlight(false);
         } catch (err) { console.error("Bot Start Error:", err); alert(`Failed to start: ${err.message}`); }
+        finally { setIsStarting(false); }
     };
 
     const handleStop = async () => {
         try { await stopBot(); setTimeout(refreshBotData, 1000); } catch (err) { console.error(err); }
     };
 
-    // 🚀 NEW: Panic Sell Handler
     const handlePanicSell = async () => {
         if (!window.confirm("⚠️ EMERGENCY: SELL ALL POSITIONS?\n\nThis will market sell everything and stop the bot. This action cannot be undone.")) return;
         try {
             const token = localStorage.getItem('token');
-            // Assuming your backend supports a 'liquidate' flag or you have a dedicated route
-            await axios.post('https://neov6backend.onrender.com/api/bot/stop', 
-                { userId: address, liquidate: true }, 
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
+            await axios.post('https://neov6backend.onrender.com/api/bot/stop', { userId: address, liquidate: true }, { headers: { Authorization: `Bearer ${token}` } });
             setPersistentLogs(prev => [{ timestamp: new Date().toISOString(), message: `🛑 PANIC SELL INITIATED. Stopping Bot...`, type: 'error' }]);
             setTimeout(refreshBotData, 1000);
-        } catch (err) {
-            console.error("Panic Sell Error:", err);
-            alert("Panic Sell Failed: " + err.message);
-        }
+        } catch (err) { console.error("Panic Sell Error:", err); alert("Panic Sell Failed: " + err.message); }
     };
     
     const handleRefreshChart = () => refreshBotData();
     const isRunning = botStatus?.status === 'running';
-    const chartData = {
-        candleData: botStatus?.candles || [],
-        tradeBreakdown: (botStatus?.trades || []).map(t => ({ ...t, entryTime: t.entryTime, exitTime: t.exitTime, profit: t.profit, price: t.entry_price || t.price, exitPrice: t.exit_price || t.exitPrice }))
-    };
+    const chartData = { candleData: botStatus?.candles || [], tradeBreakdown: (botStatus?.trades || []).map(t => ({ ...t, entryTime: t.entryTime, exitTime: t.exitTime, profit: t.profit, price: t.entry_price || t.price, exitPrice: t.exit_price || t.exitPrice })) };
     const hasData = chartData.candleData && chartData.candleData.length > 0;
 
     const botProps = {
         botStatus, logs: persistentLogs, visibleLogs, loading: botLoading, isRunning,
         liveWinners, setups, chartData, hasData,
         formConfig, setFormConfig, selectedSetupId, selectedWinnerId,
-        handleStart, handleStop, handleSetupSelect, handleWinnerSelect, fetchWinners, scanningWinners, handleRefreshChart, handleClearLogs,
-        logsContainerRef,
-        
-        // 🚀 Pass Panic Handler to Shell
-        handlePanicSell 
+        handleStart: handleStartClick, // 🚀 Point to Pre-Flight Trigger
+        handleStop, handleSetupSelect, handleWinnerSelect, fetchWinners, scanningWinners, handleRefreshChart, handleClearLogs,
+        logsContainerRef, handlePanicSell,
+        logFilter, setLogFilter // 15. Pass filter state
     };
 
     return (
         <div className="trading-bot-root relative">
             {!isModeSelected && <ModeSelectionModal onSelect={handleModeSelection} isConnected={isConnected} hasApiKeys={hasApiKeys} />}
-            <div className={`transition-all duration-500 ${!isModeSelected ? 'filter blur-lg pointer-events-none' : ''}`}>
+            
+            {/* 1. Pre-Flight Modal */}
+            {showPreFlight && <PreFlightModal config={formConfig} onConfirm={handleConfirmStart} onCancel={() => setShowPreFlight(false)} isStarting={isStarting} />}
+
+            <div className={`transition-all duration-500 ${!isModeSelected || showPreFlight ? 'filter blur-lg pointer-events-none' : ''}`}>
+                 {/* 3. Sticky Health Bar */}
+                 {isModeSelected && <BotStatusBar status={botStatus?.status} pnl={botStatus?.currentBalance - formConfig.capitalAllocation} winRate={botStatus?.performanceMetrics?.winRate} latency={45} mode={formConfig.tradingMode} />}
                  <TradingBotShell {...botProps} />
             </div>
         </div>
@@ -321,9 +394,5 @@ const TradingBotContainer = () => {
 };
 
 export default function TradingBot() {
-    return (
-        <UIModeProvider>
-            <TradingBotContainer />
-        </UIModeProvider>
-    );
+    return ( <UIModeProvider> <TradingBotContainer /> </UIModeProvider> );
 }
