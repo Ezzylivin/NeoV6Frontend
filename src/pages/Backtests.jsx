@@ -1,8 +1,9 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v65.4 - "True Jet Black Final"
-// 1. REMOVED: All 'bg-slate-900' classes (the source of the blue tint).
-// 2. REPLACED: All containers now use the 'bot-card' class for the pure black glass look.
-// 3. UPDATED: Metrics cards now use 'metric-item' class for consistency.
+// 🚀 UPGRADE: v65.5 - "Final Blue purge"
+// 1. Replaced Blue Spinner with Emerald Spinner.
+// 2. Replaced Blue CSV Button with Cyan/Teal.
+// 3. Replaced Blue/Violet Trophy Background with Green/Teal.
+// 4. Changed Chart Icon color to Emerald.
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios"; 
@@ -172,7 +173,6 @@ const MonthlyHeatmap = ({ equityCurve }) => {
         monthlyReturns[monthKey].end = point.balance;
     });
     
-    // 🚀 FIXED: Removed 'bg-slate-900', now uses 'bot-card'
     return (
         <div className="bot-card" style={{marginTop:'24px'}}>
             <div className="panel-header flex items-center gap-3">
@@ -185,6 +185,7 @@ const MonthlyHeatmap = ({ equityCurve }) => {
                 {Object.keys(monthlyReturns).sort().map(month => {
                     const data = monthlyReturns[month];
                     const ret = ((data.end - data.start) / data.start) * 100;
+                    const intensity = Math.min(Math.abs(ret) / 10, 1);
                     const bg = ret >= 0 
                         ? `rgba(16, 185, 129, 0.1)` 
                         : `rgba(239, 68, 68, 0.1)`;
@@ -193,7 +194,6 @@ const MonthlyHeatmap = ({ equityCurve }) => {
                     return (
                         <div 
                             key={month} 
-                            // 🚀 FIXED: Removed slate bg, used simple border logic
                             className={`border ${borderColor} rounded-xl p-4 text-center hover:scale-105 transition-all`}
                             style={{backgroundColor: bg}}
                         >
@@ -213,7 +213,7 @@ const MetricsDisplay = ({ metrics }) => {
   if (!metrics) return null;
   const items = [
     { label: "Total Return", value: metrics.totalReturn, format: 'percent', color: 'text-emerald-400' },
-    { label: "Profit Factor", value: metrics.profitFactor, format: 'number', color: 'text-blue-400' },
+    { label: "Profit Factor", value: metrics.profitFactor, format: 'number', color: 'text-emerald-400' },
     { label: "Max Drawdown", value: metrics.maxDrawdown, format: 'percent', color: 'text-amber-400' },
     { label: "Win Rate", value: metrics.winRate, format: 'percent', color: 'text-violet-400' },
     { label: "Total Trades", value: metrics.totalTrades, format: null, color: 'text-cyan-400' },
@@ -222,7 +222,6 @@ const MetricsDisplay = ({ metrics }) => {
     { label: "Final Balance", value: metrics.finalBalance, format: 'currency', color: 'text-emerald-400' }
   ];
 
-  // 🚀 FIXED: Removed slate classes, now using 'metrics-grid' and 'metric-item'
   return (
     <div className="metrics-grid mb-6">
       {items.map((m, idx) => {
@@ -796,9 +795,9 @@ export default function Backtests() {
             {(loading !== 'idle' || combinedMetrics || error) ? (
               <>
                 {loading !== 'idle' && (
-                  // 🚀 FIXED: Replaced bg-slate with bot-card
+                  // 🚀 FIXED: Replaced bg-slate with bot-card and Updated Spinner Color
                   <div className="bot-card p-12 flex flex-col items-center justify-center min-h-[400px]">
-                    <div className="w-20 h-20 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-6"></div>
+                    <div className="w-20 h-20 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mb-6"></div>
                     <h3 className="text-white text-xl mb-2 font-bold">
                         {isSimulating ? "Running Backtest..." : "Loading the backtest setup..."}
                     </h3>
@@ -825,7 +824,7 @@ export default function Backtests() {
                         </button>
                         <button 
                           onClick={() => downloadCSV(mainResult.tradeBreakdown)}
-                          className="px-4 py-2 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-lg hover:bg-blue-500/20 transition-all flex items-center gap-2 font-bold text-sm uppercase"
+                          className="px-4 py-2 bg-teal-500/10 border border-teal-500/30 text-teal-400 rounded-lg hover:bg-teal-500/20 transition-all flex items-center gap-2 font-bold text-sm uppercase"
                         >
                           ⬇ CSV
                         </button>
@@ -966,9 +965,9 @@ export default function Backtests() {
                 )}
               </>
             ) : (
-              // 🚀 FIXED: Replaced bg-slate with bot-card
+              // 🚀 FIXED: Replaced bg-slate with bot-card, replaced blue icon
               <div className="bot-card p-12 flex flex-col items-center justify-center min-h-[600px]">
-                <div className="w-20 h-20 bg-gradient-to-br from-blue-500/20 to-violet-600/20 rounded-2xl flex items-center justify-center mb-6 text-4xl">🏆</div>
+                <div className="w-20 h-20 bg-gradient-to-br from-emerald-500/20 to-teal-600/20 rounded-2xl flex items-center justify-center mb-6 text-4xl">🏆</div>
                 <h3 className="text-white text-xl mb-2 font-bold">Ready to Test Your Strategy</h3>
                 <p className="text-slate-400 text-center max-w-md">Configure your strategy parameters and run a backtest to see detailed performance metrics.</p>
               </div>
