@@ -1,6 +1,6 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v71.0 - Pre-Flight, Risk Guardrails, Health Bar, Crash Recovery
-// Changes: Added Pre-Flight Checklist, Risk Inputs, Sticky Status Bar, Local Storage persistence.
+// 🚀 UPGRADE: v71.2 - Latency Display Fix & Log Filter Persistence
+// Changes: Fixed 0ms latency display, persisting log filter to localStorage.
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
@@ -26,14 +26,15 @@ const BotStatusBar = ({ status, pnl, winRate, latency, mode }) => (
             </div>
             <div className="h-4 w-px bg-white/10"></div>
             <div className="text-xs text-neutral-400 font-mono">
-                LATENCY: <span className={latency < 100 ? 'text-green-400' : 'text-yellow-400'}>{latency || '--'}ms</span>
+                {/* 🐛 FIX: Now correctly displays 0ms instead of '--' */}
+                LATENCY: <span className={latency < 200 ? 'text-green-400' : 'text-yellow-400'}>{latency != null ? `${latency}ms` : '--'}</span>
             </div>
         </div>
         <div className="flex items-center gap-6">
             <div className="text-center">
                 <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider">Session PnL</div>
                 <div className={`text-sm font-mono font-bold ${pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {pnl >= 0 ? '+' : ''}{pnl ? `$${pnl.toFixed(2)}` : '--'}
+                    {pnl >= 0 ? '+' : ''}{pnl != null ? `$${pnl.toFixed(2)}` : '--'}
                 </div>
             </div>
             <div className="text-center">
@@ -49,7 +50,7 @@ const BotStatusBar = ({ status, pnl, winRate, latency, mode }) => (
 );
 
 // 1. Pre-Flight Validation Panel
-const PreFlightModal = ({ config, onConfirm, onCancel, isStarting }) => {
+const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, address }) => {
     const [checks, setChecks] = useState({
         wallet: false,
         keys: false,
@@ -57,13 +58,16 @@ const PreFlightModal = ({ config, onConfirm, onCancel, isStarting }) => {
         strategy: false
     });
 
+    // 🚀 REAL VALIDATION LOGIC
     useEffect(() => {
-        const timer = setTimeout(() => setChecks(c => ({ ...c, wallet: true })), 500);
-        const timer2 = setTimeout(() => setChecks(c => ({ ...c, keys: true })), 1000); // Mock check
-        const timer3 = setTimeout(() => setChecks(c => ({ ...c, capital: config.capitalAllocation >= 100 })), 1500);
-        const timer4 = setTimeout(() => setChecks(c => ({ ...c, strategy: config.strategies.length > 0 || config.isCombo })), 2000);
-        return () => { clearTimeout(timer); clearTimeout(timer2); clearTimeout(timer3); clearTimeout(timer4); };
-    }, [config]);
+        setChecks({
+            wallet: !!address,
+            keys: config.tradingMode === 'paper' || hasApiKeys,
+            capital: Number(config.capitalAllocation) >= 100,
+            strategy: (config.isCombo && config.comboConfig?.strategyCodes?.length > 0) || 
+                      (!config.isCombo && config.strategies?.length > 0)
+        });
+    }, [config, hasApiKeys, address]);
 
     const allPassed = Object.values(checks).every(Boolean);
 
@@ -80,6 +84,13 @@ const PreFlightModal = ({ config, onConfirm, onCancel, isStarting }) => {
                     <CheckItem label={`Capital Allocation ($${config.capitalAllocation})`} status={checks.capital} />
                     <CheckItem label="Strategy Logic Loaded" status={checks.strategy} />
                 </div>
+
+                {config.tradingMode === 'live' && (
+                    <div className="mb-6 space-y-2">
+                        {config.maxDailyLoss > 10 && <div className="text-xs text-yellow-500">⚠ High Risk: Max Daily Loss > 10%</div>}
+                        {config.maxTradesPerDay > 50 && <div className="text-xs text-yellow-500">⚠ High Frequency: > 50 Trades/Day</div>}
+                    </div>
+                )}
 
                 <div className="flex gap-3">
                     <button onClick={onCancel} className="flex-1 py-3 rounded-lg border border-white/10 text-neutral-400 hover:text-white hover:bg-white/5 transition">
@@ -101,12 +112,12 @@ const PreFlightModal = ({ config, onConfirm, onCancel, isStarting }) => {
 const CheckItem = ({ label, status }) => (
     <div className="flex items-center justify-between p-3 bg-black/40 rounded border border-white/5">
         <span className="text-sm text-neutral-300">{label}</span>
-        {status ? <span className="text-green-500 font-bold">✔ OK</span> : <span className="text-neutral-600 animate-pulse">Checking...</span>}
+        {status ? <span className="text-green-500 font-bold">✔ OK</span> : <span className="text-red-500 font-bold">MISSING</span>}
     </div>
 );
 
 
-// --- MODE SELECTION MODAL (Kept mostly same, added logic to open Pre-Flight) ---
+// --- MODE SELECTION MODAL ---
 const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
     const [step, setStep] = useState('selection');
     const [paperBalance, setPaperBalance] = useState(10000);
@@ -182,17 +193,22 @@ const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
 
 // --- MAIN LOGIC CONTAINER ---
 const TradingBotContainer = () => {
-    const { botStatus, logs: apiLogs, loading: botLoading, startBot, stopBot, refreshBotData } = useBot();
+    // 1. Core Logic
+    const { botStatus, logs: apiLogs, loading: botLoading, startBot, stopBot, refreshBotData: originalRefresh } = useBot();
     const { setups } = useBacktestSetupFunction();
     const { address, isConnected } = useAccount();
 
     const [isModeSelected, setIsModeSelected] = useState(false);
     const [hasApiKeys, setHasApiKeys] = useState(false);
-    const [showPreFlight, setShowPreFlight] = useState(false); // 🚀 Pre-Flight State
-    const [isStarting, setIsStarting] = useState(false); // Loading state
+    const [showPreFlight, setShowPreFlight] = useState(false);
+    const [isStarting, setIsStarting] = useState(false);
+    
+    // 🚀 UPGRADE: Initialize from localStorage (Lazy Init)
+    const [logFilter, setLogFilter] = useState(() => localStorage.getItem('logFilter') || 'ALL');
 
-    // 15. Log Filtering
-    const [logFilter, setLogFilter] = useState('ALL'); // 'ALL', 'SYSTEM', 'TRADE', 'ERROR'
+    // Metrics State
+    const [latency, setLatency] = useState(null); // Init to null to support 0ms display
+    const [sessionStartBalance, setSessionStartBalance] = useState(null); 
 
     // Local State
     const [liveWinners, setLiveWinners] = useState([]);
@@ -203,29 +219,36 @@ const TradingBotContainer = () => {
     const logsContainerRef = useRef(null);
     const [persistentLogs, setPersistentLogs] = useState([]);
     
-    // 3. 📝 Form State (Added Risk Guardrails)
     const [formConfig, setFormConfig] = useState({
         isCombo: false, strategyId: '', comboConfig: { strategyCodes: [], combinationRule: 'AND' },
         symbol: 'BTC-USD', timeframe: '1h', capitalAllocation: 1000, tradingMode: 'paper',
         params: {}, strategies: [], mlMode: 'off', mlModel: '', mlThreshold: 0.5,
         riskManagementMode: 'static', riskPercentage: 1, growthCapitalTarget: 2000,
-        // 2. Live Risk Guardrails
         maxDailyLoss: 5, maxDrawdown: 10, maxTradesPerDay: 20 
     });
+
+    // 🚀 UPGRADE: Persist Log Filter when it changes
+    useEffect(() => {
+        localStorage.setItem('logFilter', logFilter);
+    }, [logFilter]);
 
     // 14. Local Crash Recovery
     useEffect(() => {
         const savedSession = sessionStorage.getItem('botSession');
         if (savedSession) {
-            const { mode, balance } = JSON.parse(savedSession);
+            const { mode, balance, startBalance } = JSON.parse(savedSession);
             setFormConfig(prev => ({ ...prev, tradingMode: mode, capitalAllocation: balance || prev.capitalAllocation }));
+            setSessionStartBalance(startBalance); 
             setIsModeSelected(true);
         }
-        
-        // Restore logs? (Optional, might be heavy)
-        // const savedLogs = localStorage.getItem('persistentLogs');
-        // if(savedLogs) setPersistentLogs(JSON.parse(savedLogs));
     }, []);
+
+    // Zombie UI Check
+    useEffect(() => {
+        if (!botLoading && botStatus?.status === 'stopped' && sessionStartBalance !== null) {
+            // Logic to handle zombie state if needed
+        }
+    }, [botStatus?.status, botLoading]);
 
     // Check API Keys
     useEffect(() => {
@@ -239,11 +262,17 @@ const TradingBotContainer = () => {
         if (isConnected) checkKeys();
     }, [isConnected]);
 
-    // Logs Logic
+    // Robust Log Deduplication
     useEffect(() => {
         if (apiLogs && apiLogs.length > 0) {
             setPersistentLogs(prevLogs => {
-                const newLogs = apiLogs.filter(apiLog => !prevLogs.some(p => p.timestamp === apiLog.timestamp && p.message === apiLog.message));
+                const newLogs = apiLogs.filter(apiLog => 
+                    !prevLogs.some(p => 
+                        p.timestamp === apiLog.timestamp && 
+                        p.message === apiLog.message && 
+                        p.type === apiLog.type
+                    )
+                );
                 return [...prevLogs, ...newLogs].sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp)).slice(-500);
             });
         }
@@ -251,16 +280,24 @@ const TradingBotContainer = () => {
 
     const visibleLogs = persistentLogs
         .filter(log => new Date(log.timestamp).getTime() > logsClearedTime)
-        .filter(log => logFilter === 'ALL' || (log.type && log.type.toUpperCase() === logFilter)); // 15. Filtering
+        .filter(log => logFilter === 'ALL' || (log.type && log.type.toUpperCase() === logFilter)); 
 
     const handleClearLogs = () => setLogsClearedTime(Date.now());
     useEffect(() => { if (logsContainerRef.current) logsContainerRef.current.scrollTo({ top: logsContainerRef.current.scrollHeight, behavior: 'smooth' }); }, [persistentLogs, logFilter]);
 
+    // REAL LATENCY MEASUREMENT
+    const refreshWithLatency = async () => {
+        const start = performance.now();
+        await originalRefresh();
+        setLatency(Math.round(performance.now() - start));
+    };
+
     useEffect(() => {
-        let interval;
-        if (botStatus?.status === 'running') interval = setInterval(() => refreshBotData(), 2000);
+        if (botStatus?.status !== 'running') return; 
+
+        const interval = setInterval(() => refreshWithLatency(), 2000);
         return () => clearInterval(interval);
-    }, [botStatus?.status, refreshBotData]);
+    }, [botStatus?.status]); 
 
     const fetchWinners = async () => {
         setScanningWinners(true);
@@ -275,7 +312,7 @@ const TradingBotContainer = () => {
     const handleModeSelection = (mode, balance) => {
         const allocation = mode === 'paper' ? balance : formConfig.capitalAllocation;
         setFormConfig(prev => ({ ...prev, tradingMode: mode, capitalAllocation: allocation }));
-        sessionStorage.setItem('botSession', JSON.stringify({ mode, balance: allocation }));
+        sessionStorage.setItem('botSession', JSON.stringify({ mode, balance: allocation, startBalance: null }));
         setIsModeSelected(true);
     };
 
@@ -315,14 +352,12 @@ const TradingBotContainer = () => {
         }));
     };
 
-    // 🚀 MODIFIED: Triggers Pre-Flight instead of starting immediately
     const handleStartClick = (e) => {
         e.preventDefault();
         if (!isConnected || !address) { alert("⚠️ Wallet Disconnected!"); return; }
         setShowPreFlight(true);
     };
 
-    // 🚀 NEW: Actual Start Logic (Called by Pre-Flight)
     const handleConfirmStart = async () => {
         setIsStarting(true);
         setLogsClearedTime(0); setPersistentLogs([]); 
@@ -335,21 +370,25 @@ const TradingBotContainer = () => {
             isCombo: !!formConfig.isCombo, comboConfig: formConfig.comboConfig || { strategyCodes: cleanStrategies.map(s => s.code), combinationRule: 'AND' },
             strategies: cleanStrategies, params: formConfig.params || {}, maxPyramiding: parseInt(formConfig.params?.maxPyramiding || 1, 10),
             riskManagementMode: formConfig.riskManagementMode, riskPercentage: Number(formConfig.riskPercentage), growthCapitalTarget: Number(formConfig.growthCapitalTarget),
-            // 2. Sending Guardrails to Backend
             maxDailyLoss: Number(formConfig.maxDailyLoss), maxDrawdown: Number(formConfig.maxDrawdown), maxTradesPerDay: Number(formConfig.maxTradesPerDay)
         };
 
         try { 
             await startBot(cleanPayload); 
+            
+            const startBal = cleanPayload.capitalAllocation;
+            setSessionStartBalance(startBal);
+            sessionStorage.setItem('botSession', JSON.stringify({ mode: formConfig.tradingMode, balance: startBal, startBalance: startBal }));
+
             setPersistentLogs(prev => [{ timestamp: new Date().toISOString(), message: `✅ Bot Initialized in ${formConfig.tradingMode.toUpperCase()} Mode with $${cleanPayload.capitalAllocation}`, type: 'system' }]);
-            setTimeout(refreshBotData, 1000);
+            setTimeout(refreshWithLatency, 1000);
             setShowPreFlight(false);
         } catch (err) { console.error("Bot Start Error:", err); alert(`Failed to start: ${err.message}`); }
         finally { setIsStarting(false); }
     };
 
     const handleStop = async () => {
-        try { await stopBot(); setTimeout(refreshBotData, 1000); } catch (err) { console.error(err); }
+        try { await stopBot(); setTimeout(refreshWithLatency, 1000); } catch (err) { console.error(err); }
     };
 
     const handlePanicSell = async () => {
@@ -358,11 +397,11 @@ const TradingBotContainer = () => {
             const token = localStorage.getItem('token');
             await axios.post('https://neov6backend.onrender.com/api/bot/stop', { userId: address, liquidate: true }, { headers: { Authorization: `Bearer ${token}` } });
             setPersistentLogs(prev => [{ timestamp: new Date().toISOString(), message: `🛑 PANIC SELL INITIATED. Stopping Bot...`, type: 'error' }]);
-            setTimeout(refreshBotData, 1000);
+            setTimeout(refreshWithLatency, 1000);
         } catch (err) { console.error("Panic Sell Error:", err); alert("Panic Sell Failed: " + err.message); }
     };
     
-    const handleRefreshChart = () => refreshBotData();
+    const handleRefreshChart = () => refreshWithLatency();
     const isRunning = botStatus?.status === 'running';
     const chartData = { candleData: botStatus?.candles || [], tradeBreakdown: (botStatus?.trades || []).map(t => ({ ...t, entryTime: t.entryTime, exitTime: t.exitTime, profit: t.profit, price: t.entry_price || t.price, exitPrice: t.exit_price || t.exitPrice })) };
     const hasData = chartData.candleData && chartData.candleData.length > 0;
@@ -371,22 +410,21 @@ const TradingBotContainer = () => {
         botStatus, logs: persistentLogs, visibleLogs, loading: botLoading, isRunning,
         liveWinners, setups, chartData, hasData,
         formConfig, setFormConfig, selectedSetupId, selectedWinnerId,
-        handleStart: handleStartClick, // 🚀 Point to Pre-Flight Trigger
+        handleStart: handleStartClick, 
         handleStop, handleSetupSelect, handleWinnerSelect, fetchWinners, scanningWinners, handleRefreshChart, handleClearLogs,
         logsContainerRef, handlePanicSell,
-        logFilter, setLogFilter // 15. Pass filter state
+        logFilter, setLogFilter
     };
 
     return (
         <div className="trading-bot-root relative">
             {!isModeSelected && <ModeSelectionModal onSelect={handleModeSelection} isConnected={isConnected} hasApiKeys={hasApiKeys} />}
             
-            {/* 1. Pre-Flight Modal */}
-            {showPreFlight && <PreFlightModal config={formConfig} onConfirm={handleConfirmStart} onCancel={() => setShowPreFlight(false)} isStarting={isStarting} />}
+            {showPreFlight && <PreFlightModal config={formConfig} onConfirm={handleConfirmStart} onCancel={() => setShowPreFlight(false)} isStarting={isStarting} hasApiKeys={hasApiKeys} address={address} />}
 
             <div className={`transition-all duration-500 ${!isModeSelected || showPreFlight ? 'filter blur-lg pointer-events-none' : ''}`}>
-                 {/* 3. Sticky Health Bar */}
-                 {isModeSelected && <BotStatusBar status={botStatus?.status} pnl={botStatus?.currentBalance - formConfig.capitalAllocation} winRate={botStatus?.performanceMetrics?.winRate} latency={45} mode={formConfig.tradingMode} />}
+                 {/* 🐛 FIX: PnL Conditional Logic */}
+                 {isModeSelected && <BotStatusBar status={botStatus?.status} pnl={sessionStartBalance != null && botStatus?.currentBalance != null ? botStatus.currentBalance - sessionStartBalance : null} winRate={botStatus?.performanceMetrics?.winRate} latency={latency} mode={formConfig.tradingMode} />}
                  <TradingBotShell {...botProps} />
             </div>
         </div>
