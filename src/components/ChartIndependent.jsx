@@ -1,9 +1,9 @@
 // File: src/components/ChartIndependent.jsx
-// 🚀 UPGRADE: v64.0 - "Date Filtering Enabled"
-// Fixes: 
-// 1. Accepts 'startDate' and 'endDate' props to strictly filter data.
-// 2. Ensures Chart matches UI Date Pickers even if API returns extra history.
-// 3. Keeps previous Deep Zoom & Diagnostic features.
+// 🚀 UPGRADE: v64.0 - "Date Filtering & Integrity Mode"
+// 1. Strict Date Filtering: Accepts startDate/endDate props to slice data client-side.
+// 2. Data Integrity: Deduplicates bars and normalizes timestamps.
+// 3. Diagnostics: Logs filtering stats to console.
+// 4. UI: Added Data Range HUD to header.
 
 import React, { useEffect, useRef, useState } from "react";
 import { createChart, ColorType, CrosshairMode, LineStyle } from "lightweight-charts";
@@ -16,332 +16,335 @@ export function ChartIndependent({
     startDate = null, // e.g. "2024-12-11"
     endDate = null    // e.g. "2024-12-31"
 }) {
-  const chartContainerRef = useRef(null);
-  const chartRef = useRef(null);
-  const seriesRef = useRef(null);
-  const connectionSeriesRef = useRef(null); 
-   
-  const [legend, setLegend] = useState({ 
-      open: "--", high: "--", low: "--", close: "--", 
-      time: "--", color: "#e2e8f0" 
-  });
-  const [trades, setTrades] = useState([]);
-  const [hoveredTrade, setHoveredTrade] = useState(null);
-  const [dataRange, setDataRange] = useState({ start: "--", end: "--", count: 0 });
-
-  // Helper: Reset Zoom
-  const handleResetZoom = () => {
-      if (chartRef.current) {
-          chartRef.current.timeScale().fitContent();
-      }
-  };
-
-  // --- 1. Initialize & Update Chart ---
-  useEffect(() => {
-    // [DEBUG] Log Incoming Filters
-    console.group("🔥 [ChartIndependent] Data Pipeline");
-    console.log(`1. Filters Received -> Start: ${startDate || "None"}, End: ${endDate || "None"}`);
-    console.log("2. Raw Results:", results);
-
-    if (!chartContainerRef.current) return;
+    const chartContainerRef = useRef(null);
+    const chartRef = useRef(null);
+    const seriesRef = useRef(null);
+    const connectionSeriesRef = useRef(null); 
     
-    if (chartRef.current) {
-        chartRef.current.remove();
-        chartRef.current = null;
-    }
-
-    // A. Configure Chart Layout
-    const chart = createChart(chartContainerRef.current, {
-      layout: { 
-          background: { type: ColorType.Solid, color: "transparent" },
-          textColor: "#94a3b8", 
-          fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
-          fontSize: 11
-      },
-      grid: { 
-          vertLines: { color: "rgba(6, 78, 59, 0.2)", style: 2 }, 
-          horzLines: { color: "rgba(6, 78, 59, 0.2)", style: 2 }  
-      },
-      width: chartContainerRef.current.clientWidth,
-      height: chartContainerRef.current.clientHeight,
-      timeScale: { 
-          timeVisible: true, 
-          secondsVisible: false, 
-          borderColor: "rgba(52, 211, 153, 0.1)", 
-          rightOffset: 5, 
-          barSpacing: 6,
-          fixLeftEdge: true,
-          fixRightEdge: true
-      },
-      rightPriceScale: { 
-          borderColor: "rgba(52, 211, 153, 0.1)", 
-          scaleMargins: { top: 0.1, bottom: 0.1 },
-          visible: true
-      },
-      crosshair: {
-          mode: CrosshairMode.Normal,
-          vertLine: { width: 1, color: '#34d399', style: 3, labelBackgroundColor: '#064e3b' },
-          horzLine: { width: 1, color: '#34d399', style: 3, labelBackgroundColor: '#064e3b' },
-      },
-      handleScroll: { mouseWheel: true, pressedMouseMove: true },
-      handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
+    const [legend, setLegend] = useState({ 
+        open: "--", high: "--", low: "--", close: "--", 
+        time: "--", color: "#e2e8f0" 
     });
+    const [trades, setTrades] = useState([]);
+    const [hoveredTrade, setHoveredTrade] = useState(null);
+    
+    // 6️⃣ Data Range HUD State
+    const [dataRange, setDataRange] = useState({ start: "--", end: "--", count: 0 });
 
-    chartRef.current = chart;
-
-    // B. Series Setup
-    const candleSeries = chart.addCandlestickSeries({
-      upColor: "#10b981", downColor: "#ef4444",        
-      borderUpColor: "#10b981", borderDownColor: "#ef4444", 
-      wickUpColor: "#10b981", wickDownColor: "#ef4444",
-    });
-    seriesRef.current = candleSeries;
-
-    const connectionSeries = chart.addLineSeries({
-        color: '#34d399', lineWidth: 2, lineStyle: LineStyle.Dashed,
-        crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false,
-    });
-    connectionSeriesRef.current = connectionSeries;
-
-    // C. Data Processing & Filtering
-    if (results && results.candleData && results.candleData.length > 0) {
-        const validData = [];
-        const timeSet = new Set();
-        let filteredCount = 0;
-
-        // Parse Filters to Timestamps for easy comparison
-        const startTs = startDate ? new Date(startDate).getTime() / 1000 : null;
-        const endTs = endDate ? new Date(endDate).getTime() / 1000 + 86400 : null; // Add buffer for end of day
-        
-        results.candleData.forEach((c) => {
-            // 1. Normalize Date
-            let dateObj;
-            if (typeof c.time === 'number') dateObj = new Date(c.time * 1000);
-            else if (c.start) dateObj = new Date(c.start * 1000);
-            else dateObj = new Date(c.time || c.date || c.datetime);
-
-            const timeStamp = Math.floor(dateObj.getTime() / 1000); 
-
-            // 2. 🛑 APPLY DATE FILTER
-            if (startTs && timeStamp < startTs) { filteredCount++; return; }
-            if (endTs && timeStamp > endTs) { filteredCount++; return; }
-            
-            // 3. Validate & Push
-            if (!isNaN(timeStamp) && !timeSet.has(timeStamp)) {
-                validData.push({
-                    time: timeStamp,
-                    open: Number(c.open), 
-                    high: Number(c.high), 
-                    low: Number(c.low), 
-                    close: Number(c.close),
-                });
-                timeSet.add(timeStamp);
-            }
-        });
-        
-        validData.sort((a, b) => a.time - b.time);
-        
-        // [DEBUG] Log Filter Results
-        console.log(`3. Data Processing:`);
-        console.log(`   - Raw: ${results.candleData.length}`);
-        console.log(`   - Hidden by Date Filter: ${filteredCount}`);
-        console.log(`   - Shown on Chart: ${validData.length}`);
-        
-        candleSeries.setData(validData);
-
-        // Update Diagnostic Info
-        if (validData.length > 0) {
-            const first = validData[0];
-            const last = validData[validData.length - 1];
-            setDataRange({
-                start: new Date(first.time * 1000).toLocaleDateString(),
-                end: new Date(last.time * 1000).toLocaleDateString(),
-                count: validData.length
-            });
-            setLegend({
-                open: last.open.toFixed(2), high: last.high.toFixed(2), low: last.low.toFixed(2), close: last.close.toFixed(2),
-                time: new Date(last.time * 1000).toLocaleString(),
-                color: last.close >= last.open ? "#10b981" : "#ef4444"
-            });
+    // Helper: Reset Zoom
+    const handleResetZoom = () => {
+        if (chartRef.current) {
+            chartRef.current.timeScale().fitContent();
         }
-
-        // 4. Map Trades (Filter these too!)
-        const markers = [];
-        const tradeList = [];
-        const validTimes = Array.from(timeSet).sort((a,b)=>a-b);
-
-        const findNearestTime = (targetTime) => {
-            if (timeSet.has(targetTime)) return targetTime;
-            let closest = validTimes[0];
-            let minDiff = Math.abs(targetTime - closest);
-            for (let t of validTimes) {
-                const diff = Math.abs(targetTime - t);
-                if (diff < minDiff) { minDiff = diff; closest = t; }
-            }
-            return minDiff < 7200 ? closest : null; 
-        };
-
-        if (results.tradeBreakdown) {
-            results.tradeBreakdown.forEach((t, i) => {
-                const entryTimeRaw = Math.floor(new Date(t.entryTime).getTime() / 1000);
-                
-                // 🛑 Skip trades outside our visual range
-                if (startTs && entryTimeRaw < startTs) return;
-                if (endTs && entryTimeRaw > endTs) return;
-
-                const exitTimeRaw = t.exitTime ? Math.floor(new Date(t.exitTime).getTime() / 1000) : null;
-                const isWin = t.profit >= 0;
-
-                const entryTime = findNearestTime(entryTimeRaw);
-                const exitTime = exitTimeRaw ? findNearestTime(exitTimeRaw) : null;
-
-                tradeList.push({
-                    id: i, 
-                    side: t.position, 
-                    entryPrice: t.price || t.entry_price || t.entryPrice, 
-                    exitPrice: t.exitPrice || t.exit_price,
-                    profit: t.profit,
-                    date: new Date(t.entryTime).toLocaleDateString() + " " + new Date(t.entryTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-                    chartEntryTime: entryTime,
-                    chartExitTime: exitTime,
-                    chartEntryPrice: t.price || t.entry_price || t.entryPrice,
-                    chartExitPrice: t.exitPrice || t.exit_price
-                });
-
-                if (entryTime) {
-                    markers.push({
-                        time: entryTime, 
-                        position: t.position === "long" ? "belowBar" : "aboveBar",
-                        color: t.position === "long" ? "#34d399" : "#f59e0b",
-                        shape: t.position === "long" ? "arrowUp" : "arrowDown",
-                        text: "E", size: 1
-                    });
-                }
-
-                if (exitTime) {
-                    markers.push({
-                        time: exitTime, 
-                        position: t.position === "long" ? "aboveBar" : "belowBar",
-                        color: isWin ? "#10b981" : "#ef4444",
-                        shape: "circle",
-                        text: isWin ? `+$${t.profit.toFixed(2)}` : `-$${Math.abs(t.profit).toFixed(2)}`,
-                        size: 1
-                    });
-                }
-            });
-        }
-        
-        candleSeries.setMarkers(markers.sort((a,b) => a.time - b.time));
-        setTrades(tradeList.reverse());
-
-        window.requestAnimationFrame(() => {
-            chart.timeScale().fitContent();
-        });
-    }
-
-    console.groupEnd(); 
-
-    // E. Crosshair & Resize Observers (Unchanged)
-    chart.subscribeCrosshairMove((param) => {
-        if (!param.point || !param.time || !param.seriesData) return;
-        const data = param.seriesData.get(candleSeries);
-        if (data) {
-            setLegend({
-                open: data.open.toFixed(2), high: data.high.toFixed(2), low: data.low.toFixed(2), close: data.close.toFixed(2),
-                time: new Date(param.time * 1000).toLocaleString(),
-                color: data.close >= data.open ? "#10b981" : "#ef4444"
-            });
-        }
-    });
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      if (entries.length === 0 || !entries[0]) return;
-      const { width, height } = entries[0].contentRect;
-      chart.applyOptions({ width, height });
-    });
-    resizeObserver.observe(chartContainerRef.current);
-
-    return () => {
-      resizeObserver.disconnect();
-      if (chartRef.current) { 
-          chartRef.current.remove(); 
-          chartRef.current = null; 
-      }
     };
-  }, [results, startDate, endDate]); // 👈 Added dependencies
 
-  // --- 2. Hover Connection Logic (Unchanged) ---
-  useEffect(() => {
-      if (!connectionSeriesRef.current) return;
-      if (hoveredTrade && hoveredTrade.chartEntryTime && hoveredTrade.chartExitTime) {
-          connectionSeriesRef.current.setData([
-              { time: hoveredTrade.chartEntryTime, value: hoveredTrade.chartEntryPrice },
-              { time: hoveredTrade.chartExitTime, value: hoveredTrade.chartExitPrice }
-          ]);
-      } else {
-          connectionSeriesRef.current.setData([]);
-      }
-  }, [hoveredTrade]);
+    // --- 1. Initialize & Update Chart ---
+    useEffect(() => {
+        // 5️⃣ Accurate Diagnostics & Debugging
+        console.group("🔥 [ChartIndependent] Data Pipeline");
+        console.log(`1. Filters Received -> Start: ${startDate || "None"}, End: ${endDate || "None"}`);
+        console.log("2. Raw Results:", results);
 
-  return (
-    <div className="independent-container">
-        <div className="independent-header">
-            <div className="flex items-center gap-4">
-                <h2><span style={{ color: "#e2e8f0" }}>{symbol}</span> <span style={{ color: legend.color }}>${legend.close}</span></h2>
-                <div className="data-range-badge">
-                    <Calendar className="w-3 h-3 inline mr-1" />
-                    {dataRange.start} - {dataRange.end} ({dataRange.count} bars)
-                </div>
-            </div>
-            
-            <div className="flex items-center gap-2">
-                <button onClick={handleResetZoom} className="reset-zoom-btn" title="Reset Zoom">
-                    <Maximize className="w-4 h-4" />
-                </button>
-                <div className="stat-badge">{trades.length} Trades</div>
-            </div>
-        </div>
+        if (!chartContainerRef.current) return;
         
-        <div className="independent-body">
-            <div className="chart-section" ref={chartContainerRef}>
-                <div className={`chart-hud ${legend.color === "#10b981" ? "win" : "loss"}`}>
-                    <div className="hud-title">{legend.time}</div>
-                    <div className="hud-row"><span>O</span> <span className="hud-val">{legend.open}</span></div>
-                    <div className="hud-row"><span>H</span> <span className="hud-val">{legend.high}</span></div>
-                    <div className="hud-row"><span>L</span> <span className="hud-val">{legend.low}</span></div>
-                    <div className="hud-row"><span>C</span> <span className="hud-val">{legend.close}</span></div>
+        if (chartRef.current) {
+            chartRef.current.remove();
+            chartRef.current = null;
+        }
+
+        // A. Configure Chart Layout
+        const chart = createChart(chartContainerRef.current, {
+            layout: { 
+                background: { type: ColorType.Solid, color: "transparent" },
+                textColor: "#94a3b8", 
+                fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+                fontSize: 11
+            },
+            grid: { 
+                vertLines: { color: "rgba(6, 78, 59, 0.2)", style: 2 }, 
+                horzLines: { color: "rgba(6, 78, 59, 0.2)", style: 2 }  
+            },
+            width: chartContainerRef.current.clientWidth,
+            height: chartContainerRef.current.clientHeight,
+            timeScale: { 
+                timeVisible: true, 
+                secondsVisible: false, 
+                borderColor: "rgba(52, 211, 153, 0.1)", 
+                rightOffset: 5, 
+                barSpacing: 6,
+                fixLeftEdge: true,
+                fixRightEdge: true
+            },
+            rightPriceScale: { 
+                borderColor: "rgba(52, 211, 153, 0.1)", 
+                scaleMargins: { top: 0.1, bottom: 0.1 },
+                visible: true
+            },
+            crosshair: {
+                mode: CrosshairMode.Normal,
+                vertLine: { width: 1, color: '#34d399', style: 3, labelBackgroundColor: '#064e3b' },
+                horzLine: { width: 1, color: '#34d399', style: 3, labelBackgroundColor: '#064e3b' },
+            },
+            handleScroll: { mouseWheel: true, pressedMouseMove: true },
+            handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
+        });
+
+        chartRef.current = chart;
+
+        // B. Series Setup
+        const candleSeries = chart.addCandlestickSeries({
+            upColor: "#10b981", downColor: "#ef4444",        
+            borderUpColor: "#10b981", borderDownColor: "#ef4444", 
+            wickUpColor: "#10b981", wickDownColor: "#ef4444",
+        });
+        seriesRef.current = candleSeries;
+
+        const connectionSeries = chart.addLineSeries({
+            color: '#34d399', lineWidth: 2, lineStyle: LineStyle.Dashed,
+            crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false,
+        });
+        connectionSeriesRef.current = connectionSeries;
+
+        // C. Data Processing & Filtering
+        if (results && results.candleData && results.candleData.length > 0) {
+            const validData = [];
+            const timeSet = new Set();
+            let filteredCount = 0;
+
+            // 1️⃣ Strict Date Filtering: timestamps
+            const startTs = startDate ? new Date(startDate).getTime() / 1000 : null;
+            const endTs = endDate ? new Date(endDate).getTime() / 1000 + 86400 : null; // +24h buffer for inclusive end date
+            
+            results.candleData.forEach((c) => {
+                // 3️⃣ Robust Timestamp Normalization
+                let dateObj;
+                if (typeof c.time === 'number') dateObj = new Date(c.time * 1000);
+                else if (c.start) dateObj = new Date(c.start * 1000);
+                else dateObj = new Date(c.time || c.date || c.datetime);
+
+                const timeStamp = Math.floor(dateObj.getTime() / 1000); 
+
+                // Filter Logic
+                if (startTs && timeStamp < startTs) { filteredCount++; return; }
+                if (endTs && timeStamp > endTs) { filteredCount++; return; }
+                
+                // 4️⃣ Duplicate-Bar Protection & Validation
+                if (!isNaN(timeStamp) && !timeSet.has(timeStamp)) {
+                    validData.push({
+                        time: timeStamp,
+                        open: Number(c.open), 
+                        high: Number(c.high), 
+                        low: Number(c.low), 
+                        close: Number(c.close),
+                    });
+                    timeSet.add(timeStamp);
+                }
+            });
+            
+            validData.sort((a, b) => a.time - b.time);
+            
+            // Log Filtering Stats
+            console.log(`3. Data Processing:`);
+            console.log(`   - Raw: ${results.candleData.length}`);
+            console.log(`   - Hidden by Date Filter: ${filteredCount}`);
+            console.log(`   - Shown on Chart: ${validData.length}`);
+            
+            candleSeries.setData(validData);
+
+            // Update Diagnostic Info
+            if (validData.length > 0) {
+                const first = validData[0];
+                const last = validData[validData.length - 1];
+                setDataRange({
+                    start: new Date(first.time * 1000).toLocaleDateString(),
+                    end: new Date(last.time * 1000).toLocaleDateString(),
+                    count: validData.length
+                });
+                setLegend({
+                    open: last.open.toFixed(2), high: last.high.toFixed(2), low: last.low.toFixed(2), close: last.close.toFixed(2),
+                    time: new Date(last.time * 1000).toLocaleString(),
+                    color: last.close >= last.open ? "#10b981" : "#ef4444"
+                });
+            }
+
+            // 4. Map Trades (2️⃣ Trade Mapping Respects Visual Range)
+            const markers = [];
+            const tradeList = [];
+            const validTimes = Array.from(timeSet).sort((a,b)=>a-b);
+
+            const findNearestTime = (targetTime) => {
+                if (timeSet.has(targetTime)) return targetTime;
+                let closest = validTimes[0];
+                let minDiff = Math.abs(targetTime - closest);
+                for (let t of validTimes) {
+                    const diff = Math.abs(targetTime - t);
+                    if (diff < minDiff) { minDiff = diff; closest = t; }
+                }
+                return minDiff < 7200 ? closest : null; 
+            };
+
+            if (results.tradeBreakdown) {
+                results.tradeBreakdown.forEach((t, i) => {
+                    const entryTimeRaw = Math.floor(new Date(t.entryTime).getTime() / 1000);
+                    
+                    // 🛑 Skip trades outside our visual range
+                    if (startTs && entryTimeRaw < startTs) return;
+                    if (endTs && entryTimeRaw > endTs) return;
+
+                    const exitTimeRaw = t.exitTime ? Math.floor(new Date(t.exitTime).getTime() / 1000) : null;
+                    const isWin = t.profit >= 0;
+
+                    const entryTime = findNearestTime(entryTimeRaw);
+                    const exitTime = exitTimeRaw ? findNearestTime(exitTimeRaw) : null;
+
+                    tradeList.push({
+                        id: i, 
+                        side: t.position, 
+                        entryPrice: t.price || t.entry_price || t.entryPrice, 
+                        exitPrice: t.exitPrice || t.exit_price,
+                        profit: t.profit,
+                        date: new Date(t.entryTime).toLocaleDateString() + " " + new Date(t.entryTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                        chartEntryTime: entryTime,
+                        chartExitTime: exitTime,
+                        chartEntryPrice: t.price || t.entry_price || t.entryPrice,
+                        chartExitPrice: t.exitPrice || t.exit_price
+                    });
+
+                    if (entryTime) {
+                        markers.push({
+                            time: entryTime, 
+                            position: t.position === "long" ? "belowBar" : "aboveBar",
+                            color: t.position === "long" ? "#34d399" : "#f59e0b",
+                            shape: t.position === "long" ? "arrowUp" : "arrowDown",
+                            text: "E", size: 1
+                        });
+                    }
+
+                    if (exitTime) {
+                        markers.push({
+                            time: exitTime, 
+                            position: t.position === "long" ? "aboveBar" : "belowBar",
+                            color: isWin ? "#10b981" : "#ef4444",
+                            shape: "circle",
+                            text: isWin ? `+$${t.profit.toFixed(2)}` : `-$${Math.abs(t.profit).toFixed(2)}`,
+                            size: 1
+                        });
+                    }
+                });
+            }
+            
+            candleSeries.setMarkers(markers.sort((a,b) => a.time - b.time));
+            setTrades(tradeList.reverse());
+
+            window.requestAnimationFrame(() => {
+                chart.timeScale().fitContent();
+            });
+        }
+
+        console.groupEnd(); 
+
+        // E. Crosshair & Resize Observers (Unchanged)
+        chart.subscribeCrosshairMove((param) => {
+            if (!param.point || !param.time || !param.seriesData) return;
+            const data = param.seriesData.get(candleSeries);
+            if (data) {
+                setLegend({
+                    open: data.open.toFixed(2), high: data.high.toFixed(2), low: data.low.toFixed(2), close: data.close.toFixed(2),
+                    time: new Date(param.time * 1000).toLocaleString(),
+                    color: data.close >= data.open ? "#10b981" : "#ef4444"
+                });
+            }
+        });
+
+        const resizeObserver = new ResizeObserver((entries) => {
+            if (entries.length === 0 || !entries[0]) return;
+            const { width, height } = entries[0].contentRect;
+            chart.applyOptions({ width, height });
+        });
+        resizeObserver.observe(chartContainerRef.current);
+
+        return () => {
+            resizeObserver.disconnect();
+            if (chartRef.current) { 
+                chartRef.current.remove(); 
+                chartRef.current = null; 
+            }
+        };
+    }, [results, startDate, endDate]); // 7️⃣ Dependency-Correct React Effects
+
+    // --- 2. Hover Connection Logic (Unchanged) ---
+    useEffect(() => {
+        if (!connectionSeriesRef.current) return;
+        if (hoveredTrade && hoveredTrade.chartEntryTime && hoveredTrade.chartExitTime) {
+            connectionSeriesRef.current.setData([
+                { time: hoveredTrade.chartEntryTime, value: hoveredTrade.chartEntryPrice },
+                { time: hoveredTrade.chartExitTime, value: hoveredTrade.chartExitPrice }
+            ]);
+        } else {
+            connectionSeriesRef.current.setData([]);
+        }
+    }, [hoveredTrade]);
+
+    return (
+        <div className="independent-container">
+            <div className="independent-header">
+                <div className="flex items-center gap-4">
+                    <h2><span style={{ color: "#e2e8f0" }}>{symbol}</span> <span style={{ color: legend.color }}>${legend.close}</span></h2>
+                    {/* 6️⃣ Data Range HUD */}
+                    <div className="data-range-badge">
+                        <Calendar className="w-3 h-3 inline mr-1" />
+                        {dataRange.start} - {dataRange.end} ({dataRange.count} bars)
+                    </div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                    <button onClick={handleResetZoom} className="reset-zoom-btn" title="Reset Zoom">
+                        <Maximize className="w-4 h-4" />
+                    </button>
+                    <div className="stat-badge">{trades.length} Trades</div>
                 </div>
             </div>
             
-            <div className="list-section">
-                <div className="trade-list-header">
-                    <span style={{flex: 0.8}}>Side</span>
-                    <span style={{flex: 1, textAlign:'right'}}>Entry</span>
-                    <span style={{flex: 1, textAlign:'right'}}>Exit</span>
-                    <span style={{flex: 1, textAlign:'right'}}>PnL</span>
+            <div className="independent-body">
+                <div className="chart-section" ref={chartContainerRef}>
+                    <div className={`chart-hud ${legend.color === "#10b981" ? "win" : "loss"}`}>
+                        <div className="hud-title">{legend.time}</div>
+                        <div className="hud-row"><span>O</span> <span className="hud-val">{legend.open}</span></div>
+                        <div className="hud-row"><span>H</span> <span className="hud-val">{legend.high}</span></div>
+                        <div className="hud-row"><span>L</span> <span className="hud-val">{legend.low}</span></div>
+                        <div className="hud-row"><span>C</span> <span className="hud-val">{legend.close}</span></div>
+                    </div>
                 </div>
-                <div className="trade-list-scroll">
-                    {trades.length > 0 ? trades.map((t) => (
-                        <div 
-                            key={t.id} 
-                            className={`trade-row ${hoveredTrade && hoveredTrade.id === t.id ? 'active' : ''}`}
-                            onMouseEnter={() => setHoveredTrade(t)}
-                            onMouseLeave={() => setHoveredTrade(null)}
-                        >
-                            <div style={{flex: 0.8}}>
-                                <span className={`badge ${t.side}`}>{t.side}</span>
-                                <div className="date-sub">{t.date.split(" ")[0]}</div>
+                
+                <div className="list-section">
+                    <div className="trade-list-header">
+                        <span style={{flex: 0.8}}>Side</span>
+                        <span style={{flex: 1, textAlign:'right'}}>Entry</span>
+                        <span style={{flex: 1, textAlign:'right'}}>Exit</span>
+                        <span style={{flex: 1, textAlign:'right'}}>PnL</span>
+                    </div>
+                    <div className="trade-list-scroll">
+                        {trades.length > 0 ? trades.map((t) => (
+                            <div 
+                                key={t.id} 
+                                className={`trade-row ${hoveredTrade && hoveredTrade.id === t.id ? 'active' : ''}`}
+                                onMouseEnter={() => setHoveredTrade(t)}
+                                onMouseLeave={() => setHoveredTrade(null)}
+                            >
+                                <div style={{flex: 0.8}}>
+                                    <span className={`badge ${t.side}`}>{t.side}</span>
+                                    <div className="date-sub">{t.date.split(" ")[0]}</div>
+                                </div>
+                                <div className="price-cell" style={{flex: 1}}>${t.entryPrice?.toFixed(2)}</div>
+                                <div className="price-cell" style={{flex: 1}}>${t.exitPrice?.toFixed(2)}</div>
+                                <div className={`pnl-cell ${t.profit >= 0 ? "pnl-pos" : "pnl-neg"}`} style={{flex: 1}}>
+                                    {t.profit >= 0 ? "+" : "-"}${Math.abs(t.profit).toFixed(2)}
+                                </div>
                             </div>
-                            <div className="price-cell" style={{flex: 1}}>${t.entryPrice?.toFixed(2)}</div>
-                            <div className="price-cell" style={{flex: 1}}>${t.exitPrice?.toFixed(2)}</div>
-                            <div className={`pnl-cell ${t.profit >= 0 ? "pnl-pos" : "pnl-neg"}`} style={{flex: 1}}>
-                                {t.profit >= 0 ? "+" : "-"}${Math.abs(t.profit).toFixed(2)}
-                            </div>
-                        </div>
-                    )) : <div className="empty-trades">No trades executed in this range.</div>}
+                        )) : <div className="empty-trades">No trades executed in this range.</div>}
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-  );
+    );
 }
