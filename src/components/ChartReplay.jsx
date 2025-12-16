@@ -1,16 +1,21 @@
 // File: src/components/ChartReplay.jsx
-// 🚀 UPGRADE: v64.4 - "Replay Table & Date Ranges"
-// Fixes: 
-// 1. Adds 'Data Range' display to header (matching ChartIndependent).
-// 2. Positions Trade Log table directly under controls.
-// 3. Implements strict Jet Black & Emerald theme.
+// 🚀 UPGRADE: v64.5 - "Replay Integrity & Alignment"
+// 1. FIXED: Removed state mutation inside useMemo (anti-pattern fix).
+// 2. FIXED: Added strict date filtering & deduplication logic.
+// 3. FIXED: Implemented 'Nearest Candle' alignment for trades.
+// 4. IMPROVED: Switched to ResizeObserver for robust layout handling.
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { createChart, CrosshairMode, LineStyle, ColorType } from 'lightweight-charts';
 import { Calendar, ZoomIn, ZoomOut, Play, Pause, SkipBack, SkipForward, RotateCcw } from 'lucide-react';
 import './ChartReplay.css';
 
-export const ChartReplay = ({ results, symbol }) => {
+export const ChartReplay = ({ 
+    results, 
+    symbol,
+    startDate = null, // e.g. "2024-12-01"
+    endDate = null    // e.g. "2024-12-31"
+}) => {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const candlestickSeriesRef = useRef(null);
@@ -21,79 +26,136 @@ export const ChartReplay = ({ results, symbol }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [dataRange, setDataRange] = useState({ start: "--", end: "--", count: 0 });
 
-  // --- 1. PARSE DATA ---
-  const parseTime = (t) => {
-      if (!t) return null;
-      if (typeof t === 'object' && t.$date) t = t.$date;
-      if (typeof t === 'number' && t < 10000000000) return t; 
-      const d = new Date(t);
-      return isNaN(d.getTime()) ? null : d.getTime() / 1000;
-  };
-
-  const candles = useMemo(() => {
-    if (!results?.candleData || !Array.isArray(results.candleData)) return [];
-    
-    const parsed = results.candleData.map(c => ({
-      time: parseTime(c.timestamp || c.time || c.datetime || c.date || c.start), 
-      open: parseFloat(c.open),
-      high: parseFloat(c.high),
-      low: parseFloat(c.low),
-      close: parseFloat(c.close),
-    })).filter(c => c.time).sort((a, b) => a.time - b.time);
-
-    // Calculate Data Range
-    if (parsed.length > 0) {
-        setDataRange({
-            start: new Date(parsed[0].time * 1000).toLocaleDateString(),
-            end: new Date(parsed[parsed.length - 1].time * 1000).toLocaleDateString(),
-            count: parsed.length
-        });
+  // --- 1. PARSE & FILTER CANDLES (Pure Logic) ---
+  const { candles, timeSet, validTimes } = useMemo(() => {
+    if (!results?.candleData || !Array.isArray(results.candleData)) {
+        return { candles: [], timeSet: new Set(), validTimes: [] };
     }
-
-    return parsed;
-  }, [results]);
-
-  const trades = useMemo(() => {
-    if (!results?.tradeBreakdown || !Array.isArray(results.tradeBreakdown)) return [];
     
-    return results.tradeBreakdown.map((t, i) => {
-      const entryTime = parseTime(t.entryTime || t.entry_time || t.time || t.date);
-      const exitTime = parseTime(t.exitTime || t.exit_time || t.close_time || t.date_out);
-      const profit = parseFloat(t.profit || t.realized_pnl || t.pnl || 0);
-      const exitPrice = parseFloat(t.exitPrice || t.exit_price || t.close_price || 0);
+    // Parse Date Filters
+    const startTs = startDate ? new Date(startDate).getTime() / 1000 : null;
+    const endTs = endDate ? new Date(endDate).getTime() / 1000 + 86400 : null; // +24h buffer
 
-      return entryTime ? {
+    const uniqueSet = new Set();
+    const processed = [];
+
+    results.candleData.forEach(c => {
+      // Robust Timestamp Parsing
+      let t = c.timestamp || c.time || c.datetime || c.date || c.start;
+      if (typeof t === 'object' && t.$date) t = t.$date;
+      
+      let dateObj;
+      if (typeof t === 'number' && t > 10000000000) dateObj = new Date(t); // ms timestamp
+      else if (typeof t === 'number') dateObj = new Date(t * 1000); // sec timestamp
+      else dateObj = new Date(t);
+      
+      const timeStamp = Math.floor(dateObj.getTime() / 1000);
+
+      // 1️⃣ Strict Date Filtering
+      if (startTs && timeStamp < startTs) return;
+      if (endTs && timeStamp > endTs) return;
+
+      // 2️⃣ Deduplication
+      if (timeStamp && !uniqueSet.has(timeStamp)) {
+        uniqueSet.add(timeStamp);
+        processed.push({
+          time: timeStamp,
+          open: parseFloat(c.open),
+          high: parseFloat(c.high),
+          low: parseFloat(c.low),
+          close: parseFloat(c.close),
+        });
+      }
+    });
+
+    processed.sort((a, b) => a.time - b.time);
+    return { 
+        candles: processed, 
+        timeSet: uniqueSet, 
+        validTimes: Array.from(uniqueSet).sort((a, b) => a - b) 
+    };
+  }, [results, startDate, endDate]);
+
+  // --- 2. UPDATE DATA RANGE STATE (Side Effect) ---
+  useEffect(() => {
+    if (candles.length > 0) {
+        setDataRange({
+            start: new Date(candles[0].time * 1000).toLocaleDateString(),
+            end: new Date(candles[candles.length - 1].time * 1000).toLocaleDateString(),
+            count: candles.length
+        });
+        // Auto-reset if data changes completely
+        if (!isLoaded || currentIndex >= candles.length) {
+            setCurrentIndex(0);
+            setIsLoaded(true);
+        }
+    }
+  }, [candles]);
+
+  // --- 3. PARSE & ALIGN TRADES ---
+  const trades = useMemo(() => {
+    if (!results?.tradeBreakdown || !Array.isArray(results.tradeBreakdown) || validTimes.length === 0) return [];
+    
+    // Helper to find nearest candle time for marker alignment
+    const findNearestTime = (targetTime) => {
+        if (timeSet.has(targetTime)) return targetTime;
+        let closest = validTimes[0];
+        let minDiff = Math.abs(targetTime - closest);
+        for (let t of validTimes) {
+            const diff = Math.abs(targetTime - t);
+            if (diff < minDiff) { minDiff = diff; closest = t; }
+        }
+        // Only snap if within 2 hours (avoid snapping daily trades to hourly charts aggressively)
+        return minDiff < 7200 ? closest : null; 
+    };
+
+    const startTs = startDate ? new Date(startDate).getTime() / 1000 : null;
+    const endTs = endDate ? new Date(endDate).getTime() / 1000 + 86400 : null;
+
+    return results.tradeBreakdown.map((t, i) => {
+      const entryRaw = new Date(t.entryTime || t.entry_time || t.time).getTime() / 1000;
+      const exitRaw = t.exitTime ? new Date(t.exitTime).getTime() / 1000 : null;
+
+      // Filter Logic
+      if (startTs && entryRaw < startTs) return null;
+      if (endTs && entryRaw > endTs) return null;
+
+      // 3️⃣ Alignment Logic
+      const entryTime = findNearestTime(entryRaw);
+      const exitTime = exitRaw ? findNearestTime(exitRaw) : null;
+      
+      if (!entryTime) return null; // Skip if no valid candle found to attach marker to
+
+      const profit = parseFloat(t.profit || 0);
+      const exitPrice = parseFloat(t.exitPrice || 0);
+
+      return {
         id: i,
-        time: entryTime, 
-        position: (t.position || t.side || 'long').toLowerCase(), 
-        price: parseFloat(t.entryPrice || t.entry_price || t.price || 0),
+        time: entryTime, // The visual time on chart
+        realEntryTime: entryRaw, // The actual execution time
+        position: (t.position || t.side || 'long').toLowerCase(),
+        price: parseFloat(t.entryPrice || 0),
         profit: profit,
         exitTime: exitTime,
+        realExitTime: exitRaw,
         exitPrice: exitPrice,
-        isRealized: profit !== 0 || exitPrice > 0 
-      } : null;
+        isRealized: profit !== 0 || exitPrice > 0
+      };
     }).filter(t => t !== null).sort((a, b) => a.time - b.time);
-  }, [results]);
+  }, [results, candles, validTimes, timeSet, startDate, endDate]);
 
-  // --- 2. AUTO-INIT ---
-  useEffect(() => {
-      if (candles.length > 0 && !isLoaded) {
-          setCurrentIndex(0); // Start at beginning for replay
-          setIsLoaded(true);
-      }
-  }, [candles, isLoaded]);
-
-  // --- 3. INITIALIZE CHART ---
+  // --- 4. INITIALIZE CHART ---
   useEffect(() => {
     if (!chartContainerRef.current || candles.length === 0) return;
 
     if (chartRef.current) { chartRef.current.remove(); }
 
+    // Create Chart
     chartRef.current = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
       height: 450,
       layout: { 
-          background: { type: ColorType.Solid, color: "#000000" }, // Jet Black
+          background: { type: ColorType.Solid, color: "transparent" }, // Jet Black via CSS
           textColor: '#94a3b8',
           fontFamily: "'Inter', sans-serif" 
       }, 
@@ -106,7 +168,7 @@ export const ChartReplay = ({ results, symbol }) => {
           vertLine: { labelBackgroundColor: '#064e3b' },
           horzLine: { labelBackgroundColor: '#064e3b' }
       },
-      timeScale: { borderColor: '#064e3b', timeVisible: true },
+      timeScale: { borderColor: '#064e3b', timeVisible: true, barSpacing: 6 },
       rightPriceScale: { borderColor: '#064e3b' },
     });
 
@@ -115,32 +177,44 @@ export const ChartReplay = ({ results, symbol }) => {
       borderVisible: false, wickUpColor: '#10b981', wickDownColor: '#ef4444',
     });
 
+    // 5️⃣ Robust Resize Observer
+    const resizeObserver = new ResizeObserver((entries) => {
+        if (!entries || entries.length === 0) return;
+        const { width } = entries[0].contentRect;
+        if (chartRef.current) {
+            chartRef.current.applyOptions({ width });
+        }
+    });
+    resizeObserver.observe(chartContainerRef.current);
+
+    // Initial Data Set
     candlestickSeriesRef.current.setData(candles);
     chartRef.current.timeScale().fitContent();
 
-    const handleResize = () => {
-        if (chartRef.current) chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
-    };
-    window.addEventListener('resize', handleResize);
-
     return () => { 
-        window.removeEventListener('resize', handleResize);
-        if (chartRef.current) chartRef.current.remove(); 
+        resizeObserver.disconnect();
+        if (chartRef.current) {
+            chartRef.current.remove();
+            chartRef.current = null;
+        }
     };
-  }, [candles]); 
+  }, [candles.length]); // Re-init only if data drastically changes (length check is proxy)
 
-  // --- 4. THE LOOP ---
+  // --- 5. THE LOOP (Update Logic) ---
   useEffect(() => {
     if (!candlestickSeriesRef.current || candles.length === 0) return;
     
     const currentCandle = candles[currentIndex];
     if (!currentCandle) return;
 
+    // Slice data up to current frame
     const visibleCandles = candles.slice(0, currentIndex + 1);
     candlestickSeriesRef.current.setData(visibleCandles);
 
+    // Calculate Markers for visible range
     const activeMarkers = [];
     trades.forEach(t => {
+        // Entry Marker
         if (t.time <= currentCandle.time) {
             activeMarkers.push({
                 time: t.time,
@@ -150,6 +224,7 @@ export const ChartReplay = ({ results, symbol }) => {
                 text: `E`
             });
         }
+        // Exit Marker
         if (t.exitTime && t.exitTime <= currentCandle.time) {
             activeMarkers.push({
                 time: t.exitTime,
@@ -166,7 +241,7 @@ export const ChartReplay = ({ results, symbol }) => {
 
   }, [currentIndex, candles, trades]);
 
-  // --- 5. Playback Interval ---
+  // --- 6. Playback Interval ---
   useEffect(() => {
     let interval = null;
     if (isPlaying) {
@@ -183,25 +258,21 @@ export const ChartReplay = ({ results, symbol }) => {
     return () => clearInterval(interval);
   }, [isPlaying, playbackSpeed, candles.length]);
 
-  // --- 6. CONTROLS ---
+  // --- CONTROLS HANDLERS ---
   const handlePlay = () => { if (currentIndex >= candles.length - 1) setCurrentIndex(0); setIsPlaying(true); };
   const handlePause = () => setIsPlaying(false);
   const handleReset = () => { setIsPlaying(false); setCurrentIndex(0); };
   const handleStepBack = () => setCurrentIndex(prev => Math.max(0, prev - 1));
   const handleStepFwd = () => setCurrentIndex(prev => Math.min(candles.length - 1, prev + 1));
 
-  // ZOOM
   const handleZoomIn = () => { 
       if (!chartRef.current) return;
       const ts = chartRef.current.timeScale();
       const range = ts.getVisibleLogicalRange();
       if (!range) return;
-      
       const width = range.to - range.from;
       const center = (range.from + range.to) / 2;
-      const newWidth = width * 0.7; 
-      
-      ts.setVisibleLogicalRange({ from: center - newWidth / 2, to: center + newWidth / 2 });
+      ts.setVisibleLogicalRange({ from: center - (width * 0.7) / 2, to: center + (width * 0.7) / 2 });
   };
 
   const handleZoomOut = () => { 
@@ -209,29 +280,24 @@ export const ChartReplay = ({ results, symbol }) => {
       const ts = chartRef.current.timeScale();
       const range = ts.getVisibleLogicalRange();
       if (!range) return;
-      
       const width = range.to - range.from;
       const center = (range.from + range.to) / 2;
-      const newWidth = width * 1.3; 
-      
-      ts.setVisibleLogicalRange({ from: center - newWidth / 2, to: center + newWidth / 2 });
+      ts.setVisibleLogicalRange({ from: center - (width * 1.3) / 2, to: center + (width * 1.3) / 2 });
   };
 
   if (!results || !candles.length) return <div className="chart-loading">Loading Chart Data...</div>;
 
   // --- HUD CALCULATIONS ---
   const currentCandleData = candles[currentIndex] || {};
-  const openTradesList = trades.filter(t => {
-      const isStarted = t.time <= currentCandleData.time;
-      const isNotEnded = !t.exitTime || t.exitTime > currentCandleData.time;
-      const isZombie = !t.exitTime && t.isRealized; 
-      return isStarted && isNotEnded && !isZombie;
-  });
-  const openTrade = openTradesList[openTradesList.length - 1]; 
+  
+  // Find currently open trade relative to replay time
+  const openTrade = trades.find(t => 
+      t.time <= currentCandleData.time && 
+      (!t.exitTime || t.exitTime > currentCandleData.time)
+  );
   
   let pnl = 0;
   if (openTrade && currentCandleData && openTrade.price > 0) {
-      // Simple calc for display - assumes 1 unit size for visualization
       const diff = currentCandleData.close - openTrade.price;
       pnl = openTrade.position === 'long' ? diff : -diff;
   }
@@ -244,7 +310,6 @@ export const ChartReplay = ({ results, symbol }) => {
       <div className="chart-header-row">
         <div className="flex items-center gap-4">
             <h3>Replay: {symbol}</h3>
-            {/* 🚀 NEW: Date Range Badge */}
             <div className="data-range-badge">
                 <Calendar className="w-3 h-3 inline mr-1" />
                 {dataRange.start} - {dataRange.end} ({dataRange.count} bars)
@@ -317,13 +382,12 @@ export const ChartReplay = ({ results, symbol }) => {
                      </tr>
                  </thead>
                  <tbody>
-                     {visibleTrades.map((t, i) => {
+                     {visibleTrades.map((t) => {
                          const isTechnicallyOpen = !t.exitTime || t.exitTime > currentCandleData.time;
-                         const isZombie = isTechnicallyOpen && t.isRealized;
-                         const isOpen = isTechnicallyOpen && !isZombie;
+                         const isOpen = isTechnicallyOpen && !t.isRealized;
 
                          return (
-                            <tr key={i}>
+                            <tr key={t.id}>
                                 <td style={{color: t.position === 'short' ? '#ef4444' : '#10b981', fontWeight:'bold'}}>
                                     {t.position.toUpperCase()}
                                 </td>
