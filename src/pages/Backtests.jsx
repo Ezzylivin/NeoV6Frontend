@@ -1,8 +1,7 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v64.9 - "Tier 2 Analytics & Professional Depth"
-// 1. Adds Advanced Metrics (Sharpe, Sortino, Expectancy, Hold Time)
-// 2. Adds Trade Reason Pie Chart
-// 3. Retains v64.8 Fixes (Warmup filtering, indexing)
+// 🚀 UPGRADE: v64.10 - "Metrics Calculation Fix"
+// 1. Fixed bug where 'winningTrades' was missing from metrics object.
+// 2. Added explicit 'losingTrades' for Pie Chart stability.
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios"; 
@@ -17,7 +16,7 @@ import api from "../api/apiClient";
 import "./Backtests.css"; 
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
-const REASON_COLORS = ["#8b5cf6", "#f59e0b", "#06b6d4", "#ec4899", "#64748b"]; // Purple, Amber, Cyan, Pink, Slate
+const REASON_COLORS = ["#8b5cf6", "#f59e0b", "#06b6d4", "#ec4899", "#64748b"]; 
 
 const STRATEGY_TYPE_TO_CODE_MAP = {
   "Moving Average Crossover": "sma_crossover", "RSI": "rsi_divergence", "MACD": "macd_crossover",
@@ -57,7 +56,7 @@ const downloadCSV = (trades) => {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
 };
 
-// 🚀 NEW: Advanced Metrics Calculation (Sharpe, Sortino, etc.)
+// 🚀 METRICS CALCULATION (Fixed winningTrades bug)
 const computeMetricsFromTrades = (trades, initialBalance) => {
     if (!trades || trades.length === 0) return null;
     
@@ -71,20 +70,16 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
     let maxLosingStreak = 0;
     let totalHoldTimeMs = 0;
 
-    // Daily Returns for Sharpe/Sortino (Approximate)
     let dailyReturns = [];
-    let lastDayBalance = initialBalance;
 
     trades.forEach(t => {
         const prevBalance = balance;
         balance += t.profit;
         
-        // Drawdown
         if (balance > peak) peak = balance;
         const dd = (peak - balance) / peak;
         if (dd > maxDrawdown) maxDrawdown = dd;
 
-        // Win/Loss Stats
         if (t.profit > 0) {
             wins++;
             totalWin += t.profit;
@@ -95,14 +90,12 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
             if (currentLosingStreak > maxLosingStreak) maxLosingStreak = currentLosingStreak;
         }
 
-        // Hold Time
         const entry = new Date(t.entryTime).getTime();
         const exit = new Date(t.exitTime).getTime();
         if (!isNaN(entry) && !isNaN(exit)) {
             totalHoldTimeMs += (exit - entry);
         }
 
-        // Daily Return Proxy (Per Trade for simplicity, ideally needs daily equity curve)
         const ret = (balance - prevBalance) / prevBalance;
         dailyReturns.push(ret);
     });
@@ -112,24 +105,19 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
     const profitFactor = totalLoss === 0 ? totalWin : totalWin / totalLoss;
     const totalReturn = ((balance - initialBalance) / initialBalance) * 100;
     
-    // Expectancy = (Win% * AvgWin) - (Loss% * AvgLoss)
     const avgWin = wins > 0 ? totalWin / wins : 0;
     const avgLoss = (totalTrades - wins) > 0 ? totalLoss / (totalTrades - wins) : 0;
     const winPct = wins / totalTrades;
     const lossPct = 1 - winPct;
     const expectancy = (winPct * avgWin) - (lossPct * avgLoss);
 
-    // Standard Deviation of Returns
     const avgReturn = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length;
     const variance = dailyReturns.reduce((a, b) => a + Math.pow(b - avgReturn, 2), 0) / dailyReturns.length;
     const stdDev = Math.sqrt(variance);
     
-    // Downside Deviation (Sortino)
     const downsideVariance = dailyReturns.filter(r => r < 0).reduce((a, b) => a + Math.pow(b, 2), 0) / dailyReturns.length;
     const downsideStdDev = Math.sqrt(downsideVariance);
 
-    // Annualized Estimates (Assuming ~252 trading days, roughly scaling per-trade stats if frequent)
-    // NOTE: This is a rough estimation based on per-trade returns. Real Sharpe needs daily candle data.
     const sharpe = stdDev === 0 ? 0 : (avgReturn / stdDev) * Math.sqrt(totalTrades); 
     const sortino = downsideStdDev === 0 ? 0 : (avgReturn / downsideStdDev) * Math.sqrt(totalTrades);
 
@@ -141,11 +129,15 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
         maxDrawdown: maxDrawdown * 100,
         winRate,
         totalTrades,
+        
+        // 🚀 FIXED: Added these fields for Pie Chart
+        winningTrades: wins,
+        losingTrades: totalTrades - wins,
+
         averageWin: avgWin,
         averageLoss: avgLoss,
         finalBalance: balance,
         
-        // 🚀 NEW METRICS
         expectancy,
         sharpeRatio: sharpe,
         sortinoRatio: sortino,
@@ -247,7 +239,7 @@ const MetricsDisplay = ({ metrics }) => {
   );
 };
 
-// 🚀 NEW: Risk & Efficiency Card
+// 🚀 RISK & EFFICIENCY CARD
 const AdvancedMetricsDisplay = ({ metrics }) => {
     if (!metrics) return null;
     const items = [
@@ -281,8 +273,7 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
    
     return (
       <>
-        {/* ... (Existing Inputs: Symbol, Timeframe, Balance, Dates) ... */}
-        {/* [Keep previous input structure exactly as is] */}
+        {/* ... (Keep existing inputs) ... */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           <div className="space-y-2">
             <label className="text-slate-400 text-sm">Symbol</label>
@@ -656,9 +647,13 @@ export default function Backtests() {
        };
   }, [backtestResults, activeTab, formData, comboData]);
 
+  // 🚀 FIXED: Pie Data now uses explicit winningTrades and losingTrades
   const pieData = useMemo(() => {
     if (!combinedMetrics) return [];
-    return [{ name: "Wins", value: combinedMetrics.winningTrades }, { name: "Losses", value: combinedMetrics.totalTrades - combinedMetrics.winningTrades }];
+    return [
+        { name: "Wins", value: combinedMetrics.winningTrades }, 
+        { name: "Losses", value: combinedMetrics.losingTrades }
+    ];
   }, [combinedMetrics]);
 
   return (
