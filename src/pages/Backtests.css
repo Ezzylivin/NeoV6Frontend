@@ -1,31 +1,15 @@
-/* File: src/pages/Backtests.css - "Jet Black & Emerald Edition (Fully Upgraded)" */
-
-.backtest-container {
-  padding: 40px;
-  background: radial-gradient(circle at top right, #1a1a1a 0%, #000000 60%);
-  background-color: #000000;
-  color: #f8fafc;
-  min-height: 100vh;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-}
-
-.header {
-  font-size: 2.2rem;
-  font-weight: 800;
-  margin-bottom: 30px;
-  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  letter-spacing: -0.02em;
-  text-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-}
-
 /* --- CARD STYLES --- */
 .bot-card {
-  background: rgba(10, 10, 10, 0.95); /* Darker black for cards */
+  /* 🚀 FORCE BLACK: The !important tag overrides any lingering Tailwind slate classes */
+  background-color: #0a0a0a !important; 
+  background: rgba(10, 10, 10, 0.95) !important;
+  
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  border: 1px solid rgba(16, 185, 129, 0.2); /* Emerald tint */
+  
+  /* 🚀 FORCE EMERALD BORDER */
+  border: 1px solid rgba(16, 185, 129, 0.2) !important; 
+  
   border-radius: 16px;
   padding: 28px;
   margin-bottom: 24px;
@@ -33,43 +17,15 @@
   min-width: 0;
 }
 
-.panel-header {
-  margin-bottom: 24px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid rgba(16, 185, 129, 0.2); /* Emerald accent */
-}
-
-.card-title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #ffffff;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
 /* --- FORM ELEMENTS --- */
-.selectors-row {
-  display: flex;
-  gap: 24px;
-  margin-bottom: 28px;
-  flex-wrap: wrap;
-}
-
-.setup-selector {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: #e5e5e5;
-  min-width: 0;
-}
-
 select, input {
-  background: #0a0a0a; /* Fully jet black */
-  border: 1px solid #262626;
-  color: #ffffff;
+  /* 🚀 FORCE BLACK INPUTS */
+  background-color: #0a0a0a !important; 
+  background: #0a0a0a !important;
+  
+  border: 1px solid #262626 !important;
+  color: #ffffff !important;
+  
   padding: 14px 18px;
   border-radius: 8px;
   width: 100%;
@@ -82,139 +38,19 @@ select, input {
 }
 
 select:focus, input:focus {
-  border-color: #10b981;
-  background: #0a0a0a;
+  border-color: #10b981 !important;
+  background: #0a0a0a !important;
   outline: none;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.4);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.4) !important;
 }
 
-select:hover, input:hover {
-  border-color: #34d399;
-}
-
-option {
-  background: #0a0a0a;
-  color: #ffffff;
-  padding: 10px;
-}
-
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 24px;
-  margin-bottom: 28px;
-}
-
-/* --- BUTTONS --- */
-.button-start {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: white;
-  border: 1px solid #34d399;
-  padding: 16px 24px;
-  border-radius: 10px;
-  font-weight: 800;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  width: 100%;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  font-size: 1rem;
-  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
-  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-}
-
-.button-start:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 22px rgba(16, 185, 129, 0.45);
-  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
-}
-
-.button-start:disabled {
-  background: #1a1a1a;
-  border-color: #262626;
-  color: #737373;
-  cursor: not-allowed;
-  box-shadow: none;
-  transform: none;
-}
-
-/* --- TABS --- */
+/* Ensure the Tabs are also forced black if they are stubborn */
 .tabs {
-  margin-bottom: 25px;
-  background: #0a0a0a;
-  padding: 6px;
-  border-radius: 12px;
-  display: inline-flex;
-  border: 1px solid #262626;
-  width: 100%;
-}
-
-.tabs button {
-  background: transparent;
-  border: none;
-  color: #a3a3a3;
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 0.95rem;
-  flex: 1;
-}
-
-.tabs button.active {
-  background: #10b981;
-  color: white;
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.45);
-}
-
-/* --- METRICS GRID --- */
-.metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 16px;
+  background: #0a0a0a !important;
+  border: 1px solid #262626 !important;
 }
 
 .metric-item {
-  background: #0a0a0a;
-  padding: 20px;
-  border-radius: 12px;
-  text-align: center;
-  border: 1px solid #262626;
-}
-
-.metric-label {
-  display: block;
-  font-size: 0.8rem;
-  color: #d4d4d4;
-  text-transform: uppercase;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  margin-bottom: 8px;
-}
-
-.metric-value {
-  font-size: 1.6rem;
-  font-weight: 800;
-  color: #ffffff;
-  font-family: 'Roboto Mono', monospace;
-  letter-spacing: -0.03em;
-}
-
-/* --- SMALL BUTTONS --- */
-.setup-selector button {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #ffffff;
-  background: #059669;
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid #10b981;
-  transition: all 0.2s;
-  cursor: pointer;
-}
-
-.setup-selector button:hover {
-  background: #10b981;
-  box-shadow: 0 0 10px rgba(16, 185, 129, 0.45);
+  background: #0a0a0a !important;
+  border: 1px solid #262626 !important;
 }
