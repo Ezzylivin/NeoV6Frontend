@@ -493,54 +493,57 @@ export default function Backtests() {
   useEffect(() => { fetchWinners(); }, []);
 
   const handleWinnerSelect = (e) => {
-      const filename = e.target.value;
-      setSelectedWinnerId(filename);
-      const selectedWinner = liveWinners.find(w => w.id === filename);
-      
-      if (!selectedWinner) return;
+    const filename = e.target.value;
+    setSelectedWinnerId(filename);
+    const selectedWinner = liveWinners.find(w => w.id === filename);
+    
+    if (!selectedWinner) return;
 
-      // 🚀 CRITICAL: Clear charts so user knows to run simulation manually
-      setBacktestResults({ main: null });
+    // 1. Clear existing results to force a "Fresh Run"
+    setBacktestResults({ main: null });
 
-      // Handle data structure (support both nested .config and flat JSON)
-      const data = selectedWinner.config || selectedWinner;
-      
-      let symbol = data.symbol || "BTC-USD";
-      let timeframe = data.timeframe || "1h";
-      if(!data.symbol && filename.includes('_')) {
-           const parts = filename.split('_'); if(parts[1]) symbol = parts[1]; if(parts[2]) timeframe = parts[2];
-      }
+    // 2. Extract configuration (handling both nested and flat JSON)
+    const data = selectedWinner.config || selectedWinner;
+    const rootParams = data.params || {};
 
-      let strategies = (Array.isArray(data.strategies) ? data.strategies : []).map(s => {
-          const code = s.code || "unknown";
-          const params = s.params || {};
-          const matchedOption = strategyOptions.find(opt => opt.code === code);
-          return { strategyId: matchedOption ? matchedOption._id : "", code, params };
-      });
+    // 3. FIX: Explicitly extract ML Model
+    // Alpha files usually store this at the root or inside config
+    let modelToSet = data.mlModel || rootParams.mlModel || "";
+    
+    // 4. FIX: Map Strategy ID's properly so the UI dropdowns highlight correctly
+    let strategies = (Array.isArray(data.strategies) ? data.strategies : []).map(s => {
+        const code = s.code || "unknown";
+        const matchedOption = strategyOptions.find(opt => opt.code === code);
+        return { 
+            strategyId: matchedOption ? matchedOption._id : "", 
+            code: code, 
+            params: s.params || {} 
+        };
+    });
 
-      let mlMode = data.mlMode || "off";
-      let mlModel = data.mlModel || ""; // 🚀 FIXED: Look at root for mlModel
-      if (mlModel && mlMode === "off") mlMode = "predictions";
-      if (!mlModel && mlMode !== "off") mlModel = 'btc_1h_xgboost_model'; 
+    // 5. Update State
+    setActiveTab('combo');
+    setComboData(prev => ({
+        ...prev,
+        symbol: data.symbol || prev.symbol,
+        timeframe: data.timeframe || prev.timeframe,
+        mlMode: data.mlMode || "predictions",
+        mlModel: modelToSet, // <--- THIS UPDATES THE DROPDOWN
+        mlThreshold: safeNum(data.mlThreshold, 0.65),
+        strategies: strategies,
+        comboConfig: { 
+            strategyCodes: strategies.map(s => s.code), 
+            combinationRule: rootParams.hybridMode || data.hybridMode || 'OR' 
+        },
+        params: {
+            ...rootParams,
+            riskPercentage: safeNum(data.riskPercentage, prev.params.riskPercentage),
+            maxPyramiding: safeNum(rootParams.maxPyramiding, 1)
+        }
+    }));
 
-      const safeNum = (v, def) => (isNaN(Number(v)) ? def : Number(v));
-      // 🚀 FIXED: Load root params for flat JSON structure
-      const rootParams = data.params || {};
-
-      setActiveTab('combo');
-      setComboData(prev => ({
-          ...prev, symbol, timeframe, isCombo: true, strategies,
-          comboConfig: { strategyCodes: strategies.map(s => s.code), combinationRule: rootParams.hybridMode || 'OR' },
-          mlMode, mlModel, mlThreshold: safeNum(data.mlThreshold, 0.5),
-          params: { 
-            ...rootParams, // Load all params (tslAtrMult, minAdx, etc.)
-            riskPercentage: safeNum(data.riskPercentage, 1), 
-            maxPyramiding: safeNum(rootParams.maxPyramiding, 1),
-            growthCapitalTarget: safeNum(data.growthCapitalTarget, 2000)
-          }
-      }));
-  };
-
+    console.log(`🚀 Alpha Loaded: ${filename} | Model: ${modelToSet}`);
+};
   const handleSaveStrategy = async () => {
     const name = prompt("Enter a name for this strategy setup:");
     if (!name) return;
