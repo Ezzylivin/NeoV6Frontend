@@ -1,9 +1,9 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v65.5 - "Final Blue purge"
-// 1. Replaced Blue Spinner with Emerald Spinner.
-// 2. Replaced Blue CSV Button with Cyan/Teal.
-// 3. Replaced Blue/Violet Trophy Background with Green/Teal.
-// 4. Changed Chart Icon color to Emerald.
+// 🚀 UPGRADE: v65.6 - "Configuration Color Purge"
+// 1. REPLACED: All 'bg-slate-800' inputs with 'bg-black' or 'bg-neutral-900'.
+// 2. REPLACED: 'cyan' gradients in Strategy Loader with 'emerald'.
+// 3. UPDATED: Text colors from 'slate-400' to 'neutral-400' (removes blueish text tint).
+// 4. ENSURED: Configuration menu is strictly Black/Grey/Green.
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios"; 
@@ -17,6 +17,7 @@ import { ChartReplay } from "../components/ChartReplay.jsx";
 import api from "../api/apiClient"; 
 import "./Backtests.css"; 
 
+// 🟢 Theme Colors
 const COLORS = ["#10b981", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#22c55e"];
 const REASON_COLORS = ["#10b981", "#f59e0b", "#06b6d4", "#ec4899", "#64748b"]; 
 
@@ -185,7 +186,6 @@ const MonthlyHeatmap = ({ equityCurve }) => {
                 {Object.keys(monthlyReturns).sort().map(month => {
                     const data = monthlyReturns[month];
                     const ret = ((data.end - data.start) / data.start) * 100;
-                    const intensity = Math.min(Math.abs(ret) / 10, 1);
                     const bg = ret >= 0 
                         ? `rgba(16, 185, 129, 0.1)` 
                         : `rgba(239, 68, 68, 0.1)`;
@@ -197,7 +197,7 @@ const MonthlyHeatmap = ({ equityCurve }) => {
                             className={`border ${borderColor} rounded-xl p-4 text-center hover:scale-105 transition-all`}
                             style={{backgroundColor: bg}}
                         >
-                            <div className="text-slate-400 text-xs mb-2">{month}</div>
+                            <div className="text-neutral-400 text-xs mb-2">{month}</div>
                             <div className={`font-mono ${ret > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                                 {ret > 0 ? '+' : ''}{ret.toFixed(2)}%
                             </div>
@@ -213,7 +213,7 @@ const MetricsDisplay = ({ metrics }) => {
   if (!metrics) return null;
   const items = [
     { label: "Total Return", value: metrics.totalReturn, format: 'percent', color: 'text-emerald-400' },
-    { label: "Profit Factor", value: metrics.profitFactor, format: 'number', color: 'text-emerald-400' },
+    { label: "Profit Factor", value: metrics.profitFactor, format: 'number', color: 'text-blue-400' },
     { label: "Max Drawdown", value: metrics.maxDrawdown, format: 'percent', color: 'text-amber-400' },
     { label: "Win Rate", value: metrics.winRate, format: 'percent', color: 'text-violet-400' },
     { label: "Total Trades", value: metrics.totalTrades, format: null, color: 'text-cyan-400' },
@@ -254,7 +254,7 @@ const AdvancedMetricsDisplay = ({ metrics }) => {
                 <div key={idx} className="metric-item flex flex-col items-center justify-center text-center">
                     <span className="metric-label mb-1">{m.label}</span>
                     <div className={`text-xl font-mono font-bold ${m.color}`}>{m.value}</div>
-                    <span className="text-slate-500 text-[10px] mt-1">{m.desc}</span>
+                    <span className="text-neutral-500 text-[10px] mt-1">{m.desc}</span>
                 </div>
             ))}
         </div>
@@ -269,39 +269,43 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
     };
     const params = data.params || {};
    
+    // 🚀 FIXED: Removed all 'bg-slate' and 'border-slate' from inputs.
+    // 🚀 FIXED: Inputs now rely on 'bot-card input' styles from CSS (Black).
+    const inputClass = "w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
+    
     return (
       <>
         {/* Row 1: Symbol, Timeframe, Balance */}
         <div className="form-grid mb-6">
           <div className="setup-selector">
-            <label>Symbol</label>
-            <select name="symbol" value={data.symbol} onChange={handleGlobalChange}>
+            <label className="text-neutral-400">Symbol</label>
+            <select name="symbol" value={data.symbol} onChange={handleGlobalChange} className={inputClass}>
               <option value="">-- Select Symbol --</option>
               {options.symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div className="setup-selector">
-            <label>Timeframe</label>
-            <select name="timeframe" value={data.timeframe} onChange={handleGlobalChange}>
+            <label className="text-neutral-400">Timeframe</label>
+            <select name="timeframe" value={data.timeframe} onChange={handleGlobalChange} className={inputClass}>
               <option value="">-- Select Timeframe --</option>
               {options.timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
           <div className="setup-selector">
-            <label>Initial Balance</label>
-            <input type="number" name="initialBalance" value={data.initialBalance} onChange={handleGlobalChange} />
+            <label className="text-neutral-400">Initial Balance</label>
+            <input type="number" name="initialBalance" value={data.initialBalance} onChange={handleGlobalChange} className={inputClass} />
           </div>
         </div>
         
-        {/* Row 2: Dates - Fixed Overflow here by CSS adjustment */}
+        {/* Row 2: Dates */}
         <div className="form-grid mb-6" style={{gridTemplateColumns: '1fr 1fr'}}>
           <div className="setup-selector">
-            <label>Start Date</label>
-            <input type="date" name="startDate" value={data.startDate} onChange={handleGlobalChange} />
+            <label className="text-neutral-400">Start Date</label>
+            <input type="date" name="startDate" value={data.startDate} onChange={handleGlobalChange} className={inputClass} />
           </div>
           <div className="setup-selector">
-            <label>End Date</label>
-            <input type="date" name="endDate" value={data.endDate} onChange={handleGlobalChange} />
+            <label className="text-neutral-400">End Date</label>
+            <input type="date" name="endDate" value={data.endDate} onChange={handleGlobalChange} className={inputClass} />
           </div>
         </div>
         
@@ -313,33 +317,33 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
           <div className="form-grid">
             
             <div className="setup-selector">
-              <label>Risk Mode</label>
-              <select name="riskManagementMode" value={data.riskManagementMode || 'static'} onChange={handleGlobalChange}>
+              <label className="text-neutral-400">Risk Mode</label>
+              <select name="riskManagementMode" value={data.riskManagementMode || 'static'} onChange={handleGlobalChange} className={inputClass}>
                 <option value="static">Standard (Static %)</option>
                 <option value="dynamic">Dynamic (Growth Target)</option>
               </select>
             </div>
   
             <div className="setup-selector">
-              <label>Risk Percentage</label>
-              <input type="number" name="riskPercentage" value={data.riskPercentage ?? ''} onChange={handleGlobalChange} step="0.1" />
+              <label className="text-neutral-400">Risk Percentage</label>
+              <input type="number" name="riskPercentage" value={data.riskPercentage ?? ''} onChange={handleGlobalChange} step="0.1" className={inputClass} />
             </div>
   
             {data.riskManagementMode === 'dynamic' && (
                <div className="setup-selector">
-                  <label>Growth Target ($)</label>
-                  <input type="number" name="growthCapitalTarget" value={data.growthCapitalTarget} onChange={handleGlobalChange} />
+                  <label className="text-neutral-400">Growth Target ($)</label>
+                  <input type="number" name="growthCapitalTarget" value={data.growthCapitalTarget} onChange={handleGlobalChange} className={inputClass} />
                </div>
             )}
   
             <div className="setup-selector">
-              <label>Max Pyramiding</label>
-              <input type="number" name="maxPyramiding" value={params.maxPyramiding || 1} onChange={handleParamChange} min="1" max="10" />
+              <label className="text-neutral-400">Max Pyramiding</label>
+              <input type="number" name="maxPyramiding" value={params.maxPyramiding || 1} onChange={handleParamChange} min="1" max="10" className={inputClass} />
             </div>
 
             <div className="setup-selector">
-              <label>ML Mode</label>
-              <select name="mlMode" value={data.mlMode || "off"} onChange={handleGlobalChange}>
+              <label className="text-neutral-400">ML Mode</label>
+              <select name="mlMode" value={data.mlMode || "off"} onChange={handleGlobalChange} className={inputClass}>
                 <option value="off">Off (Pure TA)</option>
                 <option value="predictions">Hybrid (TA+ML)</option>
                 <option value="on">Pure ML</option>
@@ -347,8 +351,8 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
             </div>
             {data.mlMode === 'predictions' && (
               <div className="setup-selector">
-                <label>Hybrid Logic</label>
-                <select name="hybridMode" value={params.hybridMode || "AND"} onChange={handleParamChange}>
+                <label className="text-neutral-400">Hybrid Logic</label>
+                <select name="hybridMode" value={params.hybridMode || "AND"} onChange={handleParamChange} className={inputClass}>
                   <option value="AND">Strict (TA + ML Agree)</option>
                   <option value="OR">Loose (TA OR ML Signal)</option>
                   <option value="REGIME">Regime (ML Filters TA)</option>
@@ -358,22 +362,22 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
             {data.mlMode !== 'off' && (
               <>
                 <div className="setup-selector">
-                  <label>ML Model</label>
-                  <select name="mlModel" value={data.mlModel} onChange={handleGlobalChange}>
+                  <label className="text-neutral-400">ML Model</label>
+                  <select name="mlModel" value={data.mlModel} onChange={handleGlobalChange} className={inputClass}>
                     <option value="">-- Select Model --</option>
                     {options.modelOptions.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                   </select>
                 </div>
                 <div className="setup-selector">
-                  <label>ML Threshold</label>
-                  <input type="number" name="mlThreshold" value={data.mlThreshold} step="0.05" onChange={handleGlobalChange} />
+                  <label className="text-neutral-400">ML Threshold</label>
+                  <input type="number" name="mlThreshold" value={data.mlThreshold} step="0.05" onChange={handleGlobalChange} className={inputClass} />
                 </div>
               </>
             )}
             {params.hybridMode === 'REGIME' && (
               <div className="setup-selector">
-                <label>Regime Threshold</label>
-                <input type="number" name="regime_threshold" value={params.regime_threshold ?? 25} onChange={handleParamChange} step="1" />
+                <label className="text-neutral-400">Regime Threshold</label>
+                <input type="number" name="regime_threshold" value={params.regime_threshold ?? 25} onChange={handleParamChange} step="1" className={inputClass} />
               </div>
             )}
           </div>
@@ -386,20 +390,20 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
           </div>
           <div className="form-grid" style={{gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))'}}>
             <div className="setup-selector">
-              <label>Min ATR %</label>
-              <input type="number" name="minAtrPct" value={params.minAtrPct ?? 0} onChange={handleParamChange} step="0.05" />
+              <label className="text-neutral-400">Min ATR %</label>
+              <input type="number" name="minAtrPct" value={params.minAtrPct ?? 0} onChange={handleParamChange} step="0.05" className={inputClass} />
             </div>
             <div className="setup-selector">
-              <label>Min ADX</label>
-              <input type="number" name="minAdxLevel" value={params.minAdxLevel ?? 0} onChange={handleParamChange} step="1" />
+              <label className="text-neutral-400">Min ADX</label>
+              <input type="number" name="minAdxLevel" value={params.minAdxLevel ?? 0} onChange={handleParamChange} step="1" className={inputClass} />
             </div>
             <div className="setup-selector">
-              <label>TSL ATR Multiplier</label>
-              <input type="number" name="tslAtrMult" value={params.tslAtrMult ?? 0} onChange={handleParamChange} step="0.1" />
+              <label className="text-neutral-400">TSL ATR Multiplier</label>
+              <input type="number" name="tslAtrMult" value={params.tslAtrMult ?? 0} onChange={handleParamChange} step="0.1" className={inputClass} />
             </div>
             <div className="setup-selector">
-              <label>Trend Filter SMA</label>
-              <input type="number" name="trendFilterPeriod" value={params.trendFilterPeriod ?? 200} onChange={handleParamChange} step="1" />
+              <label className="text-neutral-400">Trend Filter SMA</label>
+              <input type="number" name="trendFilterPeriod" value={params.trendFilterPeriod ?? 200} onChange={handleParamChange} step="1" className={inputClass} />
             </div>
           </div>
         </div>
@@ -409,6 +413,9 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
 
 const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, disableRemove }) => {
   const handleChange = (e) => onChange(e, idx);
+  // 🚀 FIXED: Inputs now rely on 'bot-card input' styles from CSS (Black).
+  const inputClass = "w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors text-sm";
+
   return (
     <div className="bot-card p-4 hover:border-emerald-500/40 transition-all mb-4">
       <div className="flex items-center justify-between mb-3">
@@ -422,7 +429,7 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
           <button type="button" onClick={() => onRemove(idx)} className="text-rose-400 hover:text-rose-300 transition-colors font-bold text-lg">✕</button>
         )}
       </div>
-      <select name="strategyId" value={config.strategyId} onChange={handleChange} disabled={!strategies.length}>
+      <select name="strategyId" value={config.strategyId} onChange={handleChange} disabled={!strategies.length} className={inputClass}>
         <option value="">-- Select Strategy --</option>
         {strategies.length ? strategies.map(s => <option key={s._id} value={s._id}>{s.name}</option>) : <option disabled>Loading...</option>}
       </select>
@@ -600,60 +607,57 @@ export default function Backtests() {
     }
   };
 
-  // 🚀 REPLACEMENT for the useMemo block
   const { processedData, combinedMetrics, mainResult, warmupRemovedCount, exitReasons, exitReasonData, actualStartDate, actualEndDate } = useMemo(() => {
-    const res = backtestResults.main || backtestResults.combinedResult;
-    if (!res || !res.metrics) return { processedData: [], combinedMetrics: null, mainResult: null };
+       const res = backtestResults.main || backtestResults.combinedResult;
+       if (!res || !res.metrics) return { processedData: [], combinedMetrics: null, mainResult: null };
+       
+       const initialBalance = activeTab === 'single' ? formData.initialBalance : comboData.initialBalance;
+       const startPrice = res.candleData?.[0]?.close || 1;
+       const userStartDate = new Date(activeTab === 'single' ? formData.startDate : comboData.startDate).getTime();
 
-    // FIX 1: Use actual data start time, not form start time
-    const firstPoint = res.equityCurve?.[0]?.timestamp;
-    const lastPoint = res.equityCurve?.[res.equityCurve.length - 1]?.timestamp;
-    
-    const dataStartTime = firstPoint ? new Date(firstPoint).getTime() : 0;
+       // 1. FILTER: Equity Curve & Candles (Keep data >= Actual Start)
+       const firstPoint = res.equityCurve?.[0]?.timestamp;
+       const lastPoint = res.equityCurve?.[res.equityCurve.length - 1]?.timestamp;
+       const dataStartTime = firstPoint ? new Date(firstPoint).getTime() : 0;
+       
+       const curve = (res.equityCurve || [])
+          .map((p) => {
+             // Match candle by timestamp
+             const candle = res.candleData?.find(c => new Date(c.timestamp || c.datetime).getTime() === new Date(p.timestamp).getTime());
+             const price = candle ? candle.close : startPrice;
+             const buyHold = (price / startPrice) * initialBalance;
+             return { timestamp: new Date(p.timestamp).getTime(), balance: p.balance, buyHold: buyHold };
+       });
 
-    // 1. FILTER: Equity Curve & Candles (Keep data >= Actual Start)
-    const curve = (res.equityCurve || [])
-      .map((p) => {
-          // Match candle by timestamp
-          const candle = res.candleData?.find(c => new Date(c.timestamp || c.datetime).getTime() === new Date(p.timestamp).getTime());
-          const startPrice = res.candleData?.[0]?.close || 1; 
-          const initialBalance = activeTab === 'single' ? formData.initialBalance : comboData.initialBalance;
-          
-          const price = candle ? candle.close : startPrice;
-          const buyHold = (price / startPrice) * initialBalance;
-          return { timestamp: new Date(p.timestamp).getTime(), balance: p.balance, buyHold: buyHold };
-    });
+       // 2. FILTER: Trades (Use the data's start time, not the form's)
+       const filteredTrades = (res.tradeBreakdown || []).filter(t => new Date(t.entryTime).getTime() >= dataStartTime);
+       
+       // 3. RECOMPUTE METRICS (Critical for accuracy)
+       const recomputedMetrics = computeMetricsFromTrades(filteredTrades, initialBalance);
 
-    // 2. FILTER: Trades (Use the data's start time, not the form's)
-    const filteredTrades = (res.tradeBreakdown || []).filter(t => new Date(t.entryTime).getTime() >= dataStartTime);
-    
-    // 3. RECOMPUTE METRICS
-    const recomputedMetrics = computeMetricsFromTrades(filteredTrades, activeTab === 'single' ? formData.initialBalance : comboData.initialBalance);
+       // 4. EXIT REASONS BREAKDOWN
+       const reasons = filteredTrades.reduce((acc, t) => {
+           const reason = t.type || "Signal"; 
+           acc[reason] = (acc[reason] || 0) + 1;
+           return acc;
+       }, {});
+       
+       const exitReasonData = Object.entries(reasons).map(([name, value]) => ({ name, value }));
 
-    // 4. EXIT REASONS BREAKDOWN
-    const reasons = filteredTrades.reduce((acc, t) => {
-        const reason = t.type || "Signal"; 
-        acc[reason] = (acc[reason] || 0) + 1;
-        return acc;
-    }, {});
-    
-    const exitReasonData = Object.entries(reasons).map(([name, value]) => ({ name, value }));
-    const filteredResult = { ...res, tradeBreakdown: filteredTrades, metrics: recomputedMetrics };
+       const filteredResult = { ...res, tradeBreakdown: filteredTrades, metrics: recomputedMetrics };
 
-    return { 
-        processedData: curve, 
-        combinedMetrics: recomputedMetrics, 
-        mainResult: filteredResult, 
-        warmupRemovedCount: 0, 
-        exitReasons: Object.entries(reasons).map(([name, value]) => ({ name, value })),
-        exitReasonData,
-        // Pass these out so we can feed them to the chart component
-        actualStartDate: firstPoint ? formatDate(firstPoint) : (activeTab === 'single' ? formData.startDate : comboData.startDate),
-        actualEndDate: lastPoint ? formatDate(lastPoint) : (activeTab === 'single' ? formData.endDate : comboData.endDate)
-    };
+       return { 
+           processedData: curve, 
+           combinedMetrics: recomputedMetrics, 
+           mainResult: filteredResult, 
+           warmupRemovedCount: 0,
+           exitReasons: Object.entries(reasons).map(([name, value]) => ({ name, value })),
+           exitReasonData, // Passed to PieChart
+           actualStartDate: firstPoint ? formatDate(firstPoint) : (activeTab === 'single' ? formData.startDate : comboData.startDate),
+           actualEndDate: lastPoint ? formatDate(lastPoint) : (activeTab === 'single' ? formData.endDate : comboData.endDate)
+       };
   }, [backtestResults, activeTab, formData, comboData]);
 
-  // 🚀 FIXED: Pie Data now uses explicit winningTrades and losingTrades
   const pieData = useMemo(() => {
     if (!combinedMetrics) return [];
     return [
@@ -661,6 +665,9 @@ export default function Backtests() {
         { name: "Losses", value: combinedMetrics.losingTrades }
     ];
   }, [combinedMetrics]);
+
+  // 🚀 FIXED: Standardized input style for reuse
+  const inputClass = "w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
 
   return (
     <div className="backtest-container">
@@ -673,12 +680,12 @@ export default function Backtests() {
               </div>
               <div>
                 <h1 className="header mb-0" style={{marginBottom:0, fontSize:'2rem'}}>Strategy Backtester</h1>
-                <p className="text-slate-400 text-sm">Advanced Performance Testing Platform</p>
+                <p className="text-neutral-400 text-sm">Advanced Performance Testing Platform</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <div className="px-4 py-2 bg-slate-800/50 rounded-xl border border-slate-700/50">
-                <span className="text-slate-400 text-sm">API Connected</span>
+              <div className="px-4 py-2 bg-black/50 rounded-xl border border-white/10">
+                <span className="text-neutral-400 text-sm">API Connected</span>
                 <span className="ml-2 w-2 h-2 bg-emerald-500 rounded-full inline-block animate-pulse"></span>
               </div>
             </div>
@@ -689,15 +696,14 @@ export default function Backtests() {
         <div className="grid grid-cols-12 gap-8">
           {/* Left Column - Configuration (5/12 width) */}
           <div className="col-span-12 lg:col-span-5">
-            {/* 🚀 FIXED: Replaced bg-slate with bot-card */}
             <div className="bot-card sticky top-6">
-              {/* ... (Existing Config UI Code) ... */}
               <div className="panel-header flex items-center gap-3">
                 <span className="text-emerald-400 text-lg">⚙️</span>
                 <h2 className="card-title">Configuration</h2>
               </div>
               
-              <div className="bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 border border-emerald-500/30 rounded-xl p-4 mb-6">
+              {/* 🚀 FIXED: Emerald Strategy Loader */}
+              <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/30 rounded-xl p-4 mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-emerald-400 flex items-center gap-2 font-semibold text-sm">
                     🏆 Load Alpha Strategy
@@ -713,12 +719,14 @@ export default function Backtests() {
                 <select 
                   value={selectedWinnerId} 
                   onChange={handleWinnerSelect}
+                  className={inputClass}
                 >
                   <option value="">-- Select Golden Strategy --</option>
                   {liveWinners.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                 </select>
               </div>
 
+              {/* 🚀 FIXED: Neural/Black Tabs */}
               <div className="tabs">
                 <button 
                   className={activeTab === 'single' ? 'active' : ''}
@@ -739,11 +747,12 @@ export default function Backtests() {
                   <>
                     <div className="form-grid mb-6">
                       <div className="setup-selector">
-                        <label>⚡ Strategy Type</label>
+                        <label className="text-neutral-400">⚡ Strategy Type</label>
                         <select 
                             name="strategyId" 
                             value={formData.strategyId} 
                             onChange={(e) => handleFormChange(e, setFormData)}
+                            className={inputClass}
                         >
                             <option value="">-- Select TA Strategy --</option>
                             {strategyOptions.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
@@ -771,7 +780,7 @@ export default function Backtests() {
                       <button 
                         type="button" 
                         onClick={addStrategyCard}
-                        className="w-full py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl text-blue-400 hover:bg-slate-800 hover:border-blue-500/50 transition-all text-sm font-bold uppercase tracking-wider"
+                        className="w-full py-3 bg-black/40 border border-white/10 rounded-xl text-emerald-400 hover:bg-black/60 hover:border-emerald-500/50 transition-all text-sm font-bold uppercase tracking-wider"
                       >
                         + Add Strategy Layer
                       </button>
@@ -795,13 +804,12 @@ export default function Backtests() {
             {(loading !== 'idle' || combinedMetrics || error) ? (
               <>
                 {loading !== 'idle' && (
-                  // 🚀 FIXED: Replaced bg-slate with bot-card and Updated Spinner Color
                   <div className="bot-card p-12 flex flex-col items-center justify-center min-h-[400px]">
                     <div className="w-20 h-20 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mb-6"></div>
                     <h3 className="text-white text-xl mb-2 font-bold">
                         {isSimulating ? "Running Backtest..." : "Loading the backtest setup..."}
                     </h3>
-                    <p className="text-slate-400 text-center">
+                    <p className="text-neutral-400 text-center">
                         {isSimulating ? "Analyzing historical data and executing strategy" : "Initializing environment..."}
                     </p>
                   </div>
@@ -839,7 +847,6 @@ export default function Backtests() {
                     
                     {/* Chart Card */}
                     {mainResult && mainResult.candleData?.length > 0 && (
-                      // 🚀 FIXED: Replaced bg-slate with bot-card
                       <div className="bot-card">
                         <div className="panel-header flex items-center justify-between">
                             <div className="flex items-center gap-3">
@@ -870,7 +877,6 @@ export default function Backtests() {
                               <ChartIndependent 
                                   results={mainResult} 
                                   symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} 
-                                  // FIX 2: Use the calculated actual dates from the data
                                   startDate={actualStartDate}
                                   endDate={actualEndDate}
                               />
@@ -878,16 +884,17 @@ export default function Backtests() {
                               <ChartReplay 
                                   results={mainResult} 
                                   symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} 
+                                  startDate={actualStartDate}
+                                  endDate={actualEndDate}
                               />
                           )}
                         </div>
                       </div>
                     )}
 
-                    {/* Charts Container (Equity + Trade Outcomes) */}
+                    {/* Charts Container */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Equity Curve */}
-                      {/* 🚀 FIXED: Replaced bg-slate with bot-card */}
                       <div className="bot-card">
                         <div className="panel-header flex items-center gap-3">
                           <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl flex items-center justify-center text-xl">
@@ -919,7 +926,6 @@ export default function Backtests() {
                       </div>
                       
                       {/* Trade Outcomes & Reasons */}
-                      {/* 🚀 FIXED: Replaced bg-slate with bot-card */}
                       <div className="bot-card">
                         <div className="panel-header flex items-center gap-3">
                           <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl flex items-center justify-center text-xl">
@@ -939,7 +945,7 @@ export default function Backtests() {
                               </PieChart>
                             </ResponsiveContainer>
 
-                            {/* 🚀 NEW: Exit Reason Pie */}
+                            {/* Exit Reason Pie */}
                             <ResponsiveContainer width="100%" height="100%">
                               <PieChart>
                                 <Pie data={exitReasonData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={5} stroke="none">
@@ -960,16 +966,15 @@ export default function Backtests() {
                 {error && (
                   <div className="bot-card border-red-500/30 bg-red-900/10 text-center">
                     <h3 className="text-red-400 text-lg mb-2 font-bold">Simulation Failed</h3>
-                    <p className="text-slate-400">{typeof error === 'object' ? (error.message || JSON.stringify(error)) : String(error)}</p>
+                    <p className="text-neutral-400">{typeof error === 'object' ? (error.message || JSON.stringify(error)) : String(error)}</p>
                   </div>
                 )}
               </>
             ) : (
-              // 🚀 FIXED: Replaced bg-slate with bot-card, replaced blue icon
               <div className="bot-card p-12 flex flex-col items-center justify-center min-h-[600px]">
                 <div className="w-20 h-20 bg-gradient-to-br from-emerald-500/20 to-teal-600/20 rounded-2xl flex items-center justify-center mb-6 text-4xl">🏆</div>
                 <h3 className="text-white text-xl mb-2 font-bold">Ready to Test Your Strategy</h3>
-                <p className="text-slate-400 text-center max-w-md">Configure your strategy parameters and run a backtest to see detailed performance metrics.</p>
+                <p className="text-neutral-400 text-center max-w-md">Configure your strategy parameters and run a backtest to see detailed performance metrics.</p>
               </div>
             )}
           </div>
