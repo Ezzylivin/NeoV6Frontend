@@ -17,8 +17,8 @@ import { ChartReplay } from "../components/ChartReplay.jsx";
 import api from "../api/apiClient"; 
 import "./Backtests.css"; 
 
-const COLORS = ["#10b981", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#22c55e"];
-const REASON_COLORS = ["#10b981", "#f59e0b", "#06b6d4", "#ec4899", "#64748b"]; 
+const COLORS = ["#10b981", "#ef4444", "#059669", "#f59e0b", "#8b5cf6", "#ec4899", "#34d399", "#22c55e"];
+const REASON_COLORS = ["#10b981", "#f59e0b", "#059669", "#ec4899", "#16a34a"];
 
 const STRATEGY_TYPE_TO_CODE_MAP = {
   "Moving Average Crossover": "sma_crossover", "RSI": "rsi_divergence", "MACD": "macd_crossover",
