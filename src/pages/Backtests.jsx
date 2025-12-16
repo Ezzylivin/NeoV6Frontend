@@ -322,7 +322,7 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
         
         {/* Risk & ML Section */}
         {/* 🚀 FIXED: Replaced 'bg-slate' with 'bot-card' */}
-        <div className="bot-card mb-6" style={{background: 'rgba(16, 185, 129, 0.05)', borderColor: 'rgba(16, 185, 129, 0.2)'}}>
+        <div className="bot-card mb-6" style={{background: 'rgba(16, 185, 129, 100)', borderColor: 'rgba(16, 185, 129, 0.2)'}}>
           <div className="panel-header mb-4 pb-3 border-b border-emerald-500/20">
             <h4 className="text-emerald-400 font-bold">Risk & ML Configuration</h4>
           </div>
