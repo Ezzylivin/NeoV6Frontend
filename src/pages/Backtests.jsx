@@ -29,6 +29,11 @@ const STRATEGY_TYPE_TO_CODE_MAP = {
 const defaultFilterParams = { minAtrPct: 0, trendFilterPeriod: 200, minAdxLevel: 0, tslAtrMult: 3.5, regime_threshold: 25 };
 
 // --- HELPER FUNCTIONS ---
+const safeNum = (v, def = 0) => {
+    const n = Number(v);
+    return isNaN(n) ? def : n;
+};
+
 const formatDate = dateString => {
   if (!dateString) return '';
   const date = new Date(dateString);
@@ -176,7 +181,7 @@ const MonthlyHeatmap = ({ equityCurve }) => {
     return (
         <div className="bot-card" style={{marginTop:'24px'}}>
             <div className="panel-header flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-violet-500/20 to-pink-500/20 rounded-xl flex items-center justify-center text-xl">
+                <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl flex items-center justify-center text-xl">
                     📅
                 </div>
                 <h3 className="card-title">Monthly Heatmap</h3>
@@ -186,8 +191,8 @@ const MonthlyHeatmap = ({ equityCurve }) => {
                     const data = monthlyReturns[month];
                     const ret = ((data.end - data.start) / data.start) * 100;
                     const bg = ret >= 0 
-                        ? `rgba(16, 185, 129, 50)` 
-                        : `rgba(239, 68, 68, 60)`;
+                        ? `rgba(16, 185, 129, 0.1)` 
+                        : `rgba(239, 68, 68, 0.1)`;
                     const borderColor = ret >= 0 ? 'border-emerald-500/30' : 'border-rose-500/30';
                     
                     return (
@@ -311,7 +316,7 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
           </div>
         </div>
         
-        <div className="bot-card mb-6" style={{background: 'rgba(16, 185, 129, 0.7)', borderColor: 'rgba(16, 185, 129, 0.7)'}}>
+        <div className="bot-card mb-6" style={{background: 'rgba(16, 185, 129, 0.05)', borderColor: 'rgba(16, 185, 129, 0.2)'}}>
           <div className="panel-header mb-4 pb-3 border-b border-emerald-500/20">
             <h4 className="text-emerald-400 font-bold">Risk & ML Configuration</h4>
           </div>
@@ -478,52 +483,56 @@ export default function Backtests() {
   };
   useEffect(() => { fetchWinners(); }, []);
 
-  // 🚀 UPGRADE v66.1: handleWinnerSelect logic changed
+  // 🚀 UPGRADE v66.1: Manual Run Mode - logic to clear data but keep inputs
   const handleWinnerSelect = (e) => {
       const filename = e.target.value;
+      if (!filename) return;
+
       setSelectedWinnerId(filename);
       const selectedWinner = liveWinners.find(w => w.id === filename);
-      
       if (!selectedWinner) return;
 
-      // Reset charts immediately on load to force user to click "Run"
+      // 1. CHANGED: Clears existing charts on load so user knows to click "Run"
       setBacktestResults({ main: null });
 
       const data = selectedWinner.config || selectedWinner;
-      
+      const rootParams = data.params || {};
+
       let symbol = data.symbol || "BTC-USD";
       let timeframe = data.timeframe || "1h";
       if(!data.symbol && filename.includes('_')) {
            const parts = filename.split('_'); if(parts[1]) symbol = parts[1]; if(parts[2]) timeframe = parts[2];
       }
 
-      let strategies = (Array.isArray(data.strategies) ? data.strategies : []).map(s => {
+      const strategies = (Array.isArray(data.strategies) ? data.strategies : []).map(s => {
           const code = s.code || "unknown";
-          const params = s.params || {};
           const matchedOption = strategyOptions.find(opt => opt.code === code);
-          return { strategyId: matchedOption ? matchedOption._id : "", code, params };
+          return { strategyId: matchedOption ? matchedOption._id : "", code, params: s.params || {} };
       });
 
-      let mlMode = data.mlMode || "off";
-      let mlModel = data.mlModel || "";
-      if (mlModel && mlMode === "off") mlMode = "predictions";
-      if (!mlModel && mlMode !== "off") mlModel = 'btc_1h_xgboost_model'; 
+      const modelToSet = data.mlModel || rootParams.mlModel || "";
+      const modeToSet = modelToSet ? "predictions" : (data.mlMode || "off");
 
-      const safeNum = (v, def) => (isNaN(Number(v)) ? def : Number(v));
-      const rootParams = data.params || {};
-
+      // 2. CHANGED: Loading a strategy populates inputs but DOES NOT run the test.
       setActiveTab('combo');
       setComboData(prev => ({
-          ...prev, symbol, timeframe, isCombo: true, strategies,
-          comboConfig: { strategyCodes: strategies.map(s => s.code), combinationRule: rootParams.hybridMode || 'OR' },
-          mlMode, mlModel, mlThreshold: safeNum(data.mlThreshold, 0.5),
+          ...prev,
+          symbol,
+          timeframe,
+          isCombo: true,
+          strategies,
+          mlMode: modeToSet,
+          mlModel: modelToSet,
+          mlThreshold: safeNum(data.mlThreshold || rootParams.mlThreshold, 0.5),
           params: { 
             ...rootParams,
-            riskPercentage: safeNum(data.riskPercentage, 1), 
+            riskPercentage: safeNum(data.riskPercentage || rootParams.riskPercentage, 1), 
             maxPyramiding: safeNum(rootParams.maxPyramiding, 1),
             growthCapitalTarget: safeNum(data.growthCapitalTarget, 2000)
           }
       }));
+
+      console.log(`🚀 Alpha Loaded: ${filename} | Inputs ready. Click Run Simulation to begin.`);
   };
 
   const handleSaveStrategy = async () => {
@@ -621,8 +630,12 @@ export default function Backtests() {
     setIsSimulating(true); 
     
     try {
-      const res = isCombo ? await runComboBacktest?.(comboData) : await runNewBacktest?.(formData);
-      if (res) setBacktestResults(res.combinedResult ? res : { main: res });
+      const payload = isCombo ? comboData : formData;
+      const res = isCombo ? await runComboBacktest?.(payload) : await runNewBacktest?.(payload);
+      if (res) {
+          const finalResult = res.combinedResult ? res.combinedResult : res;
+          setBacktestResults({ main: finalResult });
+      }
     } catch (err) { 
         console.error(err); 
     } finally {
@@ -631,27 +644,24 @@ export default function Backtests() {
   };
 
   const { processedData, combinedMetrics, mainResult, warmupRemovedCount, exitReasons, exitReasonData, actualStartDate, actualEndDate } = useMemo(() => {
-    const res = backtestResults.main || backtestResults.combinedResult;
+    const res = backtestResults.main;
     if (!res || !res.metrics) return { processedData: [], combinedMetrics: null, mainResult: null };
 
     const firstPoint = res.equityCurve?.[0]?.timestamp;
     const lastPoint = res.equityCurve?.[res.equityCurve.length - 1]?.timestamp;
-    
     const dataStartTime = firstPoint ? new Date(firstPoint).getTime() : 0;
 
     const curve = (res.equityCurve || [])
       .map((p) => {
-          const candle = res.candleData?.find(c => new Date(c.timestamp || c.datetime).getTime() === new Date(p.timestamp).getTime());
+          const candle = res.candleData?.find(c => new Date(c.timestamp || c.time || c.datetime).getTime() === new Date(p.timestamp).getTime());
           const startPrice = res.candleData?.[0]?.close || 1; 
           const initialBalance = activeTab === 'single' ? formData.initialBalance : comboData.initialBalance;
-          
           const price = candle ? candle.close : startPrice;
           const buyHold = (price / startPrice) * initialBalance;
           return { timestamp: new Date(p.timestamp).getTime(), balance: p.balance, buyHold: buyHold };
     });
 
     const filteredTrades = (res.tradeBreakdown || []).filter(t => new Date(t.entryTime).getTime() >= dataStartTime);
-    
     const recomputedMetrics = computeMetricsFromTrades(filteredTrades, activeTab === 'single' ? formData.initialBalance : comboData.initialBalance);
 
     const reasons = filteredTrades.reduce((acc, t) => {
@@ -661,19 +671,18 @@ export default function Backtests() {
     }, {});
     
     const exitReasonData = Object.entries(reasons).map(([name, value]) => ({ name, value }));
-    const filteredResult = { ...res, tradeBreakdown: filteredTrades, metrics: recomputedMetrics };
 
     return { 
         processedData: curve, 
         combinedMetrics: recomputedMetrics, 
-        mainResult: filteredResult, 
+        mainResult: { ...res, tradeBreakdown: filteredTrades, metrics: recomputedMetrics }, 
         warmupRemovedCount: 0, 
         exitReasons: Object.entries(reasons).map(([name, value]) => ({ name, value })),
         exitReasonData,
         actualStartDate: firstPoint ? formatDate(firstPoint) : (activeTab === 'single' ? formData.startDate : comboData.startDate),
         actualEndDate: lastPoint ? formatDate(lastPoint) : (activeTab === 'single' ? formData.endDate : comboData.endDate)
     };
-  }, [backtestResults, activeTab, formData, comboData]);
+  }, [backtestResults, activeTab, formData.initialBalance, formData.startDate, formData.endDate, comboData.initialBalance, comboData.startDate, comboData.endDate]);
 
   const pieData = useMemo(() => {
     if (!combinedMetrics) return [];
@@ -682,8 +691,6 @@ export default function Backtests() {
         { name: "Losses", value: combinedMetrics.losingTrades }
     ];
   }, [combinedMetrics]);
-
-  const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
 
   return (
     <div className="backtest-container">
@@ -709,6 +716,7 @@ export default function Backtests() {
 
       <div className="container mx-auto">
         <div className="grid grid-cols-12 gap-8">
+          {/* Left Column - Configuration */}
           <div className="col-span-12 lg:col-span-5">
             <div className="bot-card sticky top-6">
               <div className="panel-header flex items-center gap-3">
@@ -732,7 +740,7 @@ export default function Backtests() {
                 <select 
                   value={selectedWinnerId} 
                   onChange={handleWinnerSelect}
-                  className={inputClass}
+                  className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors"
                 >
                   <option value="">-- Select Golden Strategy --</option>
                   {liveWinners.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
@@ -740,18 +748,8 @@ export default function Backtests() {
               </div>
 
               <div className="tabs">
-                <button 
-                  className={activeTab === 'single' ? 'active' : ''}
-                  onClick={() => setActiveTab('single')}
-                >
-                  Single Strategy
-                </button>
-                <button 
-                  className={activeTab === 'combo' ? 'active' : ''}
-                  onClick={() => setActiveTab('combo')}
-                >
-                  Combo Strategy
-                </button>
+                <button className={activeTab === 'single' ? 'active' : ''} onClick={() => setActiveTab('single')}>Single Strategy</button>
+                <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo Strategy</button>
               </div>
 
               <form onSubmit={(e) => handleRun(e, activeTab === 'combo')}>
@@ -764,7 +762,7 @@ export default function Backtests() {
                             name="strategyId" 
                             value={formData.strategyId} 
                             onChange={(e) => handleFormChange(e, setFormData)}
-                            className={inputClass}
+                            className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors"
                         >
                             <option value="">-- Select TA Strategy --</option>
                             {strategyOptions.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
@@ -780,143 +778,71 @@ export default function Backtests() {
                       <label className="metric-label">Strategy Layers</label>
                       {comboData.strategies.map((config, idx) => (
                         <ComboStrategyCard 
-                          key={idx} 
-                          idx={idx} 
-                          config={config} 
-                          strategies={strategyOptions} 
-                          onChange={handleStrategyConfigChange} 
-                          onRemove={removeStrategyCard} 
+                          key={idx} idx={idx} config={config} strategies={strategyOptions} 
+                          onChange={handleStrategyConfigChange} onRemove={removeStrategyCard} 
                           disableRemove={comboData.strategies.length <= 1} 
                         />
                       ))}
-                      <button 
-                        type="button" 
-                        onClick={addStrategyCard}
-                        className="w-full py-3 bg-black/40 border border-white/10 rounded-xl text-emerald-400 hover:bg-black/60 hover:border-emerald-500/50 transition-all text-sm font-bold uppercase tracking-wider"
-                      >
+                      <button type="button" onClick={addStrategyCard} className="w-full py-3 bg-black/40 border border-white/10 rounded-xl text-emerald-400 hover:bg-black/60 hover:border-emerald-500/50 transition-all text-sm font-bold uppercase tracking-wider">
                         + Add Strategy Layer
                       </button>
                     </div>
                   </>
                 )}
-                
-                <button 
-                  type="submit" 
-                  disabled={loading !== 'idle'}
-                  className="button-start"
-                >
-                  {loading !== 'idle' ? 'Processing...' : '▶ Run Simulation'}
-                </button>
+                <button type="submit" disabled={isSimulating} className="button-start">{isSimulating ? 'Processing...' : '▶ Run Simulation'}</button>
               </form>
             </div>
           </div>
 
+          {/* Right Column - Results */}
           <div className="col-span-12 lg:col-span-7 space-y-6">
-            {(loading !== 'idle' || combinedMetrics || error) ? (
+            {(isSimulating || combinedMetrics || error) ? (
               <>
-                {loading !== 'idle' && (
+                {isSimulating && (
                   <div className="bot-card p-12 flex flex-col items-center justify-center min-h-[400px]">
                     <div className="w-20 h-20 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mb-6"></div>
-                    <h3 className="text-white text-xl mb-2 font-bold">
-                        {isSimulating ? "Running Backtest..." : "Loading setup..."}
-                    </h3>
-                    <p className="text-neutral-400 text-center">
-                        {isSimulating ? "Analyzing historical data and executing strategy" : "Initializing environment..."}
-                    </p>
+                    <h3 className="text-white text-xl mb-2 font-bold">Running Backtest...</h3>
+                    <p className="text-neutral-400 text-center">Analyzing historical data and executing strategy</p>
                   </div>
                 )}
                 
-                {loading === 'idle' && combinedMetrics && !error && (
+                {!isSimulating && combinedMetrics && !error && (
                   <>
                     <div className="flex items-center justify-between mb-6">
-                      <div className="px-4 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-xs text-yellow-400 font-mono font-bold">
-                          ⚠ Warmup Period: {warmupRemovedCount} bars excluded
-                      </div>
-
+                      <div className="px-4 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-xs text-yellow-400 font-mono font-bold">⚠ Warmup Period Active</div>
                       <div className="flex gap-3">
-                        <button 
-                          onClick={handleSaveStrategy}
-                          className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-lg hover:bg-emerald-500/20 transition-all flex items-center gap-2 font-bold text-sm uppercase"
-                        >
-                          💾 Save
-                        </button>
-                        <button 
-                          onClick={() => downloadCSV(mainResult.tradeBreakdown)}
-                          className="px-4 py-2 bg-teal-500/10 border border-teal-500/30 text-teal-400 rounded-lg hover:bg-teal-500/20 transition-all flex items-center gap-2 font-bold text-sm uppercase"
-                        >
-                          ⬇ CSV
-                        </button>
+                        <button onClick={handleSaveStrategy} className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-lg hover:bg-emerald-500/20 transition-all flex items-center gap-2 font-bold text-sm uppercase">💾 Save</button>
+                        <button onClick={() => downloadCSV(mainResult.tradeBreakdown)} className="px-4 py-2 bg-teal-500/10 border border-teal-500/30 text-teal-400 rounded-lg hover:bg-teal-500/20 transition-all flex items-center gap-2 font-bold text-sm uppercase">⬇ CSV</button>
                       </div>
                     </div>
-
                     <MetricsDisplay metrics={combinedMetrics} />
                     <AdvancedMetricsDisplay metrics={combinedMetrics} />
-                    
                     {mainResult && mainResult.candleData?.length > 0 && (
                       <div className="bot-card">
                         <div className="panel-header flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <span className="text-emerald-400 text-lg">📈</span>
-                              <h3 className="card-title">Price Action & Signals</h3>
-                            </div>
-                            
+                            <div className="flex items-center gap-3"><span className="text-emerald-400 text-lg">📈</span><h3 className="card-title">Price Action & Signals</h3></div>
                             <div className="tabs" style={{margin:0, padding:4}}>
-                                <button 
-                                    onClick={() => setChartMode('standard')}
-                                    className={chartMode === 'standard' ? 'active' : ''}
-                                    style={{padding: '6px 16px', fontSize: '0.8rem'}}
-                                >
-                                    Standard
-                                </button>
-                                <button 
-                                    onClick={() => setChartMode('replay')}
-                                    className={chartMode === 'replay' ? 'active' : ''}
-                                    style={{padding: '6px 16px', fontSize: '0.8rem'}}
-                                >
-                                    Replay
-                                </button>
+                                <button onClick={() => setChartMode('standard')} className={chartMode === 'standard' ? 'active' : ''} style={{padding: '6px 16px', fontSize: '0.8rem'}}>Standard</button>
+                                <button onClick={() => setChartMode('replay')} className={chartMode === 'replay' ? 'active' : ''} style={{padding: '6px 16px', fontSize: '0.8rem'}}>Replay</button>
                             </div>
                         </div>
-
                         <div style={{height: '850px'}}>
                           {chartMode === 'standard' ? (
-                              <ChartIndependent 
-                                  results={mainResult} 
-                                  symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} 
-                                  startDate={actualStartDate}
-                                  endDate={actualEndDate}
-                              />
+                              <ChartIndependent results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} startDate={actualStartDate} endDate={actualEndDate} />
                           ) : (
-                              <ChartReplay 
-                                  results={mainResult} 
-                                  symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} 
-                                  startDate={actualStartDate}
-                                  endDate={actualEndDate}
-                              />
+                              <ChartReplay results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} startDate={actualStartDate} endDate={actualEndDate} />
                           )}
                         </div>
                       </div>
                     )}
-
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       <div className="bot-card">
-                        <div className="panel-header flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl flex items-center justify-center text-xl">
-                            🚀
-                          </div>
-                          <h3 className="card-title">Equity vs Buy & Hold</h3>
-                        </div>
+                        <div className="panel-header flex items-center gap-3"><div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl flex items-center justify-center text-xl">🚀</div><h3 className="card-title">Equity vs Buy & Hold</h3></div>
                         <ResponsiveContainer width="100%" height={300}>
                           <AreaChart data={processedData}>
                             <defs>
-                              <linearGradient id="colorEquity" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                                <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                              </linearGradient>
-                              <linearGradient id="colorBuyHold" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.2}/>
-                                <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
-                              </linearGradient>
+                              <linearGradient id="colorEquity" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/><stop offset="95%" stopColor="#10b981" stopOpacity={0}/></linearGradient>
+                              <linearGradient id="colorBuyHold" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f59e0b" stopOpacity={0.2}/><stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/></linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" stroke="#333" opacity={0.5} vertical={false} />
                             <XAxis dataKey="timestamp" tickFormatter={formatChartDate} stroke="#525252" tick={{ fill: '#737373', fontSize: 12 }} />
@@ -928,14 +854,8 @@ export default function Backtests() {
                           </AreaChart>
                         </ResponsiveContainer>
                       </div>
-                      
                       <div className="bot-card">
-                        <div className="panel-header flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl flex items-center justify-center text-xl">
-                            📊
-                          </div>
-                          <h3 className="card-title">Trade Outcomes</h3>
-                        </div>
+                        <div className="panel-header flex items-center gap-3"><div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl flex items-center justify-center text-xl">📊</div><h3 className="card-title">Trade Outcomes</h3></div>
                         <div className="grid grid-cols-2 gap-4 h-[300px]">
                             <ResponsiveContainer width="100%" height="100%">
                               <PieChart>
@@ -946,7 +866,6 @@ export default function Backtests() {
                                 <Legend wrapperStyle={{ color: '#a3a3a3', fontSize: '11px', bottom: 0 }} />
                               </PieChart>
                             </ResponsiveContainer>
-
                             <ResponsiveContainer width="100%" height="100%">
                               <PieChart>
                                 <Pie data={exitReasonData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={5} stroke="none">
@@ -959,17 +878,10 @@ export default function Backtests() {
                         </div>
                       </div>
                     </div>
-
                     <MonthlyHeatmap equityCurve={processedData} />
                   </>
                 )}
-
-                {error && (
-                  <div className="bot-card border-red-500/30 bg-red-900/10 text-center">
-                    <h3 className="text-red-400 text-lg mb-2 font-bold">Simulation Failed</h3>
-                    <p className="text-neutral-400">{typeof error === 'object' ? (error.message || JSON.stringify(error)) : String(error)}</p>
-                  </div>
-                )}
+                {error && <div className="bot-card border-red-500/30 bg-red-900/10 text-center"><h3 className="text-red-400 text-lg mb-2 font-bold">Simulation Failed</h3><p className="text-neutral-400">{typeof error === 'object' ? error.message : String(error)}</p></div>}
               </>
             ) : (
               <div className="bot-card p-12 flex flex-col items-center justify-center min-h-[600px]">
