@@ -1,7 +1,8 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v66.2 - "Debug & Trace Mode"
-// 1. ADDED: Strategic console logs for payload tracking and state transitions.
-// 2. THEME: Strictly Jet Black & Emerald (Teal accents).
+// 🚀 UPGRADE: v66.3 - "The Bulletproof Sync Engine"
+// 1. FIXED: Forced state synchronization for Hybrid Logic (OR vs AND).
+// 2. ADDED: Strategic console logs for payload tracking and state transitions.
+// 3. THEME: Strictly Jet Black & Emerald (Teal accents).
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios"; 
@@ -25,7 +26,7 @@ const STRATEGY_TYPE_TO_CODE_MAP = {
   "Ichimoku Cloud": "ichimoku_cloud", "ATR": "atr_breakout", "On-Balance Volume": "obv_signal", "Parabolic SAR": "psar_signal"
 };
 
-const defaultFilterParams = { minAtrPct: 0, trendFilterPeriod: 200, minAdxLevel: 0, tslAtrMult: 3.5, regime_threshold: 25 };
+const defaultFilterParams = { minAtrPct: 0, trendFilterPeriod: 200, minAdxLevel: 0, tslAtrMult: 3.5, regime_threshold: 25, hybridMode: "OR" };
 
 // --- HELPER FUNCTIONS ---
 const safeNum = (v, def = 0) => {
@@ -65,7 +66,7 @@ const downloadCSV = (trades) => {
 
 // 🚀 METRICS CALCULATION
 const computeMetricsFromTrades = (trades, initialBalance) => {
-    console.log("🧮 Computing metrics for trades:", trades.length);
+    console.log("🧮 Computing metrics for trades count:", trades.length);
     if (!trades || trades.length === 0) return null;
     
     let balance = initialBalance;
@@ -83,7 +84,6 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
     trades.forEach(t => {
         const prevBalance = balance;
         balance += t.profit;
-        
         if (balance > peak) peak = balance;
         const dd = (peak - balance) / peak;
         if (dd > maxDrawdown) maxDrawdown = dd;
@@ -109,20 +109,14 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
     });
 
     const totalTrades = trades.length;
-    const winRate = (wins / totalTrades) * 100;
-    const profitFactor = totalLoss === 0 ? totalWin : totalWin / totalLoss;
-    const totalReturn = ((balance - initialBalance) / initialBalance) * 100;
-    
     const avgWin = wins > 0 ? totalWin / wins : 0;
     const avgLoss = (totalTrades - wins) > 0 ? totalLoss / (totalTrades - wins) : 0;
-    const sharpe = 0; // Simplified
-    const avgHoldTimeHours = totalHoldTimeMs / totalTrades / (1000 * 60 * 60);
 
     const results = {
-        totalReturn,
-        profitFactor,
+        totalReturn: ((balance - initialBalance) / initialBalance) * 100,
+        profitFactor: totalLoss === 0 ? totalWin : totalWin / totalLoss,
         maxDrawdown: maxDrawdown * 100,
-        winRate,
+        winRate: (wins / totalTrades) * 100,
         totalTrades,
         winningTrades: wins,
         losingTrades: totalTrades - wins,
@@ -130,9 +124,8 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
         averageLoss: avgLoss,
         finalBalance: balance,
         expectancy: (wins/totalTrades * avgWin) - ((1 - wins/totalTrades) * avgLoss),
-        sharpeRatio: sharpe,
         maxLosingStreak,
-        avgHoldTime: avgHoldTimeHours
+        avgHoldTime: totalHoldTimeMs / totalTrades / (1000 * 60 * 60)
     };
     console.log("📈 Final Metrics Computed:", results);
     return results;
@@ -150,7 +143,7 @@ const initialFormData = {
 const initialComboData = {
   strategies: [ { strategyId: "", code: "", params: { tslAtrMult: 3.5 } }, { strategyId: "", code: "" } ],
   params: { ...defaultFilterParams, maxPyramiding: 1 }, 
-  comboConfig: { strategyCodes: [], combinationRule: 'AND' },
+  comboConfig: { strategyCodes: [], combinationRule: 'OR' },
   symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, initialBalance: 1000,
   riskManagementMode: 'static', riskPercentage: 1, growthCapitalTarget: 2000, 
   mlMode: "off", mlModel: "", mlThreshold: 0.5, mlHorizon: 1
@@ -223,7 +216,6 @@ const MetricsDisplay = ({ metrics }) => {
 const AdvancedMetricsDisplay = ({ metrics }) => {
     if (!metrics) return null;
     const items = [
-        { label: "Sharpe Ratio", value: metrics.sharpeRatio?.toFixed(2), desc: "Risk-Adjusted Return", color: 'text-white' },
         { label: "Expectancy", value: `$${metrics.expectancy?.toFixed(2)}`, desc: "Avg Value Per Trade", color: 'text-white' },
         { label: "Avg Hold Time", value: `${metrics.avgHoldTime?.toFixed(1)}h`, desc: "Duration in Market", color: 'text-white' },
         { label: "Max Lose Streak", value: metrics.maxLosingStreak, desc: "Consecutive Losses", color: "text-rose-400" }
@@ -303,6 +295,16 @@ const CommonBacktestInputs = ({ data, onChange, options }) => {
                 <option value="on">Pure ML</option>
               </select>
             </div>
+            {data.mlMode === 'predictions' && (
+              <div className="setup-selector">
+                <label className="text-neutral-400">Hybrid Logic</label>
+                <select name="param_hybridMode" value={data.params?.hybridMode || "AND"} onChange={onChange} className={inputClass}>
+                  <option value="AND">Strict (TA + ML Agree)</option>
+                  <option value="OR">Loose (TA OR ML Signal)</option>
+                  <option value="REGIME">Regime (ML Filters TA)</option>
+                </select>
+              </div>
+            )}
             {data.mlMode !== 'off' && (
               <>
                 <div className="setup-selector">
@@ -327,7 +329,7 @@ const CommonBacktestInputs = ({ data, onChange, options }) => {
 // --- MAIN PAGE COMPONENT ---
 export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest, resetBacktest } = useBacktest(); 
-  const { loading = 'idle', error = null, options = {}, winners = [] } = state || {};
+  const { loading = 'idle', error = null, options = {} } = state || {};
 
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
   const [formData, setFormData] = useState(initialFormData);
@@ -354,7 +356,7 @@ export default function Backtests() {
       setScanningWinners(true);
       try {
         const token = localStorage.getItem("token");
-        const res = await axios.get("https://neov6backend.onrender.com/api/bot/winners", { headers: { Authorization: `Bearer ${token}` } });
+        const res = await api.get("/bot/winners", { headers: { Authorization: `Bearer ${token}` } });
         if (res.data) {
             console.log("🏆 Winners Found:", res.data.length);
             setLiveWinners(res.data);
@@ -373,9 +375,7 @@ export default function Backtests() {
       const selectedWinner = liveWinners.find(w => w.id === filename);
       if (!selectedWinner) return;
 
-      // Reset charts immediately on load
       setBacktestResults({ main: null });
-
       const data = selectedWinner.config || selectedWinner;
       const rootParams = data.params || {};
 
@@ -383,38 +383,49 @@ export default function Backtests() {
       let timeframe = data.timeframe || "1h";
       
       const strategies = (Array.isArray(data.strategies) ? data.strategies : []).map(s => {
-          const code = s.code || "unknown";
-          const matchedOption = strategyOptions.find(opt => opt.code === code);
-          return { strategyId: matchedOption ? matchedOption._id : "", code, params: s.params || {} };
+          const matchedOption = strategyOptions.find(opt => opt.code === s.code);
+          return { strategyId: matchedOption ? matchedOption._id : "", code: s.code || "unknown", params: s.params || {} };
       });
 
-      console.log("📝 Populating inputs for:", filename);
+      console.log("📝 Auto-Populating inputs with strategy codes:", strategies.map(s => s.code));
       setActiveTab('combo');
       setComboData(prev => ({
           ...prev, symbol, timeframe, isCombo: true, strategies,
           mlMode: data.mlMode || rootParams.mlMode || "predictions",
           mlModel: data.mlModel || rootParams.mlModel || "btc_1h_lightgbm_model",
           mlThreshold: safeNum(data.mlThreshold || rootParams.mlThreshold, 0.5),
-          params: { ...rootParams, riskPercentage: safeNum(data.riskPercentage, 1), maxPyramiding: safeNum(rootParams.maxPyramiding, 1) }
+          params: { ...rootParams, riskPercentage: safeNum(data.riskPercentage, 1), maxPyramiding: safeNum(rootParams.maxPyramiding, 1), hybridMode: rootParams.hybridMode || "OR" },
+          comboConfig: { ...prev.comboConfig, strategyCodes: strategies.map(s => s.code), combinationRule: rootParams.hybridMode || "OR" }
       }));
   };
 
   const handleRun = async (e, isCombo) => {
     e.preventDefault();
-    const payload = isCombo ? comboData : formData;
-    
-    console.log("🚀 STARTING BACKTEST SIMULATION");
-    console.log("📤 Payload being sent:", JSON.stringify(payload, null, 2));
-
+    setIsSimulating(true);
     setBacktestResults({ main: null });
-    setIsSimulating(true); 
+
+    // 🚀 THE BULLETPROOF SYNC: Forced re-mapping of payload to ensure UI selection matches Payload
+    const currentRule = isCombo ? (comboData.params.hybridMode || 'OR') : 'OR';
     
+    const payload = isCombo ? {
+        ...comboData,
+        comboConfig: {
+            ...comboData.comboConfig,
+            strategyCodes: comboData.strategies.map(s => s.code), // Ensure codes are synced
+            combinationRule: currentRule // Force rule sync
+        }
+    } : formData;
+
+    console.log("🚀 STARTING BACKTEST SIMULATION");
+    console.log("📤 VERIFIED PAYLOAD -> Rule:", payload.comboConfig?.combinationRule, "| ML:", payload.mlMode);
+    console.log("📤 FULL PAYLOAD:", JSON.stringify(payload, null, 2));
+
     try {
       const res = isCombo ? await runComboBacktest?.(payload) : await runNewBacktest?.(payload);
       console.log("📥 Raw Server Response:", res);
 
       if (res) {
-          const finalResult = res.combinedResult ? res.combinedResult : res;
+          const finalResult = res.combinedResult || res;
           console.log("✅ Simulation Complete. Strategy Results:", finalResult.metrics);
           setBacktestResults({ main: finalResult });
       } else {
@@ -447,31 +458,21 @@ export default function Backtests() {
     const res = backtestResults.main;
     if (!res || !res.metrics) return { processedData: [], combinedMetrics: null, mainResult: null };
 
-    console.log("🛠 Processing chart data for main result...");
+    console.log("🛠 Processing result for charts...");
     const curve = (res.equityCurve || []).map((p) => {
           const startPrice = res.candleData?.[0]?.close || 1; 
           const currentPrice = res.candleData?.find(c => new Date(c.time || c.timestamp).getTime() === new Date(p.timestamp).getTime())?.close || startPrice;
           return { timestamp: new Date(p.timestamp).getTime(), balance: p.balance, buyHold: (currentPrice / startPrice) * (activeTab === 'single' ? formData.initialBalance : comboData.initialBalance) };
     });
 
-    const recomputedMetrics = computeMetricsFromTrades(res.tradeBreakdown || [], activeTab === 'single' ? formData.initialBalance : comboData.initialBalance);
-
-    const reasons = (res.tradeBreakdown || []).reduce((acc, t) => {
-        acc[t.type || "Signal"] = (acc[t.type || "Signal"] || 0) + 1;
-        return acc;
-    }, {});
-    
     return { 
         processedData: curve, 
-        combinedMetrics: recomputedMetrics, 
-        mainResult: { ...res, metrics: recomputedMetrics }, 
-        exitReasonData: Object.entries(reasons).map(([name, value]) => ({ name, value })),
+        combinedMetrics: computeMetricsFromTrades(res.tradeBreakdown || [], activeTab === 'single' ? formData.initialBalance : comboData.initialBalance), 
+        mainResult: res, 
         actualStartDate: res.equityCurve?.[0]?.timestamp || (activeTab === 'single' ? formData.startDate : comboData.startDate),
         actualEndDate: res.equityCurve?.[res.equityCurve.length - 1]?.timestamp || (activeTab === 'single' ? formData.endDate : comboData.endDate)
     };
   }, [backtestResults]);
-
-  const pieData = useMemo(() => combinedMetrics ? [{ name: "Wins", value: combinedMetrics.winningTrades }, { name: "Losses", value: combinedMetrics.losingTrades }] : [], [combinedMetrics]);
 
   return (
     <div className="backtest-container">
@@ -485,11 +486,9 @@ export default function Backtests() {
           </div>
 
           <div className="grid grid-cols-12 gap-8">
-            {/* Left Column */}
             <div className="col-span-12 lg:col-span-5">
               <div className="bot-card sticky top-6">
                 <div className="panel-header flex items-center gap-3"><span className="text-emerald-400 text-lg">⚙️</span><h2 className="card-title">Configuration</h2></div>
-                
                 <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/30 rounded-xl p-4 mb-6">
                   <div className="flex items-center justify-between mb-3">
                     <label className="text-emerald-400 font-semibold text-sm">🏆 Load Alpha Strategy</label>
@@ -500,26 +499,22 @@ export default function Backtests() {
                     {liveWinners.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                   </select>
                 </div>
-
                 <div className="tabs">
                   <button className={activeTab === 'single' ? 'active' : ''} onClick={() => setActiveTab('single')}>Single Strategy</button>
                   <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo Strategy</button>
                 </div>
-
                 <form onSubmit={(e) => handleRun(e, activeTab === 'combo')}>
                   <CommonBacktestInputs data={activeTab === 'single' ? formData : comboData} onChange={(e) => handleFormChange(e, activeTab === 'single' ? setFormData : setComboData)} options={{ symbolOptions, timeframeOptions, modelOptions }} />
                   <button type="submit" disabled={isSimulating} className="button-start">{isSimulating ? 'Simulating...' : '▶ Run Simulation'}</button>
                 </form>
               </div>
             </div>
-
-            {/* Right Column */}
             <div className="col-span-12 lg:col-span-7 space-y-6">
               {isSimulating ? (
                 <div className="bot-card p-12 flex flex-col items-center justify-center min-h-[400px]">
                   <div className="w-20 h-20 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mb-6"></div>
                   <h3 className="text-white text-xl font-bold">Executing Strategy...</h3>
-                  <p className="text-neutral-400">Please check the browser console for live logs.</p>
+                  <p className="text-neutral-400">Please check the browser console for live trace logs.</p>
                 </div>
               ) : combinedMetrics ? (
                 <>
