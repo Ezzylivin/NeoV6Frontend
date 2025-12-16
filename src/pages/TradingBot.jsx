@@ -1,11 +1,12 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v69.0 - Triple-Lock Security Guard
-// Changes: Prevents Live Trading unless Wallet connected + API Keys exist + Risk Terms agreed.
+// 🚀 UPGRADE: v69.1 - Fixed "Dead End" Wallet Screen
+// Changes: Added ConnectButton to the lock screen so users can actually log in.
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios"; 
 import { useAccount } from 'wagmi'; 
-import { Link } from 'react-router-dom'; // Needed for redirect link to Settings
+import { ConnectButton } from '@rainbow-me/rainbowkit'; // 🚀 CRITICAL FIX: Import Button
+import { Link } from 'react-router-dom'; 
 import { useBot } from '../hooks/useBot.js';
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx"; 
 import { UIModeProvider } from "../context/UIModeContext";
@@ -22,7 +23,7 @@ const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
     const [agreedRisk, setAgreedRisk] = useState(false);
     const [agreedBot, setAgreedBot] = useState(false);
 
-    // 🔒 WALLET LOCK
+    // 🔒 WALLET LOCK SCREEN
     if (!isConnected) {
         return (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
@@ -30,11 +31,17 @@ const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
                     <div className="text-4xl mb-4">🦊</div>
                     <h2 className="text-2xl font-bold text-white mb-2">Connect Wallet</h2>
                     <p className="text-neutral-400 mb-6">Access is restricted to verified wallet holders only.</p>
+                    
+                    {/* 🚀 FIXED: The Button is now here! */}
+                    <div className="flex justify-center">
+                        <ConnectButton />
+                    </div>
                 </div>
             </div>
         );
     }
 
+    // --- MAIN MODAL CONTENT (After Wallet is Connected) ---
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md">
             <div className="max-w-5xl w-full p-6 animate-fade-in">
@@ -94,7 +101,7 @@ const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
                                         <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-3 py-2 rounded text-xs font-bold text-center">
                                             ⛔ LOCKED: No API Keys Found
                                         </div>
-                                        <Link to="/settings" className="text-sm text-white underline hover:text-red-400">
+                                        <Link to="/settings" className="text-sm text-white underline hover:text-red-400 relative z-10">
                                             Go to Settings to Add Keys
                                         </Link>
                                     </div>
@@ -229,11 +236,9 @@ const TradingBotContainer = () => {
         const checkKeys = async () => {
             try {
                 const token = localStorage.getItem("token");
-                // We use the same endpoint as Settings page to see if array is empty
                 const res = await axios.get('https://neov6backend.onrender.com/api/users/keys', {
                     headers: { Authorization: `Bearer ${token}` }
                 });
-                
                 const keyList = Array.isArray(res.data) ? res.data : (res.data.keys || []);
                 setHasApiKeys(keyList.length > 0);
             } catch (err) {
@@ -241,11 +246,11 @@ const TradingBotContainer = () => {
                 setHasApiKeys(false);
             }
         };
-        checkKeys();
-    }, []);
+        // Only check if user is logged in/connected
+        if (isConnected) checkKeys();
+    }, [isConnected]);
 
     // ... (Existing useEffects for Logs, Scroll, Polling, Winners) ...
-    // [Keep the useEffects for apiLogs, visibleLogs, auto-scroll, refreshBotData, and fetchWinners exactly as they were]
     useEffect(() => {
         if (apiLogs && apiLogs.length > 0) {
             setPersistentLogs(prevLogs => {
@@ -290,7 +295,6 @@ const TradingBotContainer = () => {
         finally { setScanningWinners(false); }
     };
     useEffect(() => { fetchWinners(); }, []);
-    // ... (End of preserved useEffects) ...
 
 
     // Handle Mode Selection
@@ -303,8 +307,7 @@ const TradingBotContainer = () => {
         setIsModeSelected(true);
     };
 
-    // ... (Handlers: handleSetupSelect, handleWinnerSelect, handleStart, handleStop, etc. remain the same) ...
-    // [Paste the full handlers from previous version here. They do not need to change for this specific request]
+    // 🚀 Handlers
     const handleSetupSelect = (e) => {
         const setupId = e.target.value;
         setSelectedSetupId(setupId);
