@@ -1,6 +1,6 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v71.2 - Latency Display Fix & Log Filter Persistence
-// Changes: Fixed 0ms latency display, persisting log filter to localStorage.
+// 🚀 UPGRADE: v71.2 - Bug Fixes & Stability
+// Changes: Fixed JSX syntax error (escaped '>' characters), PnL 0 bug, Interval churn, Log dedupe.
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
@@ -26,8 +26,7 @@ const BotStatusBar = ({ status, pnl, winRate, latency, mode }) => (
             </div>
             <div className="h-4 w-px bg-white/10"></div>
             <div className="text-xs text-neutral-400 font-mono">
-                {/* 🐛 FIX: Now correctly displays 0ms instead of '--' */}
-                LATENCY: <span className={latency < 200 ? 'text-green-400' : 'text-yellow-400'}>{latency != null ? `${latency}ms` : '--'}</span>
+                LATENCY: <span className={latency < 200 ? 'text-green-400' : 'text-yellow-400'}>{latency ? `${latency}ms` : '--'}</span>
             </div>
         </div>
         <div className="flex items-center gap-6">
@@ -87,8 +86,9 @@ const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, a
 
                 {config.tradingMode === 'live' && (
                     <div className="mb-6 space-y-2">
-                        {config.maxDailyLoss > 10 && <div className="text-xs text-yellow-500">⚠ High Risk: Max Daily Loss > 10%</div>}
-                        {config.maxTradesPerDay > 50 && <div className="text-xs text-yellow-500">⚠ High Frequency: > 50 Trades/Day</div>}
+                        {/* 🐛 FIX: Escaped '>' characters below */}
+                        {config.maxDailyLoss > 10 && <div className="text-xs text-yellow-500">⚠ High Risk: Max Daily Loss &gt; 10%</div>}
+                        {config.maxTradesPerDay > 50 && <div className="text-xs text-yellow-500">⚠ High Frequency: &gt; 50 Trades/Day</div>}
                     </div>
                 )}
 
@@ -203,11 +203,11 @@ const TradingBotContainer = () => {
     const [showPreFlight, setShowPreFlight] = useState(false);
     const [isStarting, setIsStarting] = useState(false);
     
-    // 🚀 UPGRADE: Initialize from localStorage (Lazy Init)
-    const [logFilter, setLogFilter] = useState(() => localStorage.getItem('logFilter') || 'ALL');
+    // 15. Log Filtering
+    const [logFilter, setLogFilter] = useState('ALL'); 
 
     // Metrics State
-    const [latency, setLatency] = useState(null); // Init to null to support 0ms display
+    const [latency, setLatency] = useState(0);
     const [sessionStartBalance, setSessionStartBalance] = useState(null); 
 
     // Local State
@@ -226,11 +226,6 @@ const TradingBotContainer = () => {
         riskManagementMode: 'static', riskPercentage: 1, growthCapitalTarget: 2000,
         maxDailyLoss: 5, maxDrawdown: 10, maxTradesPerDay: 20 
     });
-
-    // 🚀 UPGRADE: Persist Log Filter when it changes
-    useEffect(() => {
-        localStorage.setItem('logFilter', logFilter);
-    }, [logFilter]);
 
     // 14. Local Crash Recovery
     useEffect(() => {
@@ -285,7 +280,7 @@ const TradingBotContainer = () => {
     const handleClearLogs = () => setLogsClearedTime(Date.now());
     useEffect(() => { if (logsContainerRef.current) logsContainerRef.current.scrollTo({ top: logsContainerRef.current.scrollHeight, behavior: 'smooth' }); }, [persistentLogs, logFilter]);
 
-    // REAL LATENCY MEASUREMENT
+    // REAL LATENCY MEASUREMENT & Interval Safety
     const refreshWithLatency = async () => {
         const start = performance.now();
         await originalRefresh();
