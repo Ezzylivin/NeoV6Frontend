@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import WalletBalance from '../components/WalletBalance';
 import axios from 'axios';
 
-// 🚀 CONFIG: Centralized Exchange Data
+// 🚀 CONFIG: Centralized Exchange Data (Easy to add more)
 const AVAILABLE_EXCHANGES = [
   { id: 'coinbase', name: 'Coinbase', guide: "https://help.coinbase.com/en/exchange/managing-my-account/how-to-create-an-api-key" },
   { id: 'binanceus', name: 'Binance.US', guide: "https://support.binance.us/hc/en-us/articles/360050181954-How-to-Create-an-API-Key" },
@@ -16,6 +16,7 @@ const AVAILABLE_EXCHANGES = [
   { id: 'robinhood', name: 'Robinhood', guide: "https://robinhood.com/us/en/support/articles/robinhood-crypto-api/" },
   { id: 'kucoin', name: 'KuCoin', guide: "https://www.kucoin.com/support/360015102174" },
   { id: 'okx', name: 'OKX', guide: "https://www.okx.com/learn/how-to-create-an-api-key" },
+  { id: 'bybit', name: 'Bybit', guide: "https://learn.bybit.com/bybit-guide/how-to-create-an-api-key/" },
 ];
 
 export default function Settings() {
@@ -26,14 +27,11 @@ export default function Settings() {
   const [keys, setKeys] = useState({ apiKey: '', apiSecret: '', exchange: AVAILABLE_EXCHANGES[0].id });
   const [loading, setLoading] = useState(false);
   const [savedKeys, setSavedKeys] = useState([]);
-  
-  // 🚀 NEW: Search State for Connected List
-  const [searchTerm, setSearchTerm] = useState('');
 
-  // 🚀 NEW: Custom Dropdown State
+  // 🚀 NEW: Dropdown State (for the Searchable Filter)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [dropdownSearch, setDropdownSearch] = useState('');
-  const dropdownRef = useRef(null);
+  const dropdownRef = useRef(null); // Used to detect clicks outside
 
   // 1. Fetch Keys
   const fetchKeys = async () => {
@@ -51,8 +49,8 @@ export default function Settings() {
 
   useEffect(() => {
     fetchKeys();
-    
-    // Click outside listener to close dropdown
+
+    // 🚀 Logic to close dropdown when clicking outside
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsDropdownOpen(false);
@@ -97,17 +95,12 @@ export default function Settings() {
     }
   };
 
-  // Filter Connected List
-  const filteredConnectedKeys = savedKeys.filter(key => 
-    key.exchange.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // Filter Dropdown Options
+  // 🚀 Filter Logic for the Dropdown
   const filteredOptions = AVAILABLE_EXCHANGES.filter(ex => 
     ex.name.toLowerCase().includes(dropdownSearch.toLowerCase())
   );
 
-  // Get Current Exchange Object for Guide Link
+  // Helper to get current exchange name/guide
   const currentExchangeObj = AVAILABLE_EXCHANGES.find(ex => ex.id === keys.exchange) || AVAILABLE_EXCHANGES[0];
 
   return (
@@ -173,55 +166,38 @@ export default function Settings() {
         {/* CONNECTED EXCHANGES LIST */}
         {savedKeys.length > 0 && (
           <div className="bg-[#1a1a1a] border border-white/5 rounded-xl p-6 shadow-lg">
-             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-               <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                 <span className="text-2xl">🔗</span> Connected Exchanges
-               </h2>
-               {/* Search Bar for Connected List */}
-               <div className="relative">
-                 <span className="absolute left-3 top-2.5 text-neutral-500">🔍</span>
-                 <input 
-                   type="text" 
-                   placeholder="Filter list..." 
-                   className="bg-black border border-white/10 rounded-lg py-2 pl-9 pr-4 text-sm text-white focus:border-purple-500 outline-none w-full md:w-48"
-                   value={searchTerm}
-                   onChange={(e) => setSearchTerm(e.target.value)}
-                 />
-               </div>
-             </div>
-             
+             <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+               <span className="text-2xl">🔗</span> Connected Exchanges
+             </h2>
              <div className="grid gap-4">
-               {filteredConnectedKeys.length === 0 ? (
-                 <p className="text-neutral-500 text-center py-4">No exchanges match your search.</p>
-               ) : (
-                 filteredConnectedKeys.map((k, i) => (
-                   <div key={i} className="flex items-center justify-between bg-black/40 border border-white/10 p-4 rounded-lg">
-                      <div className="flex items-center gap-3">
-                         <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400 font-bold">
-                            {k.exchange?.charAt(0).toUpperCase()}
-                         </div>
-                         <div>
-                            <div className="font-bold capitalize text-white">
-                              {AVAILABLE_EXCHANGES.find(ex => ex.id === k.exchange)?.name || k.exchange}
-                            </div>
-                            <div className="text-xs text-neutral-500 font-mono">Key ending in ••••{k.last4 || '****'}</div>
-                         </div>
-                      </div>
-                      <button 
-                        onClick={() => handleDeleteKey(k.exchange)}
-                        className="text-red-400 hover:text-red-300 hover:bg-red-500/10 p-2 rounded transition"
-                      >
-                        Disconnect
-                      </button>
-                   </div>
-                 ))
-               )}
+               {savedKeys.map((k, i) => (
+                 <div key={i} className="flex items-center justify-between bg-black/40 border border-white/10 p-4 rounded-lg">
+                    <div className="flex items-center gap-3">
+                       <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400 font-bold">
+                          {k.exchange?.charAt(0).toUpperCase()}
+                       </div>
+                       <div>
+                          <div className="font-bold capitalize text-white">
+                            {AVAILABLE_EXCHANGES.find(ex => ex.id === k.exchange)?.name || k.exchange}
+                          </div>
+                          <div className="text-xs text-neutral-500 font-mono">Key ending in ••••{k.last4 || '****'}</div>
+                       </div>
+                    </div>
+                    <button 
+                      onClick={() => handleDeleteKey(k.exchange)}
+                      className="text-red-400 hover:text-red-300 hover:bg-red-500/10 p-2 rounded transition"
+                      title="Remove Key"
+                    >
+                      Disconnect
+                    </button>
+                 </div>
+               ))}
              </div>
           </div>
         )}
 
         {/* ADD NEW KEYS FORM */}
-        <div className="bg-[#1a1a1a] border border-white/5 rounded-xl p-6 shadow-lg pb-12"> {/* Extra padding bottom for dropdown space */}
+        <div className="bg-[#1a1a1a] border border-white/5 rounded-xl p-6 shadow-lg pb-12">
           <div className="flex justify-between items-start mb-6">
             <div>
               <h2 className="text-xl font-semibold text-purple-400 flex items-center gap-2">
@@ -236,35 +212,35 @@ export default function Settings() {
           <form onSubmit={handleSaveKeys} className="space-y-4 max-w-2xl">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                
-               {/* 🚀 CUSTOM SEARCHABLE DROPDOWN */}
+               {/* 🚀 CUSTOM SEARCHABLE DROPDOWN (Combobox) */}
                <div className="relative" ref={dropdownRef}>
                   <label className="block text-sm text-neutral-400 mb-1">Exchange</label>
                   
-                  {/* Dropdown Trigger Button */}
+                  {/* The visible button looking like a select */}
                   <div 
                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                     className="w-full bg-black border border-white/10 rounded-lg px-4 py-2 text-white cursor-pointer hover:border-purple-500 flex justify-between items-center"
                   >
-                    <span>{AVAILABLE_EXCHANGES.find(ex => ex.id === keys.exchange)?.name}</span>
+                    <span>{currentExchangeObj.name}</span>
                     <span className="text-xs text-neutral-500">▼</span>
                   </div>
 
-                  {/* Dropdown Menu */}
+                  {/* The Dropdown Menu */}
                   {isDropdownOpen && (
                     <div className="absolute z-50 mt-2 w-full bg-[#2a2a2a] border border-white/10 rounded-lg shadow-xl max-h-60 overflow-hidden flex flex-col">
-                      {/* Search Input inside Dropdown */}
+                      {/* Search Bar inside dropdown */}
                       <input 
                         type="text"
                         placeholder="Search exchange..."
-                        className="w-full bg-[#1a1a1a] p-3 text-sm text-white border-b border-white/10 focus:outline-none"
+                        className="w-full bg-[#1a1a1a] p-3 text-sm text-white border-b border-white/10 focus:outline-none placeholder-neutral-500"
                         value={dropdownSearch}
                         onChange={(e) => setDropdownSearch(e.target.value)}
                         autoFocus
-                        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking input
+                        onClick={(e) => e.stopPropagation()} 
                       />
                       
-                      {/* Options List */}
-                      <div className="overflow-y-auto flex-1">
+                      {/* Scrollable List */}
+                      <div className="overflow-y-auto flex-1 custom-scrollbar">
                         {filteredOptions.length === 0 ? (
                            <div className="p-3 text-sm text-neutral-500 text-center">No results found</div>
                         ) : (
@@ -274,7 +250,7 @@ export default function Settings() {
                                onClick={() => {
                                  setKeys({ ...keys, exchange: option.id });
                                  setIsDropdownOpen(false);
-                                 setDropdownSearch(''); // Reset search
+                                 setDropdownSearch(''); // clear search for next time
                                }}
                                className={`px-4 py-2 text-sm cursor-pointer hover:bg-purple-600/20 hover:text-purple-300 transition ${keys.exchange === option.id ? 'bg-purple-600/10 text-purple-400' : 'text-neutral-300'}`}
                              >
@@ -291,7 +267,7 @@ export default function Settings() {
                   </a>
                </div>
 
-               {/* API KEY INPUT */}
+               {/* API KEY */}
                <div className="md:col-span-2">
                   <label className="block text-sm text-neutral-400 mb-1">API Key</label>
                   <input 
@@ -304,7 +280,7 @@ export default function Settings() {
                </div>
             </div>
 
-            {/* API SECRET INPUT */}
+            {/* API SECRET */}
             <div>
               <div className="flex justify-between">
                   <label className="block text-sm text-neutral-400">API Secret</label>
