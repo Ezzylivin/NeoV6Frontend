@@ -1,8 +1,8 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v64.7 - "Warmup Filter & Risk Fix"
-// Fixes: 
-// 1. FILTERS OUT trades that happen before the user-selected Start Date (Warmup trades).
-// 2. CORRECETS Risk Mode value from "standard" to "static" to match backend.
+// 🚀 UPGRADE: v64.9 - "Tier 2 Analytics & Professional Depth"
+// 1. Adds Advanced Metrics (Sharpe, Sortino, Expectancy, Hold Time)
+// 2. Adds Trade Reason Pie Chart
+// 3. Retains v64.8 Fixes (Warmup filtering, indexing)
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios"; 
@@ -17,6 +17,7 @@ import api from "../api/apiClient";
 import "./Backtests.css"; 
 
 const COLORS = ["#22c55e", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981"];
+const REASON_COLORS = ["#8b5cf6", "#f59e0b", "#06b6d4", "#ec4899", "#64748b"]; // Purple, Amber, Cyan, Pink, Slate
 
 const STRATEGY_TYPE_TO_CODE_MAP = {
   "Moving Average Crossover": "sma_crossover", "RSI": "rsi_divergence", "MACD": "macd_crossover",
@@ -56,11 +57,109 @@ const downloadCSV = (trades) => {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
 };
 
+// 🚀 NEW: Advanced Metrics Calculation (Sharpe, Sortino, etc.)
+const computeMetricsFromTrades = (trades, initialBalance) => {
+    if (!trades || trades.length === 0) return null;
+    
+    let balance = initialBalance;
+    let peak = initialBalance;
+    let maxDrawdown = 0;
+    let wins = 0;
+    let totalWin = 0;
+    let totalLoss = 0;
+    let currentLosingStreak = 0;
+    let maxLosingStreak = 0;
+    let totalHoldTimeMs = 0;
+
+    // Daily Returns for Sharpe/Sortino (Approximate)
+    let dailyReturns = [];
+    let lastDayBalance = initialBalance;
+
+    trades.forEach(t => {
+        const prevBalance = balance;
+        balance += t.profit;
+        
+        // Drawdown
+        if (balance > peak) peak = balance;
+        const dd = (peak - balance) / peak;
+        if (dd > maxDrawdown) maxDrawdown = dd;
+
+        // Win/Loss Stats
+        if (t.profit > 0) {
+            wins++;
+            totalWin += t.profit;
+            currentLosingStreak = 0;
+        } else {
+            totalLoss += Math.abs(t.profit);
+            currentLosingStreak++;
+            if (currentLosingStreak > maxLosingStreak) maxLosingStreak = currentLosingStreak;
+        }
+
+        // Hold Time
+        const entry = new Date(t.entryTime).getTime();
+        const exit = new Date(t.exitTime).getTime();
+        if (!isNaN(entry) && !isNaN(exit)) {
+            totalHoldTimeMs += (exit - entry);
+        }
+
+        // Daily Return Proxy (Per Trade for simplicity, ideally needs daily equity curve)
+        const ret = (balance - prevBalance) / prevBalance;
+        dailyReturns.push(ret);
+    });
+
+    const totalTrades = trades.length;
+    const winRate = (wins / totalTrades) * 100;
+    const profitFactor = totalLoss === 0 ? totalWin : totalWin / totalLoss;
+    const totalReturn = ((balance - initialBalance) / initialBalance) * 100;
+    
+    // Expectancy = (Win% * AvgWin) - (Loss% * AvgLoss)
+    const avgWin = wins > 0 ? totalWin / wins : 0;
+    const avgLoss = (totalTrades - wins) > 0 ? totalLoss / (totalTrades - wins) : 0;
+    const winPct = wins / totalTrades;
+    const lossPct = 1 - winPct;
+    const expectancy = (winPct * avgWin) - (lossPct * avgLoss);
+
+    // Standard Deviation of Returns
+    const avgReturn = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length;
+    const variance = dailyReturns.reduce((a, b) => a + Math.pow(b - avgReturn, 2), 0) / dailyReturns.length;
+    const stdDev = Math.sqrt(variance);
+    
+    // Downside Deviation (Sortino)
+    const downsideVariance = dailyReturns.filter(r => r < 0).reduce((a, b) => a + Math.pow(b, 2), 0) / dailyReturns.length;
+    const downsideStdDev = Math.sqrt(downsideVariance);
+
+    // Annualized Estimates (Assuming ~252 trading days, roughly scaling per-trade stats if frequent)
+    // NOTE: This is a rough estimation based on per-trade returns. Real Sharpe needs daily candle data.
+    const sharpe = stdDev === 0 ? 0 : (avgReturn / stdDev) * Math.sqrt(totalTrades); 
+    const sortino = downsideStdDev === 0 ? 0 : (avgReturn / downsideStdDev) * Math.sqrt(totalTrades);
+
+    const avgHoldTimeHours = totalHoldTimeMs / totalTrades / (1000 * 60 * 60);
+
+    return {
+        totalReturn,
+        profitFactor,
+        maxDrawdown: maxDrawdown * 100,
+        winRate,
+        totalTrades,
+        averageWin: avgWin,
+        averageLoss: avgLoss,
+        finalBalance: balance,
+        
+        // 🚀 NEW METRICS
+        expectancy,
+        sharpeRatio: sharpe,
+        sortinoRatio: sortino,
+        maxLosingStreak,
+        avgHoldTime: avgHoldTimeHours
+    };
+};
+
+
 // --- INITIAL STATES ---
 const initialFormData = {
   strategyId: "", code: "", symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate,
   initialBalance: 1000, params: { ...defaultFilterParams, maxPyramiding: 1 },
-  riskManagementMode: 'static', riskPercentage: 1, growthCapitalTarget: 2000, // 🚀 FIXED DEFAULT
+  riskManagementMode: 'static', riskPercentage: 1, growthCapitalTarget: 2000, 
   mlMode: "off", mlModel: "", mlThreshold: 0.5, mlHorizon: 1
 };
 
@@ -69,7 +168,7 @@ const initialComboData = {
   params: { ...defaultFilterParams, maxPyramiding: 1 }, 
   comboConfig: { strategyCodes: [], combinationRule: 'AND' },
   symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, initialBalance: 1000,
-  riskManagementMode: 'static', riskPercentage: 1, growthCapitalTarget: 2000, // 🚀 FIXED DEFAULT
+  riskManagementMode: 'static', riskPercentage: 1, growthCapitalTarget: 2000, 
   mlMode: "off", mlModel: "", mlThreshold: 0.5, mlHorizon: 1
 };
 
@@ -148,6 +247,30 @@ const MetricsDisplay = ({ metrics }) => {
   );
 };
 
+// 🚀 NEW: Risk & Efficiency Card
+const AdvancedMetricsDisplay = ({ metrics }) => {
+    if (!metrics) return null;
+    const items = [
+        { label: "Sharpe Ratio", value: metrics.sharpeRatio?.toFixed(2), desc: "Risk-Adjusted Return" },
+        { label: "Sortino Ratio", value: metrics.sortinoRatio?.toFixed(2), desc: "Downside Risk Only" },
+        { label: "Expectancy", value: `$${metrics.expectancy?.toFixed(2)}`, desc: "Avg Value Per Trade" },
+        { label: "Avg Hold Time", value: `${metrics.avgHoldTime?.toFixed(1)}h`, desc: "Duration in Market" },
+        { label: "Max Lose Streak", value: metrics.maxLosingStreak, desc: "Consecutive Losses", color: "text-rose-400" }
+    ];
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-6">
+            {items.map((m, idx) => (
+                <div key={idx} className="bg-slate-900/30 border border-slate-800 rounded-xl p-4 flex flex-col items-center justify-center text-center">
+                    <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider mb-1">{m.label}</span>
+                    <div className={`text-xl font-mono font-bold ${m.color || 'text-white'}`}>{m.value}</div>
+                    <span className="text-slate-600 text-[9px] mt-1">{m.desc}</span>
+                </div>
+            ))}
+        </div>
+    );
+};
+
 const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
     const handleGlobalChange = (e) => onChange(e);
     const handleParamChange = (e) => {
@@ -155,9 +278,11 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
       onChange({ target: { name: `param_${name}`, value: type === 'number' ? parseFloat(value) : value, type } });
     };
     const params = data.params || {};
-  
+   
     return (
       <>
+        {/* ... (Existing Inputs: Symbol, Timeframe, Balance, Dates) ... */}
+        {/* [Keep previous input structure exactly as is] */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           <div className="space-y-2">
             <label className="text-slate-400 text-sm">Symbol</label>
@@ -196,7 +321,6 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             
-            {/* 🚀 FIXED: Risk Mode Value "static" instead of "standard" */}
             <div className="space-y-2">
               <label className="text-slate-400 text-sm">Risk Mode</label>
               <select name="riskManagementMode" value={data.riskManagementMode || 'static'} onChange={handleGlobalChange} className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-white text-sm">
@@ -348,9 +472,9 @@ export default function Backtests() {
   const fetchWinners = async () => {
       setScanningWinners(true);
       try {
-          const token = localStorage.getItem("token");
-          const res = await axios.get("https://neov6backend.onrender.com/api/bot/winners", { headers: { Authorization: `Bearer ${token}` } });
-          if (res.data) setLiveWinners(res.data);
+        const token = localStorage.getItem("token");
+        const res = await axios.get("https://neov6backend.onrender.com/api/bot/winners", { headers: { Authorization: `Bearer ${token}` } });
+        if (res.data) setLiveWinners(res.data);
       } catch (err) { console.error(err); } 
       finally { setScanningWinners(false); }
   };
@@ -484,8 +608,7 @@ export default function Backtests() {
     }
   };
 
-  // 🚀 FILTER OUT WARMUP DATA
-  const { processedData, combinedMetrics, mainResult } = useMemo(() => {
+  const { processedData, combinedMetrics, mainResult, warmupRemovedCount, exitReasons, exitReasonData } = useMemo(() => {
        const res = backtestResults.main || backtestResults.combinedResult;
        if (!res || !res.metrics) return { processedData: [], combinedMetrics: null, mainResult: null };
        
@@ -493,21 +616,44 @@ export default function Backtests() {
        const startPrice = res.candleData?.[0]?.close || 1;
        const userStartDate = new Date(activeTab === 'single' ? formData.startDate : comboData.startDate).getTime();
 
-       // 🚀 FILTER: Remove data points before user's start date
+       // 1. FILTER: Equity Curve & Candles (Keep only data >= StartDate)
        const curve = (res.equityCurve || [])
           .filter(p => new Date(p.timestamp).getTime() >= userStartDate)
-          .map((p, i) => {
-             const candle = res.candleData?.[i] || res.candleData?.[res.candleData.length-1];
+          .map((p) => {
+             // 🚀 FIX: Match candle by timestamp, not index
+             const candle = res.candleData?.find(c => new Date(c.timestamp).getTime() === new Date(p.timestamp).getTime());
              const price = candle ? candle.close : startPrice;
              const buyHold = (price / startPrice) * initialBalance;
              return { timestamp: new Date(p.timestamp).getTime(), balance: p.balance, buyHold: buyHold };
        });
 
-       // 🚀 FILTER: Remove trades before user's start date from metrics (visual only)
-       const filteredTrades = (res.tradeBreakdown || []).filter(t => new Date(t.entryTime).getTime() >= userStartDate);
-       const filteredResult = { ...res, tradeBreakdown: filteredTrades };
+       const warmupRemovedCount = (res.equityCurve?.length || 0) - curve.length;
 
-       return { processedData: curve, combinedMetrics: res.metrics, mainResult: filteredResult };
+       // 2. FILTER: Trades (Keep only trades >= StartDate)
+       const filteredTrades = (res.tradeBreakdown || []).filter(t => new Date(t.entryTime).getTime() >= userStartDate);
+       
+       // 3. RECOMPUTE METRICS (Critical for accuracy)
+       const recomputedMetrics = computeMetricsFromTrades(filteredTrades, initialBalance);
+
+       // 4. EXIT REASONS BREAKDOWN
+       const reasons = filteredTrades.reduce((acc, t) => {
+           const reason = t.type || "Signal"; 
+           acc[reason] = (acc[reason] || 0) + 1;
+           return acc;
+       }, {});
+       
+       const exitReasonData = Object.entries(reasons).map(([name, value]) => ({ name, value }));
+
+       const filteredResult = { ...res, tradeBreakdown: filteredTrades, metrics: recomputedMetrics };
+
+       return { 
+           processedData: curve, 
+           combinedMetrics: recomputedMetrics, 
+           mainResult: filteredResult, 
+           warmupRemovedCount,
+           exitReasons: Object.entries(reasons).map(([name, value]) => ({ name, value })),
+           exitReasonData // Passed to PieChart
+       };
   }, [backtestResults, activeTab, formData, comboData]);
 
   const pieData = useMemo(() => {
@@ -545,12 +691,12 @@ export default function Backtests() {
           {/* Left Column - Configuration */}
           <div className="lg:col-span-1">
             <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6 space-y-6 sticky top-6">
+              {/* ... (Existing Config UI Code) ... */}
               <div className="flex items-center gap-3 pb-4 border-b border-slate-800/50">
                 <span className="text-blue-400 text-lg">⚙️</span>
                 <h2 className="text-white font-bold">Configuration</h2>
               </div>
               
-              {/* Winner Loader */}
               <div className="bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 border border-emerald-500/30 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-emerald-400 flex items-center gap-2 font-semibold text-sm">
@@ -574,7 +720,6 @@ export default function Backtests() {
                 </select>
               </div>
 
-              {/* Tabs */}
               <div className="flex gap-2">
                 <button 
                   className={`flex-1 py-2.5 px-4 rounded-xl transition-all font-medium text-sm ${
@@ -598,7 +743,6 @@ export default function Backtests() {
                 </button>
               </div>
 
-              {/* Form */}
               <form onSubmit={(e) => handleRun(e, activeTab === 'combo')} className="space-y-4">
                 {activeTab === 'single' ? (
                   <>
@@ -663,12 +807,9 @@ export default function Backtests() {
                 {loading !== 'idle' && (
                   <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-12 flex flex-col items-center justify-center min-h-[400px]">
                     <div className="w-20 h-20 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-6"></div>
-                    
-                    {/* 🚀 DYNAMIC TEXT BASED ON ACTION */}
                     <h3 className="text-white text-xl mb-2 font-bold">
                         {isSimulating ? "Running Backtest..." : "Loading the backtest setup..."}
                     </h3>
-                    
                     <p className="text-slate-400 text-center">
                         {isSimulating ? "Analyzing historical data and executing strategy" : "Initializing environment..."}
                     </p>
@@ -678,34 +819,42 @@ export default function Backtests() {
                 {loading === 'idle' && combinedMetrics && !error && (
                   <>
                     {/* Action Buttons */}
-                    <div className="flex items-center justify-end gap-3">
-                      <button 
-                        onClick={handleSaveStrategy}
-                        className="px-4 py-2.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl hover:bg-emerald-500/20 transition-all flex items-center gap-2 font-medium text-sm"
-                      >
-                        💾 Save Strategy
-                      </button>
-                      <button 
-                        onClick={() => downloadCSV(mainResult.tradeBreakdown)}
-                        className="px-4 py-2.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-xl hover:bg-blue-500/20 transition-all flex items-center gap-2 font-medium text-sm"
-                      >
-                        ⬇ Export CSV
-                      </button>
+                    <div className="flex items-center justify-between">
+                      <div className="px-3 py-1 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-xs text-yellow-400 font-mono">
+                         ⚠ Warmup Period: {warmupRemovedCount} bars excluded
+                      </div>
+
+                      <div className="flex gap-3">
+                        <button 
+                          onClick={handleSaveStrategy}
+                          className="px-4 py-2.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl hover:bg-emerald-500/20 transition-all flex items-center gap-2 font-medium text-sm"
+                        >
+                          💾 Save Strategy
+                        </button>
+                        <button 
+                          onClick={() => downloadCSV(mainResult.tradeBreakdown)}
+                          className="px-4 py-2.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-xl hover:bg-blue-500/20 transition-all flex items-center gap-2 font-medium text-sm"
+                        >
+                          ⬇ Export CSV
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Metrics */}
+                    {/* Standard Metrics */}
                     <MetricsDisplay metrics={combinedMetrics} />
                     
-                    {/* 🚀 CHART CARD WITH TOGGLE */}
+                    {/* 🚀 NEW: Advanced Metrics */}
+                    <AdvancedMetricsDisplay metrics={combinedMetrics} />
+                    
+                    {/* Chart Card */}
                     {mainResult && mainResult.candleData?.length > 0 && (
-                      <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6">
+                      <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6 mt-6">
                         <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-800/50">
                             <div className="flex items-center gap-3">
                               <span className="text-blue-400 text-lg">📈</span>
                               <h3 className="text-white font-bold">Price Action & Signals</h3>
                             </div>
                             
-                            {/* 🚀 TOGGLE BUTTONS */}
                             <div className="flex bg-slate-800/50 rounded-lg p-1 border border-slate-700/50">
                                 <button 
                                     onClick={() => setChartMode('standard')}
@@ -722,7 +871,6 @@ export default function Backtests() {
                             </div>
                         </div>
 
-                        {/* 🚀 CONDITIONAL RENDER WITH DATES PASSED */}
                         <div style={{height: '850px'}}>
                           {chartMode === 'standard' ? (
                               <ChartIndependent 
@@ -741,10 +889,10 @@ export default function Backtests() {
                       </div>
                     )}
 
-                    {/* Charts Container */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Charts Container (Equity + Trade Outcomes) */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
                       {/* Equity Curve */}
-                      <div className="lg:col-span-2 bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6">
+                      <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6">
                         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800/50">
                           <div className="w-10 h-10 bg-gradient-to-br from-blue-500/20 to-violet-500/20 rounded-xl flex items-center justify-center text-xl">
                             🚀
@@ -766,9 +914,7 @@ export default function Backtests() {
                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} vertical={false} />
                             <XAxis dataKey="timestamp" tickFormatter={formatChartDate} stroke="#64748b" tick={{ fill: '#94a3b8', fontSize: 12 }} />
                             <YAxis domain={['auto', 'auto']} stroke="#64748b" tick={{ fill: '#94a3b8', fontSize: 12 }} />
-                            <Tooltip 
-                              contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '12px', color: '#fff' }}
-                            />
+                            <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '12px', color: '#fff' }} />
                             <Legend />
                             <Area type="monotone" dataKey="balance" stroke="#8b5cf6" strokeWidth={2} fillOpacity={1} fill="url(#colorEquity)" name="Strategy" />
                             <Area type="monotone" dataKey="buyHold" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 5" fillOpacity={1} fill="url(#colorBuyHold)" name="Buy & Hold" />
@@ -776,37 +922,40 @@ export default function Backtests() {
                         </ResponsiveContainer>
                       </div>
                       
-                      {/* Win Ratio Pie */}
+                      {/* Trade Outcomes & Reasons */}
                       <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6">
                         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800/50">
                           <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-rose-500/20 rounded-xl flex items-center justify-center text-xl">
                             📊
                           </div>
-                          <h3 className="text-white font-bold">Win Ratio</h3>
+                          <h3 className="text-white font-bold">Trade Outcomes & Reasons</h3>
                         </div>
-                        <ResponsiveContainer width="100%" height={300}>
-                          <PieChart>
-                            <Pie 
-                              data={pieData} 
-                              dataKey="value" 
-                              nameKey="name" 
-                              cx="50%" 
-                              cy="50%" 
-                              innerRadius={60} 
-                              outerRadius={100} 
-                              paddingAngle={5} 
-                              stroke="none"
-                            >
-                              {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                            </Pie>
-                            <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155' }} />
-                            <Legend wrapperStyle={{ color: '#e2e8f0' }} />
-                          </PieChart>
-                        </ResponsiveContainer>
+                        <div className="grid grid-cols-2 gap-4 h-[300px]">
+                            {/* Win/Loss Pie */}
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={5} stroke="none">
+                                  {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                                </Pie>
+                                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155' }} />
+                                <Legend wrapperStyle={{ color: '#e2e8f0', fontSize: '10px' }} />
+                              </PieChart>
+                            </ResponsiveContainer>
+
+                            {/* 🚀 NEW: Exit Reason Pie */}
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie data={exitReasonData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={5} stroke="none">
+                                  {exitReasonData.map((entry, index) => <Cell key={`reason-${index}`} fill={REASON_COLORS[index % REASON_COLORS.length]} />)}
+                                </Pie>
+                                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155' }} />
+                                <Legend wrapperStyle={{ color: '#e2e8f0', fontSize: '10px' }} />
+                              </PieChart>
+                            </ResponsiveContainer>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Monthly Heatmap */}
                     <MonthlyHeatmap equityCurve={processedData} />
                   </>
                 )}
@@ -814,21 +963,15 @@ export default function Backtests() {
                 {error && (
                   <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-6 text-center">
                     <h3 className="text-rose-400 text-lg mb-2 font-bold">Error</h3>
-                    <p className="text-slate-400">
-                        {typeof error === 'object' ? (error.message || JSON.stringify(error)) : String(error)}
-                    </p>
+                    <p className="text-slate-400">{typeof error === 'object' ? (error.message || JSON.stringify(error)) : String(error)}</p>
                   </div>
                 )}
               </>
             ) : (
               <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-12 flex flex-col items-center justify-center min-h-[600px]">
-                <div className="w-20 h-20 bg-gradient-to-br from-blue-500/20 to-violet-600/20 rounded-2xl flex items-center justify-center mb-6 text-4xl">
-                 🏆 
-                </div>
+                <div className="w-20 h-20 bg-gradient-to-br from-blue-500/20 to-violet-600/20 rounded-2xl flex items-center justify-center mb-6 text-4xl">🏆</div>
                 <h3 className="text-white text-xl mb-2 font-bold">Ready to Test Your Strategy</h3>
-                <p className="text-slate-400 text-center max-w-md">
-                  Configure your strategy parameters and run a backtest to see detailed performance metrics, equity curves, and trade analysis.
-                </p>
+                <p className="text-slate-400 text-center max-w-md">Configure your strategy parameters and run a backtest to see detailed performance metrics.</p>
               </div>
             )}
           </div>
