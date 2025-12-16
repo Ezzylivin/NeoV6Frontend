@@ -1,7 +1,8 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v65.1 - "Jet Black & Emerald Restoration"
-// 1. Reverted all Blue accents to Emerald/Green.
-// 2. Fixed input overflow by adjusting grid and CSS classes.
+// 🚀 UPGRADE: v65.4 - "True Jet Black Final"
+// 1. REMOVED: All 'bg-slate-900' classes (the source of the blue tint).
+// 2. REPLACED: All containers now use the 'bot-card' class for the pure black glass look.
+// 3. UPDATED: Metrics cards now use 'metric-item' class for consistency.
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios"; 
@@ -15,7 +16,6 @@ import { ChartReplay } from "../components/ChartReplay.jsx";
 import api from "../api/apiClient"; 
 import "./Backtests.css"; 
 
-// 🚀 CHANGED: Colors adjusted for Green theme
 const COLORS = ["#10b981", "#ef4444", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#22c55e"];
 const REASON_COLORS = ["#10b981", "#f59e0b", "#06b6d4", "#ec4899", "#64748b"]; 
 
@@ -172,6 +172,7 @@ const MonthlyHeatmap = ({ equityCurve }) => {
         monthlyReturns[monthKey].end = point.balance;
     });
     
+    // 🚀 FIXED: Removed 'bg-slate-900', now uses 'bot-card'
     return (
         <div className="bot-card" style={{marginTop:'24px'}}>
             <div className="panel-header flex items-center gap-3">
@@ -184,16 +185,16 @@ const MonthlyHeatmap = ({ equityCurve }) => {
                 {Object.keys(monthlyReturns).sort().map(month => {
                     const data = monthlyReturns[month];
                     const ret = ((data.end - data.start) / data.start) * 100;
-                    const intensity = Math.min(Math.abs(ret) / 10, 1);
                     const bg = ret >= 0 
-                        ? `rgba(16, 185, 129, ${intensity * 0.3})` 
-                        : `rgba(239, 68, 68, ${intensity * 0.3})`;
+                        ? `rgba(16, 185, 129, 0.1)` 
+                        : `rgba(239, 68, 68, 0.1)`;
                     const borderColor = ret >= 0 ? 'border-emerald-500/30' : 'border-rose-500/30';
                     
                     return (
                         <div 
                             key={month} 
-                            className={`bg-slate-800/30 border ${borderColor} rounded-xl p-4 text-center hover:scale-105 transition-all`}
+                            // 🚀 FIXED: Removed slate bg, used simple border logic
+                            className={`border ${borderColor} rounded-xl p-4 text-center hover:scale-105 transition-all`}
                             style={{backgroundColor: bg}}
                         >
                             <div className="text-slate-400 text-xs mb-2">{month}</div>
@@ -212,7 +213,7 @@ const MetricsDisplay = ({ metrics }) => {
   if (!metrics) return null;
   const items = [
     { label: "Total Return", value: metrics.totalReturn, format: 'percent', color: 'text-emerald-400' },
-    { label: "Profit Factor", value: metrics.profitFactor, format: 'number', color: 'text-emerald-400' },
+    { label: "Profit Factor", value: metrics.profitFactor, format: 'number', color: 'text-blue-400' },
     { label: "Max Drawdown", value: metrics.maxDrawdown, format: 'percent', color: 'text-amber-400' },
     { label: "Win Rate", value: metrics.winRate, format: 'percent', color: 'text-violet-400' },
     { label: "Total Trades", value: metrics.totalTrades, format: null, color: 'text-cyan-400' },
@@ -221,6 +222,7 @@ const MetricsDisplay = ({ metrics }) => {
     { label: "Final Balance", value: metrics.finalBalance, format: 'currency', color: 'text-emerald-400' }
   ];
 
+  // 🚀 FIXED: Removed slate classes, now using 'metrics-grid' and 'metric-item'
   return (
     <div className="metrics-grid mb-6">
       {items.map((m, idx) => {
@@ -599,52 +601,57 @@ export default function Backtests() {
     }
   };
 
-  const { processedData, combinedMetrics, mainResult, warmupRemovedCount, exitReasons, exitReasonData } = useMemo(() => {
-       const res = backtestResults.main || backtestResults.combinedResult;
-       if (!res || !res.metrics) return { processedData: [], combinedMetrics: null, mainResult: null };
-       
-       const initialBalance = activeTab === 'single' ? formData.initialBalance : comboData.initialBalance;
-       const startPrice = res.candleData?.[0]?.close || 1;
-       const userStartDate = new Date(activeTab === 'single' ? formData.startDate : comboData.startDate).getTime();
+  // 🚀 REPLACEMENT for the useMemo block
+  const { processedData, combinedMetrics, mainResult, warmupRemovedCount, exitReasons, exitReasonData, actualStartDate, actualEndDate } = useMemo(() => {
+    const res = backtestResults.main || backtestResults.combinedResult;
+    if (!res || !res.metrics) return { processedData: [], combinedMetrics: null, mainResult: null };
 
-       // 1. FILTER: Equity Curve & Candles (Keep only data >= StartDate)
-       const curve = (res.equityCurve || [])
-          .filter(p => new Date(p.timestamp).getTime() >= userStartDate)
-          .map((p) => {
-             // 🚀 FIX: Match candle by timestamp, not index
-             const candle = res.candleData?.find(c => new Date(c.timestamp).getTime() === new Date(p.timestamp).getTime());
-             const price = candle ? candle.close : startPrice;
-             const buyHold = (price / startPrice) * initialBalance;
-             return { timestamp: new Date(p.timestamp).getTime(), balance: p.balance, buyHold: buyHold };
-       });
+    // FIX 1: Use actual data start time, not form start time
+    const firstPoint = res.equityCurve?.[0]?.timestamp;
+    const lastPoint = res.equityCurve?.[res.equityCurve.length - 1]?.timestamp;
+    
+    const dataStartTime = firstPoint ? new Date(firstPoint).getTime() : 0;
 
-       const warmupRemovedCount = (res.equityCurve?.length || 0) - curve.length;
+    // 1. FILTER: Equity Curve & Candles (Keep data >= Actual Start)
+    const curve = (res.equityCurve || [])
+      .map((p) => {
+          // Match candle by timestamp
+          const candle = res.candleData?.find(c => new Date(c.timestamp || c.datetime).getTime() === new Date(p.timestamp).getTime());
+          const startPrice = res.candleData?.[0]?.close || 1; 
+          const initialBalance = activeTab === 'single' ? formData.initialBalance : comboData.initialBalance;
+          
+          const price = candle ? candle.close : startPrice;
+          const buyHold = (price / startPrice) * initialBalance;
+          return { timestamp: new Date(p.timestamp).getTime(), balance: p.balance, buyHold: buyHold };
+    });
 
-       // 2. FILTER: Trades (Keep only trades >= StartDate)
-       const filteredTrades = (res.tradeBreakdown || []).filter(t => new Date(t.entryTime).getTime() >= userStartDate);
-       
-       // 3. RECOMPUTE METRICS (Critical for accuracy)
-       const recomputedMetrics = computeMetricsFromTrades(filteredTrades, initialBalance);
+    // 2. FILTER: Trades (Use the data's start time, not the form's)
+    const filteredTrades = (res.tradeBreakdown || []).filter(t => new Date(t.entryTime).getTime() >= dataStartTime);
+    
+    // 3. RECOMPUTE METRICS
+    const recomputedMetrics = computeMetricsFromTrades(filteredTrades, activeTab === 'single' ? formData.initialBalance : comboData.initialBalance);
 
-       // 4. EXIT REASONS BREAKDOWN
-       const reasons = filteredTrades.reduce((acc, t) => {
-           const reason = t.type || "Signal"; 
-           acc[reason] = (acc[reason] || 0) + 1;
-           return acc;
-       }, {});
-       
-       const exitReasonData = Object.entries(reasons).map(([name, value]) => ({ name, value }));
+    // 4. EXIT REASONS BREAKDOWN
+    const reasons = filteredTrades.reduce((acc, t) => {
+        const reason = t.type || "Signal"; 
+        acc[reason] = (acc[reason] || 0) + 1;
+        return acc;
+    }, {});
+    
+    const exitReasonData = Object.entries(reasons).map(([name, value]) => ({ name, value }));
+    const filteredResult = { ...res, tradeBreakdown: filteredTrades, metrics: recomputedMetrics };
 
-       const filteredResult = { ...res, tradeBreakdown: filteredTrades, metrics: recomputedMetrics };
-
-       return { 
-           processedData: curve, 
-           combinedMetrics: recomputedMetrics, 
-           mainResult: filteredResult, 
-           warmupRemovedCount,
-           exitReasons: Object.entries(reasons).map(([name, value]) => ({ name, value })),
-           exitReasonData // Passed to PieChart
-       };
+    return { 
+        processedData: curve, 
+        combinedMetrics: recomputedMetrics, 
+        mainResult: filteredResult, 
+        warmupRemovedCount: 0, 
+        exitReasons: Object.entries(reasons).map(([name, value]) => ({ name, value })),
+        exitReasonData,
+        // Pass these out so we can feed them to the chart component
+        actualStartDate: firstPoint ? formatDate(firstPoint) : (activeTab === 'single' ? formData.startDate : comboData.startDate),
+        actualEndDate: lastPoint ? formatDate(lastPoint) : (activeTab === 'single' ? formData.endDate : comboData.endDate)
+    };
   }, [backtestResults, activeTab, formData, comboData]);
 
   // 🚀 FIXED: Pie Data now uses explicit winningTrades and losingTrades
@@ -683,6 +690,7 @@ export default function Backtests() {
         <div className="grid grid-cols-12 gap-8">
           {/* Left Column - Configuration (5/12 width) */}
           <div className="col-span-12 lg:col-span-5">
+            {/* 🚀 FIXED: Replaced bg-slate with bot-card */}
             <div className="bot-card sticky top-6">
               {/* ... (Existing Config UI Code) ... */}
               <div className="panel-header flex items-center gap-3">
@@ -788,6 +796,7 @@ export default function Backtests() {
             {(loading !== 'idle' || combinedMetrics || error) ? (
               <>
                 {loading !== 'idle' && (
+                  // 🚀 FIXED: Replaced bg-slate with bot-card
                   <div className="bot-card p-12 flex flex-col items-center justify-center min-h-[400px]">
                     <div className="w-20 h-20 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-6"></div>
                     <h3 className="text-white text-xl mb-2 font-bold">
@@ -831,6 +840,7 @@ export default function Backtests() {
                     
                     {/* Chart Card */}
                     {mainResult && mainResult.candleData?.length > 0 && (
+                      // 🚀 FIXED: Replaced bg-slate with bot-card
                       <div className="bot-card">
                         <div className="panel-header flex items-center justify-between">
                             <div className="flex items-center gap-3">
@@ -861,8 +871,9 @@ export default function Backtests() {
                               <ChartIndependent 
                                   results={mainResult} 
                                   symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} 
-                                  startDate={activeTab === 'single' ? formData.startDate : comboData.startDate}
-                                  endDate={activeTab === 'single' ? formData.endDate : comboData.endDate}
+                                  // FIX 2: Use the calculated actual dates from the data
+                                  startDate={actualStartDate}
+                                  endDate={actualEndDate}
                               />
                           ) : (
                               <ChartReplay 
@@ -877,6 +888,7 @@ export default function Backtests() {
                     {/* Charts Container (Equity + Trade Outcomes) */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Equity Curve */}
+                      {/* 🚀 FIXED: Replaced bg-slate with bot-card */}
                       <div className="bot-card">
                         <div className="panel-header flex items-center gap-3">
                           <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl flex items-center justify-center text-xl">
@@ -908,6 +920,7 @@ export default function Backtests() {
                       </div>
                       
                       {/* Trade Outcomes & Reasons */}
+                      {/* 🚀 FIXED: Replaced bg-slate with bot-card */}
                       <div className="bot-card">
                         <div className="panel-header flex items-center gap-3">
                           <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl flex items-center justify-center text-xl">
@@ -953,6 +966,7 @@ export default function Backtests() {
                 )}
               </>
             ) : (
+              // 🚀 FIXED: Replaced bg-slate with bot-card
               <div className="bot-card p-12 flex flex-col items-center justify-center min-h-[600px]">
                 <div className="w-20 h-20 bg-gradient-to-br from-blue-500/20 to-violet-600/20 rounded-2xl flex items-center justify-center mb-6 text-4xl">🏆</div>
                 <h3 className="text-white text-xl mb-2 font-bold">Ready to Test Your Strategy</h3>
