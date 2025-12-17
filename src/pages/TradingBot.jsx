@@ -1,12 +1,12 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v71.3 - Wallet-Native Logic & Error Safety
-// Changes: Wallet ID payload enforcement, "Missing Keys" workflow, 500 Error Trapping.
+// 🚀 UPGRADE: v71.4 - Added STOP Button to UI
+// Changes: Updated BotStatusBar to include Stop control.
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { useAccount } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { Link, useNavigate } from 'react-router-dom'; // Added useNavigate
+import { Link, useNavigate } from 'react-router-dom';
 import { useBot } from '../hooks/useBot.js';
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { UIModeProvider } from "../context/UIModeContext";
@@ -16,8 +16,8 @@ import "../styles/Themes.css";
 
 // --- COMPONENTS ---
 
-// 3. Bot Health & Status Bar
-const BotStatusBar = ({ status, pnl, winRate, latency, mode }) => (
+// 3. Bot Health & Status Bar (UPDATED WITH STOP BUTTON)
+const BotStatusBar = ({ status, pnl, winRate, latency, mode, onStop }) => (
     <div className={`sticky top-0 z-40 flex items-center justify-between px-6 py-2 border-b backdrop-blur-md ${mode === 'live' ? 'bg-red-900/20 border-red-500/30' : 'bg-emerald-900/20 border-emerald-500/30'}`}>
         <div className="flex items-center gap-4">
             <div className={`flex items-center gap-2 text-sm font-bold ${status === 'running' ? 'text-green-400' : 'text-red-400'}`}>
@@ -29,7 +29,18 @@ const BotStatusBar = ({ status, pnl, winRate, latency, mode }) => (
                 LATENCY: <span className={latency < 200 ? 'text-green-400' : 'text-yellow-400'}>{latency ? `${latency}ms` : '--'}</span>
             </div>
         </div>
+
         <div className="flex items-center gap-6">
+            {/* 🛑 STOP BUTTON (Only visible when running) */}
+            {status === 'running' && (
+                <button 
+                    onClick={onStop}
+                    className="flex items-center gap-2 px-4 py-1 bg-red-500/20 hover:bg-red-500 border border-red-500 text-red-500 hover:text-white rounded transition-all duration-300 text-xs font-bold uppercase tracking-wider shadow-[0_0_15px_rgba(239,68,68,0.2)]"
+                >
+                    ⏹ Stop Engine
+                </button>
+            )}
+
             <div className="text-center">
                 <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider">Session PnL</div>
                 <div className={`text-sm font-mono font-bold ${pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -57,11 +68,10 @@ const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, a
         strategy: false
     });
 
-    // 🚀 REAL VALIDATION LOGIC
     useEffect(() => {
         setChecks({
             wallet: !!address,
-            keys: config.tradingMode === 'paper' || hasApiKeys, // Keys optional for paper
+            keys: config.tradingMode === 'paper' || hasApiKeys, 
             capital: Number(config.capitalAllocation) >= 100,
             strategy: (config.isCombo && config.comboConfig?.strategyCodes?.length > 0) || 
                       (!config.isCombo && config.strategies?.length > 0)
@@ -122,7 +132,7 @@ const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
     const [paperBalance, setPaperBalance] = useState(10000);
     const [agreedRisk, setAgreedRisk] = useState(false);
     const [agreedBot, setAgreedBot] = useState(false);
-    const navigate = useNavigate(); // For redirecting to settings
+    const navigate = useNavigate();
 
     if (!isConnected) {
         return (
@@ -254,7 +264,6 @@ const TradingBotContainer = () => {
             try {
                 const token = localStorage.getItem("token");
                 const res = await axios.get('https://neov6backend.onrender.com/api/users/keys', { headers: { Authorization: `Bearer ${token}` } });
-                // Robust array check
                 const keys = Array.isArray(res.data) ? res.data : (res.data.keys || []);
                 setHasApiKeys(keys.length > 0);
             } catch (err) { setHasApiKeys(false); }
@@ -364,7 +373,7 @@ const TradingBotContainer = () => {
         
         const cleanStrategies = (formConfig.strategies || []).map(s => ({ code: s.code || "unknown", params: s.params || {} }));
         const cleanPayload = {
-            userId: address, // 🚀 CRITICAL: Sending 0x Wallet Address directly
+            userId: address,
             mode: formConfig.tradingMode, symbol: formConfig.symbol, timeframe: formConfig.timeframe,
             capitalAllocation: Number(formConfig.capitalAllocation), currentBalance: Number(formConfig.capitalAllocation),
             mlMode: formConfig.mlMode, mlModel: formConfig.mlModel, mlThreshold: Number(formConfig.mlThreshold),
@@ -386,7 +395,7 @@ const TradingBotContainer = () => {
             setShowPreFlight(false);
         } catch (err) { 
             console.error("Bot Start Error:", err); 
-            alert(`Failed to start: ${err.response?.data?.message || err.message}`); // Better error alert
+            alert(`Failed to start: ${err.response?.data?.message || err.message}`);
         }
         finally { setIsStarting(false); }
     };
@@ -427,8 +436,15 @@ const TradingBotContainer = () => {
             {showPreFlight && <PreFlightModal config={formConfig} onConfirm={handleConfirmStart} onCancel={() => setShowPreFlight(false)} isStarting={isStarting} hasApiKeys={hasApiKeys} address={address} />}
 
             <div className={`transition-all duration-500 ${!isModeSelected || showPreFlight ? 'filter blur-lg pointer-events-none' : ''}`}>
-                 {/* 🐛 FIX: PnL Conditional Logic */}
-                 {isModeSelected && <BotStatusBar status={botStatus?.status} pnl={sessionStartBalance != null && botStatus?.currentBalance != null ? botStatus.currentBalance - sessionStartBalance : null} winRate={botStatus?.performanceMetrics?.winRate} latency={latency} mode={formConfig.tradingMode} />}
+                 {/* 🚀 FIXED: Added onStop Handler */}
+                 {isModeSelected && <BotStatusBar 
+                     status={botStatus?.status} 
+                     pnl={sessionStartBalance != null && botStatus?.currentBalance != null ? botStatus.currentBalance - sessionStartBalance : null} 
+                     winRate={botStatus?.performanceMetrics?.winRate} 
+                     latency={latency} 
+                     mode={formConfig.tradingMode} 
+                     onStop={handleStop} 
+                 />}
                  <TradingBotShell {...botProps} />
             </div>
         </div>
