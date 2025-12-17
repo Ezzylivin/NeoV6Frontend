@@ -1,12 +1,12 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v71.2 - Bug Fixes & Stability
-// Changes: Fixed JSX syntax error (escaped '>' characters), PnL 0 bug, Interval churn, Log dedupe.
+// 🚀 UPGRADE: v71.3 - Wallet-Native Logic & Error Safety
+// Changes: Wallet ID payload enforcement, "Missing Keys" workflow, 500 Error Trapping.
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { useAccount } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom'; // Added useNavigate
 import { useBot } from '../hooks/useBot.js';
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { UIModeProvider } from "../context/UIModeContext";
@@ -61,7 +61,7 @@ const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, a
     useEffect(() => {
         setChecks({
             wallet: !!address,
-            keys: config.tradingMode === 'paper' || hasApiKeys,
+            keys: config.tradingMode === 'paper' || hasApiKeys, // Keys optional for paper
             capital: Number(config.capitalAllocation) >= 100,
             strategy: (config.isCombo && config.comboConfig?.strategyCodes?.length > 0) || 
                       (!config.isCombo && config.strategies?.length > 0)
@@ -79,14 +79,13 @@ const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, a
                 
                 <div className="space-y-3 mb-8">
                     <CheckItem label="Wallet Connection" status={checks.wallet} />
-                    <CheckItem label="API Keys Verified" status={checks.keys} />
+                    <CheckItem label={config.tradingMode === 'live' ? "API Keys (Required)" : "API Keys (Optional)"} status={checks.keys} />
                     <CheckItem label={`Capital Allocation ($${config.capitalAllocation})`} status={checks.capital} />
                     <CheckItem label="Strategy Logic Loaded" status={checks.strategy} />
                 </div>
 
                 {config.tradingMode === 'live' && (
                     <div className="mb-6 space-y-2">
-                        {/* 🐛 FIX: Escaped '>' characters below */}
                         {config.maxDailyLoss > 10 && <div className="text-xs text-yellow-500">⚠ High Risk: Max Daily Loss &gt; 10%</div>}
                         {config.maxTradesPerDay > 50 && <div className="text-xs text-yellow-500">⚠ High Frequency: &gt; 50 Trades/Day</div>}
                     </div>
@@ -123,6 +122,7 @@ const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
     const [paperBalance, setPaperBalance] = useState(10000);
     const [agreedRisk, setAgreedRisk] = useState(false);
     const [agreedBot, setAgreedBot] = useState(false);
+    const navigate = useNavigate(); // For redirecting to settings
 
     if (!isConnected) {
         return (
@@ -151,7 +151,10 @@ const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
                                 <p className="text-neutral-300 mb-6">Simulate trades with fake money. Zero risk.</p>
                                 <div className="flex items-center gap-2 text-sm text-emerald-500 font-bold uppercase tracking-wider"><span>Configure Simulation</span><span>→</span></div>
                             </div>
-                            <div onClick={() => { if (hasApiKeys) setStep('live_agreement'); }} className={`group relative p-8 rounded-2xl border transition-all duration-300 overflow-hidden ${hasApiKeys ? 'cursor-pointer bg-[#1a0505] border-red-900/30 hover:border-red-500/50 hover:bg-[#2f0a0a] transform hover:-translate-y-1' : 'cursor-not-allowed bg-neutral-900 border-neutral-800 opacity-70'}`}>
+                            <div 
+                                onClick={() => { if (hasApiKeys) setStep('live_agreement'); else alert("Please add API Keys in Settings first!"); }} 
+                                className={`group relative p-8 rounded-2xl border transition-all duration-300 overflow-hidden ${hasApiKeys ? 'cursor-pointer bg-[#1a0505] border-red-900/30 hover:border-red-500/50 hover:bg-[#2f0a0a] transform hover:-translate-y-1' : 'cursor-pointer bg-neutral-900 border-neutral-800 opacity-70 hover:opacity-100 hover:border-yellow-500/30'}`}
+                            >
                                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition"><span className="text-9xl">⚡</span></div>
                                 <h3 className={`text-2xl font-bold mb-2 ${hasApiKeys ? 'text-red-500' : 'text-neutral-500'}`}>Live Trading</h3>
                                 <p className="text-neutral-300 mb-6">Execute real orders. Real capital at risk.</p>
@@ -159,8 +162,8 @@ const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
                                     <div className="flex items-center gap-2 text-sm text-red-500 font-bold uppercase tracking-wider"><span>Enter Danger Zone</span><span>→</span></div>
                                 ) : (
                                     <div className="flex flex-col gap-3">
-                                        <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-3 py-2 rounded text-xs font-bold text-center">⛔ LOCKED: No API Keys</div>
-                                        <Link to="/settings" className="text-sm text-white underline hover:text-red-400 relative z-10">Go to Settings</Link>
+                                        <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-3 py-2 rounded text-xs font-bold text-center">⚠ KEYS MISSING: Click to Configure</div>
+                                        <button onClick={(e) => { e.stopPropagation(); navigate("/settings"); }} className="text-sm text-white underline hover:text-yellow-400 relative z-10">Go to Settings</button>
                                     </div>
                                 )}
                             </div>
@@ -245,13 +248,15 @@ const TradingBotContainer = () => {
         }
     }, [botStatus?.status, botLoading]);
 
-    // Check API Keys
+    // Check API Keys (Robust)
     useEffect(() => {
         const checkKeys = async () => {
             try {
                 const token = localStorage.getItem("token");
                 const res = await axios.get('https://neov6backend.onrender.com/api/users/keys', { headers: { Authorization: `Bearer ${token}` } });
-                setHasApiKeys((Array.isArray(res.data) ? res.data : (res.data.keys || [])).length > 0);
+                // Robust array check
+                const keys = Array.isArray(res.data) ? res.data : (res.data.keys || []);
+                setHasApiKeys(keys.length > 0);
             } catch (err) { setHasApiKeys(false); }
         };
         if (isConnected) checkKeys();
@@ -359,7 +364,8 @@ const TradingBotContainer = () => {
         
         const cleanStrategies = (formConfig.strategies || []).map(s => ({ code: s.code || "unknown", params: s.params || {} }));
         const cleanPayload = {
-            userId: address, mode: formConfig.tradingMode, symbol: formConfig.symbol, timeframe: formConfig.timeframe,
+            userId: address, // 🚀 CRITICAL: Sending 0x Wallet Address directly
+            mode: formConfig.tradingMode, symbol: formConfig.symbol, timeframe: formConfig.timeframe,
             capitalAllocation: Number(formConfig.capitalAllocation), currentBalance: Number(formConfig.capitalAllocation),
             mlMode: formConfig.mlMode, mlModel: formConfig.mlModel, mlThreshold: Number(formConfig.mlThreshold),
             isCombo: !!formConfig.isCombo, comboConfig: formConfig.comboConfig || { strategyCodes: cleanStrategies.map(s => s.code), combinationRule: 'AND' },
@@ -378,7 +384,10 @@ const TradingBotContainer = () => {
             setPersistentLogs(prev => [{ timestamp: new Date().toISOString(), message: `✅ Bot Initialized in ${formConfig.tradingMode.toUpperCase()} Mode with $${cleanPayload.capitalAllocation}`, type: 'system' }]);
             setTimeout(refreshWithLatency, 1000);
             setShowPreFlight(false);
-        } catch (err) { console.error("Bot Start Error:", err); alert(`Failed to start: ${err.message}`); }
+        } catch (err) { 
+            console.error("Bot Start Error:", err); 
+            alert(`Failed to start: ${err.response?.data?.message || err.message}`); // Better error alert
+        }
         finally { setIsStarting(false); }
     };
 
