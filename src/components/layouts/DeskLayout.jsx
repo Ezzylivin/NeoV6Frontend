@@ -5,7 +5,7 @@
 import React from "react";
 // 1. Import the specific Live Chart component
 import LiveTradingChart from "../LiveTradingChart"; 
-import { MetricsDisplay, LogsPanel, DecisionStream } from "../SharedComponents";
+import { MetricsDisplay, LogsPanel, DecisionStream } from "../components";
 
 const DeskLayout = (props) => {
   const {
