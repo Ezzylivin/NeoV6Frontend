@@ -1,13 +1,20 @@
 // File: src/components/SharedComponents.jsx
-// 🚀 UPGRADE: v1.0 - Reusable UI Blocks
-// 🛠 Components: MetricsDisplay, LogsPanel, DecisionStream
+// 🚀 UPGRADE: v2.0 - Enhanced Time & Transparency
+// 🛠 Features: Real-time Timestamps, Date Formatting, "Last Updated" Indicator
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 // --- 1. METRICS DISPLAY (Top Strip) ---
 export const MetricsDisplay = ({ data, variant = "default" }) => {
   const { currentBalance, performanceMetrics } = data || {};
   const { totalProfit, winRate, totalTrades, maxDrawdown, sharpeRatio } = performanceMetrics || {};
+
+  // Track the last time data was received
+  const [lastUpdate, setLastUpdate] = useState(new Date());
+
+  useEffect(() => {
+    if (data) setLastUpdate(new Date());
+  }, [data]);
 
   const isPositive = totalProfit >= 0;
 
@@ -16,6 +23,7 @@ export const MetricsDisplay = ({ data, variant = "default" }) => {
       <div className="metric-card">
         <span className="label">Current Balance</span>
         <span className="value highlight">${currentBalance?.toFixed(2) || "0.00"}</span>
+        <span className="sub-label">Updated: {lastUpdate.toLocaleTimeString()}</span>
       </div>
       <div className="metric-card">
         <span className="label">Total Profit</span>
@@ -50,13 +58,20 @@ export const MetricsDisplay = ({ data, variant = "default" }) => {
           border: 1px solid var(--border);
           padding: 10px;
           border-radius: 6px;
+          position: relative;
         }
         .label {
-          font-size: 0.75rem;
+          font-size: 0.7rem;
           color: var(--text-secondary);
           text-transform: uppercase;
           letter-spacing: 0.5px;
           margin-bottom: 4px;
+        }
+        .sub-label {
+          font-size: 0.6rem;
+          color: var(--text-secondary);
+          margin-top: 4px;
+          opacity: 0.7;
         }
         .value {
           font-size: 1.1rem;
@@ -76,10 +91,16 @@ export const MetricsDisplay = ({ data, variant = "default" }) => {
 export const LogsPanel = ({ logs = [] }) => {
   const bottomRef = useRef(null);
 
-  // Auto-scroll to bottom when logs update
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
+
+  // Helper to format full date-time
+  const formatTime = (isoString) => {
+    if (!isoString) return "--:--:--";
+    const date = new Date(isoString);
+    return `${date.getMonth() + 1}/${date.getDate()} ${date.toLocaleTimeString([], { hour12: false })}`;
+  };
 
   return (
     <div className="logs-wrapper">
@@ -88,9 +109,7 @@ export const LogsPanel = ({ logs = [] }) => {
       ) : (
         logs.map((log, i) => (
           <div key={i} className={`log-line ${log.type}`}>
-            <span className="timestamp">
-              {new Date(log.timestamp).toLocaleTimeString([], { hour12: false })}
-            </span>
+            <span className="timestamp">[{formatTime(log.timestamp)}]</span>
             <span className="message">{log.message}</span>
           </div>
         ))
@@ -101,7 +120,7 @@ export const LogsPanel = ({ logs = [] }) => {
         .logs-wrapper {
           padding: 10px;
           font-family: 'Roboto Mono', monospace;
-          font-size: 0.8rem;
+          font-size: 0.75rem;
           display: flex;
           flex-direction: column;
           gap: 4px;
@@ -114,12 +133,15 @@ export const LogsPanel = ({ logs = [] }) => {
         }
         .log-line {
           display: flex;
-          gap: 10px;
+          gap: 8px;
           line-height: 1.4;
+          border-bottom: 1px solid rgba(255,255,255,0.03);
+          padding-bottom: 2px;
         }
         .timestamp {
           color: var(--text-secondary);
-          min-width: 65px;
+          min-width: 95px;
+          opacity: 0.8;
         }
         .log-line.error { color: #ef4444; }
         .log-line.status { color: #f59e0b; }
@@ -133,10 +155,18 @@ export const LogsPanel = ({ logs = [] }) => {
 
 // --- 3. DECISION STREAM (Visual Feed) ---
 export const DecisionStream = ({ logs = [], limit = 10 }) => {
-  // Filter only "DECISION" or "STATUS" logs for the stream
   const streamLogs = logs
     .filter(l => l.message && (l.message.includes("DECISION") || l.message.includes("ANALYSIS") || l.message.includes("VERDICT")))
     .slice(-limit);
+
+  const formatFullTime = (isoString) => {
+    if (!isoString) return "";
+    const date = new Date(isoString);
+    return date.toLocaleString('en-US', { 
+      month: 'numeric', day: 'numeric', 
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false 
+    });
+  };
 
   return (
     <div className="decision-wrapper">
@@ -144,14 +174,13 @@ export const DecisionStream = ({ logs = [], limit = 10 }) => {
         <div className="empty-stream">Waiting for market analysis...</div>
       ) : (
         streamLogs.map((log, i) => {
-          // Parse raw message for cleaner display
-          // Removes "DECISION | " prefix if present
           const cleanMsg = log.message.replace("DECISION | ", "").replace("STATUS | ", "");
           
           return (
             <div key={i} className="stream-item">
-              <div className="stream-time">
-                {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              <div className="stream-header">
+                <span className="stream-time">{formatFullTime(log.timestamp)}</span>
+                <span className="stream-type">LOG</span>
               </div>
               <div className="stream-content">{cleanMsg}</div>
             </div>
@@ -164,7 +193,7 @@ export const DecisionStream = ({ logs = [], limit = 10 }) => {
           padding: 0 10px;
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          gap: 10px;
         }
         .empty-stream {
           padding: 20px;
@@ -179,15 +208,29 @@ export const DecisionStream = ({ logs = [], limit = 10 }) => {
           border-radius: 0 4px 4px 0;
           font-size: 0.8rem;
         }
+        .stream-header {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 4px;
+          border-bottom: 1px solid rgba(255,255,255,0.05);
+          padding-bottom: 2px;
+        }
         .stream-time {
           font-size: 0.7rem;
           color: var(--text-secondary);
-          margin-bottom: 2px;
           font-family: monospace;
+          font-weight: bold;
+        }
+        .stream-type {
+          font-size: 0.6rem;
+          color: var(--accent);
+          text-transform: uppercase;
+          opacity: 0.7;
         }
         .stream-content {
           color: var(--text-primary);
           white-space: pre-wrap;
+          line-height: 1.3;
         }
       `}</style>
     </div>
