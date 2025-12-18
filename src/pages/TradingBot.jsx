@@ -1,6 +1,6 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v71.5 - Fixed "Zombie Bot" Payload Issue & Added STOP Button
-// Changes: Explicitly passing strategy params in payload to avoid DB lookup errors.
+// 🚀 UPGRADE: v71.6 - Fixed "Missing Configuration" Error
+// Changes: Merges global params into strategy params to prevent backend rejection.
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
@@ -16,7 +16,7 @@ import "../styles/Themes.css";
 
 // --- COMPONENTS ---
 
-// 3. Bot Health & Status Bar (UPDATED WITH STOP BUTTON)
+// 3. Bot Health & Status Bar
 const BotStatusBar = ({ status, pnl, winRate, latency, mode, onStop }) => (
     <div className={`sticky top-0 z-40 flex items-center justify-between px-6 py-2 border-b backdrop-blur-md ${mode === 'live' ? 'bg-red-900/20 border-red-500/30' : 'bg-emerald-900/20 border-emerald-500/30'}`}>
         <div className="flex items-center gap-4">
@@ -371,24 +371,38 @@ const TradingBotContainer = () => {
         setIsStarting(true);
         setLogsClearedTime(0); setPersistentLogs([]); 
         
-        // --- 🔧 FIX FOR ZOMBIE BOTS 🔧 ---
-        // Explicitly map strategies with params to allow immediate execution
-        // without saving to DB first.
-        const cleanStrategies = (formConfig.strategies || []).map(s => ({ code: s.code || "unknown", params: s.params || {} }));
+        // --- 🔧 FIX: Robust Strategy Mapping 🔧 ---
+        // Ensure params are passed even if defined at the top level (Backtest setups often do this).
+        // If s.params is empty, we merge in formConfig.params to satisfy the backend.
+        const cleanStrategies = (formConfig.strategies || []).map(s => ({ 
+            code: s.code || "unknown", 
+            params: (s.params && Object.keys(s.params).length > 0) ? s.params : (formConfig.params || {}) 
+        }));
         
         const cleanPayload = {
             userId: address,
-            mode: formConfig.tradingMode, symbol: formConfig.symbol, timeframe: formConfig.timeframe,
-            capitalAllocation: Number(formConfig.capitalAllocation), currentBalance: Number(formConfig.capitalAllocation),
-            mlMode: formConfig.mlMode, mlModel: formConfig.mlModel, mlThreshold: Number(formConfig.mlThreshold),
-            isCombo: !!formConfig.isCombo, comboConfig: formConfig.comboConfig || { strategyCodes: cleanStrategies.map(s => s.code), combinationRule: 'AND' },
+            mode: formConfig.tradingMode, 
+            symbol: formConfig.symbol, 
+            timeframe: formConfig.timeframe,
+            capitalAllocation: Number(formConfig.capitalAllocation), 
+            currentBalance: Number(formConfig.capitalAllocation),
+            mlMode: formConfig.mlMode, 
+            mlModel: formConfig.mlModel, 
+            mlThreshold: Number(formConfig.mlThreshold),
+            isCombo: !!formConfig.isCombo, 
+            comboConfig: formConfig.comboConfig || { strategyCodes: cleanStrategies.map(s => s.code), combinationRule: 'AND' },
             
-            // ✅ CRITICAL FIX: Passing strategies with params explicitly
+            // ✅ EXPLICITLY SEND STRATEGIES ARRAY
             strategies: cleanStrategies, 
             
-            params: formConfig.params || {}, maxPyramiding: parseInt(formConfig.params?.maxPyramiding || 1, 10),
-            riskManagementMode: formConfig.riskManagementMode, riskPercentage: Number(formConfig.riskPercentage), growthCapitalTarget: Number(formConfig.growthCapitalTarget),
-            maxDailyLoss: Number(formConfig.maxDailyLoss), maxDrawdown: Number(formConfig.maxDrawdown), maxTradesPerDay: Number(formConfig.maxTradesPerDay)
+            params: formConfig.params || {}, 
+            maxPyramiding: parseInt(formConfig.params?.maxPyramiding || 1, 10),
+            riskManagementMode: formConfig.riskManagementMode, 
+            riskPercentage: Number(formConfig.riskPercentage), 
+            growthCapitalTarget: Number(formConfig.growthCapitalTarget),
+            maxDailyLoss: Number(formConfig.maxDailyLoss), 
+            maxDrawdown: Number(formConfig.maxDrawdown), 
+            maxTradesPerDay: Number(formConfig.maxTradesPerDay)
         };
 
         try { 
@@ -444,7 +458,6 @@ const TradingBotContainer = () => {
             {showPreFlight && <PreFlightModal config={formConfig} onConfirm={handleConfirmStart} onCancel={() => setShowPreFlight(false)} isStarting={isStarting} hasApiKeys={hasApiKeys} address={address} />}
 
             <div className={`transition-all duration-500 ${!isModeSelected || showPreFlight ? 'filter blur-lg pointer-events-none' : ''}`}>
-                 {/* 🚀 FIXED: Added onStop Handler */}
                  {isModeSelected && <BotStatusBar 
                      status={botStatus?.status} 
                      pnl={sessionStartBalance != null && botStatus?.currentBalance != null ? botStatus.currentBalance - sessionStartBalance : null} 
