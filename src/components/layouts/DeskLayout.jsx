@@ -1,9 +1,15 @@
+// File: src/components/layouts/DeskLayout.jsx
+// 🚀 UPGRADE: v72.0 - Live Chart Integration
+// 🛠 Features: Real-time Candle Streaming & Trade Visualization
+
 import React from "react";
-import { MetricsDisplay, ChartPanel, LogsPanel, DecisionStream } from "./SharedComponents";
+// 1. Import the specific Live Chart component
+import LiveTradingChart from "../LiveTradingChart"; 
+import { MetricsDisplay, LogsPanel, DecisionStream } from "../SharedComponents";
 
 const DeskLayout = (props) => {
   const {
-    // State
+    // State from parent
     formConfig, setFormConfig,
     setups, liveWinners,
     selectedSetupId, handleSetupSelect,
@@ -11,7 +17,10 @@ const DeskLayout = (props) => {
     scanningWinners, fetchWinners,
     isRunning, botLoading,
     handleStart, handleStop,
-    botStatus
+    handleClearLogs,
+    botStatus,
+    logs, visibleLogs,
+    chartData // Contains { candleData, tradeBreakdown }
   } = props;
 
   return (
@@ -171,13 +180,16 @@ const DeskLayout = (props) => {
           <MetricsDisplay data={botStatus} variant="desk" />
         </div>
 
-        {/* Main Chart */}
-        <div className="chart-area">
-          <ChartPanel 
-            chartData={props.chartData} 
-            formConfig={formConfig} 
-            height="100%" 
+        {/* Main Chart Area */}
+        <div className="chart-area" style={{ height: 'calc(100vh - 120px)', width: '100%', position: 'relative' }}>
+          
+          {/* 2. 🚀 LIVE CHART REPLACES GENERIC PANEL */}
+          <LiveTradingChart 
+            candles={chartData?.candleData || []} 
+            trades={chartData?.tradeBreakdown || []}
+            activePositions={botStatus?.positions || []}
           />
+
         </div>
       </main>
 
@@ -188,22 +200,22 @@ const DeskLayout = (props) => {
             <h3>Decision Stream</h3>
           </div>
           <div className="stream-container">
-            <DecisionStream logs={props.logs} limit={8} />
+            <DecisionStream logs={logs} limit={8} />
           </div>
         </div>
 
         <div className="feed-section logs-section">
           <div className="panel-header">
             <h3>System Logs</h3>
-            <button onClick={props.handleClearLogs} className="text-btn">Clear</button>
+            <button onClick={handleClearLogs} className="text-btn">Clear</button>
           </div>
           <div className="logs-container">
-            <LogsPanel logs={props.visibleLogs} />
+            <LogsPanel logs={visibleLogs} />
           </div>
         </div>
       </aside>
 
-      {/* --- INLINE STYLES FOR LAYOUT (You can move to CSS) --- */}
+      {/* --- INLINE STYLES FOR LAYOUT --- */}
       <style>{`
         .desk-layout {
           display: grid;
@@ -282,7 +294,7 @@ const DeskLayout = (props) => {
           background: var(--bg-panel);
           border-bottom: 1px solid var(--border);
         }
-        .chart-area { padding: 20px; position: relative; }
+        .chart-area { padding: 0; background: #000; } 
 
         /* Feed */
         .feed-section { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 200px; }
