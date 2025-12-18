@@ -1,6 +1,6 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v71.4 - Added STOP Button to UI
-// Changes: Updated BotStatusBar to include Stop control.
+// 🚀 UPGRADE: v71.5 - Fixed "Zombie Bot" Payload Issue & Added STOP Button
+// Changes: Explicitly passing strategy params in payload to avoid DB lookup errors.
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
@@ -215,7 +215,7 @@ const TradingBotContainer = () => {
     const [hasApiKeys, setHasApiKeys] = useState(false);
     const [showPreFlight, setShowPreFlight] = useState(false);
     const [isStarting, setIsStarting] = useState(false);
-    
+     
     // 15. Log Filtering
     const [logFilter, setLogFilter] = useState('ALL'); 
 
@@ -231,7 +231,7 @@ const TradingBotContainer = () => {
     const [logsClearedTime, setLogsClearedTime] = useState(0);
     const logsContainerRef = useRef(null);
     const [persistentLogs, setPersistentLogs] = useState([]);
-    
+     
     const [formConfig, setFormConfig] = useState({
         isCombo: false, strategyId: '', comboConfig: { strategyCodes: [], combinationRule: 'AND' },
         symbol: 'BTC-USD', timeframe: '1h', capitalAllocation: 1000, tradingMode: 'paper',
@@ -371,14 +371,22 @@ const TradingBotContainer = () => {
         setIsStarting(true);
         setLogsClearedTime(0); setPersistentLogs([]); 
         
+        // --- 🔧 FIX FOR ZOMBIE BOTS 🔧 ---
+        // Explicitly map strategies with params to allow immediate execution
+        // without saving to DB first.
         const cleanStrategies = (formConfig.strategies || []).map(s => ({ code: s.code || "unknown", params: s.params || {} }));
+        
         const cleanPayload = {
             userId: address,
             mode: formConfig.tradingMode, symbol: formConfig.symbol, timeframe: formConfig.timeframe,
             capitalAllocation: Number(formConfig.capitalAllocation), currentBalance: Number(formConfig.capitalAllocation),
             mlMode: formConfig.mlMode, mlModel: formConfig.mlModel, mlThreshold: Number(formConfig.mlThreshold),
             isCombo: !!formConfig.isCombo, comboConfig: formConfig.comboConfig || { strategyCodes: cleanStrategies.map(s => s.code), combinationRule: 'AND' },
-            strategies: cleanStrategies, params: formConfig.params || {}, maxPyramiding: parseInt(formConfig.params?.maxPyramiding || 1, 10),
+            
+            // ✅ CRITICAL FIX: Passing strategies with params explicitly
+            strategies: cleanStrategies, 
+            
+            params: formConfig.params || {}, maxPyramiding: parseInt(formConfig.params?.maxPyramiding || 1, 10),
             riskManagementMode: formConfig.riskManagementMode, riskPercentage: Number(formConfig.riskPercentage), growthCapitalTarget: Number(formConfig.growthCapitalTarget),
             maxDailyLoss: Number(formConfig.maxDailyLoss), maxDrawdown: Number(formConfig.maxDrawdown), maxTradesPerDay: Number(formConfig.maxTradesPerDay)
         };
@@ -413,7 +421,7 @@ const TradingBotContainer = () => {
             setTimeout(refreshWithLatency, 1000);
         } catch (err) { console.error("Panic Sell Error:", err); alert("Panic Sell Failed: " + err.message); }
     };
-    
+     
     const handleRefreshChart = () => refreshWithLatency();
     const isRunning = botStatus?.status === 'running';
     const chartData = { candleData: botStatus?.candles || [], tradeBreakdown: (botStatus?.trades || []).map(t => ({ ...t, entryTime: t.entryTime, exitTime: t.exitTime, profit: t.profit, price: t.entry_price || t.price, exitPrice: t.exit_price || t.exitPrice })) };
@@ -432,7 +440,7 @@ const TradingBotContainer = () => {
     return (
         <div className="trading-bot-root relative">
             {!isModeSelected && <ModeSelectionModal onSelect={handleModeSelection} isConnected={isConnected} hasApiKeys={hasApiKeys} />}
-            
+             
             {showPreFlight && <PreFlightModal config={formConfig} onConfirm={handleConfirmStart} onCancel={() => setShowPreFlight(false)} isStarting={isStarting} hasApiKeys={hasApiKeys} address={address} />}
 
             <div className={`transition-all duration-500 ${!isModeSelected || showPreFlight ? 'filter blur-lg pointer-events-none' : ''}`}>
