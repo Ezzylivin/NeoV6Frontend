@@ -7,7 +7,7 @@ import LiveTradingChart from "../LiveTradingChart";
 
 // 🚀 FIX: Point to the correct location of SharedComponents
 // Assuming SharedComponents.jsx is in src/pages/ (2 levels up from src/components/layouts/)
-import { MetricsDisplay, LogsPanel, DecisionStream } from "../../pages/SharedComponents";
+import { MetricsDisplay, LogsPanel, DecisionStream } from "../components/layouts";
 
 const DeskLayout = (props) => {
   const {
