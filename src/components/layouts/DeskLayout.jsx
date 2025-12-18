@@ -1,11 +1,13 @@
 // File: src/components/layouts/DeskLayout.jsx
-// 🚀 UPGRADE: v72.0 - Live Chart Integration
-// 🛠 Features: Real-time Candle Streaming & Trade Visualization
+// 🚀 UPGRADE: v2.1 - Import Path Fix
+// 🛠 Fixes: "Module not found" for SharedComponents
 
 import React from "react";
-// 1. Import the specific Live Chart component
 import LiveTradingChart from "../LiveTradingChart"; 
-import { MetricsDisplay, LogsPanel, DecisionStream } from "../components";
+
+// 🚀 FIX: Point to the correct location of SharedComponents
+// Assuming SharedComponents.jsx is in src/pages/ (2 levels up from src/components/layouts/)
+import { MetricsDisplay, LogsPanel, DecisionStream } from "../../pages/SharedComponents";
 
 const DeskLayout = (props) => {
   const {
@@ -20,7 +22,7 @@ const DeskLayout = (props) => {
     handleClearLogs,
     botStatus,
     logs, visibleLogs,
-    chartData // Contains { candleData, tradeBreakdown }
+    chartData 
   } = props;
 
   return (
@@ -182,14 +184,11 @@ const DeskLayout = (props) => {
 
         {/* Main Chart Area */}
         <div className="chart-area" style={{ height: 'calc(100vh - 120px)', width: '100%', position: 'relative' }}>
-          
-          {/* 2. 🚀 LIVE CHART REPLACES GENERIC PANEL */}
           <LiveTradingChart 
             candles={chartData?.candleData || []} 
             trades={chartData?.tradeBreakdown || []}
             activePositions={botStatus?.positions || []}
           />
-
         </div>
       </main>
 
