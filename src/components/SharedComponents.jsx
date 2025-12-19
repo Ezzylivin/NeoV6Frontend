@@ -26,34 +26,34 @@ export const MetricsDisplay = ({ data, variant = "default" }) => {
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-5 gap-4 w-full">
-      <div className="flex flex-col bg-white/5 border border-white/10 p-3 rounded-lg">
-        <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider mb-1">Current Balance</span>
+      <div className="flex flex-col bg-[#111] border border-white/10 p-3 rounded shadow-sm">
+        <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider mb-1">Current Balance</span>
         <span className="text-xl font-bold text-yellow-400 font-mono">${currentBalance?.toFixed(2) || "0.00"}</span>
-        <span className="text-[9px] text-neutral-500 mt-1">Updated: {lastUpdate.toLocaleTimeString()}</span>
+        <span className="text-[9px] text-neutral-600 mt-1">Updated: {lastUpdate.toLocaleTimeString()}</span>
       </div>
-      <div className="flex flex-col bg-white/5 border border-white/10 p-3 rounded-lg">
-        <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider mb-1">Total Profit</span>
+      <div className="flex flex-col bg-[#111] border border-white/10 p-3 rounded shadow-sm">
+        <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider mb-1">Total Profit</span>
         <span className={`text-xl font-bold font-mono ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
           {isPositive ? "+" : ""}{totalProfit?.toFixed(2) || "0.00"}
         </span>
       </div>
-      <div className="flex flex-col bg-white/5 border border-white/10 p-3 rounded-lg">
-        <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider mb-1">Win Rate</span>
+      <div className="flex flex-col bg-[#111] border border-white/10 p-3 rounded shadow-sm">
+        <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider mb-1">Win Rate</span>
         <span className="text-xl font-bold text-white font-mono">{winRate || 0}%</span>
       </div>
-      <div className="flex flex-col bg-white/5 border border-white/10 p-3 rounded-lg">
-        <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider mb-1">Sharpe Ratio</span>
+      <div className="flex flex-col bg-[#111] border border-white/10 p-3 rounded shadow-sm">
+        <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider mb-1">Sharpe Ratio</span>
         <span className="text-xl font-bold text-white font-mono">{sharpeRatio?.toFixed(2) || "0.00"}</span>
       </div>
-      <div className="flex flex-col bg-white/5 border border-white/10 p-3 rounded-lg">
-        <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider mb-1">Trades</span>
+      <div className="flex flex-col bg-[#111] border border-white/10 p-3 rounded shadow-sm">
+        <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider mb-1">Trades</span>
         <span className="text-xl font-bold text-white font-mono">{totalTrades || 0}</span>
       </div>
     </div>
   );
 };
 
-// --- 2. LOGS PANEL ---
+// --- 2. LOGS PANEL (System Events) ---
 export const LogsPanel = ({ logs = [] }) => {
   const bottomRef = useRef(null);
 
@@ -72,15 +72,14 @@ export const LogsPanel = ({ logs = [] }) => {
   };
 
   return (
-    <div className="flex flex-col gap-2 p-2 h-full">
+    <div className="flex flex-col gap-1 p-2 h-full font-mono text-[10px] leading-tight">
       {sortedLogs.length === 0 ? (
-        <div className="text-center text-neutral-500 italic mt-4 text-xs">System initialized. Waiting for data...</div>
+        <div className="text-neutral-600 italic mt-2">System initialized. Waiting for events...</div>
       ) : (
         sortedLogs.map((log, i) => (
-          <div key={i} className={`flex gap-3 text-xs font-mono border-b border-white/5 pb-1 ${log.type === 'error' ? 'text-red-400' : (log.type === 'decision' ? 'text-blue-300' : 'text-neutral-300')}`}>
-            <span className="text-neutral-500 min-w-[60px]">{formatTime(log.timestamp)}</span>
-            <span className="text-neutral-600">›</span>
-            <span className="break-words flex-1">{cleanLogMessage(log.message)}</span>
+          <div key={i} className={`flex gap-2 ${log.type === 'error' ? 'text-red-500' : 'text-neutral-400'}`}>
+            <span className="opacity-50 min-w-[50px]">{formatTime(log.timestamp)}</span>
+            <span className="break-all">{cleanLogMessage(log.message)}</span>
           </div>
         ))
       )}
@@ -89,50 +88,83 @@ export const LogsPanel = ({ logs = [] }) => {
   );
 };
 
-// --- 3. DECISION STREAM ---
-export const DecisionStream = ({ logs = [], limit = 15 }) => {
+// --- 3. DECISION STREAM (The Brain) ---
+// 🚀 UPGRADE: "Terminal" style visualization
+export const DecisionStream = ({ logs = [], limit = 20 }) => {
+  // Filter for relevant strategy logs
   const streamLogs = logs
-    .filter(l => l.message && (l.message.includes("DECISION") || l.message.includes("ANALYSIS") || l.message.includes("VERDICT")))
+    .filter(l => l.message && (
+      l.message.includes("DECISION") || 
+      l.message.includes("VERDICT") || 
+      l.message.includes("SNAPSHOT") ||
+      l.message.includes("Bot Active") || // Show start events too
+      l.message.includes("EXECUTED")
+    ))
     .sort((a, b) => safeParseDate(b.timestamp) - safeParseDate(a.timestamp))
     .slice(0, limit);
 
   const formatFullTime = (isoString) => {
     const date = safeParseDate(isoString);
     if (!date) return "";
-    return date.toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    return date.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
 
   return (
-    <div className="flex flex-col gap-2 h-full">
-      {streamLogs.length === 0 ? (
-        <div className="text-center text-neutral-500 text-xs mt-4">Waiting for market analysis...</div>
-      ) : (
-        streamLogs.map((log, i) => {
-          let borderColor = "border-neutral-700";
-          let bgColor = "bg-white/5";
-          if (log.message.includes("BUY")) { borderColor = "border-emerald-500"; bgColor = "bg-emerald-900/10"; }
-          if (log.message.includes("SELL")) { borderColor = "border-red-500"; bgColor = "bg-red-900/10"; }
+    <div className="flex flex-col h-full bg-[#050505] rounded border border-white/5 relative overflow-hidden">
+      {/* Scanline Effect */}
+      <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%),linear-gradient(90deg,rgba(255,0,0,0.03),rgba(0,255,0,0.01),rgba(0,0,255,0.03))] bg-[length:100%_2px,3px_100%] opacity-20 z-10"></div>
 
-          return (
-            <div key={i} className={`flex flex-col p-2 rounded-r border-l-2 ${borderColor} ${bgColor} text-xs`}>
-              <div className="flex justify-between mb-1 opacity-70">
-                <span className="font-mono">{formatFullTime(log.timestamp)}</span>
-                <span className="uppercase tracking-widest text-[10px]">DECISION</span>
+      {streamLogs.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-full text-neutral-600 gap-2">
+          <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div>
+          <span className="text-xs font-mono tracking-widest uppercase">Scanning Market...</span>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-0 overflow-y-auto custom-scrollbar p-2 z-20">
+          {streamLogs.map((log, i) => {
+            const msg = cleanLogMessage(log.message);
+            
+            // Dynamic Styling based on content
+            let rowClass = "border-l-2 border-neutral-800 bg-transparent text-neutral-400";
+            let icon = "›";
+            
+            if (msg.includes("BUY")) { 
+              rowClass = "border-l-2 border-emerald-500 bg-emerald-900/10 text-emerald-200"; 
+              icon = "▲";
+            }
+            if (msg.includes("SELL")) { 
+              rowClass = "border-l-2 border-red-500 bg-red-900/10 text-red-200"; 
+              icon = "▼";
+            }
+            if (msg.includes("WAIT")) { 
+              rowClass = "border-l-2 border-yellow-500/50 bg-yellow-900/5 text-yellow-200/80"; 
+              icon = "⏸";
+            }
+            if (msg.includes("EXECUTED")) { 
+              rowClass = "border-l-2 border-purple-500 bg-purple-900/20 text-white font-bold"; 
+              icon = "⚡";
+            }
+            if (msg.includes("SNAPSHOT")) {
+              rowClass = "border-l-2 border-blue-500/30 bg-blue-900/5 text-blue-300/60";
+              icon = "📊";
+            }
+
+            return (
+              <div key={i} className={`flex items-start gap-3 p-2 mb-1 text-xs font-mono transition-all hover:bg-white/5 ${rowClass}`}>
+                <span className="opacity-40 min-w-[55px] pt-0.5">{formatFullTime(log.timestamp)}</span>
+                <span className="text-[10px] pt-0.5 opacity-70">{icon}</span>
+                <span className="break-words leading-relaxed flex-1">{msg}</span>
               </div>
-              <div className="font-medium text-neutral-200 whitespace-pre-wrap leading-relaxed">
-                {cleanLogMessage(log.message)}
-              </div>
-            </div>
-          );
-        })
+            );
+          })}
+        </div>
       )}
     </div>
   );
 };
 
-// --- 4. CHART PANEL (The Wrapper for LabLayout) ---
-export const ChartPanel = ({ chartData, formConfig, height, showTradeMarkers, activeIndicators }) => {
-  // Safe destructuring
+// --- 4. CHART PANEL ---
+export const ChartPanel = ({ chartData, formConfig, height }) => {
   const candles = chartData?.candleData || [];
   const trades = chartData?.tradeBreakdown || [];
   
@@ -141,7 +173,7 @@ export const ChartPanel = ({ chartData, formConfig, height, showTradeMarkers, ac
       <LiveTradingChart 
         candles={candles}
         trades={trades}
-        activePositions={[]} // Lab mode usually implies backtest data, no live positions overlay yet
+        activePositions={[]} 
       />
     </div>
   );
