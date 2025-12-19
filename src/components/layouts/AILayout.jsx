@@ -1,64 +1,85 @@
+// File: src/components/layouts/AILayout.jsx
+// 🚀 UPGRADE: v3.0 - "Neural Network" UI
+// 🛠 Fixes: Correct import path.
+// 🛠 Features: Cyberpunk/AI aesthetic, Tailwind CSS.
+
 import React from "react";
-import { DecisionStream } from "./SharedComponents";
+// Assuming SharedComponents is in src/components/
+import { DecisionStream } from "../SharedComponents";
 
 const AILayout = (props) => {
   const { formConfig, logs } = props;
 
   return (
-    <div className="ai-layout">
+    <div className="grid grid-cols-1 lg:grid-cols-[350px_1fr] h-screen bg-neutral-950 text-neutral-200 font-mono overflow-hidden">
       
       {/* LEFT: NEURAL CONFIG */}
-      <aside className="ai-sidebar">
-        <h3>NEURAL_CONFIG</h3>
-        <div className="node-group">
-          <div className="node">
-            <label>MODEL_ARCH</label>
-            <div className="val">{formConfig.mlModel || "STANDARD_HEURISTIC"}</div>
+      <aside className="flex flex-col gap-6 p-6 border-r border-emerald-500/20 bg-[#050505] relative overflow-hidden">
+        {/* Background Decorative Element */}
+        <div className="absolute top-0 right-0 p-10 opacity-5 text-emerald-500 pointer-events-none text-9xl">
+           🧠
+        </div>
+
+        <div className="z-10">
+          <h3 className="text-emerald-500 text-sm font-bold tracking-[0.2em] mb-6 flex items-center gap-2">
+            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+            NEURAL_CONFIG_V1
+          </h3>
+
+          <div className="space-y-4">
+            <div className="p-4 rounded border border-emerald-500/20 bg-emerald-900/5 hover:bg-emerald-900/10 transition-colors">
+              <label className="block text-[10px] text-emerald-400/60 font-bold mb-1 uppercase tracking-wider">Model Architecture</label>
+              <div className="text-lg text-emerald-100 font-bold truncate">{formConfig.mlModel || "STANDARD_HEURISTIC"}</div>
+            </div>
+
+            <div className="p-4 rounded border border-emerald-500/20 bg-emerald-900/5 hover:bg-emerald-900/10 transition-colors">
+              <label className="block text-[10px] text-emerald-400/60 font-bold mb-1 uppercase tracking-wider">Decision Mode</label>
+              <div className="text-lg text-emerald-100 font-bold">{(formConfig.mlMode || "OFF").toUpperCase()}</div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 rounded border border-emerald-500/20 bg-emerald-900/5">
+                <label className="block text-[10px] text-emerald-400/60 font-bold mb-1 uppercase tracking-wider">Threshold</label>
+                <div className="text-2xl text-emerald-400 font-bold drop-shadow-[0_0_5px_rgba(16,185,129,0.5)]">
+                  {formConfig.mlThreshold}
+                </div>
+              </div>
+              <div className="p-4 rounded border border-emerald-500/20 bg-emerald-900/5">
+                <label className="block text-[10px] text-emerald-400/60 font-bold mb-1 uppercase tracking-wider">Logic Gate</label>
+                <div className="text-2xl text-emerald-400 font-bold">
+                  {formConfig.comboConfig?.combinationRule || "OR"}
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="node">
-            <label>DECISION_MODE</label>
-            <div className="val">{formConfig.mlMode.toUpperCase()}</div>
-          </div>
-          <div className="node">
-            <label>CONFIDENCE_THRESHOLD</label>
-            <div className="val highlight">{formConfig.mlThreshold}</div>
-          </div>
-          <div className="node">
-            <label>LOGIC_GATE</label>
-            <div className="val">{formConfig.comboConfig?.combinationRule || "OR"}</div>
-          </div>
+        </div>
+
+        <div className="mt-auto z-10 text-[10px] text-emerald-900/40 text-center">
+           A.I. DECISION CORE // ONLINE
         </div>
       </aside>
 
       {/* RIGHT: THOUGHT PROCESS */}
-      <main className="ai-main">
-        <div className="stream-container">
-          <div className="stream-header">/// LIVE DECISION STREAM ///</div>
-          <div className="stream-body">
+      <main className="flex flex-col h-full bg-[#020202] relative p-6">
+        {/* Container */}
+        <div className="flex-1 flex flex-col border border-emerald-500/30 rounded-lg overflow-hidden bg-black/50 shadow-[0_0_30px_rgba(16,185,129,0.05)]">
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-emerald-500/20 bg-emerald-900/5 flex justify-between items-center">
+            <div className="text-emerald-500 text-xs font-bold tracking-[0.2em]">/// LIVE DECISION STREAM ///</div>
+            <div className="flex gap-1">
+               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/50"></div>
+               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/50"></div>
+               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/50"></div>
+            </div>
+          </div>
+          
+          {/* Stream Body */}
+          <div className="flex-1 overflow-y-auto p-0 custom-scrollbar">
             <DecisionStream logs={logs} limit={50} />
           </div>
         </div>
       </main>
 
-      <style>{`
-        .ai-layout { height: 100vh; display: grid; grid-template-columns: 300px 1fr; background: var(--bg-app); color: var(--text-primary); font-family: 'Courier New', monospace; }
-        
-        .ai-sidebar { background: rgba(0,0,0,0.2); border-right: 1px solid var(--border); padding: 30px; display: flex; flex-direction: column; gap: 20px; }
-        .ai-sidebar h3 { color: var(--accent); letter-spacing: 2px; font-size: 1rem; margin: 0 0 20px 0; }
-        
-        .node { background: var(--bg-panel); border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-bottom: 15px; }
-        .node label { display: block; font-size: 0.6rem; color: var(--text-secondary); margin-bottom: 5px; }
-        .node .val { font-size: 1rem; font-weight: bold; }
-        .node .val.highlight { color: var(--accent); text-shadow: 0 0 10px var(--accent); }
-        
-        .ai-main { padding: 30px; display: flex; flex-direction: column; }
-        
-        .stream-container { flex: 1; border: 1px solid var(--accent); border-radius: 12px; background: rgba(0,0,0,0.3); display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 0 30px rgba(var(--accent-rgb), 0.1); }
-        
-        .stream-header { background: rgba(255,255,255,0.05); padding: 15px; border-bottom: 1px solid var(--border); font-weight: bold; letter-spacing: 2px; color: var(--text-secondary); }
-        
-        .stream-body { flex: 1; overflow-y: auto; padding: 20px; }
-      `}</style>
     </div>
   );
 };
