@@ -1,7 +1,3 @@
-// File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v72.0 - Fixed Strategy ID Stripping
-// Changes: Preserves strategyId in payload to prevent "Missing Configuration" errors on backend.
-
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { useAccount } from 'wagmi';
@@ -14,9 +10,6 @@ import TradingBotShell from "./TradingBotShell";
 import "./TradingBot.css";
 import "../styles/Themes.css";
 
-// --- COMPONENTS ---
-
-// 3. Bot Health & Status Bar
 const BotStatusBar = ({ status, pnl, winRate, latency, mode, onStop }) => (
     <div className={`sticky top-0 z-40 flex items-center justify-between px-6 py-2 border-b backdrop-blur-md ${mode === 'live' ? 'bg-red-900/20 border-red-500/30' : 'bg-emerald-900/20 border-emerald-500/30'}`}>
         <div className="flex items-center gap-4">
@@ -31,7 +24,6 @@ const BotStatusBar = ({ status, pnl, winRate, latency, mode, onStop }) => (
         </div>
 
         <div className="flex items-center gap-6">
-            {/* 🛑 STOP BUTTON (Only visible when running) */}
             {status === 'running' && (
                 <button 
                     onClick={onStop}
@@ -51,7 +43,6 @@ const BotStatusBar = ({ status, pnl, winRate, latency, mode, onStop }) => (
                 <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider">Win Rate</div>
                 <div className="text-sm font-mono font-bold text-white">{winRate ? `${winRate}%` : '--'}</div>
             </div>
-             {/* 16. Environment Badges */}
             <div className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest border ${mode === 'live' ? 'bg-red-600 text-white border-red-500' : 'bg-emerald-600 text-black border-emerald-400'}`}>
                 {mode === 'live' ? 'LIVE MODE' : 'PAPER MODE'}
             </div>
@@ -59,7 +50,6 @@ const BotStatusBar = ({ status, pnl, winRate, latency, mode, onStop }) => (
     </div>
 );
 
-// 1. Pre-Flight Validation Panel
 const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, address }) => {
     const [checks, setChecks] = useState({
         wallet: false,
@@ -125,14 +115,28 @@ const CheckItem = ({ label, status }) => (
     </div>
 );
 
-
-// --- MODE SELECTION MODAL ---
 const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
     const [step, setStep] = useState('selection');
     const [paperBalance, setPaperBalance] = useState(10000);
     const [agreedRisk, setAgreedRisk] = useState(false);
     const [agreedBot, setAgreedBot] = useState(false);
     const navigate = useNavigate();
+    const { address } = useAccount();
+
+    const handleReset = async () => {
+        if(!window.confirm("⚠️ Are you sure? This will wipe your Paper Trading history and reset the balance.")) return;
+        try {
+            await axios.post('https://neov6backend.onrender.com/api/bot/reset', { 
+                userId: address, 
+                symbol: "BTC-USD", 
+                timeframe: "1h", 
+                capitalAllocation: paperBalance 
+            });
+            alert("✅ Account Reset Successfully!");
+        } catch (err) {
+            alert("Reset Failed: " + (err.response?.data?.error || err.message));
+        }
+    };
 
     if (!isConnected) {
         return (
@@ -185,7 +189,14 @@ const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
                         <button onClick={() => setStep('selection')} className="text-neutral-500 hover:text-white mb-6 text-sm">← Back</button>
                         <h3 className="text-2xl font-bold text-emerald-400 mb-2">Setup Simulation</h3>
                         <div className="mb-6"><label className="block text-xs font-bold text-neutral-500 uppercase mb-2">Starting Balance ($)</label><input type="number" value={paperBalance} onChange={(e) => setPaperBalance(Number(e.target.value))} className="w-full bg-black border border-white/20 rounded-lg p-4 text-2xl text-white font-mono focus:border-emerald-500 outline-none" /></div>
-                        <button onClick={() => onSelect('paper', paperBalance)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-lg transition">Start Simulation</button>
+                        <div className="flex gap-3">
+                            <button onClick={handleReset} className="flex-1 bg-red-900/30 hover:bg-red-900/50 border border-red-500/50 text-red-400 font-bold py-4 rounded-lg transition">
+                                ↺ Reset
+                            </button>
+                            <button onClick={() => onSelect('paper', paperBalance)} className="flex-[2] bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-lg transition">
+                                Start Simulation
+                            </button>
+                        </div>
                     </div>
                 )}
                 {step === 'live_agreement' && (
@@ -204,9 +215,7 @@ const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
     );
 };
 
-// --- MAIN LOGIC CONTAINER ---
 const TradingBotContainer = () => {
-    // 1. Core Logic
     const { botStatus, logs: apiLogs, loading: botLoading, startBot, stopBot, refreshBotData: originalRefresh } = useBot();
     const { setups } = useBacktestSetupFunction();
     const { address, isConnected } = useAccount();
@@ -215,15 +224,9 @@ const TradingBotContainer = () => {
     const [hasApiKeys, setHasApiKeys] = useState(false);
     const [showPreFlight, setShowPreFlight] = useState(false);
     const [isStarting, setIsStarting] = useState(false);
-     
-    // 15. Log Filtering
     const [logFilter, setLogFilter] = useState('ALL'); 
-
-    // Metrics State
     const [latency, setLatency] = useState(0);
     const [sessionStartBalance, setSessionStartBalance] = useState(null); 
-
-    // Local State
     const [liveWinners, setLiveWinners] = useState([]);
     const [scanningWinners, setScanningWinners] = useState(false);
     const [selectedWinnerId, setSelectedWinnerId] = useState("");
@@ -240,7 +243,6 @@ const TradingBotContainer = () => {
         maxDailyLoss: 5, maxDrawdown: 10, maxTradesPerDay: 20 
     });
 
-    // 14. Local Crash Recovery
     useEffect(() => {
         const savedSession = sessionStorage.getItem('botSession');
         if (savedSession) {
@@ -251,14 +253,11 @@ const TradingBotContainer = () => {
         }
     }, []);
 
-    // Zombie UI Check
     useEffect(() => {
         if (!botLoading && botStatus?.status === 'stopped' && sessionStartBalance !== null) {
-            // Logic to handle zombie state if needed
         }
     }, [botStatus?.status, botLoading]);
 
-    // Check API Keys (Robust)
     useEffect(() => {
         const checkKeys = async () => {
             try {
@@ -271,7 +270,6 @@ const TradingBotContainer = () => {
         if (isConnected) checkKeys();
     }, [isConnected]);
 
-    // Robust Log Deduplication
     useEffect(() => {
         if (apiLogs && apiLogs.length > 0) {
             setPersistentLogs(prevLogs => {
@@ -293,7 +291,6 @@ const TradingBotContainer = () => {
 
     const handleClearLogs = () => setLogsClearedTime(Date.now());
     
-    // --- 🟢 SMART SCROLL FIX 🟢 ---
     useEffect(() => {
         const container = logsContainerRef.current;
         if (container) {
@@ -305,7 +302,6 @@ const TradingBotContainer = () => {
         }
     }, [persistentLogs, logFilter]);
 
-    // REAL LATENCY MEASUREMENT & Interval Safety
     const refreshWithLatency = async () => {
         const start = performance.now();
         await originalRefresh();
@@ -314,7 +310,6 @@ const TradingBotContainer = () => {
 
     useEffect(() => {
         if (botStatus?.status !== 'running') return; 
-
         const interval = setInterval(() => refreshWithLatency(), 2000);
         return () => clearInterval(interval);
     }, [botStatus?.status]); 
@@ -336,7 +331,6 @@ const TradingBotContainer = () => {
         setIsModeSelected(true);
     };
 
-    // Handlers
     const handleSetupSelect = (e) => {
         const setupId = e.target.value; setSelectedSetupId(setupId); setSelectedWinnerId(""); 
         const setup = setups.find(s => s._id === setupId);
@@ -361,10 +355,9 @@ const TradingBotContainer = () => {
         let symbol = data.symbol || "BTC-USD"; let timeframe = data.timeframe || "1h";
         if(!data.symbol && filename.includes('_')) { const parts = filename.split('_'); if(parts[1]) symbol = parts[1]; if(parts[2]) timeframe = parts[2]; }
         
-        // 🔴 FIX: Preserve strategyId if present in the data, don't default to empty string
         let strategies = (Array.isArray(data.strategies) ? data.strategies : (Array.isArray(data) ? data : []))
             .map(s => ({ 
-                strategyId: (typeof s === 'string' ? undefined : (s.strategyId || s._id || undefined)), // Keep ID if exists
+                strategyId: (typeof s === 'string' ? undefined : (s.strategyId || s._id || undefined)), 
                 code: (typeof s === 'string' ? s : (s.code || "unknown")), 
                 params: (typeof s === 'string' ? {} : (s.params || s)) 
             }));
@@ -390,26 +383,17 @@ const TradingBotContainer = () => {
         setIsStarting(true);
         setLogsClearedTime(0); setPersistentLogs([]); 
          
-        // --- 🔧 FIX: Robust Strategy Mapping & Filtering 🔧 ---
-        // 1. Merge global params into strategy params to ensure config exists.
-        // 2. FILTER OUT known global params that cause Schema CastError.
         const globalParams = formConfig.params || {};
-        
         const excludedKeys = ['hybridMode', 'maxPyramiding', 'riskPercentage', 'riskManagementMode', 'mlModel', 'mlMode'];
-        
         const cleanGlobalParams = Object.keys(globalParams).reduce((acc, key) => {
-            if (!excludedKeys.includes(key)) {
-                acc[key] = globalParams[key];
-            }
+            if (!excludedKeys.includes(key)) acc[key] = globalParams[key];
             return acc;
         }, {});
 
-        // 🔴 FIX: Keep the strategyId and type when cleaning strategies
         const cleanStrategies = (formConfig.strategies || []).map(s => ({ 
-            strategyId: s.strategyId || s._id || undefined, // PASS THE ID!
+            strategyId: s.strategyId || s._id || undefined, 
             type: s.type || undefined,
             code: s.code || "unknown", 
-            // ✅ Merge SAFE global params with specific strategy params
             params: { ...cleanGlobalParams, ...(s.params || {}) }
         }));
         
@@ -425,10 +409,7 @@ const TradingBotContainer = () => {
             mlThreshold: Number(formConfig.mlThreshold),
             isCombo: !!formConfig.isCombo, 
             comboConfig: formConfig.comboConfig || { strategyCodes: cleanStrategies.map(s => s.code), combinationRule: 'AND' },
-            
-            // ✅ EXPLICITLY SEND STRATEGIES ARRAY
             strategies: cleanStrategies, 
-            
             params: formConfig.params || {}, 
             maxPyramiding: parseInt(formConfig.params?.maxPyramiding || 1, 10),
             riskManagementMode: formConfig.riskManagementMode, 
