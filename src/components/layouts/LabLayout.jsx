@@ -1,10 +1,11 @@
 // File: src/components/layouts/LabLayout.jsx
 import React, { useState } from "react";
-import { ChartPanel } from "./SharedComponents";
-import { FaChartLine, FaCamera, FaCog, FaArrowLeft, FaLayerGroup } from "react-icons/fa"; // Run: npm install react-icons
+// Assuming SharedComponents is in src/components/
+import { ChartPanel } from "../SharedComponents"; 
+import { FaChartLine, FaCamera, FaCog, FaArrowLeft, FaLayerGroup } from "react-icons/fa";
 
 const LabLayout = (props) => {
-  const { chartData, formConfig, onBack } = props; // Assuming you pass an onBack handler
+  const { chartData, formConfig, onBack } = props;
 
   // 🧪 Lab State
   const [showOverlays, setShowOverlays] = useState(true);
@@ -14,8 +15,12 @@ const LabLayout = (props) => {
     setActiveIndicators(prev => 
       prev.includes(ind) ? prev.filter(i => i !== ind) : [...prev, ind]
     );
-    // You would pass this state down to ChartPanel to actually render them
   };
+
+  // Helper to safely access config
+  const symbol = formConfig?.symbol || "Unknown";
+  const timeframe = formConfig?.timeframe || "--";
+  const strategyType = formConfig?.isCombo ? 'Combo' : 'Single';
 
   return (
     <div className="lab-layout">
@@ -37,15 +42,15 @@ const LabLayout = (props) => {
       <div className="lab-overlay">
         <div className="overlay-badge">
           <span className="label">ASSET</span>
-          <span className="value neon-text">{formConfig.symbol}</span>
+          <span className="value neon-text">{symbol}</span>
         </div>
         <div className="overlay-badge">
           <span className="label">TIMEFRAME</span>
-          <span className="value">{formConfig.timeframe}</span>
+          <span className="value">{timeframe}</span>
         </div>
         <div className="overlay-badge">
           <span className="label">STRATEGY</span>
-          <span className="value tiny">{formConfig.isCombo ? 'Combo' : 'Single'}</span>
+          <span className="value tiny">{strategyType}</span>
         </div>
       </div>
       
@@ -55,7 +60,7 @@ const LabLayout = (props) => {
           chartData={chartData} 
           formConfig={formConfig} 
           height="100%" 
-          // Pass down the visibility toggles to your chart component
+          // Passing down visualization state to ChartPanel
           showTradeMarkers={showOverlays}
           activeIndicators={activeIndicators}
         />
