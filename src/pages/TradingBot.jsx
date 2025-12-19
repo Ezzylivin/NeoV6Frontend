@@ -1,6 +1,6 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v71.7 - Fixed Parameter Merging Logic
-// Changes: Now merges global params WITH strategy params to ensure configuration is never missing.
+// 🚀 UPGRADE: v71.8 - Fixed Schema CastError
+// Changes: Filters global settings out of Strategy Params to prevent backend Schema validation failure.
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
@@ -371,13 +371,25 @@ const TradingBotContainer = () => {
         setIsStarting(true);
         setLogsClearedTime(0); setPersistentLogs([]); 
         
-        // --- 🔧 FIX: Robust Strategy Mapping 🔧 ---
-        // Ensure params are passed even if defined at the top level (Backtest setups often do this).
-        // MERGE both to be safe.
+        // --- 🔧 FIX: Robust Strategy Mapping & Filtering 🔧 ---
+        // 1. Merge global params into strategy params to ensure config exists.
+        // 2. FILTER OUT known global params that cause Schema CastError (like hybridMode, maxPyramiding).
+        const globalParams = formConfig.params || {};
+        
+        // List of keys to exclude from Strategy Params (because they belong to Bot Params or ComboConfig)
+        const excludedKeys = ['hybridMode', 'maxPyramiding', 'riskPercentage', 'riskManagementMode', 'mlModel', 'mlMode'];
+        
+        const cleanGlobalParams = Object.keys(globalParams).reduce((acc, key) => {
+            if (!excludedKeys.includes(key)) {
+                acc[key] = globalParams[key];
+            }
+            return acc;
+        }, {});
+
         const cleanStrategies = (formConfig.strategies || []).map(s => ({ 
             code: s.code || "unknown", 
-            // ✅ MERGE PARAMS: Takes global params first, then overrides with strategy params if they exist.
-            params: { ...(formConfig.params || {}), ...(s.params || {}) }
+            // ✅ Merge SAFE global params with specific strategy params
+            params: { ...cleanGlobalParams, ...(s.params || {}) }
         }));
         
         const cleanPayload = {
