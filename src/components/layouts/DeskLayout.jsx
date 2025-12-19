@@ -1,17 +1,16 @@
 // File: src/components/layouts/DeskLayout.jsx
-// 🚀 UPGRADE: v2.1 - Import Path Fix
-// 🛠 Fixes: "Module not found" for SharedComponents
+// 🚀 UPGRADE: v3.0 - Tailwind Refactor & Pro UI
+// 🛠 Fixes: Replaced inline styles with Tailwind CSS.
+// 🛠 Features: Better responsive layout, pro-trading terminal look.
 
 import React from "react";
-import LiveTradingChart from "../LiveTradingChart"; 
-
-// 🚀 FIX: Point to the correct location of SharedComponents
-// Assuming SharedComponents.jsx is in src/pages/ (2 levels up from src/components/layouts/)
+import LiveTradingChart from "../LiveTradingChart";
+// Assuming SharedComponents is in src/components/SharedComponents.jsx
+// If DeskLayout is in src/components/layouts/, then ../SharedComponents is correct.
 import { MetricsDisplay, LogsPanel, DecisionStream } from "../SharedComponents";
 
 const DeskLayout = (props) => {
   const {
-    // State from parent
     formConfig, setFormConfig,
     setups, liveWinners,
     selectedSetupId, handleSetupSelect,
@@ -26,127 +25,128 @@ const DeskLayout = (props) => {
   } = props;
 
   return (
-    <div className="desk-layout">
+    <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr_340px] h-screen bg-neutral-950 text-neutral-200 font-sans overflow-hidden">
+      
       {/* ---------------- LEFT COLUMN: COMMAND & CONTROL ---------------- */}
-      <aside className="desk-sidebar">
-        <div className="panel-header">
-          <h3>Configuration</h3>
-          <span className={`status-badge ${isRunning ? 'active' : 'idle'}`}>
+      <aside className="flex flex-col gap-5 p-5 bg-[#111] border-r border-white/5 overflow-y-auto custom-scrollbar">
+        <div className="flex justify-between items-center border-b-2 border-white/5 pb-3 mb-2">
+          <h3 className="m-0 text-sm uppercase tracking-widest text-neutral-400 font-bold">Configuration</h3>
+          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${isRunning ? 'bg-green-500 text-black' : 'bg-neutral-700 text-neutral-400'}`}>
             {isRunning ? 'RUNNING' : 'IDLE'}
           </span>
         </div>
 
-        <form onSubmit={handleStart} className="desk-form">
+        <form onSubmit={handleStart} className="flex flex-col gap-5">
           {/* 1. Strategy Source */}
-          <div className="form-group">
-            <label>Load Strategy (DB)</label>
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold text-neutral-500 uppercase">Load Strategy (DB)</label>
             <select 
               value={selectedSetupId} 
               onChange={handleSetupSelect} 
               disabled={isRunning}
-              className="desk-select"
+              className="w-full bg-black/40 border border-white/10 text-neutral-200 p-2.5 rounded text-sm focus:border-yellow-500/50 focus:outline-none disabled:opacity-50 transition-colors"
             >
               <option value="">-- Saved Strategies --</option>
               {setups.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
             </select>
           </div>
 
-          <div className="form-group">
-            <label className="flex-between">
-              Load Alpha (File)
+          <div className="flex flex-col gap-2">
+            <div className="flex justify-between items-center">
+              <label className="text-xs font-bold text-neutral-500 uppercase">Load Alpha (File)</label>
               <button 
                 type="button" 
                 onClick={fetchWinners} 
                 disabled={scanningWinners}
-                className="text-btn"
+                className="text-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase disabled:opacity-50"
               >
-                {scanningWinners ? '...' : '↻'}
+                {scanningWinners ? 'Scanning...' : '↻ Refresh'}
               </button>
-            </label>
+            </div>
             <select 
               value={selectedWinnerId} 
               onChange={handleWinnerSelect} 
               disabled={isRunning}
-              className="desk-select"
+              className="w-full bg-black/40 border border-white/10 text-neutral-200 p-2.5 rounded text-sm focus:border-yellow-500/50 focus:outline-none disabled:opacity-50 transition-colors"
             >
               <option value="">-- Optimizer Results --</option>
               {liveWinners.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
           </div>
 
-          <div className="divider"></div>
+          <div className="h-px bg-white/5 my-1"></div>
 
           {/* 2. Asset & Capital */}
-          <div className="form-row">
-            <div className="form-group">
-              <label>Symbol</label>
-              <input value={formConfig.symbol} disabled className="desk-input" />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-bold text-neutral-500 uppercase">Symbol</label>
+              <input value={formConfig.symbol} disabled className="w-full bg-black/40 border border-white/10 text-neutral-400 p-2.5 rounded text-sm font-mono" />
             </div>
-            <div className="form-group">
-              <label>Timeframe</label>
-              <input value={formConfig.timeframe} disabled className="desk-input" />
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-bold text-neutral-500 uppercase">Timeframe</label>
+              <input value={formConfig.timeframe} disabled className="w-full bg-black/40 border border-white/10 text-neutral-400 p-2.5 rounded text-sm font-mono" />
             </div>
           </div>
 
-          <div className="form-group">
-            <label>Capital Allocation ($)</label>
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold text-neutral-500 uppercase">Capital Allocation ($)</label>
             <input 
               type="number" 
               value={formConfig.capitalAllocation} 
               onChange={e => setFormConfig(p => ({...p, capitalAllocation: e.target.value}))}
               disabled={isRunning}
-              className="desk-input"
+              className="w-full bg-black/40 border border-white/10 text-yellow-400 p-2.5 rounded text-sm font-mono focus:border-yellow-500/50 focus:outline-none disabled:opacity-50"
             />
           </div>
 
-          <div className="divider"></div>
+          <div className="h-px bg-white/5 my-1"></div>
 
           {/* 3. Risk Management */}
-          <div className="form-group">
-            <label>Risk Mode</label>
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold text-neutral-500 uppercase">Risk Mode</label>
             <select 
               value={formConfig.riskManagementMode} 
               onChange={e => setFormConfig(p => ({...p, riskManagementMode: e.target.value}))}
               disabled={isRunning}
-              className="desk-select"
+              className="w-full bg-black/40 border border-white/10 text-neutral-200 p-2.5 rounded text-sm focus:border-yellow-500/50 focus:outline-none disabled:opacity-50"
             >
               <option value="static">Static % (Aggressive)</option>
               <option value="dynamic">Dynamic (Safe)</option>
             </select>
           </div>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label>Risk %</label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-bold text-neutral-500 uppercase">Risk %</label>
               <input 
                 type="number" 
                 value={formConfig.riskPercentage} 
                 onChange={e => setFormConfig(p => ({...p, riskPercentage: e.target.value}))}
                 disabled={isRunning}
                 step="0.1"
-                className="desk-input"
+                className="w-full bg-black/40 border border-white/10 text-neutral-200 p-2.5 rounded text-sm focus:border-yellow-500/50 focus:outline-none disabled:opacity-50"
               />
             </div>
             {formConfig.riskManagementMode === 'dynamic' && (
-              <div className="form-group">
-                <label>Growth Tgt</label>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-neutral-500 uppercase">Growth Tgt</label>
                 <input 
                   type="number" 
                   value={formConfig.growthCapitalTarget} 
                   onChange={e => setFormConfig(p => ({...p, growthCapitalTarget: e.target.value}))}
                   disabled={isRunning}
-                  className="desk-input"
+                  className="w-full bg-black/40 border border-white/10 text-neutral-200 p-2.5 rounded text-sm focus:border-yellow-500/50 focus:outline-none disabled:opacity-50"
                 />
               </div>
             )}
           </div>
 
           {/* 4. Actions */}
-          <div className="action-area">
-            <div className="toggle-row">
+          <div className="mt-auto flex flex-col gap-3">
+            <div className="flex bg-black/40 rounded p-1 border border-white/10">
               <button 
                 type="button" 
-                className={`toggle-btn ${formConfig.tradingMode === 'paper' ? 'active' : ''}`}
+                className={`flex-1 py-2 text-xs font-bold uppercase rounded transition-all ${formConfig.tradingMode === 'paper' ? 'bg-emerald-600 text-white shadow-lg' : 'text-neutral-500 hover:text-neutral-300'}`}
                 onClick={() => setFormConfig(p => ({...p, tradingMode: 'paper'}))}
                 disabled={isRunning}
               >
@@ -154,7 +154,7 @@ const DeskLayout = (props) => {
               </button>
               <button 
                 type="button" 
-                className={`toggle-btn ${formConfig.tradingMode === 'live' ? 'active-danger' : ''}`}
+                className={`flex-1 py-2 text-xs font-bold uppercase rounded transition-all ${formConfig.tradingMode === 'live' ? 'bg-red-600 text-white shadow-lg' : 'text-neutral-500 hover:text-neutral-300'}`}
                 onClick={() => setFormConfig(p => ({...p, tradingMode: 'live'}))}
                 disabled={isRunning}
               >
@@ -163,11 +163,20 @@ const DeskLayout = (props) => {
             </div>
 
             {!isRunning ? (
-              <button type="submit" className="primary-btn" disabled={botLoading}>
+              <button 
+                type="submit" 
+                disabled={botLoading}
+                className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3.5 rounded shadow-lg shadow-yellow-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all uppercase tracking-wide text-sm"
+              >
                 {botLoading ? 'Initializing...' : 'Start Strategy'}
               </button>
             ) : (
-              <button type="button" onClick={handleStop} className="danger-btn" disabled={botLoading}>
+              <button 
+                type="button" 
+                onClick={handleStop} 
+                disabled={botLoading}
+                className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3.5 rounded shadow-lg shadow-red-600/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all uppercase tracking-wide text-sm"
+              >
                 Stop Bot
               </button>
             )}
@@ -176,14 +185,14 @@ const DeskLayout = (props) => {
       </aside>
 
       {/* ---------------- CENTER COLUMN: MARKET & METRICS ---------------- */}
-      <main className="desk-center">
+      <main className="flex flex-col h-full overflow-hidden bg-black relative">
         {/* Top Metrics Strip */}
-        <div className="metrics-strip">
+        <div className="p-4 bg-[#111] border-b border-white/5 z-10">
           <MetricsDisplay data={botStatus} variant="desk" />
         </div>
 
         {/* Main Chart Area */}
-        <div className="chart-area" style={{ height: 'calc(100vh - 120px)', width: '100%', position: 'relative' }}>
+        <div className="flex-1 relative w-full h-full">
           <LiveTradingChart 
             candles={chartData?.candleData || []} 
             trades={chartData?.tradeBreakdown || []}
@@ -193,119 +202,30 @@ const DeskLayout = (props) => {
       </main>
 
       {/* ---------------- RIGHT COLUMN: INTELLIGENCE ---------------- */}
-      <aside className="desk-feed">
-        <div className="feed-section">
-          <div className="panel-header">
-            <h3>Decision Stream</h3>
+      <aside className="flex flex-col h-full bg-[#111] border-l border-white/5">
+        
+        {/* Top: Decision Stream */}
+        <div className="flex-1 flex flex-col min-h-0 border-b border-white/5 p-5 overflow-hidden">
+          <div className="flex justify-between items-center border-b-2 border-white/5 pb-3 mb-2 shrink-0">
+            <h3 className="m-0 text-sm uppercase tracking-widest text-neutral-400 font-bold">Decision Stream</h3>
           </div>
-          <div className="stream-container">
-            <DecisionStream logs={logs} limit={8} />
+          <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
+            <DecisionStream logs={logs} limit={50} />
           </div>
         </div>
 
-        <div className="feed-section logs-section">
-          <div className="panel-header">
-            <h3>System Logs</h3>
-            <button onClick={handleClearLogs} className="text-btn">Clear</button>
+        {/* Bottom: System Logs */}
+        <div className="flex-[0.8] flex flex-col min-h-0 p-5 bg-[#0a0a0a] overflow-hidden">
+          <div className="flex justify-between items-center border-b-2 border-white/5 pb-3 mb-2 shrink-0">
+            <h3 className="m-0 text-sm uppercase tracking-widest text-neutral-400 font-bold">System Logs</h3>
+            <button onClick={handleClearLogs} className="text-xs text-neutral-500 hover:text-white uppercase font-bold transition-colors">Clear</button>
           </div>
-          <div className="logs-container">
+          <div className="flex-1 overflow-y-auto custom-scrollbar font-mono text-xs bg-black/30 rounded border border-white/5 p-2">
             <LogsPanel logs={visibleLogs} />
           </div>
         </div>
       </aside>
 
-      {/* --- INLINE STYLES FOR LAYOUT --- */}
-      <style>{`
-        .desk-layout {
-          display: grid;
-          grid-template-columns: 300px 1fr 320px;
-          grid-template-rows: 100vh;
-          overflow: hidden;
-          background-color: var(--bg-app);
-          color: var(--text-primary);
-          font-family: var(--font-main);
-        }
-
-        .desk-sidebar, .desk-feed {
-          background-color: var(--bg-panel);
-          border-right: 1px solid var(--border);
-          padding: 20px;
-          display: flex;
-          flex-direction: column;
-          gap: 20px;
-          overflow-y: auto;
-        }
-        .desk-feed {
-          border-right: none;
-          border-left: 1px solid var(--border);
-        }
-
-        .desk-center {
-          display: grid;
-          grid-template-rows: auto 1fr;
-          overflow: hidden;
-        }
-
-        .panel-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 10px;
-          border-bottom: 2px solid var(--border);
-          padding-bottom: 8px;
-        }
-        .panel-header h3 { margin: 0; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-secondary); }
-
-        /* Form Elements */
-        .desk-form { display: flex; flex-direction: column; gap: 15px; }
-        .form-group { display: flex; flex-direction: column; gap: 6px; }
-        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .form-group label { font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; }
-        
-        .desk-input, .desk-select {
-          background: rgba(0,0,0,0.2);
-          border: 1px solid var(--border);
-          color: var(--text-primary);
-          padding: 8px;
-          border-radius: 4px;
-          font-size: 0.9rem;
-        }
-        .desk-input:disabled { opacity: 0.6; }
-        
-        .divider { height: 1px; background: var(--border); margin: 5px 0; }
-
-        /* Buttons */
-        .primary-btn { background: var(--accent); color: #fff; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
-        .danger-btn { background: #ef4444; color: #fff; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
-        .text-btn { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 0.8rem; }
-        
-        .toggle-row { display: flex; background: rgba(0,0,0,0.2); border-radius: 4px; overflow: hidden; margin-bottom: 10px; }
-        .toggle-btn { flex: 1; background: transparent; border: none; padding: 8px; color: var(--text-secondary); cursor: pointer; font-size: 0.8rem; }
-        .toggle-btn.active { background: var(--accent); color: #fff; }
-        .toggle-btn.active-danger { background: #ef4444; color: #fff; }
-
-        .status-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: #334155; }
-        .status-badge.active { background: #22c55e; color: #000; }
-
-        /* Metrics & Chart */
-        .metrics-strip {
-          padding: 15px 20px;
-          background: var(--bg-panel);
-          border-bottom: 1px solid var(--border);
-        }
-        .chart-area { padding: 0; background: #000; } 
-
-        /* Feed */
-        .feed-section { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 200px; }
-        .logs-section { flex: 2; border-top: 1px solid var(--border); padding-top: 20px; }
-        .logs-container { overflow-y: auto; flex: 1; background: rgba(0,0,0,0.1); border-radius: 4px; }
-
-        @media (max-width: 1024px) {
-          .desk-layout { grid-template-columns: 1fr; grid-template-rows: auto; overflow-y: auto; }
-          .desk-sidebar, .desk-feed { border: none; border-bottom: 1px solid var(--border); }
-          .chart-area { height: 500px; }
-        }
-      `}</style>
     </div>
   );
 };
