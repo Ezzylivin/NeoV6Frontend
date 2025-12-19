@@ -1,3 +1,4 @@
+// File: src/pages/TradingBot.jsx
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { useAccount } from 'wagmi';
@@ -11,6 +12,7 @@ import "./TradingBot.css";
 import "../styles/Themes.css";
 import toast, { Toaster } from 'react-hot-toast';
 
+// Sound Effects
 const AUDIO_START = new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.m4a'); 
 const AUDIO_TRADE = new Audio('https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.m4a'); 
 
