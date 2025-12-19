@@ -1,7 +1,6 @@
 // File: src/components/layouts/DeskLayout.jsx
-// 🚀 UPGRADE: v3.2 - Hybrid Stability
-// 🛠 Fixes: Restores the specific CSS Grid that makes the sidebar visible.
-// 🛠 Feature: Keeps all the new logic (Strategies, Winners, Live Control).
+// 🚀 UPGRADE: v3.3 - Enhanced Risk Control
+// 🛠 Feature: Added inputs for Max Daily Loss, Drawdown, and Trade Limits.
 
 import React from "react";
 import LiveTradingChart from "../LiveTradingChart"; 
@@ -138,8 +137,48 @@ const DeskLayout = (props) => {
             )}
           </div>
 
-          {/* 4. Actions */}
-          <div className="action-area">
+          {/* 4. Safety Limits (NEW) */}
+          <div className="divider"></div>
+          <div className="form-group">
+             <label style={{color: '#f87171', fontSize: '0.65rem', letterSpacing: '1px'}}>SAFETY PROTOCOLS</label>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>Max Loss %</label>
+              <input 
+                type="number" 
+                value={formConfig.maxDailyLoss} 
+                onChange={e => setFormConfig(p => ({...p, maxDailyLoss: e.target.value}))}
+                disabled={isRunning}
+                className="desk-input"
+              />
+            </div>
+            <div className="form-group">
+              <label>Max DD %</label>
+              <input 
+                type="number" 
+                value={formConfig.maxDrawdown} 
+                onChange={e => setFormConfig(p => ({...p, maxDrawdown: e.target.value}))}
+                disabled={isRunning}
+                className="desk-input"
+              />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>Max Trades / Day</label>
+            <input 
+                type="number" 
+                value={formConfig.maxTradesPerDay} 
+                onChange={e => setFormConfig(p => ({...p, maxTradesPerDay: e.target.value}))}
+                disabled={isRunning}
+                className="desk-input"
+            />
+          </div>
+
+          {/* 5. Actions */}
+          <div className="action-area" style={{ marginTop: '15px' }}>
             <div className="toggle-row">
               <button 
                 type="button" 
@@ -213,10 +252,9 @@ const DeskLayout = (props) => {
 
       {/* --- INLINE STYLES FOR LAYOUT --- */}
       <style>{`
-        /* The MASTER GRID - This forces the 3-column layout */
         .desk-layout {
           display: grid;
-          grid-template-columns: 320px 1fr 340px; /* Force widths */
+          grid-template-columns: 320px 1fr 340px;
           grid-template-rows: 100vh;
           overflow: hidden;
           background-color: #0d0d0d;
@@ -255,7 +293,7 @@ const DeskLayout = (props) => {
         .panel-header h3 { margin: 0; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; color: #888; font-weight: 700; }
 
         /* Form Elements */
-        .desk-form { display: flex; flex-direction: column; gap: 15px; }
+        .desk-form { display: flex; flex-direction: column; gap: 12px; }
         .form-group { display: flex; flex-direction: column; gap: 6px; }
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .form-group label { font-size: 0.7rem; color: #666; font-weight: 700; text-transform: uppercase; }
