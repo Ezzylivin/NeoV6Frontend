@@ -123,18 +123,25 @@ const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
     const navigate = useNavigate();
     const { address } = useAccount();
 
-    const handleReset = async () => {
+  const handleReset = async () => {
         if(!window.confirm("⚠️ Are you sure? This will wipe your Paper Trading history and reset the balance.")) return;
         try {
+            // 🟢 FIX: Get the token from local storage
+            const token = localStorage.getItem('token'); 
+            
             await axios.post('https://neov6backend.onrender.com/api/bot/reset', { 
                 userId: address, 
                 symbol: "BTC-USD", 
                 timeframe: "1h", 
                 capitalAllocation: paperBalance 
+            }, {
+                // 🟢 FIX: Send the token in headers
+                headers: { Authorization: `Bearer ${token}` } 
             });
+            
             alert("✅ Account Reset Successfully!");
         } catch (err) {
-            alert("Reset Failed: " + (err.response?.data?.error || err.message));
+            alert("Reset Failed: " + (err.response?.data?.message || err.message));
         }
     };
 
