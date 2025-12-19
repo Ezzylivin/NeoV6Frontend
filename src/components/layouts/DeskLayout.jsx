@@ -1,6 +1,7 @@
 // File: src/components/layouts/DeskLayout.jsx
-// 🚀 UPGRADE: v3.1 - Robust Layout
-// 🛠 Fixes: Restores Sidebar ("Left Hand Setup") by enforcing CSS Grid styles.
+// 🚀 UPGRADE: v3.2 - Hybrid Stability
+// 🛠 Fixes: Restores the specific CSS Grid that makes the sidebar visible.
+// 🛠 Feature: Keeps all the new logic (Strategies, Winners, Live Control).
 
 import React from "react";
 import LiveTradingChart from "../LiveTradingChart"; 
@@ -212,19 +213,20 @@ const DeskLayout = (props) => {
 
       {/* --- INLINE STYLES FOR LAYOUT --- */}
       <style>{`
+        /* The MASTER GRID - This forces the 3-column layout */
         .desk-layout {
           display: grid;
-          grid-template-columns: 300px 1fr 320px;
+          grid-template-columns: 320px 1fr 340px; /* Force widths */
           grid-template-rows: 100vh;
           overflow: hidden;
-          background-color: var(--bg-app);
-          color: var(--text-primary);
-          font-family: var(--font-main);
+          background-color: #0d0d0d;
+          color: #e5e5e5;
+          font-family: 'Inter', sans-serif;
         }
 
         .desk-sidebar, .desk-feed {
-          background-color: var(--bg-panel);
-          border-right: 1px solid var(--border);
+          background-color: #111;
+          border-right: 1px solid #333;
           padding: 20px;
           display: flex;
           flex-direction: column;
@@ -233,7 +235,7 @@ const DeskLayout = (props) => {
         }
         .desk-feed {
           border-right: none;
-          border-left: 1px solid var(--border);
+          border-left: 1px solid #333;
         }
 
         .desk-center {
@@ -247,58 +249,63 @@ const DeskLayout = (props) => {
           justify-content: space-between;
           align-items: center;
           margin-bottom: 10px;
-          border-bottom: 2px solid var(--border);
+          border-bottom: 2px solid #333;
           padding-bottom: 8px;
         }
-        .panel-header h3 { margin: 0; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-secondary); }
+        .panel-header h3 { margin: 0; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; color: #888; font-weight: 700; }
 
         /* Form Elements */
         .desk-form { display: flex; flex-direction: column; gap: 15px; }
         .form-group { display: flex; flex-direction: column; gap: 6px; }
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .form-group label { font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; }
+        .form-group label { font-size: 0.7rem; color: #666; font-weight: 700; text-transform: uppercase; }
         
         .desk-input, .desk-select {
-          background: rgba(0,0,0,0.2);
-          border: 1px solid var(--border);
-          color: var(--text-primary);
-          padding: 8px;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid #333;
+          color: #fff;
+          padding: 10px;
           border-radius: 4px;
           font-size: 0.9rem;
+          outline: none;
         }
-        .desk-input:disabled { opacity: 0.6; }
+        .desk-input:focus, .desk-select:focus { border-color: #f59e0b; }
+        .desk-input:disabled { opacity: 0.5; cursor: not-allowed; }
         
-        .divider { height: 1px; background: var(--border); margin: 5px 0; }
+        .divider { height: 1px; background: #333; margin: 5px 0; }
 
         /* Buttons */
-        .primary-btn { background: var(--accent); color: #fff; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
-        .danger-btn { background: #ef4444; color: #fff; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
-        .text-btn { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 0.8rem; }
+        .primary-btn { background: #f59e0b; color: #000; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; transition: all 0.2s; }
+        .primary-btn:hover { background: #fbbf24; transform: translateY(-1px); }
+        .primary-btn:disabled { background: #555; cursor: wait; }
+
+        .danger-btn { background: #ef4444; color: #fff; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; text-transform: uppercase; }
+        .text-btn { background: none; border: none; color: #f59e0b; cursor: pointer; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; }
         
-        .toggle-row { display: flex; background: rgba(0,0,0,0.2); border-radius: 4px; overflow: hidden; margin-bottom: 10px; }
-        .toggle-btn { flex: 1; background: transparent; border: none; padding: 8px; color: var(--text-secondary); cursor: pointer; font-size: 0.8rem; }
-        .toggle-btn.active { background: var(--accent); color: #fff; }
+        .toggle-row { display: flex; background: rgba(0,0,0,0.3); border-radius: 4px; overflow: hidden; margin-bottom: 10px; border: 1px solid #333; }
+        .toggle-btn { flex: 1; background: transparent; border: none; padding: 10px; color: #666; cursor: pointer; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; }
+        .toggle-btn.active { background: #10b981; color: #000; }
         .toggle-btn.active-danger { background: #ef4444; color: #fff; }
 
-        .status-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: #334155; }
-        .status-badge.active { background: #22c55e; color: #000; }
+        .status-badge { font-size: 0.65rem; padding: 3px 8px; border-radius: 4px; background: #333; color: #888; font-weight: bold; }
+        .status-badge.active { background: #10b981; color: #000; }
 
         /* Metrics & Chart */
         .metrics-strip {
           padding: 15px 20px;
-          background: var(--bg-panel);
-          border-bottom: 1px solid var(--border);
+          background: #111;
+          border-bottom: 1px solid #333;
         }
         .chart-area { padding: 0; background: #000; } 
 
         /* Feed */
         .feed-section { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 200px; }
-        .logs-section { flex: 2; border-top: 1px solid var(--border); padding-top: 20px; }
-        .logs-container { overflow-y: auto; flex: 1; background: rgba(0,0,0,0.1); border-radius: 4px; }
+        .logs-section { flex: 2; border-top: 1px solid #333; padding-top: 20px; }
+        .logs-container { overflow-y: auto; flex: 1; background: rgba(0,0,0,0.2); border-radius: 4px; border: 1px solid #333; padding: 5px; }
 
-        @media (max-width: 1024px) {
-          .desk-layout { grid-template-columns: 1fr; grid-template-rows: auto; overflow-y: auto; }
-          .desk-sidebar, .desk-feed { border: none; border-bottom: 1px solid var(--border); }
+        @media (max-width: 1200px) {
+          .desk-layout { grid-template-columns: 1fr; grid-template-rows: auto auto 500px; overflow-y: auto; }
+          .desk-sidebar, .desk-feed { border: none; border-bottom: 1px solid #333; }
           .chart-area { height: 500px; }
         }
       `}</style>
