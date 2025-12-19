@@ -1,15 +1,28 @@
 // File: src/components/SharedComponents.jsx
-// 🚀 UPGRADE: v2.0 - Enhanced Time & Transparency
-// 🛠 Features: Real-time Timestamps, Date Formatting, "Last Updated" Indicator
+// 🚀 UPGRADE: v2.2 - Date Fix & Stream Cleanup
+// 🛠 Fixes: "Invalid Date" by normalizing timestamps.
+// 🛠 Fixes: Messy log prefixes in Decision Stream.
 
 import React, { useEffect, useRef, useState } from "react";
+
+// --- HELPER: ROBUST DATE PARSER ---
+const safeParseDate = (dateStr) => {
+  if (!dateStr) return null;
+  // Fix Python's comma millisecond format (2025-12-19 14:21:06,575 -> 2025-12-19T14:21:06.575)
+  let cleanStr = dateStr.replace(',', '.').replace(' ', 'T');
+  // If it doesn't have a 'Z' or offset, assume UTC to prevent timezone shifts
+  if (!cleanStr.includes('Z') && !cleanStr.includes('+')) {
+    cleanStr += 'Z';
+  }
+  const date = new Date(cleanStr);
+  return isNaN(date.getTime()) ? new Date() : date;
+};
 
 // --- 1. METRICS DISPLAY (Top Strip) ---
 export const MetricsDisplay = ({ data, variant = "default" }) => {
   const { currentBalance, performanceMetrics } = data || {};
   const { totalProfit, winRate, totalTrades, maxDrawdown, sharpeRatio } = performanceMetrics || {};
 
-  // Track the last time data was received
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
   useEffect(() => {
@@ -95,10 +108,9 @@ export const LogsPanel = ({ logs = [] }) => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
-  // Helper to format full date-time
   const formatTime = (isoString) => {
-    if (!isoString) return "--:--:--";
-    const date = new Date(isoString);
+    const date = safeParseDate(isoString);
+    if (!date) return "--:--:--";
     return `${date.getMonth() + 1}/${date.getDate()} ${date.toLocaleTimeString([], { hour12: false })}`;
   };
 
@@ -155,15 +167,15 @@ export const LogsPanel = ({ logs = [] }) => {
 
 // --- 3. DECISION STREAM (Visual Feed) ---
 export const DecisionStream = ({ logs = [], limit = 10 }) => {
+  // Filter for decision-related logs
   const streamLogs = logs
     .filter(l => l.message && (l.message.includes("DECISION") || l.message.includes("ANALYSIS") || l.message.includes("VERDICT")))
     .slice(-limit);
 
   const formatFullTime = (isoString) => {
-    if (!isoString) return "";
-    const date = new Date(isoString);
+    const date = safeParseDate(isoString);
+    if (!date) return "";
     return date.toLocaleString('en-US', { 
-      month: 'numeric', day: 'numeric', 
       hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false 
     });
   };
@@ -174,13 +186,17 @@ export const DecisionStream = ({ logs = [], limit = 10 }) => {
         <div className="empty-stream">Waiting for market analysis...</div>
       ) : (
         streamLogs.map((log, i) => {
-          const cleanMsg = log.message.replace("DECISION | ", "").replace("STATUS | ", "");
+          // 🧹 CLEANUP: Remove technical prefixes for cleaner UI
+          const cleanMsg = log.message
+            .replace("INFO | ", "")
+            .replace("DECISION | ", "")
+            .replace("STATUS | ", "");
           
           return (
             <div key={i} className="stream-item">
               <div className="stream-header">
                 <span className="stream-time">{formatFullTime(log.timestamp)}</span>
-                <span className="stream-type">LOG</span>
+                <span className="stream-type">DECISION</span>
               </div>
               <div className="stream-content">{cleanMsg}</div>
             </div>
