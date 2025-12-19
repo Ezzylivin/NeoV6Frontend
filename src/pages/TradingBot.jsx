@@ -1,6 +1,6 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v71.6 - Fixed "Missing Configuration" Error
-// Changes: Merges global params into strategy params to prevent backend rejection.
+// 🚀 UPGRADE: v71.7 - Fixed Parameter Merging Logic
+// Changes: Now merges global params WITH strategy params to ensure configuration is never missing.
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
@@ -373,10 +373,11 @@ const TradingBotContainer = () => {
         
         // --- 🔧 FIX: Robust Strategy Mapping 🔧 ---
         // Ensure params are passed even if defined at the top level (Backtest setups often do this).
-        // If s.params is empty, we merge in formConfig.params to satisfy the backend.
+        // MERGE both to be safe.
         const cleanStrategies = (formConfig.strategies || []).map(s => ({ 
             code: s.code || "unknown", 
-            params: (s.params && Object.keys(s.params).length > 0) ? s.params : (formConfig.params || {}) 
+            // ✅ MERGE PARAMS: Takes global params first, then overrides with strategy params if they exist.
+            params: { ...(formConfig.params || {}), ...(s.params || {}) }
         }));
         
         const cleanPayload = {
