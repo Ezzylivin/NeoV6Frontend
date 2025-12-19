@@ -1,6 +1,6 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v71.9 - Fixed Auto-Scroll Annoyance
-// Changes: Implemented Smart Scrolling for logs. It now only scrolls down if you are already at the bottom.
+// 🚀 UPGRADE: v72.0 - Fixed Strategy ID Stripping
+// Changes: Preserves strategyId in payload to prevent "Missing Configuration" errors on backend.
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
@@ -294,15 +294,11 @@ const TradingBotContainer = () => {
     const handleClearLogs = () => setLogsClearedTime(Date.now());
     
     // --- 🟢 SMART SCROLL FIX 🟢 ---
-    // Only scroll to the bottom if the user is ALREADY near the bottom.
-    // If you have scrolled up to read history, this will NOT force you back down.
     useEffect(() => {
         const container = logsContainerRef.current;
         if (container) {
             const { scrollTop, scrollHeight, clientHeight } = container;
-            // Determine if user is near the bottom (within 150px)
             const isNearBottom = scrollHeight - scrollTop - clientHeight < 150;
-            
             if (isNearBottom) {
                 container.scrollTo({ top: scrollHeight, behavior: 'smooth' });
             }
@@ -364,7 +360,15 @@ const TradingBotContainer = () => {
         const data = selectedWinner.config;
         let symbol = data.symbol || "BTC-USD"; let timeframe = data.timeframe || "1h";
         if(!data.symbol && filename.includes('_')) { const parts = filename.split('_'); if(parts[1]) symbol = parts[1]; if(parts[2]) timeframe = parts[2]; }
-        let strategies = (Array.isArray(data.strategies) ? data.strategies : (Array.isArray(data) ? data : [])).map(s => ({ strategyId: "", code: (typeof s === 'string' ? s : (s.code || "unknown")), params: (typeof s === 'string' ? {} : (s.params || s)) }));
+        
+        // 🔴 FIX: Preserve strategyId if present in the data, don't default to empty string
+        let strategies = (Array.isArray(data.strategies) ? data.strategies : (Array.isArray(data) ? data : []))
+            .map(s => ({ 
+                strategyId: (typeof s === 'string' ? undefined : (s.strategyId || s._id || undefined)), // Keep ID if exists
+                code: (typeof s === 'string' ? s : (s.code || "unknown")), 
+                params: (typeof s === 'string' ? {} : (s.params || s)) 
+            }));
+            
         let mlMode = data.mlMode || "off"; let mlModel = data.params?.mlModel || data.mlModel || "";
         if (mlModel && mlMode === "off") mlMode = "predictions"; if (!mlModel && mlMode !== "off") mlModel = 'btc_1h_xgboost_model'; 
         const globalParams = { ...data.params }; if (data.riskPercentage) globalParams.riskPercentage = Number(data.riskPercentage); if (data.maxPyramiding) globalParams.maxPyramiding = Number(data.maxPyramiding);
@@ -388,10 +392,9 @@ const TradingBotContainer = () => {
          
         // --- 🔧 FIX: Robust Strategy Mapping & Filtering 🔧 ---
         // 1. Merge global params into strategy params to ensure config exists.
-        // 2. FILTER OUT known global params that cause Schema CastError (like hybridMode, maxPyramiding).
+        // 2. FILTER OUT known global params that cause Schema CastError.
         const globalParams = formConfig.params || {};
         
-        // List of keys to exclude from Strategy Params (because they belong to Bot Params or ComboConfig)
         const excludedKeys = ['hybridMode', 'maxPyramiding', 'riskPercentage', 'riskManagementMode', 'mlModel', 'mlMode'];
         
         const cleanGlobalParams = Object.keys(globalParams).reduce((acc, key) => {
@@ -401,7 +404,10 @@ const TradingBotContainer = () => {
             return acc;
         }, {});
 
+        // 🔴 FIX: Keep the strategyId and type when cleaning strategies
         const cleanStrategies = (formConfig.strategies || []).map(s => ({ 
+            strategyId: s.strategyId || s._id || undefined, // PASS THE ID!
+            type: s.type || undefined,
             code: s.code || "unknown", 
             // ✅ Merge SAFE global params with specific strategy params
             params: { ...cleanGlobalParams, ...(s.params || {}) }
