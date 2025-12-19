@@ -1,4 +1,3 @@
-// File: src/pages/TradingBot.jsx
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { useAccount } from 'wagmi';
@@ -12,7 +11,6 @@ import "./TradingBot.css";
 import "../styles/Themes.css";
 import toast, { Toaster } from 'react-hot-toast';
 
-// Sound Effects
 const AUDIO_START = new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.m4a'); 
 const AUDIO_TRADE = new Audio('https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.m4a'); 
 
@@ -262,6 +260,16 @@ const TradingBotContainer = () => {
             setIsModeSelected(true);
         }
     }, []);
+
+    // 🟢 FIX: Sync Session PnL with Real Backend Balance
+    useEffect(() => {
+        if (botStatus?.status === 'running' && sessionStartBalance === null && botStatus?.currentBalance) {
+            // Logic: If bot is running but we forgot the start balance (e.g., refresh), 
+            // assume start balance = current balance (reset PnL view) OR fetch original start from API if available.
+            // For now, syncing to current prevents the "fake profit" spike.
+            setSessionStartBalance(botStatus.currentBalance);
+        }
+    }, [botStatus?.status, botStatus?.currentBalance]);
 
     useEffect(() => {
         // Sound FX Logic
