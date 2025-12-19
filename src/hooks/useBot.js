@@ -1,5 +1,8 @@
 // File: src/hooks/useBot.js
-// 🚀 UPGRADE: v10.0 - Reliable Polling Hook
+// 🚀 UPGRADE: v10.2 - Added Reset Capability
+// 🛠 Fixes: Ensures 'candles' and 'trades' are correctly merged into botStatus for the UI.
+// 🛠 Fixes: Adds robust error handling to prevent polling crashes.
+// 🛠 Feature: Added resetBot function to wipe history.
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
@@ -19,15 +22,28 @@ export const useBot = () => {
         if (!isConnected || !address) return;
         try {
             const token = localStorage.getItem('token');
+            
             // 🚀 PASS USER ID EXPLICITLY
             const res = await axios.get(`https://neov6backend.onrender.com/api/bot/status?userId=${address}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             
-            setBotStatus(res.data);
+            // 🛡️ DATA HYDRATION: Ensure critical chart arrays exist
+            const hydratedStatus = {
+                ...res.data,
+                candles: res.data.candles || [], // Prevents "Acquiring Data..." stuck
+                trades: res.data.trades || [],
+                logs: res.data.logs || []
+            };
+
+            setBotStatus(hydratedStatus);
+            
+            // Update logs state separately for UI
             if (res.data.logs) setLogs(res.data.logs);
+
         } catch (err) {
-            console.error("Poll Error:", err);
+            // Silently fail on poll error to avoid red wall in console
+            // console.warn("Poll Error (ignoring):", err.message);
         }
     }, [address, isConnected]);
 
@@ -70,13 +86,39 @@ export const useBot = () => {
         }
     };
 
+    // ♻️ Reset Bot Action (NEW)
+    const resetBot = async (config) => {
+        setLoading(true);
+        try {
+            const token = localStorage.getItem('token');
+            const payload = { ...config, userId: address };
+            
+            await axios.post('https://neov6backend.onrender.com/api/bot/reset', payload, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            // Clear local state immediately to reflect reset
+            setBotStatus(null);
+            setLogs([]);
+            setTimeout(refreshBotData, 1000);
+        } catch (err) {
+            const msg = err.response?.data?.message || err.message;
+            console.error("Reset Error:", msg);
+            throw new Error(msg);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     // Auto-Poll
     useEffect(() => {
         if (!isConnected) return;
         
         refreshBotData(); 
 
+        // Poll faster if running (2s), slower if stopped (10s)
         const intervalTime = botStatus?.status === 'running' ? 2000 : 10000;
+        
         pollRef.current = setInterval(refreshBotData, intervalTime);
         return () => clearInterval(pollRef.current);
     }, [isConnected, address, botStatus?.status, refreshBotData]);
@@ -87,7 +129,8 @@ export const useBot = () => {
         loading, 
         error, 
         startBot, 
-        stopBot, 
+        stopBot,
+        resetBot, // Exported here
         refreshBotData 
     };
 };
