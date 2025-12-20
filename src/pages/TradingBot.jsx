@@ -58,7 +58,11 @@ const BotStatusBar = ({ status, pnl, winRate, latency, mode, onStop }) => (
 
 const TradingBotContainer = () => {
     const { botStatus, logs: apiLogs, loading: botLoading, startBot, stopBot, refreshBotData: originalRefresh } = useBot();
-    const { setups } = useBacktestSetupFunction();
+    
+    // 🛠 FIX: Safely destructure setups, defaulting to empty array to prevent 'map' undefined error
+    const { setups = [] } = useBacktestSetupFunction() || {}; 
+    const liveWinners = []; // Placeholder for winners if you add that feature later
+
     const { address, isConnected } = useAccount();
 
     const [isModeSelected, setIsModeSelected] = useState(false);
@@ -199,12 +203,12 @@ const TradingBotContainer = () => {
             <Toaster position="top-right" />
 
             {isModeSelected && (
-                <BotStatusBar
-                    status={botStatus?.status}
+                <BotStatusBar 
+                    status={botStatus?.status} 
                     pnl={
-                        isConfigured &&
-                        sessionStartBalance != null &&
-                        botStatus?.currentBalance != null
+                        isConfigured && 
+                        sessionStartBalance != null && 
+                        botStatus?.currentBalance != null 
                             ? botStatus.currentBalance - sessionStartBalance
                             : null
                     }
@@ -221,19 +225,78 @@ const TradingBotContainer = () => {
                 </div>
             )}
 
-            <TradingBotShell
+            <TradingBotShell 
                 botStatus={botStatus}
                 logs={persistentLogs}
                 loading={botLoading}
                 isRunning={isRunning}
                 isConfigured={isConfigured}
                 hasOpenPosition={hasOpenPosition}
-                handleStart={handleStartClick}
+                handleStart={handleStartClick} 
                 handleStop={handleStop}
                 logsContainerRef={logsContainerRef}
                 logFilter={logFilter}
                 setLogFilter={setLogFilter}
+                
+                // 🛠 FIX: Pass required data to prevent "map" errors in DeskLayout
+                setups={setups}
+                liveWinners={liveWinners}
+                
+                // 🛠 FIX: Pass form config so DeskLayout can control inputs
+                formConfig={formConfig}
+                setFormConfig={setFormConfig}
             />
+
+            {/* PRE-FLIGHT MODAL */}
+            {showPreFlight && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="bg-[#111] border border-neutral-800 rounded-lg max-w-md w-full shadow-2xl p-6 relative">
+                        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                            <span className="text-yellow-500">⚠</span> Confirm Launch
+                        </h3>
+                        
+                        <div className="space-y-3 text-sm text-neutral-300 font-mono mb-6">
+                            <div className="flex justify-between border-b border-white/10 pb-2">
+                                <span>Mode</span>
+                                <span className={formConfig.tradingMode === 'live' ? 'text-red-400 font-bold' : 'text-emerald-400'}>
+                                    {formConfig.tradingMode.toUpperCase()}
+                                </span>
+                            </div>
+                            <div className="flex justify-between border-b border-white/10 pb-2">
+                                <span>Capital</span>
+                                <span className="text-white">${formConfig.capitalAllocation}</span>
+                            </div>
+                            <div className="flex justify-between border-b border-white/10 pb-2">
+                                <span>Strategy</span>
+                                <span className="text-white">{formConfig.isCombo ? 'Combo Mode' : (formConfig.strategies[0]?.code || 'Single')}</span>
+                            </div>
+                            <div className="flex justify-between border-b border-white/10 pb-2">
+                                <span>Risk Per Trade</span>
+                                <span className="text-red-400">{formConfig.riskPercentage}%</span>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => setShowPreFlight(false)}
+                                className="flex-1 py-3 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-bold uppercase text-xs"
+                                disabled={isStarting}
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={handleConfirmStart}
+                                disabled={isStarting}
+                                className={`flex-1 py-3 rounded font-bold uppercase text-xs text-black transition-all ${
+                                    isStarting ? 'bg-neutral-500 cursor-wait' : 'bg-yellow-500 hover:bg-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.3)]'
+                                }`}
+                            >
+                                {isStarting ? 'Igniting...' : '🚀 Launch'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
