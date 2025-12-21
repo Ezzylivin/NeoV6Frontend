@@ -1,8 +1,8 @@
 // File: src/hooks/useBot.js
-// 🚀 UPGRADE: v10.3 - "The Circuit Breaker"
-// 🛠 FIX: Removed infinite loop causing 500 Error Spam
-// 🛠 FIX: Handles 404 (Idle) and 500 (Server Error) gracefully
-// 🛠 FEATURE: Stable Polling (Does not reset on state change)
+// 🚀 UPGRADE: v10.5 - "Smart Polling & Active Position Sync"
+// 🛠 FEATURE: Only polls when bot is 'running' or 'starting'
+// 🛠 FIX: Maps 'activePosition' correctly for the UI
+// 🛠 FIX: Handles 404/500 errors gracefully
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
@@ -14,6 +14,9 @@ export const useBot = () => {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+
+    // Ref to track status without triggering re-renders or effect resets
+    const statusRef = useRef('idle');
 
     // API Configuration
     const API_URL = "https://neov6backend.onrender.com/api";
@@ -31,39 +34,46 @@ export const useBot = () => {
                 headers: { Authorization: `Bearer ${token}` }
             });
             
-            // 🛡️ DATA HYDRATION: Ensure critical arrays exist to prevent UI crashes
+            // 🛡️ DATA HYDRATION
             const hydratedStatus = {
                 ...res.data,
                 candles: res.data.candles || [],
                 trades: res.data.trades || [],
                 logs: res.data.logs || [],
-                // Ensure chart markers exist
                 chartMarkers: res.data.chartMarkers || [],
-                chartLines: res.data.chartLines || []
+                chartLines: res.data.chartLines || [],
+                
+                // 🟢 CRITICAL: Sync 'activePosition' for the UI
+                activePosition: res.data.activePosition || null,
+                
+                // Legacy compatibility (just in case UI still checks it)
+                currentPosition: res.data.activePosition || null 
             };
 
             setBotStatus(hydratedStatus);
+            statusRef.current = hydratedStatus.status; // Update Ref
             
-            // Update logs state separately for UI
+            // Update logs state
             if (res.data.logs) setLogs(res.data.logs);
-            setError(null); // Clear errors on success
+            setError(null);
 
         } catch (err) {
-            // 🟢 HANDLE 404 (Bot Not Found/Stopped) - This is NOT an error, it's a state.
+            // 🟢 HANDLE 404 (Bot Not Found/Stopped)
             if (err.response && err.response.status === 404) {
-                setBotStatus((prev) => ({ 
-                    ...prev, 
+                const stoppedState = { 
                     status: 'stopped', 
                     active: false,
-                    candles: prev?.candles || [] // Keep old candles if possible
-                }));
+                    candles: [],
+                    activePosition: null 
+                };
+                setBotStatus((prev) => ({ ...prev, ...stoppedState }));
+                statusRef.current = 'stopped';
             } 
-            // 🔴 HANDLE 500 (Server Crash) - Log it but don't crash app
+            // 🔴 HANDLE 500 (Server Crash)
             else if (err.response && err.response.status === 500) {
-                console.warn("⚠️ Backend Logic Error (500). Retrying...");
+                console.warn("⚠️ Backend Logic Error (500). Skipping this poll...");
             }
             else {
-                // Network errors, etc.
                 console.warn("Poll Error:", err.message);
             }
         }
@@ -73,6 +83,7 @@ export const useBot = () => {
     const startBot = async (config) => {
         setLoading(true);
         try {
+            statusRef.current = 'starting'; // Enable polling immediately
             const token = localStorage.getItem('token');
             const payload = { ...config, userId: address }; 
             
@@ -81,10 +92,13 @@ export const useBot = () => {
             });
             
             setBotStatus(res.data);
-            // Wait 1s then refresh to confirm start
-            setTimeout(refreshBotData, 1000); 
+            statusRef.current = 'running';
+            
+            // Immediate refresh
+            setTimeout(refreshBotData, 500); 
             return res.data;
         } catch (err) {
+            statusRef.current = 'stopped'; // Revert on failure
             const msg = err.response?.data?.message || err.message;
             setError(msg);
             throw new Error(msg);
@@ -101,8 +115,9 @@ export const useBot = () => {
             await axios.post(`${API_URL}/bot/stop`, { userId: address }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            // Wait 1s then refresh to confirm stop
-            setTimeout(refreshBotData, 1000); 
+            
+            statusRef.current = 'stopped'; // Disable polling
+            await refreshBotData(); // One last fetch to see "Stopped" status
         } catch (err) {
             console.error("Stop Error:", err);
         } finally {
@@ -121,9 +136,10 @@ export const useBot = () => {
                 headers: { Authorization: `Bearer ${token}` }
             });
             
-            // Clear local state immediately
+            // Clear local state
             setBotStatus(null);
             setLogs([]);
+            statusRef.current = 'stopped';
             setTimeout(refreshBotData, 1000);
         } catch (err) {
             const msg = err.response?.data?.message || err.message;
@@ -134,20 +150,21 @@ export const useBot = () => {
         }
     };
 
-    // ⏱️ STABLE POLLING EFFECT
-    // This is where the fix is. We REMOVED botStatus from dependencies.
+    // ⏱️ SMART POLLING EFFECT
     useEffect(() => {
         if (!isConnected || !address) return;
         
-        // 1. Initial Fetch
+        // 1. Always fetch once on mount/connect
         refreshBotData(); 
 
-        // 2. Set Interval (Fixed 3 seconds)
-        // We do NOT change the interval speed based on status anymore.
-        // Changing interval speed causes the loop you were seeing.
-        const intervalId = setInterval(refreshBotData, 3000);
+        // 2. Poll ONLY if running or starting
+        const intervalId = setInterval(() => {
+            const currentStatus = statusRef.current;
+            if (currentStatus === 'running' || currentStatus === 'starting') {
+                refreshBotData();
+            }
+        }, 30000); // 30 seconds interval
 
-        // 3. Cleanup on unmount
         return () => clearInterval(intervalId);
     }, [isConnected, address, refreshBotData]); 
 
