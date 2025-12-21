@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react"; // <--- FIX: Added useMemo
 import axios from "axios";
 import { useAccount } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
@@ -325,6 +325,7 @@ const TradingBotContainer = () => {
     }, [persistentLogs, logFilter]);
 
     const refreshWithLatency = async () => {
+        if (!originalRefresh) return; // FIX: Safety check
         const start = performance.now();
         await originalRefresh();
         setLatency(Math.round(performance.now() - start));
@@ -332,7 +333,7 @@ const TradingBotContainer = () => {
 
     useEffect(() => {
         if (botStatus?.status !== 'running') return; 
-        const interval = setInterval(() => refreshWithLatency(), 2000);
+        const interval = setInterval(() => refreshWithLatency(), 3000); // FIX: 3s to match useBot polling
         return () => clearInterval(interval);
     }, [botStatus?.status]); 
 
@@ -553,7 +554,7 @@ const TradingBotContainer = () => {
             <Toaster position="top-right" toastOptions={{ style: { background: '#333', color: '#fff' } }} />
             
             {!isModeSelected && <ModeSelectionModal onSelect={handleModeSelection} isConnected={isConnected} hasApiKeys={hasApiKeys} />}
-             
+              
             {showPreFlight && <PreFlightModal config={formConfig} onConfirm={handleConfirmStart} onCancel={() => setShowPreFlight(false)} isStarting={isStarting} hasApiKeys={hasApiKeys} address={address} />}
 
             <div className={`transition-all duration-500 ${!isModeSelected || showPreFlight ? 'filter blur-lg pointer-events-none' : ''}`}>
