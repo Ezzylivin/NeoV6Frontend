@@ -477,21 +477,12 @@ const TradingBotContainer = () => {
             toast.error("Panic Sell Failed: " + err.message); 
         }
     };
-     
+      
     const handleRefreshChart = () => refreshWithLatency();
     const isRunning = botStatus?.status === 'running';
-    const chartData = { candleData: botStatus?.candles || [], tradeBreakdown: (botStatus?.trades || []).map(t => ({ ...t, entryTime: t.entryTime, exitTime: t.exitTime, profit: t.profit, price: t.entry_price || t.price, exitPrice: t.exit_price || t.exitPrice })) };
-    const hasData = chartData.candleData && chartData.candleData.length > 0;
 
-    // ... existing code ...
-
-    const handleRefreshChart = () => refreshWithLatency();
-    const isRunning = botStatus?.status === 'running';
-    
     // ---------------------------------------------------------------------------
     // 🟢 CRITICAL FIX: Sync Active Positions to UI State
-    // The backend sends 'activePositions' (array), but UI expects 'currentPosition' (object).
-    // This polyfill checks the array and forces it into the singular field if needed.
     // ---------------------------------------------------------------------------
     const patchedBotStatus = useMemo(() => {
         if (!botStatus) return null;
@@ -512,9 +503,10 @@ const TradingBotContainer = () => {
         return botStatus;
     }, [botStatus]);
 
+    // Update chartData to use patchedBotStatus instead of botStatus
     const chartData = { 
-        candleData: patchedBotStatus?.candles || [], // Update to use patchedBotStatus
-        tradeBreakdown: (patchedBotStatus?.trades || []).map(t => ({ // Update to use patchedBotStatus
+        candleData: patchedBotStatus?.candles || [], 
+        tradeBreakdown: (patchedBotStatus?.trades || []).map(t => ({ 
             ...t, 
             entryTime: t.entryTime, 
             exitTime: t.exitTime, 
@@ -523,7 +515,7 @@ const TradingBotContainer = () => {
             exitPrice: t.exit_price || t.exitPrice 
         })) 
     };
-    
+
     const hasData = chartData.candleData && chartData.candleData.length > 0;
 
     const botProps = {
@@ -553,7 +545,6 @@ const TradingBotContainer = () => {
         logFilter, 
         setLogFilter
     };
-
     // ... return statement ...
     
 
