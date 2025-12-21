@@ -483,15 +483,79 @@ const TradingBotContainer = () => {
     const chartData = { candleData: botStatus?.candles || [], tradeBreakdown: (botStatus?.trades || []).map(t => ({ ...t, entryTime: t.entryTime, exitTime: t.exitTime, profit: t.profit, price: t.entry_price || t.price, exitPrice: t.exit_price || t.exitPrice })) };
     const hasData = chartData.candleData && chartData.candleData.length > 0;
 
-    const botProps = {
-        botStatus, logs: persistentLogs, visibleLogs, loading: botLoading, isRunning,
-        liveWinners, setups, chartData, hasData,
-        formConfig, setFormConfig, selectedSetupId, selectedWinnerId,
-        handleStart: handleStartClick, 
-        handleStop, handleSetupSelect, handleWinnerSelect, fetchWinners, scanningWinners, handleRefreshChart, handleClearLogs,
-        logsContainerRef, handlePanicSell,
-        logFilter, setLogFilter
+    // ... existing code ...
+
+    const handleRefreshChart = () => refreshWithLatency();
+    const isRunning = botStatus?.status === 'running';
+    
+    // ---------------------------------------------------------------------------
+    // 🟢 CRITICAL FIX: Sync Active Positions to UI State
+    // The backend sends 'activePositions' (array), but UI expects 'currentPosition' (object).
+    // This polyfill checks the array and forces it into the singular field if needed.
+    // ---------------------------------------------------------------------------
+    const patchedBotStatus = useMemo(() => {
+        if (!botStatus) return null;
+
+        // Check if we have active positions but currentPosition is null
+        const hasActivePositions = botStatus.activePositions && botStatus.activePositions.length > 0;
+        const missingCurrentPosition = !botStatus.currentPosition;
+
+        if (hasActivePositions && missingCurrentPosition) {
+            console.warn("⚠️ UI PATCH: Restoring missing position from activePositions array.");
+            return {
+                ...botStatus,
+                // Take the first active position and assign it to currentPosition
+                currentPosition: botStatus.activePositions[0] 
+            };
+        }
+
+        return botStatus;
+    }, [botStatus]);
+
+    const chartData = { 
+        candleData: patchedBotStatus?.candles || [], // Update to use patchedBotStatus
+        tradeBreakdown: (patchedBotStatus?.trades || []).map(t => ({ // Update to use patchedBotStatus
+            ...t, 
+            entryTime: t.entryTime, 
+            exitTime: t.exitTime, 
+            profit: t.profit, 
+            price: t.entry_price || t.price, 
+            exitPrice: t.exit_price || t.exitPrice 
+        })) 
     };
+    
+    const hasData = chartData.candleData && chartData.candleData.length > 0;
+
+    const botProps = {
+        botStatus: patchedBotStatus, // <--- PASS THE PATCHED STATUS HERE
+        logs: persistentLogs, 
+        visibleLogs, 
+        loading: botLoading, 
+        isRunning,
+        liveWinners, 
+        setups, 
+        chartData, 
+        hasData,
+        formConfig, 
+        setFormConfig, 
+        selectedSetupId, 
+        selectedWinnerId,
+        handleStart: handleStartClick, 
+        handleStop, 
+        handleSetupSelect, 
+        handleWinnerSelect, 
+        fetchWinners, 
+        scanningWinners, 
+        handleRefreshChart, 
+        handleClearLogs,
+        logsContainerRef, 
+        handlePanicSell,
+        logFilter, 
+        setLogFilter
+    };
+
+    // ... return statement ...
+    
 
     return (
         <div className="trading-bot-root relative">
