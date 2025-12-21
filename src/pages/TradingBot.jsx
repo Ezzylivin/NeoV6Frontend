@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react"; // <--- FIX: Added useMemo
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { useAccount } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
@@ -488,16 +488,19 @@ const TradingBotContainer = () => {
     const patchedBotStatus = useMemo(() => {
         if (!botStatus) return null;
 
-        // Check if we have active positions but currentPosition is null
-        const hasActivePositions = botStatus.activePositions && botStatus.activePositions.length > 0;
-        const missingCurrentPosition = !botStatus.currentPosition;
+        // 1️⃣ CHECK IF activePosition (Singular) EXISTS
+        if (botStatus.activePosition) {
+            return botStatus;
+        }
 
-        if (hasActivePositions && missingCurrentPosition) {
-            console.warn("⚠️ UI PATCH: Restoring missing position from activePositions array.");
+        // 2️⃣ IF MISSING, TRY TO RECOVER FROM activePositions (Plural)
+        const hasActivePositions = botStatus.activePositions && botStatus.activePositions.length > 0;
+        
+        if (hasActivePositions) {
+            console.warn("⚠️ UI PATCH: Restoring activePosition from activePositions array.");
             return {
                 ...botStatus,
-                // Take the first active position and assign it to currentPosition
-                currentPosition: botStatus.activePositions[0] 
+                activePosition: botStatus.activePositions[0] // <--- THE FIX
             };
         }
 
@@ -546,8 +549,6 @@ const TradingBotContainer = () => {
         logFilter, 
         setLogFilter
     };
-    // ... return statement ...
-    
 
     return (
         <div className="trading-bot-root relative">
