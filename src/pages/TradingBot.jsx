@@ -485,26 +485,27 @@ const TradingBotContainer = () => {
     // ---------------------------------------------------------------------------
     // 🟢 CRITICAL FIX: Sync Active Positions to UI State
     // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+    // 🟢 CRITICAL FIX: Force UI to use 'activePosition'
+    // ---------------------------------------------------------------------------
     const patchedBotStatus = useMemo(() => {
         if (!botStatus) return null;
 
-        // 1️⃣ CHECK IF activePosition (Singular) EXISTS
-        if (botStatus.activePosition) {
-            return botStatus;
+        // 1. Prioritize the new standard: 'activePosition'
+        let finalPosition = botStatus.activePosition;
+
+        // 2. Fallback: If null, try to grab the first item from the list
+        if (!finalPosition && botStatus.activePositions && botStatus.activePositions.length > 0) {
+            finalPosition = botStatus.activePositions[0];
         }
 
-        // 2️⃣ IF MISSING, TRY TO RECOVER FROM activePositions (Plural)
-        const hasActivePositions = botStatus.activePositions && botStatus.activePositions.length > 0;
-        
-        if (hasActivePositions) {
-            console.warn("⚠️ UI PATCH: Restoring activePosition from activePositions array.");
-            return {
-                ...botStatus,
-                activePosition: botStatus.activePositions[0] // <--- THE FIX
-            };
-        }
-
-        return botStatus;
+        return {
+            ...botStatus,
+            // Force these fields to align so the UI component definitely gets the data
+            currentPosition: finalPosition, 
+            activePosition: finalPosition,
+            positions: botStatus.activePositions || [] 
+        };
     }, [botStatus]);
 
     // Update chartData to use patchedBotStatus instead of botStatus
