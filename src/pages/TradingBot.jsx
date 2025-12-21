@@ -59,9 +59,9 @@ const BotStatusBar = ({ status, pnl, winRate, latency, mode, onStop }) => (
 const TradingBotContainer = () => {
     const { botStatus, logs: apiLogs, loading: botLoading, startBot, stopBot, refreshBotData: originalRefresh } = useBot();
     
-    // 🛠 FIX: Safely destructure setups, defaulting to empty array to prevent 'map' undefined error
+    // Safely destructure setups to prevent 'map' errors
     const { setups = [] } = useBacktestSetupFunction() || {}; 
-    const liveWinners = []; // Placeholder for winners if you add that feature later
+    const liveWinners = []; 
 
     const { address, isConnected } = useAccount();
 
@@ -98,7 +98,7 @@ const TradingBotContainer = () => {
     });
 
     /* ===========================
-       🟢 DERIVED BOT STATE (UPGRADE)
+       🟢 DERIVED BOT STATE
        =========================== */
 
     const isConfigured =
@@ -168,11 +168,11 @@ const TradingBotContainer = () => {
         AUDIO_START.play().catch(() => {});
 
         try {
-            await startBot({
-                ...formConfig,
-                userId: address,
-                currentBalance: Number(formConfig.capitalAllocation)
-            });
+            // 🛠 FIX: Reverted to simple payload construction (How it was before)
+            const payload = { ...formConfig };
+            if (address) payload.userId = address; // Only add userId if connected
+            
+            await startBot(payload);
 
             setSessionStartBalance(formConfig.capitalAllocation);
             setPersistentLogs(prev => {
@@ -187,7 +187,8 @@ const TradingBotContainer = () => {
             setShowPreFlight(false);
             toast.success("Bot Started Successfully");
         } catch (err) {
-            toast.error(err.message);
+            console.error(err);
+            toast.error(err.message || "Failed to start bot");
         } finally {
             setIsStarting(false);
         }
@@ -238,11 +239,9 @@ const TradingBotContainer = () => {
                 logFilter={logFilter}
                 setLogFilter={setLogFilter}
                 
-                // 🛠 FIX: Pass required data to prevent "map" errors in DeskLayout
+                // Pass required data to child components
                 setups={setups}
                 liveWinners={liveWinners}
-                
-                // 🛠 FIX: Pass form config so DeskLayout can control inputs
                 formConfig={formConfig}
                 setFormConfig={setFormConfig}
             />
