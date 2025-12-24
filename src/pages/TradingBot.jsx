@@ -371,31 +371,84 @@ const TradingBotContainer = () => {
     };
 
     const handleWinnerSelect = (e) => {
-        const filename = e.target.value; setSelectedWinnerId(filename);
-        const selectedWinner = liveWinners.find(w => w.id === filename);
-        if (!selectedWinner || !selectedWinner.config) return;
-        const data = selectedWinner.config;
-        let symbol = data.symbol || "BTC-USD"; let timeframe = data.timeframe || "1h";
-        if(!data.symbol && filename.includes('_')) { const parts = filename.split('_'); if(parts[1]) symbol = parts[1]; if(parts[2]) timeframe = parts[2]; }
+        const filename = e.target.value; 
+        setSelectedWinnerId(filename);
         
-        let strategies = (Array.isArray(data.strategies) ? data.strategies : (Array.isArray(data) ? data : []))
-            .map(s => ({ 
-                strategyId: (typeof s === 'string' ? undefined : (s.strategyId || s._id || undefined)), 
-                code: (typeof s === 'string' ? s : (s.code || "unknown")), 
-                params: (typeof s === 'string' ? {} : (s.params || s)) 
-            }));
-            
-        let mlMode = data.mlMode || "off"; let mlModel = data.params?.mlModel || data.mlModel || "";
-        if (mlModel && mlMode === "off") mlMode = "predictions"; if (!mlModel && mlMode !== "off") mlModel = 'btc_1h_xgboost_model'; 
-        const globalParams = { ...data.params }; if (data.riskPercentage) globalParams.riskPercentage = Number(data.riskPercentage); if (data.maxPyramiding) globalParams.maxPyramiding = Number(data.maxPyramiding);
-        setFormConfig(prev => ({
-            ...prev, symbol, timeframe, isCombo: true, strategies,
-            comboConfig: { strategyCodes: strategies.map(s => s.code), combinationRule: globalParams.hybridMode || 'OR' },
-            mlMode, mlModel, mlThreshold: Number(data.mlThreshold) || 0.5, params: globalParams,
-            riskManagementMode: data.riskManagementMode || 'static', riskPercentage: Number(data.riskPercentage) || 1, growthCapitalTarget: Number(data.growthCapitalTarget) || 2000
-        }));
-    };
+        const selectedWinner = liveWinners.find(w => w.id === filename);
+        if (!selectedWinner) return;
 
+        // --- 1. DETERMINE DATA SOURCE ---
+        // New API Structure puts everything in 'config'. 
+        // Fallback to top-level if 'config' is missing (backward compatibility).
+        const data = selectedWinner.config || selectedWinner;
+
+        // --- 2. EXTRACT METADATA ---
+        let symbol = data.symbol || selectedWinner.symbol || "BTC-USD"; 
+        let timeframe = data.timeframe || "1h";
+        
+        // Fallback: Parse filename if metadata is missing (e.g. FORTRESS_BTC-USD_1h...)
+        if((!data.symbol || data.symbol === "Unknown") && filename.includes('_')) { 
+            const parts = filename.split('_'); 
+            // Heuristic: usually [NAME]_[SYMBOL]_[TIMEFRAME]...
+            if(parts[1] && parts[1].includes('-')) symbol = parts[1]; 
+            if(parts[2] && parts[2].match(/\d+[mhdw]/)) timeframe = parts[2]; 
+        }
+
+        // --- 3. EXTRACT STRATEGIES ---
+        // Ensure we handle both string IDs and full objects
+        const rawStrategies = data.strategies || [];
+        const strategies = rawStrategies.map(s => ({ 
+            strategyId: (typeof s === 'string' ? undefined : (s.strategyId || s._id || undefined)), 
+            code: (typeof s === 'string' ? s : (s.code || "unknown")), 
+            params: (typeof s === 'string' ? {} : (s.params || s)) 
+        }));
+
+        // --- 4. EXTRACT ML SETTINGS ---
+        let mlMode = data.mlMode || "off"; 
+        let mlModel = data.mlModel || data.params?.mlModel || "";
+        
+        // Intelligent Defaults
+        if (mlModel && mlMode === "off") mlMode = "predictions"; 
+        if (!mlModel && mlMode !== "off") mlModel = 'btc_1h_xgboost_model'; 
+
+        // --- 5. EXTRACT PARAMS & CONFIG ---
+        // ComboConfig might be in 'comboConfig' (new) or 'params' (old)
+        const comboConfigSource = data.comboConfig || data.params || {};
+        
+        const comboConfig = {
+            strategyCodes: strategies.map(s => s.code),
+            combinationRule: comboConfigSource.hybridMode || comboConfigSource.combinationRule || 'OR',
+            // Preserve other combo settings like minVotes, etc.
+            ...comboConfigSource
+        };
+
+        const globalParams = { ...data.params }; 
+        if (data.riskPercentage) globalParams.riskPercentage = Number(data.riskPercentage); 
+        if (data.maxPyramiding) globalParams.maxPyramiding = Number(data.maxPyramiding);
+
+        // --- 6. UPDATE STATE ---
+        setFormConfig(prev => ({
+            ...prev, 
+            symbol, 
+            timeframe, 
+            isCombo: true, // Winners are almost always combos/optimized stacks
+            strategies,
+            comboConfig,
+            mlMode, 
+            mlModel, 
+            mlThreshold: Number(data.mlThreshold) || 0.5, 
+            params: globalParams,
+            // Financials
+            riskManagementMode: data.riskManagementMode || 'static', 
+            riskPercentage: Number(data.riskPercentage) || 1, 
+            growthCapitalTarget: Number(data.growthCapitalTarget) || 2000,
+            // Safety
+            maxDailyLoss: Number(data.maxDailyLoss) || 5,
+            maxDrawdown: Number(data.maxDrawdown) || 10
+        }));
+        
+        toast.success(`Loaded Config: ${filename}`);
+    };
     const handleStartClick = (e) => {
         e.preventDefault();
         if (!isConnected || !address) { toast.error("Wallet Disconnected!"); return; }
