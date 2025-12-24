@@ -1,23 +1,28 @@
 // File: src/components/layouts/DeskLayout.jsx
-// 🚀 UPGRADE: v3.3 - Enhanced Risk Control
-// 🛠 Feature: Added inputs for Max Daily Loss, Drawdown, and Trade Limits.
+// 🚀 UPGRADE: v3.4 - Stability & API Alignment
+// 🛠 Fixes: Crash on empty/loading data (undefined .map).
+// 🛠 Update: Aligns 'Optimizer Results' dropdown with new Python API structure.
 
 import React from "react";
 import LiveTradingChart from "../LiveTradingChart"; 
 import { MetricsDisplay, LogsPanel, DecisionStream } from "../SharedComponents";
 
 const DeskLayout = (props) => {
+  // 🛡️ Destructure with default values to prevent crashes
   const {
     formConfig, setFormConfig,
-    setups, liveWinners,
+    setups = [],         // Default to empty array
+    liveWinners = [],    // Default to empty array
     selectedSetupId, handleSetupSelect,
-    selectedWinnerId, handleWinnerSelect,
+    selectedWinnerId, 
+    handleWinnerSelect = () => {}, // Default no-op if function is missing
     scanningWinners, fetchWinners,
     isRunning, botLoading,
     handleStart, handleStop,
     handleClearLogs,
     botStatus,
-    logs, visibleLogs,
+    logs = [],           // Default to empty array
+    visibleLogs = [],    // Default to empty array
     chartData 
   } = props;
 
@@ -43,7 +48,10 @@ const DeskLayout = (props) => {
               className="desk-select"
             >
               <option value="">-- Saved Strategies --</option>
-              {setups.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+              {/* 🛡️ Safe Mapping for Setups */}
+              {(setups || []).map(s => (
+                <option key={s._id} value={s._id}>{s.name || s.symbol}</option>
+              ))}
             </select>
           </div>
 
@@ -66,7 +74,18 @@ const DeskLayout = (props) => {
               className="desk-select"
             >
               <option value="">-- Optimizer Results --</option>
-              {liveWinners.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+              {/* 🛡️ Safe Mapping & New Data Structure Support */}
+              {(liveWinners || []).map(w => {
+                // Support both new API (botId/symbol) and potential legacy formats
+                const id = w.botId || w.id;
+                const name = w.symbol || w.name || "Unknown";
+                const roi = w.roi ? (w.roi * 100).toFixed(0) : 0;
+                return (
+                    <option key={id} value={id}>
+                        {name} (ROI: {roi}%)
+                    </option>
+                );
+              })}
             </select>
           </div>
 
@@ -76,11 +95,11 @@ const DeskLayout = (props) => {
           <div className="form-row">
             <div className="form-group">
               <label>Symbol</label>
-              <input value={formConfig.symbol} disabled className="desk-input" />
+              <input value={formConfig.symbol || ''} disabled className="desk-input" />
             </div>
             <div className="form-group">
               <label>Timeframe</label>
-              <input value={formConfig.timeframe} disabled className="desk-input" />
+              <input value={formConfig.timeframe || ''} disabled className="desk-input" />
             </div>
           </div>
 
@@ -235,7 +254,7 @@ const DeskLayout = (props) => {
             <h3>Decision Stream</h3>
           </div>
           <div className="stream-container">
-            <DecisionStream logs={logs} limit={8} />
+            <DecisionStream logs={logs || []} limit={8} />
           </div>
         </div>
 
@@ -245,7 +264,7 @@ const DeskLayout = (props) => {
             <button onClick={handleClearLogs} className="text-btn">Clear</button>
           </div>
           <div className="logs-container">
-            <LogsPanel logs={visibleLogs} />
+            <LogsPanel logs={visibleLogs || []} />
           </div>
         </div>
       </aside>
