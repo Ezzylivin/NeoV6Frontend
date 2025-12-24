@@ -7,6 +7,7 @@ import { useBot } from '../hooks/useBot.js';
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
 import { UIModeProvider } from "../context/UIModeContext";
 import TradingBotShell from "./TradingBotShell";
+import WinnerStrategySelect from "../components/WinnerStrategySelect"; // 👈 NEW IMPORT
 import "./TradingBot.css";
 import "../styles/Themes.css";
 import toast, { Toaster } from 'react-hot-toast';
@@ -232,9 +233,6 @@ const TradingBotContainer = () => {
     const [logFilter, setLogFilter] = useState('ALL'); 
     const [latency, setLatency] = useState(0);
     const [sessionStartBalance, setSessionStartBalance] = useState(null); 
-    const [liveWinners, setLiveWinners] = useState([]);
-    const [scanningWinners, setScanningWinners] = useState(false);
-    const [selectedWinnerId, setSelectedWinnerId] = useState("");
     const [selectedSetupId, setSelectedSetupId] = useState("");
     const [logsClearedTime, setLogsClearedTime] = useState(0);
     const logsContainerRef = useRef(null);
@@ -264,9 +262,6 @@ const TradingBotContainer = () => {
     // 🟢 FIX: Sync Session PnL with Real Backend Balance
     useEffect(() => {
         if (botStatus?.status === 'running' && sessionStartBalance === null && botStatus?.currentBalance) {
-            // Logic: If bot is running but we forgot the start balance (e.g., refresh), 
-            // assume start balance = current balance (reset PnL view) OR fetch original start from API if available.
-            // For now, syncing to current prevents the "fake profit" spike.
             setSessionStartBalance(botStatus.currentBalance);
         }
     }, [botStatus?.status, botStatus?.currentBalance]);
@@ -337,16 +332,6 @@ const TradingBotContainer = () => {
         return () => clearInterval(interval);
     }, [botStatus?.status]); 
 
-    const fetchWinners = async () => {
-        setScanningWinners(true);
-        try {
-            const token = localStorage.getItem("token"); 
-            const res = await axios.get("https://neov6backend.onrender.com/api/bot/winners", { headers: { Authorization: `Bearer ${token}` } });
-            if (res.data) setLiveWinners(res.data);
-        } catch (err) { toast.error("Failed to load winners"); } finally { setScanningWinners(false); }
-    };
-    useEffect(() => { fetchWinners(); }, []);
-
     const handleModeSelection = (mode, balance) => {
         const allocation = mode === 'paper' ? balance : formConfig.capitalAllocation;
         setFormConfig(prev => ({ ...prev, tradingMode: mode, capitalAllocation: allocation }));
@@ -355,7 +340,7 @@ const TradingBotContainer = () => {
     };
 
     const handleSetupSelect = (e) => {
-        const setupId = e.target.value; setSelectedSetupId(setupId); setSelectedWinnerId(""); 
+        const setupId = e.target.value; setSelectedSetupId(setupId);
         const setup = setups.find(s => s._id === setupId);
         if (setup) {
             const isCombo = setup.isCombo || (setup.strategies && setup.strategies.length > 1);
@@ -370,30 +355,25 @@ const TradingBotContainer = () => {
         }
     };
 
-    const handleWinnerSelect = (e) => {
-        const filename = e.target.value; setSelectedWinnerId(filename);
-        const selectedWinner = liveWinners.find(w => w.id === filename);
-        if (!selectedWinner || !selectedWinner.config) return;
-        const data = selectedWinner.config;
-        let symbol = data.symbol || "BTC-USD"; let timeframe = data.timeframe || "1h";
-        if(!data.symbol && filename.includes('_')) { const parts = filename.split('_'); if(parts[1]) symbol = parts[1]; if(parts[2]) timeframe = parts[2]; }
-        
-        let strategies = (Array.isArray(data.strategies) ? data.strategies : (Array.isArray(data) ? data : []))
-            .map(s => ({ 
-                strategyId: (typeof s === 'string' ? undefined : (s.strategyId || s._id || undefined)), 
-                code: (typeof s === 'string' ? s : (s.code || "unknown")), 
-                params: (typeof s === 'string' ? {} : (s.params || s)) 
-            }));
-            
-        let mlMode = data.mlMode || "off"; let mlModel = data.params?.mlModel || data.mlModel || "";
-        if (mlModel && mlMode === "off") mlMode = "predictions"; if (!mlModel && mlMode !== "off") mlModel = 'btc_1h_xgboost_model'; 
-        const globalParams = { ...data.params }; if (data.riskPercentage) globalParams.riskPercentage = Number(data.riskPercentage); if (data.maxPyramiding) globalParams.maxPyramiding = Number(data.maxPyramiding);
+    // 🚀 NEW: Auto-fill form from the external dropdown component
+    const handleStrategyApply = (data) => {
+        // data = { symbol, config, roi } from WinnerStrategySelect
         setFormConfig(prev => ({
-            ...prev, symbol, timeframe, isCombo: true, strategies,
-            comboConfig: { strategyCodes: strategies.map(s => s.code), combinationRule: globalParams.hybridMode || 'OR' },
-            mlMode, mlModel, mlThreshold: Number(data.mlThreshold) || 0.5, params: globalParams,
-            riskManagementMode: data.riskManagementMode || 'static', riskPercentage: Number(data.riskPercentage) || 1, growthCapitalTarget: Number(data.growthCapitalTarget) || 2000
+            ...prev,
+            symbol: data.symbol,
+            // Spread all config fields (mlMode, strategies, params, risk, etc.)
+            ...data.config 
         }));
+        
+        toast.success(`Strategy Loaded: ${data.symbol} (ROI: ${(data.roi * 100).toFixed(0)}%)`, {
+            icon: '🏆',
+            style: {
+                borderRadius: '10px',
+                background: '#1a1a1a',
+                color: '#fff',
+                border: '1px solid #10B981',
+            },
+        });
     };
 
     const handleStartClick = (e) => {
@@ -483,32 +463,25 @@ const TradingBotContainer = () => {
     const isRunning = botStatus?.status === 'running';
 
     // ---------------------------------------------------------------------------
-    // 🟢 CRITICAL FIX: Sync Active Positions to UI State
-    // ---------------------------------------------------------------------------
-  // ---------------------------------------------------------------------------
     // 🟢 CRITICAL FIX: Force UI to use 'activePosition'
     // ---------------------------------------------------------------------------
     const patchedBotStatus = useMemo(() => {
         if (!botStatus) return null;
 
-        // 1. Prioritize the new standard: 'activePosition'
         let finalPosition = botStatus.activePosition;
 
-        // 2. Fallback: If null, try to grab the first item from the list
         if (!finalPosition && botStatus.activePositions && botStatus.activePositions.length > 0) {
             finalPosition = botStatus.activePositions[0];
         }
 
         return {
             ...botStatus,
-            // Force these fields to align so the UI component definitely gets the data
             currentPosition: finalPosition, 
             activePosition: finalPosition,
             positions: botStatus.activePositions || [] 
         };
     }, [botStatus]);
 
-    // Update chartData to use patchedBotStatus instead of botStatus
     const chartData = { 
         candleData: patchedBotStatus?.candles || [], 
         tradeBreakdown: (patchedBotStatus?.trades || []).map(t => ({ 
@@ -524,25 +497,21 @@ const TradingBotContainer = () => {
     const hasData = chartData.candleData && chartData.candleData.length > 0;
 
     const botProps = {
-        botStatus: patchedBotStatus, // <--- PASS THE PATCHED STATUS HERE
+        botStatus: patchedBotStatus,
         logs: persistentLogs, 
         visibleLogs, 
         loading: botLoading, 
         isRunning,
-        liveWinners, 
         setups, 
         chartData, 
         hasData,
         formConfig, 
         setFormConfig, 
         selectedSetupId, 
-        selectedWinnerId,
         handleStart: handleStartClick, 
         handleStop, 
         handleSetupSelect, 
-        handleWinnerSelect, 
-        fetchWinners, 
-        scanningWinners, 
+        // handleWinnerSelect removed (use Strategy Toolbar below)
         handleRefreshChart, 
         handleClearLogs,
         logsContainerRef, 
@@ -560,15 +529,32 @@ const TradingBotContainer = () => {
             {showPreFlight && <PreFlightModal config={formConfig} onConfirm={handleConfirmStart} onCancel={() => setShowPreFlight(false)} isStarting={isStarting} hasApiKeys={hasApiKeys} address={address} />}
 
             <div className={`transition-all duration-500 ${!isModeSelected || showPreFlight ? 'filter blur-lg pointer-events-none' : ''}`}>
-                 {isModeSelected && <BotStatusBar 
-                     status={botStatus?.status} 
-                     pnl={sessionStartBalance != null && botStatus?.currentBalance != null ? botStatus.currentBalance - sessionStartBalance : null} 
-                     winRate={botStatus?.performanceMetrics?.winRate} 
-                     latency={latency} 
-                     mode={formConfig.tradingMode} 
-                     onStop={handleStop} 
-                 />}
-                 <TradingBotShell {...botProps} />
+                 {isModeSelected && (
+                    <>
+                        <BotStatusBar 
+                            status={botStatus?.status} 
+                            pnl={sessionStartBalance != null && botStatus?.currentBalance != null ? botStatus.currentBalance - sessionStartBalance : null} 
+                            winRate={botStatus?.performanceMetrics?.winRate} 
+                            latency={latency} 
+                            mode={formConfig.tradingMode} 
+                            onStop={handleStop} 
+                        />
+                        
+                        {/* 🚀 NEW: Strategy Toolbar (Visible above Shell) */}
+                        <div className="bg-[#111] border-b border-white/5 p-4 flex justify-end items-center gap-4">
+                            <div className="text-xs text-neutral-500 uppercase font-bold tracking-widest">Quick Actions</div>
+                            <div className="w-72">
+                                {/* Use your new component here */}
+                                <WinnerStrategySelect 
+                                    onStrategySelect={handleStrategyApply} 
+                                    className=""
+                                />
+                            </div>
+                        </div>
+
+                        <TradingBotShell {...botProps} />
+                    </>
+                 )}
             </div>
         </div>
     );
