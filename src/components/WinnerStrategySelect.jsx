@@ -4,7 +4,7 @@ import axios from 'axios';
 
 // Adjust base URL if your React app is on a different port than your API
 // If using a proxy in package.json, you can keep this empty.
-const API_BASE_URL = "https://74.208.28.77:8000"; // Based on your logs
+const API_BASE_URL = "https://neov6backend.onrender.com/api";
 
 const WinnerStrategySelect = ({ onStrategySelect, className = "" }) => {
   const [winners, setWinners] = useState([]);
