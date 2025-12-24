@@ -14,7 +14,6 @@ import toast, { Toaster } from 'react-hot-toast';
 const AUDIO_START = new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.m4a'); 
 const AUDIO_TRADE = new Audio('https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.m4a'); 
 
-// --- STATUS BAR COMPONENT ---
 const BotStatusBar = ({ status, pnl, winRate, latency, mode, onStop }) => (
     <div className={`sticky top-0 z-40 flex items-center justify-between px-6 py-2 border-b backdrop-blur-md ${mode === 'live' ? 'bg-red-900/20 border-red-500/30' : 'bg-emerald-900/20 border-emerald-500/30'}`}>
         <div className="flex items-center gap-4">
@@ -55,7 +54,6 @@ const BotStatusBar = ({ status, pnl, winRate, latency, mode, onStop }) => (
     </div>
 );
 
-// --- PRE-FLIGHT CHECK MODAL ---
 const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, address }) => {
     const [checks, setChecks] = useState({ wallet: false, keys: false, capital: false, strategy: false });
 
@@ -116,7 +114,6 @@ const CheckItem = ({ label, status }) => (
     </div>
 );
 
-// --- MODE SELECTION MODAL ---
 const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
     const [step, setStep] = useState('selection');
     const [paperBalance, setPaperBalance] = useState(10000);
@@ -223,7 +220,6 @@ const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
     );
 };
 
-// --- MAIN CONTAINER ---
 const TradingBotContainer = () => {
     const { botStatus, logs: apiLogs, loading: botLoading, startBot, stopBot, refreshBotData: originalRefresh } = useBot();
     const { setups } = useBacktestSetupFunction();
@@ -265,15 +261,18 @@ const TradingBotContainer = () => {
         }
     }, []);
 
-    // Sync Session PnL
+    // 🟢 FIX: Sync Session PnL with Real Backend Balance
     useEffect(() => {
         if (botStatus?.status === 'running' && sessionStartBalance === null && botStatus?.currentBalance) {
+            // Logic: If bot is running but we forgot the start balance (e.g., refresh), 
+            // assume start balance = current balance (reset PnL view) OR fetch original start from API if available.
+            // For now, syncing to current prevents the "fake profit" spike.
             setSessionStartBalance(botStatus.currentBalance);
         }
     }, [botStatus?.status, botStatus?.currentBalance]);
 
-    // Sound FX
     useEffect(() => {
+        // Sound FX Logic
         if (botStatus?.performanceMetrics?.totalTrades > prevTradeCount.current) {
             AUDIO_TRADE.play().catch(() => {}); 
             toast.success("🚀 New Trade Executed!", { duration: 4000, position: 'top-right' });
@@ -281,7 +280,6 @@ const TradingBotContainer = () => {
         }
     }, [botStatus?.performanceMetrics?.totalTrades]);
 
-    // API Keys Check
     useEffect(() => {
         const checkKeys = async () => {
             try {
@@ -294,7 +292,6 @@ const TradingBotContainer = () => {
         if (isConnected) checkKeys();
     }, [isConnected]);
 
-    // Logs Persistence
     useEffect(() => {
         if (apiLogs && apiLogs.length > 0) {
             setPersistentLogs(prevLogs => {
@@ -316,7 +313,6 @@ const TradingBotContainer = () => {
 
     const handleClearLogs = () => setLogsClearedTime(Date.now());
     
-    // Auto-Scroll Logs
     useEffect(() => {
         const container = logsContainerRef.current;
         if (container) {
@@ -328,9 +324,8 @@ const TradingBotContainer = () => {
         }
     }, [persistentLogs, logFilter]);
 
-    // Latency Polling
     const refreshWithLatency = async () => {
-        if (!originalRefresh) return;
+        if (!originalRefresh) return; // FIX: Safety check
         const start = performance.now();
         await originalRefresh();
         setLatency(Math.round(performance.now() - start));
@@ -338,18 +333,16 @@ const TradingBotContainer = () => {
 
     useEffect(() => {
         if (botStatus?.status !== 'running') return; 
-        const interval = setInterval(() => refreshWithLatency(), 3000);
+        const interval = setInterval(() => refreshWithLatency(), 3000); // FIX: 3s to match useBot polling
         return () => clearInterval(interval);
     }, [botStatus?.status]); 
 
-    // Fetch Winners
     const fetchWinners = async () => {
         setScanningWinners(true);
         try {
             const token = localStorage.getItem("token"); 
             const res = await axios.get("https://neov6backend.onrender.com/api/bot/winners", { headers: { Authorization: `Bearer ${token}` } });
             if (res.data) setLiveWinners(res.data);
-            console.log("📊 Loaded Winners:", res.data); // Debug
         } catch (err) { toast.error("Failed to load winners"); } finally { setScanningWinners(false); }
     };
     useEffect(() => { fetchWinners(); }, []);
@@ -377,74 +370,30 @@ const TradingBotContainer = () => {
         }
     };
 
-    // 🟢 UPDATED: Handle Winner Select with Robust Parsing
     const handleWinnerSelect = (e) => {
-        const filename = e.target.value; 
-        setSelectedWinnerId(filename);
+        const filename = e.target.value; setSelectedWinnerId(filename);
+        const selectedWinner = liveWinners.find(w => w.id === filename);
+        if (!selectedWinner || !selectedWinner.config) return;
+        const data = selectedWinner.config;
+        let symbol = data.symbol || "BTC-USD"; let timeframe = data.timeframe || "1h";
+        if(!data.symbol && filename.includes('_')) { const parts = filename.split('_'); if(parts[1]) symbol = parts[1]; if(parts[2]) timeframe = parts[2]; }
         
-        // FIX: Match against botId (API) or id (Fallback)
-        const selectedWinner = liveWinners.find(w => w.botId === filename || w.id === filename);
-        if (!selectedWinner) {
-            console.error("Winner not found:", filename);
-            return;
-        }
-
-        // 1. Data Source
-        const data = selectedWinner.config || selectedWinner;
-
-        // 2. Metadata
-        let symbol = data.symbol || selectedWinner.symbol || "BTC-USD"; 
-        let timeframe = data.timeframe || "1h";
-        
-        if((!data.symbol || data.symbol === "Unknown") && filename.includes('_')) { 
-            const parts = filename.split('_'); 
-            if(parts[1] && parts[1].includes('-')) symbol = parts[1]; 
-            if(parts[2] && parts[2].match(/\d+[mhdw]/)) timeframe = parts[2]; 
-        }
-
-        // 3. Strategies
-        const rawStrategies = data.strategies || [];
-        const strategies = rawStrategies.map(s => ({ 
-            strategyId: (typeof s === 'string' ? undefined : (s.strategyId || s._id || undefined)), 
-            code: (typeof s === 'string' ? s : (s.code || "unknown")), 
-            params: (typeof s === 'string' ? {} : (s.params || s)) 
-        }));
-
-        // 4. ML
-        let mlMode = data.mlMode || "off"; 
-        let mlModel = data.mlModel || data.params?.mlModel || "";
-        if (mlModel && mlMode === "off") mlMode = "predictions"; 
-        if (!mlModel && mlMode !== "off") mlModel = 'btc_1h_xgboost_model'; 
-
-        // 5. Config
-        const comboConfigSource = data.comboConfig || data.params || {};
-        const comboConfig = {
-            strategyCodes: strategies.map(s => s.code),
-            combinationRule: comboConfigSource.hybridMode || comboConfigSource.combinationRule || 'OR',
-            minVotesRequired: comboConfigSource.minVotesRequired || 1,
-            ...comboConfigSource
-        };
-
-        const globalParams = { ...data.params }; 
-        if (data.riskPercentage) globalParams.riskPercentage = Number(data.riskPercentage); 
-        if (data.maxPyramiding) globalParams.maxPyramiding = Number(data.maxPyramiding);
-
+        let strategies = (Array.isArray(data.strategies) ? data.strategies : (Array.isArray(data) ? data : []))
+            .map(s => ({ 
+                strategyId: (typeof s === 'string' ? undefined : (s.strategyId || s._id || undefined)), 
+                code: (typeof s === 'string' ? s : (s.code || "unknown")), 
+                params: (typeof s === 'string' ? {} : (s.params || s)) 
+            }));
+            
+        let mlMode = data.mlMode || "off"; let mlModel = data.params?.mlModel || data.mlModel || "";
+        if (mlModel && mlMode === "off") mlMode = "predictions"; if (!mlModel && mlMode !== "off") mlModel = 'btc_1h_xgboost_model'; 
+        const globalParams = { ...data.params }; if (data.riskPercentage) globalParams.riskPercentage = Number(data.riskPercentage); if (data.maxPyramiding) globalParams.maxPyramiding = Number(data.maxPyramiding);
         setFormConfig(prev => ({
-            ...prev, 
-            symbol, timeframe, 
-            isCombo: true, 
-            strategies,
-            comboConfig,
-            mlMode, mlModel, mlThreshold: Number(data.mlThreshold) || 0.5, 
-            params: globalParams,
-            riskManagementMode: data.riskManagementMode || 'static', 
-            riskPercentage: Number(data.riskPercentage) || 1, 
-            growthCapitalTarget: Number(data.growthCapitalTarget) || 2000,
-            maxDailyLoss: Number(data.maxDailyLoss) || 5,
-            maxDrawdown: Number(data.maxDrawdown) || 10
+            ...prev, symbol, timeframe, isCombo: true, strategies,
+            comboConfig: { strategyCodes: strategies.map(s => s.code), combinationRule: globalParams.hybridMode || 'OR' },
+            mlMode, mlModel, mlThreshold: Number(data.mlThreshold) || 0.5, params: globalParams,
+            riskManagementMode: data.riskManagementMode || 'static', riskPercentage: Number(data.riskPercentage) || 1, growthCapitalTarget: Number(data.growthCapitalTarget) || 2000
         }));
-        
-        toast.success(`Loaded Config: ${filename}`);
     };
 
     const handleStartClick = (e) => {
@@ -533,21 +482,33 @@ const TradingBotContainer = () => {
     const handleRefreshChart = () => refreshWithLatency();
     const isRunning = botStatus?.status === 'running';
 
+    // ---------------------------------------------------------------------------
     // 🟢 CRITICAL FIX: Sync Active Positions to UI State
+    // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+    // 🟢 CRITICAL FIX: Force UI to use 'activePosition'
+    // ---------------------------------------------------------------------------
     const patchedBotStatus = useMemo(() => {
         if (!botStatus) return null;
+
+        // 1. Prioritize the new standard: 'activePosition'
         let finalPosition = botStatus.activePosition;
+
+        // 2. Fallback: If null, try to grab the first item from the list
         if (!finalPosition && botStatus.activePositions && botStatus.activePositions.length > 0) {
             finalPosition = botStatus.activePositions[0];
         }
+
         return {
             ...botStatus,
+            // Force these fields to align so the UI component definitely gets the data
             currentPosition: finalPosition, 
             activePosition: finalPosition,
             positions: botStatus.activePositions || [] 
         };
     }, [botStatus]);
 
+    // Update chartData to use patchedBotStatus instead of botStatus
     const chartData = { 
         candleData: patchedBotStatus?.candles || [], 
         tradeBreakdown: (patchedBotStatus?.trades || []).map(t => ({ 
@@ -563,7 +524,7 @@ const TradingBotContainer = () => {
     const hasData = chartData.candleData && chartData.candleData.length > 0;
 
     const botProps = {
-        botStatus: patchedBotStatus,
+        botStatus: patchedBotStatus, // <--- PASS THE PATCHED STATUS HERE
         logs: persistentLogs, 
         visibleLogs, 
         loading: botLoading, 
@@ -607,8 +568,6 @@ const TradingBotContainer = () => {
                      mode={formConfig.tradingMode} 
                      onStop={handleStop} 
                  />}
-                 
-                 {/* 🟢 PASS THE UPDATED PROPS DOWN */}
                  <TradingBotShell {...botProps} />
             </div>
         </div>
