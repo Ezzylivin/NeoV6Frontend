@@ -1,7 +1,5 @@
 // File: src/components/layouts/DeskLayout.jsx
-// 🚀 UPGRADE: v7.0 - Dual-Panel Command Console
-// 🛠 Layout: 2 Columns (Config vs Monitor). No Chart. No Tables.
-// 🛠 Fix: Dropdowns now explicitly map props.
+// 🚀 UPGRADE: v7.1 - Added Hybrid Logic Dropdown
 
 import React, { useState } from "react";
 import { MetricsDisplay, LogsPanel, DecisionStream } from "../SharedComponents";
@@ -29,10 +27,8 @@ const DeskLayout = (props) => {
     botStatus,
     logs = [],
     visibleLogs = [],
-    
-    // ✅ PROPS: Ensure these are received with defaults
-    symbolOptions = ["BTC-USD", "ETH-USD"], 
-    timeframeOptions = ["1h", "4h"],
+    symbolOptions = [],
+    timeframeOptions = [],
     modelOptions = [],
   } = props;
 
@@ -69,8 +65,7 @@ const DeskLayout = (props) => {
 
   return (
     <div className="desk-layout">
-      
-      {/* ================= LEFT PANEL: MISSION CONTROL (60%) ================= */}
+      {/* ================= LEFT PANEL: MISSION CONTROL ================= */}
       <main className="desk-main">
         <div className="panel-header">
           <h3>🚀 MISSION CONTROL</h3>
@@ -79,7 +74,7 @@ const DeskLayout = (props) => {
 
         <form onSubmit={handleStart} className="control-grid">
           
-          {/* --- SECTION 1: STRATEGY LOADER --- */}
+          {/* 1. Strategy Loader */}
           <div className="section-box full-width">
             <label className="group-label">Strategy Source</label>
             <div className="input-split">
@@ -91,17 +86,7 @@ const DeskLayout = (props) => {
                    </option>
                 ))}
               </select>
-              
-              <button 
-                type="button" 
-                onClick={fetchWinners} 
-                className={`icon-btn ${scanningWinners ? 'spin' : ''}`} 
-                disabled={scanningWinners || isRunning} 
-                title="Refresh"
-              >
-                ↻
-              </button>
-
+              <button type="button" onClick={fetchWinners} className={`icon-btn ${scanningWinners ? 'spin' : ''}`} disabled={scanningWinners || isRunning} title="Refresh">↻</button>
               <select value={selectedSetupId} onChange={handleSetupSelect} disabled={isRunning} className="desk-select">
                 <option value="">-- Load DB Config --</option>
                 {setups.map(s => <option key={s._id} value={s._id}>{s.name || s.symbol}</option>)}
@@ -109,17 +94,14 @@ const DeskLayout = (props) => {
             </div>
           </div>
 
-          {/* --- SECTION 2: LOGIC BUILDER --- */}
+          {/* 2. Logic Builder */}
           <div className="section-box full-width">
             <div className="flex-between mb-2">
               <label className="group-label">Active Logic</label>
               <span className="count-tag">{formConfig.strategies.length} Modules</span>
             </div>
-
             <div className="strategy-deck">
-              {formConfig.strategies.length === 0 && (
-                <div className="empty-slot">No logic loaded. Select a file or add modules below.</div>
-              )}
+              {formConfig.strategies.length === 0 && <div className="empty-slot">No logic loaded.</div>}
               {formConfig.strategies.map((strat, idx) => (
                 <div key={idx} className="logic-card">
                   <div className="logic-header">
@@ -130,20 +112,13 @@ const DeskLayout = (props) => {
                     {Object.entries(strat.params || {}).map(([k, v]) => (
                       <div key={k} className="param-row">
                         <span className="param-label">{k.replace(/_/g, ' ')}</span>
-                        <input 
-                          type="number" 
-                          value={v} 
-                          onChange={(e) => updateStrategyParam(idx, k, e.target.value)} 
-                          disabled={isRunning}
-                          className="param-input"
-                        />
+                        <input type="number" value={v} onChange={(e) => updateStrategyParam(idx, k, e.target.value)} disabled={isRunning} className="param-input" />
                       </div>
                     ))}
                   </div>
                 </div>
               ))}
             </div>
-
             {!isRunning && (
               <div className="add-logic-bar">
                 <select value={strategyToAdd} onChange={(e) => setStrategyToAdd(e.target.value)} className="desk-select small">
@@ -155,7 +130,7 @@ const DeskLayout = (props) => {
             )}
           </div>
 
-          {/* --- SECTION 3: MARKET & RISK --- */}
+          {/* 3. Market & Risk */}
           <div className="section-box half-width">
             <label className="group-label">Market Settings</label>
             <div className="field-row">
@@ -203,7 +178,7 @@ const DeskLayout = (props) => {
             </div>
           </div>
 
-          {/* --- SECTION 4: AI CONFIG --- */}
+          {/* 4. AI & Safety - FIXED */}
           <div className="section-box full-width">
             <label className="group-label">🤖 Neural Engine</label>
             <div className="field-row">
@@ -227,9 +202,29 @@ const DeskLayout = (props) => {
                 <input type="number" step="0.05" value={formConfig.mlThreshold} onChange={e => setFormConfig(p => ({...p, mlThreshold: e.target.value}))} disabled={isRunning} className="desk-input" />
               </div>
             </div>
+
+            {/* ✅ NEW: Hybrid Logic Dropdown (Only shows if ML Mode is Hybrid) */}
+            {formConfig.mlMode === 'predictions' && (
+                <div className="field-row mt-2">
+                    <div className="field">
+                        <label style={{color: '#f59e0b'}}>Hybrid Logic</label>
+                        <select 
+                            value={formConfig.hybridMode || 'AND'} 
+                            onChange={e => setFormConfig(p => ({...p, hybridMode: e.target.value}))} 
+                            disabled={isRunning} 
+                            className="desk-select"
+                            style={{borderColor: '#f59e0b'}}
+                        >
+                            <option value="AND">AND (Strategies + ML Confirm)</option>
+                            <option value="OR">OR (Strategies OR ML Signal)</option>
+                            <option value="REGIME">Regime (Strategies only if ML Bullish)</option>
+                        </select>
+                    </div>
+                </div>
+            )}
           </div>
 
-          {/* --- LAUNCH CONTROLS --- */}
+          {/* 5. Launch Controls */}
           <div className="launch-section full-width">
             <div className="mode-switch">
               <button type="button" className={formConfig.tradingMode === 'paper' ? 'active' : ''} onClick={() => setFormConfig(p => ({...p, tradingMode: 'paper'}))} disabled={isRunning}>PAPER</button>
@@ -250,33 +245,17 @@ const DeskLayout = (props) => {
         </form>
       </main>
 
-      {/* ================= RIGHT PANEL: MONITOR (40%) ================= */}
+      {/* ================= RIGHT PANEL: MONITOR ================= */}
       <aside className="desk-monitor">
-        
-        {/* Top: Vital Signs */}
-        <div className="monitor-header">
-          <MetricsDisplay data={botStatus} variant="desk" />
-        </div>
-
-        {/* Middle: Decision Stream */}
+        <div className="monitor-header"><MetricsDisplay data={botStatus} variant="desk" /></div>
         <div className="monitor-stream">
           <div className="panel-header"><h3>Decision Engine</h3></div>
-          <div className="scroll-area">
-            <DecisionStream logs={logs || []} limit={20} />
-          </div>
+          <div className="scroll-area"><DecisionStream logs={logs || []} limit={20} /></div>
         </div>
-
-        {/* Bottom: System Logs */}
         <div className="monitor-logs">
-          <div className="panel-header">
-            <h3>System Terminal</h3>
-            <button onClick={handleClearLogs} className="tiny-btn">CLEAR</button>
-          </div>
-          <div className="scroll-area terminal-bg">
-            <LogsPanel logs={visibleLogs || []} />
-          </div>
+          <div className="panel-header"><h3>System Terminal</h3><button onClick={handleClearLogs} className="tiny-btn">CLEAR</button></div>
+          <div className="scroll-area terminal-bg"><LogsPanel logs={visibleLogs || []} /></div>
         </div>
-
       </aside>
     </div>
   );
