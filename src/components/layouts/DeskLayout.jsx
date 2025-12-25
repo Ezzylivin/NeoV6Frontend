@@ -1,5 +1,6 @@
 // File: src/components/layouts/DeskLayout.jsx
-// 🚀 UPGRADE: v5.0 - Command Center (Data-First UI)
+// 🚀 UPGRADE: v5.1 - Command Center + ML Integration
+// 🛠 Feature: Added AI/ML Configuration Section
 
 import React, { useState } from "react";
 import { MetricsDisplay, LogsPanel, DecisionStream } from "../SharedComponents";
@@ -14,11 +15,21 @@ const AVAILABLE_STRATEGIES = [
   { code: "supertrend", name: "SuperTrend", defaultParams: { period: 10, mult: 3 } },
 ];
 
+// 🛠️ DATA: Default Models (Fallback if props missing)
+const DEFAULT_MODELS = [
+  { id: "btc_1h_xgboost", name: "BTC 1H XGBoost (Trend)" },
+  { id: "btc_1h_lightgbm", name: "BTC 1H LightGBM (Fast)" },
+  { id: "eth_1h_transformer", name: "ETH 1H Transformer" },
+  { id: "sol_15m_lstm", name: "SOL 15m LSTM" },
+];
+
 const DeskLayout = (props) => {
   const {
     formConfig, setFormConfig,
     setups = [],
     liveWinners = [],
+    // New Prop: Pass available models from parent
+    modelOptions = DEFAULT_MODELS, 
     selectedSetupId, handleSetupSelect,
     selectedWinnerId, scanningWinners, fetchWinners,
     handleWinnerSelect,
@@ -32,7 +43,7 @@ const DeskLayout = (props) => {
 
   const [strategyToAdd, setStrategyToAdd] = useState("");
 
-  // --- Strategy Logic ---
+  // --- Helpers ---
   const handleAddStrategy = () => {
     if (!strategyToAdd) return;
     const template = AVAILABLE_STRATEGIES.find(s => s.code === strategyToAdd);
@@ -62,7 +73,6 @@ const DeskLayout = (props) => {
     });
   };
 
-  // --- Data Helpers ---
   const activePositions = botStatus?.positions || [];
   const recentTrades = (botStatus?.trades || []).slice().reverse().slice(0, 15);
 
@@ -101,7 +111,7 @@ const DeskLayout = (props) => {
 
           <div className="divider"></div>
 
-          {/* 2. Logic Builder (Visual Cards) */}
+          {/* 2. Logic Builder */}
           <div className="control-group">
             <div className="flex-between mb-2">
               <label className="group-label">🧠 Logic Modules</label>
@@ -150,7 +160,78 @@ const DeskLayout = (props) => {
 
           <div className="divider"></div>
 
-          {/* 3. Global Settings */}
+          {/* 3. ARTIFICIAL INTELLIGENCE (NEW) */}
+          <div className="control-group">
+            <label className="group-label">🤖 Artificial Intelligence</label>
+            <div className="grid-2">
+                <div className="field">
+                    <label>Mode</label>
+                    <select 
+                        value={formConfig.mlMode} 
+                        onChange={e => setFormConfig(p => ({...p, mlMode: e.target.value}))} 
+                        disabled={isRunning} 
+                        className="desk-select"
+                    >
+                        <option value="off">Disabled</option>
+                        <option value="predictions">Hybrid (Filter)</option>
+                        <option value="on">Pure ML (Driver)</option>
+                    </select>
+                </div>
+                {formConfig.mlMode !== 'off' && (
+                    <div className="field">
+                        <label>Threshold (0-1)</label>
+                        <input 
+                            type="number" 
+                            step="0.05" 
+                            max="1" 
+                            value={formConfig.mlThreshold} 
+                            onChange={e => setFormConfig(p => ({...p, mlThreshold: e.target.value}))} 
+                            disabled={isRunning} 
+                            className="desk-input" 
+                        />
+                    </div>
+                )}
+            </div>
+            
+            {formConfig.mlMode !== 'off' && (
+                <>
+                    <div className="field mt-2">
+                        <label>Neural Model</label>
+                        <select 
+                            value={formConfig.mlModel} 
+                            onChange={e => setFormConfig(p => ({...p, mlModel: e.target.value}))} 
+                            disabled={isRunning} 
+                            className="desk-select"
+                        >
+                            <option value="">-- Select Model --</option>
+                            {modelOptions.map(m => (
+                                <option key={m.id} value={m.id}>{m.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                    {/* Show Hybrid options only if strategies exist AND ML is in hybrid mode */}
+                    {formConfig.strategies.length > 0 && formConfig.mlMode === 'predictions' && (
+                        <div className="field mt-2">
+                            <label>Hybrid Logic</label>
+                            <select 
+                                value={formConfig.hybridMode || 'AND'} 
+                                onChange={e => setFormConfig(p => ({...p, hybridMode: e.target.value}))} 
+                                disabled={isRunning} 
+                                className="desk-select"
+                            >
+                                <option value="AND">Strategies AND ML (Strict)</option>
+                                <option value="OR">Strategies OR ML (Loose)</option>
+                                <option value="REGIME">ML Regime Filter</option>
+                            </select>
+                        </div>
+                    )}
+                </>
+            )}
+          </div>
+
+          <div className="divider"></div>
+
+          {/* 4. Global Settings */}
           <div className="control-group">
             <label className="group-label">💰 Risk Parameters</label>
             <div className="grid-2">
@@ -165,7 +246,7 @@ const DeskLayout = (props) => {
               <div className="field">
                 <label>Mode</label>
                 <select value={formConfig.riskManagementMode} onChange={e => setFormConfig(p => ({...p, riskManagementMode: e.target.value}))} disabled={isRunning} className="desk-select">
-                  <option value="static">Static</option>
+                  <option value="static">Static %</option>
                   <option value="dynamic">Dynamic</option>
                 </select>
               </div>
@@ -176,7 +257,7 @@ const DeskLayout = (props) => {
             </div>
           </div>
 
-          {/* 4. Main Controls */}
+          {/* 5. Main Controls */}
           <div className="launch-pad">
             <div className="mode-switch">
               <button type="button" className={formConfig.tradingMode === 'paper' ? 'active' : ''} onClick={() => setFormConfig(p => ({...p, tradingMode: 'paper'}))} disabled={isRunning}>PAPER</button>
@@ -196,7 +277,7 @@ const DeskLayout = (props) => {
         </form>
       </aside>
 
-      {/* ================= CENTER: DATA DECK (No Chart) ================= */}
+      {/* ================= CENTER: DATA DECK ================= */}
       <main className="desk-center">
         <div className="metrics-bar">
           <MetricsDisplay data={botStatus} variant="desk" />
