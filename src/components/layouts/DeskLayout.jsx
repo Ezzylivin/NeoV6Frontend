@@ -1,16 +1,17 @@
 // File: src/components/layouts/DeskLayout.jsx
-// 🚀 UPGRADE: Stability, API Integration, and UX Improvements
+// 🚀 UPGRADE: Emerald Theme & Left-Sidebar Configuration
 
 import React from "react";
 import LiveTradingChart from "../LiveTradingChart";
 import { MetricsDisplay, LogsPanel, DecisionStream } from "../SharedComponents";
-import "./DeskLayout.css";
+// Ensure this imports the Emerald/Black CSS we created
+import "./DeskLayout.css"; 
 
 const DeskLayout = (props) => {
   const {
     formConfig, setFormConfig,
-    setups = [],       // Default empty array for saved strategies
-    liveWinners = [],  // Default empty array for optimizer results
+    setups = [],        // Default empty array for saved strategies
+    liveWinners = [],   // Default empty array for optimizer results
     selectedSetupId, handleSetupSelect,
     selectedWinnerId, scanningWinners, fetchWinners,
     handleWinnerSelect = () => {}, // Default no-op function
@@ -18,14 +19,15 @@ const DeskLayout = (props) => {
     handleStart, handleStop,
     handleClearLogs,
     botStatus,
-    logs = [],         // Default empty array for system logs
-    visibleLogs = [],  // Default empty array for visible logs
+    logs = [],          // Default empty array for system logs
+    visibleLogs = [],   // Default empty array for visible logs
     chartData,
   } = props;
 
+  // 🛠 FIX: Robustly find the winner using either botId or id
   const handleWinnerSelectInternal = (e) => {
     const winnerId = e.target.value;
-    const selectedWinner = liveWinners.find((w) => w.id === winnerId);
+    const selectedWinner = liveWinners.find((w) => (w.botId || w.id) === winnerId);
 
     if (selectedWinner) {
       setFormConfig((prev) => ({
@@ -42,7 +44,7 @@ const DeskLayout = (props) => {
 
   return (
     <div className="desk-layout">
-      {/* ---------------- LEFT COLUMN: COMMAND & CONTROL ---------------- */}
+      {/* ---------------- LEFT COLUMN: CONFIGURATION SIDEBAR ---------------- */}
       <aside className="desk-sidebar">
         <div className="panel-header">
           <h3>Configuration</h3>
@@ -79,21 +81,22 @@ const DeskLayout = (props) => {
                 disabled={scanningWinners}
                 className="text-btn"
               >
-                {scanningWinners ? "Fetching..." : "↻"}
+                {scanningWinners ? "..." : "↻ REFRESH"}
               </button>
             </label>
             <select
               value={selectedWinnerId}
-              onChange={handleWinnerSelectInternal} // Internal winner selection handler
+              onChange={handleWinnerSelectInternal}
               disabled={isRunning}
               className="desk-select"
             >
               <option value="">-- Optimizer Results --</option>
               {liveWinners.length > 0 ? (
                 liveWinners.map((w) => {
+                  // 🛡️ Handle legacy 'id' vs new 'botId'
                   const id = w.botId || w.id;
                   const name = w.symbol || w.name || "Unknown";
-                  const roi = w.roi ? (w.roi * 100).toFixed(2) : "0";
+                  const roi = w.roi ? (w.roi * 100).toFixed(0) : "0";
                   return (
                     <option key={id} value={id}>
                       {name} (ROI: {roi}%)
@@ -196,7 +199,7 @@ const DeskLayout = (props) => {
           {/* 4. Safety Limits */}
           <div className="divider"></div>
           <div className="form-group">
-            <label style={{ color: "#f87171", fontSize: "0.8rem", letterSpacing: "1px" }}>
+            <label style={{ color: "#f87171", fontSize: "0.7rem", letterSpacing: "1px" }}>
               🛡️ Safety Protocols
             </label>
           </div>
@@ -251,7 +254,7 @@ const DeskLayout = (props) => {
           </div>
 
           {/* 5. Actions */}
-          <div className="action-area" style={{ marginTop: "15px" }}>
+          <div className="action-area">
             <div className="toggle-row">
               <button
                 type="button"
@@ -305,7 +308,7 @@ const DeskLayout = (props) => {
           <MetricsDisplay data={botStatus} variant="desk" />
         </div>
 
-        <div className="chart-area" style={{ height: "calc(100vh - 120px)", width: "100%", position: "relative" }}>
+        <div className="chart-area" style={{ height: "100%", width: "100%", position: "relative" }}>
           <LiveTradingChart
             candles={chartData?.candleData || []}
             trades={chartData?.tradeBreakdown || []}
@@ -337,8 +340,6 @@ const DeskLayout = (props) => {
           </div>
         </div>
       </aside>
-
-      {/* Style settings */}
     </div>
   );
 };
