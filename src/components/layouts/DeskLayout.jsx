@@ -1,32 +1,38 @@
 // File: src/components/layouts/DeskLayout.jsx
-// 🚀 UPGRADE: v6.3 - Pure Command Console (No Chart)
+// 🚀 UPGRADE: v7.0 - Dual-Panel Command Console
+// 🛠 Layout: 2 Columns (Config vs Monitor). No Chart. No Tables.
+// 🛠 Fix: Dropdowns now explicitly map props.
 
 import React, { useState } from "react";
 import { MetricsDisplay, LogsPanel, DecisionStream } from "../SharedComponents";
 import "./DeskLayout.css";
 
 const AVAILABLE_STRATEGIES = [
-  { code: "sma_crossover", name: "SMA Crossover", defaultParams: { fast: 50, slow: 200 } },
-  { code: "rsi_divergence", name: "RSI Reversal", defaultParams: { length: 14, level: 30 } },
+  { code: "sma_crossover", name: "SMA Crossover", defaultParams: { sma_fast_period: 50, sma_slow_period: 200 } },
+  { code: "rsi_divergence", name: "RSI Reversal", defaultParams: { rsi_length: 14, oversold_level: 30, overbought_level: 70 } },
   { code: "bollinger_bands", name: "Bollinger Breakout", defaultParams: { period: 20, dev: 2 } },
-  { code: "macd_crossover", name: "MACD Momentum", defaultParams: { fast: 12, slow: 26, sig: 9 } },
-  { code: "supertrend", name: "SuperTrend", defaultParams: { period: 10, mult: 3 } },
+  { code: "macd_crossover", name: "MACD Momentum", defaultParams: { macd_fast_period: 12, macd_slow_period: 26, macd_signal_period: 9 } },
+  { code: "supertrend", name: "SuperTrend", defaultParams: { period: 10, multiplier: 3 } },
 ];
 
 const DeskLayout = (props) => {
   const {
     formConfig, setFormConfig,
-    setups = [], liveWinners = [],
+    setups = [],
+    liveWinners = [],
     selectedSetupId, handleSetupSelect,
-    selectedWinnerId, handleWinnerSelect,
-    fetchWinners, scanningWinners,
+    selectedWinnerId, scanningWinners, fetchWinners,
+    handleWinnerSelect,
     isRunning, botLoading,
-    handleStart, handleStop, handleClearLogs,
-    botStatus, logs = [], visibleLogs = [],
+    handleStart, handleStop,
+    handleClearLogs,
+    botStatus,
+    logs = [],
+    visibleLogs = [],
     
-    // Default empty arrays to prevent crashes if parent fails to pass
-    symbolOptions = [], 
-    timeframeOptions = [], 
+    // ✅ PROPS: Ensure these are received with defaults
+    symbolOptions = ["BTC-USD", "ETH-USD"], 
+    timeframeOptions = ["1h", "4h"],
     modelOptions = [],
   } = props;
 
@@ -63,144 +69,214 @@ const DeskLayout = (props) => {
 
   return (
     <div className="desk-layout">
-      {/* --- LEFT: ACTIVE LOGIC --- */}
-      <aside className="desk-sidebar">
-        <div className="panel-header"><h3>Active Logic</h3></div>
-        <div className="strategy-deck">
-          {formConfig.strategies.length === 0 ? (
-            <div className="empty-slot">No logic loaded. Select file in Mission Control.</div>
-          ) : (
-            formConfig.strategies.map((strat, idx) => (
-              <div key={idx} className="logic-card">
-                <div className="logic-header">
-                  <span className="logic-name">{strat.code}</span>
-                  <button onClick={() => removeStrategy(idx)} disabled={isRunning} className="close-btn">×</button>
-                </div>
-                <div className="logic-body">
-                  {Object.entries(strat.params || {}).map(([k, v]) => (
-                    <div key={k} className="param-row">
-                      <span className="param-label">{k}</span>
-                      <input 
-                        type="number" 
-                        value={v} 
-                        onChange={(e) => updateStrategyParam(idx, k, e.target.value)} 
-                        disabled={isRunning}
-                        className="param-input"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))
-          )}
+      
+      {/* ================= LEFT PANEL: MISSION CONTROL (60%) ================= */}
+      <main className="desk-main">
+        <div className="panel-header">
+          <h3>🚀 MISSION CONTROL</h3>
+          <div className={`status-dot ${isRunning ? 'on' : 'off'}`} />
         </div>
-        
-        {!isRunning && (
-          <div className="add-logic-bar">
-            <select value={strategyToAdd} onChange={(e) => setStrategyToAdd(e.target.value)} className="desk-select small">
-              <option value="">+ Add Module...</option>
-              {AVAILABLE_STRATEGIES.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
-            </select>
-            <button onClick={handleAddStrategy} disabled={!strategyToAdd} className="add-btn">+</button>
-          </div>
-        )}
-      </aside>
 
-      {/* --- CENTER: MISSION CONTROL (No Chart, No Tables) --- */}
-      <main className="desk-center">
+        <form onSubmit={handleStart} className="control-grid">
+          
+          {/* --- SECTION 1: STRATEGY LOADER --- */}
+          <div className="section-box full-width">
+            <label className="group-label">Strategy Source</label>
+            <div className="input-split">
+              <select value={selectedWinnerId} onChange={handleWinnerSelect} disabled={isRunning} className="desk-select">
+                <option value="">-- Load Alpha File --</option>
+                {liveWinners.map(w => (
+                   <option key={w.botId || w.id} value={w.botId || w.id}>
+                     {w.symbol} | ROI: {(w.roi * 100).toFixed(0)}%
+                   </option>
+                ))}
+              </select>
+              
+              <button 
+                type="button" 
+                onClick={fetchWinners} 
+                className={`icon-btn ${scanningWinners ? 'spin' : ''}`} 
+                disabled={scanningWinners || isRunning} 
+                title="Refresh"
+              >
+                ↻
+              </button>
+
+              <select value={selectedSetupId} onChange={handleSetupSelect} disabled={isRunning} className="desk-select">
+                <option value="">-- Load DB Config --</option>
+                {setups.map(s => <option key={s._id} value={s._id}>{s.name || s.symbol}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* --- SECTION 2: LOGIC BUILDER --- */}
+          <div className="section-box full-width">
+            <div className="flex-between mb-2">
+              <label className="group-label">Active Logic</label>
+              <span className="count-tag">{formConfig.strategies.length} Modules</span>
+            </div>
+
+            <div className="strategy-deck">
+              {formConfig.strategies.length === 0 && (
+                <div className="empty-slot">No logic loaded. Select a file or add modules below.</div>
+              )}
+              {formConfig.strategies.map((strat, idx) => (
+                <div key={idx} className="logic-card">
+                  <div className="logic-header">
+                    <span className="logic-name">{strat.code.replace(/_/g, ' ')}</span>
+                    <button type="button" onClick={() => removeStrategy(idx)} disabled={isRunning} className="close-btn">×</button>
+                  </div>
+                  <div className="logic-body">
+                    {Object.entries(strat.params || {}).map(([k, v]) => (
+                      <div key={k} className="param-row">
+                        <span className="param-label">{k.replace(/_/g, ' ')}</span>
+                        <input 
+                          type="number" 
+                          value={v} 
+                          onChange={(e) => updateStrategyParam(idx, k, e.target.value)} 
+                          disabled={isRunning}
+                          className="param-input"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {!isRunning && (
+              <div className="add-logic-bar">
+                <select value={strategyToAdd} onChange={(e) => setStrategyToAdd(e.target.value)} className="desk-select small">
+                  <option value="">+ Add Module...</option>
+                  {AVAILABLE_STRATEGIES.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
+                </select>
+                <button type="button" onClick={handleAddStrategy} disabled={!strategyToAdd} className="add-btn">+</button>
+              </div>
+            )}
+          </div>
+
+          {/* --- SECTION 3: MARKET & RISK --- */}
+          <div className="section-box half-width">
+            <label className="group-label">Market Settings</label>
+            <div className="field-row">
+              <div className="field">
+                <label>Symbol</label>
+                <select value={formConfig.symbol} onChange={e => setFormConfig(p => ({...p, symbol: e.target.value}))} disabled={isRunning} className="desk-select">
+                  {symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div className="field">
+                <label>Timeframe</label>
+                <select value={formConfig.timeframe} onChange={e => setFormConfig(p => ({...p, timeframe: e.target.value}))} disabled={isRunning} className="desk-select">
+                  {timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="field-row mt-2">
+              <div className="field">
+                <label>Capital ($)</label>
+                <input type="number" value={formConfig.capitalAllocation} onChange={e => setFormConfig(p => ({...p, capitalAllocation: e.target.value}))} disabled={isRunning} className="desk-input" />
+              </div>
+            </div>
+          </div>
+
+          <div className="section-box half-width">
+            <label className="group-label">Risk Management</label>
+            <div className="field-row">
+              <div className="field">
+                <label>Mode</label>
+                <select value={formConfig.riskManagementMode} onChange={e => setFormConfig(p => ({...p, riskManagementMode: e.target.value}))} disabled={isRunning} className="desk-select">
+                  <option value="static">Static</option>
+                  <option value="dynamic">Dynamic</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Risk %</label>
+                <input type="number" value={formConfig.riskPercentage} onChange={e => setFormConfig(p => ({...p, riskPercentage: e.target.value}))} disabled={isRunning} className="desk-input" />
+              </div>
+            </div>
+            <div className="field-row mt-2">
+               <div className="field">
+                <label>Max Drawdown %</label>
+                <input type="number" value={formConfig.maxDrawdown} onChange={e => setFormConfig(p => ({...p, maxDrawdown: e.target.value}))} disabled={isRunning} className="desk-input" />
+              </div>
+            </div>
+          </div>
+
+          {/* --- SECTION 4: AI CONFIG --- */}
+          <div className="section-box full-width">
+            <label className="group-label">🤖 Neural Engine</label>
+            <div className="field-row">
+               <div className="field">
+                <label>ML Mode</label>
+                <select value={formConfig.mlMode} onChange={e => setFormConfig(p => ({...p, mlMode: e.target.value}))} disabled={isRunning} className="desk-select">
+                  <option value="off">Off</option>
+                  <option value="predictions">Hybrid Filter</option>
+                  <option value="on">Pure AI Driver</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Model Architecture</label>
+                <select value={formConfig.mlModel} onChange={e => setFormConfig(p => ({...p, mlModel: e.target.value}))} disabled={isRunning} className="desk-select">
+                  <option value="">-- None --</option>
+                  {modelOptions.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </div>
+              <div className="field">
+                <label>Threshold</label>
+                <input type="number" step="0.05" value={formConfig.mlThreshold} onChange={e => setFormConfig(p => ({...p, mlThreshold: e.target.value}))} disabled={isRunning} className="desk-input" />
+              </div>
+            </div>
+          </div>
+
+          {/* --- LAUNCH CONTROLS --- */}
+          <div className="launch-section full-width">
+            <div className="mode-switch">
+              <button type="button" className={formConfig.tradingMode === 'paper' ? 'active' : ''} onClick={() => setFormConfig(p => ({...p, tradingMode: 'paper'}))} disabled={isRunning}>PAPER</button>
+              <button type="button" className={formConfig.tradingMode === 'live' ? 'active-live' : ''} onClick={() => setFormConfig(p => ({...p, tradingMode: 'live'}))} disabled={isRunning}>LIVE</button>
+            </div>
+            
+            {!isRunning ? (
+              <button type="submit" className="main-btn start" disabled={botLoading}>
+                {botLoading ? "INITIALIZING..." : "INITIATE SEQUENCE"}
+              </button>
+            ) : (
+              <button type="button" onClick={handleStop} className="main-btn stop" disabled={botLoading}>
+                TERMINATE
+              </button>
+            )}
+          </div>
+
+        </form>
+      </main>
+
+      {/* ================= RIGHT PANEL: MONITOR (40%) ================= */}
+      <aside className="desk-monitor">
         
-        {/* Top: Metrics */}
-        <div className="metrics-bar">
+        {/* Top: Vital Signs */}
+        <div className="monitor-header">
           <MetricsDisplay data={botStatus} variant="desk" />
         </div>
 
-        {/* Middle: Controls */}
-        <div className="mission-control">
-          <div className="panel-header-simple"><h3>🚀 Mission Control</h3></div>
-          
-          <div className="control-grid">
-            {/* Strategy Selectors */}
-            <div className="control-group full-width">
-              <label className="group-label">Strategy Source</label>
-              <div className="input-split">
-                <select value={selectedWinnerId} onChange={handleWinnerSelect} disabled={isRunning} className="desk-select">
-                  <option value="">-- Load Alpha File --</option>
-                  {liveWinners.map(w => {
-                     const roi = w.roi ? (w.roi * 100).toFixed(0) : "0";
-                     return <option key={w.botId || w.id} value={w.botId || w.id}>{w.symbol} | {roi}% ROI</option>
-                  })}
-                </select>
-                <select value={selectedSetupId} onChange={handleSetupSelect} disabled={isRunning} className="desk-select">
-                  <option value="">-- DB Strategy --</option>
-                  {setups.map(s => <option key={s._id} value={s._id}>{s.name || s.symbol}</option>)}
-                </select>
-                <button type="button" onClick={fetchWinners} className={`icon-btn ${scanningWinners ? 'spin' : ''}`} disabled={scanningWinners || isRunning} title="Refresh">↻</button>
-              </div>
-            </div>
-
-            {/* Inputs */}
-            <div className="control-group">
-                <label>Symbol</label>
-                <select value={formConfig.symbol} onChange={e => setFormConfig(p=>({...p, symbol: e.target.value}))} disabled={isRunning} className="desk-select">
-                    {symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-            </div>
-            <div className="control-group">
-                <label>Timeframe</label>
-                <select value={formConfig.timeframe} onChange={e => setFormConfig(p=>({...p, timeframe: e.target.value}))} disabled={isRunning} className="desk-select">
-                    {timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-            </div>
-            <div className="control-group">
-                <label>Capital ($)</label>
-                <input type="number" value={formConfig.capitalAllocation} onChange={e => setFormConfig(p=>({...p, capitalAllocation: e.target.value}))} disabled={isRunning} className="desk-input" />
-            </div>
-            <div className="control-group">
-                <label>Risk %</label>
-                <input type="number" value={formConfig.riskPercentage} onChange={e => setFormConfig(p=>({...p, riskPercentage: e.target.value}))} disabled={isRunning} className="desk-input" />
-            </div>
-            <div className="control-group">
-                <label>ML Mode</label>
-                <select value={formConfig.mlMode} onChange={e => setFormConfig(p=>({...p, mlMode: e.target.value}))} disabled={isRunning} className="desk-select">
-                    <option value="off">Off</option>
-                    <option value="predictions">Hybrid</option>
-                    <option value="on">Pure ML</option>
-                </select>
-            </div>
-            <div className="control-group">
-                <label>ML Model</label>
-                <select value={formConfig.mlModel} onChange={e => setFormConfig(p=>({...p, mlModel: e.target.value}))} disabled={isRunning} className="desk-select">
-                    <option value="">-- None --</option>
-                    {modelOptions.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                </select>
-            </div>
-
-            {/* Buttons */}
-            <div className="control-actions">
-               <div className="mode-switch mb-2">
-                  <button type="button" className={formConfig.tradingMode === 'paper' ? 'active' : ''} onClick={() => setFormConfig(p => ({...p, tradingMode: 'paper'}))} disabled={isRunning}>PAPER</button>
-                  <button type="button" className={formConfig.tradingMode === 'live' ? 'active-live' : ''} onClick={() => setFormConfig(p => ({...p, tradingMode: 'live'}))} disabled={isRunning}>LIVE</button>
-               </div>
-                {!isRunning ? (
-                    <button onClick={handleStart} className="main-btn start" disabled={botLoading}>{botLoading ? "INITIALIZING..." : "INITIATE SEQUENCE"}</button>
-                ) : (
-                    <button onClick={handleStop} className="main-btn stop" disabled={botLoading}>TERMINATE</button>
-                )}
-            </div>
+        {/* Middle: Decision Stream */}
+        <div className="monitor-stream">
+          <div className="panel-header"><h3>Decision Engine</h3></div>
+          <div className="scroll-area">
+            <DecisionStream logs={logs || []} limit={20} />
           </div>
         </div>
-      </main>
 
-      {/* --- RIGHT: INTELLIGENCE --- */}
-      <aside className="desk-feed">
-        <div className="feed-panel h-40">
-          <div className="panel-header"><h3>Decision Engine</h3></div>
-          <div className="scroll-area"><DecisionStream logs={logs || []} limit={8} /></div>
+        {/* Bottom: System Logs */}
+        <div className="monitor-logs">
+          <div className="panel-header">
+            <h3>System Terminal</h3>
+            <button onClick={handleClearLogs} className="tiny-btn">CLEAR</button>
+          </div>
+          <div className="scroll-area terminal-bg">
+            <LogsPanel logs={visibleLogs || []} />
+          </div>
         </div>
-        <div className="feed-panel flex-grow">
-          <div className="panel-header"><h3>System Terminal</h3><button onClick={handleClearLogs} className="tiny-btn">CLEAR</button></div>
-          <div className="scroll-area terminal-bg"><LogsPanel logs={visibleLogs || []} /></div>
-        </div>
+
       </aside>
     </div>
   );
