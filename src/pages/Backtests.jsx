@@ -1,6 +1,6 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v67.0 - Final Golden Copy
-// 🛠 Fixes: Dropdown Display, File Loading Logic, Visual consistency.
+// 🚀 UPGRADE: v68.0 - Final Full Version
+// 🛠 Fixes: Dropdown Logic, Crash Protection, Full UI Features.
 
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios"; 
@@ -22,6 +22,14 @@ const STRATEGY_TYPE_TO_CODE_MAP = {
   "Stochastic Oscillator": "stochastic_crossover", "CCI": "cci_oversold", "Bollinger Bands": "bollinger_bands",
   "Ichimoku Cloud": "ichimoku_cloud", "ATR": "atr_breakout", "On-Balance Volume": "obv_signal", "Parabolic SAR": "psar_signal"
 };
+
+// 🛡️ FALLBACK MODELS: Used if API fails to prevent empty dropdowns
+const DEFAULT_MODEL_OPTIONS = [
+    { id: "btc_1h_xgboost", name: "BTC 1H XGBoost" },
+    { id: "btc_1h_lightgbm", name: "BTC 1H LightGBM" },
+    { id: "eth_1h_transformer", name: "ETH 1H Transformer" },
+    { id: "sol_15m_lstm", name: "SOL 15m LSTM" }
+];
 
 const defaultFilterParams = { minAtrPct: 0, trendFilterPeriod: 200, minAdxLevel: 0, tslAtrMult: 3.5, regime_threshold: 25 };
 
@@ -221,6 +229,7 @@ const AdvancedMetricsDisplay = ({ metrics }) => {
     );
 };
 
+// --- INPUTS COMPONENT (Fixed Map Logic) ---
 const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
     const handleGlobalChange = (e) => onChange(e);
     
@@ -238,6 +247,11 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
     const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
     const safeVal = (v) => (v === null || v === undefined || isNaN(v)) ? '' : v;
 
+    // 🛡️ SAFE ACCESS: Ensures we map over an array, defaulting to fallbacks if missing
+    const safeModels = (options.modelOptions && Array.isArray(options.modelOptions) && options.modelOptions.length > 0) 
+        ? options.modelOptions 
+        : DEFAULT_MODEL_OPTIONS;
+
     return (
       <>
         <div className="form-grid mb-6">
@@ -245,14 +259,14 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
             <label className="text-neutral-400">Symbol</label>
             <select name="symbol" value={data.symbol || ""} onChange={handleGlobalChange} className={inputClass}>
               <option value="">-- Select Symbol --</option>
-              {options.symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
+              {options.symbolOptions?.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div className="setup-selector">
             <label className="text-neutral-400">Timeframe</label>
             <select name="timeframe" value={data.timeframe || ""} onChange={handleGlobalChange} className={inputClass}>
               <option value="">-- Select Timeframe --</option>
-              {options.timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+              {options.timeframeOptions?.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
           <div className="setup-selector">
@@ -312,7 +326,10 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
                   <label className="text-neutral-400">ML Model</label>
                   <select name="mlModel" value={data.mlModel || ""} onChange={handleGlobalChange} className={inputClass}>
                     <option value="">-- Select Model --</option>
-                    {options.modelOptions.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    {/* 🛡️ FIX: Map over safeModels to prevent crash */}
+                    {safeModels.map(m => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="setup-selector">
@@ -425,8 +442,9 @@ export default function Backtests() {
         const selectedWinner = liveWinners.find(w => (w.botId || w.id) === filename);
         if (!selectedWinner) return;
 
-        // --- LOAD LOGIC ---
         const data = selectedWinner.config || selectedWinner;
+
+        // Extract Metadata
         let symbol = data.symbol || selectedWinner.symbol || "BTC-USD"; 
         let timeframe = data.timeframe || "1h";
         
@@ -436,6 +454,7 @@ export default function Backtests() {
             if(parts[2] && parts[2].match(/\d+[mhdw]/)) timeframe = parts[2]; 
         }
 
+        // Extract Strategies
         const rawStrategies = data.strategies || [];
         const strategies = rawStrategies.map(s => ({ 
             strategyId: (typeof s === 'string' ? undefined : (s.strategyId || s._id || undefined)), 
@@ -443,6 +462,7 @@ export default function Backtests() {
             params: (typeof s === 'string' ? {} : (s.params || s)) 
         }));
 
+        // Extract ML
         let mlMode = data.mlMode || "off"; 
         let mlModel = data.mlModel || data.params?.mlModel || "";
         if (mlModel && mlMode === "off") mlMode = "predictions"; 
@@ -459,7 +479,7 @@ export default function Backtests() {
         if (data.riskPercentage) globalParams.riskPercentage = Number(data.riskPercentage); 
         if (data.maxPyramiding) globalParams.maxPyramiding = Number(data.maxPyramiding);
 
-        // Populate State
+        // Update State
         setActiveTab('combo');
         setComboData(prev => ({
             ...prev, 
@@ -632,6 +652,7 @@ export default function Backtests() {
 
   return (
     <div className="backtest-container">
+      {/* Header */}
       <div className="container mx-auto">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
@@ -654,6 +675,7 @@ export default function Backtests() {
 
       <div className="container mx-auto">
         <div className="grid grid-cols-12 gap-8">
+          {/* Left Column - Configuration (5/12 width) */}
           <div className="col-span-12 lg:col-span-5">
             <div className="bot-card sticky top-6">
               <div className="panel-header flex items-center gap-3">
