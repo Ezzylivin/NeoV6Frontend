@@ -1,6 +1,6 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v68.0 - Final Full Version
-// 🛠 Fixes: Dropdown Logic, Crash Protection, Full UI Features.
+// 🚀 UPGRADE: v69.1 - Dynamic ML Model Loading
+// 🛠 Fixes: Fetches ML models from Python backend and populates dropdown automatically.
 
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios"; 
@@ -22,14 +22,6 @@ const STRATEGY_TYPE_TO_CODE_MAP = {
   "Stochastic Oscillator": "stochastic_crossover", "CCI": "cci_oversold", "Bollinger Bands": "bollinger_bands",
   "Ichimoku Cloud": "ichimoku_cloud", "ATR": "atr_breakout", "On-Balance Volume": "obv_signal", "Parabolic SAR": "psar_signal"
 };
-
-// 🛡️ FALLBACK MODELS: Used if API fails to prevent empty dropdowns
-const DEFAULT_MODEL_OPTIONS = [
-    { id: "btc_1h_xgboost", name: "BTC 1H XGBoost" },
-    { id: "btc_1h_lightgbm", name: "BTC 1H LightGBM" },
-    { id: "eth_1h_transformer", name: "ETH 1H Transformer" },
-    { id: "sol_15m_lstm", name: "SOL 15m LSTM" }
-];
 
 const defaultFilterParams = { minAtrPct: 0, trendFilterPeriod: 200, minAdxLevel: 0, tslAtrMult: 3.5, regime_threshold: 25 };
 
@@ -229,7 +221,7 @@ const AdvancedMetricsDisplay = ({ metrics }) => {
     );
 };
 
-// --- INPUTS COMPONENT (Fixed Map Logic) ---
+// --- INPUTS COMPONENT (Dynamic Models) ---
 const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
     const handleGlobalChange = (e) => onChange(e);
     
@@ -247,10 +239,8 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
     const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
     const safeVal = (v) => (v === null || v === undefined || isNaN(v)) ? '' : v;
 
-    // 🛡️ SAFE ACCESS: Ensures we map over an array, defaulting to fallbacks if missing
-    const safeModels = (options.modelOptions && Array.isArray(options.modelOptions) && options.modelOptions.length > 0) 
-        ? options.modelOptions 
-        : DEFAULT_MODEL_OPTIONS;
+    // Use passed options (which now come from API fetch in parent)
+    const availableModels = options.modelOptions || [];
 
     return (
       <>
@@ -323,11 +313,11 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
             {data.mlMode !== 'off' && (
               <>
                 <div className="setup-selector">
-                  <label className="text-neutral-400">ML Model</label>
+                  <label className="text-emerald-400 font-bold">ML Model</label>
                   <select name="mlModel" value={data.mlModel || ""} onChange={handleGlobalChange} className={inputClass}>
                     <option value="">-- Select Model --</option>
-                    {/* 🛡️ FIX: Map over safeModels to prevent crash */}
-                    {safeModels.map(m => (
+                    {/* 🛡️ DYNAMIC MAP: Shows fetched models */}
+                    {availableModels.map(m => (
                         <option key={m.id} value={m.id}>{m.name}</option>
                     ))}
                   </select>
@@ -406,6 +396,9 @@ export default function Backtests() {
   const [liveWinners, setLiveWinners] = useState([]);
   const [scanningWinners, setScanningWinners] = useState(false);
   
+  // 🚀 NEW STATE: Stores Fetched Models
+  const [availableModels, setAvailableModels] = useState([]);
+  
   const [chartMode, setChartMode] = useState('standard'); 
   const [isSimulating, setIsSimulating] = useState(false); 
 
@@ -422,17 +415,34 @@ export default function Backtests() {
   
   const symbolOptions = useMemo(() => options?.symbols || [], [options]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
-  const modelOptions = useMemo(() => options?.models || [], [options]);
 
+  // 🚀 FETCH DATA (Winners + Models)
   const fetchWinners = async () => {
       setScanningWinners(true);
       try {
         const token = localStorage.getItem("token");
-        const res = await axios.get("https://neov6backend.onrender.com/api/bot/winners", { headers: { Authorization: `Bearer ${token}` } });
-        if (res.data) setLiveWinners(res.data);
+        const headers = { Authorization: `Bearer ${token}` };
+        
+        // Parallel Fetch for Speed
+        const [resWinners, resModels] = await Promise.all([
+            axios.get("https://neov6backend.onrender.com/api/bot/winners", { headers }),
+            axios.get("https://neov6backend.onrender.com/api/ml/available-models", { headers })
+        ]);
+
+        if (resWinners.data) setLiveWinners(resWinners.data);
+        
+        // 🟢 FIX: Handle Model Format (Strings -> Objects)
+        if (resModels.data && resModels.data.models) {
+            const formattedModels = resModels.data.models.map(m => 
+                typeof m === 'string' ? { id: m, name: m.replace(/_/g, ' ').toUpperCase() } : m
+            );
+            setAvailableModels(formattedModels);
+        }
+
       } catch (err) { console.error(err); } 
       finally { setScanningWinners(false); }
   };
+  
   useEffect(() => { fetchWinners(); }, []);
 
   const handleWinnerSelect = (e) => {
@@ -444,17 +454,16 @@ export default function Backtests() {
 
         const data = selectedWinner.config || selectedWinner;
 
-        // Extract Metadata
+        // Metadata
         let symbol = data.symbol || selectedWinner.symbol || "BTC-USD"; 
         let timeframe = data.timeframe || "1h";
-        
         if((!data.symbol || data.symbol === "Unknown") && filename.includes('_')) { 
             const parts = filename.split('_'); 
             if(parts[1] && parts[1].includes('-')) symbol = parts[1]; 
             if(parts[2] && parts[2].match(/\d+[mhdw]/)) timeframe = parts[2]; 
         }
 
-        // Extract Strategies
+        // Strategies
         const rawStrategies = data.strategies || [];
         const strategies = rawStrategies.map(s => ({ 
             strategyId: (typeof s === 'string' ? undefined : (s.strategyId || s._id || undefined)), 
@@ -462,11 +471,13 @@ export default function Backtests() {
             params: (typeof s === 'string' ? {} : (s.params || s)) 
         }));
 
-        // Extract ML
+        // ML - Auto Strip Suffix
         let mlMode = data.mlMode || "off"; 
-        let mlModel = data.mlModel || data.params?.mlModel || "";
+        let rawMlModel = data.mlModel || data.params?.mlModel || "";
+        let mlModel = rawMlModel.replace(/_model$/, '');
+
         if (mlModel && mlMode === "off") mlMode = "predictions"; 
-        if (!mlModel && mlMode !== "off") mlModel = 'btc_1h_xgboost_model'; 
+        if (!mlModel && mlMode !== "off") mlModel = 'btc_1h_xgboost'; 
 
         const comboConfigSource = data.comboConfig || data.params || {};
         const comboConfig = {
@@ -652,7 +663,7 @@ export default function Backtests() {
 
   return (
     <div className="backtest-container">
-      {/* Header */}
+      {/* ... Header ... */}
       <div className="container mx-auto">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
@@ -675,7 +686,6 @@ export default function Backtests() {
 
       <div className="container mx-auto">
         <div className="grid grid-cols-12 gap-8">
-          {/* Left Column - Configuration (5/12 width) */}
           <div className="col-span-12 lg:col-span-5">
             <div className="bot-card sticky top-6">
               <div className="panel-header flex items-center gap-3">
@@ -683,7 +693,6 @@ export default function Backtests() {
                 <h2 className="card-title">Configuration</h2>
               </div>
               
-              {/* 🟢 FIXED DROPDOWN MAPPING */}
               <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/30 rounded-xl p-4 mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-emerald-400 flex items-center gap-2 font-semibold text-sm">
@@ -721,11 +730,13 @@ export default function Backtests() {
                         </select>
                       </div>
                     </div>
-                    <CommonBacktestInputs data={formData} onChange={(e) => handleFormChange(e, setFormData)} options={{ symbolOptions, timeframeOptions, modelOptions }} />
+                    {/* ✅ FIX: Pass availableModels to Inputs */}
+                    <CommonBacktestInputs data={formData} onChange={(e) => handleFormChange(e, setFormData)} options={{ symbolOptions, timeframeOptions, modelOptions: availableModels }} />
                   </>
                 ) : (
                   <>
-                    <CommonBacktestInputs data={comboData} onChange={handleComboChange} options={{ symbolOptions, timeframeOptions, modelOptions }} isCombo={true} />
+                    {/* ✅ FIX: Pass availableModels to Inputs */}
+                    <CommonBacktestInputs data={comboData} onChange={handleComboChange} options={{ symbolOptions, timeframeOptions, modelOptions: availableModels }} isCombo={true} />
                     <div className="space-y-4 mb-6">
                       <label className="metric-label">Strategy Layers</label>
                       {comboData.strategies.map((config, idx) => (
