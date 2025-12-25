@@ -4,6 +4,7 @@
 import React from "react";
 import LiveTradingChart from "../LiveTradingChart";
 import { MetricsDisplay, LogsPanel, DecisionStream } from "../SharedComponents";
+import "./DeskLayout.css";
 
 const DeskLayout = (props) => {
   const {
