@@ -1,6 +1,6 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v69.2 - Smart Model Matching
-// 🛠 Fixes: Dropdown selection now checks available models before stripping names.
+// 🚀 UPGRADE: v69.3 - Fixed Strategy Dropdown Population
+// 🛠 Fix: Maps file 'codes' to UI 'strategyIds' so dropdowns show the correct names.
 
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios"; 
@@ -23,7 +23,6 @@ const STRATEGY_TYPE_TO_CODE_MAP = {
   "Ichimoku Cloud": "ichimoku_cloud", "ATR": "atr_breakout", "On-Balance Volume": "obv_signal", "Parabolic SAR": "psar_signal"
 };
 
-// 🛡️ FALLBACK MODELS
 const DEFAULT_MODEL_OPTIONS = [
     { id: "btc_1h_xgboost", name: "BTC 1H XGBoost" },
     { id: "btc_1h_lightgbm", name: "BTC 1H LightGBM" },
@@ -325,7 +324,6 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
                   <label className="text-neutral-400">ML Model</label>
                   <select name="mlModel" value={data.mlModel || ""} onChange={handleGlobalChange} className={inputClass}>
                     <option value="">-- Select Model --</option>
-                    {/* 🛡️ FIX: Map over safeModels to prevent crash */}
                     {safeModels.map(m => (
                         <option key={m.id} value={m.id}>{m.name}</option>
                     ))}
@@ -432,7 +430,6 @@ export default function Backtests() {
         const token = localStorage.getItem("token");
         const headers = { Authorization: `Bearer ${token}` };
         
-        // Parallel Fetch for Speed
         const [resWinners, resModels] = await Promise.all([
             axios.get("https://neov6backend.onrender.com/api/bot/winners", { headers }),
             axios.get("https://neov6backend.onrender.com/api/ml/available-models", { headers })
@@ -440,7 +437,6 @@ export default function Backtests() {
 
         if (resWinners.data) setLiveWinners(resWinners.data);
         
-        // 🟢 FIX: Handle Model Format (Strings -> Objects)
         if (resModels.data && resModels.data.models) {
             const formattedModels = resModels.data.models.map(m => 
                 typeof m === 'string' ? { id: m, name: m.replace(/_/g, ' ').toUpperCase() } : m
@@ -454,7 +450,7 @@ export default function Backtests() {
   
   useEffect(() => { fetchWinners(); }, []);
 
-  // 🟢 SMART MATCH: Checks available models before assigning value
+  // 🛠 FIX: ROBUST STRATEGY MATCHING
   const handleWinnerSelect = (e) => {
         const filename = e.target.value; 
         setSelectedWinnerId(filename);
@@ -474,29 +470,31 @@ export default function Backtests() {
             if(parts[2] && parts[2].match(/\d+[mhdw]/)) timeframe = parts[2]; 
         }
 
-        // Strategies
+        // 🟢 FIX: Match Strategy Code to Option ID
         const rawStrategies = data.strategies || [];
-        const strategies = rawStrategies.map(s => ({ 
-            strategyId: (typeof s === 'string' ? undefined : (s.strategyId || s._id || undefined)), 
-            code: (typeof s === 'string' ? s : (s.code || "unknown")), 
-            params: (typeof s === 'string' ? {} : (s.params || s)) 
-        }));
+        const strategies = rawStrategies.map(s => {
+            const code = (typeof s === 'string' ? s : (s.code || "unknown"));
+            const params = (typeof s === 'string' ? {} : (s.params || s));
+            
+            // Look for matching Base Strategy in Options
+            const matchingOption = strategyOptions.find(opt => opt.code === code);
+            const strategyId = matchingOption ? matchingOption._id : ""; // Fallback empty if not found
 
-        // ML - Smart Match
+            return { strategyId, code, params };
+        });
+
+        // ML & Config
         let mlMode = data.mlMode || "off"; 
         let rawMlModel = data.mlModel || data.params?.mlModel || "";
         
-        // Check if raw exists in list
+        // Smart Model Match
         let mlModel = "";
         const existsRaw = availableModels.find(m => m.id === rawMlModel);
-        if (existsRaw) {
-            mlModel = rawMlModel;
-        } else {
-            // Try stripping suffix
+        if (existsRaw) mlModel = rawMlModel;
+        else {
             const stripped = rawMlModel.replace(/_model$/, '');
             const existsStripped = availableModels.find(m => m.id === stripped);
-            if (existsStripped) mlModel = stripped;
-            else mlModel = rawMlModel; // Fallback to raw if neither found (shows blank but preserves data)
+            mlModel = existsStripped ? stripped : rawMlModel;
         }
 
         if (mlModel && mlMode === "off") mlMode = "predictions"; 
@@ -519,7 +517,7 @@ export default function Backtests() {
             ...prev, 
             symbol, 
             timeframe, 
-            strategies,
+            strategies, // Now has IDs!
             comboConfig,
             mlMode, 
             mlModel, 
@@ -686,7 +684,7 @@ export default function Backtests() {
 
   return (
     <div className="backtest-container">
-      {/* Header */}
+      {/* ... Header ... */}
       <div className="container mx-auto">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
@@ -709,7 +707,6 @@ export default function Backtests() {
 
       <div className="container mx-auto">
         <div className="grid grid-cols-12 gap-8">
-          {/* Left Column - Configuration (5/12 width) */}
           <div className="col-span-12 lg:col-span-5">
             <div className="bot-card sticky top-6">
               <div className="panel-header flex items-center gap-3">
@@ -717,7 +714,7 @@ export default function Backtests() {
                 <h2 className="card-title">Configuration</h2>
               </div>
               
-              {/* 🟢 OPTIMIZER DROPDOWN (Fixed Logic) */}
+              {/* 🟢 OPTIMIZER DROPDOWN */}
               <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/30 rounded-xl p-4 mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-emerald-400 flex items-center gap-2 font-semibold text-sm">
@@ -755,12 +752,12 @@ export default function Backtests() {
                         </select>
                       </div>
                     </div>
-                    {/* ✅ FIX: Pass availableModels to Inputs */}
+                    {/* ✅ Pass availableModels */}
                     <CommonBacktestInputs data={formData} onChange={(e) => handleFormChange(e, setFormData)} options={{ symbolOptions, timeframeOptions, modelOptions: availableModels }} />
                   </>
                 ) : (
                   <>
-                    {/* ✅ FIX: Pass availableModels to Inputs */}
+                    {/* ✅ Pass availableModels */}
                     <CommonBacktestInputs data={comboData} onChange={handleComboChange} options={{ symbolOptions, timeframeOptions, modelOptions: availableModels }} isCombo={true} />
                     <div className="space-y-4 mb-6">
                       <label className="metric-label">Strategy Layers</label>
@@ -777,7 +774,7 @@ export default function Backtests() {
               </form>
             </div>
           </div>
-
+          {/* ... Right Column (Results) ... */}
           <div className="col-span-12 lg:col-span-7 space-y-6">
             {(loading !== 'idle' || combinedMetrics || error) ? (
               <>
