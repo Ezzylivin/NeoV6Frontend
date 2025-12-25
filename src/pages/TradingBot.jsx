@@ -1,5 +1,7 @@
 // File: src/pages/TradingBot.jsx
-import React, { useState, useEffect, useMemo } from "react";
+// 🚀 UPGRADE: v6.3 - Cleaned (No Chart Logic) & Fixed Props
+
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useAccount } from "wagmi";
 import toast, { Toaster } from "react-hot-toast";
@@ -22,7 +24,7 @@ const TradingBotContainer = () => {
     timeframe: "1h",
     capitalAllocation: 1000,
     tradingMode: "paper",
-    strategies: [], // Stores active logic modules
+    strategies: [], 
     mlMode: "off",
     mlModel: "",
     mlThreshold: 0.5,
@@ -40,7 +42,7 @@ const TradingBotContainer = () => {
   const [selectedSetupId, setSelectedSetupId] = useState("");
   const [scanningWinners, setScanningWinners] = useState(false);
 
-  // --- 2. DROPDOWN OPTIONS (Defined here to pass down) ---
+  // --- 2. STATIC OPTIONS (Passed to Layout) ---
   const symbolOptions = ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "BNB-USD", "ADA-USD"];
   const timeframeOptions = ["1m", "5m", "15m", "1h", "4h", "1d"];
   const modelOptions = [
@@ -60,9 +62,8 @@ const TradingBotContainer = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       setLiveWinners(Array.isArray(response.data) ? response.data : []);
-      toast.success("Strategies Loaded");
+      toast.success("Alpha Files Loaded");
     } catch (error) {
-      console.error(error);
       toast.error("Failed to load alpha files");
     } finally {
       setScanningWinners(false);
@@ -73,8 +74,7 @@ const TradingBotContainer = () => {
     if (isConnected) fetchWinners();
   }, [isConnected]);
 
-  // --- 4. HANDLERS (Populate Form) ---
-
+  // --- 4. HANDLERS ---
   const handleSetupSelect = (e) => {
     const setupId = e.target.value;
     setSelectedSetupId(setupId);
@@ -87,7 +87,6 @@ const TradingBotContainer = () => {
         strategyId: setupId,
         symbol: selectedSetup.symbol || "BTC-USD",
         timeframe: selectedSetup.timeframe || "1h",
-        // Normalize strategies for the Visual Cards
         strategies: (selectedSetup.strategies || []).map(s => ({
             code: s.code || s.name,
             params: s.params || s.parameters || {}
@@ -108,8 +107,6 @@ const TradingBotContainer = () => {
     
     if (selectedWinner) {
         const config = selectedWinner.config || {};
-        
-        // Normalize strategies from file
         const safeStrategies = (config.strategies || []).map(s => ({
             code: s.code || "unknown",
             params: s.params || s.parameters || {}
@@ -136,7 +133,6 @@ const TradingBotContainer = () => {
         const payload = {
             ...formConfig,
             userId: address,
-            // Construct the combo config for the backend
             comboConfig: {
                 strategyCodes: formConfig.strategies.map(s => s.code),
                 combinationRule: formConfig.hybridMode || 'AND'
@@ -149,20 +145,10 @@ const TradingBotContainer = () => {
     }
   };
 
-  const handleClearLogs = () => { /* Logic handled in hook/layout usually */ };
+  const handleClearLogs = () => { /* Logic handled in layout */ };
 
-  // --- 5. PREPARE PROPS FOR LAYOUT ---
+  // --- 5. RENDER ---
   
-  // Safe Chart Data Mapping
-  const chartData = useMemo(() => ({
-    candleData: botStatus?.candles || [],
-    tradeBreakdown: (botStatus?.trades || []).map(t => ({
-        ...t,
-        price: t.entry_price || t.price,
-        exitPrice: t.exit_price || t.exitPrice
-    }))
-  }), [botStatus]);
-
   // Patch bot status for UI consistency
   const patchedStatus = {
       ...botStatus,
@@ -170,34 +156,31 @@ const TradingBotContainer = () => {
       positions: botStatus?.activePositions || []
   };
 
-  // ✅ CRITICAL FIX: Pass the option arrays here!
-  const layoutProps = {
-    formConfig, setFormConfig,
-    setups, liveWinners,
-    selectedSetupId, handleSetupSelect,
-    selectedWinnerId, handleWinnerSelect,
-    scanningWinners, fetchWinners,
-    isRunning: botStatus?.status === 'running',
-    botLoading,
-    handleStart, 
-    handleStop: stopBot,
-    handleClearLogs,
-    botStatus: patchedStatus,
-    logs,
-    visibleLogs: logs,
-    chartData,
-    
-    // 👇 THESE WERE MISSING - THIS IS WHY DROPDOWNS WERE EMPTY
-    symbolOptions,
-    timeframeOptions,
-    modelOptions
-  };
-
   return (
     <UIModeProvider>
       <div className="trading-bot-root">
         <Toaster position="top-right" toastOptions={{ style: { background: "#333", color: "#fff" } }} />
-        <DeskLayout {...layoutProps} />
+        <DeskLayout 
+            formConfig={formConfig} setFormConfig={setFormConfig}
+            setups={setups} liveWinners={liveWinners}
+            selectedSetupId={selectedSetupId} handleSetupSelect={handleSetupSelect}
+            selectedWinnerId={selectedWinnerId} handleWinnerSelect={handleWinnerSelect}
+            scanningWinners={scanningWinners} fetchWinners={fetchWinners}
+            
+            // Pass Options
+            symbolOptions={symbolOptions}
+            timeframeOptions={timeframeOptions}
+            modelOptions={modelOptions}
+
+            isRunning={botStatus?.status === 'running'}
+            botLoading={botLoading}
+            handleStart={handleStart} 
+            handleStop={stopBot}
+            handleClearLogs={handleClearLogs}
+            botStatus={patchedStatus}
+            logs={logs}
+            visibleLogs={logs}
+        />
       </div>
     </UIModeProvider>
   );
