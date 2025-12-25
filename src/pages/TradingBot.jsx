@@ -1,3 +1,4 @@
+// File: src/pages/TradingBot.jsx
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { useAccount } from "wagmi";
@@ -39,7 +40,7 @@ const TradingBotContainer = () => {
   const [selectedSetupId, setSelectedSetupId] = useState("");
   const [scanningWinners, setScanningWinners] = useState(false);
 
-  // --- 2. DROPDOWN OPTIONS (Defined here, passed to Child) ---
+  // --- 2. DROPDOWN OPTIONS (Defined here to pass down) ---
   const symbolOptions = ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "BNB-USD", "ADA-USD"];
   const timeframeOptions = ["1m", "5m", "15m", "1h", "4h", "1d"];
   const modelOptions = [
@@ -169,7 +170,7 @@ const TradingBotContainer = () => {
       positions: botStatus?.activePositions || []
   };
 
-  // ✅ CRITICAL: Pass the option arrays here!
+  // ✅ CRITICAL FIX: Pass the option arrays here!
   const layoutProps = {
     formConfig, setFormConfig,
     setups, liveWinners,
@@ -186,7 +187,7 @@ const TradingBotContainer = () => {
     visibleLogs: logs,
     chartData,
     
-    // 👇 THESE WERE MISSING
+    // 👇 THESE WERE MISSING - THIS IS WHY DROPDOWNS WERE EMPTY
     symbolOptions,
     timeframeOptions,
     modelOptions
