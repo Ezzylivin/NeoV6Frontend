@@ -1,10 +1,12 @@
 // File: src/components/layouts/DeskLayout.jsx
-// 🚀 UPGRADE: v6.0 - Split-Screen Command Console (No Chart, No Tables)
+// 🚀 UPGRADE: v6.1 - Fixed Refresh Button & Clean Layout
 
 import React, { useState } from "react";
+import LiveTradingChart from "../LiveTradingChart";
 import { MetricsDisplay, LogsPanel, DecisionStream } from "../SharedComponents";
 import "./DeskLayout.css";
 
+// 🛠️ DATA: Strategy Templates
 const AVAILABLE_STRATEGIES = [
   { code: "sma_crossover", name: "SMA Crossover", defaultParams: { sma_fast_period: 50, sma_slow_period: 200 } },
   { code: "rsi_divergence", name: "RSI Reversal", defaultParams: { rsi_length: 14, oversold_level: 30, overbought_level: 70 } },
@@ -27,6 +29,7 @@ const DeskLayout = (props) => {
     botStatus,
     logs = [],
     visibleLogs = [],
+    chartData,
     
     // Options
     symbolOptions = [],
@@ -68,7 +71,7 @@ const DeskLayout = (props) => {
 
   return (
     <div className="desk-layout">
-      {/* ================= LEFT COLUMN: CONFIGURATION ================= */}
+      {/* ================= LEFT: CONFIGURATION ================= */}
       <aside className="desk-sidebar">
         <div className="panel-header">
           <h3>SYSTEM CONFIGURATION</h3>
@@ -80,16 +83,34 @@ const DeskLayout = (props) => {
           {/* 1. Loader */}
           <div className="control-group">
             <label className="group-label">⚡ Strategy Source</label>
+            
+            {/* 🛠 FIX: Input Split container ensures button isn't squashed */}
             <div className="input-split">
-              <select value={selectedWinnerId} onChange={handleWinnerSelect} disabled={isRunning} className="desk-select">
+              <select 
+                value={selectedWinnerId} 
+                onChange={handleWinnerSelect} 
+                disabled={isRunning} 
+                className="desk-select"
+              >
                 <option value="">-- Load Alpha File --</option>
                 {liveWinners.map(w => {
                    const roi = w.roi ? (w.roi * 100).toFixed(0) : "0";
                    return <option key={w.botId || w.id} value={w.botId || w.id}>{w.symbol} | {roi}% ROI</option>
                 })}
               </select>
-              <button type="button" onClick={fetchWinners} className="icon-btn" title="Refresh">↻</button>
+              
+              {/* 🛠 FIX: Added visual feedback (Spin + Disabled state) */}
+              <button 
+                type="button" 
+                onClick={fetchWinners} 
+                className={`icon-btn ${scanningWinners ? 'spin' : ''}`} 
+                title="Refresh Strategies"
+                disabled={scanningWinners || isRunning}
+              >
+                ↻
+              </button>
             </div>
+
             <div className="input-split mt-2">
                <select value={selectedSetupId} onChange={handleSetupSelect} disabled={isRunning} className="desk-select">
                 <option value="">-- From Database --</option>
@@ -224,34 +245,35 @@ const DeskLayout = (props) => {
         </form>
       </aside>
 
-      {/* ================= RIGHT: MONITORING TERMINAL ================= */}
-      <main className="desk-monitor">
-        
-        {/* Top: Vital Signs */}
-        <div className="monitor-header">
+      {/* ================= CENTER: VISUAL COMMAND ================= */}
+      <main className="desk-center">
+        <div className="metrics-bar">
           <MetricsDisplay data={botStatus} variant="desk" />
         </div>
 
-        {/* Middle: Decision Stream (The Brain) */}
-        <div className="monitor-stream">
-          <div className="panel-header"><h3>Decision Engine</h3></div>
-          <div className="scroll-area">
-            <DecisionStream logs={logs || []} limit={20} />
-          </div>
+        {/* 🚀 If you want this area completely empty, remove <LiveTradingChart />.
+           Currently kept as a visual placeholder for system status. 
+        */}
+        <div className="chart-area" style={{ height: "100%", width: "100%", position: "relative" }}>
+          <LiveTradingChart
+            candles={chartData?.candleData || []}
+            trades={chartData?.tradeBreakdown || []}
+            activePositions={botStatus?.positions || []}
+          />
         </div>
-
-        {/* Bottom: System Logs (The Console) */}
-        <div className="monitor-logs">
-          <div className="panel-header">
-            <h3>System Terminal</h3>
-            <button onClick={handleClearLogs} className="tiny-btn">CLEAR</button>
-          </div>
-          <div className="scroll-area terminal-bg">
-            <LogsPanel logs={visibleLogs || []} />
-          </div>
-        </div>
-
       </main>
+
+      {/* ================= RIGHT: INTELLIGENCE ================= */}
+      <aside className="desk-feed">
+        <div className="feed-panel h-40">
+          <div className="panel-header"><h3>Decision Engine</h3></div>
+          <div className="scroll-area"><DecisionStream logs={logs || []} limit={8} /></div>
+        </div>
+        <div className="feed-panel flex-grow">
+          <div className="panel-header"><h3>System Terminal</h3><button onClick={handleClearLogs} className="tiny-btn">CLEAR</button></div>
+          <div className="scroll-area terminal-bg"><LogsPanel logs={visibleLogs || []} /></div>
+        </div>
+      </aside>
     </div>
   );
 };
