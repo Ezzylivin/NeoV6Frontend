@@ -1,10 +1,10 @@
 // File: src/components/layouts/DeskLayout.jsx
-// 🚀 UPGRADE: v4.0 - Dynamic Strategy Configuration Panel
-// 🛠 Feature: Shows editable cards for each strategy in the list.
+// 🚀 UPGRADE: Fixed Selection Issue & Applied 2027 Theme
 
 import React from "react";
 import LiveTradingChart from "../LiveTradingChart";
 import { MetricsDisplay, LogsPanel, DecisionStream } from "../SharedComponents";
+// Import the Emerald/Black Theme
 import "./DeskLayout.css";
 
 const DeskLayout = (props) => {
@@ -14,7 +14,7 @@ const DeskLayout = (props) => {
     liveWinners = [],
     selectedSetupId, handleSetupSelect,
     selectedWinnerId, scanningWinners, fetchWinners,
-    handleWinnerSelect,
+    handleWinnerSelect, // <--- We will use this directly
     isRunning, botLoading,
     handleStart, handleStop,
     handleClearLogs,
@@ -24,24 +24,9 @@ const DeskLayout = (props) => {
     chartData,
   } = props;
 
-  // 🛠 NEW: Helper to update a specific strategy parameter
-  const updateStrategyParam = (index, paramKey, value) => {
-    setFormConfig(prev => {
-      const newStrategies = [...prev.strategies];
-      newStrategies[index] = {
-        ...newStrategies[index],
-        params: {
-          ...newStrategies[index].params,
-          [paramKey]: Number(value) // Ensure numbers stay numbers
-        }
-      };
-      return { ...prev, strategies: newStrategies };
-    });
-  };
-
   return (
     <div className="desk-layout">
-      {/* ---------------- LEFT COLUMN: CONFIGURATION ---------------- */}
+      {/* ---------------- LEFT COLUMN: COMMAND & CONTROL ---------------- */}
       <aside className="desk-sidebar">
         <div className="panel-header">
           <h3>Configuration</h3>
@@ -51,7 +36,7 @@ const DeskLayout = (props) => {
         </div>
 
         <form onSubmit={handleStart} className="desk-form">
-          {/* 1. Loaders (Dropdowns) */}
+          {/* 1. Strategy Source */}
           <div className="form-group">
             <label>Load Strategy (DB)</label>
             <select
@@ -60,9 +45,11 @@ const DeskLayout = (props) => {
               disabled={isRunning}
               className="desk-select"
             >
-              <option value="">-- Select Saved --</option>
+              <option value="">-- Saved Strategies --</option>
               {(setups || []).map((s) => (
-                <option key={s._id} value={s._id}>{s.name || s.symbol}</option>
+                <option key={s._id} value={s._id}>
+                  {s.name || s.symbol}
+                </option>
               ))}
             </select>
           </div>
@@ -81,110 +68,228 @@ const DeskLayout = (props) => {
             </label>
             <select
               value={selectedWinnerId}
-              onChange={handleWinnerSelect}
+              onChange={handleWinnerSelect} /* ✅ FIX: Use parent handler directly */
               disabled={isRunning}
               className="desk-select"
             >
-              <option value="">-- Browse Alpha --</option>
-              {liveWinners.map((w) => {
-                const id = w.botId || w.id;
-                const name = w.symbol || w.name || "Unknown";
-                const roi = w.roi ? (w.roi * 100).toFixed(0) : "0";
-                return (
-                  <option key={id} value={id}>
-                    {name} (ROI: {roi}%)
-                  </option>
-                );
-              })}
+              <option value="">-- Optimizer Results --</option>
+              {liveWinners.length > 0 ? (
+                liveWinners.map((w) => {
+                  // ✅ FIX: Support both new 'botId' and legacy 'id'
+                  const id = w.botId || w.id;
+                  const name = w.symbol || w.name || "Unknown";
+                  const roi = w.roi ? (w.roi * 100).toFixed(0) : "0";
+                  return (
+                    <option key={id} value={id}>
+                      {name} (ROI: {roi}%)
+                    </option>
+                  );
+                })
+              ) : (
+                <option disabled>No results found (Click Refresh)</option>
+              )}
             </select>
           </div>
 
           <div className="divider"></div>
 
-          {/* 2. DYNAMIC STRATEGY BOXES (NEW FEATURE) */}
-          {formConfig.strategies && formConfig.strategies.length > 0 ? (
-            <div className="strategies-container">
-              <label style={{ color: '#10b981', marginBottom: '8px', display: 'block' }}>
-                Active Logic ({formConfig.strategies.length})
-              </label>
-              
-              {formConfig.strategies.map((strat, idx) => (
-                <div key={idx} className="strategy-card">
-                  <div className="strategy-header">
-                    <span className="strategy-name">{strat.code}</span>
-                    <span className="strategy-index">#{idx + 1}</span>
-                  </div>
-                  
-                  <div className="strategy-params-grid">
-                    {Object.entries(strat.params || {}).map(([key, val]) => (
-                      <div key={key} className="param-field">
-                        <label title={key}>{key.replace(/_/g, ' ')}</label>
-                        <input
-                          type="number"
-                          value={val}
-                          onChange={(e) => updateStrategyParam(idx, key, e.target.value)}
-                          disabled={isRunning}
-                          className="param-input"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+          {/* 2. Asset & Capital */}
+          <div className="form-row">
+            <div className="form-group">
+              <label>Symbol</label>
+              <input value={formConfig.symbol || ""} disabled className="desk-input" />
             </div>
-          ) : (
-            <div className="empty-state">
-              No strategies loaded. Select a file or DB entry above.
+            <div className="form-group">
+              <label>Timeframe</label>
+              <input value={formConfig.timeframe || ""} disabled className="desk-input" />
             </div>
-          )}
+          </div>
+
+          <div className="form-group">
+            <label>Capital Allocation ($)</label>
+            <input
+              type="number"
+              value={formConfig.capitalAllocation}
+              onChange={(e) =>
+                setFormConfig((p) => ({
+                  ...p,
+                  capitalAllocation: e.target.value,
+                }))
+              }
+              disabled={isRunning}
+              className="desk-input"
+            />
+          </div>
 
           <div className="divider"></div>
 
-          {/* 3. Global Settings */}
+          {/* 3. Risk Management */}
+          <div className="form-group">
+            <label>Risk Mode</label>
+            <select
+              value={formConfig.riskManagementMode}
+              onChange={(e) =>
+                setFormConfig((p) => ({
+                  ...p,
+                  riskManagementMode: e.target.value,
+                }))
+              }
+              disabled={isRunning}
+              className="desk-select"
+            >
+              <option value="static">Static % (Aggressive)</option>
+              <option value="dynamic">Dynamic (Safe)</option>
+            </select>
+          </div>
+
           <div className="form-row">
-            <div className="form-group">
-              <label>Capital ($)</label>
-              <input
-                type="number"
-                value={formConfig.capitalAllocation}
-                onChange={(e) => setFormConfig(p => ({...p, capitalAllocation: e.target.value}))}
-                disabled={isRunning}
-                className="desk-input"
-              />
-            </div>
             <div className="form-group">
               <label>Risk %</label>
               <input
                 type="number"
                 value={formConfig.riskPercentage}
-                onChange={(e) => setFormConfig(p => ({...p, riskPercentage: e.target.value}))}
+                onChange={(e) =>
+                  setFormConfig((p) => ({
+                    ...p,
+                    riskPercentage: e.target.value,
+                  }))
+                }
                 disabled={isRunning}
                 step="0.1"
                 className="desk-input"
               />
             </div>
+            {formConfig.riskManagementMode === "dynamic" && (
+              <div className="form-group">
+                <label>Growth Tgt</label>
+                <input
+                  type="number"
+                  value={formConfig.growthCapitalTarget}
+                  onChange={(e) =>
+                    setFormConfig((p) => ({
+                      ...p,
+                      growthCapitalTarget: e.target.value,
+                    }))
+                  }
+                  disabled={isRunning}
+                  className="desk-input"
+                />
+              </div>
+            )}
           </div>
 
-          {/* 4. Controls */}
+          {/* 4. Safety Limits */}
+          <div className="divider"></div>
+          <div className="form-group">
+            <label style={{ color: "#f87171", fontSize: "0.7rem", letterSpacing: "1px" }}>
+              🛡️ Safety Protocols
+            </label>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>Max Loss %</label>
+              <input
+                type="number"
+                value={formConfig.maxDailyLoss}
+                onChange={(e) =>
+                  setFormConfig((p) => ({
+                    ...p,
+                    maxDailyLoss: e.target.value,
+                  }))
+                }
+                disabled={isRunning}
+                className="desk-input"
+              />
+            </div>
+            <div className="form-group">
+              <label>Max DD %</label>
+              <input
+                type="number"
+                value={formConfig.maxDrawdown}
+                onChange={(e) =>
+                  setFormConfig((p) => ({
+                    ...p,
+                    maxDrawdown: e.target.value,
+                  }))
+                }
+                disabled={isRunning}
+                className="desk-input"
+              />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>Max Trades / Day</label>
+            <input
+              type="number"
+              value={formConfig.maxTradesPerDay}
+              onChange={(e) =>
+                setFormConfig((p) => ({
+                  ...p,
+                  maxTradesPerDay: e.target.value,
+                }))
+              }
+              disabled={isRunning}
+              className="desk-input"
+            />
+          </div>
+
+          {/* 5. Actions */}
           <div className="action-area">
+            <div className="toggle-row">
+              <button
+                type="button"
+                className={`toggle-btn ${formConfig.tradingMode === "paper" ? "active" : ""}`}
+                onClick={() =>
+                  setFormConfig((p) => ({
+                    ...p,
+                    tradingMode: "paper",
+                  }))
+                }
+                disabled={isRunning}
+              >
+                Paper
+              </button>
+              <button
+                type="button"
+                className={`toggle-btn ${formConfig.tradingMode === "live" ? "active-danger" : ""}`}
+                onClick={() =>
+                  setFormConfig((p) => ({
+                    ...p,
+                    tradingMode: "live",
+                  }))
+                }
+                disabled={isRunning}
+              >
+                Live
+              </button>
+            </div>
+
             {!isRunning ? (
               <button type="submit" className="primary-btn" disabled={botLoading}>
-                {botLoading ? "INITIALIZING..." : "🚀 LAUNCH BOT"}
+                {botLoading ? "Initializing..." : "Start Strategy"}
               </button>
             ) : (
-              <button type="button" onClick={handleStop} className="danger-btn" disabled={botLoading}>
-                🛑 STOP ENGINE
+              <button
+                type="button"
+                onClick={handleStop}
+                className="danger-btn"
+                disabled={botLoading}
+              >
+                Stop Bot
               </button>
             )}
           </div>
         </form>
       </aside>
 
-      {/* ---------------- CENTER & RIGHT COLUMNS (Unchanged) ---------------- */}
+      {/* ---------------- CENTER COLUMN: MARKET & METRICS ---------------- */}
       <main className="desk-center">
         <div className="metrics-strip">
           <MetricsDisplay data={botStatus} variant="desk" />
         </div>
+
         <div className="chart-area" style={{ height: "100%", width: "100%", position: "relative" }}>
           <LiveTradingChart
             candles={chartData?.candleData || []}
@@ -194,17 +299,23 @@ const DeskLayout = (props) => {
         </div>
       </main>
 
+      {/* ---------------- RIGHT COLUMN: INTELLIGENCE ---------------- */}
       <aside className="desk-feed">
         <div className="feed-section">
-          <div className="panel-header"><h3>Decision Stream</h3></div>
+          <div className="panel-header">
+            <h3>Decision Stream</h3>
+          </div>
           <div className="stream-container">
             <DecisionStream logs={logs || []} limit={8} />
           </div>
         </div>
+
         <div className="feed-section logs-section">
           <div className="panel-header">
             <h3>System Logs</h3>
-            <button onClick={handleClearLogs} className="text-btn">Clear</button>
+            <button onClick={handleClearLogs} className="text-btn">
+              Clear
+            </button>
           </div>
           <div className="logs-container">
             <LogsPanel logs={visibleLogs || []} />
