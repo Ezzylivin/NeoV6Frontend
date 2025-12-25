@@ -1,6 +1,4 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v6.3 - Cleaned (No Chart Logic) & Fixed Props
-
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useAccount } from "wagmi";
@@ -17,14 +15,14 @@ const TradingBotContainer = () => {
   const { setups } = useBacktestSetupFunction();
   const { isConnected, address } = useAccount();
 
-  // --- 1. CONFIGURATION STATE ---
+  // 1. CONFIGURATION STATE
   const [formConfig, setFormConfig] = useState({
     strategyId: "",
     symbol: "BTC-USD",
     timeframe: "1h",
     capitalAllocation: 1000,
     tradingMode: "paper",
-    strategies: [], 
+    strategies: [],
     mlMode: "off",
     mlModel: "",
     mlThreshold: 0.5,
@@ -42,7 +40,7 @@ const TradingBotContainer = () => {
   const [selectedSetupId, setSelectedSetupId] = useState("");
   const [scanningWinners, setScanningWinners] = useState(false);
 
-  // --- 2. STATIC OPTIONS (Passed to Layout) ---
+  // 2. DROPDOWN OPTIONS
   const symbolOptions = ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "BNB-USD", "ADA-USD"];
   const timeframeOptions = ["1m", "5m", "15m", "1h", "4h", "1d"];
   const modelOptions = [
@@ -52,7 +50,7 @@ const TradingBotContainer = () => {
     { id: "sol_15m_lstm", name: "SOL 15m LSTM" }
   ];
 
-  // --- 3. FETCH ALPHA FILES ---
+  // 3. FETCH ALPHA
   const fetchWinners = async () => {
     if (!isConnected) return;
     setScanningWinners(true);
@@ -62,7 +60,7 @@ const TradingBotContainer = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       setLiveWinners(Array.isArray(response.data) ? response.data : []);
-      toast.success("Alpha Files Loaded");
+      toast.success("Strategies Loaded");
     } catch (error) {
       toast.error("Failed to load alpha files");
     } finally {
@@ -74,7 +72,7 @@ const TradingBotContainer = () => {
     if (isConnected) fetchWinners();
   }, [isConnected]);
 
-  // --- 4. HANDLERS ---
+  // 4. HANDLERS
   const handleSetupSelect = (e) => {
     const setupId = e.target.value;
     setSelectedSetupId(setupId);
@@ -147,40 +145,37 @@ const TradingBotContainer = () => {
 
   const handleClearLogs = () => { /* Logic handled in layout */ };
 
-  // --- 5. RENDER ---
-  
-  // Patch bot status for UI consistency
   const patchedStatus = {
       ...botStatus,
       currentPosition: botStatus?.activePosition || botStatus?.currentPosition || null,
       positions: botStatus?.activePositions || []
   };
 
+  const layoutProps = {
+    formConfig, setFormConfig,
+    setups, liveWinners,
+    selectedSetupId, handleSetupSelect,
+    selectedWinnerId, handleWinnerSelect,
+    scanningWinners, fetchWinners,
+    isRunning: botStatus?.status === 'running',
+    botLoading,
+    handleStart, 
+    handleStop: stopBot,
+    handleClearLogs,
+    botStatus: patchedStatus,
+    logs,
+    visibleLogs: logs,
+    // ✅ PROPS PASSED
+    symbolOptions,
+    timeframeOptions,
+    modelOptions
+  };
+
   return (
     <UIModeProvider>
       <div className="trading-bot-root">
         <Toaster position="top-right" toastOptions={{ style: { background: "#333", color: "#fff" } }} />
-        <DeskLayout 
-            formConfig={formConfig} setFormConfig={setFormConfig}
-            setups={setups} liveWinners={liveWinners}
-            selectedSetupId={selectedSetupId} handleSetupSelect={handleSetupSelect}
-            selectedWinnerId={selectedWinnerId} handleWinnerSelect={handleWinnerSelect}
-            scanningWinners={scanningWinners} fetchWinners={fetchWinners}
-            
-            // Pass Options
-            symbolOptions={symbolOptions}
-            timeframeOptions={timeframeOptions}
-            modelOptions={modelOptions}
-
-            isRunning={botStatus?.status === 'running'}
-            botLoading={botLoading}
-            handleStart={handleStart} 
-            handleStop={stopBot}
-            handleClearLogs={handleClearLogs}
-            botStatus={patchedStatus}
-            logs={logs}
-            visibleLogs={logs}
-        />
+        <DeskLayout {...layoutProps} />
       </div>
     </UIModeProvider>
   );
