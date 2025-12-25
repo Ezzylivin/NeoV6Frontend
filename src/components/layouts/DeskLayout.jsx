@@ -1,50 +1,32 @@
 // File: src/components/layouts/DeskLayout.jsx
-// 🚀 UPGRADE: Emerald Theme & Left-Sidebar Configuration
+// 🚀 UPGRADE: Fixed Selection Issue & Applied 2027 Theme
 
 import React from "react";
 import LiveTradingChart from "../LiveTradingChart";
 import { MetricsDisplay, LogsPanel, DecisionStream } from "../SharedComponents";
-// Ensure this imports the Emerald/Black CSS we created
-import "./DeskLayout.css"; 
+// Import the Emerald/Black Theme
+import "./DeskLayout.css";
 
 const DeskLayout = (props) => {
   const {
     formConfig, setFormConfig,
-    setups = [],        // Default empty array for saved strategies
-    liveWinners = [],   // Default empty array for optimizer results
+    setups = [],
+    liveWinners = [],
     selectedSetupId, handleSetupSelect,
     selectedWinnerId, scanningWinners, fetchWinners,
-    handleWinnerSelect = () => {}, // Default no-op function
+    handleWinnerSelect, // <--- We will use this directly
     isRunning, botLoading,
     handleStart, handleStop,
     handleClearLogs,
     botStatus,
-    logs = [],          // Default empty array for system logs
-    visibleLogs = [],   // Default empty array for visible logs
+    logs = [],
+    visibleLogs = [],
     chartData,
   } = props;
 
-  // 🛠 FIX: Robustly find the winner using either botId or id
-  const handleWinnerSelectInternal = (e) => {
-    const winnerId = e.target.value;
-    const selectedWinner = liveWinners.find((w) => (w.botId || w.id) === winnerId);
-
-    if (selectedWinner) {
-      setFormConfig((prev) => ({
-        ...prev,
-        symbol: selectedWinner.symbol || "BTC-USD",
-        timeframe: selectedWinner.timeframe || "1h",
-        strategies: selectedWinner.config?.strategies || [],
-        params: selectedWinner.config?.params || {},
-        mlMode: selectedWinner.config?.mlMode || "off",
-        riskPercentage: selectedWinner.config?.riskPercentage || 1,
-      }));
-    }
-  };
-
   return (
     <div className="desk-layout">
-      {/* ---------------- LEFT COLUMN: CONFIGURATION SIDEBAR ---------------- */}
+      {/* ---------------- LEFT COLUMN: COMMAND & CONTROL ---------------- */}
       <aside className="desk-sidebar">
         <div className="panel-header">
           <h3>Configuration</h3>
@@ -86,14 +68,14 @@ const DeskLayout = (props) => {
             </label>
             <select
               value={selectedWinnerId}
-              onChange={handleWinnerSelectInternal}
+              onChange={handleWinnerSelect} /* ✅ FIX: Use parent handler directly */
               disabled={isRunning}
               className="desk-select"
             >
               <option value="">-- Optimizer Results --</option>
               {liveWinners.length > 0 ? (
                 liveWinners.map((w) => {
-                  // 🛡️ Handle legacy 'id' vs new 'botId'
+                  // ✅ FIX: Support both new 'botId' and legacy 'id'
                   const id = w.botId || w.id;
                   const name = w.symbol || w.name || "Unknown";
                   const roi = w.roi ? (w.roi * 100).toFixed(0) : "0";
@@ -104,7 +86,7 @@ const DeskLayout = (props) => {
                   );
                 })
               ) : (
-                <option disabled>No optimizer results found.</option>
+                <option disabled>No results found (Click Refresh)</option>
               )}
             </select>
           </div>
