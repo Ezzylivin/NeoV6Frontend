@@ -1,6 +1,6 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v69.1 - Dynamic ML Model Loading
-// 🛠 Fixes: Fetches ML models from Python backend and populates dropdown automatically.
+// 🚀 UPGRADE: v69.2 - Smart Model Matching
+// 🛠 Fixes: Dropdown selection now checks available models before stripping names.
 
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios"; 
@@ -22,6 +22,14 @@ const STRATEGY_TYPE_TO_CODE_MAP = {
   "Stochastic Oscillator": "stochastic_crossover", "CCI": "cci_oversold", "Bollinger Bands": "bollinger_bands",
   "Ichimoku Cloud": "ichimoku_cloud", "ATR": "atr_breakout", "On-Balance Volume": "obv_signal", "Parabolic SAR": "psar_signal"
 };
+
+// 🛡️ FALLBACK MODELS
+const DEFAULT_MODEL_OPTIONS = [
+    { id: "btc_1h_xgboost", name: "BTC 1H XGBoost" },
+    { id: "btc_1h_lightgbm", name: "BTC 1H LightGBM" },
+    { id: "eth_1h_transformer", name: "ETH 1H Transformer" },
+    { id: "sol_15m_lstm", name: "SOL 15m LSTM" }
+];
 
 const defaultFilterParams = { minAtrPct: 0, trendFilterPeriod: 200, minAdxLevel: 0, tslAtrMult: 3.5, regime_threshold: 25 };
 
@@ -221,7 +229,7 @@ const AdvancedMetricsDisplay = ({ metrics }) => {
     );
 };
 
-// --- INPUTS COMPONENT (Dynamic Models) ---
+// --- INPUTS COMPONENT ---
 const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
     const handleGlobalChange = (e) => onChange(e);
     
@@ -239,8 +247,9 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
     const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
     const safeVal = (v) => (v === null || v === undefined || isNaN(v)) ? '' : v;
 
-    // Use passed options (which now come from API fetch in parent)
-    const availableModels = options.modelOptions || [];
+    const safeModels = (options.modelOptions && Array.isArray(options.modelOptions) && options.modelOptions.length > 0) 
+        ? options.modelOptions 
+        : DEFAULT_MODEL_OPTIONS;
 
     return (
       <>
@@ -313,11 +322,11 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
             {data.mlMode !== 'off' && (
               <>
                 <div className="setup-selector">
-                  <label className="text-emerald-400 font-bold">ML Model</label>
+                  <label className="text-neutral-400">ML Model</label>
                   <select name="mlModel" value={data.mlModel || ""} onChange={handleGlobalChange} className={inputClass}>
                     <option value="">-- Select Model --</option>
-                    {/* 🛡️ DYNAMIC MAP: Shows fetched models */}
-                    {availableModels.map(m => (
+                    {/* 🛡️ FIX: Map over safeModels to prevent crash */}
+                    {safeModels.map(m => (
                         <option key={m.id} value={m.id}>{m.name}</option>
                     ))}
                   </select>
@@ -396,7 +405,7 @@ export default function Backtests() {
   const [liveWinners, setLiveWinners] = useState([]);
   const [scanningWinners, setScanningWinners] = useState(false);
   
-  // 🚀 NEW STATE: Stores Fetched Models
+  // New State for Models
   const [availableModels, setAvailableModels] = useState([]);
   
   const [chartMode, setChartMode] = useState('standard'); 
@@ -445,6 +454,7 @@ export default function Backtests() {
   
   useEffect(() => { fetchWinners(); }, []);
 
+  // 🟢 SMART MATCH: Checks available models before assigning value
   const handleWinnerSelect = (e) => {
         const filename = e.target.value; 
         setSelectedWinnerId(filename);
@@ -457,6 +467,7 @@ export default function Backtests() {
         // Metadata
         let symbol = data.symbol || selectedWinner.symbol || "BTC-USD"; 
         let timeframe = data.timeframe || "1h";
+        
         if((!data.symbol || data.symbol === "Unknown") && filename.includes('_')) { 
             const parts = filename.split('_'); 
             if(parts[1] && parts[1].includes('-')) symbol = parts[1]; 
@@ -471,10 +482,22 @@ export default function Backtests() {
             params: (typeof s === 'string' ? {} : (s.params || s)) 
         }));
 
-        // ML - Auto Strip Suffix
+        // ML - Smart Match
         let mlMode = data.mlMode || "off"; 
         let rawMlModel = data.mlModel || data.params?.mlModel || "";
-        let mlModel = rawMlModel.replace(/_model$/, '');
+        
+        // Check if raw exists in list
+        let mlModel = "";
+        const existsRaw = availableModels.find(m => m.id === rawMlModel);
+        if (existsRaw) {
+            mlModel = rawMlModel;
+        } else {
+            // Try stripping suffix
+            const stripped = rawMlModel.replace(/_model$/, '');
+            const existsStripped = availableModels.find(m => m.id === stripped);
+            if (existsStripped) mlModel = stripped;
+            else mlModel = rawMlModel; // Fallback to raw if neither found (shows blank but preserves data)
+        }
 
         if (mlModel && mlMode === "off") mlMode = "predictions"; 
         if (!mlModel && mlMode !== "off") mlModel = 'btc_1h_xgboost'; 
@@ -663,7 +686,7 @@ export default function Backtests() {
 
   return (
     <div className="backtest-container">
-      {/* ... Header ... */}
+      {/* Header */}
       <div className="container mx-auto">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
@@ -686,6 +709,7 @@ export default function Backtests() {
 
       <div className="container mx-auto">
         <div className="grid grid-cols-12 gap-8">
+          {/* Left Column - Configuration (5/12 width) */}
           <div className="col-span-12 lg:col-span-5">
             <div className="bot-card sticky top-6">
               <div className="panel-header flex items-center gap-3">
@@ -693,6 +717,7 @@ export default function Backtests() {
                 <h2 className="card-title">Configuration</h2>
               </div>
               
+              {/* 🟢 OPTIMIZER DROPDOWN (Fixed Logic) */}
               <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/30 rounded-xl p-4 mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-emerald-400 flex items-center gap-2 font-semibold text-sm">
