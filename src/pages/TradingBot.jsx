@@ -1,579 +1,320 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
-import { useAccount } from 'wagmi';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { Link, useNavigate } from 'react-router-dom';
-import { useBot } from '../hooks/useBot.js';
-import { useBacktestSetupFunction } from "../hooks/useBacktestSetup.jsx";
+import { useAccount } from "wagmi";
+import toast, { Toaster } from "react-hot-toast";
+import { useBot } from "../hooks/useBot";
+import { useBacktestSetupFunction } from "../hooks/useBacktestSetup";
 import { UIModeProvider } from "../context/UIModeContext";
 import TradingBotShell from "./TradingBotShell";
 import "./TradingBot.css";
 import "../styles/Themes.css";
-import toast, { Toaster } from 'react-hot-toast';
-
-const AUDIO_START = new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.m4a'); 
-const AUDIO_TRADE = new Audio('https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.m4a'); 
-
-const BotStatusBar = ({ status, pnl, winRate, latency, mode, onStop }) => (
-    <div className={`sticky top-0 z-40 flex items-center justify-between px-6 py-2 border-b backdrop-blur-md ${mode === 'live' ? 'bg-red-900/20 border-red-500/30' : 'bg-emerald-900/20 border-emerald-500/30'}`}>
-        <div className="flex items-center gap-4">
-            <div className={`flex items-center gap-2 text-sm font-bold ${status === 'running' ? 'text-green-400' : 'text-red-400'}`}>
-                <span className={`w-2 h-2 rounded-full ${status === 'running' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
-                {status === 'running' ? 'RUNNING' : 'STOPPED'}
-            </div>
-            <div className="h-4 w-px bg-white/10"></div>
-            <div className="text-xs text-neutral-400 font-mono">
-                LATENCY: <span className={latency < 200 ? 'text-green-400' : 'text-yellow-400'}>{latency ? `${latency}ms` : '--'}</span>
-            </div>
-        </div>
-
-        <div className="flex items-center gap-6">
-            {status === 'running' && (
-                <button 
-                    onClick={onStop}
-                    className="flex items-center gap-2 px-4 py-1 bg-red-500/20 hover:bg-red-500 border border-red-500 text-red-500 hover:text-white rounded transition-all duration-300 text-xs font-bold uppercase tracking-wider shadow-[0_0_15px_rgba(239,68,68,0.2)]"
-                >
-                    ⏹ Stop Engine
-                </button>
-            )}
-
-            <div className="text-center">
-                <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider">Session PnL</div>
-                <div className={`text-sm font-mono font-bold ${pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {pnl >= 0 ? '+' : ''}{pnl != null ? `$${pnl.toFixed(2)}` : '--'}
-                </div>
-            </div>
-            <div className="text-center">
-                <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider">Win Rate</div>
-                <div className="text-sm font-mono font-bold text-white">{winRate ? `${winRate}%` : '--'}</div>
-            </div>
-            <div className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest border ${mode === 'live' ? 'bg-red-600 text-white border-red-500' : 'bg-emerald-600 text-black border-emerald-400'}`}>
-                {mode === 'live' ? 'LIVE MODE' : 'PAPER MODE'}
-            </div>
-        </div>
-    </div>
-);
-
-const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, address }) => {
-    const [checks, setChecks] = useState({ wallet: false, keys: false, capital: false, strategy: false });
-
-    useEffect(() => {
-        setChecks({
-            wallet: !!address,
-            keys: config.tradingMode === 'paper' || hasApiKeys, 
-            capital: Number(config.capitalAllocation) >= 100,
-            strategy: (config.isCombo && config.comboConfig?.strategyCodes?.length > 0) || 
-                      (!config.isCombo && config.strategies?.length > 0)
-        });
-    }, [config, hasApiKeys, address]);
-
-    const allPassed = Object.values(checks).every(Boolean);
-
-    return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 backdrop-blur-xl">
-            <div className="max-w-md w-full bg-[#1a1a1a] border border-white/10 rounded-xl p-6 shadow-2xl animate-fade-in-up">
-                <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                    <span className="text-yellow-500">🚀</span> Pre-Flight Check
-                </h3>
-                
-                <div className="space-y-3 mb-8">
-                    <CheckItem label="Wallet Connection" status={checks.wallet} />
-                    <CheckItem label={config.tradingMode === 'live' ? "API Keys (Required)" : "API Keys (Optional)"} status={checks.keys} />
-                    <CheckItem label={`Capital Allocation ($${config.capitalAllocation})`} status={checks.capital} />
-                    <CheckItem label="Strategy Logic Loaded" status={checks.strategy} />
-                </div>
-
-                {config.tradingMode === 'live' && (
-                    <div className="mb-6 space-y-2">
-                        {config.maxDailyLoss > 10 && <div className="text-xs text-yellow-500">⚠ High Risk: Max Daily Loss &gt; 10%</div>}
-                        {config.maxTradesPerDay > 50 && <div className="text-xs text-yellow-500">⚠ High Frequency: &gt; 50 Trades/Day</div>}
-                    </div>
-                )}
-
-                <div className="flex gap-3">
-                    <button onClick={onCancel} className="flex-1 py-3 rounded-lg border border-white/10 text-neutral-400 hover:text-white hover:bg-white/5 transition">
-                        Abort
-                    </button>
-                    <button 
-                        onClick={onConfirm} 
-                        disabled={!allPassed || isStarting}
-                        className={`flex-1 py-3 rounded-lg font-bold text-black transition flex justify-center items-center gap-2 ${allPassed ? 'bg-yellow-500 hover:bg-yellow-400 shadow-lg shadow-yellow-500/20' : 'bg-neutral-700 text-neutral-500 cursor-not-allowed'}`}
-                    >
-                        {isStarting ? 'Igniting...' : 'LAUNCH BOT'}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const CheckItem = ({ label, status }) => (
-    <div className="flex items-center justify-between p-3 bg-black/40 rounded border border-white/5">
-        <span className="text-sm text-neutral-300">{label}</span>
-        {status ? <span className="text-green-500 font-bold">✔ OK</span> : <span className="text-red-500 font-bold">MISSING</span>}
-    </div>
-);
-
-const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
-    const [step, setStep] = useState('selection');
-    const [paperBalance, setPaperBalance] = useState(10000);
-    const [agreedRisk, setAgreedRisk] = useState(false);
-    const [agreedBot, setAgreedBot] = useState(false);
-    const navigate = useNavigate();
-    const { address } = useAccount();
-
-    const handleReset = async () => {
-        if(!window.confirm("⚠️ Are you sure? This will wipe your Paper Trading history and reset the balance.")) return;
-        const toastId = toast.loading("Wiping database...");
-        try {
-            const token = localStorage.getItem('token');
-            await axios.post('https://neov6backend.onrender.com/api/bot/reset', { 
-                userId: address, 
-                symbol: "BTC-USD", 
-                timeframe: "1h", 
-                capitalAllocation: paperBalance 
-            }, {
-                headers: { Authorization: `Bearer ${token}` } 
-            });
-            
-            toast.success("Account Reset Successfully!", { id: toastId });
-        } catch (err) {
-            toast.error("Reset Failed: " + (err.response?.data?.message || err.message), { id: toastId });
-        }
-    };
-
-    if (!isConnected) {
-        return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
-                <div className="bg-[#1a1a1a] p-8 rounded-2xl border border-white/10 text-center max-w-md animate-fade-in">
-                    <div className="text-4xl mb-4">🦊</div>
-                    <h2 className="text-2xl font-bold text-white mb-2">Connect Wallet</h2>
-                    <p className="text-neutral-400 mb-6">Access is restricted to verified wallet holders only.</p>
-                    <div className="flex justify-center"><ConnectButton /></div>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md">
-            <div className="max-w-5xl w-full p-6 animate-fade-in">
-                {step === 'selection' && (
-                    <div className="text-center">
-                         <h1 className="text-4xl font-bold text-white mb-2">Trading Environment</h1>
-                         <p className="text-neutral-400 mb-10">Select your operational mode.</p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-                            <div onClick={() => setStep('paper_setup')} className="group cursor-pointer bg-[#1a1a1a] border border-white/10 hover:border-emerald-500/50 hover:bg-[#1f2937] p-8 rounded-2xl transition-all duration-300 transform hover:-translate-y-1 relative overflow-hidden">
-                                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition"><span className="text-9xl">📄</span></div>
-                                <h3 className="text-2xl font-bold text-emerald-400 mb-2">Paper Trading</h3>
-                                <p className="text-neutral-300 mb-6">Simulate trades with fake money. Zero risk.</p>
-                                <div className="flex items-center gap-2 text-sm text-emerald-500 font-bold uppercase tracking-wider"><span>Configure Simulation</span><span>→</span></div>
-                            </div>
-                            <div 
-                                onClick={() => { if (hasApiKeys) setStep('live_agreement'); else toast.error("Please add API Keys in Settings first!"); }} 
-                                className={`group relative p-8 rounded-2xl border transition-all duration-300 overflow-hidden ${hasApiKeys ? 'cursor-pointer bg-[#1a0505] border-red-900/30 hover:border-red-500/50 hover:bg-[#2f0a0a] transform hover:-translate-y-1' : 'cursor-pointer bg-neutral-900 border-neutral-800 opacity-70 hover:opacity-100 hover:border-yellow-500/30'}`}
-                            >
-                                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition"><span className="text-9xl">⚡</span></div>
-                                <h3 className={`text-2xl font-bold mb-2 ${hasApiKeys ? 'text-red-500' : 'text-neutral-500'}`}>Live Trading</h3>
-                                <p className="text-neutral-300 mb-6">Execute real orders. Real capital at risk.</p>
-                                {hasApiKeys ? (
-                                    <div className="flex items-center gap-2 text-sm text-red-500 font-bold uppercase tracking-wider"><span>Enter Danger Zone</span><span>→</span></div>
-                                ) : (
-                                    <div className="flex flex-col gap-3">
-                                        <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-3 py-2 rounded text-xs font-bold text-center">⚠ KEYS MISSING: Click to Configure</div>
-                                        <button onClick={(e) => { e.stopPropagation(); navigate("/settings"); }} className="text-sm text-white underline hover:text-yellow-400 relative z-10">Go to Settings</button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
-                {step === 'paper_setup' && (
-                    <div className="max-w-md mx-auto bg-[#1a1a1a] border border-white/10 p-8 rounded-2xl animate-fade-in-up">
-                        <button onClick={() => setStep('selection')} className="text-neutral-500 hover:text-white mb-6 text-sm">← Back</button>
-                        <h3 className="text-2xl font-bold text-emerald-400 mb-2">Setup Simulation</h3>
-                        <div className="mb-6"><label className="block text-xs font-bold text-neutral-500 uppercase mb-2">Starting Balance ($)</label><input type="number" value={paperBalance} onChange={(e) => setPaperBalance(Number(e.target.value))} className="w-full bg-black border border-white/20 rounded-lg p-4 text-2xl text-white font-mono focus:border-emerald-500 outline-none" /></div>
-                        
-                        <div className="flex gap-3">
-                            <button onClick={handleReset} className="flex-1 bg-red-900/30 hover:bg-red-900/50 border border-red-500/50 text-red-400 font-bold py-4 rounded-lg transition">
-                                ↺ Reset
-                            </button>
-                            <button onClick={() => onSelect('paper', paperBalance)} className="flex-[2] bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-lg transition">
-                                Start Simulation
-                            </button>
-                        </div>
-                    </div>
-                )}
-                {step === 'live_agreement' && (
-                    <div className="max-w-lg mx-auto bg-[#1a0505] border border-red-500/30 p-8 rounded-2xl animate-fade-in-up">
-                        <button onClick={() => setStep('selection')} className="text-red-400/60 hover:text-red-400 mb-6 text-sm">← Cancel</button>
-                        <h3 className="text-2xl font-bold text-white mb-4">Live Trading Agreement</h3>
-                        <div className="space-y-4 mb-8">
-                            <label className="flex items-start gap-3 cursor-pointer"><input type="checkbox" checked={agreedRisk} onChange={(e) => setAgreedRisk(e.target.checked)} className="mt-1 w-5 h-5 bg-black border border-red-500/30 rounded focus:ring-red-500 checked:bg-red-600" /><span className="text-sm text-neutral-300">I accept financial responsibility.</span></label>
-                            <label className="flex items-start gap-3 cursor-pointer"><input type="checkbox" checked={agreedBot} onChange={(e) => setAgreedBot(e.target.checked)} className="mt-1 w-5 h-5 bg-black border border-red-500/30 rounded focus:ring-red-500 checked:bg-red-600" /><span className="text-sm text-neutral-300">I accept software provided "as is".</span></label>
-                        </div>
-                        <button onClick={() => onSelect('live', null)} disabled={!agreedRisk || !agreedBot} className={`w-full py-4 rounded-lg font-bold text-lg transition-all ${agreedRisk && agreedBot ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-neutral-800 text-neutral-500 cursor-not-allowed'}`}>ENTER LIVE MARKET</button>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
 
 const TradingBotContainer = () => {
-    const { botStatus, logs: apiLogs, loading: botLoading, startBot, stopBot, refreshBotData: originalRefresh } = useBot();
-    const { setups } = useBacktestSetupFunction();
-    const { address, isConnected } = useAccount();
+  const { botStatus, logs, loading: botLoading, startBot, stopBot, refreshBotData } = useBot();
+  const { setups } = useBacktestSetupFunction();
+  const { isConnected, address } = useAccount();
 
-    const [isModeSelected, setIsModeSelected] = useState(false);
-    const [hasApiKeys, setHasApiKeys] = useState(false);
-    const [showPreFlight, setShowPreFlight] = useState(false);
-    const [isStarting, setIsStarting] = useState(false);
-    const [logFilter, setLogFilter] = useState('ALL'); 
-    const [latency, setLatency] = useState(0);
-    const [sessionStartBalance, setSessionStartBalance] = useState(null); 
-    const [liveWinners, setLiveWinners] = useState([]);
-    const [scanningWinners, setScanningWinners] = useState(false);
-    const [selectedWinnerId, setSelectedWinnerId] = useState("");
-    const [selectedSetupId, setSelectedSetupId] = useState("");
-    const [logsClearedTime, setLogsClearedTime] = useState(0);
-    const logsContainerRef = useRef(null);
-    const [persistentLogs, setPersistentLogs] = useState([]);
-    
-    // Track previous trade count for Sound FX
-    const prevTradeCount = useRef(0);
+  // --- Configuration State ---
+  const [formConfig, setFormConfig] = useState({
+    strategyId: "",
+    symbol: "BTC-USD",
+    timeframe: "1h",
+    capitalAllocation: 1000,
+    tradingMode: "paper",
+    parameters: {}, // Unified storage for strategy params
+    strategies: [],
+    mlMode: "off",
+    mlModel: "",
+    mlThreshold: 0.5,
+    riskManagementMode: "static",
+    riskPercentage: 1,
+    hybridMode: "AND",
+    growthCapitalTarget: 2000,
+    maxDailyLoss: 5,
+    maxDrawdown: 10,
+    maxTradesPerDay: 20,
+  });
 
-    const [formConfig, setFormConfig] = useState({
-        isCombo: false, strategyId: '', comboConfig: { strategyCodes: [], combinationRule: 'AND' },
-        symbol: 'BTC-USD', timeframe: '1h', capitalAllocation: 1000, tradingMode: 'paper',
-        params: {}, strategies: [], mlMode: 'off', mlModel: '', mlThreshold: 0.5,
-        riskManagementMode: 'static', riskPercentage: 1, growthCapitalTarget: 2000,
-        maxDailyLoss: 5, maxDrawdown: 10, maxTradesPerDay: 20 
-    });
+  // --- State for Dropdowns ---
+  const [liveWinners, setLiveWinners] = useState([]);
+  const [strategyOptions, setStrategyOptions] = useState([]);
+  const [modelOptions] = useState([
+    { id: "btc_1h_xgboost", name: "BTC 1H XGBoost" },
+    { id: "btc_1h_lightgbm", name: "BTC 1H LightGBM" },
+    { id: "eth_1h_transformer", name: "ETH 1H Transformer" }
+  ]);
+  const [symbolOptions] = useState(["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD"]);
+  const [timeframeOptions] = useState(["1m", "5m", "15m", "1h", "4h", "1d"]);
+  
+  const [selectedWinnerId, setSelectedWinnerId] = useState("");
+  const [loadingDropdowns, setLoadingDropdowns] = useState(false);
 
-    useEffect(() => {
-        const savedSession = sessionStorage.getItem('botSession');
-        if (savedSession) {
-            const { mode, balance, startBalance } = JSON.parse(savedSession);
-            setFormConfig(prev => ({ ...prev, tradingMode: mode, capitalAllocation: balance || prev.capitalAllocation }));
-            setSessionStartBalance(startBalance); 
-            setIsModeSelected(true);
-        }
-    }, []);
+  // --- 1. Populate Strategy Dropdown ---
+  useEffect(() => {
+    if (setups && setups.length > 0) {
+      setStrategyOptions(setups.map(s => ({
+        id: s._id,
+        name: s.name || `${s.symbol} ${s.timeframe} (Auto)`
+      })));
+    }
+  }, [setups]);
 
-    // 🟢 FIX: Sync Session PnL with Real Backend Balance
-    useEffect(() => {
-        if (botStatus?.status === 'running' && sessionStartBalance === null && botStatus?.currentBalance) {
-            // Logic: If bot is running but we forgot the start balance (e.g., refresh), 
-            // assume start balance = current balance (reset PnL view) OR fetch original start from API if available.
-            // For now, syncing to current prevents the "fake profit" spike.
-            setSessionStartBalance(botStatus.currentBalance);
-        }
-    }, [botStatus?.status, botStatus?.currentBalance]);
-
-    useEffect(() => {
-        // Sound FX Logic
-        if (botStatus?.performanceMetrics?.totalTrades > prevTradeCount.current) {
-            AUDIO_TRADE.play().catch(() => {}); 
-            toast.success("🚀 New Trade Executed!", { duration: 4000, position: 'top-right' });
-            prevTradeCount.current = botStatus.performanceMetrics.totalTrades;
-        }
-    }, [botStatus?.performanceMetrics?.totalTrades]);
-
-    useEffect(() => {
-        const checkKeys = async () => {
-            try {
-                const token = localStorage.getItem("token");
-                const res = await axios.get('https://neov6backend.onrender.com/api/users/keys', { headers: { Authorization: `Bearer ${token}` } });
-                const keys = Array.isArray(res.data) ? res.data : (res.data.keys || []);
-                setHasApiKeys(keys.length > 0);
-            } catch (err) { setHasApiKeys(false); }
-        };
-        if (isConnected) checkKeys();
-    }, [isConnected]);
-
-    useEffect(() => {
-        if (apiLogs && apiLogs.length > 0) {
-            setPersistentLogs(prevLogs => {
-                const newLogs = apiLogs.filter(apiLog => 
-                    !prevLogs.some(p => 
-                        p.timestamp === apiLog.timestamp && 
-                        p.message === apiLog.message && 
-                        p.type === apiLog.type
-                    )
-                );
-                return [...prevLogs, ...newLogs].sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp)).slice(-500);
-            });
-        }
-    }, [apiLogs]);
-
-    const visibleLogs = persistentLogs
-        .filter(log => new Date(log.timestamp).getTime() > logsClearedTime)
-        .filter(log => logFilter === 'ALL' || (log.type && log.type.toUpperCase() === logFilter)); 
-
-    const handleClearLogs = () => setLogsClearedTime(Date.now());
-    
-    useEffect(() => {
-        const container = logsContainerRef.current;
-        if (container) {
-            const { scrollTop, scrollHeight, clientHeight } = container;
-            const isNearBottom = scrollHeight - scrollTop - clientHeight < 150;
-            if (isNearBottom) {
-                container.scrollTo({ top: scrollHeight, behavior: 'smooth' });
-            }
-        }
-    }, [persistentLogs, logFilter]);
-
-    const refreshWithLatency = async () => {
-        if (!originalRefresh) return; // FIX: Safety check
-        const start = performance.now();
-        await originalRefresh();
-        setLatency(Math.round(performance.now() - start));
-    };
-
-    useEffect(() => {
-        if (botStatus?.status !== 'running') return; 
-        const interval = setInterval(() => refreshWithLatency(), 3000); // FIX: 3s to match useBot polling
-        return () => clearInterval(interval);
-    }, [botStatus?.status]); 
-
+  // --- 2. Fetch Winners (Optimizer Results) ---
+  useEffect(() => {
     const fetchWinners = async () => {
-        setScanningWinners(true);
-        try {
-            const token = localStorage.getItem("token"); 
-            const res = await axios.get("https://neov6backend.onrender.com/api/bot/winners", { headers: { Authorization: `Bearer ${token}` } });
-            if (res.data) setLiveWinners(res.data);
-        } catch (err) { toast.error("Failed to load winners"); } finally { setScanningWinners(false); }
+      if (!isConnected) return;
+      setLoadingDropdowns(true);
+      try {
+        const token = localStorage.getItem("token");
+        const response = await axios.get("https://neov6backend.onrender.com/api/bot/winners", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setLiveWinners(Array.isArray(response.data) ? response.data : []);
+      } catch (error) {
+        console.error("Fetch error:", error);
+      } finally {
+        setLoadingDropdowns(false);
+      }
     };
-    useEffect(() => { fetchWinners(); }, []);
+    fetchWinners();
+  }, [isConnected]);
 
-    const handleModeSelection = (mode, balance) => {
-        const allocation = mode === 'paper' ? balance : formConfig.capitalAllocation;
-        setFormConfig(prev => ({ ...prev, tradingMode: mode, capitalAllocation: allocation }));
-        sessionStorage.setItem('botSession', JSON.stringify({ mode, balance: allocation, startBalance: null }));
-        setIsModeSelected(true);
-    };
+  // --- Handlers ---
 
-    const handleSetupSelect = (e) => {
-        const setupId = e.target.value; setSelectedSetupId(setupId); setSelectedWinnerId(""); 
-        const setup = setups.find(s => s._id === setupId);
-        if (setup) {
-            const isCombo = setup.isCombo || (setup.strategies && setup.strategies.length > 1);
-            let comboConfig = setup.comboConfig || (isCombo ? { strategyCodes: setup.strategies.map(s => s.code), combinationRule: setup.params?.hybridMode || 'AND' } : null);
-            setFormConfig(prev => ({
-                ...prev, symbol: setup.symbol, timeframe: setup.timeframe,
-                capitalAllocation: prev.tradingMode === 'paper' ? prev.capitalAllocation : (setup.initialBalance || 1000),
-                isCombo: isCombo, strategies: setup.strategies || [], comboConfig: comboConfig || { strategyCodes: [], combinationRule: 'OR' },
-                params: setup.params || {}, mlMode: setup.mlMode || 'off', mlModel: setup.mlModel || '', mlThreshold: setup.mlThreshold || 0.5,
-                riskManagementMode: setup.riskManagementMode || 'static', riskPercentage: setup.riskPercentage || 1, growthCapitalTarget: setup.growthCapitalTarget || 2000
-            }));
-        }
-    };
+  const handleSetupSelect = (e) => {
+    const setupId = e.target.value;
+    // Clear winner selection if DB strategy is picked
+    setSelectedWinnerId(""); 
+    
+    const selectedSetup = setups.find((setup) => setup._id === setupId);
+    if (selectedSetup) {
+      setFormConfig((prev) => ({
+        ...prev,
+        strategyId: setupId,
+        symbol: selectedSetup.symbol || "BTC-USD",
+        timeframe: selectedSetup.timeframe || "1h",
+        parameters: selectedSetup.params || {},
+        strategies: selectedSetup.strategies || [],
+        mlMode: selectedSetup.mlMode || "off"
+      }));
+    } else {
+        // Handle reset
+        setFormConfig(prev => ({ ...prev, strategyId: "" }));
+    }
+  };
 
-    const handleWinnerSelect = (e) => {
-        const filename = e.target.value; setSelectedWinnerId(filename);
-        const selectedWinner = liveWinners.find(w => w.id === filename);
-        if (!selectedWinner || !selectedWinner.config) return;
-        const data = selectedWinner.config;
-        let symbol = data.symbol || "BTC-USD"; let timeframe = data.timeframe || "1h";
-        if(!data.symbol && filename.includes('_')) { const parts = filename.split('_'); if(parts[1]) symbol = parts[1]; if(parts[2]) timeframe = parts[2]; }
+  const handleWinnerSelect = (e) => {
+    const winnerId = e.target.value;
+    if (!winnerId) return;
+
+    setSelectedWinnerId(winnerId);
+    
+    // Logic: Find file by botId (new) or id (legacy)
+    const selectedWinner = liveWinners.find((w) => (w.botId || w.id) === winnerId);
+    
+    if (selectedWinner) {
+        // Extract config payload safely
+        const config = selectedWinner.config || {};
         
-        let strategies = (Array.isArray(data.strategies) ? data.strategies : (Array.isArray(data) ? data : []))
-            .map(s => ({ 
-                strategyId: (typeof s === 'string' ? undefined : (s.strategyId || s._id || undefined)), 
-                code: (typeof s === 'string' ? s : (s.code || "unknown")), 
-                params: (typeof s === 'string' ? {} : (s.params || s)) 
-            }));
-            
-        let mlMode = data.mlMode || "off"; let mlModel = data.params?.mlModel || data.mlModel || "";
-        if (mlModel && mlMode === "off") mlMode = "predictions"; if (!mlModel && mlMode !== "off") mlModel = 'btc_1h_xgboost_model'; 
-        const globalParams = { ...data.params }; if (data.riskPercentage) globalParams.riskPercentage = Number(data.riskPercentage); if (data.maxPyramiding) globalParams.maxPyramiding = Number(data.maxPyramiding);
-        setFormConfig(prev => ({
-            ...prev, symbol, timeframe, isCombo: true, strategies,
-            comboConfig: { strategyCodes: strategies.map(s => s.code), combinationRule: globalParams.hybridMode || 'OR' },
-            mlMode, mlModel, mlThreshold: Number(data.mlThreshold) || 0.5, params: globalParams,
-            riskManagementMode: data.riskManagementMode || 'static', riskPercentage: Number(data.riskPercentage) || 1, growthCapitalTarget: Number(data.growthCapitalTarget) || 2000
+        setFormConfig((prev) => ({
+            ...prev,
+            // Clear DB strategy ID because we are using a file now
+            strategyId: "", 
+            symbol: selectedWinner.symbol || prev.symbol,
+            strategies: config.strategies || [],
+            // 🛠 FIX: Map 'params' from file to 'parameters' in form
+            parameters: config.params || config.comboConfig || {}, 
+            mlMode: config.mlMode || "off",
+            riskPercentage: config.riskPercentage || prev.riskPercentage,
+            // Spread strictly defined keys to avoid pollution
+            mlModel: config.mlModel || prev.mlModel,
+            riskManagementMode: config.riskManagementMode || prev.riskManagementMode
         }));
-    };
 
-    const handleStartClick = (e) => {
-        e.preventDefault();
-        if (!isConnected || !address) { toast.error("Wallet Disconnected!"); return; }
-        setShowPreFlight(true);
-    };
+        toast.success(`Loaded: ${selectedWinner.symbol} (ROI: ${(selectedWinner.roi * 100).toFixed(0)}%)`, {
+            icon: '📂'
+        });
+    }
+  };
 
-    const handleConfirmStart = async () => {
-        setIsStarting(true);
-        setLogsClearedTime(0); setPersistentLogs([]); 
-        AUDIO_START.play().catch(() => {}); 
-         
-        const globalParams = formConfig.params || {};
-        const excludedKeys = ['hybridMode', 'maxPyramiding', 'riskPercentage', 'riskManagementMode', 'mlModel', 'mlMode'];
-        const cleanGlobalParams = Object.keys(globalParams).reduce((acc, key) => {
-            if (!excludedKeys.includes(key)) acc[key] = globalParams[key];
-            return acc;
-        }, {});
+  const handleFormChange = (e) => {
+    const { name, value } = e.target;
+    setFormConfig((prev) => ({ ...prev, [name]: value }));
+  };
 
-        const cleanStrategies = (formConfig.strategies || []).map(s => ({ 
-            strategyId: s.strategyId || s._id || undefined, 
-            type: s.type || undefined,
-            code: s.code || "unknown", 
-            params: { ...cleanGlobalParams, ...(s.params || {}) }
-        }));
-        
-        const cleanPayload = {
-            userId: address,
-            mode: formConfig.tradingMode, 
-            symbol: formConfig.symbol, 
-            timeframe: formConfig.timeframe,
-            capitalAllocation: Number(formConfig.capitalAllocation), 
-            currentBalance: Number(formConfig.capitalAllocation),
-            mlMode: formConfig.mlMode, 
-            mlModel: formConfig.mlModel, 
-            mlThreshold: Number(formConfig.mlThreshold),
-            isCombo: !!formConfig.isCombo, 
-            comboConfig: formConfig.comboConfig || { strategyCodes: cleanStrategies.map(s => s.code), combinationRule: 'AND' },
-            strategies: cleanStrategies, 
-            params: formConfig.params || {}, 
-            maxPyramiding: parseInt(formConfig.params?.maxPyramiding || 1, 10),
-            riskManagementMode: formConfig.riskManagementMode, 
-            riskPercentage: Number(formConfig.riskPercentage), 
-            growthCapitalTarget: Number(formConfig.growthCapitalTarget),
-            maxDailyLoss: Number(formConfig.maxDailyLoss), 
-            maxDrawdown: Number(formConfig.maxDrawdown), 
-            maxTradesPerDay: Number(formConfig.maxTradesPerDay)
+  const handleStart = async () => {
+    if (!address) return toast.error("Wallet not connected");
+    try {
+        // Send 'parameters' as 'params' to backend
+        const payload = {
+            ...formConfig,
+            params: formConfig.parameters, 
+            userId: address
         };
+        await startBot(payload);
+        toast.success("Bot Started Successfully!");
+    } catch (e) {
+        toast.error("Failed to start bot: " + (e.response?.data?.message || e.message));
+    }
+  };
 
-        try { 
-            await startBot(cleanPayload); 
-            const startBal = cleanPayload.capitalAllocation;
-            setSessionStartBalance(startBal);
-            sessionStorage.setItem('botSession', JSON.stringify({ mode: formConfig.tradingMode, balance: startBal, startBalance: startBal }));
+  // --- Render Prep ---
+  const isRunning = botStatus?.status === 'running';
+  
+  const chartData = useMemo(() => ({
+    candleData: botStatus?.candles || [],
+    tradeBreakdown: (botStatus?.trades || []).map(t => ({
+        ...t,
+        price: t.entry_price || t.price,
+        exitPrice: t.exit_price || t.exitPrice
+    }))
+  }), [botStatus]);
 
-            setPersistentLogs(prev => [{ timestamp: new Date().toISOString(), message: `✅ Bot Initialized in ${formConfig.tradingMode.toUpperCase()} Mode with $${cleanPayload.capitalAllocation}`, type: 'system' }]);
-            setTimeout(refreshWithLatency, 1000);
-            setShowPreFlight(false);
-            toast.success("Bot Started Successfully!");
-        } catch (err) { 
-            console.error("Bot Start Error:", err); 
-            toast.error(`Failed to start: ${err.response?.data?.message || err.message}`);
-        }
-        finally { setIsStarting(false); }
-    };
+  const patchedStatus = {
+      ...botStatus,
+      currentPosition: botStatus?.activePosition || botStatus?.currentPosition || null,
+      positions: botStatus?.activePositions || []
+  };
 
-    const handleStop = async () => {
-        try { await stopBot(); setTimeout(refreshWithLatency, 1000); toast.success("Bot Stopped"); } catch (err) { console.error(err); }
-    };
+  const activeStrategyName = selectedWinnerId 
+    ? (liveWinners.find(w => (w.botId || w.id) === selectedWinnerId)?.symbol + " (File)")
+    : (setups.find(s => s._id === formConfig.strategyId)?.name || "Manual Config");
 
-    const handlePanicSell = async () => {
-        if (!window.confirm("⚠️ EMERGENCY: SELL ALL POSITIONS?\n\nThis will market sell everything and stop the bot. This action cannot be undone.")) return;
-        try {
-            const token = localStorage.getItem('token');
-            await axios.post('https://neov6backend.onrender.com/api/bot/stop', { userId: address, liquidate: true }, { headers: { Authorization: `Bearer ${token}` } });
-            setPersistentLogs(prev => [{ timestamp: new Date().toISOString(), message: `🛑 PANIC SELL INITIATED. Stopping Bot...`, type: 'error' }]);
-            setTimeout(refreshWithLatency, 1000);
-            toast.error("PANIC SELL INITIATED");
-        } catch (err) { 
-            console.error("Panic Sell Error:", err); 
-            toast.error("Panic Sell Failed: " + err.message); 
-        }
-    };
-      
-    const handleRefreshChart = () => refreshWithLatency();
-    const isRunning = botStatus?.status === 'running';
+  return (
+    <div className="trading-bot-root">
+      <Toaster position="top-right" toastOptions={{ style: { background: "#333", color: "#fff" } }} />
 
-    // ---------------------------------------------------------------------------
-    // 🟢 CRITICAL FIX: Sync Active Positions to UI State
-    // ---------------------------------------------------------------------------
-  // ---------------------------------------------------------------------------
-    // 🟢 CRITICAL FIX: Force UI to use 'activePosition'
-    // ---------------------------------------------------------------------------
-    const patchedBotStatus = useMemo(() => {
-        if (!botStatus) return null;
+      {/* --- MISSION CONTROL PANEL --- */}
+      <div className="form-container" style={{ padding: '20px', background: '#111', borderBottom: '1px solid #333' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <h3 style={{ color: '#10b981', margin: 0 }}>Mission Control</h3>
+            <span style={{ fontSize: '0.8rem', color: '#666', background: '#222', padding: '4px 8px', borderRadius: '4px' }}>
+                Active: <span style={{ color: '#fff' }}>{activeStrategyName}</span>
+            </span>
+        </div>
 
-        // 1. Prioritize the new standard: 'activePosition'
-        let finalPosition = botStatus.activePosition;
-
-        // 2. Fallback: If null, try to grab the first item from the list
-        if (!finalPosition && botStatus.activePositions && botStatus.activePositions.length > 0) {
-            finalPosition = botStatus.activePositions[0];
-        }
-
-        return {
-            ...botStatus,
-            // Force these fields to align so the UI component definitely gets the data
-            currentPosition: finalPosition, 
-            activePosition: finalPosition,
-            positions: botStatus.activePositions || [] 
-        };
-    }, [botStatus]);
-
-    // Update chartData to use patchedBotStatus instead of botStatus
-    const chartData = { 
-        candleData: patchedBotStatus?.candles || [], 
-        tradeBreakdown: (patchedBotStatus?.trades || []).map(t => ({ 
-            ...t, 
-            entryTime: t.entryTime, 
-            exitTime: t.exitTime, 
-            profit: t.profit, 
-            price: t.entry_price || t.price, 
-            exitPrice: t.exit_price || t.exitPrice 
-        })) 
-    };
-
-    const hasData = chartData.candleData && chartData.candleData.length > 0;
-
-    const botProps = {
-        botStatus: patchedBotStatus, // <--- PASS THE PATCHED STATUS HERE
-        logs: persistentLogs, 
-        visibleLogs, 
-        loading: botLoading, 
-        isRunning,
-        liveWinners, 
-        setups, 
-        chartData, 
-        hasData,
-        formConfig, 
-        setFormConfig, 
-        selectedSetupId, 
-        selectedWinnerId,
-        handleStart: handleStartClick, 
-        handleStop, 
-        handleSetupSelect, 
-        handleWinnerSelect, 
-        fetchWinners, 
-        scanningWinners, 
-        handleRefreshChart, 
-        handleClearLogs,
-        logsContainerRef, 
-        handlePanicSell,
-        logFilter, 
-        setLogFilter
-    };
-
-    return (
-        <div className="trading-bot-root relative">
-            <Toaster position="top-right" toastOptions={{ style: { background: '#333', color: '#fff' } }} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '12px' }}>
             
-            {!isModeSelected && <ModeSelectionModal onSelect={handleModeSelection} isConnected={isConnected} hasApiKeys={hasApiKeys} />}
-              
-            {showPreFlight && <PreFlightModal config={formConfig} onConfirm={handleConfirmStart} onCancel={() => setShowPreFlight(false)} isStarting={isStarting} hasApiKeys={hasApiKeys} address={address} />}
+            {/* 1. Optimizer Results (Priority) */}
+            <div className="form-group">
+            <label htmlFor="selectedWinnerId" style={{color: '#f59e0b'}}>Load Alpha File</label>
+            <select
+                name="selectedWinnerId"
+                id="selectedWinnerId"
+                value={selectedWinnerId}
+                onChange={handleWinnerSelect}
+                className="form-input"
+                disabled={loadingDropdowns || isRunning}
+                style={{borderColor: selectedWinnerId ? '#f59e0b' : ''}}
+            >
+                <option value="">-- Browse Results --</option>
+                {liveWinners.map((winner) => {
+                    const id = winner.botId || winner.id;
+                    const roi = winner.roi ? (winner.roi * 100).toFixed(0) : 0;
+                    return (
+                        <option key={id} value={id}>
+                            {winner.symbol} | ROI: {roi}%
+                        </option>
+                    );
+                })}
+            </select>
+            </div>
 
-            <div className={`transition-all duration-500 ${!isModeSelected || showPreFlight ? 'filter blur-lg pointer-events-none' : ''}`}>
-                 {isModeSelected && <BotStatusBar 
-                     status={botStatus?.status} 
-                     pnl={sessionStartBalance != null && botStatus?.currentBalance != null ? botStatus.currentBalance - sessionStartBalance : null} 
-                     winRate={botStatus?.performanceMetrics?.winRate} 
-                     latency={latency} 
-                     mode={formConfig.tradingMode} 
-                     onStop={handleStop} 
-                 />}
-                 <TradingBotShell {...botProps} />
+            {/* 2. Database Strategy */}
+            <div className="form-group">
+            <label htmlFor="strategyId">Load Saved Strategy</label>
+            <select
+                name="strategyId"
+                id="strategyId"
+                value={formConfig.strategyId}
+                onChange={handleSetupSelect}
+                className="form-input"
+                disabled={isRunning || !!selectedWinnerId} // Disable if file selected
+            >
+                <option value="">-- Database --</option>
+                {strategyOptions.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+            </select>
+            </div>
+
+            {/* 3. Standard Inputs */}
+            <div className="form-group">
+            <label>Symbol</label>
+            <select name="symbol" value={formConfig.symbol} onChange={handleFormChange} className="form-input" disabled={isRunning}>
+                {symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            </div>
+
+            <div className="form-group">
+            <label>Timeframe</label>
+            <select name="timeframe" value={formConfig.timeframe} onChange={handleFormChange} className="form-input" disabled={isRunning}>
+                {timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            </div>
+
+            <div className="form-group">
+            <label>Risk Mode</label>
+            <select name="riskManagementMode" value={formConfig.riskManagementMode} onChange={handleFormChange} className="form-input" disabled={isRunning}>
+                <option value="static">Static</option>
+                <option value="dynamic">Dynamic</option>
+            </select>
+            </div>
+
+            <div className="form-group">
+            <label>ML Mode</label>
+            <select name="mlMode" value={formConfig.mlMode} onChange={handleFormChange} className="form-input" disabled={isRunning}>
+                <option value="off">Off</option>
+                <option value="predictions">Hybrid</option>
+                <option value="on">Pure ML</option>
+            </select>
+            </div>
+
+            <div className="form-group">
+            <label>ML Model</label>
+            <select name="mlModel" value={formConfig.mlModel} onChange={handleFormChange} className="form-input" disabled={isRunning}>
+                <option value="">-- None --</option>
+                {modelOptions.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+            </div>
+
+            {/* Controls */}
+            <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
+                {!isRunning ? (
+                    <button onClick={handleStart} className="primary-btn" disabled={botLoading} style={{width: '100%', padding: '10px', fontWeight: 'bold'}}>
+                        {botLoading ? "STARTING..." : "⏩ START BOT"}
+                    </button>
+                ) : (
+                    <button onClick={stopBot} className="danger-btn" disabled={botLoading} style={{width: '100%', padding: '10px', fontWeight: 'bold'}}>
+                        ⏹ STOP BOT
+                    </button>
+                )}
             </div>
         </div>
-    );
+      </div>
+
+      {/* --- TRADING SHELL --- */}
+      <div style={{ height: 'calc(100vh - 220px)' }}>
+        <TradingBotShell 
+            botStatus={patchedStatus}
+            logs={logs}
+            chartData={chartData}
+            isRunning={isRunning}
+            hasData={chartData.candleData.length > 0}
+            formConfig={formConfig}
+            setFormConfig={setFormConfig}
+            handleStart={handleStart} 
+            handleStop={stopBot}
+        />
+      </div>
+    </div>
+  );
 };
 
 export default function TradingBot() {
-    return ( <UIModeProvider> <TradingBotContainer /> </UIModeProvider> );
+  return (
+    <UIModeProvider>
+      <TradingBotContainer />
+    </UIModeProvider>
+  );
 }
