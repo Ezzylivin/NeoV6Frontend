@@ -1,8 +1,8 @@
 // File: src/hooks/useBot.js
-// 🚀 UPGRADE: v10.5 - "Smart Polling & Active Position Sync"
-// 🛠 FEATURE: Only polls when bot is 'running' or 'starting'
-// 🛠 FIX: Maps 'activePosition' correctly for the UI
-// 🛠 FIX: Handles 404/500 errors gracefully
+// 🚀 UPGRADE: v10.6 - Resilience & Smart Polling
+// 🛠 FIX: Handles 500 errors without crashing React
+// 🛠 FIX: Auto-maps 'activePosition' for UI
+// 🛠 PERF: Polls every 3s only when running
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
@@ -15,10 +15,10 @@ export const useBot = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
-    // Ref to track status without triggering re-renders or effect resets
+    // Ref to track status without triggering re-renders
+    // 'idle' | 'starting' | 'running' | 'stopping' | 'stopped'
     const statusRef = useRef('idle');
 
-    // API Configuration
     const API_URL = "https://neov6backend.onrender.com/api";
 
     // 🔄 Core Polling Function
@@ -28,50 +28,48 @@ export const useBot = () => {
         try {
             const token = localStorage.getItem('token');
             
-            // 🚀 PASS USER ID EXPLICITLY
             const res = await axios.get(`${API_URL}/bot/status`, {
                 params: { userId: address },
                 headers: { Authorization: `Bearer ${token}` }
             });
             
-            // 🛡️ DATA HYDRATION
+            // 🛡️ DATA MAPPING
             const hydratedStatus = {
                 ...res.data,
                 candles: res.data.candles || [],
                 trades: res.data.trades || [],
                 logs: res.data.logs || [],
-                chartMarkers: res.data.chartMarkers || [],
-                chartLines: res.data.chartLines || [],
                 
                 // 🟢 CRITICAL: Sync 'activePosition' for the UI
-                activePosition: res.data.activePosition || null,
-                
-                // Legacy compatibility (just in case UI still checks it)
-                currentPosition: res.data.activePosition || null 
+                activePosition: res.data.activePosition || (res.data.activePositions && res.data.activePositions[0]) || null,
+                currentPosition: res.data.activePosition || (res.data.activePositions && res.data.activePositions[0]) || null
             };
 
             setBotStatus(hydratedStatus);
-            statusRef.current = hydratedStatus.status; // Update Ref
             
-            // Update logs state
+            // Only update ref if we are not in a transitional state like 'stopping'
+            if (statusRef.current !== 'stopping') {
+                statusRef.current = hydratedStatus.status; 
+            }
+            
             if (res.data.logs) setLogs(res.data.logs);
             setError(null);
 
         } catch (err) {
             // 🟢 HANDLE 404 (Bot Not Found/Stopped)
             if (err.response && err.response.status === 404) {
-                const stoppedState = { 
+                // If backend says 404, the bot is definitely stopped
+                setBotStatus((prev) => ({ 
+                    ...prev, 
                     status: 'stopped', 
-                    active: false,
-                    candles: [],
                     activePosition: null 
-                };
-                setBotStatus((prev) => ({ ...prev, ...stoppedState }));
+                }));
                 statusRef.current = 'stopped';
             } 
-            // 🔴 HANDLE 500 (Server Crash)
+            // 🔴 HANDLE 500 (Server Crash/Booting)
             else if (err.response && err.response.status === 500) {
-                console.warn("⚠️ Backend Logic Error (500). Skipping this poll...");
+                console.warn("⚠️ Backend initializing or error (500). Retrying...");
+                // Do NOT change statusRef here; let it keep trying
             }
             else {
                 console.warn("Poll Error:", err.message);
@@ -79,7 +77,7 @@ export const useBot = () => {
         }
     }, [address, isConnected]);
 
-    // 🚀 Start Bot Action
+    // 🚀 Start Bot
     const startBot = async (config) => {
         setLoading(true);
         try {
@@ -94,7 +92,7 @@ export const useBot = () => {
             setBotStatus(res.data);
             statusRef.current = 'running';
             
-            // Immediate refresh
+            // Immediate refresh to populate initial state
             setTimeout(refreshBotData, 500); 
             return res.data;
         } catch (err) {
@@ -107,9 +105,10 @@ export const useBot = () => {
         }
     };
 
-    // 🛑 Stop Bot Action
+    // 🛑 Stop Bot
     const stopBot = async () => {
         setLoading(true);
+        statusRef.current = 'stopping'; // Prevent poll from overwriting state momentarily
         try {
             const token = localStorage.getItem('token');
             await axios.post(`${API_URL}/bot/stop`, { userId: address }, {
@@ -117,15 +116,17 @@ export const useBot = () => {
             });
             
             statusRef.current = 'stopped'; // Disable polling
-            await refreshBotData(); // One last fetch to see "Stopped" status
+            await refreshBotData(); // One last fetch to confirm stop
         } catch (err) {
             console.error("Stop Error:", err);
+            // Even if API fails, UI should reflect stopped to allow retry
+            statusRef.current = 'stopped'; 
         } finally {
             setLoading(false);
         }
     };
 
-    // ♻️ Reset Bot Action
+    // ♻️ Reset Bot
     const resetBot = async (config) => {
         setLoading(true);
         try {
@@ -136,7 +137,6 @@ export const useBot = () => {
                 headers: { Authorization: `Bearer ${token}` }
             });
             
-            // Clear local state
             setBotStatus(null);
             setLogs([]);
             statusRef.current = 'stopped';
@@ -154,7 +154,7 @@ export const useBot = () => {
     useEffect(() => {
         if (!isConnected || !address) return;
         
-        // 1. Always fetch once on mount/connect
+        // 1. Initial Fetch
         refreshBotData(); 
 
         // 2. Poll ONLY if running or starting
@@ -163,7 +163,7 @@ export const useBot = () => {
             if (currentStatus === 'running' || currentStatus === 'starting') {
                 refreshBotData();
             }
-        }, 30000); // 30 seconds interval
+        }, 3000); // 3 Seconds (Fast enough for UI, slow enough for server)
 
         return () => clearInterval(intervalId);
     }, [isConnected, address, refreshBotData]); 
