@@ -1,12 +1,10 @@
 // File: src/components/layouts/DeskLayout.jsx
-// 🚀 UPGRADE: v5.1 - Command Center + ML Integration
-// 🛠 Feature: Added AI/ML Configuration Section
+// 🚀 UPGRADE: v5.1 - Improved Strategy Logic Styling
 
 import React, { useState } from "react";
 import { MetricsDisplay, LogsPanel, DecisionStream } from "../SharedComponents";
 import "./DeskLayout.css";
 
-// 🛠️ DATA: List of selectable strategies
 const AVAILABLE_STRATEGIES = [
   { code: "sma_crossover", name: "SMA Crossover", defaultParams: { fast: 50, slow: 200 } },
   { code: "rsi_divergence", name: "RSI Reversal", defaultParams: { length: 14, level: 30 } },
@@ -15,21 +13,11 @@ const AVAILABLE_STRATEGIES = [
   { code: "supertrend", name: "SuperTrend", defaultParams: { period: 10, mult: 3 } },
 ];
 
-// 🛠️ DATA: Default Models (Fallback if props missing)
-const DEFAULT_MODELS = [
-  { id: "btc_1h_xgboost", name: "BTC 1H XGBoost (Trend)" },
-  { id: "btc_1h_lightgbm", name: "BTC 1H LightGBM (Fast)" },
-  { id: "eth_1h_transformer", name: "ETH 1H Transformer" },
-  { id: "sol_15m_lstm", name: "SOL 15m LSTM" },
-];
-
 const DeskLayout = (props) => {
   const {
     formConfig, setFormConfig,
     setups = [],
     liveWinners = [],
-    // New Prop: Pass available models from parent
-    modelOptions = DEFAULT_MODELS, 
     selectedSetupId, handleSetupSelect,
     selectedWinnerId, scanningWinners, fetchWinners,
     handleWinnerSelect,
@@ -43,7 +31,6 @@ const DeskLayout = (props) => {
 
   const [strategyToAdd, setStrategyToAdd] = useState("");
 
-  // --- Helpers ---
   const handleAddStrategy = () => {
     if (!strategyToAdd) return;
     const template = AVAILABLE_STRATEGIES.find(s => s.code === strategyToAdd);
@@ -78,16 +65,15 @@ const DeskLayout = (props) => {
 
   return (
     <div className="desk-layout">
-      {/* ================= LEFT: CONFIGURATION DECK ================= */}
+      {/* ---------------- LEFT COLUMN: CONFIGURATION ---------------- */}
       <aside className="desk-sidebar">
         <div className="panel-header">
-          <h3>SYSTEM CONFIGURATION</h3>
+          <h3>Configuration</h3>
           <div className={`status-dot ${isRunning ? 'on' : 'off'}`} />
         </div>
 
         <form onSubmit={handleStart} className="desk-form">
-          
-          {/* 1. Quick Load */}
+          {/* Quick Load */}
           <div className="control-group">
             <label className="group-label">⚡ Strategy Loader</label>
             <div className="input-split">
@@ -111,24 +97,24 @@ const DeskLayout = (props) => {
 
           <div className="divider"></div>
 
-          {/* 2. Logic Builder */}
+          {/* Strategy Builder */}
           <div className="control-group">
-            <div className="flex-between mb-2">
-              <label className="group-label">🧠 Logic Modules</label>
-              <span className="count-tag">{formConfig.strategies.length} Active</span>
+            <div className="group-label">
+              <span>🧠 Active Logic</span>
+              <span style={{color: '#fff', marginLeft: 'auto', fontSize: '0.6rem'}}>{formConfig.strategies.length} Modules</span>
             </div>
 
             <div className="strategy-deck">
               {formConfig.strategies.map((strat, idx) => (
                 <div key={idx} className="logic-card">
                   <div className="logic-header">
-                    <span className="logic-name">{strat.code}</span>
+                    <span className="logic-name">{strat.code.replace(/_/g, ' ')}</span>
                     <button type="button" onClick={() => removeStrategy(idx)} disabled={isRunning} className="close-btn">×</button>
                   </div>
                   <div className="logic-body">
                     {Object.entries(strat.params || {}).map(([k, v]) => (
                       <div key={k} className="param-row">
-                        <span className="param-label">{k}</span>
+                        <span className="param-label">{k.replace(/_/g, ' ')}</span>
                         <input 
                           type="number" 
                           value={v} 
@@ -160,78 +146,7 @@ const DeskLayout = (props) => {
 
           <div className="divider"></div>
 
-          {/* 3. ARTIFICIAL INTELLIGENCE (NEW) */}
-          <div className="control-group">
-            <label className="group-label">🤖 Artificial Intelligence</label>
-            <div className="grid-2">
-                <div className="field">
-                    <label>Mode</label>
-                    <select 
-                        value={formConfig.mlMode} 
-                        onChange={e => setFormConfig(p => ({...p, mlMode: e.target.value}))} 
-                        disabled={isRunning} 
-                        className="desk-select"
-                    >
-                        <option value="off">Disabled</option>
-                        <option value="predictions">Hybrid (Filter)</option>
-                        <option value="on">Pure ML (Driver)</option>
-                    </select>
-                </div>
-                {formConfig.mlMode !== 'off' && (
-                    <div className="field">
-                        <label>Threshold (0-1)</label>
-                        <input 
-                            type="number" 
-                            step="0.05" 
-                            max="1" 
-                            value={formConfig.mlThreshold} 
-                            onChange={e => setFormConfig(p => ({...p, mlThreshold: e.target.value}))} 
-                            disabled={isRunning} 
-                            className="desk-input" 
-                        />
-                    </div>
-                )}
-            </div>
-            
-            {formConfig.mlMode !== 'off' && (
-                <>
-                    <div className="field mt-2">
-                        <label>Neural Model</label>
-                        <select 
-                            value={formConfig.mlModel} 
-                            onChange={e => setFormConfig(p => ({...p, mlModel: e.target.value}))} 
-                            disabled={isRunning} 
-                            className="desk-select"
-                        >
-                            <option value="">-- Select Model --</option>
-                            {modelOptions.map(m => (
-                                <option key={m.id} value={m.id}>{m.name}</option>
-                            ))}
-                        </select>
-                    </div>
-                    {/* Show Hybrid options only if strategies exist AND ML is in hybrid mode */}
-                    {formConfig.strategies.length > 0 && formConfig.mlMode === 'predictions' && (
-                        <div className="field mt-2">
-                            <label>Hybrid Logic</label>
-                            <select 
-                                value={formConfig.hybridMode || 'AND'} 
-                                onChange={e => setFormConfig(p => ({...p, hybridMode: e.target.value}))} 
-                                disabled={isRunning} 
-                                className="desk-select"
-                            >
-                                <option value="AND">Strategies AND ML (Strict)</option>
-                                <option value="OR">Strategies OR ML (Loose)</option>
-                                <option value="REGIME">ML Regime Filter</option>
-                            </select>
-                        </div>
-                    )}
-                </>
-            )}
-          </div>
-
-          <div className="divider"></div>
-
-          {/* 4. Global Settings */}
+          {/* Global Settings */}
           <div className="control-group">
             <label className="group-label">💰 Risk Parameters</label>
             <div className="grid-2">
@@ -246,7 +161,7 @@ const DeskLayout = (props) => {
               <div className="field">
                 <label>Mode</label>
                 <select value={formConfig.riskManagementMode} onChange={e => setFormConfig(p => ({...p, riskManagementMode: e.target.value}))} disabled={isRunning} className="desk-select">
-                  <option value="static">Static %</option>
+                  <option value="static">Static</option>
                   <option value="dynamic">Dynamic</option>
                 </select>
               </div>
@@ -257,7 +172,7 @@ const DeskLayout = (props) => {
             </div>
           </div>
 
-          {/* 5. Main Controls */}
+          {/* Controls */}
           <div className="launch-pad">
             <div className="mode-switch">
               <button type="button" className={formConfig.tradingMode === 'paper' ? 'active' : ''} onClick={() => setFormConfig(p => ({...p, tradingMode: 'paper'}))} disabled={isRunning}>PAPER</button>
@@ -277,14 +192,14 @@ const DeskLayout = (props) => {
         </form>
       </aside>
 
-      {/* ================= CENTER: DATA DECK ================= */}
+      {/* ---------------- CENTER & RIGHT ---------------- */}
       <main className="desk-center">
         <div className="metrics-bar">
           <MetricsDisplay data={botStatus} variant="desk" />
         </div>
 
         <div className="data-deck">
-          {/* Active Positions Table */}
+          {/* Active Positions */}
           <div className="data-panel">
             <div className="panel-header-simple">
               <h4>📡 Live Positions</h4>
@@ -296,9 +211,8 @@ const DeskLayout = (props) => {
                   <tr>
                     <th>Symbol</th>
                     <th>Side</th>
-                    <th>Entry Price</th>
+                    <th>Entry</th>
                     <th>Size</th>
-                    <th>Value</th>
                     <th>PnL</th>
                   </tr>
                 </thead>
@@ -309,20 +223,19 @@ const DeskLayout = (props) => {
                       <td className={pos.side === 'long' ? 'green' : 'red'}>{pos.side.toUpperCase()}</td>
                       <td>{pos.entryPrice?.toFixed(2)}</td>
                       <td>{pos.size}</td>
-                      <td>${(pos.entryPrice * pos.size).toFixed(2)}</td>
                       <td className={pos.unrealizedPnL >= 0 ? 'green' : 'red'}>
                         {pos.unrealizedPnL > 0 ? '+' : ''}{pos.unrealizedPnL?.toFixed(2)}
                       </td>
                     </tr>
                   )) : (
-                    <tr><td colSpan="6" className="empty">No active positions. Scanning market...</td></tr>
+                    <tr><td colSpan="5" className="empty">No active positions. Scanning market...</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
           </div>
 
-          {/* Trade History Table */}
+          {/* History */}
           <div className="data-panel">
             <div className="panel-header-simple">
               <h4>📜 Trade Ledger</h4>
@@ -335,7 +248,7 @@ const DeskLayout = (props) => {
                     <th>Time</th>
                     <th>Type</th>
                     <th>Price</th>
-                    <th>Profit/Loss</th>
+                    <th>Realized PnL</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -358,7 +271,6 @@ const DeskLayout = (props) => {
         </div>
       </main>
 
-      {/* ================= RIGHT: LOGS & INTEL ================= */}
       <aside className="desk-feed">
         <div className="feed-panel h-40">
           <div className="panel-header"><h3>Decision Engine</h3></div>
