@@ -1,109 +1,164 @@
-/* File: src/styles/DeskLayout.css */
-/* Add these styles to your existing file, replacing the .chart-area styles */
+/* File: src/components/layouts/DeskLayout.css */
+/* Theme: Obsidian Pro (Matte Black & Emerald) */
 
-/* --- DATA DECK (Center Column) --- */
-.data-deck {
-  display: flex;
-  flex-direction: column;
-  padding: 20px;
-  gap: 20px;
-  height: 100%;
-  overflow-y: auto;
+:root {
+  --bg-core: #050505;
+  --bg-panel: #0a0a0a;
+  --bg-field: #111111;
+  --border: #222;
+  --border-highlight: #333;
+  --emerald: #10b981;
+  --red: #ef4444;
+  --text-main: #e5e5e5;
+  --text-dim: #666;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
-.deck-panel {
-  background: var(--bg-panel);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
+.desk-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr 340px;
+  height: 100vh;
+  background: var(--bg-core);
+  color: var(--text-main);
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  font-family: 'Inter', sans-serif;
 }
 
-.panel-header-simple {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  background: rgba(255,255,255,0.02);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.panel-header-simple h4 {
-  margin: 0;
-  font-size: 0.75rem;
-  color: var(--text-main);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.badge-count {
-  background: var(--bg-input);
-  color: var(--emerald-mid);
-  font-size: 0.65rem;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: var(--font-data);
-}
-
-/* --- Data Tables --- */
-.table-container {
-  overflow-x: auto;
-}
-
-.desk-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-family: var(--font-data);
-  font-size: 0.75rem;
-}
-
-.desk-table th {
-  text-align: left;
-  padding: 10px 16px;
-  color: var(--text-muted);
-  font-weight: 600;
-  text-transform: uppercase;
-  border-bottom: 1px solid var(--border-subtle);
-  font-size: 0.65rem;
-}
-
-.desk-table td {
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.03);
-  color: var(--text-main);
-}
-
-.desk-table tr:last-child td {
-  border-bottom: none;
-}
-
-.desk-table tr:hover {
-  background: rgba(255,255,255,0.02);
-}
-
-/* Table Utilities */
-.text-green { color: var(--emerald-mid); }
-.text-red { color: var(--danger-red); }
-.text-muted { color: var(--text-muted); }
-.highlight-text { color: #fff; font-weight: 700; }
-.font-bold { font-weight: 700; }
-
-.empty-cell {
-  text-align: center;
-  padding: 30px;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-/* Strategy Builder Specifics (Retained from previous step) */
-.strategies-container {
+/* --- Common Panels --- */
+.desk-sidebar, .desk-feed {
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
-  max-height: 350px;
+  padding: 16px;
+  gap: 16px;
   overflow-y: auto;
 }
-/* ... rest of your strategy styles ... */
+.desk-feed { border-right: none; border-left: 1px solid var(--border); }
+
+.desk-center {
+  background: #000;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+}
+
+/* --- Headers --- */
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+}
+.panel-header h3 {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin: 0;
+}
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: #333; }
+.status-dot.on { background: var(--emerald); box-shadow: 0 0 8px var(--emerald); }
+
+/* --- Forms & Inputs --- */
+.group-label {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--emerald);
+  text-transform: uppercase;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.desk-input, .desk-select {
+  background: var(--bg-field);
+  border: 1px solid var(--border);
+  color: #fff;
+  padding: 8px;
+  border-radius: 4px;
+  width: 100%;
+  font-size: 0.8rem;
+  outline: none;
+}
+.desk-input:focus, .desk-select:focus { border-color: var(--emerald); }
+
+.input-split { display: flex; gap: 8px; }
+.icon-btn { background: #222; border: 1px solid #333; color: #fff; width: 32px; cursor: pointer; }
+.icon-btn:hover { border-color: var(--emerald); color: var(--emerald); }
+
+.divider { height: 1px; background: var(--border); margin: 12px 0; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.field label { font-size: 0.65rem; color: var(--text-dim); display: block; margin-bottom: 4px; }
+
+/* --- Strategy Cards (Clean Look) --- */
+.strategy-deck { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; max-height: 300px; overflow-y: auto; }
+
+.logic-card {
+  background: var(--bg-field);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--emerald);
+  border-radius: 4px;
+}
+.logic-header {
+  padding: 6px 10px;
+  background: #1a1a1a;
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.logic-name { font-size: 0.7rem; font-weight: 700; color: #fff; text-transform: uppercase; }
+.close-btn { background: none; border: none; color: #666; cursor: pointer; font-size: 1rem; line-height: 0.5; }
+.close-btn:hover { color: var(--red); }
+
+.logic-body { padding: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.param-row { display: flex; flex-direction: column; }
+.param-label { font-size: 0.6rem; color: #666; }
+.param-input { background: #000; border: 1px solid #333; color: var(--emerald); padding: 4px; font-family: var(--font-mono); font-size: 0.75rem; width: 100%; border-radius: 2px; }
+
+.add-logic-bar { display: flex; gap: 5px; }
+.desk-select.small { font-size: 0.75rem; padding: 6px; }
+.add-btn { background: var(--emerald); color: #000; border: none; width: 30px; font-weight: bold; cursor: pointer; border-radius: 4px; }
+
+/* --- Launch Controls --- */
+.launch-pad { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+.mode-switch { display: flex; background: #111; padding: 3px; border-radius: 4px; }
+.mode-switch button { flex: 1; background: transparent; border: none; color: #666; padding: 8px; font-size: 0.7rem; font-weight: 800; cursor: pointer; border-radius: 3px; }
+.mode-switch button.active { background: #333; color: #fff; }
+.mode-switch button.active-live { background: #3f0f0f; color: var(--red); }
+
+.main-btn { width: 100%; padding: 12px; border: none; font-weight: 800; font-size: 0.8rem; letter-spacing: 1px; cursor: pointer; border-radius: 4px; }
+.main-btn.start { background: var(--emerald); color: #000; }
+.main-btn.stop { background: var(--red); color: #fff; }
+.main-btn:hover { filter: brightness(1.1); }
+
+/* --- Center Data Deck --- */
+.metrics-bar { background: #080808; border-bottom: 1px solid var(--border); padding: 10px 20px; }
+
+.data-deck { padding: 20px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; height: 100%; }
+.data-panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+
+.panel-header-simple { display: flex; justify-content: space-between; padding: 10px 15px; background: #111; border-bottom: 1px solid var(--border); }
+.panel-header-simple h4 { margin: 0; font-size: 0.75rem; color: #fff; text-transform: uppercase; }
+.badge { background: #222; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; color: var(--emerald); }
+
+.table-wrapper { overflow-x: auto; }
+.pro-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 0.75rem; }
+.pro-table th { text-align: left; padding: 10px 15px; color: #666; font-weight: 600; border-bottom: 1px solid var(--border); }
+.pro-table td { padding: 12px 15px; border-bottom: 1px solid #111; color: #ccc; }
+.pro-table .bright { color: #fff; font-weight: bold; }
+.pro-table .green { color: var(--emerald); }
+.pro-table .red { color: var(--red); }
+.pro-table .dim { color: #444; }
+.pro-table .empty { text-align: center; padding: 30px; font-style: italic; color: #444; }
+
+/* --- Feeds --- */
+.feed-panel { display: flex; flex-direction: column; border-bottom: 1px solid var(--border); overflow: hidden; }
+.feed-panel.flex-grow { flex: 1; border-bottom: none; }
+.scroll-area { overflow-y: auto; flex: 1; padding: 10px; }
+.terminal-bg { background: #000; font-family: var(--font-mono); font-size: 0.7rem; }
+.tiny-btn { background: none; border: 1px solid #333; color: #666; font-size: 0.6rem; padding: 2px 6px; cursor: pointer; }
+.tiny-btn:hover { border-color: #555; color: #fff; }
