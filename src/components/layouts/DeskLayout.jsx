@@ -1,12 +1,10 @@
 // File: src/components/layouts/DeskLayout.jsx
-// 🚀 UPGRADE: v5.2 - Full Configuration Integration
-// 🛠 Feature: Integrates user dropdowns & strategy cards into the sidebar.
+// 🚀 UPGRADE: v6.0 - Split-Screen Command Console (No Chart, No Tables)
 
 import React, { useState } from "react";
 import { MetricsDisplay, LogsPanel, DecisionStream } from "../SharedComponents";
 import "./DeskLayout.css";
 
-// Manual Strategy Templates
 const AVAILABLE_STRATEGIES = [
   { code: "sma_crossover", name: "SMA Crossover", defaultParams: { sma_fast_period: 50, sma_slow_period: 200 } },
   { code: "rsi_divergence", name: "RSI Reversal", defaultParams: { rsi_length: 14, oversold_level: 30, overbought_level: 70 } },
@@ -30,7 +28,7 @@ const DeskLayout = (props) => {
     logs = [],
     visibleLogs = [],
     
-    // 🆕 Options Props
+    // Options
     symbolOptions = [],
     timeframeOptions = [],
     modelOptions = [],
@@ -38,7 +36,7 @@ const DeskLayout = (props) => {
 
   const [strategyToAdd, setStrategyToAdd] = useState("");
 
-  // --- Strategy Builder Logic ---
+  // --- Strategy Logic ---
   const handleAddStrategy = () => {
     if (!strategyToAdd) return;
     const template = AVAILABLE_STRATEGIES.find(s => s.code === strategyToAdd);
@@ -68,13 +66,9 @@ const DeskLayout = (props) => {
     });
   };
 
-  // --- Data Helpers ---
-  const activePositions = botStatus?.positions || [];
-  const recentTrades = (botStatus?.trades || []).slice().reverse().slice(0, 15);
-
   return (
     <div className="desk-layout">
-      {/* ================= LEFT: CONFIGURATION DECK ================= */}
+      {/* ================= LEFT COLUMN: CONFIGURATION ================= */}
       <aside className="desk-sidebar">
         <div className="panel-header">
           <h3>SYSTEM CONFIGURATION</h3>
@@ -83,12 +77,12 @@ const DeskLayout = (props) => {
 
         <form onSubmit={handleStart} className="desk-form">
           
-          {/* 1. Quick Loaders */}
+          {/* 1. Loader */}
           <div className="control-group">
-            <label className="group-label">⚡ Load Strategy</label>
+            <label className="group-label">⚡ Strategy Source</label>
             <div className="input-split">
               <select value={selectedWinnerId} onChange={handleWinnerSelect} disabled={isRunning} className="desk-select">
-                <option value="">-- From Optimizer --</option>
+                <option value="">-- Load Alpha File --</option>
                 {liveWinners.map(w => {
                    const roi = w.roi ? (w.roi * 100).toFixed(0) : "0";
                    return <option key={w.botId || w.id} value={w.botId || w.id}>{w.symbol} | {roi}% ROI</option>
@@ -106,16 +100,16 @@ const DeskLayout = (props) => {
 
           <div className="divider"></div>
 
-          {/* 2. Strategy Logic Cards (The Boxes) */}
+          {/* 2. Logic Modules */}
           <div className="control-group">
             <div className="flex-between mb-2">
-              <label className="group-label">🧠 Logic Modules</label>
-              <span className="count-tag">{formConfig.strategies.length} Active</span>
+              <label className="group-label">🧠 Active Logic</label>
+              <span className="count-tag">{formConfig.strategies.length} Modules</span>
             </div>
 
             <div className="strategy-deck">
               {formConfig.strategies.length === 0 && (
-                <div className="empty-slot">No logic modules loaded. Load a file or add one below.</div>
+                <div className="empty-slot">No logic loaded. Select a file or add modules.</div>
               )}
               {formConfig.strategies.map((strat, idx) => (
                 <div key={idx} className="logic-card">
@@ -154,29 +148,19 @@ const DeskLayout = (props) => {
 
           <div className="divider"></div>
 
-          {/* 3. Market & Risk */}
+          {/* 3. Market Settings */}
           <div className="control-group">
             <label className="group-label">💰 Market & Risk</label>
             <div className="grid-2">
               <div className="field">
                 <label>Symbol</label>
-                <select 
-                  value={formConfig.symbol} 
-                  onChange={e => setFormConfig(p => ({...p, symbol: e.target.value}))} 
-                  disabled={isRunning} 
-                  className="desk-select"
-                >
+                <select value={formConfig.symbol} onChange={e => setFormConfig(p => ({...p, symbol: e.target.value}))} disabled={isRunning} className="desk-select">
                   {symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div className="field">
                 <label>Timeframe</label>
-                <select 
-                  value={formConfig.timeframe} 
-                  onChange={e => setFormConfig(p => ({...p, timeframe: e.target.value}))} 
-                  disabled={isRunning} 
-                  className="desk-select"
-                >
+                <select value={formConfig.timeframe} onChange={e => setFormConfig(p => ({...p, timeframe: e.target.value}))} disabled={isRunning} className="desk-select">
                   {timeframeOptions.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
@@ -228,73 +212,46 @@ const DeskLayout = (props) => {
               <button type="button" className={formConfig.tradingMode === 'live' ? 'active-live' : ''} onClick={() => setFormConfig(p => ({...p, tradingMode: 'live'}))} disabled={isRunning}>LIVE</button>
             </div>
             {!isRunning ? (
-              <button type="submit" className="main-btn start" disabled={botLoading}>{botLoading ? "INITIALIZING..." : "INITIATE SEQUENCE"}</button>
+              <button type="submit" className="main-btn start" disabled={botLoading}>
+                {botLoading ? "INITIALIZING..." : "INITIATE SEQUENCE"}
+              </button>
             ) : (
-              <button type="button" onClick={handleStop} className="main-btn stop" disabled={botLoading}>TERMINATE</button>
+              <button type="button" onClick={handleStop} className="main-btn stop" disabled={botLoading}>
+                TERMINATE
+              </button>
             )}
           </div>
         </form>
       </aside>
 
-      {/* ================= CENTER: DATA DECK ================= */}
-      <main className="desk-center">
-        <div className="metrics-bar">
+      {/* ================= RIGHT: MONITORING TERMINAL ================= */}
+      <main className="desk-monitor">
+        
+        {/* Top: Vital Signs */}
+        <div className="monitor-header">
           <MetricsDisplay data={botStatus} variant="desk" />
         </div>
 
-        <div className="data-deck">
-          <div className="data-panel">
-            <div className="panel-header-simple"><h4>📡 Live Positions</h4><span className="badge">{activePositions.length}</span></div>
-            <div className="table-wrapper">
-              <table className="pro-table">
-                <thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Size</th><th>PnL</th></tr></thead>
-                <tbody>
-                  {activePositions.length > 0 ? activePositions.map((pos, i) => (
-                    <tr key={i}>
-                      <td className="bright">{pos.symbol}</td>
-                      <td className={pos.side === 'long' ? 'green' : 'red'}>{pos.side?.toUpperCase()}</td>
-                      <td>{pos.entryPrice?.toFixed(2)}</td>
-                      <td>{pos.size}</td>
-                      <td className={pos.unrealizedPnL >= 0 ? 'green' : 'red'}>{pos.unrealizedPnL?.toFixed(2)}</td>
-                    </tr>
-                  )) : <tr><td colSpan="5" className="empty">No positions. Scanning market...</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="data-panel">
-            <div className="panel-header-simple"><h4>📜 Trade Ledger</h4><span className="badge">{recentTrades.length}</span></div>
-            <div className="table-wrapper">
-              <table className="pro-table">
-                <thead><tr><th>Time</th><th>Type</th><th>Price</th><th>Profit/Loss</th></tr></thead>
-                <tbody>
-                  {recentTrades.length > 0 ? recentTrades.map((t, i) => (
-                    <tr key={i}>
-                      <td className="dim">{new Date(t.exitTime || t.entryTime).toLocaleTimeString()}</td>
-                      <td>{t.side.toUpperCase()} {t.profit ? 'CLOSE' : 'OPEN'}</td>
-                      <td>${(t.exitPrice || t.entryPrice)?.toFixed(2)}</td>
-                      <td className={t.profit >= 0 ? 'green' : 'red'}>{t.profit ? `$${t.profit.toFixed(2)}` : '-'}</td>
-                    </tr>
-                  )) : <tr><td colSpan="4" className="empty">No history.</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </main>
-
-      {/* ================= RIGHT: LOGS ================= */}
-      <aside className="desk-feed">
-        <div className="feed-panel h-40">
+        {/* Middle: Decision Stream (The Brain) */}
+        <div className="monitor-stream">
           <div className="panel-header"><h3>Decision Engine</h3></div>
-          <div className="scroll-area"><DecisionStream logs={logs || []} limit={8} /></div>
+          <div className="scroll-area">
+            <DecisionStream logs={logs || []} limit={20} />
+          </div>
         </div>
-        <div className="feed-panel flex-grow">
-          <div className="panel-header"><h3>System Terminal</h3><button onClick={handleClearLogs} className="tiny-btn">CLEAR</button></div>
-          <div className="scroll-area terminal-bg"><LogsPanel logs={visibleLogs || []} /></div>
+
+        {/* Bottom: System Logs (The Console) */}
+        <div className="monitor-logs">
+          <div className="panel-header">
+            <h3>System Terminal</h3>
+            <button onClick={handleClearLogs} className="tiny-btn">CLEAR</button>
+          </div>
+          <div className="scroll-area terminal-bg">
+            <LogsPanel logs={visibleLogs || []} />
+          </div>
         </div>
-      </aside>
+
+      </main>
     </div>
   );
 };
