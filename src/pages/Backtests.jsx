@@ -637,9 +637,18 @@ export default function Backtests() {
   };
 
   const { processedData, combinedMetrics, mainResult, warmupRemovedCount, exitReasons, exitReasonData, actualStartDate, actualEndDate } = useMemo(() => {
-    const res = backtestResults.main || backtestResults.combinedResult;
-    if (!res || !res.metrics) return { processedData: [], combinedMetrics: null, mainResult: null };
+    // 🟢 FIX: Extract the actual result object
+    // The response from the API is { combinedResult: { metrics: ..., equityCurve: ... } }
+    // But 'backtestResults.main' or 'backtestResults.combinedResult' might already be unwrapped depending on the hook.
+    
+    // Let's normalize it:
+    const rootData = backtestResults.main || backtestResults.combinedResult || backtestResults;
+    const res = rootData.combinedResult || rootData; // Handle double wrapping if present
 
+    // Now validate against the extracted 'res'
+    if (!res || !res.metrics || !res.equityCurve) {
+        return { processedData: [], combinedMetrics: null, mainResult: null };
+    }
     const firstPoint = res.equityCurve?.[0]?.timestamp;
     const lastPoint = res.equityCurve?.[res.equityCurve.length - 1]?.timestamp;
     const dataStartTime = firstPoint ? new Date(firstPoint).getTime() : 0;
