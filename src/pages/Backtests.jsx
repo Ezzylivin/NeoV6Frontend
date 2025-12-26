@@ -423,7 +423,7 @@ export default function Backtests() {
   const symbolOptions = useMemo(() => options?.symbols || [], [options]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
 
-  // 🚀 FETCH DATA (Winners + Models)
+ // 🚀 FETCH DATA (Winners + Models)
   const fetchWinners = async () => {
       setScanningWinners(true);
       try {
@@ -435,6 +435,24 @@ export default function Backtests() {
             axios.get("https://neov6backend.onrender.com/api/ml/available-models", { headers })
         ]);
 
+        // 🟢 FIX: Handle different response structures
+        // Check if data is the array directly OR nested inside a property like 'winners' or 'data'
+        const winnersArray = Array.isArray(resWinners.data) 
+            ? resWinners.data 
+            : (resWinners.data.winners || resWinners.data.data || []);
+
+        setLiveWinners(winnersArray);
+        
+        // Handle Models (Keep existing logic if it works, or apply similar safety)
+        const modelsData = resModels.data.models || resModels.data || [];
+        const formattedModels = modelsData.map(m => 
+            typeof m === 'string' ? { id: m, name: m.replace(/_/g, ' ').toUpperCase() } : m
+        );
+        setAvailableModels(formattedModels);
+
+      } catch (err) { console.error("Fetch Error:", err); } 
+      finally { setScanningWinners(false); }
+  };
         if (resWinners.data) setLiveWinners(resWinners.data);
         
         if (resModels.data && resModels.data.models) {
