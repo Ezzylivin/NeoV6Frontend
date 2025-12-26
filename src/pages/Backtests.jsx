@@ -435,39 +435,26 @@ export default function Backtests() {
             axios.get("https://neov6backend.onrender.com/api/ml/available-models", { headers })
         ]);
 
-        // 🟢 FIX: Handle different response structures
-        // Check if data is the array directly OR nested inside a property like 'winners' or 'data'
+        // Fix: Handle nested data structures (e.g. { data: [...] } vs [...])
         const winnersArray = Array.isArray(resWinners.data) 
             ? resWinners.data 
             : (resWinners.data.winners || resWinners.data.data || []);
 
         setLiveWinners(winnersArray);
         
-        // Handle Models (Keep existing logic if it works, or apply similar safety)
+        // Fix: Handle Models
         const modelsData = resModels.data.models || resModels.data || [];
         const formattedModels = modelsData.map(m => 
             typeof m === 'string' ? { id: m, name: m.replace(/_/g, ' ').toUpperCase() } : m
         );
         setAvailableModels(formattedModels);
 
-      } catch (err) { console.error("Fetch Error:", err); } 
-      finally { setScanningWinners(false); }
+      } catch (err) { 
+          console.error("Fetch Error:", err); 
+      } finally { 
+          setScanningWinners(false); 
+      }
   };
-        if (resWinners.data) setLiveWinners(resWinners.data);
-        
-        if (resModels.data && resModels.data.models) {
-            const formattedModels = resModels.data.models.map(m => 
-                typeof m === 'string' ? { id: m, name: m.replace(/_/g, ' ').toUpperCase() } : m
-            );
-            setAvailableModels(formattedModels);
-        }
-
-      } catch (err) { console.error(err); } 
-      finally { setScanningWinners(false); }
-  };
-  
-  useEffect(() => { fetchWinners(); }, []);
-
   // 🛠 FIX: ROBUST STRATEGY MATCHING
   const handleWinnerSelect = (e) => {
         const filename = e.target.value; 
