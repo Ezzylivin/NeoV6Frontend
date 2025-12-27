@@ -1,6 +1,4 @@
 // File: src/pages/Backtests.jsx
-// 🚀 UPGRADE: v69.3 - Fixed Strategy Dropdown Population
-// 🛠 Fix: Maps file 'codes' to UI 'strategyIds' so dropdowns show the correct names.
 
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios"; 
@@ -62,8 +60,18 @@ const downloadCSV = (trades) => {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
 };
 
+// 🟢 FIX: Zero-Safe Metrics Calculator (Prevents blank screen on 0 trades)
 const computeMetricsFromTrades = (trades, initialBalance) => {
-    if (!trades || trades.length === 0) return null;
+    if (!trades || trades.length === 0) {
+        return {
+            totalReturn: 0, profitFactor: 0, maxDrawdown: 0, winRate: 0,
+            totalTrades: 0, winningTrades: 0, losingTrades: 0,
+            averageWin: 0, averageLoss: 0, finalBalance: initialBalance,
+            expectancy: 0, sharpeRatio: 0, sortinoRatio: 0,
+            maxLosingStreak: 0, avgHoldTime: 0
+        };
+    }
+
     let balance = initialBalance;
     let peak = initialBalance;
     let maxDrawdown = 0;
@@ -423,7 +431,7 @@ export default function Backtests() {
   const symbolOptions = useMemo(() => options?.symbols || [], [options]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
 
- // 🚀 FETCH DATA (Winners + Models)
+  // 🚀 FETCH DATA (Winners + Models)
   const fetchWinners = async () => {
       setScanningWinners(true);
       try {
@@ -435,7 +443,7 @@ export default function Backtests() {
             axios.get("https://neov6backend.onrender.com/api/ml/available-models", { headers })
         ]);
 
-        // Fix: Handle nested data structures (e.g. { data: [...] } vs [...])
+        // Fix: Handle nested data structures correctly
         const winnersArray = Array.isArray(resWinners.data) 
             ? resWinners.data 
             : (resWinners.data.winners || resWinners.data.data || []);
@@ -455,6 +463,9 @@ export default function Backtests() {
           setScanningWinners(false); 
       }
   };
+  
+  useEffect(() => { fetchWinners(); }, []);
+
   // 🛠 FIX: ROBUST STRATEGY MATCHING
   const handleWinnerSelect = (e) => {
         const filename = e.target.value; 
@@ -641,33 +652,33 @@ export default function Backtests() {
     }
   };
 
+  // 🟢 CORRECTED USEMEMO BLOCK
   const { processedData, combinedMetrics, mainResult, warmupRemovedCount, exitReasons, exitReasonData, actualStartDate, actualEndDate } = useMemo(() => {
     // 1. Extract the payload properly
     const rootData = backtestResults.main || backtestResults.combinedResult || backtestResults;
     const res = rootData.combinedResult || rootData; 
 
-    // 2. Safety Check: If no metrics, return empty
-    if (!res || !res.metrics) return { processedData: [], combinedMetrics: null, mainResult: null };
+    // 2. Safety Check: If no metrics, return empty (prevents crashes)
+    if (!res || !res.metrics) {
+        return { processedData: [], combinedMetrics: null, mainResult: null, warmupRemovedCount: 0, exitReasons: [], exitReasonData: [], actualStartDate: "", actualEndDate: "" };
+    }
 
-    // 3. Prepare Chart Data
-    // We need to map the Equity Curve (Balance) to the Price Data (Buy & Hold benchmark)
+    // 3. Prepare Chart Data (Equity Curve)
     const curve = (res.equityCurve || []).map((p) => {
         const pTime = new Date(p.timestamp).getTime();
 
-        // 🟢 FIX 1: Handle the "time" key correctly
-        // The backend sends 'time', but your old code looked for 'timestamp' inside candleData
+        // 🟢 FIX 1: Robust Date Matching (Handles Backend 'time' vs Frontend 'timestamp')
+        // We also check for loose matching (within 1 min) to handle second-level differences
         const candle = res.candleData?.find(c => {
-            const cStr = c.time || c.timestamp || c.datetime; // Check ALL possible keys
-            return new Date(cStr).getTime() === pTime;
+            const cStr = c.time || c.timestamp || c.datetime; 
+            const cTime = new Date(cStr).getTime();
+            return Math.abs(cTime - pTime) < 60000; // 60s tolerance
         });
 
         const initialBalance = activeTab === 'single' ? formData.initialBalance : comboData.initialBalance;
         
-        // 🟢 FIX 2: Better Fallback for Start Price
-        // If candleData[0] is missing, default to 1 to prevent division by zero
+        // 🟢 FIX 2: Fallback to 1 to avoid division by zero
         const startPrice = res.candleData?.[0]?.close || 1; 
-        
-        // If we found a matching candle, use its close. Otherwise use startPrice.
         const currentPrice = candle ? candle.close : startPrice;
         
         // Calculate Buy & Hold benchmark
@@ -680,22 +691,23 @@ export default function Backtests() {
         };
     });
 
-    // 4. Filter Trades (Keep your existing logic)
+    // 4. Filter and Analyze Trades
     const firstPoint = res.equityCurve?.[0]?.timestamp;
     const dataStartTime = firstPoint ? new Date(firstPoint).getTime() : 0;
     
+    // Filter trades that occurred during the equity curve period
     const filteredTrades = (res.tradeBreakdown || []).filter(t => new Date(t.entryTime).getTime() >= dataStartTime);
     
-    // 🟢 FIX 3: Use the robust metrics calculator we fixed earlier
+    // 🟢 FIX 3: Use the robust metrics calculator (defined above)
     const recomputedMetrics = computeMetricsFromTrades(filteredTrades, activeTab === 'single' ? formData.initialBalance : comboData.initialBalance);
 
     const reasons = filteredTrades.reduce((acc, t) => {
-        const reason = t.reason || t.type || "Signal"; // Support 'reason' key from Python
+        const reason = t.reason || t.type || "Signal"; 
         acc[reason] = (acc[reason] || 0) + 1;
         return acc;
     }, {});
     
-    const exitReasonData = Object.entries(reasons).map(([name, value]) => ({ name, value }));
+    const calculatedExitReasonData = Object.entries(reasons).map(([name, value]) => ({ name, value }));
     const filteredResult = { ...res, tradeBreakdown: filteredTrades, metrics: recomputedMetrics };
 
     return { 
@@ -703,32 +715,12 @@ export default function Backtests() {
         combinedMetrics: recomputedMetrics, 
         mainResult: filteredResult, 
         warmupRemovedCount: 0, 
-        exitReasons: Object.entries(reasons).map(([name, value]) => ({ name, value })),
-        exitReasonData,
+        exitReasons: calculatedExitReasonData,
+        exitReasonData: calculatedExitReasonData,
         actualStartDate: firstPoint ? formatDate(firstPoint) : (activeTab === 'single' ? formData.startDate : comboData.startDate),
         actualEndDate: res.equityCurve?.[res.equityCurve.length - 1]?.timestamp ? formatDate(res.equityCurve[res.equityCurve.length - 1].timestamp) : ""
     };
   }, [backtestResults, activeTab, formData, comboData]);
-    const filteredTrades = (res.tradeBreakdown || []).filter(t => new Date(t.entryTime).getTime() >= dataStartTime);
-    const recomputedMetrics = computeMetricsFromTrades(filteredTrades, activeTab === 'single' ? formData.initialBalance : comboData.initialBalance);
-
-    const reasons = filteredTrades.reduce((acc, t) => {
-        const reason = t.type || "Signal"; 
-        acc[reason] = (acc[reason] || 0) + 1;
-        return acc;
-    }, {});
-    
-    const exitReasonData = Object.entries(reasons).map(([name, value]) => ({ name, value }));
-    const filteredResult = { ...res, tradeBreakdown: filteredTrades, metrics: recomputedMetrics };
-
-    return { 
-        processedData: curve, combinedMetrics: recomputedMetrics, mainResult: filteredResult, warmupRemovedCount: 0, 
-        exitReasons: Object.entries(reasons).map(([name, value]) => ({ name, value })),
-        exitReasonData,
-        actualStartDate: firstPoint ? formatDate(firstPoint) : (activeTab === 'single' ? formData.startDate : comboData.startDate),
-        actualEndDate: lastPoint ? formatDate(lastPoint) : (activeTab === 'single' ? formData.endDate : comboData.endDate)
-    };
-  } [backtestResults, activeTab, formData, comboData]);
 
   const pieData = useMemo(() => {
     if (!combinedMetrics) return [];
