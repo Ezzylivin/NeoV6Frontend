@@ -652,45 +652,77 @@ export default function Backtests() {
     }
   };
 
-  // 🟢 CORRECTED USEMEMO BLOCK
+  // 🟢 CORRECTED USEMEMO (Fixes snake_case vs camelCase)
   const { processedData, combinedMetrics, mainResult, warmupRemovedCount, exitReasons, exitReasonData, actualStartDate, actualEndDate } = useMemo(() => {
-    // 1. Extract the payload properly
+    // 1. Extract the payload
     const rootData = backtestResults.main || backtestResults.combinedResult || backtestResults;
     const res = rootData.combinedResult || rootData; 
 
-    // 2. Safety Check: If no metrics, return empty (prevents crashes)
     if (!res || !res.metrics) {
         return { processedData: [], combinedMetrics: null, mainResult: null, warmupRemovedCount: 0, exitReasons: [], exitReasonData: [], actualStartDate: "", actualEndDate: "" };
     }
 
-    // 3. Prepare Chart Data (Equity Curve)
+    // 🟢 CRITICAL FIX: Map Python snake_case to JS camelCase
+    // This ensures entryTime, exitTime, etc. exist for the calculators below
+    const normalizedTrades = (res.tradeBreakdown || []).map(t => ({
+        ...t,
+        entryTime: t.entry_time || t.entryTime, // Handle both formats
+        exitTime: t.exit_time || t.exitTime,
+        entryPrice: t.entry_price || t.entryPrice,
+        exitPrice: t.exit_price || t.exitPrice,
+        // Keep profit, side, reason as is
+    }));
+
+    // 2. Prepare Chart Data (Equity Curve)
     const curve = (res.equityCurve || []).map((p) => {
         const pTime = new Date(p.timestamp).getTime();
 
-        // 🟢 FIX 1: Robust Date Matching (Handles Backend 'time' vs Frontend 'timestamp')
-        // We also check for loose matching (within 1 min) to handle second-level differences
         const candle = res.candleData?.find(c => {
             const cStr = c.time || c.timestamp || c.datetime; 
             const cTime = new Date(cStr).getTime();
-            return Math.abs(cTime - pTime) < 60000; // 60s tolerance
+            return Math.abs(cTime - pTime) < 60000; 
         });
 
         const initialBalance = activeTab === 'single' ? formData.initialBalance : comboData.initialBalance;
-        
-        // 🟢 FIX 2: Fallback to 1 to avoid division by zero
         const startPrice = res.candleData?.[0]?.close || 1; 
         const currentPrice = candle ? candle.close : startPrice;
-        
-        // Calculate Buy & Hold benchmark
         const buyHold = (currentPrice / startPrice) * initialBalance;
 
-        return { 
-            timestamp: pTime, 
-            balance: p.balance, 
-            buyHold: buyHold 
-        };
+        return { timestamp: pTime, balance: p.balance, buyHold: buyHold };
     });
 
+    // 3. Filter Trades
+    const firstPoint = res.equityCurve?.[0]?.timestamp;
+    const dataStartTime = firstPoint ? new Date(firstPoint).getTime() : 0;
+    
+    // Now we filter the NORMALIZED trades
+    const filteredTrades = normalizedTrades.filter(t => new Date(t.entryTime).getTime() >= dataStartTime);
+    
+    // 4. Metrics & Charts
+    const recomputedMetrics = computeMetricsFromTrades(filteredTrades, activeTab === 'single' ? formData.initialBalance : comboData.initialBalance);
+
+    const reasons = filteredTrades.reduce((acc, t) => {
+        const reason = t.reason || t.type || "Signal"; 
+        acc[reason] = (acc[reason] || 0) + 1;
+        return acc;
+    }, {});
+    
+    const calculatedExitReasonData = Object.entries(reasons).map(([name, value]) => ({ name, value }));
+    
+    // Pass normalized trades back to the result object so the UI uses the right keys
+    const filteredResult = { ...res, tradeBreakdown: filteredTrades, metrics: recomputedMetrics };
+
+    return { 
+        processedData: curve, 
+        combinedMetrics: recomputedMetrics, 
+        mainResult: filteredResult, 
+        warmupRemovedCount: 0, 
+        exitReasons: calculatedExitReasonData,
+        exitReasonData: calculatedExitReasonData,
+        actualStartDate: firstPoint ? formatDate(firstPoint) : (activeTab === 'single' ? formData.startDate : comboData.startDate),
+        actualEndDate: res.equityCurve?.[res.equityCurve.length - 1]?.timestamp ? formatDate(res.equityCurve[res.equityCurve.length - 1].timestamp) : ""
+    };
+  }, [backtestResults, activeTab, formData, comboData]);
     // 4. Filter and Analyze Trades
     const firstPoint = res.equityCurve?.[0]?.timestamp;
     const dataStartTime = firstPoint ? new Date(firstPoint).getTime() : 0;
