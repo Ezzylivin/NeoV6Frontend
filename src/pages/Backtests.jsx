@@ -723,37 +723,7 @@ export default function Backtests() {
         actualEndDate: res.equityCurve?.[res.equityCurve.length - 1]?.timestamp ? formatDate(res.equityCurve[res.equityCurve.length - 1].timestamp) : ""
     };
   }, [backtestResults, activeTab, formData, comboData]);
-    // 4. Filter and Analyze Trades
-    const firstPoint = res.equityCurve?.[0]?.timestamp;
-    const dataStartTime = firstPoint ? new Date(firstPoint).getTime() : 0;
-    
-    // Filter trades that occurred during the equity curve period
-    const filteredTrades = (res.tradeBreakdown || []).filter(t => new Date(t.entryTime).getTime() >= dataStartTime);
-    
-    // 🟢 FIX 3: Use the robust metrics calculator (defined above)
-    const recomputedMetrics = computeMetricsFromTrades(filteredTrades, activeTab === 'single' ? formData.initialBalance : comboData.initialBalance);
-
-    const reasons = filteredTrades.reduce((acc, t) => {
-        const reason = t.reason || t.type || "Signal"; 
-        acc[reason] = (acc[reason] || 0) + 1;
-        return acc;
-    }, {});
-    
-    const calculatedExitReasonData = Object.entries(reasons).map(([name, value]) => ({ name, value }));
-    const filteredResult = { ...res, tradeBreakdown: filteredTrades, metrics: recomputedMetrics };
-
-    return { 
-        processedData: curve, 
-        combinedMetrics: recomputedMetrics, 
-        mainResult: filteredResult, 
-        warmupRemovedCount: 0, 
-        exitReasons: calculatedExitReasonData,
-        exitReasonData: calculatedExitReasonData,
-        actualStartDate: firstPoint ? formatDate(firstPoint) : (activeTab === 'single' ? formData.startDate : comboData.startDate),
-        actualEndDate: res.equityCurve?.[res.equityCurve.length - 1]?.timestamp ? formatDate(res.equityCurve[res.equityCurve.length - 1].timestamp) : ""
-    };
-  }, [backtestResults, activeTab, formData, comboData]);
-
+   
   const pieData = useMemo(() => {
     if (!combinedMetrics) return [];
     return [{ name: "Wins", value: combinedMetrics.winningTrades }, { name: "Losses", value: combinedMetrics.losingTrades }];
