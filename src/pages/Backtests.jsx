@@ -642,48 +642,73 @@ export default function Backtests() {
   };
 
   const { processedData, combinedMetrics, mainResult, warmupRemovedCount, exitReasons, exitReasonData, actualStartDate, actualEndDate } = useMemo(() => {
-    // 🟢 FIX: Extract the actual result object
-    // The response from the API is { combinedResult: { metrics: ..., equityCurve: ... } }
-    // But 'backtestResults.main' or 'backtestResults.combinedResult' might already be unwrapped depending on the hook.
-    
-    // Let's normalize it:
+    // 1. Extract the payload properly
     const rootData = backtestResults.main || backtestResults.combinedResult || backtestResults;
-    const res = rootData.combinedResult || rootData; // Handle double wrapping if present
+    const res = rootData.combinedResult || rootData; 
 
-    // Now validate against the extracted 'res'
-    if (!res || !res.metrics || !res.equityCurve) {
-        return { processedData: [], combinedMetrics: null, mainResult: null };
-    }
-    const firstPoint = res.equityCurve?.[0]?.timestamp;
-    const lastPoint = res.equityCurve?.[res.equityCurve.length - 1]?.timestamp;
-    const dataStartTime = firstPoint ? new Date(firstPoint).getTime() : 0;
+    // 2. Safety Check: If no metrics, return empty
+    if (!res || !res.metrics) return { processedData: [], combinedMetrics: null, mainResult: null };
 
-    const curve = (res.equityCurve || [])
-      .map((p) => {
-          const pTime = new Date(p.timestamp).getTime();
-          
-          // 🟢 FIX: More robust matching logic
-          // Find the candle closest to this equity point (within 1 minute tolerance)
-          const candle = res.candleData?.find(c => {
-              const cTime = new Date(c.time || c.timestamp || c.datetime).getTime(); // Note: Backend sends 'time'
-              return Math.abs(cTime - pTime) < 60000; // Match if within 60 seconds
-          });
+    // 3. Prepare Chart Data
+    // We need to map the Equity Curve (Balance) to the Price Data (Buy & Hold benchmark)
+    const curve = (res.equityCurve || []).map((p) => {
+        const pTime = new Date(p.timestamp).getTime();
 
-          // Fallback logic
-          const startPrice = res.candleData?.[0]?.close || 1; 
-          const initialBalance = activeTab === 'single' ? formData.initialBalance : comboData.initialBalance;
-          
-          // Use found candle close, or fallback to p.balance / equity ratio if totally missing
-          const price = candle ? candle.close : startPrice; 
-          const buyHold = (price / startPrice) * initialBalance;
-          
-          return { 
-              timestamp: pTime, 
-              balance: p.balance, 
-              buyHold: buyHold 
-          };
+        // 🟢 FIX 1: Handle the "time" key correctly
+        // The backend sends 'time', but your old code looked for 'timestamp' inside candleData
+        const candle = res.candleData?.find(c => {
+            const cStr = c.time || c.timestamp || c.datetime; // Check ALL possible keys
+            return new Date(cStr).getTime() === pTime;
+        });
+
+        const initialBalance = activeTab === 'single' ? formData.initialBalance : comboData.initialBalance;
+        
+        // 🟢 FIX 2: Better Fallback for Start Price
+        // If candleData[0] is missing, default to 1 to prevent division by zero
+        const startPrice = res.candleData?.[0]?.close || 1; 
+        
+        // If we found a matching candle, use its close. Otherwise use startPrice.
+        const currentPrice = candle ? candle.close : startPrice;
+        
+        // Calculate Buy & Hold benchmark
+        const buyHold = (currentPrice / startPrice) * initialBalance;
+
+        return { 
+            timestamp: pTime, 
+            balance: p.balance, 
+            buyHold: buyHold 
+        };
     });
 
+    // 4. Filter Trades (Keep your existing logic)
+    const firstPoint = res.equityCurve?.[0]?.timestamp;
+    const dataStartTime = firstPoint ? new Date(firstPoint).getTime() : 0;
+    
+    const filteredTrades = (res.tradeBreakdown || []).filter(t => new Date(t.entryTime).getTime() >= dataStartTime);
+    
+    // 🟢 FIX 3: Use the robust metrics calculator we fixed earlier
+    const recomputedMetrics = computeMetricsFromTrades(filteredTrades, activeTab === 'single' ? formData.initialBalance : comboData.initialBalance);
+
+    const reasons = filteredTrades.reduce((acc, t) => {
+        const reason = t.reason || t.type || "Signal"; // Support 'reason' key from Python
+        acc[reason] = (acc[reason] || 0) + 1;
+        return acc;
+    }, {});
+    
+    const exitReasonData = Object.entries(reasons).map(([name, value]) => ({ name, value }));
+    const filteredResult = { ...res, tradeBreakdown: filteredTrades, metrics: recomputedMetrics };
+
+    return { 
+        processedData: curve, 
+        combinedMetrics: recomputedMetrics, 
+        mainResult: filteredResult, 
+        warmupRemovedCount: 0, 
+        exitReasons: Object.entries(reasons).map(([name, value]) => ({ name, value })),
+        exitReasonData,
+        actualStartDate: firstPoint ? formatDate(firstPoint) : (activeTab === 'single' ? formData.startDate : comboData.startDate),
+        actualEndDate: res.equityCurve?.[res.equityCurve.length - 1]?.timestamp ? formatDate(res.equityCurve[res.equityCurve.length - 1].timestamp) : ""
+    };
+  }, [backtestResults, activeTab, formData, comboData]);
     const filteredTrades = (res.tradeBreakdown || []).filter(t => new Date(t.entryTime).getTime() >= dataStartTime);
     const recomputedMetrics = computeMetricsFromTrades(filteredTrades, activeTab === 'single' ? formData.initialBalance : comboData.initialBalance);
 
