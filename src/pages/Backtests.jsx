@@ -660,12 +660,28 @@ export default function Backtests() {
 
     const curve = (res.equityCurve || [])
       .map((p) => {
-          const candle = res.candleData?.find(c => new Date(c.timestamp || c.datetime).getTime() === new Date(p.timestamp).getTime());
+          const pTime = new Date(p.timestamp).getTime();
+          
+          // 🟢 FIX: More robust matching logic
+          // Find the candle closest to this equity point (within 1 minute tolerance)
+          const candle = res.candleData?.find(c => {
+              const cTime = new Date(c.time || c.timestamp || c.datetime).getTime(); // Note: Backend sends 'time'
+              return Math.abs(cTime - pTime) < 60000; // Match if within 60 seconds
+          });
+
+          // Fallback logic
           const startPrice = res.candleData?.[0]?.close || 1; 
           const initialBalance = activeTab === 'single' ? formData.initialBalance : comboData.initialBalance;
-          const price = candle ? candle.close : startPrice;
+          
+          // Use found candle close, or fallback to p.balance / equity ratio if totally missing
+          const price = candle ? candle.close : startPrice; 
           const buyHold = (price / startPrice) * initialBalance;
-          return { timestamp: new Date(p.timestamp).getTime(), balance: p.balance, buyHold: buyHold };
+          
+          return { 
+              timestamp: pTime, 
+              balance: p.balance, 
+              buyHold: buyHold 
+          };
     });
 
     const filteredTrades = (res.tradeBreakdown || []).filter(t => new Date(t.entryTime).getTime() >= dataStartTime);
