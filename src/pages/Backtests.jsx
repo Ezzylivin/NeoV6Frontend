@@ -728,7 +728,7 @@ export default function Backtests() {
         actualStartDate: firstPoint ? formatDate(firstPoint) : (activeTab === 'single' ? formData.startDate : comboData.startDate),
         actualEndDate: lastPoint ? formatDate(lastPoint) : (activeTab === 'single' ? formData.endDate : comboData.endDate)
     };
-  }, [backtestResults, activeTab, formData, comboData]);
+  } [backtestResults, activeTab, formData, comboData]);
 
   const pieData = useMemo(() => {
     if (!combinedMetrics) return [];
