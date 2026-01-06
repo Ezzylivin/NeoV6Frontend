@@ -1,5 +1,3 @@
-// File: src/pages/Backtests.jsx
-
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios"; 
 import { useBacktest } from "../hooks/useBacktest.js";
@@ -60,7 +58,7 @@ const downloadCSV = (trades) => {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
 };
 
-// 🟢 FIX: Zero-Safe Metrics Calculator (Prevents blank screen on 0 trades)
+// 🟢 FIX: Zero-Safe Metrics Calculator
 const computeMetricsFromTrades = (trades, initialBalance) => {
     if (!trades || trades.length === 0) {
         return {
@@ -400,7 +398,8 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
 
 // --- MAIN PAGE COMPONENT ---
 export default function Backtests() {
-  const { state, runNewBacktest, runComboBacktest, resetBacktest } = useBacktest(); 
+  // 🟢 FIX: Ensure fetchOptions is destructured
+  const { state, runNewBacktest, runComboBacktest, resetBacktest, fetchOptions } = useBacktest(); 
   const { loading = 'idle', error = null, options = {}, winners = [] } = state || {};
 
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
@@ -421,6 +420,14 @@ export default function Backtests() {
     if (resetBacktest) resetBacktest();
     setBacktestResults({ main: null });
   }, []);
+
+  // 🟢 FIX: Force fetch options on mount if empty
+  useEffect(() => {
+    if (!options?.symbols || options.symbols.length === 0) {
+      console.log("Options missing, fetching...");
+      fetchOptions?.();
+    }
+  }, [options, fetchOptions]);
 
   const strategyOptions = useMemo(() => {
     const dbStrats = options?.strategies || [];
@@ -725,7 +732,7 @@ export default function Backtests() {
         actualEndDate: formatDate(new Date())
     };
   }, [backtestResults, activeTab, formData, comboData]);
-   
+    
   const pieData = useMemo(() => {
     if (!combinedMetrics) return [];
     return [{ name: "Wins", value: combinedMetrics.winningTrades }, { name: "Losses", value: combinedMetrics.losingTrades }];
