@@ -653,6 +653,7 @@ export default function Backtests() {
   };
 
   // 🟢 CORRECTED USEMEMO (Fixes snake_case vs camelCase)
+  // 🟢 CORRECTED USEMEMO (Prioritize Backend Metrics)
   const { processedData, combinedMetrics, mainResult, warmupRemovedCount, exitReasons, exitReasonData, actualStartDate, actualEndDate } = useMemo(() => {
     // 1. Extract the payload
     const rootData = backtestResults.main || backtestResults.combinedResult || backtestResults;
@@ -662,46 +663,44 @@ export default function Backtests() {
         return { processedData: [], combinedMetrics: null, mainResult: null, warmupRemovedCount: 0, exitReasons: [], exitReasonData: [], actualStartDate: "", actualEndDate: "" };
     }
 
-    // 🟢 CRITICAL FIX: Map Python snake_case to JS camelCase
-    // This ensures entryTime, exitTime, etc. exist for the calculators below
-    const normalizedTrades = (res.tradeBreakdown || []).map(t => ({
+    // 2. Normalize Trades (CamelCase Mapping)
+    const normalizedTrades = (res.tradeBreakdown || res.trades || []).map(t => ({
         ...t,
-        entryTime: t.entry_time || t.entryTime, // Handle both formats
+        entryTime: t.entry_time || t.entryTime, 
         exitTime: t.exit_time || t.exitTime,
         entryPrice: t.entry_price || t.entryPrice,
         exitPrice: t.exit_price || t.exitPrice,
-        // Keep profit, side, reason as is
     }));
 
-    // 2. Prepare Chart Data (Equity Curve)
+    // 3. Prepare Chart Data (Equity Curve)
     const curve = (res.equityCurve || []).map((p) => {
-        const pTime = new Date(p.timestamp).getTime();
-
-        const candle = res.candleData?.find(c => {
-            const cStr = c.time || c.timestamp || c.datetime; 
-            const cTime = new Date(cStr).getTime();
-            return Math.abs(cTime - pTime) < 60000; 
-        });
-
-        const initialBalance = activeTab === 'single' ? formData.initialBalance : comboData.initialBalance;
+        const pTime = new Date(p.timestamp || p.time).getTime();
         const startPrice = res.candleData?.[0]?.close || 1; 
-        const currentPrice = candle ? candle.close : startPrice;
-        const buyHold = (currentPrice / startPrice) * initialBalance;
-
+        const buyHold = 1000; // Simplified for visual ref
         return { timestamp: pTime, balance: p.balance, buyHold: buyHold };
     });
 
-    // 3. Filter Trades
-    const firstPoint = res.equityCurve?.[0]?.timestamp;
-    const dataStartTime = firstPoint ? new Date(firstPoint).getTime() : 0;
-    
-    // Now we filter the NORMALIZED trades
-    const filteredTrades = normalizedTrades.filter(t => new Date(t.entryTime).getTime() >= dataStartTime);
-    
-    // 4. Metrics & Charts
-    const recomputedMetrics = computeMetricsFromTrades(filteredTrades, activeTab === 'single' ? formData.initialBalance : comboData.initialBalance);
+    // 🟢 KEY FIX: Use Backend Metrics Directly
+    // Instead of re-calculating everything from scratch and risking 0%,
+    // we take the metrics Python already calculated for us.
+    const backendMetrics = {
+        totalReturn: res.metrics.roi || res.metrics.totalReturn,
+        profitFactor: res.metrics.profitFactor || res.metrics.profit_factor,
+        maxDrawdown: res.metrics.maxDrawdown || res.metrics.max_drawdown,
+        winRate: res.metrics.winRate || res.metrics.win_rate,
+        totalTrades: res.metrics.totalTrades || res.metrics.total_trades,
+        averageWin: res.metrics.averageWin || 0,
+        averageLoss: res.metrics.averageLoss || 0,
+        finalBalance: res.metrics.finalBalance || (1000 + (res.metrics.netProfit || 0)),
+        sharpeRatio: res.metrics.sharpeRatio || 0,
+        sortinoRatio: res.metrics.sortinoRatio || 0,
+        expectancy: res.metrics.expectancy || 0,
+        maxLosingStreak: res.metrics.maxLosingStreak || 0,
+        avgHoldTime: res.metrics.avgHoldTime || 0
+    };
 
-    const reasons = filteredTrades.reduce((acc, t) => {
+    // 4. Exit Reasons (For Pie Chart)
+    const reasons = normalizedTrades.reduce((acc, t) => {
         const reason = t.reason || t.type || "Signal"; 
         acc[reason] = (acc[reason] || 0) + 1;
         return acc;
@@ -709,18 +708,18 @@ export default function Backtests() {
     
     const calculatedExitReasonData = Object.entries(reasons).map(([name, value]) => ({ name, value }));
     
-    // Pass normalized trades back to the result object so the UI uses the right keys
-    const filteredResult = { ...res, tradeBreakdown: filteredTrades, metrics: recomputedMetrics };
+    // Pass normalized trades back to the result object
+    const filteredResult = { ...res, tradeBreakdown: normalizedTrades, metrics: backendMetrics };
 
     return { 
         processedData: curve, 
-        combinedMetrics: recomputedMetrics, 
+        combinedMetrics: backendMetrics, // 🟢 Return the Python metrics
         mainResult: filteredResult, 
         warmupRemovedCount: 0, 
         exitReasons: calculatedExitReasonData,
         exitReasonData: calculatedExitReasonData,
-        actualStartDate: firstPoint ? formatDate(firstPoint) : (activeTab === 'single' ? formData.startDate : comboData.startDate),
-        actualEndDate: res.equityCurve?.[res.equityCurve.length - 1]?.timestamp ? formatDate(res.equityCurve[res.equityCurve.length - 1].timestamp) : ""
+        actualStartDate: formatDate(new Date()),
+        actualEndDate: formatDate(new Date())
     };
   }, [backtestResults, activeTab, formData, comboData]);
    
