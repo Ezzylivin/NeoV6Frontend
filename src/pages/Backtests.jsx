@@ -652,8 +652,7 @@ export default function Backtests() {
     }
   };
 
-  // 🟢 CORRECTED USEMEMO (Fixes snake_case vs camelCase)
-  // 🟢 CORRECTED USEMEMO (Prioritize Backend Metrics)
+  // 🟢 CORRECTED USEMEMO (Hybrid Backend + Frontend Calc)
   const { processedData, combinedMetrics, mainResult, warmupRemovedCount, exitReasons, exitReasonData, actualStartDate, actualEndDate } = useMemo(() => {
     // 1. Extract the payload
     const rootData = backtestResults.main || backtestResults.combinedResult || backtestResults;
@@ -676,30 +675,36 @@ export default function Backtests() {
     const curve = (res.equityCurve || []).map((p) => {
         const pTime = new Date(p.timestamp || p.time).getTime();
         const startPrice = res.candleData?.[0]?.close || 1; 
-        const buyHold = 1000; // Simplified for visual ref
+        const buyHold = 1000; 
         return { timestamp: pTime, balance: p.balance, buyHold: buyHold };
     });
 
-    // 🟢 KEY FIX: Use Backend Metrics Directly
-    // Instead of re-calculating everything from scratch and risking 0%,
-    // we take the metrics Python already calculated for us.
-    const backendMetrics = {
+    // 4. Calculate Local Metrics (Fallback)
+    // We run the frontend calculation to fill in gaps left by the backend
+    const startBal = activeTab === 'single' ? formData.initialBalance : comboData.initialBalance;
+    const localMetrics = computeMetricsFromTrades(normalizedTrades, startBal);
+
+    // 🟢 HYBRID MERGE: Prefer Backend for Core Stats, Local for Advanced/Missing Stats
+    const finalMetrics = {
+        // Core Stats (Trust Python)
         totalReturn: res.metrics.roi || res.metrics.totalReturn,
-        profitFactor: res.metrics.profitFactor || res.metrics.profit_factor,
         maxDrawdown: res.metrics.maxDrawdown || res.metrics.max_drawdown,
         winRate: res.metrics.winRate || res.metrics.win_rate,
         totalTrades: res.metrics.totalTrades || res.metrics.total_trades,
-        averageWin: res.metrics.averageWin || 0,
-        averageLoss: res.metrics.averageLoss || 0,
-        finalBalance: res.metrics.finalBalance || (1000 + (res.metrics.netProfit || 0)),
-        sharpeRatio: res.metrics.sharpeRatio || 0,
-        sortinoRatio: res.metrics.sortinoRatio || 0,
-        expectancy: res.metrics.expectancy || 0,
-        maxLosingStreak: res.metrics.maxLosingStreak || 0,
-        avgHoldTime: res.metrics.avgHoldTime || 0
+        finalBalance: res.metrics.finalBalance || (startBal + (res.metrics.netProfit || 0)),
+        
+        // Advanced Stats (Fallback to Local Calc if Python sends 0)
+        profitFactor: (res.metrics.profitFactor > 0) ? res.metrics.profitFactor : localMetrics.profitFactor,
+        sharpeRatio: (res.metrics.sharpeRatio > 0) ? res.metrics.sharpeRatio : localMetrics.sharpeRatio,
+        sortinoRatio: (res.metrics.sortinoRatio > 0) ? res.metrics.sortinoRatio : localMetrics.sortinoRatio,
+        averageWin: (res.metrics.averageWin > 0) ? res.metrics.averageWin : localMetrics.averageWin,
+        averageLoss: (res.metrics.averageLoss < 0) ? res.metrics.averageLoss : localMetrics.averageLoss,
+        expectancy: (res.metrics.expectancy !== 0) ? res.metrics.expectancy : localMetrics.expectancy,
+        maxLosingStreak: (res.metrics.maxLosingStreak > 0) ? res.metrics.maxLosingStreak : localMetrics.maxLosingStreak,
+        avgHoldTime: (res.metrics.avgHoldTime > 0) ? res.metrics.avgHoldTime : localMetrics.avgHoldTime
     };
 
-    // 4. Exit Reasons (For Pie Chart)
+    // 5. Exit Reasons
     const reasons = normalizedTrades.reduce((acc, t) => {
         const reason = t.reason || t.type || "Signal"; 
         acc[reason] = (acc[reason] || 0) + 1;
@@ -707,13 +712,11 @@ export default function Backtests() {
     }, {});
     
     const calculatedExitReasonData = Object.entries(reasons).map(([name, value]) => ({ name, value }));
-    
-    // Pass normalized trades back to the result object
-    const filteredResult = { ...res, tradeBreakdown: normalizedTrades, metrics: backendMetrics };
+    const filteredResult = { ...res, tradeBreakdown: normalizedTrades, metrics: finalMetrics };
 
     return { 
         processedData: curve, 
-        combinedMetrics: backendMetrics, // 🟢 Return the Python metrics
+        combinedMetrics: finalMetrics, 
         mainResult: filteredResult, 
         warmupRemovedCount: 0, 
         exitReasons: calculatedExitReasonData,
