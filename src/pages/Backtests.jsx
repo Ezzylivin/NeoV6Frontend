@@ -58,7 +58,7 @@ const downloadCSV = (trades) => {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
 };
 
-// 🟢 FIX: Zero-Safe Metrics Calculator
+// 🟢 METRICS CALCULATOR (Zero-Safe Fallback)
 const computeMetricsFromTrades = (trades, initialBalance) => {
     if (!trades || trades.length === 0) {
         return {
@@ -398,7 +398,6 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
 
 // --- MAIN PAGE COMPONENT ---
 export default function Backtests() {
-  // 🟢 FIX: Ensure fetchOptions is destructured
   const { state, runNewBacktest, runComboBacktest, resetBacktest, fetchOptions } = useBacktest(); 
   const { loading = 'idle', error = null, options = {}, winners = [] } = state || {};
 
@@ -424,8 +423,9 @@ export default function Backtests() {
   // 🟢 FIX: Force fetch options on mount if empty
   useEffect(() => {
     if (!options?.symbols || options.symbols.length === 0) {
-      console.log("Options missing, fetching...");
-      fetchOptions?.();
+      if (fetchOptions) {
+          fetchOptions();
+      }
     }
   }, [options, fetchOptions]);
 
@@ -450,14 +450,12 @@ export default function Backtests() {
             axios.get("https://neov6backend.onrender.com/api/ml/available-models", { headers })
         ]);
 
-        // Fix: Handle nested data structures correctly
         const winnersArray = Array.isArray(resWinners.data) 
             ? resWinners.data 
             : (resWinners.data.winners || resWinners.data.data || []);
 
         setLiveWinners(winnersArray);
         
-        // Fix: Handle Models
         const modelsData = resModels.data.models || resModels.data || [];
         const formattedModels = modelsData.map(m => 
             typeof m === 'string' ? { id: m, name: m.replace(/_/g, ' ').toUpperCase() } : m
@@ -493,15 +491,14 @@ export default function Backtests() {
             if(parts[2] && parts[2].match(/\d+[mhdw]/)) timeframe = parts[2]; 
         }
 
-        // 🟢 FIX: Match Strategy Code to Option ID
+        // Match Strategy Code to Option ID
         const rawStrategies = data.strategies || [];
         const strategies = rawStrategies.map(s => {
             const code = (typeof s === 'string' ? s : (s.code || "unknown"));
             const params = (typeof s === 'string' ? {} : (s.params || s));
             
-            // Look for matching Base Strategy in Options
             const matchingOption = strategyOptions.find(opt => opt.code === code);
-            const strategyId = matchingOption ? matchingOption._id : ""; // Fallback empty if not found
+            const strategyId = matchingOption ? matchingOption._id : ""; 
 
             return { strategyId, code, params };
         });
@@ -510,7 +507,6 @@ export default function Backtests() {
         let mlMode = data.mlMode || "off"; 
         let rawMlModel = data.mlModel || data.params?.mlModel || "";
         
-        // Smart Model Match
         let mlModel = "";
         const existsRaw = availableModels.find(m => m.id === rawMlModel);
         if (existsRaw) mlModel = rawMlModel;
@@ -540,7 +536,7 @@ export default function Backtests() {
             ...prev, 
             symbol, 
             timeframe, 
-            strategies, // Now has IDs!
+            strategies,
             comboConfig,
             mlMode, 
             mlModel, 
@@ -687,7 +683,6 @@ export default function Backtests() {
     });
 
     // 4. Calculate Local Metrics (Fallback)
-    // We run the frontend calculation to fill in gaps left by the backend
     const startBal = activeTab === 'single' ? formData.initialBalance : comboData.initialBalance;
     const localMetrics = computeMetricsFromTrades(normalizedTrades, startBal);
 
@@ -708,7 +703,11 @@ export default function Backtests() {
         averageLoss: (res.metrics.averageLoss < 0) ? res.metrics.averageLoss : localMetrics.averageLoss,
         expectancy: (res.metrics.expectancy !== 0) ? res.metrics.expectancy : localMetrics.expectancy,
         maxLosingStreak: (res.metrics.maxLosingStreak > 0) ? res.metrics.maxLosingStreak : localMetrics.maxLosingStreak,
-        avgHoldTime: (res.metrics.avgHoldTime > 0) ? res.metrics.avgHoldTime : localMetrics.avgHoldTime
+        avgHoldTime: (res.metrics.avgHoldTime > 0) ? res.metrics.avgHoldTime : localMetrics.avgHoldTime,
+
+        // 🟢 FIX FOR PIE CHART (Trades Breakdown)
+        winningTrades: (res.metrics.winningTrades !== undefined) ? res.metrics.winningTrades : localMetrics.winningTrades,
+        losingTrades: (res.metrics.losingTrades !== undefined) ? res.metrics.losingTrades : localMetrics.losingTrades
     };
 
     // 5. Exit Reasons
