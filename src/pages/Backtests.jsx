@@ -113,6 +113,9 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
     const avgWin = wins > 0 ? totalWin / wins : 0;
     const avgLoss = (totalTrades - wins) > 0 ? totalLoss / (totalTrades - wins) : 0;
     
+    // Expectancy Calculation
+    const expectancy = (wins / totalTrades * avgWin) - ((1 - wins / totalTrades) * avgLoss);
+
     const avgReturn = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length;
     const variance = dailyReturns.reduce((a, b) => a + Math.pow(b - avgReturn, 2), 0) / dailyReturns.length;
     const stdDev = Math.sqrt(variance);
@@ -126,26 +129,8 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
     return {
         totalReturn, profitFactor, maxDrawdown: maxDrawdown * 100, winRate, totalTrades,
         winningTrades: wins, losingTrades: totalTrades - wins, averageWin: avgWin, averageLoss: avgLoss,
-        finalBalance: balance, expectancy: (wins/totalTrades * avgWin) - ((1-wins/totalTrades) * avgLoss),
-        sharpeRatio: sharpe, sortinoRatio: sortino, maxLosingStreak, avgHoldTime: avgHoldTimeHours
+        finalBalance: balance, expectancy, sharpeRatio: sharpe, sortinoRatio: sortino, maxLosingStreak, avgHoldTime: avgHoldTimeHours
     };
-};
-
-// --- INITIAL STATES ---
-const initialFormData = {
-  strategyId: "", code: "", symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate,
-  initialBalance: 1000, params: { ...defaultFilterParams, maxPyramiding: 1 },
-  riskManagementMode: 'static', riskPercentage: 1, growthCapitalTarget: 2000, 
-  mlMode: "off", mlModel: "", mlThreshold: 0.5
-};
-
-const initialComboData = {
-  strategies: [ { strategyId: "", code: "", params: { tslAtrMult: 3.5 } }, { strategyId: "", code: "", params: { tslAtrMult: 3.5 } } ],
-  params: { ...defaultFilterParams, maxPyramiding: 1 }, 
-  comboConfig: { strategyCodes: [], combinationRule: 'AND' },
-  symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, initialBalance: 1000,
-  riskManagementMode: 'static', riskPercentage: 1, growthCapitalTarget: 2000, 
-  mlMode: "off", mlModel: "", mlThreshold: 0.5
 };
 
 // --- SUB-COMPONENTS ---
@@ -213,12 +198,16 @@ const MetricsDisplay = ({ metrics }) => {
 
 const AdvancedMetricsDisplay = ({ metrics }) => {
     if (!metrics) return null;
+    
+    // 🟢 SAFE DISPLAY VALUE
+    const safeNum = (val) => (val !== undefined && val !== null && !isNaN(val)) ? val.toFixed(2) : "0.00";
+
     const items = [
-        { label: "Sharpe Ratio", value: metrics.sharpeRatio?.toFixed(2), desc: "Risk-Adjusted Return", color: 'text-white' },
-        { label: "Sortino Ratio", value: metrics.sortinoRatio?.toFixed(2), desc: "Downside Risk Only", color: 'text-white' },
-        { label: "Expectancy", value: `$${metrics.expectancy?.toFixed(2)}`, desc: "Avg Value Per Trade", color: 'text-white' },
-        { label: "Avg Hold Time", value: `${metrics.avgHoldTime?.toFixed(1)}h`, desc: "Duration in Market", color: 'text-white' },
-        { label: "Max Lose Streak", value: metrics.maxLosingStreak, desc: "Consecutive Losses", color: "text-rose-400" }
+        { label: "Sharpe Ratio", value: safeNum(metrics.sharpeRatio), desc: "Risk-Adjusted Return", color: 'text-white' },
+        { label: "Sortino Ratio", value: safeNum(metrics.sortinoRatio), desc: "Downside Risk Only", color: 'text-white' },
+        { label: "Expectancy", value: `$${safeNum(metrics.expectancy)}`, desc: "Avg Value Per Trade", color: 'text-white' },
+        { label: "Avg Hold Time", value: `${safeNum(metrics.avgHoldTime)}h`, desc: "Duration in Market", color: 'text-white' },
+        { label: "Max Lose Streak", value: metrics.maxLosingStreak || 0, desc: "Consecutive Losses", color: "text-rose-400" }
     ];
 
     return (
@@ -401,6 +390,23 @@ export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest, resetBacktest, fetchOptions } = useBacktest(); 
   const { loading = 'idle', error = null, options = {}, winners = [] } = state || {};
 
+  // Initial States
+  const initialFormData = {
+    strategyId: "", code: "", symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate,
+    initialBalance: 1000, params: { ...defaultFilterParams, maxPyramiding: 1 },
+    riskManagementMode: 'static', riskPercentage: 1, growthCapitalTarget: 2000, 
+    mlMode: "off", mlModel: "", mlThreshold: 0.5
+  };
+
+  const initialComboData = {
+    strategies: [ { strategyId: "", code: "", params: { tslAtrMult: 3.5 } }, { strategyId: "", code: "", params: { tslAtrMult: 3.5 } } ],
+    params: { ...defaultFilterParams, maxPyramiding: 1 }, 
+    comboConfig: { strategyCodes: [], combinationRule: 'AND' },
+    symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, initialBalance: 1000,
+    riskManagementMode: 'static', riskPercentage: 1, growthCapitalTarget: 2000, 
+    mlMode: "off", mlModel: "", mlThreshold: 0.5
+  };
+
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
   const [formData, setFormData] = useState(initialFormData);
   const [comboData, setComboData] = useState(initialComboData);
@@ -408,10 +414,7 @@ export default function Backtests() {
   const [activeTab, setActiveTab] = useState('single');
   const [liveWinners, setLiveWinners] = useState([]);
   const [scanningWinners, setScanningWinners] = useState(false);
-  
-  // New State for Models
   const [availableModels, setAvailableModels] = useState([]);
-  
   const [chartMode, setChartMode] = useState('standard'); 
   const [isSimulating, setIsSimulating] = useState(false); 
 
@@ -422,7 +425,6 @@ export default function Backtests() {
 
   // 🟢 FIX: Force fetch options on mount if empty
   useEffect(() => {
-    // Only fire if we have no symbols, to avoid infinite loops
     if ((!options?.symbols || options.symbols.length === 0) && typeof fetchOptions === 'function') {
       console.log("Options missing, fetching...");
       fetchOptions();
@@ -438,7 +440,6 @@ export default function Backtests() {
   const symbolOptions = useMemo(() => options?.symbols || [], [options]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
 
-  // 🚀 FETCH DATA (Winners + Models)
   const fetchWinners = async () => {
       setScanningWinners(true);
       try {
@@ -450,10 +451,7 @@ export default function Backtests() {
             axios.get("https://neov6backend.onrender.com/api/ml/available-models", { headers })
         ]);
 
-        const winnersArray = Array.isArray(resWinners.data) 
-            ? resWinners.data 
-            : (resWinners.data.winners || resWinners.data.data || []);
-
+        const winnersArray = Array.isArray(resWinners.data) ? resWinners.data : (resWinners.data.winners || resWinners.data.data || []);
         setLiveWinners(winnersArray);
         
         const modelsData = resModels.data.models || resModels.data || [];
@@ -471,17 +469,13 @@ export default function Backtests() {
   
   useEffect(() => { fetchWinners(); }, []);
 
-  // 🛠 FIX: ROBUST STRATEGY MATCHING
   const handleWinnerSelect = (e) => {
         const filename = e.target.value; 
         setSelectedWinnerId(filename);
-        
         const selectedWinner = liveWinners.find(w => (w.botId || w.id) === filename);
         if (!selectedWinner) return;
 
         const data = selectedWinner.config || selectedWinner;
-
-        // Metadata
         let symbol = data.symbol || selectedWinner.symbol || "BTC-USD"; 
         let timeframe = data.timeframe || "1h";
         
@@ -491,22 +485,17 @@ export default function Backtests() {
             if(parts[2] && parts[2].match(/\d+[mhdw]/)) timeframe = parts[2]; 
         }
 
-        // Match Strategy Code to Option ID
         const rawStrategies = data.strategies || [];
         const strategies = rawStrategies.map(s => {
             const code = (typeof s === 'string' ? s : (s.code || "unknown"));
             const params = (typeof s === 'string' ? {} : (s.params || s));
-            
             const matchingOption = strategyOptions.find(opt => opt.code === code);
             const strategyId = matchingOption ? matchingOption._id : ""; 
-
             return { strategyId, code, params };
         });
 
-        // ML & Config
         let mlMode = data.mlMode || "off"; 
         let rawMlModel = data.mlModel || data.params?.mlModel || "";
-        
         let mlModel = "";
         const existsRaw = availableModels.find(m => m.id === rawMlModel);
         if (existsRaw) mlModel = rawMlModel;
@@ -530,7 +519,6 @@ export default function Backtests() {
         if (data.riskPercentage) globalParams.riskPercentage = Number(data.riskPercentage); 
         if (data.maxPyramiding) globalParams.maxPyramiding = Number(data.maxPyramiding);
 
-        // Update State
         setActiveTab('combo');
         setComboData(prev => ({
             ...prev, 
@@ -548,23 +536,19 @@ export default function Backtests() {
             maxDailyLoss: Number(data.maxDailyLoss) || 5,
             maxDrawdown: Number(data.maxDrawdown) || 10
         }));
-        
         setFormData(prev => ({ ...prev, symbol, timeframe, params: globalParams }));
   };
 
   const handleSaveStrategy = async () => {
     const name = prompt("Enter a name for this strategy setup:");
     if (!name) return;
-
     const config = activeTab === 'single' ? formData : comboData;
     const payload = {
         name,
         symbol: config.symbol,
         timeframe: config.timeframe,
         initialBalance: config.initialBalance,
-        strategies: activeTab === 'single' 
-            ? [{ code: config.code, params: config.params }] 
-            : config.strategies.map(s => ({ code: s.code, params: s.params })),
+        strategies: activeTab === 'single' ? [{ code: config.code, params: config.params }] : config.strategies.map(s => ({ code: s.code, params: s.params })),
         comboConfig: activeTab === 'combo' ? config.comboConfig : null,
         params: config.params,
         mlMode: config.mlMode,
@@ -572,7 +556,6 @@ export default function Backtests() {
         mlThreshold: config.mlThreshold,
         isCombo: activeTab === 'combo'
     };
-
     try {
         await api.post('/bot/strategies', payload);
         alert("✅ Strategy saved successfully!");
@@ -584,11 +567,7 @@ export default function Backtests() {
   const handleFormChange = (e, setFunc) => {
     const { name, value, type } = e.target;
     let val = value;
-    if (type === 'number') {
-        const parsed = parseFloat(value);
-        val = isNaN(parsed) ? '' : parsed;
-    }
-    
+    if (type === 'number') { const parsed = parseFloat(value); val = isNaN(parsed) ? '' : parsed; }
     if (name === 'strategyId') { 
         const strat = strategyOptions.find(s => s._id === val);
         if (strat) setFunc(prev => ({ ...prev, strategyId: val, code: strat.code, params: { ...prev.params, ...strat.params } })); 
@@ -602,11 +581,7 @@ export default function Backtests() {
   const handleComboChange = (e) => {
     const { name, value, type } = e.target;
     let val = value;
-    if (type === 'number') {
-        const parsed = parseFloat(value);
-        val = isNaN(parsed) ? '' : parsed;
-    }
-
+    if (type === 'number') { const parsed = parseFloat(value); val = isNaN(parsed) ? '' : parsed; }
     if (name.startsWith("param_")) {
       setComboData(prev => ({ ...prev, params: { ...prev.params, [name.substring(6)]: val } }));
     } else {
@@ -644,20 +619,14 @@ export default function Backtests() {
     e.preventDefault();
     setBacktestResults({ main: null });
     setIsSimulating(true); 
-    
     try {
       const res = isCombo ? await runComboBacktest?.(comboData) : await runNewBacktest?.(formData);
       if (res) setBacktestResults(res.combinedResult ? res : { main: res });
-    } catch (err) { 
-        console.error(err); 
-    } finally {
-        setIsSimulating(false); 
-    }
+    } catch (err) { console.error(err); } finally { setIsSimulating(false); }
   };
 
-  // 🟢 CORRECTED USEMEMO (Hybrid Backend + Frontend Calc + Fixed Pie Chart + ROI Lookup)
+  // 🟢 HYBRID METRICS MERGE
   const { processedData, combinedMetrics, mainResult, warmupRemovedCount, exitReasons, exitReasonData, actualStartDate, actualEndDate } = useMemo(() => {
-    // 1. Extract the payload
     const rootData = backtestResults.main || backtestResults.combinedResult || backtestResults;
     const res = rootData.combinedResult || rootData; 
 
@@ -665,7 +634,6 @@ export default function Backtests() {
         return { processedData: [], combinedMetrics: null, mainResult: null, warmupRemovedCount: 0, exitReasons: [], exitReasonData: [], actualStartDate: "", actualEndDate: "" };
     }
 
-    // 2. Normalize Trades (CamelCase Mapping)
     const normalizedTrades = (res.tradeBreakdown || res.trades || []).map(t => ({
         ...t,
         entryTime: t.entry_time || t.entryTime, 
@@ -674,7 +642,6 @@ export default function Backtests() {
         exitPrice: t.exit_price || t.exitPrice,
     }));
 
-    // 3. Prepare Chart Data (Equity Curve)
     const curve = (res.equityCurve || []).map((p) => {
         const pTime = new Date(p.timestamp || p.time).getTime();
         const startPrice = res.candleData?.[0]?.close || 1; 
@@ -682,35 +649,31 @@ export default function Backtests() {
         return { timestamp: pTime, balance: p.balance, buyHold: buyHold };
     });
 
-    // 4. Calculate Local Metrics (Fallback)
+    // Fallback Calculation
     const startBal = activeTab === 'single' ? formData.initialBalance : comboData.initialBalance;
     const localMetrics = computeMetricsFromTrades(normalizedTrades, startBal);
 
-    // 🟢 HYBRID MERGE: Prefer Backend for Core Stats, Local for Advanced/Missing Stats
+    // Merge Logic: If Python sends 0, assume it's a placeholder and use Local
     const finalMetrics = {
-        // Core Stats (Trust Python)
         totalReturn: res.metrics.roi || res.metrics.totalReturn,
         maxDrawdown: res.metrics.maxDrawdown || res.metrics.max_drawdown,
         winRate: res.metrics.winRate || res.metrics.win_rate,
         totalTrades: res.metrics.totalTrades || res.metrics.total_trades,
         finalBalance: res.metrics.finalBalance || (startBal + (res.metrics.netProfit || 0)),
         
-        // Advanced Stats (Fallback to Local Calc if Python sends 0)
         profitFactor: (res.metrics.profitFactor > 0) ? res.metrics.profitFactor : localMetrics.profitFactor,
         sharpeRatio: (res.metrics.sharpeRatio > 0) ? res.metrics.sharpeRatio : localMetrics.sharpeRatio,
         sortinoRatio: (res.metrics.sortinoRatio > 0) ? res.metrics.sortinoRatio : localMetrics.sortinoRatio,
-        averageWin: (res.metrics.averageWin > 0) ? res.metrics.averageWin : localMetrics.averageWin,
-        averageLoss: (res.metrics.averageLoss < 0) ? res.metrics.averageLoss : localMetrics.averageLoss,
-        expectancy: (res.metrics.expectancy !== 0) ? res.metrics.expectancy : localMetrics.expectancy,
+        averageWin: (res.metrics.averageWin && res.metrics.averageWin !== 0) ? res.metrics.averageWin : localMetrics.averageWin,
+        averageLoss: (res.metrics.averageLoss && res.metrics.averageLoss !== 0) ? res.metrics.averageLoss : localMetrics.averageLoss,
+        expectancy: (res.metrics.expectancy && res.metrics.expectancy !== 0) ? res.metrics.expectancy : localMetrics.expectancy,
         maxLosingStreak: (res.metrics.maxLosingStreak > 0) ? res.metrics.maxLosingStreak : localMetrics.maxLosingStreak,
         avgHoldTime: (res.metrics.avgHoldTime > 0) ? res.metrics.avgHoldTime : localMetrics.avgHoldTime,
 
-        // 🟢 FIX FOR PIE CHART (Trades Breakdown)
         winningTrades: (res.metrics.winningTrades !== undefined) ? res.metrics.winningTrades : localMetrics.winningTrades,
         losingTrades: (res.metrics.losingTrades !== undefined) ? res.metrics.losingTrades : localMetrics.losingTrades
     };
 
-    // 5. Exit Reasons
     const reasons = normalizedTrades.reduce((acc, t) => {
         const reason = t.reason || t.type || "Signal"; 
         acc[reason] = (acc[reason] || 0) + 1;
@@ -736,8 +699,6 @@ export default function Backtests() {
     if (!combinedMetrics) return [];
     return [{ name: "Wins", value: combinedMetrics.winningTrades }, { name: "Losses", value: combinedMetrics.losingTrades }];
   }, [combinedMetrics]);
-
-  const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
 
   return (
     <div className="backtest-container">
@@ -771,7 +732,6 @@ export default function Backtests() {
                 <h2 className="card-title">Configuration</h2>
               </div>
               
-              {/* 🟢 OPTIMIZER DROPDOWN */}
               <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/30 rounded-xl p-4 mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-emerald-400 flex items-center gap-2 font-semibold text-sm">
@@ -785,7 +745,6 @@ export default function Backtests() {
                   <option value="">-- Select Golden Strategy --</option>
                   {liveWinners.map(w => {
                       const id = w.botId || w.id;
-                      // 🟢 FIXED: Dig deeply for ROI if top-level is 0/undefined
                       const rawRoi = w.roi || w.metrics?.roi || w.combinedResult?.metrics?.roi || 0;
                       const roi = (rawRoi * 1.0).toFixed(0); 
                       const label = `${w.symbol || "Strategy"} (ROI: ${roi}%)`; 
@@ -811,12 +770,10 @@ export default function Backtests() {
                         </select>
                       </div>
                     </div>
-                    {/* ✅ Pass availableModels */}
                     <CommonBacktestInputs data={formData} onChange={(e) => handleFormChange(e, setFormData)} options={{ symbolOptions, timeframeOptions, modelOptions: availableModels }} />
                   </>
                 ) : (
                   <>
-                    {/* ✅ Pass availableModels */}
                     <CommonBacktestInputs data={comboData} onChange={handleComboChange} options={{ symbolOptions, timeframeOptions, modelOptions: availableModels }} isCombo={true} />
                     <div className="space-y-4 mb-6">
                       <label className="metric-label">Strategy Layers</label>
@@ -833,7 +790,6 @@ export default function Backtests() {
               </form>
             </div>
           </div>
-          {/* ... Right Column (Results) ... */}
           <div className="col-span-12 lg:col-span-7 space-y-6">
             {(loading !== 'idle' || combinedMetrics || error) ? (
               <>
