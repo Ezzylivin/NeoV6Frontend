@@ -1,157 +1,169 @@
 import React, { useState, useEffect, useMemo } from "react";
-import axios from "axios";
+import axios from "axios"; 
 import { useBacktest } from "../hooks/useBacktest.js";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
 } from "recharts";
-import { ChartIndependent } from "../components/ChartIndependent.jsx";
-import { ChartReplay } from "../components/ChartReplay.jsx";
-import { MetricsDisplay } from "../components/MetricsDisplay.jsx";
-import { AdvancedMetricsDisplay } from "../components/AdvancedMetricsDisplay.jsx";
-import "./Backtests.css";
+import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
+import { ChartReplay } from "../components/ChartReplay.jsx"; 
+import api from "../api/apiClient"; 
+import "./Backtests.css"; 
 
 const COLORS = ["#10b981", "#ef4444", "#14b8a6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#22c55e"];
+const REASON_COLORS = ["#10b981", "#f59e0b", "#06b6d4", "#ec4899", "#64748b"]; 
 
-const DEFAULT_FORM_DATA = {
-  symbol: "BTC",
-  timeframe: "1h",
-  startDate: "",
-  endDate: "",
-  strategy: "moving_average",
-  initialBalance: 1000,
+const STRATEGY_TYPE_TO_CODE_MAP = {
+  "Moving Average Crossover": "sma_crossover", "RSI": "rsi_divergence", "MACD": "macd_crossover",
+  "Stochastic Oscillator": "stochastic_crossover", "CCI": "cci_oversold", "Bollinger Bands": "bollinger_bands",
+  "Ichimoku Cloud": "ichimoku_cloud", "ATR": "atr_breakout", "On-Balance Volume": "obv_signal", "Parabolic SAR": "psar_signal"
 };
 
-export default function BacktestsPage() {
-  const { fetchingOptions } = useBacktest(); // Hook for fetching strategy options
-  const [formData, setFormData] = useState(DEFAULT_FORM_DATA);
-  const [isLoading, setIsLoading] = useState(false); // Backtest loading state
-  const [backtestResults, setBacktestResults] = useState(null); // Backtest results state
+const DEFAULT_MODEL_OPTIONS = [
+    { id: "btc_1h_xgboost", name: "BTC 1H XGBoost" },
+    { id: "btc_1h_lightgbm", name: "BTC 1H LightGBM" },
+    { id: "eth_1h_transformer", name: "ETH 1H Transformer" },
+    { id: "sol_15m_lstm", name: "SOL 15m LSTM" }
+];
 
-  // Debugging State
-  const [debugMode, setDebugMode] = useState(false); // Toggle debug mode
+const defaultFilterParams = { minAtrPct: 0, trendFilterPeriod: 200, minAdxLevel: 0, tslAtrMult: 3.5, regime_threshold: 25 };
 
-  // Handle Form Change
+const getDefaultDates = () => {
+  const today = new Date();
+  const start = new Date(today); start.setFullYear(today.getFullYear() - 1);
+  const end = new Date(today); end.setDate(today.getDate() - 1);
+  return { startDate: start.toISOString().split('T')[0], endDate: end.toISOString().split('T')[0] };
+};
+
+// --- INITIAL FORM DATA ---
+const initialFormData = {
+  strategyId: "", code: "", symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate,
+  initialBalance: 1000, params: { ...defaultFilterParams, maxPyramiding: 1 },
+  riskManagementMode: 'static', riskPercentage: 1, growthCapitalTarget: 2000, 
+  mlMode: "off", mlModel: "", mlThreshold: 0.5
+};
+
+export default function Backtests() {
+  const { state, runNewBacktest, fetchOptions } = useBacktest(); 
+  const { loading = 'idle', error = null, options = {}, winners = [] } = state || {};
+
+  const [formData, setFormData] = useState(initialFormData);
+  const [backtestResults, setBacktestResults] = useState(null);
+  const [chartMode, setChartMode] = useState('standard'); 
+  const [isSimulating, setIsSimulating] = useState(false);
+
+  const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
+
+  useEffect(() => {
+    if (fetchOptions && options?.symbols?.length === 0) fetchOptions();
+  }, [options, fetchOptions]);
+
   const handleFormChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prevData) => ({ ...prevData, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Run Backtest
-  const handleRunBacktest = async (e) => {
+  const handleRun = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
+    setIsSimulating(true); 
+    setBacktestResults(null); 
 
     try {
-      console.log("Running Backtest with Form Data:", formData);
-      const response = await axios.post("/api/backtest", formData);
-      setBacktestResults(response.data);
-      console.log("Backtest Results:", response.data);
-    } catch (err) {
-      console.error("Backtest Error:", err);
+      const result = await runNewBacktest(formData);
+      setBacktestResults(result);
+      console.log("Backtest Results: ", result); // Debugging line
+    } catch (err) { 
+        console.error("Error running backtest: ", err); // Debugging line
     } finally {
-      setIsLoading(false);
+        setIsSimulating(false); 
     }
   };
 
-  return (
-    <div className="backtest-page">
-      <header>
-        <h1>Backtesting Page</h1>
-        {/* Debug Mode Toggle */}
-        <label className="debug-toggle">
-          <input
-            type="checkbox"
-            checked={debugMode}
-            onChange={(e) => setDebugMode(e.target.checked)}
-          />
-          Debug Mode
-        </label>
-      </header>
+  const renderCharts = () => {
+    if (!backtestResults || !backtestResults.equityCurve) return null;
 
-      <main>
-        <form onSubmit={handleRunBacktest}>
+    const processedData = backtestResults.equityCurve.map((point) => ({
+      timestamp: new Date(point.timestamp).getTime(),
+      balance: point.balance,
+    }));
+
+    return (
+      <div className="charts">
+        <div className="bot-card">
+          <div className="panel-header">
+            <h3>Equity vs Buy & Hold</h3>
+          </div>
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={processedData}>
+                <CartesianGrid />
+                <XAxis dataKey="timestamp" />
+                <YAxis />
+                <Tooltip />
+                <Area type="monotone" dataKey="balance" stroke="#10b981" fillOpacity={1} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="backtest-container container mx-auto">
+      <div className="config">
+        <form onSubmit={handleRun}>
           <div>
-            <label>Symbol:</label>
+            <label>Symbol</label>
             <input
               type="text"
               name="symbol"
               value={formData.symbol}
               onChange={handleFormChange}
+              className={inputClass}
             />
           </div>
-
           <div>
-            <label>Timeframe:</label>
-            <select
+            <label>Timeframe</label>
+            <input
+              type="text"
               name="timeframe"
               value={formData.timeframe}
               onChange={handleFormChange}
-            >
-              <option value="1h">1 Hour</option>
-              <option value="4h">4 Hours</option>
-              <option value="1d">1 Day</option>
-            </select>
+              className={inputClass}
+            />
           </div>
-
           <div>
-            <label>Start Date:</label>
+            <label>Start Date</label>
             <input
               type="date"
               name="startDate"
               value={formData.startDate}
               onChange={handleFormChange}
+              className={inputClass}
             />
           </div>
-
           <div>
-            <label>End Date:</label>
+            <label>End Date</label>
             <input
               type="date"
               name="endDate"
               value={formData.endDate}
               onChange={handleFormChange}
+              className={inputClass}
             />
           </div>
-
-          <button type="submit">
-            {isLoading ? "Running Backtest..." : "Run Backtest"}
+          <button className="button-start" type="submit" disabled={isSimulating}>
+            {isSimulating ? "Running backtest..." : "Run Backtest"}
           </button>
         </form>
+      </div>
 
-        {/* Debug Info */}
-        {debugMode && (
-          <div className="debug-info">
-            <h3>Debug Information</h3>
-            <pre>{JSON.stringify(formData, null, 2)}</pre>
-          </div>
+      <div className="results">
+        {!backtestResults ? (
+          <p>No results yet. Run a backtest to see the results.</p>
+        ) : (
+          renderCharts()
         )}
-
-        {/* Backtest Results */}
-        {backtestResults && (
-          <div className="results-section">
-            <h3>Backtest Results</h3>
-            <MetricsDisplay metrics={backtestResults} />
-            <AdvancedMetricsDisplay metrics={backtestResults} />
-            {/* Render charts */}
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={backtestResults?.chartData || []}>
-                <defs>
-                  <linearGradient id="color" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid />
-                <XAxis dataKey="timestamp" />
-                <YAxis />
-                <Tooltip />
-                <Area dataKey="balance" stroke="#10b981" fill="url(#color)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </main>
+      </div>
     </div>
   );
 }
