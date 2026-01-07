@@ -58,7 +58,7 @@ const downloadCSV = (trades) => {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
 };
 
-// 🟢 FIX: Zero-Safe Metrics Calculator
+// 🟢 METRICS CALCULATOR (Zero-Safe Fallback)
 const computeMetricsFromTrades = (trades, initialBalance) => {
     if (!trades || trades.length === 0) {
         return {
@@ -214,7 +214,7 @@ const MetricsDisplay = ({ metrics }) => {
 const AdvancedMetricsDisplay = ({ metrics }) => {
     if (!metrics) return null;
     
-    // 🟢 SAFE DISPLAY VALUE
+    // 🟢 SAFE DISPLAY VALUE FUNCTION
     const safeNum = (val) => (val !== undefined && val !== null && !isNaN(val)) ? val.toFixed(2) : "0.00";
 
     const items = [
@@ -253,7 +253,9 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
     };
     
     const params = data.params || {};
+    // 🟢 DEFINE INPUT CLASS HERE FOR SUB-COMPONENT
     const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
+    
     const safeVal = (v) => (v === null || v === undefined || isNaN(v)) ? '' : v;
 
     const safeModels = (options.modelOptions && Array.isArray(options.modelOptions) && options.modelOptions.length > 0) 
@@ -405,7 +407,7 @@ export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest, resetBacktest, fetchOptions } = useBacktest(); 
   const { loading = 'idle', error = null, options = {}, winners = [] } = state || {};
 
-  // 🟢 FIX: Define inputClass HERE so it's available for the Winners Dropdown
+  // 🟢 FIX: Define inputClass HERE for main scope usage
   const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
 
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
@@ -415,10 +417,7 @@ export default function Backtests() {
   const [activeTab, setActiveTab] = useState('single');
   const [liveWinners, setLiveWinners] = useState([]);
   const [scanningWinners, setScanningWinners] = useState(false);
-  
-  // New State for Models
   const [availableModels, setAvailableModels] = useState([]);
-  
   const [chartMode, setChartMode] = useState('standard'); 
   const [isSimulating, setIsSimulating] = useState(false); 
 
@@ -427,7 +426,7 @@ export default function Backtests() {
     setBacktestResults({ main: null });
   }, []);
 
-  // 🟢 FIX: Force fetch options on mount if empty
+  // 🟢 FIX: Force fetch options on mount AND Auto-select defaults
   useEffect(() => {
     if ((!options?.symbols || options.symbols.length === 0) && typeof fetchOptions === 'function') {
       console.log("Options missing, fetching...");
@@ -444,6 +443,18 @@ export default function Backtests() {
   const symbolOptions = useMemo(() => options?.symbols || [], [options]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
 
+  // 🟢 FIX: Auto-populate dropdowns when options arrive
+  useEffect(() => {
+      if (symbolOptions.length > 0 && !formData.symbol) {
+          setFormData(prev => ({ ...prev, symbol: symbolOptions[0] }));
+          setComboData(prev => ({ ...prev, symbol: symbolOptions[0] }));
+      }
+      if (timeframeOptions.length > 0 && !formData.timeframe) {
+          setFormData(prev => ({ ...prev, timeframe: timeframeOptions[0] }));
+          setComboData(prev => ({ ...prev, timeframe: timeframeOptions[0] }));
+      }
+  }, [symbolOptions, timeframeOptions]);
+
   // 🚀 FETCH DATA (Winners + Models)
   const fetchWinners = async () => {
       setScanningWinners(true);
@@ -456,10 +467,7 @@ export default function Backtests() {
             axios.get("https://neov6backend.onrender.com/api/ml/available-models", { headers })
         ]);
 
-        const winnersArray = Array.isArray(resWinners.data) 
-            ? resWinners.data 
-            : (resWinners.data.winners || resWinners.data.data || []);
-
+        const winnersArray = Array.isArray(resWinners.data) ? resWinners.data : (resWinners.data.winners || resWinners.data.data || []);
         setLiveWinners(winnersArray);
         
         const modelsData = resModels.data.models || resModels.data || [];
@@ -487,17 +495,21 @@ export default function Backtests() {
 
         const data = selectedWinner.config || selectedWinner;
 
-        // Metadata
+        // 1. Extract Symbol/Timeframe
         let symbol = data.symbol || selectedWinner.symbol || "BTC-USD"; 
         let timeframe = data.timeframe || "1h";
         
+        // Fallback: Parse from filename if metadata missing
         if((!data.symbol || data.symbol === "Unknown") && filename.includes('_')) { 
             const parts = filename.split('_'); 
-            if(parts[1] && parts[1].includes('-')) symbol = parts[1]; 
+            if(parts[1]) symbol = parts[1]; // No robust check, just take the chunk
             if(parts[2] && parts[2].match(/\d+[mhdw]/)) timeframe = parts[2]; 
         }
 
-        // Match Strategy Code to Option ID
+        // Normalize (BTC/USD -> BTC-USD)
+        symbol = symbol.replace('/', '-');
+
+        // 🟢 FIX: Match Strategy Code to Option ID
         const rawStrategies = data.strategies || [];
         const strategies = rawStrategies.map(s => {
             const code = (typeof s === 'string' ? s : (s.code || "unknown"));
@@ -509,7 +521,6 @@ export default function Backtests() {
             return { strategyId, code, params };
         });
 
-        // ML & Config
         let mlMode = data.mlMode || "off"; 
         let rawMlModel = data.mlModel || data.params?.mlModel || "";
         
@@ -536,26 +547,38 @@ export default function Backtests() {
         if (data.riskPercentage) globalParams.riskPercentage = Number(data.riskPercentage); 
         if (data.maxPyramiding) globalParams.maxPyramiding = Number(data.maxPyramiding);
 
-        // Update State
-        setActiveTab('combo');
-        setComboData(prev => ({
-            ...prev, 
-            symbol, 
-            timeframe, 
-            strategies,
-            comboConfig,
-            mlMode, 
-            mlModel, 
-            mlThreshold: Number(data.mlThreshold) || 0.5, 
+        // 🟢 DETERMINE ACTIVE TAB
+        const isCombo = data.isCombo || (strategies.length > 1);
+        setActiveTab(isCombo ? 'combo' : 'single');
+
+        // 🟢 UPDATE BOTH STATES TO ENSURE DROPDOWNS POPULATE
+        const updatePayload = {
+            symbol,
+            timeframe,
+            mlMode,
+            mlModel,
+            mlThreshold: Number(data.mlThreshold) || 0.5,
             params: globalParams,
-            riskManagementMode: data.riskManagementMode || 'static', 
-            riskPercentage: Number(data.riskPercentage) || 1, 
+            riskManagementMode: data.riskManagementMode || 'static',
+            riskPercentage: Number(data.riskPercentage) || 1,
             growthCapitalTarget: Number(data.growthCapitalTarget) || 2000,
             maxDailyLoss: Number(data.maxDailyLoss) || 5,
             maxDrawdown: Number(data.maxDrawdown) || 10
+        };
+
+        setComboData(prev => ({
+            ...prev,
+            ...updatePayload,
+            strategies,
+            comboConfig
         }));
         
-        setFormData(prev => ({ ...prev, symbol, timeframe, params: globalParams }));
+        setFormData(prev => ({
+            ...prev,
+            ...updatePayload,
+            strategyId: strategies[0]?.strategyId || "",
+            code: strategies[0]?.code || ""
+        }));
   };
 
   const handleSaveStrategy = async () => {
@@ -661,7 +684,7 @@ export default function Backtests() {
     }
   };
 
-  // 🟢 CORRECTED USEMEMO (Hybrid Backend + Frontend Calc + Fixed Pie Chart)
+  // 🟢 CORRECTED USEMEMO (Hybrid Backend + Frontend Calc + Fixed Pie Chart + ROI Lookup)
   const { processedData, combinedMetrics, mainResult, warmupRemovedCount, exitReasons, exitReasonData, actualStartDate, actualEndDate } = useMemo(() => {
     // 1. Extract the payload
     const rootData = backtestResults.main || backtestResults.combinedResult || backtestResults;
@@ -693,7 +716,6 @@ export default function Backtests() {
     const localMetrics = computeMetricsFromTrades(normalizedTrades, startBal);
 
     // 🟢 HYBRID MERGE: Prefer Backend for Core Stats, Local for Advanced/Missing Stats
-    // AND Include winningTrades/losingTrades so Pie Chart Works!
     const finalMetrics = {
         // Core Stats (Trust Python)
         totalReturn: res.metrics.roi || res.metrics.totalReturn,
