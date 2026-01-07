@@ -58,7 +58,7 @@ const downloadCSV = (trades) => {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
 };
 
-// 🟢 METRICS CALCULATOR (Zero-Safe Fallback)
+// 🟢 FIX: Zero-Safe Metrics Calculator
 const computeMetricsFromTrades = (trades, initialBalance) => {
     if (!trades || trades.length === 0) {
         return {
@@ -422,10 +422,10 @@ export default function Backtests() {
 
   // 🟢 FIX: Force fetch options on mount if empty
   useEffect(() => {
-    if (!options?.symbols || options.symbols.length === 0) {
-      if (fetchOptions) {
-          fetchOptions();
-      }
+    // Only fire if we have no symbols, to avoid infinite loops
+    if ((!options?.symbols || options.symbols.length === 0) && typeof fetchOptions === 'function') {
+      console.log("Options missing, fetching...");
+      fetchOptions();
     }
   }, [options, fetchOptions]);
 
@@ -655,7 +655,7 @@ export default function Backtests() {
     }
   };
 
-  // 🟢 CORRECTED USEMEMO (Hybrid Backend + Frontend Calc)
+  // 🟢 CORRECTED USEMEMO (Hybrid Backend + Frontend Calc + Fixed Pie Chart + ROI Lookup)
   const { processedData, combinedMetrics, mainResult, warmupRemovedCount, exitReasons, exitReasonData, actualStartDate, actualEndDate } = useMemo(() => {
     // 1. Extract the payload
     const rootData = backtestResults.main || backtestResults.combinedResult || backtestResults;
@@ -785,8 +785,10 @@ export default function Backtests() {
                   <option value="">-- Select Golden Strategy --</option>
                   {liveWinners.map(w => {
                       const id = w.botId || w.id;
-                      const roi = w.roi ? (w.roi * 100).toFixed(0) : "0";
-                      const label = `${w.symbol} (ROI: ${roi}%)`; 
+                      // 🟢 FIXED: Dig deeply for ROI if top-level is 0/undefined
+                      const rawRoi = w.roi || w.metrics?.roi || w.combinedResult?.metrics?.roi || 0;
+                      const roi = (rawRoi * 1.0).toFixed(0); 
+                      const label = `${w.symbol || "Strategy"} (ROI: ${roi}%)`; 
                       return <option key={id} value={id}>{label}</option>;
                   })}
                 </select>
