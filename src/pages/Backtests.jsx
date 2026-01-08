@@ -28,6 +28,7 @@ const DEFAULT_MODEL_OPTIONS = [
 
 const defaultFilterParams = { minAtrPct: 0, trendFilterPeriod: 200, minAdxLevel: 0, tslAtrMult: 3.5, regime_threshold: 25 };
 
+// --- HELPER FUNCTIONS ---
 const formatDate = dateString => {
   if (!dateString) return '';
   const date = new Date(dateString);
@@ -86,7 +87,7 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
     });
 
     const avgRet = dailyReturns.reduce((a,b)=>a+b,0)/dailyReturns.length;
-    const stdDev = Math.sqrt(dailyReturns.reduce((a,b)=>a+Math.pow(b-avgRet,2),0)/dailyReturns.length);
+    const variance = dailyReturns.reduce((a,b)=>a+Math.pow(b-avgRet,2),0)/dailyReturns.length;
     const winRate = wins / trades.length;
     const avgWinVal = wins > 0 ? totalWin / wins : 0;
     const avgLossVal = (trades.length - wins) > 0 ? totalLoss / (trades.length - wins) : 0;
@@ -102,9 +103,9 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
         averageWin: avgWinVal,
         averageLoss: avgLossVal,
         finalBalance: balance,
-        // 🟢 FIXED EXPECTANCY MATH
+        // 🟢 PREVENT $UNDEFINED
         expectancy: (winRate * avgWinVal) - ((1 - winRate) * avgLossVal),
-        sharpeRatio: stdDev === 0 ? 0 : (avgRet / stdDev) * Math.sqrt(trades.length),
+        sharpeRatio: variance === 0 ? 0 : (avgRet / Math.sqrt(variance)) * Math.sqrt(trades.length),
         maxLosingStreak,
         avgHoldTime: totalHoldTimeMs / trades.length / (1000 * 60 * 60)
     };
@@ -127,38 +128,32 @@ const initialComboData = {
 };
 
 // --- SUB-COMPONENTS ---
-const MetricsDisplay = ({ metrics }) => {
-  if (!metrics) return null;
-  const items = [
-    { label: "Total Return", value: metrics.totalReturn, format: 'percent', color: 'text-emerald-400' },
-    { label: "Profit Factor", value: metrics.profitFactor, format: 'number', color: 'text-teal-400' },
-    { label: "Max Drawdown", value: metrics.maxDrawdown, format: 'percent', color: 'text-amber-400' },
-    { label: "Win Rate", value: metrics.winRate, format: 'percent', color: 'text-violet-400' },
-    { label: "Total Trades", value: metrics.totalTrades, format: null, color: 'text-cyan-400' },
-    { label: "Avg. Win", value: metrics.averageWin, format: 'currency', color: 'text-emerald-400' },
-    { label: "Avg. Loss", value: metrics.averageLoss, format: 'currency', color: 'text-rose-400' },
-    { label: "Final Balance", value: metrics.finalBalance, format: 'currency', color: 'text-emerald-400' }
-  ];
-  return (
-    <div className="metrics-grid mb-6">
-      {items.map((m, idx) => (
-        <div key={idx} className="metric-item hover:shadow-lg transition-all group">
-          <span className="metric-label">{m.label}</span>
-          <div className={`metric-value ${m.color}`}>
-            {m.format === 'currency' ? `$${m.value?.toFixed(2)}` : m.format === 'percent' ? `${m.value?.toFixed(2)}%` : (m.value?.toFixed(2) || "0.00")}
-          </div>
+const MetricsDisplay = ({ metrics }) => (
+  <div className="metrics-grid mb-6">
+    {[
+      { label: "Total Return", value: metrics.totalReturn, format: 'percent', color: 'text-emerald-400' },
+      { label: "Profit Factor", value: metrics.profitFactor, format: 'number', color: 'text-teal-400' },
+      { label: "Max Drawdown", value: metrics.maxDrawdown, format: 'percent', color: 'text-amber-400' },
+      { label: "Win Rate", value: metrics.winRate, format: 'percent', color: 'text-violet-400' },
+      { label: "Total Trades", value: metrics.totalTrades, format: null, color: 'text-cyan-400' },
+      { label: "Avg. Win", value: metrics.averageWin, format: 'currency', color: 'text-emerald-400' },
+      { label: "Avg. Loss", value: metrics.averageLoss, format: 'currency', color: 'text-rose-400' },
+      { label: "Final Balance", value: metrics.finalBalance, format: 'currency', color: 'text-emerald-400' }
+    ].map((m, idx) => (
+      <div key={idx} className="metric-item hover:shadow-lg transition-all group">
+        <span className="metric-label">{m.label}</span>
+        <div className={`metric-value ${m.color}`}>
+          {m.format === 'currency' ? `$${m.value?.toFixed(2)}` : m.format === 'percent' ? `${m.value?.toFixed(2)}%` : (m.value?.toFixed(2) || "0.00")}
         </div>
-      ))}
-    </div>
-  );
-};
+      </div>
+    ))}
+  </div>
+);
 
 const AdvancedMetricsDisplay = ({ metrics }) => {
-    if (!metrics) return null;
     const safeNum = (val) => (val !== undefined && val !== null && !isNaN(val)) ? val.toFixed(2) : "0.00";
     return (
         <div className="metrics-grid mb-6" style={{gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))'}}>
-            <div className="metric-item text-center"> <span className="metric-label">Sharpe Ratio</span> <div className="text-xl font-mono font-bold text-white">{safeNum(metrics.sharpeRatio)}</div> </div>
             <div className="metric-item text-center"> <span className="metric-label">Expectancy</span> <div className="text-xl font-mono font-bold text-white">${safeNum(metrics.expectancy)}</div> </div>
             <div className="metric-item text-center"> <span className="metric-label">Avg Hold Time</span> <div className="text-xl font-mono font-bold text-white">{safeNum(metrics.avgHoldTime)}h</div> </div>
             <div className="metric-item text-center"> <span className="metric-label">Max Lose Streak</span> <div className="text-xl font-mono font-bold text-rose-400">{metrics.maxLosingStreak || 0}</div> </div>
@@ -169,9 +164,9 @@ const AdvancedMetricsDisplay = ({ metrics }) => {
 const CommonBacktestInputs = ({ data, onChange, options }) => {
     const handleGlobalChange = (e) => onChange(e);
     const handleParamChange = (e) => {
-      const { name, value, type } = e.target;
-      let val = type === 'number' ? (isNaN(parseFloat(value)) ? '' : parseFloat(value)) : value;
-      onChange({ target: { name: `param_${name}`, value: val, type } });
+        const { name, value, type } = e.target;
+        let val = type === 'number' ? (isNaN(parseFloat(value)) ? '' : parseFloat(value)) : value;
+        onChange({ target: { name: `param_${name}`, value: val, type } });
     };
     const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
     const params = data.params || {};
@@ -187,13 +182,12 @@ const CommonBacktestInputs = ({ data, onChange, options }) => {
           <div className="setup-selector"> <label className="text-neutral-400">Start Date</label> <input type="date" name="startDate" value={data.startDate || ""} onChange={handleGlobalChange} className={inputClass} /> </div>
           <div className="setup-selector"> <label className="text-neutral-400">End Date</label> <input type="date" name="endDate" value={data.endDate || ""} onChange={handleGlobalChange} className={inputClass} /> </div>
         </div>
-
         <div className="bot-card mb-6" style={{background: 'rgba(16, 185, 129, 0.05)', borderColor: 'rgba(16, 185, 129, 0.2)'}}>
           <div className="panel-header mb-4 pb-3 border-b border-emerald-500/20"><h4 className="text-emerald-400 font-bold">Risk & ML Configuration</h4></div>
           <div className="form-grid">
-            <div className="setup-selector"> <label className="text-neutral-400">Risk Mode</label> <select name="riskManagementMode" value={data.riskManagementMode || 'static'} onChange={handleGlobalChange} className={inputClass}> <option value="static">Standard (Static %)</option> <option value="dynamic">Dynamic (Growth Target)</option> </select> </div>
+            <div className="setup-selector"> <label className="text-neutral-400">Risk Mode</label> <select name="riskManagementMode" value={data.riskManagementMode || 'static'} onChange={handleGlobalChange} className={inputClass}> <option value="static">Standard</option> <option value="dynamic">Dynamic</option> </select> </div>
             <div className="setup-selector"> <label className="text-neutral-400">Risk Percentage</label> <input type="number" name="riskPercentage" value={data.riskPercentage ?? ''} onChange={handleGlobalChange} step="0.1" className={inputClass} /> </div>
-            <div className="setup-selector"> <label className="text-neutral-400">ML Mode</label> <select name="mlMode" value={data.mlMode || "off"} onChange={handleGlobalChange} className={inputClass}> <option value="off">Off (Pure TA)</option> <option value="predictions">Hybrid (TA+ML)</option> <option value="on">Pure ML</option> </select> </div>
+            <div className="setup-selector"> <label className="text-neutral-400">ML Mode</label> <select name="mlMode" value={data.mlMode || "off"} onChange={handleGlobalChange} className={inputClass}> <option value="off">Off</option> <option value="predictions">Hybrid</option> <option value="on">Pure ML</option> </select> </div>
             {data.mlMode !== 'off' && (
               <>
                 <div className="setup-selector"> <label className="text-neutral-400">ML Model</label> <select name="mlModel" value={data.mlModel || ""} onChange={handleGlobalChange} className={inputClass}> <option value="">-- Select Model --</option> {(options.modelOptions || DEFAULT_MODEL_OPTIONS).map(m => <option key={m.id} value={m.id}>{m.name}</option>)} </select> </div>
@@ -202,7 +196,6 @@ const CommonBacktestInputs = ({ data, onChange, options }) => {
             )}
           </div>
         </div>
-
         <div className="bot-card mb-6">
           <div className="panel-header mb-4 pb-3 border-b border-white/10"><h4 className="text-white font-bold">Advanced TA Filters</h4></div>
           <div className="form-grid">
@@ -226,7 +219,7 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
         {!disableRemove && <button type="button" onClick={() => onRemove(idx)} className="text-rose-400 hover:text-rose-300 font-bold text-lg">✕</button>}
       </div>
       <select name="strategyId" value={config.strategyId || ""} onChange={handleChange} disabled={!strategies.length} className={inputClass}>
-        <option value="">-- Select Strategy --</option>
+        <option value="">-- Select --</option>
         {strategies.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
       </select>
     </div>
@@ -255,9 +248,10 @@ export default function Backtests() {
       setScanningWinners(true);
       try {
         const token = localStorage.getItem("token");
+        const headers = { Authorization: `Bearer ${token}` };
         const [resWinners, resModels] = await Promise.all([
-            axios.get("https://neov6backend.onrender.com/api/bot/winners", { headers: { Authorization: `Bearer ${token}` } }),
-            axios.get("https://neov6backend.onrender.com/api/ml/available-models", { headers: { Authorization: `Bearer ${token}` } })
+            axios.get("https://neov6backend.onrender.com/api/bot/winners", { headers }),
+            axios.get("https://neov6backend.onrender.com/api/ml/available-models", { headers })
         ]);
         setLiveWinners(Array.isArray(resWinners.data) ? resWinners.data : (resWinners.data.winners || []));
         setAvailableModels(resModels.data || []);
@@ -311,6 +305,7 @@ export default function Backtests() {
   const addStrategyCard = () => setComboData(p => ({ ...p, strategies: [...p.strategies, { strategyId: strategyOptions[0]?._id || "", code: strategyOptions[0]?.code || "", params: {} }] }));
   const removeStrategyCard = (index) => setComboData(p => ({ ...p, strategies: p.strategies.filter((_, i) => i !== index) }));
 
+  // 🟢 ALPHA AUTO-POPULATION FIX
   const handleWinnerSelect = (e) => {
     const id = e.target.value;
     setSelectedWinnerId(id);
@@ -346,43 +341,61 @@ export default function Backtests() {
     const initial = activeTab === 'single' ? formData.initialBalance : comboData.initialBalance;
     const local = computeMetricsFromTrades(trades, initial);
     return { candleData: res.candleData || [], trades, curve, metrics: { ...res.metrics, ...local, totalReturn: res.metrics?.roi || local.totalReturn } };
-  }, [backtestResults]);
+  }, [backtestResults, activeTab, formData, comboData]);
 
   return (
     <div className="backtest-container">
       <div className="container mx-auto p-4">
+        <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl shadow-lg"> <span className="text-2xl">📈</span> </div>
+              <div><h1 className="header" style={{fontSize:'2rem', margin:0}}>Strategy Backtester</h1><p className="text-neutral-400 text-sm">Advanced Performance Testing Platform</p></div>
+            </div>
+            <div className="px-4 py-2 bg-black/50 rounded-xl border border-white/10 flex items-center gap-2"><span className="text-neutral-400 text-sm">API Connected</span><span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span></div>
+        </div>
+
         <div className="grid grid-cols-12 gap-8">
           <div className="col-span-12 lg:col-span-5">
-            <div className="bot-card p-6">
+            <div className="bot-card sticky top-6 p-6">
+              <div className="panel-header mb-6 flex items-center gap-3"> <span className="text-emerald-400 text-lg">⚙️</span> <h2 className="card-title">Configuration</h2> </div>
+              
               <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/30 rounded-xl p-4 mb-6">
-                <label className="text-emerald-400 font-semibold text-sm block mb-2">🏆 Load Alpha Strategy</label>
-                <div className="flex gap-2">
-                    <select value={selectedWinnerId} onChange={handleWinnerSelect} className={inputClass}>
-                      <option value="">-- Select Alpha --</option>
-                      {liveWinners.map(w => <option key={w.botId || w.id} value={w.botId || w.id}>{`${w.symbol || "Strategy"} (ROI: ${(w.roi || w.metrics?.totalReturn || 0).toFixed(0)}%)`}</option>)}
-                    </select>
+                <div className="flex justify-between items-center mb-2">
+                    <label className="text-emerald-400 font-semibold text-sm">🏆 Load Alpha Strategy</label>
+                    <button type="button" onClick={fetchWinners} disabled={scanningWinners} className="text-emerald-400 hover:text-white transition-colors"> {scanningWinners ? '...' : '🔄'} </button>
                 </div>
+                <select value={selectedWinnerId} onChange={handleWinnerSelect} className={inputClass}>
+                  <option value="">-- Select Alpha Strategy --</option>
+                  {liveWinners.map(w => <option key={w.botId || w.id} value={w.botId || w.id}>{`${w.symbol || "Strategy"} (ROI: ${(w.roi || w.metrics?.totalReturn || 0).toFixed(0)}%)`}</option>)}
+                </select>
               </div>
+
               <div className="tabs flex gap-2 mb-6"> 
                 <button type="button" className={`flex-1 py-3 rounded-xl transition-all ${activeTab === 'single' ? 'bg-emerald-500 text-black font-bold' : 'bg-white/5 text-neutral-400'}`} onClick={() => setActiveTab('single')}>Single Layer</button> 
                 <button type="button" className={`flex-1 py-3 rounded-xl transition-all ${activeTab === 'combo' ? 'bg-emerald-500 text-black font-bold' : 'bg-white/5 text-neutral-400'}`} onClick={() => setActiveTab('combo')}>Combo Layers</button> 
               </div>
+
               <form onSubmit={handleRun}>
-                {activeTab === 'single' && (
-                   <div className="setup-selector mb-4"> <label className="text-neutral-400 text-xs block mb-2">⚡ Signal Core</label> <select name="strategyId" value={formData.strategyId} onChange={handleFormChange} className={inputClass}> <option value="">-- Select Engine --</option> {strategyOptions.map(s => <option key={s._id} value={s._id}>{s.name}</option>)} </select> </div>
+                {activeTab === 'single' ? (
+                  <>
+                    <div className="setup-selector mb-4"> <label className="text-neutral-400 text-xs block mb-2">⚡ Engine</label> <select name="strategyId" value={formData.strategyId} onChange={handleFormChange} className={inputClass}> <option value="">-- Select TA Engine --</option> {strategyOptions.map(s => <option key={s._id} value={s._id}>{s.name}</option>)} </select> </div>
+                    <CommonBacktestInputs data={formData} onChange={handleFormChange} options={{ symbolOptions, timeframeOptions, modelOptions: availableModels }} />
+                  </>
+                ) : (
+                  <>
+                    <CommonBacktestInputs data={comboData} onChange={handleComboChange} options={{ symbolOptions, timeframeOptions, modelOptions: availableModels }} />
+                    <div className="space-y-4 mb-6"> 
+                        <label className="text-emerald-400 text-xs font-bold uppercase tracking-widest">Logic Layers</label> 
+                        {comboData.strategies.map((c, i) => <ComboStrategyCard key={i} idx={i} config={c} strategies={strategyOptions} onChange={handleStrategyConfigChange} onRemove={removeStrategyCard} disableRemove={comboData.strategies.length <= 1} /> )} 
+                        <button type="button" onClick={addStrategyCard} className="w-full py-3 bg-black/40 border border-white/10 rounded-xl text-emerald-400 text-xs font-bold hover:bg-emerald-500/10 transition-all">+ Add Layer</button> 
+                    </div>
+                  </>
                 )}
-                <CommonBacktestInputs data={activeTab === 'single' ? formData : comboData} onChange={activeTab === 'single' ? handleFormChange : handleComboChange} options={{ symbolOptions, timeframeOptions, modelOptions: availableModels }} />
-                {activeTab === 'combo' && (
-                  <div className="space-y-4 mb-6"> 
-                      <label className="text-emerald-400 text-xs font-bold uppercase tracking-widest">Logic Layers</label> 
-                      {comboData.strategies.map((c, i) => <ComboStrategyCard key={i} idx={i} config={c} strategies={strategyOptions} onChange={handleStrategyConfigChange} onRemove={removeStrategyCard} disableRemove={comboData.strategies.length <= 1} /> )} 
-                      <button type="button" onClick={addStrategyCard} className="w-full py-3 bg-black/40 border border-white/10 rounded-xl text-emerald-400 text-xs font-bold hover:bg-emerald-500/10 transition-all">+ Add Layer</button> 
-                  </div>
-                )}
-                <button type="submit" disabled={isSimulating} className="w-full py-4 bg-emerald-500 text-black font-bold rounded-xl shadow-lg hover:scale-[1.02] transition-all"> {isSimulating ? 'Processing Sequence...' : '▶ Run Simulation'} </button>
+                <button type="submit" disabled={isSimulating} className="w-full py-4 bg-emerald-500 text-black font-bold rounded-xl shadow-lg hover:scale-[1.02] transition-all"> {isSimulating ? 'Processing...' : '▶ Run Simulation'} </button>
               </form>
             </div>
           </div>
+
           <div className="col-span-12 lg:col-span-7 space-y-6">
             {processed ? (
               <>
@@ -391,10 +404,10 @@ export default function Backtests() {
                 <div className="bot-card p-6 h-[500px]"> <ChartIndependent results={processed} symbol={formData.symbol} /> </div>
               </>
             ) : (
-              <div className="bot-card p-12 flex flex-col items-center justify-center min-h-[600px] border-dashed border-2 border-white/5 bg-transparent"> 
+              <div className="bot-card p-20 flex flex-col items-center justify-center min-h-[600px] border-dashed border-2 border-white/5 bg-transparent"> 
                 <div className="w-20 h-20 bg-emerald-500/10 rounded-3xl flex items-center justify-center mb-6 text-4xl">🧪</div> 
-                <h3 className="text-white text-xl mb-2 font-bold">Strategy Sandbox</h3> 
-                <p className="text-neutral-400 text-center max-w-sm">Load an alpha strategy to begin simulation.</p> 
+                <h3 className="text-white text-xl mb-2 font-bold">Sandbox Ready</h3> 
+                <p className="text-neutral-400 text-center max-w-sm">Load a pre-tuned strategy or define your own custom multi-layer logic to begin simulation.</p> 
               </div>
             )}
           </div>
