@@ -28,7 +28,7 @@ const DEFAULT_MODEL_OPTIONS = [
 
 const defaultFilterParams = { minAtrPct: 0, trendFilterPeriod: 200, minAdxLevel: 0, tslAtrMult: 3.5, regime_threshold: 25 };
 
-// --- HELPERS ---
+// --- HELPER FUNCTIONS ---
 const formatDate = dateString => {
   if (!dateString) return '';
   const date = new Date(dateString);
@@ -48,31 +48,33 @@ const getDefaultDates = () => {
   return { startDate: formatDate(start), endDate: formatDate(end) };
 };
 
+const downloadCSV = (trades) => {
+    if (!trades || trades.length === 0) return alert("No trades to export.");
+    const headers = ["Entry Time", "Exit Time", "Type", "Entry Price", "Exit Price", "Profit", "Reason"];
+    const rows = trades.map(t => [t.entryTime, t.exitTime, t.position, t.price, t.exitPrice, t.profit.toFixed(2), t.type]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.body.appendChild(document.createElement("a"));
+    link.setAttribute("href", encodedUri); 
+    link.setAttribute("download", "backtest_trades.csv");
+    link.click();
+};
+
 const computeMetricsFromTrades = (trades, initialBalance) => {
-    if (!trades || trades.length === 0) return { totalReturn: 0, profitFactor: 0, maxDrawdown: 0, winRate: 0, totalTrades: 0, winningTrades: 0, losingTrades: 0, averageWin: 0, averageLoss: 0, finalBalance: initialBalance, expectancy: 0, sharpeRatio: 0, sortinoRatio: 0, maxLosingStreak: 0, avgHoldTime: 0 };
+    if (!trades || trades.length === 0) return { totalReturn: 0, winRate: 0, totalTrades: 0, winningTrades: 0, losingTrades: 0, expectancy: 0, finalBalance: initialBalance };
     let balance = initialBalance;
-    let peak = initialBalance;
-    let maxDrawdown = 0;
     let wins = 0;
     let totalWin = 0;
     let totalLoss = 0;
-    let currentLosingStreak = 0;
-    let maxLosingStreak = 0;
     let totalHoldTimeMs = 0;
-    let dailyReturns = [];
 
     trades.forEach(t => {
-        const prevBal = balance;
         balance += t.profit;
-        if (balance > peak) peak = balance;
-        const dd = (peak - balance) / peak;
-        if (dd > maxDrawdown) maxDrawdown = dd;
-        if (t.profit > 0) { wins++; totalWin += t.profit; currentLosingStreak = 0; }
-        else { totalLoss += Math.abs(t.profit); currentLosingStreak++; if (currentLosingStreak > maxLosingStreak) maxLosingStreak = currentLosingStreak; }
+        if (t.profit > 0) { wins++; totalWin += t.profit; }
+        else { totalLoss += Math.abs(t.profit); }
         const entry = new Date(t.entryTime).getTime();
         const exit = new Date(t.exitTime).getTime();
         if (!isNaN(entry) && !isNaN(exit)) totalHoldTimeMs += (exit - entry);
-        dailyReturns.push(t.profit / prevBal);
     });
 
     const winRate = wins / trades.length;
@@ -81,17 +83,12 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
 
     return {
         totalReturn: ((balance - initialBalance) / initialBalance) * 100,
-        profitFactor: totalLoss === 0 ? totalWin : totalWin / totalLoss,
-        maxDrawdown: maxDrawdown * 100,
         winRate: winRate * 100,
         totalTrades: trades.length,
         winningTrades: wins,
         losingTrades: trades.length - wins,
-        averageWin: avgWin,
-        averageLoss: avgLoss,
         finalBalance: balance,
         expectancy: (winRate * avgWin) - ((1 - winRate) * avgLoss),
-        maxLosingStreak,
         avgHoldTime: totalHoldTimeMs / trades.length / (1000 * 60 * 60)
     };
 };
@@ -115,23 +112,29 @@ const MetricsDisplay = ({ metrics }) => (
   <div className="metrics-grid mb-6">
     {[
       { label: "Total Return", value: metrics.totalReturn, format: 'percent', color: 'text-emerald-400' },
-      { label: "Profit Factor", value: metrics.profitFactor, format: 'number', color: 'text-teal-400' },
-      { label: "Max Drawdown", value: metrics.maxDrawdown, format: 'percent', color: 'text-amber-400' },
       { label: "Win Rate", value: metrics.winRate, format: 'percent', color: 'text-violet-400' },
       { label: "Total Trades", value: metrics.totalTrades, format: null, color: 'text-cyan-400' },
-      { label: "Avg. Win", value: metrics.averageWin, format: 'currency', color: 'text-emerald-400' },
-      { label: "Avg. Loss", value: metrics.averageLoss, format: 'currency', color: 'text-rose-400' },
       { label: "Final Balance", value: metrics.finalBalance, format: 'currency', color: 'text-emerald-400' }
     ].map((m, idx) => (
       <div key={idx} className="metric-item hover:shadow-lg transition-all group">
         <span className="metric-label">{m.label}</span>
         <div className={`metric-value ${m.color}`}>
-          {m.format === 'currency' ? `$${m.value?.toFixed(2)}` : m.format === 'percent' ? `${m.value?.toFixed(2)}%` : m.value?.toFixed(2)}
+          {m.format === 'currency' ? `$${m.value?.toFixed(2)}` : m.format === 'percent' ? `${m.value?.toFixed(2)}%` : m.value}
         </div>
       </div>
     ))}
   </div>
 );
+
+const AdvancedMetricsDisplay = ({ metrics }) => {
+    const safeNum = (val) => (val !== undefined && val !== null && !isNaN(val)) ? val.toFixed(2) : "0.00";
+    return (
+        <div className="metrics-grid mb-6" style={{gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))'}}>
+            <div className="metric-item text-center"> <span className="metric-label">Expectancy</span> <div className="text-xl font-mono font-bold text-white">${safeNum(metrics.expectancy)}</div> </div>
+            <div className="metric-item text-center"> <span className="metric-label">Avg Hold Time</span> <div className="text-xl font-mono font-bold text-white">{safeNum(metrics.avgHoldTime)}h</div> </div>
+        </div>
+    );
+};
 
 const CommonBacktestInputs = ({ data, onChange, options }) => {
     const handleGlobalChange = (e) => onChange(e);
@@ -174,7 +177,7 @@ const CommonBacktestInputs = ({ data, onChange, options }) => {
              <div className="setup-selector"> <label className="text-neutral-400">Min ATR %</label> <input type="number" name="minAtrPct" value={params.minAtrPct ?? ''} onChange={handleParamChange} step="0.05" className={inputClass} /> </div>
              <div className="setup-selector"> <label className="text-neutral-400">Min ADX</label> <input type="number" name="minAdxLevel" value={params.minAdxLevel ?? ''} onChange={handleParamChange} className={inputClass} /> </div>
              <div className="setup-selector"> <label className="text-neutral-400">TSL ATR Multiplier</label> <input type="number" name="tslAtrMult" value={params.tslAtrMult ?? ''} onChange={handleParamChange} step="0.1" className={inputClass} /> </div>
-             <div className="setup-selector"> <label className="text-neutral-400">Trend Filter SMA</label> <input type="number" name="trendFilterPeriod" value={params.trendFilterPeriod ?? ''} onChange={handleParamChange} className={inputClass} /> </div>
+             <div className="setup-selector"> <label className="text-neutral-400">Trend SMA</label> <input type="number" name="trendFilterPeriod" value={params.trendFilterPeriod ?? ''} onChange={handleParamChange} className={inputClass} /> </div>
           </div>
         </div>
       </div>
@@ -187,7 +190,7 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
     <div className="bot-card p-3 border-emerald-500/20 mb-3">
       <div className="flex justify-between items-center mb-2">
         <span className="text-xs font-bold text-emerald-400">Layer #{idx + 1}</span>
-        {!disableRemove && <button type="button" onClick={() => onRemove(idx)} className="text-rose-400 text-xs hover:scale-110">✕</button>}
+        {!disableRemove && <button type="button" onClick={() => onRemove(idx)} className="text-rose-400 text-xs">✕</button>}
       </div>
       <select value={config.strategyId || ""} onChange={(e) => onChange(e, idx)} className={inputClass}>
         <option value="">-- Select Engine --</option>
@@ -237,22 +240,29 @@ export default function Backtests() {
     return [...baseStrats, ...dbStrats];
   }, [options]);
 
+  // 🟢 FORCED AUTO-POPULATION FIX
   const handleWinnerSelect = (e) => {
     const id = e.target.value;
     setSelectedWinnerId(id);
     const win = liveWinners.find(w => (w.botId || w.id) === id);
     if (!win) return;
+
     const config = win.config || win;
-    const sym = (config.symbol || "BTC-USD").replace('/', '-');
-    const strats = (config.strategies || []).map(s => {
+    const symbol = (config.symbol || "BTC-USD").replace('/', '-');
+    const timeframe = config.timeframe || "1h";
+
+    const strategies = (config.strategies || []).map(s => {
         const code = typeof s === 'string' ? s : (s.code || "unknown");
         const opt = strategyOptions.find(o => o.code === code);
         return { strategyId: opt?._id || "", code, params: s.params || {} };
     });
-    setActiveTab(strats.length > 1 ? 'combo' : 'single');
-    const update = { symbol: sym, timeframe: config.timeframe || "1h", mlMode: config.mlMode || "predictions", mlModel: config.mlModel, mlThreshold: config.mlThreshold || 0.5, params: { ...defaultFilterParams, ...config.params } };
-    setFormData(p => ({ ...p, ...update, strategyId: strats[0]?.strategyId, code: strats[0]?.code }));
-    setComboData(p => ({ ...p, ...update, strategies: strats, comboConfig: config.comboConfig || { combinationRule: 'OR' } }));
+
+    setActiveTab(strategies.length > 1 ? 'combo' : 'single');
+    const update = { symbol, timeframe, mlMode: config.mlMode || "predictions", mlModel: config.mlModel, mlThreshold: config.mlThreshold || 0.5, params: { ...defaultFilterParams, ...config.params } };
+    
+    // Explicitly update states
+    setFormData(p => ({ ...p, ...update, strategyId: strategies[0]?.strategyId, code: strategies[0]?.code }));
+    setComboData(p => ({ ...p, ...update, strategies: strategies, comboConfig: config.comboConfig || { combinationRule: 'OR' } }));
   };
 
   const handleRun = async (e) => {
@@ -266,12 +276,12 @@ export default function Backtests() {
 
   const processed = useMemo(() => {
     if (!backtestResults) return null;
-    const res = backtestResults;
-    const trades = (res.tradeBreakdown || res.trades || []).map(t => ({ ...t, entryTime: t.entry_time || t.entryTime, exitTime: t.exit_time || t.exitTime, profit: t.profit || 0 }));
-    const curve = (res.equityCurve || []).map(p => ({ timestamp: new Date(p.timestamp || p.time).getTime(), balance: p.balance }));
-    const local = computeMetricsFromTrades(trades, activeTab === 'single' ? formData.initialBalance : comboData.initialBalance);
-    return { candleData: res.candleData || [], trades, curve, metrics: { ...res.metrics, ...local, totalReturn: res.metrics?.roi || local.totalReturn } };
-  }, [backtestResults, activeTab, formData, comboData]);
+    const trades = (backtestResults.tradeBreakdown || backtestResults.trades || []).map(t => ({ ...t, entryTime: t.entry_time || t.entryTime, exitTime: t.exit_time || t.exitTime, profit: t.profit || 0 }));
+    const curve = (backtestResults.equityCurve || []).map(p => ({ timestamp: new Date(p.timestamp || p.time).getTime(), balance: p.balance }));
+    const initial = activeTab === 'single' ? formData.initialBalance : comboData.initialBalance;
+    const local = computeMetricsFromTrades(trades, initial);
+    return { candleData: backtestResults.candleData || [], trades, curve, metrics: { ...backtestResults.metrics, ...local, totalReturn: backtestResults.metrics?.roi || local.totalReturn } };
+  }, [backtestResults, activeTab, formData.initialBalance, comboData.initialBalance]);
 
   return (
     <div className="backtest-container p-6">
@@ -298,8 +308,8 @@ export default function Backtests() {
               </div>
 
               <div className="tabs flex gap-2 mb-6"> 
-                <button type="button" className={`flex-1 py-3 rounded-xl transition-all ${activeTab === 'single' ? 'bg-emerald-500 text-black font-bold' : 'bg-white/5 text-neutral-400'}`} onClick={() => setActiveTab('single')}>Single</button> 
-                <button type="button" className={`flex-1 py-3 rounded-xl transition-all ${activeTab === 'combo' ? 'bg-emerald-500 text-black font-bold' : 'bg-white/5 text-neutral-400'}`} onClick={() => setActiveTab('combo')}>Combo</button> 
+                <button type="button" className={`flex-1 py-3 rounded-xl transition-all ${activeTab === 'single' ? 'bg-emerald-500 text-black font-bold' : 'bg-white/5 text-neutral-400 hover:bg-white/10'}`} onClick={() => setActiveTab('single')}>Single</button> 
+                <button type="button" className={`flex-1 py-3 rounded-xl transition-all ${activeTab === 'combo' ? 'bg-emerald-500 text-black font-bold' : 'bg-white/5 text-neutral-400 hover:bg-white/10'}`} onClick={() => setActiveTab('combo')}>Combo</button> 
               </div>
 
               <form onSubmit={handleRun}>
@@ -308,10 +318,10 @@ export default function Backtests() {
                 )}
                 <CommonBacktestInputs data={activeTab === 'single' ? formData : comboData} onChange={activeTab === 'single' ? (e)=>setFormData({...formData, [e.target.name]: e.target.value}) : (e)=>setComboData({...comboData, [e.target.name]: e.target.value})} options={{ symbolOptions, timeframeOptions, modelOptions: availableModels }} />
                 {activeTab === 'combo' && (
-                  <div className="space-y-4 mb-6"> 
-                      <label className="text-emerald-400 text-xs font-bold uppercase">Logic Layers</label> 
+                  <div className="space-y-4 mt-6 mb-6"> 
+                      <label className="text-emerald-400 text-xs font-bold uppercase tracking-widest">Logic Layers</label> 
                       {comboData.strategies.map((c, i) => <ComboStrategyCard key={i} idx={i} config={c} strategies={strategyOptions} onChange={(e, idx) => {const n = [...comboData.strategies]; n[idx].strategyId = e.target.value; setComboData({...comboData, strategies: n})}} onRemove={(idx) => setComboData({...comboData, strategies: comboData.strategies.filter((_,i)=>i!==idx)})} disableRemove={comboData.strategies.length <= 1} /> )} 
-                      <button type="button" onClick={() => setComboData({...comboData, strategies: [...comboData.strategies, {strategyId: "", code: ""}]})} className="w-full py-3 bg-black/40 border border-white/10 rounded-xl text-emerald-400 text-xs hover:bg-emerald-500/10">+ Add Layer</button> 
+                      <button type="button" onClick={() => setComboData({...comboData, strategies: [...comboData.strategies, {strategyId: "", code: "", params:{}}]})} className="w-full py-3 bg-black/40 border border-white/10 rounded-xl text-emerald-400 text-xs hover:bg-emerald-500/10 transition-all">+ Add Layer</button> 
                   </div>
                 )}
                 <button type="submit" disabled={isSimulating} className="w-full py-4 bg-emerald-500 text-black font-bold rounded-xl shadow-lg hover:scale-[1.02] transition-all"> {isSimulating ? 'Processing Sequence...' : '▶ Run Simulation'} </button>
@@ -327,14 +337,14 @@ export default function Backtests() {
                 <div className="bot-card p-6 h-[500px]"> <ChartIndependent results={processed} symbol={formData.symbol} /> </div>
                 <div className="grid grid-cols-2 gap-6">
                     <div className="bot-card p-6 h-[300px]"> <ResponsiveContainer width="100%" height="100%"> <PieChart> <Pie data={[{name: 'Wins', value: processed.metrics.winningTrades}, {name: 'Losses', value: processed.metrics.losingTrades}]} innerRadius={60} outerRadius={80} dataKey="value"> <Cell fill="#10b981" /><Cell fill="#ef4444" /> </Pie> <Tooltip /> </PieChart> </ResponsiveContainer> </div>
-                    <div className="bot-card p-6 flex flex-col items-center justify-center"> <div className="text-neutral-400 text-sm mb-2">ROI</div> <div className={`text-4xl font-mono font-bold ${processed.metrics.totalReturn >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}> {processed.metrics.totalReturn >= 0 ? '+' : ''}{processed.metrics.totalReturn.toFixed(2)}% </div> </div>
+                    <div className="bot-card p-6 flex flex-col items-center justify-center"> <div className="text-neutral-400 text-sm mb-2">ROI Result</div> <div className={`text-4xl font-mono font-bold ${processed.metrics.totalReturn >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}> {processed.metrics.totalReturn >= 0 ? '+' : ''}{processed.metrics.totalReturn.toFixed(2)}% </div> </div>
                 </div>
               </>
             ) : (
               <div className="bot-card p-20 flex flex-col items-center justify-center min-h-[600px] border-dashed border-2 border-white/5"> 
                 <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mb-6 text-4xl ${isSimulating ? 'animate-pulse bg-amber-500/20' : 'bg-emerald-500/10'}`}> {isSimulating ? '⏳' : '🧪'} </div> 
-                <h3 className="text-white text-xl mb-2 font-bold">{isSimulating ? 'Test is Running...' : 'Sandbox Ready'}</h3> 
-                <p className="text-neutral-400 text-center max-w-sm">Load a strategy or define your own to begin simulation.</p> 
+                <h3 className="text-white text-xl mb-2 font-bold">{isSimulating ? 'Simulation Currently Running...' : 'Strategy Sandbox Ready'}</h3> 
+                <p className="text-neutral-400 text-center max-w-sm">{isSimulating ? 'Our engine is processing historical data and ML predictions. Results will appear shortly.' : 'Load a pre-tuned strategy or define your own layers to begin simulation.'}</p> 
               </div>
             )}
           </div>
