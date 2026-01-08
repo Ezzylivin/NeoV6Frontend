@@ -28,7 +28,7 @@ const DEFAULT_MODEL_OPTIONS = [
 
 const defaultFilterParams = { minAtrPct: 0, trendFilterPeriod: 200, minAdxLevel: 0, tslAtrMult: 3.5, regime_threshold: 25 };
 
-// --- HELPER FUNCTIONS ---
+// --- HELPERS ---
 const formatDate = dateString => {
   if (!dateString) return '';
   const date = new Date(dateString);
@@ -46,18 +46,6 @@ const getDefaultDates = () => {
   const start = new Date(today); start.setFullYear(today.getFullYear() - 1);
   const end = new Date(today); end.setDate(today.getDate() - 1);
   return { startDate: formatDate(start), endDate: formatDate(end) };
-};
-
-const downloadCSV = (trades) => {
-    if (!trades || trades.length === 0) return alert("No trades to export.");
-    const headers = ["Entry Time", "Exit Time", "Type", "Entry Price", "Exit Price", "Profit", "Reason"];
-    const rows = trades.map(t => [t.entryTime, t.exitTime, t.position, t.price, t.exitPrice, t.profit.toFixed(2), t.type]);
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.body.appendChild(document.createElement("a"));
-    link.setAttribute("href", encodedUri); 
-    link.setAttribute("download", "backtest_trades.csv");
-    link.click();
 };
 
 const computeMetricsFromTrades = (trades, initialBalance) => {
@@ -248,8 +236,12 @@ export default function Backtests() {
     if (!win) return;
 
     const config = win.config || win;
-    const symbol = (config.symbol || "BTC-USD").replace('/', '-');
-    const timeframe = config.timeframe || "1h";
+
+    // Fix: Find exact match in symbolOptions to handle "BTC-USD" vs "BTC/USD"
+    const rawSym = (config.symbol || "BTC-USD").replace('/', '-');
+    const matchedSymbol = symbolOptions.find(s => s.replace('/', '-') === rawSym) || symbolOptions[0] || rawSym;
+    
+    const matchedTimeframe = timeframeOptions.find(t => t === config.timeframe) || timeframeOptions[0] || "1h";
 
     const strategies = (config.strategies || []).map(s => {
         const code = typeof s === 'string' ? s : (s.code || "unknown");
@@ -258,11 +250,28 @@ export default function Backtests() {
     });
 
     setActiveTab(strategies.length > 1 ? 'combo' : 'single');
-    const update = { symbol, timeframe, mlMode: config.mlMode || "predictions", mlModel: config.mlModel, mlThreshold: config.mlThreshold || 0.5, params: { ...defaultFilterParams, ...config.params } };
+
+    const update = { 
+        symbol: matchedSymbol, 
+        timeframe: matchedTimeframe, 
+        mlMode: config.mlMode || "predictions", 
+        mlModel: config.mlModel, 
+        mlThreshold: config.mlThreshold || 0.5, 
+        params: { ...defaultFilterParams, ...config.params } 
+    };
     
-    // Explicitly update states
     setFormData(p => ({ ...p, ...update, strategyId: strategies[0]?.strategyId, code: strategies[0]?.code }));
     setComboData(p => ({ ...p, ...update, strategies: strategies, comboConfig: config.comboConfig || { combinationRule: 'OR' } }));
+  };
+
+  const handleFormChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(p => ({ ...p, [name]: value }));
+  };
+
+  const handleComboChange = (e) => {
+    const { name, value } = e.target;
+    setComboData(p => ({ ...p, [name]: value }));
   };
 
   const handleRun = async (e) => {
@@ -276,11 +285,12 @@ export default function Backtests() {
 
   const processed = useMemo(() => {
     if (!backtestResults) return null;
-    const trades = (backtestResults.tradeBreakdown || backtestResults.trades || []).map(t => ({ ...t, entryTime: t.entry_time || t.entryTime, exitTime: t.exit_time || t.exitTime, profit: t.profit || 0 }));
-    const curve = (backtestResults.equityCurve || []).map(p => ({ timestamp: new Date(p.timestamp || p.time).getTime(), balance: p.balance }));
+    const res = backtestResults;
+    const trades = (res.tradeBreakdown || res.trades || []).map(t => ({ ...t, entryTime: t.entry_time || t.entryTime, exitTime: t.exit_time || t.exitTime, profit: t.profit || 0 }));
+    const curve = (res.equityCurve || []).map(p => ({ timestamp: new Date(p.timestamp || p.time).getTime(), balance: p.balance }));
     const initial = activeTab === 'single' ? formData.initialBalance : comboData.initialBalance;
     const local = computeMetricsFromTrades(trades, initial);
-    return { candleData: backtestResults.candleData || [], trades, curve, metrics: { ...backtestResults.metrics, ...local, totalReturn: backtestResults.metrics?.roi || local.totalReturn } };
+    return { candleData: res.candleData || [], trades, curve, metrics: { ...res.metrics, ...local, totalReturn: res.metrics?.roi || local.totalReturn } };
   }, [backtestResults, activeTab, formData.initialBalance, comboData.initialBalance]);
 
   return (
@@ -316,7 +326,7 @@ export default function Backtests() {
                 {activeTab === 'single' && (
                    <div className="setup-selector mb-4"> <label className="text-neutral-400 text-xs block mb-2">⚡ TA Engine</label> <select value={formData.strategyId} onChange={(e) => setFormData({...formData, strategyId: e.target.value})} className={inputClass}> <option value="">-- Select --</option> {strategyOptions.map(s => <option key={s._id} value={s._id}>{s.name}</option>)} </select> </div>
                 )}
-                <CommonBacktestInputs data={activeTab === 'single' ? formData : comboData} onChange={activeTab === 'single' ? (e)=>setFormData({...formData, [e.target.name]: e.target.value}) : (e)=>setComboData({...comboData, [e.target.name]: e.target.value})} options={{ symbolOptions, timeframeOptions, modelOptions: availableModels }} />
+                <CommonBacktestInputs data={activeTab === 'single' ? formData : comboData} onChange={activeTab === 'single' ? handleFormChange : handleComboChange} options={{ symbolOptions, timeframeOptions, modelOptions: availableModels }} />
                 {activeTab === 'combo' && (
                   <div className="space-y-4 mt-6 mb-6"> 
                       <label className="text-emerald-400 text-xs font-bold uppercase tracking-widest">Logic Layers</label> 
@@ -324,7 +334,7 @@ export default function Backtests() {
                       <button type="button" onClick={() => setComboData({...comboData, strategies: [...comboData.strategies, {strategyId: "", code: "", params:{}}]})} className="w-full py-3 bg-black/40 border border-white/10 rounded-xl text-emerald-400 text-xs hover:bg-emerald-500/10 transition-all">+ Add Layer</button> 
                   </div>
                 )}
-                <button type="submit" disabled={isSimulating} className="w-full py-4 bg-emerald-500 text-black font-bold rounded-xl shadow-lg hover:scale-[1.02] transition-all"> {isSimulating ? 'Processing Sequence...' : '▶ Run Simulation'} </button>
+                <button type="submit" disabled={isSimulating} className="w-full py-4 bg-emerald-500 text-black font-bold rounded-xl shadow-lg hover:scale-[1.02] transition-all"> {isSimulating ? 'Test is Running...' : '▶ Run Simulation'} </button>
               </form>
             </div>
           </div>
