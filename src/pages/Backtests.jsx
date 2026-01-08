@@ -105,6 +105,7 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
     const totalTrades = trades.length;
     const avgWin = wins > 0 ? totalWin / wins : 0;
     const avgLoss = (totalTrades - wins) > 0 ? totalLoss / (totalTrades - wins) : 0;
+    
     const avgReturn = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length;
     const variance = dailyReturns.reduce((a, b) => a + Math.pow(b - avgReturn, 2), 0) / dailyReturns.length;
     const stdDev = Math.sqrt(variance);
@@ -127,6 +128,23 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
         maxLosingStreak,
         avgHoldTime: totalHoldTimeMs / totalTrades / (1000 * 60 * 60)
     };
+};
+
+// 🟢 INITIAL STATES DEFINED (Fixes ReferenceError)
+const initialFormData = {
+  strategyId: "", code: "", symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate,
+  initialBalance: 1000, params: { ...defaultFilterParams, maxPyramiding: 1 },
+  riskManagementMode: 'static', riskPercentage: 1, growthCapitalTarget: 2000, 
+  mlMode: "off", mlModel: "", mlThreshold: 0.5
+};
+
+const initialComboData = {
+  strategies: [ { strategyId: "", code: "", params: { tslAtrMult: 3.5 } }, { strategyId: "", code: "", params: { tslAtrMult: 3.5 } } ],
+  params: { ...defaultFilterParams, maxPyramiding: 1 }, 
+  comboConfig: { strategyCodes: [], combinationRule: 'AND' },
+  symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, initialBalance: 1000,
+  riskManagementMode: 'static', riskPercentage: 1, growthCapitalTarget: 2000, 
+  mlMode: "off", mlModel: "", mlThreshold: 0.5
 };
 
 // --- SUB-COMPONENTS ---
@@ -221,7 +239,7 @@ const CommonBacktestInputs = ({ data, onChange, options }) => {
         <div className="bot-card mb-6" style={{background: 'rgba(239, 68, 68, 0.05)', borderColor: 'rgba(239, 68, 68, 0.2)'}}>
            <label className="text-rose-400 text-xs font-bold block mb-2">Security Verification</label>
            {/* Hidden username field helps browsers handle password-only forms for accessibility */}
-           <input type="text" name="username" style={{display:'none'}} autoComplete="username" />
+           <input type="text" name="username" style={{display:'none'}} autoComplete="username" readOnly />
            <input 
                 name="password" 
                 type="password" 
@@ -373,7 +391,9 @@ export default function Backtests() {
     let val = type === 'number' ? (isNaN(parseFloat(value)) ? '' : parseFloat(value)) : value;
     if (name.startsWith("param_")) {
         setComboData(prev => ({ ...prev, params: { ...prev.params, [name.substring(6)]: val } }));
-    } else { setComboData(prev => ({ ...prev, [name]: val })); }
+    } else {
+        setComboData(prev => ({ ...prev, [name]: val }));
+    }
   };
 
   const handleStrategyConfigChange = (e, index) => {
@@ -402,18 +422,19 @@ export default function Backtests() {
         const filename = e.target.value; 
         setSelectedWinnerId(filename);
         const win = liveWinners.find(w => (w.botId || w.id) === filename);
-        if (!win) return;
+        if (!selectedWinner) return;
         const config = win.config || win;
         const symbol = (config.symbol || "BTC-USD").replace('/', '-');
-        const strats = (config.strategies || []).map(s => {
+        const timeframe = config.timeframe || "1h";
+        const strategies = (config.strategies || []).map(s => {
             const code = typeof s === 'string' ? s : (s.code || "unknown");
             const opt = strategyOptions.find(o => o.code === code);
             return { strategyId: opt?._id || "", code, params: s.params || {} };
         });
-        setActiveTab(strats.length > 1 ? 'combo' : 'single');
-        const update = { symbol, timeframe: config.timeframe || "1h", mlMode: config.mlMode || "predictions", mlModel: config.mlModel, mlThreshold: config.mlThreshold || 0.5, params: { ...defaultFilterParams, ...config.params } };
-        setFormData(p => ({ ...p, ...update, strategyId: strats[0]?.strategyId, code: strats[0]?.code }));
-        setComboData(p => ({ ...p, ...update, strategies: strats, comboConfig: config.comboConfig || { combinationRule: 'OR' } }));
+        setActiveTab(strategies.length > 1 ? 'combo' : 'single');
+        const update = { symbol, timeframe, mlMode: config.mlMode || "predictions", mlModel: config.mlModel, mlThreshold: config.mlThreshold || 0.5, params: { ...defaultFilterParams, ...config.params } };
+        setFormData(p => ({ ...p, ...update, strategyId: strategies[0]?.strategyId, code: strategies[0]?.code }));
+        setComboData(p => ({ ...p, ...update, strategies: strategies, comboConfig: config.comboConfig || { combinationRule: 'OR' } }));
   };
 
   const handleRun = async (e) => {
