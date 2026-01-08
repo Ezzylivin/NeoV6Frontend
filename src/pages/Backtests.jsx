@@ -150,14 +150,15 @@ const CommonBacktestInputs = ({ data, onChange, options }) => {
     return (
       <div className="space-y-6">
         <div className="form-grid">
-          <div className="setup-selector"> <label className="text-neutral-400">Symbol</label> <select name="symbol" value={data.symbol || ""} onChange={handleGlobalChange} className={inputClass}> <option value="">-- Select --</option> {options.symbolOptions?.map(s => <option key={s} value={s}>{s}</option>)} </select> </div>
-          <div className="setup-selector"> <label className="text-neutral-400">Timeframe</label> <select name="timeframe" value={data.timeframe || ""} onChange={handleGlobalChange} className={inputClass}> <option value="">-- Select --</option> {options.timeframeOptions?.map(t => <option key={t} value={t}>{t}</option>)} </select> </div>
+          <div className="setup-selector"> <label className="text-neutral-400">Symbol</label> <select name="symbol" value={data.symbol || ""} onChange={handleGlobalChange} className={inputClass}> <option value="">-- Select Symbol --</option> {options.symbolOptions?.map(s => <option key={s} value={s}>{s}</option>)} </select> </div>
+          <div className="setup-selector"> <label className="text-neutral-400">Timeframe</label> <select name="timeframe" value={data.timeframe || ""} onChange={handleGlobalChange} className={inputClass}> <option value="">-- Select Timeframe --</option> {options.timeframeOptions?.map(t => <option key={t} value={t}>{t}</option>)} </select> </div>
           <div className="setup-selector"> <label className="text-neutral-400">Initial Balance</label> <input type="number" name="initialBalance" value={data.initialBalance ?? ''} onChange={handleGlobalChange} className={inputClass} /> </div>
         </div>
         <div className="form-grid" style={{gridTemplateColumns: '1fr 1fr'}}>
           <div className="setup-selector"> <label className="text-neutral-400">Start Date</label> <input type="date" name="startDate" value={data.startDate || ""} onChange={handleGlobalChange} className={inputClass} /> </div>
           <div className="setup-selector"> <label className="text-neutral-400">End Date</label> <input type="date" name="endDate" value={data.endDate || ""} onChange={handleGlobalChange} className={inputClass} /> </div>
         </div>
+
         <div className="bot-card bg-emerald-500/5 border-emerald-500/20 p-4">
           <div className="panel-header mb-4 pb-2 border-b border-emerald-500/20"><h4 className="text-emerald-400 font-bold">ML & Risk Configuration</h4></div>
           <div className="form-grid">
@@ -172,6 +173,7 @@ const CommonBacktestInputs = ({ data, onChange, options }) => {
             )}
           </div>
         </div>
+
         <div className="bot-card p-4">
           <div className="panel-header mb-4 pb-2 border-b border-white/10"><h4 className="text-white font-bold">Advanced TA Filters</h4></div>
           <div className="form-grid">
@@ -201,6 +203,7 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
   );
 };
 
+// --- MAIN DASHBOARD ---
 export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest, fetchOptions } = useBacktest(); 
   const { options = {} } = state || {};
@@ -247,7 +250,10 @@ export default function Backtests() {
     if (!win) return;
 
     const config = win.config || win;
-    const matchedSymbol = symbolOptions.find(s => s.replace('/', '-') === (config.symbol || "").replace('/', '-')) || config.symbol || symbolOptions[0];
+    
+    // Normalize and Match Symbol/Timeframe
+    const rawSym = (config.symbol || "BTC-USD").replace('/', '-');
+    const matchedSymbol = symbolOptions.find(s => s.replace('/', '-') === rawSym) || config.symbol || symbolOptions[0];
     const matchedTF = timeframeOptions.find(t => t === config.timeframe) || config.timeframe || timeframeOptions[0];
 
     const strats = (config.strategies || []).map(s => {
@@ -313,21 +319,20 @@ export default function Backtests() {
 
               <form onSubmit={handleRun}>
                 {activeTab === 'single' && (
-                   <div className="setup-selector mb-4"> <label className="text-neutral-400 text-xs block mb-2">⚡ TA Engine</label> <select value={formData.strategyId} onChange={(e) => setFormData({...formData, strategyId: e.target.value})} className={inputClass}> <option value="">-- Select --</option> {strategyOptions.map(s => <option key={s._id} value={s._id}>{s.name}</option>)} </select> </div>
+                   <div className="setup-selector mb-4"> <label className="text-neutral-400 text-xs block mb-2">⚡ Engine</label> <select name="strategyId" value={formData.strategyId} onChange={(e) => setFormData({...formData, strategyId: e.target.value})} className={inputClass}> <option value="">-- Select TA Engine --</option> {strategyOptions.map(s => <option key={s._id} value={s._id}>{s.name}</option>)} </select> </div>
                 )}
-                <CommonBacktestInputs data={activeTab === 'single' ? formData : comboData} onChange={activeTab === 'single' ? (e)=>setFormData({...formData, [e.target.name]: e.target.value}) : (e)=>setComboData({...comboData, [e.target.name]: e.target.value})} options={{ symbolOptions, timeframeOptions, modelOptions: availableModels }} />
+                <CommonBacktestInputs data={activeTab === 'single' ? formData : comboData} onChange={activeTab === 'single' ? (e)=>setFormData({...formData, [e.target.name]: e.target.value}) : (e)=>setComboData({...comboData, [e.target.name]: e.target.value})} options={{ symbolOptions, timeframeOptions }} />
                 {activeTab === 'combo' && (
                   <div className="space-y-4 mt-6 mb-6"> 
                       <label className="text-emerald-400 text-xs font-bold uppercase tracking-widest">Logic Layers</label> 
                       {comboData.strategies.map((c, i) => <ComboStrategyCard key={i} idx={i} config={c} strategies={strategyOptions} onChange={(e, idx) => {const n = [...comboData.strategies]; n[idx].strategyId = e.target.value; setComboData({...comboData, strategies: n})}} onRemove={(idx) => setComboData({...comboData, strategies: comboData.strategies.filter((_,i)=>i!==idx)})} disableRemove={comboData.strategies.length <= 1} /> )} 
-                      <button type="button" onClick={() => setComboData({...comboData, strategies: [...comboData.strategies, {strategyId: "", code: "", params:{}}]})} className="w-full py-3 bg-black/40 border border-white/10 rounded-xl text-emerald-400 text-xs hover:bg-emerald-500/10">+ Add Layer</button> 
+                      <button type="button" onClick={() => setComboData({...comboData, strategies: [...comboData.strategies, {strategyId: "", code: "", params:{}}]})} className="w-full py-3 bg-black/40 border border-white/10 rounded-xl text-emerald-400 text-xs hover:bg-emerald-500/10 transition-all">+ Add Layer</button> 
                   </div>
                 )}
                 <button type="submit" disabled={isSimulating} className="w-full py-4 bg-emerald-500 text-black font-bold rounded-xl shadow-lg hover:scale-[1.02] transition-all"> {isSimulating ? 'Test is Running...' : '▶ Run Simulation'} </button>
               </form>
             </div>
           </div>
-
           <div className="col-span-12 lg:col-span-7 space-y-6">
             {processed ? (
               <>
@@ -336,7 +341,7 @@ export default function Backtests() {
                 <div className="bot-card p-6 h-[500px]"> <ChartIndependent results={processed} symbol={formData.symbol} /> </div>
                 <div className="grid grid-cols-2 gap-6">
                     <div className="bot-card p-6 h-[300px]"> <ResponsiveContainer width="100%" height="100%"> <PieChart> <Pie data={[{name: 'Wins', value: processed.metrics.winningTrades}, {name: 'Losses', value: processed.metrics.losingTrades}]} innerRadius={60} outerRadius={80} dataKey="value"> <Cell fill="#10b981" /><Cell fill="#ef4444" /> </Pie> <Tooltip /> </PieChart> </ResponsiveContainer> </div>
-                    <div className="bot-card p-6 flex flex-col items-center justify-center"> <div className="text-neutral-400 text-sm mb-2">ROI Result</div> <div className={`text-4xl font-mono font-bold ${processed.metrics.totalReturn >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}> {processed.metrics.totalReturn >= 0 ? '+' : ''}{processed.metrics.totalReturn.toFixed(2)}% </div> </div>
+                    <div className="bot-card p-6 flex flex-col items-center justify-center"> <div className="text-neutral-400 text-sm mb-2">Net Result</div> <div className={`text-4xl font-mono font-bold ${processed.metrics.totalReturn >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}> {processed.metrics.totalReturn >= 0 ? '+' : ''}{processed.metrics.totalReturn.toFixed(2)}% </div> </div>
                 </div>
               </>
             ) : (
