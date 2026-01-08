@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { createChart, CrosshairMode, ColorType } from 'lightweight-charts';
+import { createChart, CrosshairMode, LineStyle, ColorType } from 'lightweight-charts';
 import { Calendar, ZoomIn, ZoomOut, Play, Pause, SkipBack, SkipForward, RotateCcw } from 'lucide-react';
 import './ChartReplay.css';
 
@@ -16,12 +16,16 @@ export const ChartReplay = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(100); 
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isLoaded, setIsLoaded] = useState(false);
   const [dataRange, setDataRange] = useState({ start: "--", end: "--", count: 0 });
 
-  // --- 1. PARSE & FILTER CANDLES (Strict Unix Seconds) ---
-  const { candles, validTimes } = useMemo(() => {
+  // --- 1. PARSE & FILTER CANDLES (Pure Logic) ---
+  const { candles, timeSet, validTimes } = useMemo(() => {
+    // 🔍 LOG: Check raw input
+    console.log("📊 [REPLAY DEBUG] Raw CandleData received:", results?.candleData?.length || 0, "bars");
+    
     if (!results?.candleData || !Array.isArray(results.candleData)) {
-        return { candles: [], validTimes: [] };
+        return { candles: [], timeSet: new Set(), validTimes: [] };
     }
     
     const startTs = startDate ? new Date(startDate).getTime() / 1000 : null;
@@ -30,24 +34,27 @@ export const ChartReplay = ({
     const uniqueSet = new Set();
     const processed = [];
 
-    results.candleData.forEach(c => {
-      let t = c.timestamp || c.time || c.datetime;
-      if (!t) return;
-
-      // Handle MongoDB/JSON objects
+    results.candleData.forEach((c, idx) => {
+      let t = c.timestamp || c.time || c.datetime || c.date || c.start;
       if (typeof t === 'object' && t.$date) t = t.$date;
       
       let dateObj = new Date(t);
-      let unixSec = Math.floor(dateObj.getTime() / 1000);
+      const timeStamp = Math.floor(dateObj.getTime() / 1000);
 
-      // Filtering logic
-      if (startTs && unixSec < startTs) return;
-      if (endTs && unixSec > endTs) return;
+      if (isNaN(timeStamp)) {
+          if (idx === 0) console.warn("⚠️ [REPLAY DEBUG] Invalid timestamp format at index 0:", t);
+          return;
+      }
 
-      if (!isNaN(unixSec) && !uniqueSet.has(unixSec)) {
-        uniqueSet.add(unixSec);
+      // 1️⃣ Date Filtering Check
+      if (startTs && timeStamp < startTs) return;
+      if (endTs && timeStamp > endTs) return;
+
+      // 2️⃣ Deduplication & Parsing
+      if (!uniqueSet.has(timeStamp)) {
+        uniqueSet.add(timeStamp);
         processed.push({
-          time: unixSec,
+          time: timeStamp,
           open: parseFloat(c.open || 0),
           high: parseFloat(c.high || 0),
           low: parseFloat(c.low || 0),
@@ -56,112 +63,134 @@ export const ChartReplay = ({
       }
     });
 
-    const sortedCandles = processed.sort((a, b) => a.time - b.time);
+    processed.sort((a, b) => a.time - b.time);
+    
+    // 🔍 LOG: Final processed count
+    console.log("✅ [REPLAY DEBUG] Processed candles after filtering:", processed.length);
+    if (processed.length > 0) console.log("📅 [REPLAY DEBUG] Date range in processed data:", new Date(processed[0].time * 1000).toISOString(), "to", new Date(processed[processed.length-1].time * 1000).toISOString());
+
     return { 
-        candles: sortedCandles, 
-        validTimes: sortedCandles.map(c => c.time) 
+        candles: processed, 
+        timeSet: uniqueSet, 
+        validTimes: Array.from(uniqueSet).sort((a, b) => a - b) 
     };
   }, [results, startDate, endDate]);
 
-  // --- 2. INITIALIZE CHART ---
+  // --- 2. UPDATE DATA RANGE STATE ---
   useEffect(() => {
-    if (!chartContainerRef.current || candles.length === 0) return;
+    if (candles.length > 0) {
+        setDataRange({
+            start: new Date(candles[0].time * 1000).toLocaleDateString(),
+            end: new Date(candles[candles.length - 1].time * 1000).toLocaleDateString(),
+            count: candles.length
+        });
+        if (!isLoaded || currentIndex >= candles.length) {
+            setCurrentIndex(0);
+            setIsLoaded(true);
+        }
+    }
+  }, [candles]);
 
-    // Reset Replay Index when data changes
-    setCurrentIndex(0);
-    setIsPlaying(false);
+  // --- 3. PARSE & ALIGN TRADES ---
+  const trades = useMemo(() => {
+    console.log("📈 [REPLAY DEBUG] Trade Breakdown count:", results?.tradeBreakdown?.length || 0);
+    if (!results?.tradeBreakdown || !Array.isArray(results.tradeBreakdown) || validTimes.length === 0) return [];
+    
+    const findNearestTime = (targetTime) => {
+        if (timeSet.has(targetTime)) return targetTime;
+        let closest = validTimes[0];
+        let minDiff = Math.abs(targetTime - closest);
+        for (let t of validTimes) {
+            const diff = Math.abs(targetTime - t);
+            if (diff < minDiff) { minDiff = diff; closest = t; }
+        }
+        return minDiff < 7200 ? closest : null; 
+    };
 
+    const finalTrades = results.tradeBreakdown.map((t, i) => {
+      const entryRaw = new Date(t.entryTime || t.entry_time || t.time).getTime() / 1000;
+      const entryTime = findNearestTime(entryRaw);
+      if (!entryTime) return null;
+
+      return {
+        id: i,
+        time: entryTime,
+        position: (t.position || t.side || 'long').toLowerCase(),
+        price: parseFloat(t.entryPrice || 0),
+        profit: parseFloat(t.profit || 0),
+        exitTime: t.exitTime ? findNearestTime(new Date(t.exitTime).getTime() / 1000) : null,
+      };
+    }).filter(t => t !== null);
+
+    console.log("✅ [REPLAY DEBUG] Aligned trades count:", finalTrades.length);
+    return finalTrades;
+  }, [results, validTimes]);
+
+  // --- 4. INITIALIZE CHART ---
+  useEffect(() => {
+    if (!chartContainerRef.current || candles.length === 0) {
+        console.warn("🚫 [REPLAY DEBUG] Chart init blocked: No container or 0 candles.");
+        return;
+    }
+
+    console.log("🎨 [REPLAY DEBUG] Initializing Lightweight Chart canvas...");
     if (chartRef.current) { chartRef.current.remove(); }
 
     chartRef.current = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
       height: 450,
-      layout: { 
-          background: { type: ColorType.Solid, color: "#000000" },
-          textColor: '#94a3b8',
-      }, 
-      grid: { 
-          vertLines: { color: 'rgba(16, 185, 129, 0.1)' }, 
-          horzLines: { color: 'rgba(16, 185, 129, 0.1)' } 
-      },
-      timeScale: { borderColor: '#064e3b', timeVisible: true, barSpacing: 10 },
+      layout: { background: { type: ColorType.Solid, color: "#000000" }, textColor: '#94a3b8' }, 
+      grid: { vertLines: { color: 'rgba(6, 78, 59, 0.1)' }, horzLines: { color: 'rgba(6, 78, 59, 0.1)' } },
+      timeScale: { borderColor: '#064e3b', timeVisible: true },
     });
 
     candlestickSeriesRef.current = chartRef.current.addCandlestickSeries({
-      upColor: '#10b981', downColor: '#ef4444',
-      borderVisible: false, wickUpColor: '#10b981', wickDownColor: '#ef4444',
+      upColor: '#10b981', downColor: '#ef4444', borderVisible: false,
     });
 
-    candlestickSeriesRef.current.setData(candles.slice(0, 1));
-    chartRef.current.timeScale().fitContent();
+    return () => { if (chartRef.current) chartRef.current.remove(); };
+  }, [candles.length, symbol]);
 
-    const resizeHandler = () => {
-        if (chartRef.current && chartContainerRef.current) {
-            chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
-        }
-    };
-    window.addEventListener('resize', resizeHandler);
-
-    return () => {
-        window.removeEventListener('resize', resizeHandler);
-        if (chartRef.current) {
-            chartRef.current.remove();
-            chartRef.current = null;
-        }
-    };
-  }, [candles, symbol]);
-
-  // --- 3. REPLAY LOOP ---
+  // --- 5. THE REPLAY LOOP ---
   useEffect(() => {
     if (!candlestickSeriesRef.current || candles.length === 0) return;
     
-    const visibleData = candles.slice(0, currentIndex + 1);
-    candlestickSeriesRef.current.setData(visibleData);
+    const visibleCandles = candles.slice(0, currentIndex + 1);
+    candlestickSeriesRef.current.setData(visibleCandles);
 
-    // Update HUD Range Info
-    setDataRange({
-        start: new Date(candles[0].time * 1000).toLocaleDateString(),
-        end: new Date(candles[candles.length - 1].time * 1000).toLocaleDateString(),
-        count: candles.length
+    const activeMarkers = [];
+    trades.forEach(t => {
+        if (t.time <= candles[currentIndex].time) {
+            activeMarkers.push({
+                time: t.time,
+                position: t.position === 'long' ? 'belowBar' : 'aboveBar',
+                color: t.position === 'long' ? '#10b981' : '#f59e0b',
+                shape: t.position === 'long' ? 'arrowUp' : 'arrowDown',
+                text: 'E'
+            });
+        }
     });
-  }, [currentIndex, candles]);
+    candlestickSeriesRef.current.setMarkers(activeMarkers);
+  }, [currentIndex, candles, trades]);
 
-  useEffect(() => {
-    let interval = null;
-    if (isPlaying) {
-      interval = setInterval(() => {
-        setCurrentIndex(prev => (prev < candles.length - 1 ? prev + 1 : (setIsPlaying(false), prev)));
-      }, playbackSpeed);
-    }
-    return () => clearInterval(interval);
-  }, [isPlaying, playbackSpeed, candles.length]);
-
-  if (!candles.length) return <div className="chart-loading">Waiting for valid data range...</div>;
+  if (!candles.length) return <div className="chart-loading">⚠️ No data found in selected range. Check console logs.</div>;
 
   return (
     <div className="chart-replay-container">
       <div className="chart-header-row">
-        <div className="flex items-center gap-4">
-            <h3>{symbol} Replay</h3>
-            <span className="text-xs text-emerald-500 font-mono">Index: {currentIndex} / {candles.length - 1}</span>
-        </div>
-        
+        <h3>Replay: {symbol}</h3>
         <div className="playback-controls">
             <button onClick={() => setCurrentIndex(0)}><RotateCcw size={16}/></button>
-            <button onClick={() => setIsPlaying(!isPlaying)} className={isPlaying ? "pause-btn" : "play-btn"}>
-                {isPlaying ? <Pause size={16} fill="currentColor"/> : <Play size={16} fill="currentColor"/>}
+            <button onClick={() => setIsPlaying(!isPlaying)} className="play-btn">
+                {isPlaying ? <Pause size={16}/> : <Play size={16}/>}
             </button>
             <div className="speed-control">
-                <input type="range" min="10" max="400" step="10" 
-                    value={410 - playbackSpeed} 
-                    onChange={(e) => setPlaybackSpeed(410 - Number(e.target.value))} 
-                />
+                <input type="range" min="10" max="400" value={410 - playbackSpeed} onChange={(e) => setPlaybackSpeed(410 - Number(e.target.value))} />
             </div>
         </div>
       </div>
-
       <div className="chart-wrapper">
-          <div ref={chartContainerRef} className="chart-canvas" />
+          <div ref={chartContainerRef} className="chart-canvas" style={{ background: '#000' }} />
       </div>
     </div>
   );
