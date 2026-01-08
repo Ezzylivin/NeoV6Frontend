@@ -28,7 +28,6 @@ const DEFAULT_MODEL_OPTIONS = [
 
 const defaultFilterParams = { minAtrPct: 0, trendFilterPeriod: 200, minAdxLevel: 0, tslAtrMult: 3.5, regime_threshold: 25 };
 
-// --- HELPER FUNCTIONS ---
 const formatDate = dateString => {
   if (!dateString) return '';
   const date = new Date(dateString);
@@ -58,10 +57,9 @@ const downloadCSV = (trades) => {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
 };
 
-// 🟢 SAFE METRICS CALCULATOR
+// --- SAFE METRICS CALCULATOR ---
 const computeMetricsFromTrades = (trades, initialBalance) => {
     if (!trades || trades.length === 0) return { totalReturn: 0, profitFactor: 0, maxDrawdown: 0, winRate: 0, totalTrades: 0, winningTrades: 0, losingTrades: 0, averageWin: 0, averageLoss: 0, finalBalance: initialBalance, expectancy: 0, sharpeRatio: 0, sortinoRatio: 0, maxLosingStreak: 0, avgHoldTime: 0 };
-    
     let balance = initialBalance;
     let peak = initialBalance;
     let maxDrawdown = 0;
@@ -79,40 +77,36 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
         if (balance > peak) peak = balance;
         const dd = (peak - balance) / peak;
         if (dd > maxDrawdown) maxDrawdown = dd;
-        if (t.profit > 0) { 
-            wins++; 
-            totalWin += t.profit; 
-            currentLosingStreak = 0; 
-        } else { 
-            totalLoss += Math.abs(t.profit); 
-            currentLosingStreak++; 
-            if (currentLosingStreak > maxLosingStreak) maxLosingStreak = currentLosingStreak; 
-        }
+        if (t.profit > 0) { wins++; totalWin += t.profit; currentLosingStreak = 0; }
+        else { totalLoss += Math.abs(t.profit); currentLosingStreak++; if (currentLosingStreak > maxLosingStreak) maxLosingStreak = currentLosingStreak; }
         const entry = new Date(t.entryTime).getTime();
         const exit = new Date(t.exitTime).getTime();
         if (!isNaN(entry) && !isNaN(exit)) totalHoldTimeMs += (exit - entry);
         dailyReturns.push(t.profit / prevBal);
     });
 
-    const totalTrades = trades.length;
-    const winRate = totalTrades > 0 ? wins / totalTrades : 0;
-    const avgWin = wins > 0 ? totalWin / wins : 0;
-    const avgLoss = (totalTrades - wins) > 0 ? totalLoss / (totalTrades - wins) : 0;
+    const avgRet = dailyReturns.reduce((a,b)=>a+b,0)/dailyReturns.length;
+    const stdDev = Math.sqrt(dailyReturns.reduce((a,b)=>a+Math.pow(b-avgRet,2),0)/dailyReturns.length);
+    const winRate = wins / trades.length;
+    const avgWinVal = wins > 0 ? totalWin / wins : 0;
+    const avgLossVal = (trades.length - wins) > 0 ? totalLoss / (trades.length - wins) : 0;
 
     return {
         totalReturn: ((balance - initialBalance) / initialBalance) * 100,
         profitFactor: totalLoss === 0 ? totalWin : totalWin / totalLoss,
         maxDrawdown: maxDrawdown * 100,
         winRate: winRate * 100,
-        totalTrades,
+        totalTrades: trades.length,
         winningTrades: wins,
-        losingTrades: totalTrades - wins,
-        averageWin: avgWin,
-        averageLoss: avgLoss,
+        losingTrades: trades.length - wins,
+        averageWin: avgWinVal,
+        averageLoss: avgLossVal,
         finalBalance: balance,
-        expectancy: (winRate * avgWin) - ((1 - winRate) * avgLoss),
+        // 🟢 FIXED EXPECTANCY MATH
+        expectancy: (winRate * avgWinVal) - ((1 - winRate) * avgLossVal),
+        sharpeRatio: stdDev === 0 ? 0 : (avgRet / stdDev) * Math.sqrt(trades.length),
         maxLosingStreak,
-        avgHoldTime: totalHoldTimeMs / totalTrades / (1000 * 60 * 60)
+        avgHoldTime: totalHoldTimeMs / trades.length / (1000 * 60 * 60)
     };
 };
 
@@ -133,32 +127,38 @@ const initialComboData = {
 };
 
 // --- SUB-COMPONENTS ---
-const MetricsDisplay = ({ metrics }) => (
-  <div className="metrics-grid mb-6">
-    {[
-      { label: "Total Return", value: metrics.totalReturn, format: 'percent', color: 'text-emerald-400' },
-      { label: "Profit Factor", value: metrics.profitFactor, format: 'number', color: 'text-teal-400' },
-      { label: "Max Drawdown", value: metrics.maxDrawdown, format: 'percent', color: 'text-amber-400' },
-      { label: "Win Rate", value: metrics.winRate, format: 'percent', color: 'text-violet-400' },
-      { label: "Total Trades", value: metrics.totalTrades, format: null, color: 'text-cyan-400' },
-      { label: "Avg. Win", value: metrics.averageWin, format: 'currency', color: 'text-emerald-400' },
-      { label: "Avg. Loss", value: metrics.averageLoss, format: 'currency', color: 'text-rose-400' },
-      { label: "Final Balance", value: metrics.finalBalance, format: 'currency', color: 'text-emerald-400' }
-    ].map((m, idx) => (
-      <div key={idx} className="metric-item hover:shadow-lg transition-all group">
-        <span className="metric-label">{m.label}</span>
-        <div className={`metric-value ${m.color}`}>
-          {m.format === 'currency' ? `$${m.value?.toFixed(2)}` : m.format === 'percent' ? `${m.value?.toFixed(2)}%` : m.value?.toFixed(2)}
+const MetricsDisplay = ({ metrics }) => {
+  if (!metrics) return null;
+  const items = [
+    { label: "Total Return", value: metrics.totalReturn, format: 'percent', color: 'text-emerald-400' },
+    { label: "Profit Factor", value: metrics.profitFactor, format: 'number', color: 'text-teal-400' },
+    { label: "Max Drawdown", value: metrics.maxDrawdown, format: 'percent', color: 'text-amber-400' },
+    { label: "Win Rate", value: metrics.winRate, format: 'percent', color: 'text-violet-400' },
+    { label: "Total Trades", value: metrics.totalTrades, format: null, color: 'text-cyan-400' },
+    { label: "Avg. Win", value: metrics.averageWin, format: 'currency', color: 'text-emerald-400' },
+    { label: "Avg. Loss", value: metrics.averageLoss, format: 'currency', color: 'text-rose-400' },
+    { label: "Final Balance", value: metrics.finalBalance, format: 'currency', color: 'text-emerald-400' }
+  ];
+  return (
+    <div className="metrics-grid mb-6">
+      {items.map((m, idx) => (
+        <div key={idx} className="metric-item hover:shadow-lg transition-all group">
+          <span className="metric-label">{m.label}</span>
+          <div className={`metric-value ${m.color}`}>
+            {m.format === 'currency' ? `$${m.value?.toFixed(2)}` : m.format === 'percent' ? `${m.value?.toFixed(2)}%` : (m.value?.toFixed(2) || "0.00")}
+          </div>
         </div>
-      </div>
-    ))}
-  </div>
-);
+      ))}
+    </div>
+  );
+};
 
 const AdvancedMetricsDisplay = ({ metrics }) => {
+    if (!metrics) return null;
     const safeNum = (val) => (val !== undefined && val !== null && !isNaN(val)) ? val.toFixed(2) : "0.00";
     return (
         <div className="metrics-grid mb-6" style={{gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))'}}>
+            <div className="metric-item text-center"> <span className="metric-label">Sharpe Ratio</span> <div className="text-xl font-mono font-bold text-white">{safeNum(metrics.sharpeRatio)}</div> </div>
             <div className="metric-item text-center"> <span className="metric-label">Expectancy</span> <div className="text-xl font-mono font-bold text-white">${safeNum(metrics.expectancy)}</div> </div>
             <div className="metric-item text-center"> <span className="metric-label">Avg Hold Time</span> <div className="text-xl font-mono font-bold text-white">{safeNum(metrics.avgHoldTime)}h</div> </div>
             <div className="metric-item text-center"> <span className="metric-label">Max Lose Streak</span> <div className="text-xl font-mono font-bold text-rose-400">{metrics.maxLosingStreak || 0}</div> </div>
@@ -169,9 +169,9 @@ const AdvancedMetricsDisplay = ({ metrics }) => {
 const CommonBacktestInputs = ({ data, onChange, options }) => {
     const handleGlobalChange = (e) => onChange(e);
     const handleParamChange = (e) => {
-        const { name, value, type } = e.target;
-        let val = type === 'number' ? (isNaN(parseFloat(value)) ? '' : parseFloat(value)) : value;
-        onChange({ target: { name: `param_${name}`, value: val, type } });
+      const { name, value, type } = e.target;
+      let val = type === 'number' ? (isNaN(parseFloat(value)) ? '' : parseFloat(value)) : value;
+      onChange({ target: { name: `param_${name}`, value: val, type } });
     };
     const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
     const params = data.params || {};
@@ -179,33 +179,30 @@ const CommonBacktestInputs = ({ data, onChange, options }) => {
     return (
       <>
         <div className="form-grid mb-6">
-          <div className="setup-selector"> <label className="text-neutral-400">Symbol</label> <select name="symbol" value={data.symbol || ""} onChange={handleGlobalChange} className={inputClass}> <option value="">-- Select --</option> {options.symbolOptions?.map(s => <option key={s} value={s}>{s}</option>)} </select> </div>
-          <div className="setup-selector"> <label className="text-neutral-400">Timeframe</label> <select name="timeframe" value={data.timeframe || ""} onChange={handleGlobalChange} className={inputClass}> <option value="">-- Select --</option> {options.timeframeOptions?.map(t => <option key={t} value={t}>{t}</option>)} </select> </div>
+          <div className="setup-selector"> <label className="text-neutral-400">Symbol</label> <select name="symbol" value={data.symbol || ""} onChange={handleGlobalChange} className={inputClass}> <option value="">-- Select Symbol --</option> {options.symbolOptions?.map(s => <option key={s} value={s}>{s}</option>)} </select> </div>
+          <div className="setup-selector"> <label className="text-neutral-400">Timeframe</label> <select name="timeframe" value={data.timeframe || ""} onChange={handleGlobalChange} className={inputClass}> <option value="">-- Select Timeframe --</option> {options.timeframeOptions?.map(t => <option key={t} value={t}>{t}</option>)} </select> </div>
           <div className="setup-selector"> <label className="text-neutral-400">Initial Balance</label> <input type="number" name="initialBalance" value={data.initialBalance ?? ''} onChange={handleGlobalChange} className={inputClass} /> </div>
         </div>
         <div className="form-grid mb-6" style={{gridTemplateColumns: '1fr 1fr'}}>
           <div className="setup-selector"> <label className="text-neutral-400">Start Date</label> <input type="date" name="startDate" value={data.startDate || ""} onChange={handleGlobalChange} className={inputClass} /> </div>
           <div className="setup-selector"> <label className="text-neutral-400">End Date</label> <input type="date" name="endDate" value={data.endDate || ""} onChange={handleGlobalChange} className={inputClass} /> </div>
         </div>
-        <div className="bot-card mb-6" style={{background: 'rgba(239, 68, 68, 0.05)', borderColor: 'rgba(239, 68, 68, 0.2)'}}>
-           <label className="text-rose-400 text-xs font-bold block mb-2">Security Verification</label>
-           <input type="text" name="username" style={{display:'none'}} autoComplete="username" readOnly />
-           <input name="password" type="password" autoComplete="current-password" placeholder="Enter Terminal Key" className={inputClass} />
-        </div>
+
         <div className="bot-card mb-6" style={{background: 'rgba(16, 185, 129, 0.05)', borderColor: 'rgba(16, 185, 129, 0.2)'}}>
           <div className="panel-header mb-4 pb-3 border-b border-emerald-500/20"><h4 className="text-emerald-400 font-bold">Risk & ML Configuration</h4></div>
           <div className="form-grid">
-            <div className="setup-selector"> <label className="text-neutral-400">Risk Mode</label> <select name="riskManagementMode" value={data.riskManagementMode || 'static'} onChange={handleGlobalChange} className={inputClass}> <option value="static">Standard</option> <option value="dynamic">Dynamic</option> </select> </div>
+            <div className="setup-selector"> <label className="text-neutral-400">Risk Mode</label> <select name="riskManagementMode" value={data.riskManagementMode || 'static'} onChange={handleGlobalChange} className={inputClass}> <option value="static">Standard (Static %)</option> <option value="dynamic">Dynamic (Growth Target)</option> </select> </div>
             <div className="setup-selector"> <label className="text-neutral-400">Risk Percentage</label> <input type="number" name="riskPercentage" value={data.riskPercentage ?? ''} onChange={handleGlobalChange} step="0.1" className={inputClass} /> </div>
-            <div className="setup-selector"> <label className="text-neutral-400">ML Mode</label> <select name="mlMode" value={data.mlMode || "off"} onChange={handleGlobalChange} className={inputClass}> <option value="off">Off</option> <option value="predictions">Hybrid</option> <option value="on">Pure ML</option> </select> </div>
+            <div className="setup-selector"> <label className="text-neutral-400">ML Mode</label> <select name="mlMode" value={data.mlMode || "off"} onChange={handleGlobalChange} className={inputClass}> <option value="off">Off (Pure TA)</option> <option value="predictions">Hybrid (TA+ML)</option> <option value="on">Pure ML</option> </select> </div>
             {data.mlMode !== 'off' && (
               <>
-                <div className="setup-selector"> <label className="text-neutral-400">ML Model</label> <select name="mlModel" value={data.mlModel || ""} onChange={handleGlobalChange} className={inputClass}> <option value="">-- Select --</option> {(options.modelOptions || DEFAULT_MODEL_OPTIONS).map(m => <option key={m.id} value={m.id}>{m.name}</option>)} </select> </div>
+                <div className="setup-selector"> <label className="text-neutral-400">ML Model</label> <select name="mlModel" value={data.mlModel || ""} onChange={handleGlobalChange} className={inputClass}> <option value="">-- Select Model --</option> {(options.modelOptions || DEFAULT_MODEL_OPTIONS).map(m => <option key={m.id} value={m.id}>{m.name}</option>)} </select> </div>
                 <div className="setup-selector"> <label className="text-neutral-400">ML Threshold</label> <input type="number" name="mlThreshold" value={data.mlThreshold ?? ''} step="0.05" onChange={handleGlobalChange} className={inputClass} /> </div>
               </>
             )}
           </div>
         </div>
+
         <div className="bot-card mb-6">
           <div className="panel-header mb-4 pb-3 border-b border-white/10"><h4 className="text-white font-bold">Advanced TA Filters</h4></div>
           <div className="form-grid">
@@ -229,16 +226,17 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
         {!disableRemove && <button type="button" onClick={() => onRemove(idx)} className="text-rose-400 hover:text-rose-300 font-bold text-lg">✕</button>}
       </div>
       <select name="strategyId" value={config.strategyId || ""} onChange={handleChange} disabled={!strategies.length} className={inputClass}>
-        <option value="">-- Select --</option>
+        <option value="">-- Select Strategy --</option>
         {strategies.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
       </select>
     </div>
   );
 };
 
+// --- MAIN PAGE COMPONENT ---
 export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest, fetchOptions } = useBacktest(); 
-  const { options = {} } = state || {};
+  const { loading = 'idle', options = {} } = state || {};
   const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
 
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
@@ -257,10 +255,9 @@ export default function Backtests() {
       setScanningWinners(true);
       try {
         const token = localStorage.getItem("token");
-        const headers = { Authorization: `Bearer ${token}` };
         const [resWinners, resModels] = await Promise.all([
-            axios.get("https://neov6backend.onrender.com/api/bot/winners", { headers }),
-            axios.get("https://neov6backend.onrender.com/api/ml/available-models", { headers })
+            axios.get("https://neov6backend.onrender.com/api/bot/winners", { headers: { Authorization: `Bearer ${token}` } }),
+            axios.get("https://neov6backend.onrender.com/api/ml/available-models", { headers: { Authorization: `Bearer ${token}` } })
         ]);
         setLiveWinners(Array.isArray(resWinners.data) ? resWinners.data : (resWinners.data.winners || []));
         setAvailableModels(resModels.data || []);
@@ -282,7 +279,11 @@ export default function Backtests() {
       setFormData(prev => ({ ...prev, symbol: best }));
       setComboData(prev => ({ ...prev, symbol: best }));
     }
-  }, [symbolOptions]);
+    if (timeframeOptions.length > 0 && !formData.timeframe) {
+      setFormData(prev => ({ ...prev, timeframe: timeframeOptions.find(t => t === "1h") || timeframeOptions[0] }));
+      setComboData(prev => ({ ...prev, timeframe: timeframeOptions.find(t => t === "1h") || timeframeOptions[0] }));
+    }
+  }, [symbolOptions, timeframeOptions]);
 
   const handleFormChange = (e) => {
     const { name, value, type } = e.target;
@@ -342,20 +343,14 @@ export default function Backtests() {
     const res = backtestResults;
     const trades = (res.tradeBreakdown || res.trades || []).map(t => ({ ...t, entryTime: t.entry_time || t.entryTime, exitTime: t.exit_time || t.exitTime, profit: t.profit || 0 }));
     const curve = (res.equityCurve || []).map(p => ({ timestamp: new Date(p.timestamp || p.time).getTime(), balance: p.balance }));
-    const local = computeMetricsFromTrades(trades, activeTab === 'single' ? formData.initialBalance : comboData.initialBalance);
+    const initial = activeTab === 'single' ? formData.initialBalance : comboData.initialBalance;
+    const local = computeMetricsFromTrades(trades, initial);
     return { candleData: res.candleData || [], trades, curve, metrics: { ...res.metrics, ...local, totalReturn: res.metrics?.roi || local.totalReturn } };
   }, [backtestResults]);
 
   return (
     <div className="backtest-container">
       <div className="container mx-auto p-4">
-        <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl shadow-lg"> <span className="text-2xl">📈</span> </div>
-              <div><h1 className="header" style={{fontSize:'2rem', margin:0}}>Strategy Backtester</h1><p className="text-neutral-400 text-sm">Advanced Performance Testing Platform</p></div>
-            </div>
-            <div className="px-4 py-2 bg-black/50 rounded-xl border border-white/10 flex items-center gap-2"><span className="text-neutral-400 text-sm">API Connected</span><span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span></div>
-        </div>
         <div className="grid grid-cols-12 gap-8">
           <div className="col-span-12 lg:col-span-5">
             <div className="bot-card p-6">
@@ -363,7 +358,7 @@ export default function Backtests() {
                 <label className="text-emerald-400 font-semibold text-sm block mb-2">🏆 Load Alpha Strategy</label>
                 <div className="flex gap-2">
                     <select value={selectedWinnerId} onChange={handleWinnerSelect} className={inputClass}>
-                      <option value="">-- Select --</option>
+                      <option value="">-- Select Alpha --</option>
                       {liveWinners.map(w => <option key={w.botId || w.id} value={w.botId || w.id}>{`${w.symbol || "Strategy"} (ROI: ${(w.roi || w.metrics?.totalReturn || 0).toFixed(0)}%)`}</option>)}
                     </select>
                 </div>
@@ -374,7 +369,7 @@ export default function Backtests() {
               </div>
               <form onSubmit={handleRun}>
                 {activeTab === 'single' && (
-                   <div className="setup-selector mb-4"> <label className="text-neutral-400 text-xs block mb-2">⚡ Signal Core</label> <select name="strategyId" value={formData.strategyId} onChange={handleFormChange} className={inputClass}> <option value="">-- Select TA Engine --</option> {strategyOptions.map(s => <option key={s._id} value={s._id}>{s.name}</option>)} </select> </div>
+                   <div className="setup-selector mb-4"> <label className="text-neutral-400 text-xs block mb-2">⚡ Signal Core</label> <select name="strategyId" value={formData.strategyId} onChange={handleFormChange} className={inputClass}> <option value="">-- Select Engine --</option> {strategyOptions.map(s => <option key={s._id} value={s._id}>{s.name}</option>)} </select> </div>
                 )}
                 <CommonBacktestInputs data={activeTab === 'single' ? formData : comboData} onChange={activeTab === 'single' ? handleFormChange : handleComboChange} options={{ symbolOptions, timeframeOptions, modelOptions: availableModels }} />
                 {activeTab === 'combo' && (
