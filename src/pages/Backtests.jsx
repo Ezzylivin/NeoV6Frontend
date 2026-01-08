@@ -49,8 +49,10 @@ const getDefaultDates = () => {
 };
 
 const computeMetricsFromTrades = (trades, initialBalance) => {
-    if (!trades || trades.length === 0) return { totalReturn: 0, winRate: 0, totalTrades: 0, winningTrades: 0, losingTrades: 0, expectancy: 0, finalBalance: initialBalance };
+    if (!trades || trades.length === 0) return { totalReturn: 0, profitFactor: 0, maxDrawdown: 0, winRate: 0, totalTrades: 0, winningTrades: 0, losingTrades: 0, averageWin: 0, averageLoss: 0, finalBalance: initialBalance, expectancy: 0, maxLosingStreak: 0, avgHoldTime: 0 };
     let balance = initialBalance;
+    let peak = initialBalance;
+    let maxDrawdown = 0;
     let wins = 0;
     let totalWin = 0;
     let totalLoss = 0;
@@ -58,6 +60,9 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
 
     trades.forEach(t => {
         balance += t.profit;
+        if (balance > peak) peak = balance;
+        const dd = (peak - balance) / peak;
+        if (dd > maxDrawdown) maxDrawdown = dd;
         if (t.profit > 0) { wins++; totalWin += t.profit; }
         else { totalLoss += Math.abs(t.profit); }
         const entry = new Date(t.entryTime).getTime();
@@ -71,10 +76,14 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
 
     return {
         totalReturn: ((balance - initialBalance) / initialBalance) * 100,
+        profitFactor: totalLoss === 0 ? totalWin : totalWin / totalLoss,
+        maxDrawdown: maxDrawdown * 100,
         winRate: winRate * 100,
         totalTrades: trades.length,
         winningTrades: wins,
         losingTrades: trades.length - wins,
+        averageWin: avgWin,
+        averageLoss: avgLoss,
         finalBalance: balance,
         expectancy: (winRate * avgWin) - ((1 - winRate) * avgLoss),
         avgHoldTime: totalHoldTimeMs / trades.length / (1000 * 60 * 60)
@@ -100,8 +109,12 @@ const MetricsDisplay = ({ metrics }) => (
   <div className="metrics-grid mb-6">
     {[
       { label: "Total Return", value: metrics.totalReturn, format: 'percent', color: 'text-emerald-400' },
+      { label: "Profit Factor", value: metrics.profitFactor, format: 'number', color: 'text-teal-400' },
+      { label: "Max Drawdown", value: metrics.maxDrawdown, format: 'percent', color: 'text-amber-400' },
       { label: "Win Rate", value: metrics.winRate, format: 'percent', color: 'text-violet-400' },
       { label: "Total Trades", value: metrics.totalTrades, format: null, color: 'text-cyan-400' },
+      { label: "Avg. Win", value: metrics.averageWin, format: 'currency', color: 'text-emerald-400' },
+      { label: "Avg. Loss", value: metrics.averageLoss, format: 'currency', color: 'text-rose-400' },
       { label: "Final Balance", value: metrics.finalBalance, format: 'currency', color: 'text-emerald-400' }
     ].map((m, idx) => (
       <div key={idx} className="metric-item hover:shadow-lg transition-all group">
@@ -188,7 +201,6 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
   );
 };
 
-// --- MAIN COMPONENT ---
 export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest, fetchOptions } = useBacktest(); 
   const { options = {} } = state || {};
@@ -228,7 +240,6 @@ export default function Backtests() {
     return [...baseStrats, ...dbStrats];
   }, [options]);
 
-  // 🟢 FORCED AUTO-POPULATION FIX
   const handleWinnerSelect = (e) => {
     const id = e.target.value;
     setSelectedWinnerId(id);
@@ -236,42 +247,20 @@ export default function Backtests() {
     if (!win) return;
 
     const config = win.config || win;
+    const matchedSymbol = symbolOptions.find(s => s.replace('/', '-') === (config.symbol || "").replace('/', '-')) || config.symbol || symbolOptions[0];
+    const matchedTF = timeframeOptions.find(t => t === config.timeframe) || config.timeframe || timeframeOptions[0];
 
-    // Fix: Find exact match in symbolOptions to handle "BTC-USD" vs "BTC/USD"
-    const rawSym = (config.symbol || "BTC-USD").replace('/', '-');
-    const matchedSymbol = symbolOptions.find(s => s.replace('/', '-') === rawSym) || symbolOptions[0] || rawSym;
-    
-    const matchedTimeframe = timeframeOptions.find(t => t === config.timeframe) || timeframeOptions[0] || "1h";
-
-    const strategies = (config.strategies || []).map(s => {
+    const strats = (config.strategies || []).map(s => {
         const code = typeof s === 'string' ? s : (s.code || "unknown");
         const opt = strategyOptions.find(o => o.code === code);
         return { strategyId: opt?._id || "", code, params: s.params || {} };
     });
 
-    setActiveTab(strategies.length > 1 ? 'combo' : 'single');
-
-    const update = { 
-        symbol: matchedSymbol, 
-        timeframe: matchedTimeframe, 
-        mlMode: config.mlMode || "predictions", 
-        mlModel: config.mlModel, 
-        mlThreshold: config.mlThreshold || 0.5, 
-        params: { ...defaultFilterParams, ...config.params } 
-    };
+    setActiveTab(strats.length > 1 ? 'combo' : 'single');
+    const update = { symbol: matchedSymbol, timeframe: matchedTF, mlMode: config.mlMode || "predictions", mlModel: config.mlModel, mlThreshold: config.mlThreshold || 0.5, params: { ...defaultFilterParams, ...config.params } };
     
-    setFormData(p => ({ ...p, ...update, strategyId: strategies[0]?.strategyId, code: strategies[0]?.code }));
-    setComboData(p => ({ ...p, ...update, strategies: strategies, comboConfig: config.comboConfig || { combinationRule: 'OR' } }));
-  };
-
-  const handleFormChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(p => ({ ...p, [name]: value }));
-  };
-
-  const handleComboChange = (e) => {
-    const { name, value } = e.target;
-    setComboData(p => ({ ...p, [name]: value }));
+    setFormData(p => ({ ...p, ...update, strategyId: strats[0]?.strategyId, code: strats[0]?.code }));
+    setComboData(p => ({ ...p, ...update, strategies: strats, comboConfig: config.comboConfig || { combinationRule: 'OR' } }));
   };
 
   const handleRun = async (e) => {
@@ -309,7 +298,7 @@ export default function Backtests() {
               <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/30 rounded-xl p-4 mb-6">
                 <div className="flex justify-between items-center mb-2">
                     <label className="text-emerald-400 font-semibold text-sm">🏆 Load Alpha Strategy</label>
-                    <button type="button" onClick={fetchWinners} disabled={scanningWinners} className="text-emerald-400 hover:text-white transition-colors"> {scanningWinners ? '...' : '🔄'} </button>
+                    <button type="button" onClick={fetchWinners} disabled={scanningWinners} className="text-emerald-400">🔄</button>
                 </div>
                 <select value={selectedWinnerId} onChange={handleWinnerSelect} className={inputClass}>
                   <option value="">-- Select Alpha --</option>
@@ -318,20 +307,20 @@ export default function Backtests() {
               </div>
 
               <div className="tabs flex gap-2 mb-6"> 
-                <button type="button" className={`flex-1 py-3 rounded-xl transition-all ${activeTab === 'single' ? 'bg-emerald-500 text-black font-bold' : 'bg-white/5 text-neutral-400 hover:bg-white/10'}`} onClick={() => setActiveTab('single')}>Single</button> 
-                <button type="button" className={`flex-1 py-3 rounded-xl transition-all ${activeTab === 'combo' ? 'bg-emerald-500 text-black font-bold' : 'bg-white/5 text-neutral-400 hover:bg-white/10'}`} onClick={() => setActiveTab('combo')}>Combo</button> 
+                <button type="button" className={`flex-1 py-3 rounded-xl transition-all ${activeTab === 'single' ? 'bg-emerald-500 text-black font-bold' : 'bg-white/5 text-neutral-400'}`} onClick={() => setActiveTab('single')}>Single</button> 
+                <button type="button" className={`flex-1 py-3 rounded-xl transition-all ${activeTab === 'combo' ? 'bg-emerald-500 text-black font-bold' : 'bg-white/5 text-neutral-400'}`} onClick={() => setActiveTab('combo')}>Combo</button> 
               </div>
 
               <form onSubmit={handleRun}>
                 {activeTab === 'single' && (
                    <div className="setup-selector mb-4"> <label className="text-neutral-400 text-xs block mb-2">⚡ TA Engine</label> <select value={formData.strategyId} onChange={(e) => setFormData({...formData, strategyId: e.target.value})} className={inputClass}> <option value="">-- Select --</option> {strategyOptions.map(s => <option key={s._id} value={s._id}>{s.name}</option>)} </select> </div>
                 )}
-                <CommonBacktestInputs data={activeTab === 'single' ? formData : comboData} onChange={activeTab === 'single' ? handleFormChange : handleComboChange} options={{ symbolOptions, timeframeOptions, modelOptions: availableModels }} />
+                <CommonBacktestInputs data={activeTab === 'single' ? formData : comboData} onChange={activeTab === 'single' ? (e)=>setFormData({...formData, [e.target.name]: e.target.value}) : (e)=>setComboData({...comboData, [e.target.name]: e.target.value})} options={{ symbolOptions, timeframeOptions, modelOptions: availableModels }} />
                 {activeTab === 'combo' && (
                   <div className="space-y-4 mt-6 mb-6"> 
                       <label className="text-emerald-400 text-xs font-bold uppercase tracking-widest">Logic Layers</label> 
                       {comboData.strategies.map((c, i) => <ComboStrategyCard key={i} idx={i} config={c} strategies={strategyOptions} onChange={(e, idx) => {const n = [...comboData.strategies]; n[idx].strategyId = e.target.value; setComboData({...comboData, strategies: n})}} onRemove={(idx) => setComboData({...comboData, strategies: comboData.strategies.filter((_,i)=>i!==idx)})} disableRemove={comboData.strategies.length <= 1} /> )} 
-                      <button type="button" onClick={() => setComboData({...comboData, strategies: [...comboData.strategies, {strategyId: "", code: "", params:{}}]})} className="w-full py-3 bg-black/40 border border-white/10 rounded-xl text-emerald-400 text-xs hover:bg-emerald-500/10 transition-all">+ Add Layer</button> 
+                      <button type="button" onClick={() => setComboData({...comboData, strategies: [...comboData.strategies, {strategyId: "", code: "", params:{}}]})} className="w-full py-3 bg-black/40 border border-white/10 rounded-xl text-emerald-400 text-xs hover:bg-emerald-500/10">+ Add Layer</button> 
                   </div>
                 )}
                 <button type="submit" disabled={isSimulating} className="w-full py-4 bg-emerald-500 text-black font-bold rounded-xl shadow-lg hover:scale-[1.02] transition-all"> {isSimulating ? 'Test is Running...' : '▶ Run Simulation'} </button>
