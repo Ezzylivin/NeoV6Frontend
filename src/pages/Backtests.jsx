@@ -58,7 +58,6 @@ const downloadCSV = (trades) => {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
 };
 
-// Metrics Calculator Logic
 const computeMetricsFromTrades = (trades, initialBalance) => {
     if (!trades || trades.length === 0) {
         return {
@@ -69,7 +68,6 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
             maxLosingStreak: 0, avgHoldTime: 0
         };
     }
-
     let balance = initialBalance;
     let peak = initialBalance;
     let maxDrawdown = 0;
@@ -87,7 +85,6 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
         if (balance > peak) peak = balance;
         const dd = (peak - balance) / peak;
         if (dd > maxDrawdown) maxDrawdown = dd;
-
         if (t.profit > 0) {
             wins++;
             totalWin += t.profit;
@@ -97,19 +94,14 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
             currentLosingStreak++;
             if (currentLosingStreak > maxLosingStreak) maxLosingStreak = currentLosingStreak;
         }
-
         const entry = new Date(t.entryTime).getTime();
         const exit = new Date(t.exitTime).getTime();
         if (!isNaN(entry) && !isNaN(exit)) totalHoldTimeMs += (exit - entry);
-
         const ret = (balance - prevBalance) / prevBalance;
         dailyReturns.push(ret);
     });
 
     const totalTrades = trades.length;
-    const winRate = (wins / totalTrades) * 100;
-    const profitFactor = totalLoss === 0 ? totalWin : totalWin / totalLoss;
-    const totalReturn = ((balance - initialBalance) / initialBalance) * 100;
     const avgWin = wins > 0 ? totalWin / wins : 0;
     const avgLoss = (totalTrades - wins) > 0 ? totalLoss / (totalTrades - wins) : 0;
     
@@ -117,17 +109,23 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
     const variance = dailyReturns.reduce((a, b) => a + Math.pow(b - avgReturn, 2), 0) / dailyReturns.length;
     const stdDev = Math.sqrt(variance);
     const downsideVariance = dailyReturns.filter(r => r < 0).reduce((a, b) => a + Math.pow(b, 2), 0) / dailyReturns.length;
-    const downsideStdDev = Math.sqrt(downsideVariance);
-
-    const sharpe = stdDev === 0 ? 0 : (avgReturn / stdDev) * Math.sqrt(totalTrades); 
-    const sortino = downsideStdDev === 0 ? 0 : (avgReturn / downsideStdDev) * Math.sqrt(totalTrades);
-    const avgHoldTimeHours = totalHoldTimeMs / totalTrades / (1000 * 60 * 60);
 
     return {
-        totalReturn, profitFactor, maxDrawdown: maxDrawdown * 100, winRate, totalTrades,
-        winningTrades: wins, losingTrades: totalTrades - wins, averageWin: avgWin, averageLoss: avgLoss,
-        finalBalance: balance, expectancy: (wins/totalTrades * avgWin) - ((1-wins/totalTrades) * avgLoss),
-        sharpeRatio: sharpe, sortinoRatio: sortino, maxLosingStreak, avgHoldTime: avgHoldTimeHours
+        totalReturn: ((balance - initialBalance) / initialBalance) * 100,
+        profitFactor: totalLoss === 0 ? totalWin : totalWin / totalLoss,
+        maxDrawdown: maxDrawdown * 100,
+        winRate: (wins / totalTrades) * 100,
+        totalTrades,
+        winningTrades: wins,
+        losingTrades: totalTrades - wins,
+        averageWin: avgWin,
+        averageLoss: avgLoss,
+        finalBalance: balance,
+        expectancy: (wins/totalTrades * avgWin) - ((1-wins/totalTrades) * avgLoss),
+        sharpeRatio: stdDev === 0 ? 0 : (avgReturn / stdDev) * Math.sqrt(totalTrades),
+        sortinoRatio: Math.sqrt(downsideVariance) === 0 ? 0 : (avgReturn / Math.sqrt(downsideVariance)) * Math.sqrt(totalTrades),
+        maxLosingStreak,
+        avgHoldTime: totalHoldTimeMs / totalTrades / (1000 * 60 * 60)
     };
 };
 
@@ -149,39 +147,6 @@ const initialComboData = {
 };
 
 // --- SUB-COMPONENTS ---
-const MonthlyHeatmap = ({ equityCurve }) => {
-    if (!equityCurve || equityCurve.length === 0) return null;
-    const monthlyReturns = {};
-    equityCurve.forEach((point) => {
-        const date = new Date(point.timestamp);
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        if (!monthlyReturns[monthKey]) monthlyReturns[monthKey] = { start: point.balance, end: point.balance };
-        monthlyReturns[monthKey].end = point.balance;
-    });
-    return (
-        <div className="bot-card" style={{marginTop:'24px'}}>
-            <div className="panel-header flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-violet-500/20 to-pink-500/20 rounded-xl flex items-center justify-center text-xl">📅</div>
-                <h3 className="card-title">Monthly Heatmap</h3>
-            </div>
-            <div className="metrics-grid" style={{gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))'}}>
-                {Object.keys(monthlyReturns).sort().map(month => {
-                    const data = monthlyReturns[month];
-                    const ret = ((data.end - data.start) / data.start) * 100;
-                    const bg = ret >= 0 ? `rgba(16, 185, 129, 0.1)` : `rgba(239, 68, 68, 0.1)`;
-                    const borderColor = ret >= 0 ? 'border-emerald-500/30' : 'border-rose-500/30';
-                    return (
-                        <div key={month} className={`border ${borderColor} rounded-xl p-4 text-center hover:scale-105 transition-all`} style={{backgroundColor: bg}}>
-                            <div className="text-neutral-400 text-xs mb-2">{month}</div>
-                            <div className={`font-mono ${ret > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{ret > 0 ? '+' : ''}{ret.toFixed(2)}%</div>
-                        </div>
-                    )
-                })}
-            </div>
-        </div>
-    );
-};
-
 const MetricsDisplay = ({ metrics }) => {
   if (!metrics) return null;
   const items = [
@@ -196,53 +161,26 @@ const MetricsDisplay = ({ metrics }) => {
   ];
   return (
     <div className="metrics-grid mb-6">
-      {items.map((m, idx) => {
-        const displayValue = m.format === 'currency' ? `$${m.value?.toFixed(2)}` : m.format === 'percent' ? `${m.value?.toFixed(2)}%` : m.value?.toFixed(2);
-        return (
-          <div key={idx} className="metric-item hover:shadow-lg transition-all group">
-            <span className="metric-label">{m.label}</span>
-            <div className={`metric-value ${m.color}`}>{displayValue}</div>
+      {items.map((m, idx) => (
+        <div key={idx} className="metric-item hover:shadow-lg transition-all group">
+          <span className="metric-label">{m.label}</span>
+          <div className={`metric-value ${m.color}`}>
+            {m.format === 'currency' ? `$${m.value?.toFixed(2)}` : m.format === 'percent' ? `${m.value?.toFixed(2)}%` : m.value?.toFixed(2)}
           </div>
-        );
-      })}
+        </div>
+      ))}
     </div>
   );
 };
 
-const AdvancedMetricsDisplay = ({ metrics }) => {
-    if (!metrics) return null;
-    const safeNum = (val) => (val !== undefined && val !== null && !isNaN(val)) ? val.toFixed(2) : "0.00";
-    const items = [
-        { label: "Sharpe Ratio", value: safeNum(metrics.sharpeRatio), desc: "Risk-Adjusted Return", color: 'text-white' },
-        { label: "Sortino Ratio", value: safeNum(metrics.sortinoRatio), desc: "Downside Risk Only", color: 'text-white' },
-        { label: "Expectancy", value: `$${safeNum(metrics.expectancy)}`, desc: "Avg Value Per Trade", color: 'text-white' },
-        { label: "Avg Hold Time", value: `${safeNum(metrics.avgHoldTime)}h`, desc: "Duration in Market", color: 'text-white' },
-        { label: "Max Lose Streak", value: metrics.maxLosingStreak || 0, desc: "Consecutive Losses", color: "text-rose-400" }
-    ];
-    return (
-        <div className="metrics-grid mb-6" style={{gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))'}}>
-            {items.map((m, idx) => (
-                <div key={idx} className="metric-item flex flex-col items-center justify-center text-center">
-                    <span className="metric-label mb-1">{m.label}</span>
-                    <div className={`text-xl font-mono font-bold ${m.color}`}>{m.value}</div>
-                    <span className="text-neutral-500 text-[10px] mt-1">{m.desc}</span>
-                </div>
-            ))}
-        </div>
-    );
-};
-
-// --- MAIN INPUTS COMPONENT ---
-const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
+const CommonBacktestInputs = ({ data, onChange, options }) => {
     const handleGlobalChange = (e) => onChange(e);
     const handleParamChange = (e) => {
       const { name, value, type } = e.target;
       let val = type === 'number' ? (isNaN(parseFloat(value)) ? '' : parseFloat(value)) : value;
       onChange({ target: { name: `param_${name}`, value: val, type } });
     };
-    const params = data.params || {};
     const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
-    const safeVal = (v) => (v === null || v === undefined || isNaN(v)) ? '' : v;
     const safeModels = (options.modelOptions && Array.isArray(options.modelOptions) && options.modelOptions.length > 0) ? options.modelOptions : DEFAULT_MODEL_OPTIONS;
 
     return (
@@ -264,7 +202,7 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
           </div>
           <div className="setup-selector">
             <label className="text-neutral-400">Initial Balance</label>
-            <input type="number" name="initialBalance" value={safeVal(data.initialBalance)} onChange={handleGlobalChange} className={inputClass} />
+            <input type="number" name="initialBalance" value={data.initialBalance ?? ''} onChange={handleGlobalChange} className={inputClass} />
           </div>
         </div>
         
@@ -279,6 +217,18 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
           </div>
         </div>
         
+        {/* Passwords for Bot Start (Fixed DOM Warning) */}
+        <div className="bot-card mb-6">
+            <label className="text-neutral-400 text-xs">Security Key</label>
+            <input 
+                name="password" 
+                type="password" 
+                autoComplete="current-password"
+                placeholder="Password" 
+                className={inputClass}
+            />
+        </div>
+
         <div className="bot-card mb-6" style={{background: 'rgba(16, 185, 129, 0.05)', borderColor: 'rgba(16, 185, 129, 0.2)'}}>
           <div className="panel-header mb-4 pb-3 border-b border-emerald-500/20"><h4 className="text-emerald-400 font-bold">Risk & ML Configuration</h4></div>
           <div className="form-grid">
@@ -291,17 +241,7 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
             </div>
             <div className="setup-selector">
               <label className="text-neutral-400">Risk Percentage</label>
-              <input type="number" name="riskPercentage" value={safeVal(data.riskPercentage)} onChange={handleGlobalChange} step="0.1" className={inputClass} />
-            </div>
-            {data.riskManagementMode === 'dynamic' && (
-               <div className="setup-selector">
-                  <label className="text-neutral-400">Growth Target ($)</label>
-                  <input type="number" name="growthCapitalTarget" value={safeVal(data.growthCapitalTarget)} onChange={handleGlobalChange} className={inputClass} />
-               </div>
-            )}
-            <div className="setup-selector">
-              <label className="text-neutral-400">Max Pyramiding</label>
-              <input type="number" name="maxPyramiding" value={safeVal(params.maxPyramiding)} onChange={handleParamChange} min="1" max="10" className={inputClass} />
+              <input type="number" name="riskPercentage" value={data.riskPercentage ?? ''} onChange={handleGlobalChange} step="0.1" className={inputClass} />
             </div>
             <div className="setup-selector">
               <label className="text-neutral-400">ML Mode</label>
@@ -322,13 +262,12 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
                 </div>
                 <div className="setup-selector">
                   <label className="text-neutral-400">ML Threshold</label>
-                  <input type="number" name="mlThreshold" value={safeVal(data.mlThreshold)} step="0.05" onChange={handleGlobalChange} className={inputClass} />
+                  <input type="number" name="mlThreshold" value={data.mlThreshold ?? ''} step="0.05" onChange={handleGlobalChange} className={inputClass} />
                 </div>
               </>
             )}
           </div>
         </div>
-        {/* Advanced Filters Card omitted for brevity but logic remains same */}
       </>
     );
 };
@@ -350,7 +289,7 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
   );
 };
 
-// --- MAIN COMPONENT ---
+// --- MAIN PAGE COMPONENT ---
 export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest, resetBacktest, fetchOptions } = useBacktest(); 
   const { loading = 'idle', options = {} } = state || {};
@@ -364,16 +303,20 @@ export default function Backtests() {
   const [liveWinners, setLiveWinners] = useState([]);
   const [scanningWinners, setScanningWinners] = useState(false);
   const [availableModels, setAvailableModels] = useState([]);
-  const [chartMode, setChartMode] = useState('standard'); 
   const [isSimulating, setIsSimulating] = useState(false); 
 
-  useEffect(() => { if (resetBacktest) resetBacktest(); setBacktestResults({ main: null }); }, []);
-
-  // 🟢 LOGS FOR DEBUGGING
+  // Debug Logs
   useEffect(() => { console.log("📝 [DEBUG] Single Form State:", formData); }, [formData]);
   useEffect(() => { console.log("📝 [DEBUG] Combo Form State:", comboData); }, [comboData]);
 
-  // 🟢 AUTO-POPULATE SYMBOLS (Clean Logic)
+  // Auto-fetch
+  useEffect(() => {
+    if ((!options?.symbols || options.symbols.length === 0) && typeof fetchOptions === 'function') {
+      fetchOptions();
+    }
+  }, [options, fetchOptions]);
+
+  // Auto-populate defaults
   useEffect(() => {
     if (options?.symbols?.length > 0 && (!formData.symbol || formData.symbol === "00-USD")) {
       const best = options.symbols.find(s => s.includes("BTC")) || options.symbols[0];
@@ -387,6 +330,7 @@ export default function Backtests() {
     }
   }, [options]);
 
+  // Strategy Options Memo
   const strategyOptions = useMemo(() => {
     const dbStrats = options?.strategies || [];
     const baseStrats = Object.entries(STRATEGY_TYPE_TO_CODE_MAP).map(([name, code], idx) => ({ _id: `base-${code}-${idx}`, name, code }));
@@ -396,6 +340,7 @@ export default function Backtests() {
   const symbolOptions = useMemo(() => options?.symbols || [], [options]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
 
+  // Fetch Logic
   const fetchWinners = async () => {
       setScanningWinners(true);
       try {
@@ -412,40 +357,51 @@ export default function Backtests() {
   };
   useEffect(() => { fetchWinners(); }, []);
 
-  // 🛠 FIX: ROBUST STRATEGY MATCHING & AUTO-POPULATION
+  // 🟢 FIX: Define handleComboChange handler
+  const handleComboChange = (e) => {
+    const { name, value, type } = e.target;
+    let val = type === 'number' ? (isNaN(parseFloat(value)) ? '' : parseFloat(value)) : value;
+    if (name.startsWith("param_")) {
+        setComboData(prev => ({ ...prev, params: { ...prev.params, [name.substring(6)]: val } }));
+    } else {
+        setComboData(prev => ({ ...prev, [name]: val }));
+    }
+  };
+
+  const handleFormChange = (e, setFunc) => {
+    const { name, value, type } = e.target;
+    let val = type === 'number' ? (isNaN(parseFloat(value)) ? '' : parseFloat(value)) : value;
+    if (name === 'strategyId') { 
+        const strat = strategyOptions.find(s => s._id === val);
+        if (strat) setFunc(prev => ({ ...prev, strategyId: val, code: strat.code, params: { ...prev.params, ...strat.params } })); 
+    } else if (name.startsWith("param_")) {
+        setFunc(prev => ({ ...prev, params: { ...prev.params, [name.substring(6)]: val } }));
+    } else { setFunc(prev => ({ ...prev, [name]: val })); }
+  };
+
   const handleWinnerSelect = (e) => {
         const filename = e.target.value; 
         setSelectedWinnerId(filename);
         const selectedWinner = liveWinners.find(w => (w.botId || w.id) === filename);
         if (!selectedWinner) return;
-
         const data = selectedWinner.config || selectedWinner;
-        // 🟢 FIX: Handle Symbol & Timeframe Formatting
         const symbol = (data.symbol || "BTC-USD").replace('/', '-');
         const timeframe = data.timeframe || "1h";
-
-        const rawStrategies = data.strategies || [];
-        const strategies = rawStrategies.map(s => {
+        const strategies = (data.strategies || []).map(s => {
             const code = (typeof s === 'string' ? s : (s.code || "unknown"));
             const matchingOption = strategyOptions.find(opt => opt.code === code);
             return { strategyId: matchingOption?._id || "", code, params: s.params || {} };
         });
-
         const isCombo = strategies.length > 1;
         setActiveTab(isCombo ? 'combo' : 'single');
-
         const updatePayload = {
-            symbol,
-            timeframe,
-            mlMode: data.mlMode || "predictions",
+            symbol, timeframe, mlMode: data.mlMode || "predictions",
             mlModel: data.mlModel || "btc_1h_lightgbm_model",
             mlThreshold: parseFloat(data.mlThreshold) || 0.5,
             params: { ...defaultFilterParams, ...data.params },
             riskManagementMode: data.riskManagementMode || 'static',
             riskPercentage: Number(data.riskPercentage) || 1
         };
-
-        // 🟢 FORCE UPDATE BOTH FORMS
         setFormData(prev => ({ ...prev, ...updatePayload, strategyId: strategies[0]?.strategyId, code: strategies[0]?.code }));
         setComboData(prev => ({ ...prev, ...updatePayload, strategies, comboConfig: data.comboConfig || { combinationRule: 'OR' } }));
   };
@@ -454,21 +410,24 @@ export default function Backtests() {
     e.preventDefault();
     setBacktestResults({ main: null });
     setIsSimulating(true); 
-    const payload = isCombo ? comboData : formData;
-    console.log("🚀 [DEBUG] Final Payload Sent to API:", payload);
     try {
       const res = isCombo ? await runComboBacktest?.(comboData) : await runNewBacktest?.(formData);
       if (res) setBacktestResults(res.combinedResult ? res : { main: res });
     } catch (err) { console.error("Backtest Failed:", err); } finally { setIsSimulating(false); }
   };
 
+  // 🟢 HYBRID METRICS MEMO
   const { processedData, combinedMetrics, mainResult } = useMemo(() => {
     const rootData = backtestResults.main || backtestResults.combinedResult || backtestResults;
     const res = rootData.combinedResult || rootData; 
     if (!res || !res.metrics) return { processedData: [], combinedMetrics: null, mainResult: null };
 
-    const normalizedTrades = (res.tradeBreakdown || res.trades || []).map(t => ({ ...t, entryTime: t.entry_time || t.entryTime, exitTime: t.exit_time || t.exitTime, profit: t.profit || 0 }));
-    const curve = (res.equityCurve || []).map((p) => ({ timestamp: new Date(p.timestamp || p.time).getTime(), balance: p.balance, buyHold: 1000 }));
+    const normalizedTrades = (res.tradeBreakdown || res.trades || []).map(t => ({ 
+        ...t, entryTime: t.entry_time || t.entryTime, exitTime: t.exit_time || t.exitTime, profit: t.profit || 0 
+    }));
+    const curve = (res.equityCurve || []).map((p) => ({ 
+        timestamp: new Date(p.timestamp || p.time).getTime(), balance: p.balance, buyHold: 1000 
+    }));
     const startBal = activeTab === 'single' ? formData.initialBalance : comboData.initialBalance;
     const localMetrics = computeMetricsFromTrades(normalizedTrades, startBal);
 
@@ -492,12 +451,12 @@ export default function Backtests() {
 
     return { processedData: curve, combinedMetrics: finalMetrics, mainResult: { ...res, tradeBreakdown: normalizedTrades, metrics: finalMetrics } };
   }, [backtestResults, activeTab, formData, comboData]);
-    
+
   const pieData = useMemo(() => !combinedMetrics ? [] : [{ name: "Wins", value: combinedMetrics.winningTrades }, { name: "Losses", value: combinedMetrics.losingTrades }], [combinedMetrics]);
 
   return (
     <div className="backtest-container">
-      <div className="container mx-auto">
+      <div className="container mx-auto p-4">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
               <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl shadow-lg"> <span className="text-2xl">📈</span> </div>
@@ -518,7 +477,6 @@ export default function Backtests() {
                   <option value="">-- Select Golden Strategy --</option>
                   {liveWinners.map(w => {
                       const id = w.botId || w.id;
-                      // 🟢 FIXED: Check totalReturn if ROI is 0
                       const roiValue = w.roi || w.metrics?.totalReturn || w.metrics?.roi || 0;
                       return <option key={id} value={id}>{`${w.symbol || "Strategy"} (ROI: ${(roiValue * 100).toFixed(0)}%)`}</option>;
                   })}
