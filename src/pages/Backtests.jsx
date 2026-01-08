@@ -58,7 +58,6 @@ const downloadCSV = (trades) => {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
 };
 
-// 🟢 METRICS CALCULATOR (Zero-Safe Fallback)
 const computeMetricsFromTrades = (trades, initialBalance) => {
     if (!trades || trades.length === 0) {
         return {
@@ -112,7 +111,8 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
     const totalReturn = ((balance - initialBalance) / initialBalance) * 100;
     const avgWin = wins > 0 ? totalWin / wins : 0;
     const avgLoss = (totalTrades - wins) > 0 ? totalLoss / (totalTrades - wins) : 0;
-    
+    const expectancy = (wins / totalTrades * avgWin) - ((1 - wins / totalTrades) * avgLoss);
+
     const avgReturn = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length;
     const variance = dailyReturns.reduce((a, b) => a + Math.pow(b - avgReturn, 2), 0) / dailyReturns.length;
     const stdDev = Math.sqrt(variance);
@@ -126,12 +126,10 @@ const computeMetricsFromTrades = (trades, initialBalance) => {
     return {
         totalReturn, profitFactor, maxDrawdown: maxDrawdown * 100, winRate, totalTrades,
         winningTrades: wins, losingTrades: totalTrades - wins, averageWin: avgWin, averageLoss: avgLoss,
-        finalBalance: balance, expectancy: (wins/totalTrades * avgWin) - ((1-wins/totalTrades) * avgLoss),
-        sharpeRatio: sharpe, sortinoRatio: sortino, maxLosingStreak, avgHoldTime: avgHoldTimeHours
+        finalBalance: balance, expectancy, sharpeRatio: sharpe, sortinoRatio: sortino, maxLosingStreak, avgHoldTime: avgHoldTimeHours
     };
 };
 
-// --- INITIAL STATES ---
 const initialFormData = {
   strategyId: "", code: "", symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate,
   initialBalance: 1000, params: { ...defaultFilterParams, maxPyramiding: 1 },
@@ -213,8 +211,6 @@ const MetricsDisplay = ({ metrics }) => {
 
 const AdvancedMetricsDisplay = ({ metrics }) => {
     if (!metrics) return null;
-    
-    // 🟢 SAFE DISPLAY VALUE FUNCTION
     const safeNum = (val) => (val !== undefined && val !== null && !isNaN(val)) ? val.toFixed(2) : "0.00";
 
     const items = [
@@ -238,29 +234,19 @@ const AdvancedMetricsDisplay = ({ metrics }) => {
     );
 };
 
-// --- INPUTS COMPONENT ---
 const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
     const handleGlobalChange = (e) => onChange(e);
-    
     const handleParamChange = (e) => {
       const { name, value, type } = e.target;
       let val = value;
-      if (type === 'number') {
-        const parsed = parseFloat(value);
-        val = isNaN(parsed) ? '' : parsed; 
-      }
+      if (type === 'number') { val = isNaN(parseFloat(value)) ? '' : parseFloat(value); }
       onChange({ target: { name: `param_${name}`, value: val, type } });
     };
     
     const params = data.params || {};
-    // 🟢 DEFINE INPUT CLASS HERE FOR SUB-COMPONENT
     const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
-    
     const safeVal = (v) => (v === null || v === undefined || isNaN(v)) ? '' : v;
-
-    const safeModels = (options.modelOptions && Array.isArray(options.modelOptions) && options.modelOptions.length > 0) 
-        ? options.modelOptions 
-        : DEFAULT_MODEL_OPTIONS;
+    const safeModels = (options.modelOptions && Array.isArray(options.modelOptions) && options.modelOptions.length > 0) ? options.modelOptions : DEFAULT_MODEL_OPTIONS;
 
     return (
       <>
@@ -380,7 +366,6 @@ const CommonBacktestInputs = ({ data, onChange, options, isCombo = false }) => {
 const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, disableRemove }) => {
   const handleChange = (e) => onChange(e, idx);
   const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors text-sm";
-
   return (
     <div className="bot-card p-4 hover:border-emerald-500/40 transition-all mb-4">
       <div className="flex items-center justify-between mb-3">
@@ -402,12 +387,9 @@ const ComboStrategyCard = ({ idx, config, strategies = [], onChange, onRemove, d
   );
 };
 
-// --- MAIN PAGE COMPONENT ---
 export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest, resetBacktest, fetchOptions } = useBacktest(); 
   const { loading = 'idle', error = null, options = {}, winners = [] } = state || {};
-
-  // 🟢 FIX: Define inputClass HERE for main scope usage
   const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
 
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
@@ -421,15 +403,23 @@ export default function Backtests() {
   const [chartMode, setChartMode] = useState('standard'); 
   const [isSimulating, setIsSimulating] = useState(false); 
 
+  // 🟢 LOG: MONITOR FORM DATA CHANGES
+  useEffect(() => {
+    console.log("📝 [DEBUG] Single Form Data updated:", formData);
+  }, [formData]);
+
+  useEffect(() => {
+    console.log("📝 [DEBUG] Combo Form Data updated:", comboData);
+  }, [comboData]);
+
   useEffect(() => {
     if (resetBacktest) resetBacktest();
     setBacktestResults({ main: null });
   }, []);
 
-  // 🟢 FIX: Force fetch options on mount AND Auto-select defaults
   useEffect(() => {
     if ((!options?.symbols || options.symbols.length === 0) && typeof fetchOptions === 'function') {
-      console.log("Options missing, fetching...");
+      console.log("🔄 [DEBUG] Fetching options...");
       fetchOptions();
     }
   }, [options, fetchOptions]);
@@ -443,7 +433,6 @@ export default function Backtests() {
   const symbolOptions = useMemo(() => options?.symbols || [], [options]);
   const timeframeOptions = useMemo(() => options?.timeframes || [], [options]);
 
-  // 🟢 FIX: Auto-populate dropdowns when options arrive
   useEffect(() => {
       if (symbolOptions.length > 0 && !formData.symbol) {
           setFormData(prev => ({ ...prev, symbol: symbolOptions[0] }));
@@ -455,192 +444,80 @@ export default function Backtests() {
       }
   }, [symbolOptions, timeframeOptions]);
 
-  // 🚀 FETCH DATA (Winners + Models)
   const fetchWinners = async () => {
       setScanningWinners(true);
       try {
         const token = localStorage.getItem("token");
         const headers = { Authorization: `Bearer ${token}` };
-        
         const [resWinners, resModels] = await Promise.all([
             axios.get("https://neov6backend.onrender.com/api/bot/winners", { headers }),
             axios.get("https://neov6backend.onrender.com/api/ml/available-models", { headers })
         ]);
-
         const winnersArray = Array.isArray(resWinners.data) ? resWinners.data : (resWinners.data.winners || resWinners.data.data || []);
+        console.log("🏆 [DEBUG] Winners Fetched:", winnersArray);
         setLiveWinners(winnersArray);
-        
         const modelsData = resModels.data.models || resModels.data || [];
-        const formattedModels = modelsData.map(m => 
-            typeof m === 'string' ? { id: m, name: m.replace(/_/g, ' ').toUpperCase() } : m
-        );
-        setAvailableModels(formattedModels);
-
-      } catch (err) { 
-          console.error("Fetch Error:", err); 
-      } finally { 
-          setScanningWinners(false); 
-      }
+        setAvailableModels(modelsData.map(m => typeof m === 'string' ? { id: m, name: m.replace(/_/g, ' ').toUpperCase() } : m));
+      } catch (err) { console.error("🔥 [DEBUG] Fetch Error:", err); } finally { setScanningWinners(false); }
   };
   
   useEffect(() => { fetchWinners(); }, []);
 
-  // 🛠 FIX: ROBUST STRATEGY MATCHING
   const handleWinnerSelect = (e) => {
         const filename = e.target.value; 
         setSelectedWinnerId(filename);
-        
         const selectedWinner = liveWinners.find(w => (w.botId || w.id) === filename);
         if (!selectedWinner) return;
 
+        console.log("🔎 [DEBUG] Selected Winner Object:", selectedWinner);
         const data = selectedWinner.config || selectedWinner;
-
-        // 1. Extract Symbol/Timeframe
-        let symbol = data.symbol || selectedWinner.symbol || "BTC-USD"; 
+        let symbol = (data.symbol || selectedWinner.symbol || "BTC-USD").replace('/', '-'); 
         let timeframe = data.timeframe || "1h";
         
-        // Fallback: Parse from filename if metadata missing
-        if((!data.symbol || data.symbol === "Unknown") && filename.includes('_')) { 
-            const parts = filename.split('_'); 
-            if(parts[1]) symbol = parts[1]; // No robust check, just take the chunk
-            if(parts[2] && parts[2].match(/\d+[mhdw]/)) timeframe = parts[2]; 
-        }
-
-        // Normalize (BTC/USD -> BTC-USD)
-        symbol = symbol.replace('/', '-');
-
-        // 🟢 FIX: Match Strategy Code to Option ID
         const rawStrategies = data.strategies || [];
         const strategies = rawStrategies.map(s => {
             const code = (typeof s === 'string' ? s : (s.code || "unknown"));
             const params = (typeof s === 'string' ? {} : (s.params || s));
-            
             const matchingOption = strategyOptions.find(opt => opt.code === code);
-            const strategyId = matchingOption ? matchingOption._id : ""; 
-
-            return { strategyId, code, params };
+            return { strategyId: matchingOption ? matchingOption._id : "", code, params };
         });
-
-        let mlMode = data.mlMode || "off"; 
-        let rawMlModel = data.mlModel || data.params?.mlModel || "";
-        
-        let mlModel = "";
-        const existsRaw = availableModels.find(m => m.id === rawMlModel);
-        if (existsRaw) mlModel = rawMlModel;
-        else {
-            const stripped = rawMlModel.replace(/_model$/, '');
-            const existsStripped = availableModels.find(m => m.id === stripped);
-            mlModel = existsStripped ? stripped : rawMlModel;
-        }
-
-        if (mlModel && mlMode === "off") mlMode = "predictions"; 
-        if (!mlModel && mlMode !== "off") mlModel = 'btc_1h_xgboost'; 
-
-        const comboConfigSource = data.comboConfig || data.params || {};
-        const comboConfig = {
-            strategyCodes: strategies.map(s => s.code),
-            combinationRule: comboConfigSource.hybridMode || comboConfigSource.combinationRule || 'OR',
-            ...comboConfigSource
-        };
 
         const globalParams = { ...data.params }; 
         if (data.riskPercentage) globalParams.riskPercentage = Number(data.riskPercentage); 
-        if (data.maxPyramiding) globalParams.maxPyramiding = Number(data.maxPyramiding);
-
-        // 🟢 DETERMINE ACTIVE TAB
         const isCombo = data.isCombo || (strategies.length > 1);
         setActiveTab(isCombo ? 'combo' : 'single');
 
-        // 🟢 UPDATE BOTH STATES TO ENSURE DROPDOWNS POPULATE
-        const updatePayload = {
-            symbol,
-            timeframe,
-            mlMode,
-            mlModel,
-            mlThreshold: Number(data.mlThreshold) || 0.5,
-            params: globalParams,
-            riskManagementMode: data.riskManagementMode || 'static',
-            riskPercentage: Number(data.riskPercentage) || 1,
-            growthCapitalTarget: Number(data.growthCapitalTarget) || 2000,
-            maxDailyLoss: Number(data.maxDailyLoss) || 5,
-            maxDrawdown: Number(data.maxDrawdown) || 10
-        };
-
-        setComboData(prev => ({
-            ...prev,
-            ...updatePayload,
-            strategies,
-            comboConfig
-        }));
+        const updatePayload = { symbol, timeframe, mlMode: data.mlMode || "off", mlModel: data.mlModel || "", mlThreshold: Number(data.mlThreshold) || 0.5, params: globalParams, riskManagementMode: data.riskManagementMode || 'static', riskPercentage: Number(data.riskPercentage) || 1, growthCapitalTarget: Number(data.growthCapitalTarget) || 2000, maxDailyLoss: Number(data.maxDailyLoss) || 5, maxDrawdown: Number(data.maxDrawdown) || 10 };
         
-        setFormData(prev => ({
-            ...prev,
-            ...updatePayload,
-            strategyId: strategies[0]?.strategyId || "",
-            code: strategies[0]?.code || ""
-        }));
+        console.log("⚙️ [DEBUG] Auto-configuring from Winner:", updatePayload);
+        setComboData(prev => ({ ...prev, ...updatePayload, strategies, comboConfig: { strategyCodes: strategies.map(s => s.code), combinationRule: 'OR', ...data.comboConfig } }));
+        setFormData(prev => ({ ...prev, ...updatePayload, strategyId: strategies[0]?.strategyId || "", code: strategies[0]?.code || "" }));
   };
 
   const handleSaveStrategy = async () => {
     const name = prompt("Enter a name for this strategy setup:");
     if (!name) return;
-
     const config = activeTab === 'single' ? formData : comboData;
-    const payload = {
-        name,
-        symbol: config.symbol,
-        timeframe: config.timeframe,
-        initialBalance: config.initialBalance,
-        strategies: activeTab === 'single' 
-            ? [{ code: config.code, params: config.params }] 
-            : config.strategies.map(s => ({ code: s.code, params: s.params })),
-        comboConfig: activeTab === 'combo' ? config.comboConfig : null,
-        params: config.params,
-        mlMode: config.mlMode,
-        mlModel: config.mlModel,
-        mlThreshold: config.mlThreshold,
-        isCombo: activeTab === 'combo'
-    };
-
-    try {
-        await api.post('/bot/strategies', payload);
-        alert("✅ Strategy saved successfully!");
-    } catch (e) {
-        alert("❌ Error saving: " + (e.response?.data?.message || e.message));
-    }
+    const payload = { name, symbol: config.symbol, timeframe: config.timeframe, initialBalance: config.initialBalance, strategies: activeTab === 'single' ? [{ code: config.code, params: config.params }] : config.strategies.map(s => ({ code: s.code, params: s.params })), comboConfig: activeTab === 'combo' ? config.comboConfig : null, params: config.params, mlMode: config.mlMode, mlModel: config.mlModel, mlThreshold: config.mlThreshold, isCombo: activeTab === 'combo' };
+    try { await api.post('/bot/strategies', payload); alert("✅ Strategy saved successfully!"); } catch (e) { alert("❌ Error saving: " + (e.response?.data?.message || e.message)); }
   };
 
   const handleFormChange = (e, setFunc) => {
     const { name, value, type } = e.target;
-    let val = value;
-    if (type === 'number') {
-        const parsed = parseFloat(value);
-        val = isNaN(parsed) ? '' : parsed;
-    }
-    
+    let val = type === 'number' ? (isNaN(parseFloat(value)) ? '' : parseFloat(value)) : value;
     if (name === 'strategyId') { 
         const strat = strategyOptions.find(s => s._id === val);
         if (strat) setFunc(prev => ({ ...prev, strategyId: val, code: strat.code, params: { ...prev.params, ...strat.params } })); 
     } else if (name.startsWith("param_")) {
         setFunc(prev => ({ ...prev, params: { ...prev.params, [name.substring(6)]: val } }));
-    } else {
-        setFunc(prev => ({ ...prev, [name]: val }));
-    }
+    } else { setFunc(prev => ({ ...prev, [name]: val })); }
   };
 
   const handleComboChange = (e) => {
     const { name, value, type } = e.target;
-    let val = value;
-    if (type === 'number') {
-        const parsed = parseFloat(value);
-        val = isNaN(parsed) ? '' : parsed;
-    }
-
-    if (name.startsWith("param_")) {
-      setComboData(prev => ({ ...prev, params: { ...prev.params, [name.substring(6)]: val } }));
-    } else {
-      setComboData(prev => ({ ...prev, [name]: val }));
-    }
+    let val = type === 'number' ? (isNaN(parseFloat(value)) ? '' : parseFloat(value)) : value;
+    if (name.startsWith("param_")) { setComboData(prev => ({ ...prev, params: { ...prev.params, [name.substring(6)]: val } })); }
+    else { setComboData(prev => ({ ...prev, [name]: val })); }
   };
 
   const handleStrategyConfigChange = (e, index) => {
@@ -674,117 +551,67 @@ export default function Backtests() {
     setBacktestResults({ main: null });
     setIsSimulating(true); 
     
+    // 🚀 [DEBUG LOG] THE FINAL PAYLOAD BEFORE API CALL
+    const finalPayload = isCombo ? comboData : formData;
+    console.log("🚀 [DEBUG] CLICKED RUN. Final Payload:", finalPayload);
+
     try {
       const res = isCombo ? await runComboBacktest?.(comboData) : await runNewBacktest?.(formData);
+      console.log("📊 [DEBUG] API Response Received:", res);
       if (res) setBacktestResults(res.combinedResult ? res : { main: res });
-    } catch (err) { 
-        console.error(err); 
-    } finally {
-        setIsSimulating(false); 
-    }
+    } catch (err) { console.error("🔥 [DEBUG] Backtest API Failed:", err); } finally { setIsSimulating(false); }
   };
 
-  // 🟢 CORRECTED USEMEMO (Hybrid Backend + Frontend Calc + Fixed Pie Chart + ROI Lookup)
   const { processedData, combinedMetrics, mainResult, warmupRemovedCount, exitReasons, exitReasonData, actualStartDate, actualEndDate } = useMemo(() => {
-    // 1. Extract the payload
     const rootData = backtestResults.main || backtestResults.combinedResult || backtestResults;
     const res = rootData.combinedResult || rootData; 
+    if (!res || !res.metrics) return { processedData: [], combinedMetrics: null, mainResult: null, warmupRemovedCount: 0, exitReasons: [], exitReasonData: [], actualStartDate: "", actualEndDate: "" };
 
-    if (!res || !res.metrics) {
-        return { processedData: [], combinedMetrics: null, mainResult: null, warmupRemovedCount: 0, exitReasons: [], exitReasonData: [], actualStartDate: "", actualEndDate: "" };
-    }
+    // 📈 [DEBUG LOG] DATA PROCESSING START
+    console.log("🛠️ [DEBUG] Processing raw results into UI metrics. Trades count:", res.trades?.length || 0);
 
-    // 2. Normalize Trades (CamelCase Mapping)
-    const normalizedTrades = (res.tradeBreakdown || res.trades || []).map(t => ({
-        ...t,
-        entryTime: t.entry_time || t.entryTime, 
-        exitTime: t.exit_time || t.exitTime,
-        entryPrice: t.entry_price || t.entryPrice,
-        exitPrice: t.exit_price || t.exitPrice,
-    }));
-
-    // 3. Prepare Chart Data (Equity Curve)
-    const curve = (res.equityCurve || []).map((p) => {
-        const pTime = new Date(p.timestamp || p.time).getTime();
-        const startPrice = res.candleData?.[0]?.close || 1; 
-        const buyHold = 1000; 
-        return { timestamp: pTime, balance: p.balance, buyHold: buyHold };
-    });
-
-    // 4. Calculate Local Metrics (Fallback)
+    const normalizedTrades = (res.tradeBreakdown || res.trades || []).map(t => ({ ...t, entryTime: t.entry_time || t.entryTime, exitTime: t.exit_time || t.exitTime, entryPrice: t.entry_price || t.entryPrice, exitPrice: t.exit_price || t.exitPrice }));
+    const curve = (res.equityCurve || []).map((p) => ({ timestamp: new Date(p.timestamp || p.time).getTime(), balance: p.balance, buyHold: 1000 }));
     const startBal = activeTab === 'single' ? formData.initialBalance : comboData.initialBalance;
     const localMetrics = computeMetricsFromTrades(normalizedTrades, startBal);
 
-    // 🟢 HYBRID MERGE: Prefer Backend for Core Stats, Local for Advanced/Missing Stats
     const finalMetrics = {
-        // Core Stats (Trust Python)
         totalReturn: res.metrics.roi || res.metrics.totalReturn,
         maxDrawdown: res.metrics.maxDrawdown || res.metrics.max_drawdown,
         winRate: res.metrics.winRate || res.metrics.win_rate,
         totalTrades: res.metrics.totalTrades || res.metrics.total_trades,
         finalBalance: res.metrics.finalBalance || (startBal + (res.metrics.netProfit || 0)),
-        
-        // Advanced Stats (Fallback to Local Calc if Python sends 0)
         profitFactor: (res.metrics.profitFactor > 0) ? res.metrics.profitFactor : localMetrics.profitFactor,
         sharpeRatio: (res.metrics.sharpeRatio > 0) ? res.metrics.sharpeRatio : localMetrics.sharpeRatio,
         sortinoRatio: (res.metrics.sortinoRatio > 0) ? res.metrics.sortinoRatio : localMetrics.sortinoRatio,
-        averageWin: (res.metrics.averageWin > 0) ? res.metrics.averageWin : localMetrics.averageWin,
-        averageLoss: (res.metrics.averageLoss < 0) ? res.metrics.averageLoss : localMetrics.averageLoss,
-        expectancy: (res.metrics.expectancy !== 0) ? res.metrics.expectancy : localMetrics.expectancy,
+        averageWin: (res.metrics.averageWin && res.metrics.averageWin !== 0) ? res.metrics.averageWin : localMetrics.averageWin,
+        averageLoss: (res.metrics.averageLoss && res.metrics.averageLoss !== 0) ? res.metrics.averageLoss : localMetrics.averageLoss,
+        expectancy: (res.metrics.expectancy && res.metrics.expectancy !== 0) ? res.metrics.expectancy : localMetrics.expectancy,
         maxLosingStreak: (res.metrics.maxLosingStreak > 0) ? res.metrics.maxLosingStreak : localMetrics.maxLosingStreak,
         avgHoldTime: (res.metrics.avgHoldTime > 0) ? res.metrics.avgHoldTime : localMetrics.avgHoldTime,
-
-        // 🟢 FIX FOR PIE CHART (Trades Breakdown)
         winningTrades: (res.metrics.winningTrades !== undefined) ? res.metrics.winningTrades : localMetrics.winningTrades,
         losingTrades: (res.metrics.losingTrades !== undefined) ? res.metrics.losingTrades : localMetrics.losingTrades
     };
 
-    // 5. Exit Reasons
-    const reasons = normalizedTrades.reduce((acc, t) => {
-        const reason = t.reason || t.type || "Signal"; 
-        acc[reason] = (acc[reason] || 0) + 1;
-        return acc;
-    }, {});
-    
-    const calculatedExitReasonData = Object.entries(reasons).map(([name, value]) => ({ name, value }));
-    const filteredResult = { ...res, tradeBreakdown: normalizedTrades, metrics: finalMetrics };
-
-    return { 
-        processedData: curve, 
-        combinedMetrics: finalMetrics, 
-        mainResult: filteredResult, 
-        warmupRemovedCount: 0, 
-        exitReasons: calculatedExitReasonData,
-        exitReasonData: calculatedExitReasonData,
-        actualStartDate: formatDate(new Date()),
-        actualEndDate: formatDate(new Date())
-    };
+    const reasons = normalizedTrades.reduce((acc, t) => { const reason = t.reason || t.type || "Signal"; acc[reason] = (acc[reason] || 0) + 1; return acc; }, {});
+    return { processedData: curve, combinedMetrics: finalMetrics, mainResult: { ...res, tradeBreakdown: normalizedTrades, metrics: finalMetrics }, warmupRemovedCount: 0, exitReasons: Object.entries(reasons).map(([name, value]) => ({ name, value })), exitReasonData: Object.entries(reasons).map(([name, value]) => ({ name, value })), actualStartDate: formatDate(new Date()), actualEndDate: formatDate(new Date()) };
   }, [backtestResults, activeTab, formData, comboData]);
     
-  const pieData = useMemo(() => {
-    if (!combinedMetrics) return [];
-    return [{ name: "Wins", value: combinedMetrics.winningTrades }, { name: "Losses", value: combinedMetrics.losingTrades }];
-  }, [combinedMetrics]);
+  const pieData = useMemo(() => { if (!combinedMetrics) return []; return [{ name: "Wins", value: combinedMetrics.winningTrades }, { name: "Losses", value: combinedMetrics.losingTrades }]; }, [combinedMetrics]);
 
   return (
     <div className="backtest-container">
-      {/* ... Header ... */}
       <div className="container mx-auto">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl shadow-lg shadow-emerald-500/20">
-                <span className="text-2xl">📈</span>
-              </div>
+              <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl shadow-lg shadow-emerald-500/20"> <span className="text-2xl">📈</span> </div>
               <div>
                 <h1 className="header mb-0" style={{marginBottom:0, fontSize:'2rem'}}>Strategy Backtester</h1>
                 <p className="text-neutral-400 text-sm">Advanced Performance Testing Platform</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <div className="px-4 py-2 bg-black/50 rounded-xl border border-white/10">
-                <span className="text-neutral-400 text-sm">API Connected</span>
-                <span className="ml-2 w-2 h-2 bg-emerald-500 rounded-full inline-block animate-pulse"></span>
-              </div>
+              <div className="px-4 py-2 bg-black/50 rounded-xl border border-white/10"> <span className="text-neutral-400 text-sm">API Connected</span> <span className="ml-2 w-2 h-2 bg-emerald-500 rounded-full inline-block animate-pulse"></span> </div>
             </div>
           </div>
       </div>
@@ -793,131 +620,54 @@ export default function Backtests() {
         <div className="grid grid-cols-12 gap-8">
           <div className="col-span-12 lg:col-span-5">
             <div className="bot-card sticky top-6">
-              <div className="panel-header flex items-center gap-3">
-                <span className="text-emerald-400 text-lg">⚙️</span>
-                <h2 className="card-title">Configuration</h2>
-              </div>
-              
-              {/* 🟢 OPTIMIZER DROPDOWN */}
+              <div className="panel-header flex items-center gap-3"> <span className="text-emerald-400 text-lg">⚙️</span> <h2 className="card-title">Configuration</h2> </div>
               <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/30 rounded-xl p-4 mb-6">
-                <div className="flex items-center justify-between mb-3">
-                  <label className="text-emerald-400 flex items-center gap-2 font-semibold text-sm">
-                    🏆 Load Alpha Strategy
-                  </label>
-                  <button onClick={fetchWinners} disabled={scanningWinners} className="text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-50">
-                    {scanningWinners ? '...' : '🔄'}
-                  </button>
-                </div>
+                <div className="flex items-center justify-between mb-3"> <label className="text-emerald-400 flex items-center gap-2 font-semibold text-sm"> 🏆 Load Alpha Strategy </label> <button onClick={fetchWinners} disabled={scanningWinners} className="text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-50"> {scanningWinners ? '...' : '🔄'} </button> </div>
                 <select value={selectedWinnerId} onChange={handleWinnerSelect} className={inputClass}>
                   <option value="">-- Select Golden Strategy --</option>
                   {liveWinners.map(w => {
                       const id = w.botId || w.id;
-                      // 🟢 FIXED: Dig deeply for ROI if top-level is 0/undefined
                       const rawRoi = w.roi || w.metrics?.roi || w.combinedResult?.metrics?.roi || 0;
-                      const roi = (rawRoi * 1.0).toFixed(0); 
-                      const label = `${w.symbol || "Strategy"} (ROI: ${roi}%)`; 
-                      return <option key={id} value={id}>{label}</option>;
+                      return <option key={id} value={id}>{`${w.symbol || "Strategy"} (ROI: ${(rawRoi * 1.0).toFixed(0)}%)`}</option>;
                   })}
                 </select>
               </div>
-
-              <div className="tabs">
-                <button className={activeTab === 'single' ? 'active' : ''} onClick={() => setActiveTab('single')}>Single Strategy</button>
-                <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo Strategy</button>
-              </div>
-
+              <div className="tabs"> <button className={activeTab === 'single' ? 'active' : ''} onClick={() => setActiveTab('single')}>Single Strategy</button> <button className={activeTab === 'combo' ? 'active' : ''} onClick={() => setActiveTab('combo')}>Combo Strategy</button> </div>
               <form onSubmit={(e) => handleRun(e, activeTab === 'combo')}>
                 {activeTab === 'single' ? (
                   <>
-                    <div className="form-grid mb-6">
-                      <div className="setup-selector">
-                        <label className="text-neutral-400">⚡ Strategy Type</label>
-                        <select name="strategyId" value={formData.strategyId} onChange={(e) => handleFormChange(e, setFormData)} className={inputClass}>
-                            <option value="">-- Select TA Strategy --</option>
-                            {strategyOptions.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                    {/* ✅ Pass availableModels */}
+                    <div className="form-grid mb-6"> <div className="setup-selector"> <label className="text-neutral-400">⚡ Strategy Type</label> <select name="strategyId" value={formData.strategyId} onChange={(e) => handleFormChange(e, setFormData)} className={inputClass}> <option value="">-- Select TA Strategy --</option> {strategyOptions.map(s => <option key={s._id} value={s._id}>{s.name}</option>)} </select> </div> </div>
                     <CommonBacktestInputs data={formData} onChange={(e) => handleFormChange(e, setFormData)} options={{ symbolOptions, timeframeOptions, modelOptions: availableModels }} />
                   </>
                 ) : (
                   <>
-                    {/* ✅ Pass availableModels */}
                     <CommonBacktestInputs data={comboData} onChange={handleComboChange} options={{ symbolOptions, timeframeOptions, modelOptions: availableModels }} isCombo={true} />
-                    <div className="space-y-4 mb-6">
-                      <label className="metric-label">Strategy Layers</label>
-                      {comboData.strategies.map((config, idx) => (
-                        <ComboStrategyCard key={idx} idx={idx} config={config} strategies={strategyOptions} onChange={handleStrategyConfigChange} onRemove={removeStrategyCard} disableRemove={comboData.strategies.length <= 1} />
-                      ))}
-                      <button type="button" onClick={addStrategyCard} className="w-full py-3 bg-black/40 border border-white/10 rounded-xl text-emerald-400 hover:bg-black/60 hover:border-emerald-500/50 transition-all text-sm font-bold uppercase tracking-wider">+ Add Strategy Layer</button>
-                    </div>
+                    <div className="space-y-4 mb-6"> <label className="metric-label">Strategy Layers</label> {comboData.strategies.map((config, idx) => ( <ComboStrategyCard key={idx} idx={idx} config={config} strategies={strategyOptions} onChange={handleStrategyConfigChange} onRemove={removeStrategyCard} disableRemove={comboData.strategies.length <= 1} /> ))} <button type="button" onClick={addStrategyCard} className="w-full py-3 bg-black/40 border border-white/10 rounded-xl text-emerald-400 hover:bg-black/60 hover:border-emerald-500/50 transition-all text-sm font-bold uppercase tracking-wider">+ Add Strategy Layer</button> </div>
                   </>
                 )}
-                <button type="submit" disabled={loading !== 'idle'} className="button-start">
-                  {loading !== 'idle' ? 'Processing...' : '▶ Run Simulation'}
-                </button>
+                <button type="submit" disabled={loading !== 'idle'} className="button-start"> {loading !== 'idle' ? 'Processing...' : '▶ Run Simulation'} </button>
               </form>
             </div>
           </div>
-          {/* ... Right Column (Results) ... */}
           <div className="col-span-12 lg:col-span-7 space-y-6">
             {(loading !== 'idle' || combinedMetrics || error) ? (
               <>
-                {loading !== 'idle' && (
-                  <div className="bot-card p-12 flex flex-col items-center justify-center min-h-[400px]">
-                    <div className="w-20 h-20 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mb-6"></div>
-                    <h3 className="text-white text-xl mb-2 font-bold">{isSimulating ? "Running Backtest..." : "Loading..."}</h3>
-                  </div>
-                )}
+                {loading !== 'idle' && ( <div className="bot-card p-12 flex flex-col items-center justify-center min-h-[400px]"> <div className="w-20 h-20 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mb-6"></div> <h3 className="text-white text-xl mb-2 font-bold">{isSimulating ? "Running Backtest..." : "Loading..."}</h3> </div> )}
                 {loading === 'idle' && combinedMetrics && !error && (
                   <>
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="px-4 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-xs text-yellow-400 font-mono font-bold">⚠ Warmup Period: {warmupRemovedCount} bars excluded</div>
-                      <div className="flex gap-3">
-                        <button onClick={handleSaveStrategy} className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-lg font-bold text-sm uppercase">💾 Save</button>
-                        <button onClick={() => downloadCSV(mainResult.tradeBreakdown)} className="px-4 py-2 bg-teal-500/10 border border-teal-500/30 text-teal-400 rounded-lg font-bold text-sm uppercase">⬇ CSV</button>
-                      </div>
-                    </div>
+                    <div className="flex items-center justify-between mb-6"> <div className="px-4 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-xs text-yellow-400 font-mono font-bold">⚠ Warmup Period: {warmupRemovedCount} bars excluded</div> <div className="flex gap-3"> <button onClick={handleSaveStrategy} className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-lg font-bold text-sm uppercase">💾 Save</button> <button onClick={() => downloadCSV(mainResult.tradeBreakdown)} className="px-4 py-2 bg-teal-500/10 border border-teal-500/30 text-teal-400 rounded-lg font-bold text-sm uppercase">⬇ CSV</button> </div> </div>
                     <MetricsDisplay metrics={combinedMetrics} />
                     <AdvancedMetricsDisplay metrics={combinedMetrics} />
-                    
                     {mainResult && mainResult.candleData?.length > 0 && (
                       <div className="bot-card">
-                        <div className="panel-header flex items-center justify-between">
-                            <div className="flex items-center gap-3"><span className="text-emerald-400 text-lg">📈</span><h3 className="card-title">Price Action & Signals</h3></div>
-                            <div className="tabs" style={{margin:0, padding:4}}>
-                                <button onClick={() => setChartMode('standard')} className={chartMode === 'standard' ? 'active' : ''} style={{padding: '6px 16px', fontSize: '0.8rem'}}>Standard</button>
-                                <button onClick={() => setChartMode('replay')} className={chartMode === 'replay' ? 'active' : ''} style={{padding: '6px 16px', fontSize: '0.8rem'}}>Replay</button>
-                            </div>
-                        </div>
-                        <div style={{height: '850px'}}>
-                          {chartMode === 'standard' ? 
-                              <ChartIndependent results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} startDate={actualStartDate} endDate={actualEndDate} /> : 
-                              <ChartReplay results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} startDate={actualStartDate} endDate={actualEndDate} />
-                          }
-                        </div>
+                        <div className="panel-header flex items-center justify-between"> <div className="flex items-center gap-3"><span className="text-emerald-400 text-lg">📈</span><h3 className="card-title">Price Action & Signals</h3></div> <div className="tabs" style={{margin:0, padding:4}}> <button onClick={() => setChartMode('standard')} className={chartMode === 'standard' ? 'active' : ''} style={{padding: '6px 16px', fontSize: '0.8rem'}}>Standard</button> <button onClick={() => setChartMode('replay')} className={chartMode === 'replay' ? 'active' : ''} style={{padding: '6px 16px', fontSize: '0.8rem'}}>Replay</button> </div> </div>
+                        <div style={{height: '850px'}}> {chartMode === 'standard' ? <ChartIndependent results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} startDate={actualStartDate} endDate={actualEndDate} /> : <ChartReplay results={mainResult} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} startDate={actualStartDate} endDate={actualEndDate} />} </div>
                       </div>
                     )}
-
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       <div className="bot-card">
                         <div className="panel-header flex items-center gap-3"><h3 className="card-title">Equity vs Buy & Hold</h3></div>
-                        <ResponsiveContainer width="100%" height={300}>
-                          <AreaChart data={processedData}>
-                            <defs>
-                              <linearGradient id="colorEquity" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/><stop offset="95%" stopColor="#10b981" stopOpacity={0}/></linearGradient>
-                              <linearGradient id="colorBuyHold" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f59e0b" stopOpacity={0.2}/><stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/></linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#333" opacity={0.5} vertical={false} />
-                            <XAxis dataKey="timestamp" tickFormatter={formatChartDate} stroke="#525252" tick={{ fill: '#737373', fontSize: 12 }} />
-                            <YAxis domain={['auto', 'auto']} stroke="#525252" tick={{ fill: '#737373', fontSize: 12 }} />
-                            <Tooltip contentStyle={{ backgroundColor: '#0a0a0a', border: '1px solid #333', borderRadius: '8px', color: '#fff' }} />
-                            <Legend wrapperStyle={{paddingTop: '20px'}}/>
-                            <Area type="monotone" dataKey="balance" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorEquity)" name="Strategy" />
-                            <Area type="monotone" dataKey="buyHold" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 5" fillOpacity={1} fill="url(#colorBuyHold)" name="Buy & Hold" />
-                          </AreaChart>
-                        </ResponsiveContainer>
+                        <ResponsiveContainer width="100%" height={300}> <AreaChart data={processedData}> <defs> <linearGradient id="colorEquity" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/><stop offset="95%" stopColor="#10b981" stopOpacity={0}/></linearGradient> <linearGradient id="colorBuyHold" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f59e0b" stopOpacity={0.2}/><stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/></linearGradient> </defs> <CartesianGrid strokeDasharray="3 3" stroke="#333" opacity={0.5} vertical={false} /> <XAxis dataKey="timestamp" tickFormatter={formatChartDate} stroke="#525252" tick={{ fill: '#737373', fontSize: 12 }} /> <YAxis domain={['auto', 'auto']} stroke="#525252" tick={{ fill: '#737373', fontSize: 12 }} /> <Tooltip contentStyle={{ backgroundColor: '#0a0a0a', border: '1px solid #333', borderRadius: '8px', color: '#fff' }} /> <Legend wrapperStyle={{paddingTop: '20px'}}/> <Area type="monotone" dataKey="balance" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorEquity)" name="Strategy" /> <Area type="monotone" dataKey="buyHold" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 5" fillOpacity={1} fill="url(#colorBuyHold)" name="Buy & Hold" /> </AreaChart> </ResponsiveContainer>
                       </div>
                       <div className="bot-card">
                         <div className="panel-header flex items-center gap-3"><h3 className="card-title">Trade Outcomes</h3></div>
@@ -933,11 +683,7 @@ export default function Backtests() {
                 {error && (<div className="bot-card border-red-500/30 bg-red-900/10 text-center"><h3 className="text-red-400 text-lg mb-2 font-bold">Simulation Failed</h3><p className="text-neutral-400">{typeof error === 'object' ? (error.message || JSON.stringify(error)) : String(error)}</p></div>)}
               </>
             ) : (
-              <div className="bot-card p-12 flex flex-col items-center justify-center min-h-[600px]">
-                <div className="w-20 h-20 bg-gradient-to-br from-emerald-500/20 to-teal-600/20 rounded-2xl flex items-center justify-center mb-6 text-4xl">🏆</div>
-                <h3 className="text-white text-xl mb-2 font-bold">Ready to Test Your Strategy</h3>
-                <p className="text-neutral-400 text-center max-w-md">Configure your strategy parameters and run a backtest to see detailed performance metrics.</p>
-              </div>
+              <div className="bot-card p-12 flex flex-col items-center justify-center min-h-[600px]"> <div className="w-20 h-20 bg-gradient-to-br from-emerald-500/20 to-teal-600/20 rounded-2xl flex items-center justify-center mb-6 text-4xl">🏆</div> <h3 className="text-white text-xl mb-2 font-bold">Ready to Test Your Strategy</h3> <p className="text-neutral-400 text-center max-w-md">Configure your strategy parameters and run a backtest to see detailed performance metrics.</p> </div>
             )}
           </div>
         </div>
