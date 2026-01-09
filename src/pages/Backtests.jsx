@@ -46,14 +46,14 @@ const CommonBacktestInputs = ({ data, onChange, options, onParamChange }) => {
                 <div className="setup-selector">
                     <label className="text-neutral-400 text-xs">Symbol</label>
                     <select name="symbol" value={data.symbol} onChange={onChange} className={inputClass}>
-                        <option value="">-- Select --</option>
+                        <option value="">-- Select Symbol --</option>
                         {options.symbolOptions?.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                 </div>
                 <div className="setup-selector">
                     <label className="text-neutral-400 text-xs">Timeframe</label>
                     <select name="timeframe" value={data.timeframe} onChange={onChange} className={inputClass}>
-                        <option value="">-- Select --</option>
+                        <option value="">-- Select TF --</option>
                         {options.timeframeOptions?.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
                 </div>
@@ -185,7 +185,7 @@ export default function Backtests() {
       riskManagementMode: 'static', riskPercentage: 1, params: {...defaultFilterParams}, mlMode: "off", mlModel: "", mlThreshold: 0.5 
   });
 
-  useEffect(() => { if (typeof fetchOptions === 'function') fetchOptions(); }, []);
+  useEffect(() => { if (typeof fetchOptions === 'function') fetchOptions(); }, [fetchOptions]);
 
   const loadWinners = useCallback(async () => {
       try {
@@ -210,12 +210,17 @@ export default function Backtests() {
     if (!win) return;
 
     const config = win.config || win;
+    
+    // Fuzzy matching symbol (handles BTC-USD vs BTC/USD)
     const rawSym = (config.symbol || "BTC-USD").replace('/', '-');
     const matchedSymbol = options.symbols?.find(s => s.replace('/', '-') === rawSym) || rawSym;
+    
+    // Fuzzy matching timeframe
+    const matchedTF = options.timeframes?.find(t => t === config.timeframe) || config.timeframe || "1h";
 
     const update = { 
         symbol: matchedSymbol, 
-        timeframe: config.timeframe || "1h", 
+        timeframe: matchedTF, 
         mlMode: config.mlMode || "predictions", 
         mlModel: config.mlModel, 
         mlThreshold: config.mlThreshold || 0.5,
@@ -290,7 +295,7 @@ export default function Backtests() {
 
                 {activeTab === 'combo' && (
                     <div className="space-y-3">
-                        <label className="text-emerald-400 text-xs font-bold uppercase tracking-widest">Strategy Logic Layers</label>
+                        <label className="text-emerald-400 text-xs font-bold uppercase tracking-widest">Logic Layers</label>
                         {comboData.strategies.map((s, i) => (
                             <ComboStrategyCard key={i} idx={i} config={s} strategies={strategyOptions} onRemove={(idx) => setComboData({...comboData, strategies: comboData.strategies.filter((_, n)=> n !== idx)})} onChange={(e, idx) => {
                                 const newStrats = [...comboData.strategies];
@@ -298,7 +303,7 @@ export default function Backtests() {
                                 setComboData({...comboData, strategies: newStrats});
                             }} />
                         ))}
-                        <button type="button" onClick={() => setComboData({...comboData, strategies: [...comboData.strategies, {strategyId: ""}]})} className="w-full py-2 border-dashed border border-white/20 rounded-xl text-xs text-emerald-400">+ Add New Layer</button>
+                        <button type="button" onClick={() => setComboData({...comboData, strategies: [...comboData.strategies, {strategyId: ""}]})} className="w-full py-2 border-dashed border border-white/20 rounded-xl text-xs text-emerald-400">+ Add Layer</button>
                     </div>
                 )}
 
@@ -314,14 +319,13 @@ export default function Backtests() {
               <>
                 <MetricsDisplay metrics={processed.metrics} />
                 <div className="bot-card p-6 h-[500px]"> 
-                  <ChartIndependent results={processed} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} /> 
+                  <ChartIndependent results={processed} symbol={formData.symbol} /> 
                 </div>
               </>
             ) : (
               <div className="bot-card p-20 flex flex-col items-center justify-center min-h-[600px] border-dashed border-2 border-white/5"> 
                 <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mb-6 text-4xl ${isSimulating ? 'animate-pulse bg-amber-500/20' : 'bg-emerald-500/10'}`}> {isSimulating ? '⏳' : '🧪'} </div> 
                 <h3 className="text-white text-xl mb-2 font-bold">{isSimulating ? 'Simulation Currently Running...' : 'Strategy Sandbox Ready'}</h3> 
-                <p className="text-neutral-400 text-center max-w-sm">Load an Alpha Strategy or chain logic layers to start.</p>
               </div>
             )}
           </div>
