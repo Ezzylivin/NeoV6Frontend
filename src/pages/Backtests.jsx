@@ -33,15 +33,14 @@ const getDefaultDates = () => {
   return { startDate: start.toISOString().split('T')[0], endDate: end.toISOString().split('T')[0] };
 };
 
-// --- SUB-COMPONENTS (Exhaustive Restoration) ---
+// --- SUB-COMPONENTS ---
 
 const CommonBacktestInputs = ({ data, onChange, options, onParamChange }) => {
     const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
-    const params = data.params || {};
+    const params = data.params || defaultFilterParams;
 
     return (
         <div className="space-y-6">
-            {/* Core Data Group */}
             <div className="form-grid">
                 <div className="setup-selector">
                     <label className="text-neutral-400 text-xs">Symbol</label>
@@ -63,13 +62,11 @@ const CommonBacktestInputs = ({ data, onChange, options, onParamChange }) => {
                 </div>
             </div>
 
-            {/* Date Group */}
             <div className="form-grid" style={{gridTemplateColumns: '1fr 1fr'}}>
                 <div><label className="text-neutral-400 text-xs">Start Date</label><input type="date" name="startDate" value={data.startDate} onChange={onChange} className={inputClass}/></div>
                 <div><label className="text-neutral-400 text-xs">End Date</label><input type="date" name="endDate" value={data.endDate} onChange={onChange} className={inputClass}/></div>
             </div>
 
-            {/* Risk & ML Configuration Block */}
             <div className="bot-card bg-emerald-500/5 border-emerald-500/20 p-4">
                 <div className="panel-header mb-4 pb-2 border-b border-emerald-500/20"><h4 className="text-emerald-400 font-bold">ML & Risk Configuration</h4></div>
                 <div className="form-grid">
@@ -79,10 +76,6 @@ const CommonBacktestInputs = ({ data, onChange, options, onParamChange }) => {
                             <option value="static">Standard (Static %)</option>
                             <option value="dynamic">Dynamic (Growth Target)</option>
                         </select>
-                    </div>
-                    <div className="setup-selector">
-                        <label className="text-neutral-400 text-xs">Risk %</label>
-                        <input type="number" name="riskPercentage" value={data.riskPercentage || 1} onChange={onChange} step="0.1" className={inputClass} />
                     </div>
                     <div className="setup-selector">
                         <label className="text-neutral-400 text-xs">ML Mode</label>
@@ -109,7 +102,6 @@ const CommonBacktestInputs = ({ data, onChange, options, onParamChange }) => {
                 </div>
             </div>
 
-            {/* Advanced Filters Block */}
             <div className="bot-card p-4 border-white/10">
                 <div className="panel-header mb-4 pb-2 border-b border-white/10"><h4 className="text-white font-bold uppercase text-xs">Advanced TA Filters</h4></div>
                 <div className="form-grid">
@@ -129,7 +121,7 @@ const ComboStrategyCard = ({ idx, config, strategies, onChange, onRemove }) => {
     <div className="bot-card p-3 border-emerald-500/20 mb-3">
       <div className="flex justify-between items-center mb-2">
         <span className="text-xs font-bold text-emerald-400">Layer #{idx + 1}</span>
-        <button type="button" onClick={() => onRemove(idx)} className="text-rose-400 text-xs hover:scale-110">✕</button>
+        <button type="button" onClick={() => onRemove(idx)} className="text-rose-400 text-xs">✕</button>
       </div>
       <select value={config.strategyId} onChange={(e) => onChange(e, idx)} className={inputClass}>
         <option value="">-- Select Engine --</option>
@@ -138,28 +130,6 @@ const ComboStrategyCard = ({ idx, config, strategies, onChange, onRemove }) => {
     </div>
   );
 };
-
-const MetricsDisplay = ({ metrics }) => (
-    <div className="metrics-grid mb-6">
-        {[
-          { label: "Total Return", value: metrics.totalReturn, format: 'percent', color: 'text-emerald-400' },
-          { label: "Profit Factor", value: metrics.profitFactor, format: 'number', color: 'text-teal-400' },
-          { label: "Max Drawdown", value: metrics.maxDrawdown, format: 'percent', color: 'text-amber-400' },
-          { label: "Win Rate", value: metrics.winRate, format: 'percent', color: 'text-violet-400' },
-          { label: "Total Trades", value: metrics.totalTrades, format: null, color: 'text-cyan-400' },
-          { label: "Avg. Win", value: metrics.averageWin, format: 'currency', color: 'text-emerald-400' },
-          { label: "Avg. Loss", value: metrics.averageLoss, format: 'currency', color: 'text-rose-400' },
-          { label: "Final Balance", value: metrics.finalBalance, format: 'currency', color: 'text-emerald-400' }
-        ].map((m, idx) => (
-          <div key={idx} className="metric-item hover:shadow-lg transition-all group">
-            <span className="metric-label">{m.label}</span>
-            <div className={`metric-value ${m.color}`}>
-              {m.format === 'currency' ? `$${m.value?.toFixed(2)}` : m.format === 'percent' ? `${m.value?.toFixed(2)}%` : m.value}
-            </div>
-          </div>
-        ))}
-    </div>
-);
 
 // --- MAIN PAGE ---
 
@@ -179,6 +149,7 @@ export default function Backtests() {
       initialBalance: 1000, strategyId: "", riskManagementMode: 'static', riskPercentage: 1, 
       params: {...defaultFilterParams}, mlMode: "off", mlModel: "", mlThreshold: 0.5 
   });
+  
   const [comboData, setComboData] = useState({ 
       symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, 
       initialBalance: 1000, strategies: [{strategyId: ""}], comboConfig: { combinationRule: "OR" }, 
@@ -211,24 +182,31 @@ export default function Backtests() {
 
     const config = win.config || win;
     
-    // Fuzzy matching symbol (handles BTC-USD vs BTC/USD)
+    // Fuzzy matching symbol
     const rawSym = (config.symbol || "BTC-USD").replace('/', '-');
     const matchedSymbol = options.symbols?.find(s => s.replace('/', '-') === rawSym) || rawSym;
     
     // Fuzzy matching timeframe
     const matchedTF = options.timeframes?.find(t => t === config.timeframe) || config.timeframe || "1h";
 
+    const strats = (config.strategies || []).map(s => {
+        const code = typeof s === 'string' ? s : (s.code || "unknown");
+        const opt = strategyOptions.find(o => o.code === code);
+        return { strategyId: opt?._id || "", code, params: s.params || {} };
+    });
+
     const update = { 
         symbol: matchedSymbol, 
         timeframe: matchedTF, 
         mlMode: config.mlMode || "predictions", 
-        mlModel: config.mlModel, 
+        mlModel: config.mlModel || "", 
         mlThreshold: config.mlThreshold || 0.5,
         params: { ...defaultFilterParams, ...config.params } 
     };
     
-    setFormData(p => ({ ...p, ...update }));
-    setComboData(p => ({ ...p, ...update }));
+    setFormData(p => ({ ...p, ...update, strategyId: strats[0]?.strategyId || "" }));
+    setComboData(p => ({ ...p, ...update, strategies: strats.length > 0 ? strats : [{strategyId: ""}] }));
+    setActiveTab(strats.length > 1 ? 'combo' : 'single');
   };
 
   const handleRun = async (e) => {
@@ -268,7 +246,14 @@ export default function Backtests() {
                 </div>
                 <select value={selectedWinnerId} onChange={handleWinnerSelect} className={inputClass}>
                   <option value="">-- Select Alpha --</option>
-                  {liveWinners.map(w => <option key={w.botId || w.id} value={w.botId || w.id}>{`${w.symbol} (ROI: ${w.roi || 0}%)`}</option>)}
+                  {liveWinners.map(w => {
+                      const roiVal = w.roi ?? w.metrics?.roi ?? w.metrics?.totalReturn ?? 0;
+                      return (
+                        <option key={w.botId || w.id} value={w.botId || w.id}>
+                            {`${w.symbol} (ROI: ${Number(roiVal).toFixed(1)}%)`}
+                        </option>
+                      );
+                  })}
                 </select>
               </div>
 
@@ -316,12 +301,9 @@ export default function Backtests() {
 
           <div className="col-span-12 lg:col-span-7 space-y-6">
             {processed ? (
-              <>
-                <MetricsDisplay metrics={processed.metrics} />
-                <div className="bot-card p-6 h-[500px]"> 
-                  <ChartIndependent results={processed} symbol={formData.symbol} /> 
-                </div>
-              </>
+              <div className="bot-card p-6 h-[600px]"> 
+                <ChartIndependent results={processed} symbol={formData.symbol} /> 
+              </div>
             ) : (
               <div className="bot-card p-20 flex flex-col items-center justify-center min-h-[600px] border-dashed border-2 border-white/5"> 
                 <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mb-6 text-4xl ${isSimulating ? 'animate-pulse bg-amber-500/20' : 'bg-emerald-500/10'}`}> {isSimulating ? '⏳' : '🧪'} </div> 
