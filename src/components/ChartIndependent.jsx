@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import { createChart, ColorType, CrosshairMode } from "lightweight-charts";
 import { Calendar } from "lucide-react"; 
 import "./ChartIndependent.css"; 
