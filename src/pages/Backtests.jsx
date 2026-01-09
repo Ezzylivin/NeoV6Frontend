@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios"; 
 import { useBacktest } from "../hooks/useBacktest.js";
-import {
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip
-} from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
 import "./Backtests.css"; 
 
@@ -21,7 +19,7 @@ const getDefaultDates = () => {
   return { startDate: start.toISOString().split('T')[0], endDate: end.toISOString().split('T')[0] };
 };
 
-// --- SUB-COMPONENTS (Defined here to fix ReferenceErrors) ---
+// --- SUB-COMPONENTS (Defined here to fix Scope/Reference Errors) ---
 
 const CommonBacktestInputs = ({ data, onChange, options, onParamChange }) => {
     const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
@@ -78,6 +76,17 @@ const ComboStrategyCard = ({ idx, config, strategies, onChange, onRemove }) => {
   );
 };
 
+const MetricsDisplay = ({ metrics }) => (
+    <div className="grid grid-cols-4 gap-4">
+        {[{l:"ROI", v:metrics.totalReturn, f:"%"}, {l:"Prof. Factor", v:metrics.profitFactor, f:""}, {l:"Win Rate", v:metrics.winRate, f:"%"}, {l:"Trades", v:metrics.totalTrades}].map((i, idx) => (
+            <div key={idx} className="bot-card p-4 text-center">
+                <div className="text-neutral-400 text-[10px] uppercase font-bold">{i.l}</div>
+                <div className="text-xl font-bold text-white">{i.f==="$" && "$"}{i.v?.toFixed(2)}{i.f==="%" && "%"}</div>
+            </div>
+        ))}
+    </div>
+);
+
 // --- MAIN PAGE ---
 
 export default function Backtests() {
@@ -94,10 +103,13 @@ export default function Backtests() {
   const [formData, setFormData] = useState({ symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, initialBalance: 1000, strategyId: "", params: {...defaultFilterParams}, mlMode: "off" });
   const [comboData, setComboData] = useState({ symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, initialBalance: 1000, strategies: [{strategyId: ""}], comboConfig: { combinationRule: "OR" }, params: {...defaultFilterParams}, mlMode: "off" });
 
-  // Load Initial Options
-  useEffect(() => { fetchOptions(); }, []);
+  // 🟢 Fix: Ensure hook functions exist before calling
+  useEffect(() => { 
+    if (typeof fetchOptions === 'function') {
+        fetchOptions(); 
+    }
+  }, [fetchOptions]);
 
-  // Fetch Winners (Wrapper to prevent infinite loops)
   const loadWinners = useCallback(async () => {
       try {
         const token = localStorage.getItem("token");
@@ -134,8 +146,14 @@ export default function Backtests() {
     e.preventDefault();
     setBacktestResults(null);
     setIsSimulating(true); 
-    const res = activeTab === 'combo' ? await runComboBacktest(comboData) : await runNewBacktest(formData);
-    if (res) setBacktestResults(res);
+
+    const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
+    const data = activeTab === 'combo' ? comboData : formData;
+
+    if (typeof runner === 'function') {
+        const res = await runner(data);
+        if (res) setBacktestResults(res);
+    }
     setIsSimulating(false);
   };
 
@@ -161,7 +179,7 @@ export default function Backtests() {
                 </div>
                 <select value={selectedWinnerId} onChange={handleWinnerSelect} className={inputClass}>
                   <option value="">-- Select Alpha --</option>
-                  {liveWinners.map(w => <option key={w.id} value={w.id}>{`${w.symbol} (ROI: ${w.roi || 0}%)`}</option>)}
+                  {liveWinners.map(w => <option key={w.botId || w.id} value={w.botId || w.id}>{`${w.symbol} (ROI: ${w.roi || 0}%)`}</option>)}
                 </select>
               </div>
 
@@ -210,14 +228,7 @@ export default function Backtests() {
           <div className="col-span-12 lg:col-span-7 space-y-6">
             {processed ? (
               <>
-                <div className="grid grid-cols-4 gap-4">
-                    {[{l:"ROI", v:processed.metrics.totalReturn, f:"%"}, {l:"Expectancy", v:processed.metrics.expectancy, f:"$"}, {l:"Win Rate", v:processed.metrics.winRate, f:"%"}, {l:"Trades", v:processed.metrics.totalTrades}].map((i, idx) => (
-                        <div key={idx} className="bot-card p-4 text-center">
-                            <div className="text-neutral-400 text-[10px] uppercase font-bold">{i.l}</div>
-                            <div className="text-xl font-bold text-white">{i.f==="$" && "$"}{i.v?.toFixed(2)}{i.f==="%" && "%"}</div>
-                        </div>
-                    ))}
-                </div>
+                <MetricsDisplay metrics={processed.metrics} />
                 <div className="bot-card p-6 h-[500px]"> 
                   <ChartIndependent results={processed} symbol={formData.symbol} /> 
                 </div>
