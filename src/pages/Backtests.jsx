@@ -7,10 +7,24 @@ import "./Backtests.css";
 
 const STRATEGY_TYPE_TO_CODE_MAP = {
   "Moving Average Crossover": "sma_crossover", "RSI": "rsi_divergence", "MACD": "macd_crossover",
-  "CCI": "cci_oversold", "Bollinger Bands": "bollinger_bands", "ATR": "atr_breakout"
+  "CCI": "cci_oversold", "Bollinger Bands": "bollinger_bands", "ATR": "atr_breakout",
+  "On-Balance Volume": "obv_signal", "Parabolic SAR": "psar_signal", "Ichimoku Cloud": "ichimoku_cloud"
 };
 
-const defaultFilterParams = { minAtrPct: 0.5, trendFilterPeriod: 200, minAdxLevel: 10, tslAtrMult: 3.5 };
+const DEFAULT_MODEL_OPTIONS = [
+    { id: "btc_1h_xgboost", name: "BTC 1H XGBoost" },
+    { id: "btc_1h_lightgbm", name: "BTC 1H LightGBM" },
+    { id: "eth_1h_transformer", name: "ETH 1H Transformer" },
+    { id: "sol_15m_lstm", name: "SOL 15m LSTM" }
+];
+
+const defaultFilterParams = { 
+    minAtrPct: 0.5, 
+    trendFilterPeriod: 200, 
+    minAdxLevel: 10, 
+    tslAtrMult: 3.5, 
+    regime_threshold: 25 
+};
 
 const getDefaultDates = () => {
   const today = new Date();
@@ -19,41 +33,90 @@ const getDefaultDates = () => {
   return { startDate: start.toISOString().split('T')[0], endDate: end.toISOString().split('T')[0] };
 };
 
-// --- SUB-COMPONENTS (Defined here to fix Scope/Reference Errors) ---
+// --- SUB-COMPONENTS (Exhaustive Restoration) ---
 
 const CommonBacktestInputs = ({ data, onChange, options, onParamChange }) => {
     const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
+    const params = data.params || {};
+
     return (
-        <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-                <div><label className="text-neutral-400 text-xs">Symbol</label>
-                <select name="symbol" value={data.symbol} onChange={onChange} className={inputClass}>
-                    <option value="">-- Select --</option>
-                    {options.symbolOptions?.map(s => <option key={s} value={s}>{s}</option>)}
-                </select></div>
-                <div><label className="text-neutral-400 text-xs">Timeframe</label>
-                <select name="timeframe" value={data.timeframe} onChange={onChange} className={inputClass}>
-                    <option value="">-- Select --</option>
-                    {options.timeframeOptions?.map(t => <option key={t} value={t}>{t}</option>)}
-                </select></div>
+        <div className="space-y-6">
+            {/* Core Data Group */}
+            <div className="form-grid">
+                <div className="setup-selector">
+                    <label className="text-neutral-400 text-xs">Symbol</label>
+                    <select name="symbol" value={data.symbol} onChange={onChange} className={inputClass}>
+                        <option value="">-- Select --</option>
+                        {options.symbolOptions?.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                </div>
+                <div className="setup-selector">
+                    <label className="text-neutral-400 text-xs">Timeframe</label>
+                    <select name="timeframe" value={data.timeframe} onChange={onChange} className={inputClass}>
+                        <option value="">-- Select --</option>
+                        {options.timeframeOptions?.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                </div>
+                <div className="setup-selector">
+                    <label className="text-neutral-400 text-xs">Initial Balance</label>
+                    <input type="number" name="initialBalance" value={data.initialBalance} onChange={onChange} className={inputClass} />
+                </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+
+            {/* Date Group */}
+            <div className="form-grid" style={{gridTemplateColumns: '1fr 1fr'}}>
                 <div><label className="text-neutral-400 text-xs">Start Date</label><input type="date" name="startDate" value={data.startDate} onChange={onChange} className={inputClass}/></div>
                 <div><label className="text-neutral-400 text-xs">End Date</label><input type="date" name="endDate" value={data.endDate} onChange={onChange} className={inputClass}/></div>
             </div>
-            <div className="bot-card p-4 border-emerald-500/20 bg-emerald-500/5">
-                <div className="grid grid-cols-2 gap-4">
-                    <div><label className="text-neutral-400 text-xs">ML Mode</label><select name="mlMode" value={data.mlMode} onChange={onChange} className={inputClass}><option value="off">Off</option><option value="predictions">Hybrid</option></select></div>
+
+            {/* Risk & ML Configuration Block */}
+            <div className="bot-card bg-emerald-500/5 border-emerald-500/20 p-4">
+                <div className="panel-header mb-4 pb-2 border-b border-emerald-500/20"><h4 className="text-emerald-400 font-bold">ML & Risk Configuration</h4></div>
+                <div className="form-grid">
+                    <div className="setup-selector">
+                        <label className="text-neutral-400 text-xs">Risk Mode</label>
+                        <select name="riskManagementMode" value={data.riskManagementMode || 'static'} onChange={onChange} className={inputClass}>
+                            <option value="static">Standard (Static %)</option>
+                            <option value="dynamic">Dynamic (Growth Target)</option>
+                        </select>
+                    </div>
+                    <div className="setup-selector">
+                        <label className="text-neutral-400 text-xs">Risk %</label>
+                        <input type="number" name="riskPercentage" value={data.riskPercentage || 1} onChange={onChange} step="0.1" className={inputClass} />
+                    </div>
+                    <div className="setup-selector">
+                        <label className="text-neutral-400 text-xs">ML Mode</label>
+                        <select name="mlMode" value={data.mlMode} onChange={onChange} className={inputClass}>
+                            <option value="off">Off (Pure TA)</option>
+                            <option value="predictions">Hybrid (TA+ML)</option>
+                        </select>
+                    </div>
                     {data.mlMode !== 'off' && (
-                        <div><label className="text-neutral-400 text-xs">Threshold</label><input type="number" name="mlThreshold" value={data.mlThreshold} onChange={onChange} step="0.05" className={inputClass}/></div>
+                        <>
+                            <div className="setup-selector">
+                                <label className="text-neutral-400 text-xs">Model</label>
+                                <select name="mlModel" value={data.mlModel} onChange={onChange} className={inputClass}>
+                                    <option value="">-- Select Model --</option>
+                                    {(options.modelOptions || DEFAULT_MODEL_OPTIONS).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="setup-selector">
+                                <label className="text-neutral-400 text-xs">Threshold</label>
+                                <input type="number" name="mlThreshold" value={data.mlThreshold} onChange={onChange} step="0.05" className={inputClass}/>
+                            </div>
+                        </>
                     )}
                 </div>
             </div>
-            <div className="bot-card p-4 border-white/5">
-                <label className="text-white text-xs font-bold mb-3 block uppercase">Advanced Filters</label>
-                <div className="grid grid-cols-2 gap-4">
-                    <div><label className="text-neutral-400 text-xs">Min ATR %</label><input type="number" value={data.params?.minAtrPct} onChange={(e)=>onParamChange('minAtrPct', e.target.value)} step="0.05" className={inputClass}/></div>
-                    <div><label className="text-neutral-400 text-xs">Trend Filter</label><input type="number" value={data.params?.trendFilterPeriod} onChange={(e)=>onParamChange('trendFilterPeriod', e.target.value)} className={inputClass}/></div>
+
+            {/* Advanced Filters Block */}
+            <div className="bot-card p-4 border-white/10">
+                <div className="panel-header mb-4 pb-2 border-b border-white/10"><h4 className="text-white font-bold uppercase text-xs">Advanced TA Filters</h4></div>
+                <div className="form-grid">
+                    <div><label className="text-neutral-400 text-xs">Min ATR %</label><input type="number" value={params.minAtrPct} onChange={(e)=>onParamChange('minAtrPct', e.target.value)} step="0.05" className={inputClass}/></div>
+                    <div><label className="text-neutral-400 text-xs">Min ADX</label><input type="number" value={params.minAdxLevel} onChange={(e)=>onParamChange('minAdxLevel', e.target.value)} className={inputClass}/></div>
+                    <div><label className="text-neutral-400 text-xs">TSL ATR Mult</label><input type="number" value={params.tslAtrMult} onChange={(e)=>onParamChange('tslAtrMult', e.target.value)} step="0.1" className={inputClass}/></div>
+                    <div><label className="text-neutral-400 text-xs">Trend SMA</label><input type="number" value={params.trendFilterPeriod} onChange={(e)=>onParamChange('trendFilterPeriod', e.target.value)} className={inputClass}/></div>
                 </div>
             </div>
         </div>
@@ -66,7 +129,7 @@ const ComboStrategyCard = ({ idx, config, strategies, onChange, onRemove }) => {
     <div className="bot-card p-3 border-emerald-500/20 mb-3">
       <div className="flex justify-between items-center mb-2">
         <span className="text-xs font-bold text-emerald-400">Layer #{idx + 1}</span>
-        <button type="button" onClick={() => onRemove(idx)} className="text-rose-400 text-xs">✕</button>
+        <button type="button" onClick={() => onRemove(idx)} className="text-rose-400 text-xs hover:scale-110">✕</button>
       </div>
       <select value={config.strategyId} onChange={(e) => onChange(e, idx)} className={inputClass}>
         <option value="">-- Select Engine --</option>
@@ -77,12 +140,23 @@ const ComboStrategyCard = ({ idx, config, strategies, onChange, onRemove }) => {
 };
 
 const MetricsDisplay = ({ metrics }) => (
-    <div className="grid grid-cols-4 gap-4">
-        {[{l:"ROI", v:metrics.totalReturn, f:"%"}, {l:"Prof. Factor", v:metrics.profitFactor, f:""}, {l:"Win Rate", v:metrics.winRate, f:"%"}, {l:"Trades", v:metrics.totalTrades}].map((i, idx) => (
-            <div key={idx} className="bot-card p-4 text-center">
-                <div className="text-neutral-400 text-[10px] uppercase font-bold">{i.l}</div>
-                <div className="text-xl font-bold text-white">{i.f==="$" && "$"}{i.v?.toFixed(2)}{i.f==="%" && "%"}</div>
+    <div className="metrics-grid mb-6">
+        {[
+          { label: "Total Return", value: metrics.totalReturn, format: 'percent', color: 'text-emerald-400' },
+          { label: "Profit Factor", value: metrics.profitFactor, format: 'number', color: 'text-teal-400' },
+          { label: "Max Drawdown", value: metrics.maxDrawdown, format: 'percent', color: 'text-amber-400' },
+          { label: "Win Rate", value: metrics.winRate, format: 'percent', color: 'text-violet-400' },
+          { label: "Total Trades", value: metrics.totalTrades, format: null, color: 'text-cyan-400' },
+          { label: "Avg. Win", value: metrics.averageWin, format: 'currency', color: 'text-emerald-400' },
+          { label: "Avg. Loss", value: metrics.averageLoss, format: 'currency', color: 'text-rose-400' },
+          { label: "Final Balance", value: metrics.finalBalance, format: 'currency', color: 'text-emerald-400' }
+        ].map((m, idx) => (
+          <div key={idx} className="metric-item hover:shadow-lg transition-all group">
+            <span className="metric-label">{m.label}</span>
+            <div className={`metric-value ${m.color}`}>
+              {m.format === 'currency' ? `$${m.value?.toFixed(2)}` : m.format === 'percent' ? `${m.value?.toFixed(2)}%` : m.value}
             </div>
+          </div>
         ))}
     </div>
 );
@@ -100,15 +174,18 @@ export default function Backtests() {
   const [liveWinners, setLiveWinners] = useState([]);
   const [backtestResults, setBacktestResults] = useState(null);
 
-  const [formData, setFormData] = useState({ symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, initialBalance: 1000, strategyId: "", params: {...defaultFilterParams}, mlMode: "off" });
-  const [comboData, setComboData] = useState({ symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, initialBalance: 1000, strategies: [{strategyId: ""}], comboConfig: { combinationRule: "OR" }, params: {...defaultFilterParams}, mlMode: "off" });
+  const [formData, setFormData] = useState({ 
+      symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, 
+      initialBalance: 1000, strategyId: "", riskManagementMode: 'static', riskPercentage: 1, 
+      params: {...defaultFilterParams}, mlMode: "off", mlModel: "", mlThreshold: 0.5 
+  });
+  const [comboData, setComboData] = useState({ 
+      symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, 
+      initialBalance: 1000, strategies: [{strategyId: ""}], comboConfig: { combinationRule: "OR" }, 
+      riskManagementMode: 'static', riskPercentage: 1, params: {...defaultFilterParams}, mlMode: "off", mlModel: "", mlThreshold: 0.5 
+  });
 
-  // 🟢 Fix: Ensure hook functions exist before calling
-  useEffect(() => { 
-    if (typeof fetchOptions === 'function') {
-        fetchOptions(); 
-    }
-  }, [fetchOptions]);
+  useEffect(() => { if (typeof fetchOptions === 'function') fetchOptions(); }, []);
 
   const loadWinners = useCallback(async () => {
       try {
@@ -136,7 +213,14 @@ export default function Backtests() {
     const rawSym = (config.symbol || "BTC-USD").replace('/', '-');
     const matchedSymbol = options.symbols?.find(s => s.replace('/', '-') === rawSym) || rawSym;
 
-    const update = { symbol: matchedSymbol, timeframe: config.timeframe || "1h", mlMode: config.mlMode || "predictions", mlModel: config.mlModel, params: { ...defaultFilterParams, ...config.params } };
+    const update = { 
+        symbol: matchedSymbol, 
+        timeframe: config.timeframe || "1h", 
+        mlMode: config.mlMode || "predictions", 
+        mlModel: config.mlModel, 
+        mlThreshold: config.mlThreshold || 0.5,
+        params: { ...defaultFilterParams, ...config.params } 
+    };
     
     setFormData(p => ({ ...p, ...update }));
     setComboData(p => ({ ...p, ...update }));
@@ -184,15 +268,15 @@ export default function Backtests() {
               </div>
 
               <div className="tabs flex gap-2 mb-6"> 
-                <button type="button" className={`flex-1 py-3 rounded-xl transition-all ${activeTab === 'single' ? 'bg-emerald-500 text-black font-bold' : 'bg-white/5 text-neutral-400'}`} onClick={() => setActiveTab('single')}>Single</button> 
-                <button type="button" className={`flex-1 py-3 rounded-xl transition-all ${activeTab === 'combo' ? 'bg-emerald-500 text-black font-bold' : 'bg-white/5 text-neutral-400'}`} onClick={() => setActiveTab('combo')}>Combo</button> 
+                <button type="button" className={`flex-1 py-3 rounded-xl transition-all ${activeTab === 'single' ? 'bg-emerald-500 text-black font-bold' : 'bg-white/5 text-neutral-400'}`} onClick={() => setActiveTab('single')}>Single Layer</button> 
+                <button type="button" className={`flex-1 py-3 rounded-xl transition-all ${activeTab === 'combo' ? 'bg-emerald-500 text-black font-bold' : 'bg-white/5 text-neutral-400'}`} onClick={() => setActiveTab('combo')}>Combo Layers</button> 
               </div>
 
               <form onSubmit={handleRun} className="space-y-6">
                 {activeTab === 'single' && (
-                    <div><label className="text-neutral-400 text-xs">⚡ Engine</label>
+                    <div><label className="text-neutral-400 text-xs">⚡ Core TA Engine</label>
                     <select value={formData.strategyId} onChange={(e)=>setFormData({...formData, strategyId: e.target.value})} className={inputClass}>
-                        <option value="">-- Select --</option>
+                        <option value="">-- Select Strategy --</option>
                         {strategyOptions.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
                     </select></div>
                 )}
@@ -200,13 +284,13 @@ export default function Backtests() {
                 <CommonBacktestInputs 
                     data={activeTab === 'single' ? formData : comboData} 
                     onChange={(e) => activeTab === 'single' ? setFormData({...formData, [e.target.name]: e.target.value}) : setComboData({...comboData, [e.target.name]: e.target.value})} 
-                    options={{ symbolOptions: options.symbols, timeframeOptions: options.timeframes }}
+                    options={{ symbolOptions: options.symbols, timeframeOptions: options.timeframes, modelOptions: options.models || DEFAULT_MODEL_OPTIONS }}
                     onParamChange={(name, val) => activeTab === 'single' ? setFormData({...formData, params: {...formData.params, [name]: val}}) : setComboData({...comboData, params: {...comboData.params, [name]: val}})}
                 />
 
                 {activeTab === 'combo' && (
-                    <div className="space-y-2">
-                        <label className="text-emerald-400 text-xs font-bold uppercase">Logic Layers</label>
+                    <div className="space-y-3">
+                        <label className="text-emerald-400 text-xs font-bold uppercase tracking-widest">Strategy Logic Layers</label>
                         {comboData.strategies.map((s, i) => (
                             <ComboStrategyCard key={i} idx={i} config={s} strategies={strategyOptions} onRemove={(idx) => setComboData({...comboData, strategies: comboData.strategies.filter((_, n)=> n !== idx)})} onChange={(e, idx) => {
                                 const newStrats = [...comboData.strategies];
@@ -214,7 +298,7 @@ export default function Backtests() {
                                 setComboData({...comboData, strategies: newStrats});
                             }} />
                         ))}
-                        <button type="button" onClick={() => setComboData({...comboData, strategies: [...comboData.strategies, {strategyId: ""}]})} className="w-full py-2 border-dashed border border-white/20 rounded-xl text-xs text-emerald-400">+ Add Layer</button>
+                        <button type="button" onClick={() => setComboData({...comboData, strategies: [...comboData.strategies, {strategyId: ""}]})} className="w-full py-2 border-dashed border border-white/20 rounded-xl text-xs text-emerald-400">+ Add New Layer</button>
                     </div>
                 )}
 
@@ -230,13 +314,14 @@ export default function Backtests() {
               <>
                 <MetricsDisplay metrics={processed.metrics} />
                 <div className="bot-card p-6 h-[500px]"> 
-                  <ChartIndependent results={processed} symbol={formData.symbol} /> 
+                  <ChartIndependent results={processed} symbol={activeTab === 'single' ? formData.symbol : comboData.symbol} /> 
                 </div>
               </>
             ) : (
               <div className="bot-card p-20 flex flex-col items-center justify-center min-h-[600px] border-dashed border-2 border-white/5"> 
                 <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mb-6 text-4xl ${isSimulating ? 'animate-pulse bg-amber-500/20' : 'bg-emerald-500/10'}`}> {isSimulating ? '⏳' : '🧪'} </div> 
                 <h3 className="text-white text-xl mb-2 font-bold">{isSimulating ? 'Simulation Currently Running...' : 'Strategy Sandbox Ready'}</h3> 
+                <p className="text-neutral-400 text-center max-w-sm">Load an Alpha Strategy or chain logic layers to start.</p>
               </div>
             )}
           </div>
