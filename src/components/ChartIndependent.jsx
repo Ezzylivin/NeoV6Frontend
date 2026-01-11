@@ -12,16 +12,32 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
 
     const candles = useMemo(() => {
         const rawData = results?.candleData || [];
-        if (rawData.length === 0) return [];
-        return rawData.map(c => {
+        console.group(`🕯️ [Static Chart] Data Processing: ${symbol}`);
+        console.log("Raw Results Prop:", results);
+        console.log("Extracted CandleData Length:", rawData.length);
+        
+        if (rawData.length === 0) {
+            console.warn("⚠️ No candle data found in results object!");
+            console.groupEnd();
+            return [];
+        }
+
+        const parsed = rawData.map(c => {
             let t = c.timestamp || c.time || c.datetime || c.date;
             if (typeof t === 'object' && t.$date) t = t.$date;
             return { 
                 time: Math.floor(new Date(t).getTime() / 1000), 
-                open: parseFloat(c.open || 0), high: parseFloat(c.high || 0), low: parseFloat(c.low || 0), close: parseFloat(c.close || 0) 
+                open: parseFloat(c.open || 0), 
+                high: parseFloat(c.high || 0), 
+                low: parseFloat(c.low || 0), 
+                close: parseFloat(c.close || 0) 
             };
         }).sort((a, b) => a.time - b.time);
-    }, [results]);
+
+        console.log("Successfully Parsed Candles:", parsed.length);
+        console.groupEnd();
+        return parsed;
+    }, [results, symbol]);
 
     useEffect(() => {
         if (!chartContainerRef.current || candles.length === 0) return;
@@ -40,27 +56,13 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
         candleSeries.setData(candles);
 
         if (results?.trades) {
-            const markers = [];
-            results.trades.forEach(t => {
-                const entryTs = Math.floor(new Date(t.entryTime || t.entry_time).getTime() / 1000);
-                markers.push({ 
-                    time: entryTs, 
-                    position: "belowBar", 
-                    color: "#34d399", 
-                    shape: "arrowUp", 
-                    text: "E" 
-                });
-                if (t.exitTime || t.exit_time) {
-                    const exitTs = Math.floor(new Date(t.exitTime || t.exit_time).getTime() / 1000);
-                    markers.push({ 
-                        time: exitTs, 
-                        position: "aboveBar", 
-                        color: t.profit >= 0 ? "#10b981" : "#ef4444", 
-                        shape: "circle", 
-                        text: "X" 
-                    });
-                }
-            });
+            const markers = results.trades.map(t => ({
+                time: Math.floor(new Date(t.entryTime || t.entry_time).getTime() / 1000),
+                position: t.side === "long" ? "belowBar" : "aboveBar",
+                color: t.side === "long" ? "#34d399" : "#f59e0b",
+                shape: t.side === "long" ? "arrowUp" : "arrowDown",
+                text: "E"
+            }));
             candleSeries.setMarkers(markers.sort((a,b) => a.time - b.time));
         }
 
@@ -74,14 +76,12 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
         return () => chart.remove();
     }, [candles, results]);
 
-    if (candles.length === 0) return <div className="bot-card p-10 text-amber-500">⚠️ No Price Data Found</div>;
+    if (candles.length === 0) return <div className="bot-card p-10 text-amber-500">⚠️ No Price Data Found (Check Console)</div>;
 
     return (
         <div className="independent-container relative">
-            <div className="absolute top-4 left-4 z-10 bg-black/60 p-3 rounded border border-white/10 text-[10px] space-y-1 font-mono">
+            <div className="chart-hud absolute top-4 left-4 z-10 bg-black/60 p-2 rounded border border-white/10 text-[10px] space-y-1">
                 <div className="flex gap-2"><span>O</span><span className="text-white">{legend.open}</span></div>
-                <div className="flex gap-2"><span>H</span><span className="text-white">{legend.high}</span></div>
-                <div className="flex gap-2"><span>L</span><span className="text-white">{legend.low}</span></div>
                 <div className="flex gap-2"><span>C</span><span className="text-white font-bold">{legend.close}</span></div>
             </div>
             <div ref={chartContainerRef} className="chart-canvas" style={{ minHeight: '450px' }} />
