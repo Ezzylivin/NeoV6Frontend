@@ -6,18 +6,10 @@ import "./Backtests.css";
 
 const STRATEGY_TYPE_TO_CODE_MAP = {
   "Moving Average Crossover": "sma_crossover", "RSI": "rsi_divergence", "MACD": "macd_crossover",
-  "CCI": "cci_oversold", "Bollinger Bands": "bollinger_bands", "ATR": "atr_breakout",
-  "On-Balance Volume": "obv_signal", "Parabolic SAR": "psar_signal", "Ichimoku Cloud": "ichimoku_cloud"
+  "CCI": "cci_oversold", "Bollinger Bands": "bollinger_bands", "ATR": "atr_breakout"
 };
 
-const DEFAULT_MODEL_OPTIONS = [
-    { id: "btc_1h_xgboost", name: "BTC 1H XGBoost" },
-    { id: "btc_1h_lightgbm", name: "BTC 1H LightGBM" },
-    { id: "eth_1h_transformer", name: "ETH 1H Transformer" },
-    { id: "sol_15m_lstm", name: "SOL 15m LSTM" }
-];
-
-const defaultFilterParams = { minAtrPct: 0.5, trendFilterPeriod: 200, minAdxLevel: 10, tslAtrMult: 3.5, regime_threshold: 25 };
+const defaultFilterParams = { minAtrPct: 0.5, trendFilterPeriod: 200, minAdxLevel: 10, tslAtrMult: 3.5 };
 
 const getDefaultDates = () => {
   const today = new Date();
@@ -31,7 +23,6 @@ const getDefaultDates = () => {
 const CommonBacktestInputs = ({ data, onChange, options, onParamChange }) => {
     const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
     const params = data.params || defaultFilterParams;
-
     return (
         <div className="space-y-6">
             <div className="form-grid">
@@ -54,18 +45,12 @@ const CommonBacktestInputs = ({ data, onChange, options, onParamChange }) => {
                     <input type="number" name="initialBalance" value={data.initialBalance} onChange={onChange} className={inputClass} />
                 </div>
             </div>
-
-            <div className="form-grid" style={{gridTemplateColumns: '1fr 1fr'}}>
-                <div><label className="text-neutral-400 text-xs">Start Date</label><input type="date" name="startDate" value={data.startDate} onChange={onChange} className={inputClass}/></div>
-                <div><label className="text-neutral-400 text-xs">End Date</label><input type="date" name="endDate" value={data.endDate} onChange={onChange} className={inputClass}/></div>
-            </div>
-
             <div className="bot-card bg-emerald-500/5 border-emerald-500/20 p-4">
-                <div className="panel-header mb-4 pb-2 border-b border-emerald-500/20"><h4 className="text-emerald-400 font-bold">ML & Risk Configuration</h4></div>
+                <div className="panel-header mb-4 pb-2 border-b border-emerald-500/20"><h4 className="text-emerald-400 font-bold uppercase text-xs">ML & Risk</h4></div>
                 <div className="form-grid">
                     <div className="setup-selector">
                         <label className="text-neutral-400 text-xs">Risk Mode</label>
-                        <select name="riskManagementMode" value={data.riskManagementMode || 'static'} onChange={onChange} className={inputClass}>
+                        <select name="riskManagementMode" value={data.riskManagementMode} onChange={onChange} className={inputClass}>
                             <option value="static">Standard</option>
                             <option value="dynamic">Dynamic</option>
                         </select>
@@ -82,96 +67,41 @@ const CommonBacktestInputs = ({ data, onChange, options, onParamChange }) => {
                         </select>
                     </div>
                     {data.mlMode !== 'off' && (
-                        <>
-                            <div className="setup-selector">
-                                <label className="text-neutral-400 text-xs">Model</label>
-                                <select name="mlModel" value={data.mlModel} onChange={onChange} className={inputClass}>
-                                    <option value="">-- Select Model --</option>
-                                    {(options.modelOptions || DEFAULT_MODEL_OPTIONS).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                                </select>
-                            </div>
-                            <div className="setup-selector">
-                                <label className="text-neutral-400 text-xs">Threshold</label>
-                                <input type="number" name="mlThreshold" value={data.mlThreshold} onChange={onChange} step="0.05" className={inputClass}/>
-                            </div>
-                        </>
+                        <div className="setup-selector">
+                            <label className="text-neutral-400 text-xs">Model</label>
+                            <select name="mlModel" value={data.mlModel} onChange={onChange} className={inputClass}>
+                                {options.modelOptions?.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                            </select>
+                        </div>
                     )}
-                </div>
-            </div>
-
-            <div className="bot-card p-4 border-white/10">
-                <div className="panel-header mb-4 pb-2 border-b border-white/10"><h4 className="text-white font-bold uppercase text-xs">Advanced TA Filters</h4></div>
-                <div className="form-grid">
-                    <div><label className="text-neutral-400 text-xs">Min ATR %</label><input type="number" value={params.minAtrPct} onChange={(e)=>onParamChange('minAtrPct', e.target.value)} step="0.05" className={inputClass}/></div>
-                    <div><label className="text-neutral-400 text-xs">Min ADX</label><input type="number" value={params.minAdxLevel} onChange={(e)=>onParamChange('minAdxLevel', e.target.value)} className={inputClass}/></div>
-                    <div><label className="text-neutral-400 text-xs">TSL ATR Mult</label><input type="number" value={params.tslAtrMult} onChange={(e)=>onParamChange('tslAtrMult', e.target.value)} step="0.1" className={inputClass}/></div>
-                    <div><label className="text-neutral-400 text-xs">Trend SMA</label><input type="number" value={params.trendFilterPeriod} onChange={(e)=>onParamChange('trendFilterPeriod', e.target.value)} className={inputClass}/></div>
                 </div>
             </div>
         </div>
     );
 };
 
-const ComboStrategyCard = ({ idx, config, strategies, onChange, onRemove }) => {
-  const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-2 text-white text-sm";
-  return (
-    <div className="bot-card p-3 border-emerald-500/20 mb-3">
-      <div className="flex justify-between items-center mb-2">
-        <span className="text-xs font-bold text-emerald-400">Layer #{idx + 1}</span>
-        <button type="button" onClick={() => onRemove(idx)} className="text-rose-400 text-xs">✕</button>
-      </div>
-      <select value={config.strategyId} onChange={(e) => onChange(e, idx)} className={inputClass}>
-        <option value="">-- Select Engine --</option>
-        {strategies.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
-      </select>
-    </div>
-  );
-};
-
-// --- MAIN PAGE ---
-
 export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest, fetchOptions } = useBacktest(); 
   const { options = {} } = state || {};
-  const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
-
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
-  const [activeTab, setActiveTab] = useState('single');
   const [isSimulating, setIsSimulating] = useState(false);
   const [liveWinners, setLiveWinners] = useState([]);
   const [backtestResults, setBacktestResults] = useState(null);
-  const [scanningWinners, setScanningWinners] = useState(false);
 
-  const [formData, setFormData] = useState({ 
-      symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, 
-      initialBalance: 1000, strategyId: "", riskManagementMode: 'static', riskPercentage: 1, 
-      params: {...defaultFilterParams}, mlMode: "off", mlModel: "", mlThreshold: 0.5 
-  });
-  
-  const [comboData, setComboData] = useState({ 
-      symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, 
-      initialBalance: 1000, strategies: [{strategyId: ""}], comboConfig: { combinationRule: "OR" }, 
-      riskManagementMode: 'static', riskPercentage: 1, params: {...defaultFilterParams}, mlMode: "off", mlModel: "", mlThreshold: 0.5 
-  });
+  const [formData, setFormData] = useState({ symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, initialBalance: 1000, strategyId: "", riskManagementMode: 'static', riskPercentage: 1, params: {...defaultFilterParams}, mlMode: "off", mlModel: "", mlThreshold: 0.5 });
+  const [comboData, setComboData] = useState({ symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, initialBalance: 1000, strategies: [{strategyId: ""}], comboConfig: { combinationRule: "OR" }, riskManagementMode: 'static', riskPercentage: 1, params: {...defaultFilterParams}, mlMode: "off", mlModel: "", mlThreshold: 0.5 });
 
-  useEffect(() => { if (typeof fetchOptions === 'function') fetchOptions(); }, [fetchOptions]);
+  useEffect(() => { fetchOptions?.(); }, []);
 
   const loadWinners = useCallback(async () => {
-      setScanningWinners(true);
       try {
         const token = localStorage.getItem("token");
         const res = await axios.get("https://neov6backend.onrender.com/api/bot/winners", { headers: { Authorization: `Bearer ${token}` } });
         setLiveWinners(Array.isArray(res.data) ? res.data : (res.data.winners || []));
-      } catch (err) { console.error("Fetch Error:", err); } finally { setScanningWinners(false); }
+      } catch (err) { console.error("Fetch Error:", err); }
   }, []);
 
   useEffect(() => { loadWinners(); }, [loadWinners]);
-
-  const strategyOptions = useMemo(() => {
-    const dbStrats = options?.strategies || [];
-    const baseStrats = Object.entries(STRATEGY_TYPE_TO_CODE_MAP).map(([name, code], idx) => ({ _id: `base-${code}-${idx}`, name, code }));
-    return [...baseStrats, ...dbStrats];
-  }, [options]);
 
   const handleWinnerSelect = (e) => {
     const id = e.target.value;
@@ -180,15 +110,9 @@ export default function Backtests() {
     if (!win) return;
 
     const config = win.config || win;
-    const rawSym = (config.symbol || "BTC-USD").replace('/', '-');
+    const rawSym = (config.symbol || "").replace('/', '-');
     const matchedSymbol = options.symbols?.find(s => s.replace('/', '-') === rawSym) || rawSym;
     const matchedTF = options.timeframes?.find(t => t === config.timeframe) || config.timeframe || "1h";
-
-    const strats = (config.strategies || []).map(s => {
-        const code = typeof s === 'string' ? s : (s.code || "unknown");
-        const opt = strategyOptions.find(o => o.code === code);
-        return { strategyId: opt?._id || "", code, params: s.params || {} };
-    });
 
     const update = { 
         symbol: matchedSymbol, timeframe: matchedTF, 
@@ -197,32 +121,22 @@ export default function Backtests() {
         riskPercentage: config.riskPercentage || 1,
         mlMode: config.mlMode || "predictions", 
         mlModel: config.mlModel || "", 
-        mlThreshold: config.mlThreshold || 0.5,
         params: { ...defaultFilterParams, ...(config.params || {}) } 
     };
     
-    setFormData(p => ({ ...p, ...update, strategyId: strats[0]?.strategyId || "" }));
-    setComboData(p => ({ ...p, ...update, strategies: strats.length > 0 ? strats : [{strategyId: ""}] }));
-    setActiveTab(strats.length > 1 ? 'combo' : 'single');
+    setFormData(p => ({ ...p, ...update }));
+    setComboData(p => ({ ...p, ...update }));
   };
 
-  const handleRun = async (e) => {
-    e.preventDefault();
-    setBacktestResults(null);
-    setIsSimulating(true); 
-    const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
-    const data = activeTab === 'combo' ? comboData : formData;
-    if (typeof runner === 'function') {
-        const res = await runner(data);
-        if (res) setBacktestResults(res);
-    }
-    setIsSimulating(false);
-  };
-
+  // 🟢 Extraction Fix: Maps both root and nested result objects
   const processed = useMemo(() => {
     if (!backtestResults) return null;
     const res = backtestResults.combinedResult || backtestResults;
-    return { candleData: res.candleData || [], trades: res.trades || res.tradeBreakdown || [], metrics: { ...res.metrics, totalReturn: res.metrics?.roi || 0 } };
+    return { 
+        candleData: backtestResults.candleData || res.candleData || [], 
+        trades: backtestResults.trades || res.trades || res.tradeBreakdown || [], 
+        metrics: { ...res.metrics, totalReturn: res.metrics?.roi || 0 } 
+    };
   }, [backtestResults]);
 
   return (
@@ -230,44 +144,22 @@ export default function Backtests() {
         <div className="grid grid-cols-12 gap-8">
           <div className="col-span-12 lg:col-span-5">
             <div className="bot-card p-6">
-              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 mb-6">
-                <div className="flex justify-between items-center mb-2">
-                    <label className="text-emerald-400 font-semibold text-sm">🏆 Load Alpha Strategy</label>
-                    <button type="button" onClick={loadWinners} disabled={scanningWinners} className="text-emerald-400 transition-all cursor-pointer"> {scanningWinners ? '...' : '🔄'} </button>
-                </div>
-                <select value={selectedWinnerId} onChange={handleWinnerSelect} className={inputClass}>
-                  <option value="">-- Select Alpha --</option>
-                  {liveWinners.map(w => <option key={w.botId || w.id} value={w.botId || w.id}>{`${w.symbol} (ROI: ${Number(w.roi || w.metrics?.roi || 0).toFixed(1)}%)`}</option>)}
-                </select>
+              <div className="flex justify-between items-center mb-4">
+                  <label className="text-emerald-400 font-bold text-sm">🏆 Load Alpha Strategy</label>
+                  <button type="button" onClick={loadWinners} className="text-emerald-400">🔄</button>
               </div>
-              <div className="tabs flex gap-2 mb-6"> 
-                <button type="button" className={`flex-1 py-3 rounded-xl transition-all ${activeTab === 'single' ? 'bg-emerald-500 text-black font-bold' : 'bg-white/5 text-neutral-400'}`} onClick={() => setActiveTab('single')}>Single Layer</button> 
-                <button type="button" className={`flex-1 py-3 rounded-xl transition-all ${activeTab === 'combo' ? 'bg-emerald-500 text-black font-bold' : 'bg-white/5 text-neutral-400'}`} onClick={() => setActiveTab('combo')}>Combo Layers</button> 
-              </div>
-              <form onSubmit={handleRun} className="space-y-6">
-                {activeTab === 'single' && (
-                    <div><label className="text-neutral-400 text-xs">⚡ TA Engine</label>
-                    <select value={formData.strategyId} onChange={(e)=>setFormData({...formData, strategyId: e.target.value})} className={inputClass}>
-                        <option value="">-- Select --</option>
-                        {strategyOptions.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
-                    </select></div>
-                )}
-                <CommonBacktestInputs data={activeTab === 'single' ? formData : comboData} onChange={(e) => activeTab === 'single' ? setFormData({...formData, [e.target.name]: e.target.value}) : setComboData({...comboData, [e.target.name]: e.target.value})} options={{ symbolOptions: options.symbols, timeframeOptions: options.timeframes, modelOptions: options.models }} onParamChange={(name, val) => activeTab === 'single' ? setFormData({...formData, params: {...formData.params, [name]: val}}) : setComboData({...comboData, params: {...comboData.params, [name]: val}})} />
-                <button type="submit" disabled={isSimulating} className="w-full py-4 bg-emerald-500 text-black font-bold rounded-xl shadow-lg">
-                    {isSimulating ? 'Test is Running...' : '▶ Run Simulation'}
-                </button>
-              </form>
+              <select value={selectedWinnerId} onChange={handleWinnerSelect} className="w-full bg-black border border-white/10 rounded-xl p-3 text-white mb-6">
+                <option value="">-- Select Alpha --</option>
+                {liveWinners.map(w => <option key={w.botId || w.id} value={w.botId || w.id}>{`${w.symbol} (ROI: ${Number(w.roi || w.metrics?.roi || 0).toFixed(1)}%)`}</option>)}
+              </select>
+              <CommonBacktestInputs data={formData} onChange={(e) => setFormData({...formData, [e.target.name]: e.target.value})} options={{ symbolOptions: options.symbols, timeframeOptions: options.timeframes, modelOptions: options.models }} onParamChange={(name, val) => setFormData({...formData, params: {...formData.params, [name]: val}})} />
+              <button onClick={async () => { setIsSimulating(true); const res = await runNewBacktest(formData); setBacktestResults(res); setIsSimulating(false); }} className="w-full py-4 bg-emerald-500 text-black font-bold rounded-xl mt-6">
+                  {isSimulating ? 'Test is Running...' : '▶ Run Simulation'}
+              </button>
             </div>
           </div>
           <div className="col-span-12 lg:col-span-7">
-            {processed ? (
-              <div className="bot-card p-6 h-[600px]"><ChartIndependent results={processed} symbol={formData.symbol} /></div>
-            ) : (
-              <div className="bot-card p-20 flex flex-col items-center justify-center min-h-[600px] border-dashed border-2 border-white/5"> 
-                <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mb-6 text-4xl ${isSimulating ? 'animate-pulse bg-amber-500/20' : 'bg-emerald-500/10'}`}> {isSimulating ? '⏳' : '🧪'} </div> 
-                <h3 className="text-white text-xl mb-2 font-bold">{isSimulating ? 'Simulation Currently Running...' : 'Strategy Sandbox Ready'}</h3> 
-              </div>
-            )}
+            {processed ? <ChartIndependent results={processed} symbol={formData.symbol} /> : <div className="bot-card p-20 text-center">Ready for Simulation</div>}
           </div>
         </div>
     </div>
