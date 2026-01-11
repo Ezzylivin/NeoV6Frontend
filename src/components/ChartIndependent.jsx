@@ -39,16 +39,26 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
         const candleSeries = chart.addCandlestickSeries({ upColor: "#10b981", downColor: "#ef4444" });
         candleSeries.setData(candles);
 
-        if (results?.trades || results?.tradeBreakdown) {
-            const rawTrades = results.trades || results.tradeBreakdown;
+        if (results?.trades) {
             const markers = [];
-            rawTrades.forEach(t => {
+            results.trades.forEach(t => {
                 const entryTs = Math.floor(new Date(t.entryTime || t.entry_time).getTime() / 1000);
-                markers.push({ time: entryTs, position: t.position === "long" ? "belowBar" : "aboveBar", color: t.position === "long" ? "#34d399" : "#f59e0b", shape: t.position === "long" ? "arrowUp" : "arrowDown", text: "E" });
-                
+                markers.push({ 
+                    time: entryTs, 
+                    position: "belowBar", 
+                    color: "#34d399", 
+                    shape: "arrowUp", 
+                    text: "E" 
+                });
                 if (t.exitTime || t.exit_time) {
                     const exitTs = Math.floor(new Date(t.exitTime || t.exit_time).getTime() / 1000);
-                    markers.push({ time: exitTs, position: t.position === "long" ? "aboveBar" : "belowBar", color: t.profit >= 0 ? "#10b981" : "#ef4444", shape: "circle", text: t.profit >= 0 ? "W" : "L" });
+                    markers.push({ 
+                        time: exitTs, 
+                        position: "aboveBar", 
+                        color: t.profit >= 0 ? "#10b981" : "#ef4444", 
+                        shape: "circle", 
+                        text: "X" 
+                    });
                 }
             });
             candleSeries.setMarkers(markers.sort((a,b) => a.time - b.time));
@@ -68,7 +78,7 @@ export function ChartIndependent({ results, symbol = "BTC-USD" }) {
 
     return (
         <div className="independent-container relative">
-            <div className="absolute top-4 left-4 z-10 bg-black/60 p-2 rounded border border-white/10 text-[10px] space-y-1">
+            <div className="absolute top-4 left-4 z-10 bg-black/60 p-3 rounded border border-white/10 text-[10px] space-y-1 font-mono">
                 <div className="flex gap-2"><span>O</span><span className="text-white">{legend.open}</span></div>
                 <div className="flex gap-2"><span>H</span><span className="text-white">{legend.high}</span></div>
                 <div className="flex gap-2"><span>L</span><span className="text-white">{legend.low}</span></div>
