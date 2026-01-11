@@ -1,301 +1,199 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios"; 
 import { useBacktest } from "../hooks/useBacktest.js";
+import { 
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartTooltip, Legend 
+} from "recharts";
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
+import { ChartReplay } from "../components/ChartReplay.jsx";
 import "./Backtests.css"; 
 
-// --- Constants ---
 const STRATEGY_TYPE_TO_CODE_MAP = {
   "Moving Average Crossover": "sma_crossover", "RSI": "rsi_divergence", "MACD": "macd_crossover",
-  "CCI": "cci_oversold", "Bollinger Bands": "bollinger_bands", "ATR": "atr_breakout",
-  "On-Balance Volume": "obv_signal", "Parabolic SAR": "psar_signal", "Ichimoku Cloud": "ichimoku_cloud"
+  "CCI": "cci_oversold", "Bollinger Bands": "bollinger_bands", "ATR": "atr_breakout"
 };
 
-const DEFAULT_MODEL_OPTIONS = [
-    { id: "btc_1h_xgboost", name: "BTC 1H XGBoost" },
-    { id: "btc_1h_lightgbm", name: "BTC 1H LightGBM" },
-    { id: "eth_1h_transformer", name: "ETH 1H Transformer" },
-    { id: "sol_15m_lstm", name: "SOL 15m LSTM" }
-];
+const defaultFilterParams = { minAtrPct: 0.5, trendFilterPeriod: 200, minAdxLevel: 10, tslAtrMult: 3.5 };
+const COLORS = ["#10b981", "#ef4444", "#3b82f6", "#f59e0b"];
 
-const defaultFilterParams = { 
-    minAtrPct: 0.5, trendFilterPeriod: 200, minAdxLevel: 10, 
-    tslAtrMult: 3.5, regime_threshold: 25 
+// --- HELPERS ---
+
+const computeMonthlyReturns = (trades) => {
+    const monthly = {};
+    trades.forEach(t => {
+        const date = new Date(t.exitTime || t.exit_time);
+        const key = `${date.getFullYear()}-${date.getMonth() + 1}`;
+        monthly[key] = (monthly[key] || 0) + (t.profit || 0);
+    });
+    return Object.entries(monthly).map(([month, profit]) => ({ month, profit }));
 };
 
-const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors disabled:opacity-50";
+// --- SUB-COMPONENTS ---
 
-const getDefaultDates = () => {
-  const today = new Date();
-  const start = new Date(today); start.setFullYear(today.getFullYear() - 1);
-  const end = new Date(today); end.setDate(today.getDate() - 1);
-  return { startDate: start.toISOString().split('T')[0], endDate: end.toISOString().split('T')[0] };
-};
-
-// --- Sub-Components ---
-
-const MetricsDisplay = ({ metrics }) => {
-  if (!metrics) return null;
-  const items = [
-    { label: "ROI", value: `${(metrics.roi || 0).toFixed(2)}%`, color: "text-emerald-400" },
-    { label: "Win Rate", value: `${(metrics.winRate || 0).toFixed(2)}%`, color: "text-violet-400" },
-    { label: "Trades", value: metrics.totalTrades || 0, color: "text-cyan-400" },
-    { label: "Expectancy", value: `$${(metrics.expectancy || 0).toFixed(2)}`, color: "text-amber-400" }
-  ];
-  return (
+const MetricsGrid = ({ metrics }) => (
     <div className="grid grid-cols-4 gap-4 mb-6">
-      {items.map((item, idx) => (
-        <div key={idx} className="bot-card p-4 text-center bg-black/40 border border-white/5 shadow-xl">
-          <div className="text-neutral-400 text-[10px] uppercase font-bold mb-1 tracking-wider">{item.label}</div>
-          <div className={`text-xl font-mono font-bold ${item.color}`}>{item.value}</div>
-        </div>
-      ))}
+        {[
+            { l: "Total Return", v: `${(metrics.roi || 0).toFixed(2)}%`, c: "text-emerald-400" },
+            { l: "Win Rate", v: `${(metrics.winRate || 0).toFixed(2)}%`, c: "text-violet-400" },
+            { l: "Profit Factor", v: (metrics.profitFactor || 0).toFixed(2), c: "text-teal-400" },
+            { l: "Max Drawdown", v: `${(metrics.maxDrawdown || 0).toFixed(2)}%`, c: "text-rose-400" },
+            { l: "Total Trades", v: metrics.totalTrades || 0, c: "text-cyan-400" },
+            { l: "Avg Win", v: `$${(metrics.averageWin || 0).toFixed(2)}`, c: "text-emerald-500" },
+            { l: "Avg Loss", v: `$${(metrics.averageLoss || 0).toFixed(2)}`, c: "text-rose-500" },
+            { l: "Expectancy", v: `$${(metrics.expectancy || 0).toFixed(2)}`, c: "text-amber-400" }
+        ].map((m, i) => (
+            <div key={i} className="bot-card p-4 text-center border-white/5 bg-black/40 shadow-xl">
+                <div className="text-neutral-500 text-[10px] uppercase font-bold tracking-widest mb-1">{m.l}</div>
+                <div className={`text-xl font-mono font-bold ${m.c}`}>{m.v}</div>
+            </div>
+        ))}
     </div>
-  );
-};
+);
 
-const CommonBacktestInputs = ({ data, onChange, options, onParamChange }) => {
-    const params = data.params || defaultFilterParams;
+const MonthlyAnalytics = ({ trades }) => {
+    const data = computeMonthlyReturns(trades);
     return (
-        <div className="space-y-6">
-            <div className="form-grid">
-                <div><label className="text-neutral-400 text-xs">Symbol</label>
-                <select name="symbol" value={data.symbol} onChange={onChange} className={inputClass}>
-                    <option value="">-- Select Symbol --</option>
-                    {options.symbolOptions?.map(s => <option key={s} value={s}>{s}</option>)}
-                </select></div>
-                <div><label className="text-neutral-400 text-xs">Timeframe</label>
-                <select name="timeframe" value={data.timeframe} onChange={onChange} className={inputClass}>
-                    <option value="">-- Select TF --</option>
-                    {options.timeframeOptions?.map(t => <option key={t} value={t}>{t}</option>)}
-                </select></div>
-                <div><label className="text-neutral-400 text-xs">Initial Balance</label>
-                <input type="number" name="initialBalance" value={data.initialBalance} onChange={onChange} className={inputClass} /></div>
-            </div>
-
-            <div className="form-grid" style={{gridTemplateColumns: '1fr 1fr'}}>
-                <div><label className="text-neutral-400 text-xs">Start Date</label><input type="date" name="startDate" value={data.startDate} onChange={onChange} className={inputClass}/></div>
-                <div><label className="text-neutral-400 text-xs">End Date</label><input type="date" name="endDate" value={data.endDate} onChange={onChange} className={inputClass}/></div>
-            </div>
-
-            <div className="bot-card bg-emerald-500/5 border-emerald-500/20 p-4">
-                <div className="panel-header mb-4 pb-2 border-b border-emerald-500/20 flex justify-between"><h4 className="text-emerald-400 font-bold uppercase text-[10px]">ML & Risk Engine</h4></div>
-                <div className="form-grid">
-                    <div><label className="text-neutral-400 text-xs">Risk Mode</label>
-                    <select name="riskManagementMode" value={data.riskManagementMode} onChange={onChange} className={inputClass}>
-                        <option value="static">Standard (Static %)</option>
-                        <option value="dynamic">Dynamic (Growth)</option>
-                    </select></div>
-                    <div><label className="text-neutral-400 text-xs">Risk %</label><input type="number" name="riskPercentage" value={data.riskPercentage} onChange={onChange} step="0.1" className={inputClass} /></div>
-                    <div><label className="text-neutral-400 text-xs">ML Mode</label>
-                    <select name="mlMode" value={data.mlMode} onChange={onChange} className={inputClass}>
-                        <option value="off">Off (TA Only)</option>
-                        <option value="predictions">Hybrid (TA+ML)</option>
-                    </select></div>
-                    {data.mlMode !== 'off' && (
-                        <>
-                            <div><label className="text-neutral-400 text-xs">Model</label>
-                            <select name="mlModel" value={data.mlModel} onChange={onChange} className={inputClass}>
-                                <option value="">-- Select Model --</option>
-                                {options.modelOptions?.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                            </select></div>
-                            <div><label className="text-neutral-400 text-xs">Confidence</label>
-                            <input type="number" name="mlThreshold" value={data.mlThreshold} onChange={onChange} step="0.05" className={inputClass}/></div>
-                        </>
-                    )}
-                </div>
-            </div>
-
-            <div className="bot-card p-4 border-white/10">
-                <div className="panel-header mb-4 pb-2 border-b border-white/10"><h4 className="text-white font-bold uppercase text-[10px]">Advanced TA Filters</h4></div>
-                <div className="form-grid">
-                    <div><label className="text-neutral-400 text-xs">Min ATR %</label><input type="number" value={params.minAtrPct} onChange={(e)=>onParamChange('minAtrPct', parseFloat(e.target.value))} step="0.05" className={inputClass}/></div>
-                    <div><label className="text-neutral-400 text-xs">Min ADX</label><input type="number" value={params.minAdxLevel} onChange={(e)=>onParamChange('minAdxLevel', parseInt(e.target.value))} className={inputClass}/></div>
-                    <div><label className="text-neutral-400 text-xs">TSL Mult</label><input type="number" value={params.tslAtrMult} onChange={(e)=>onParamChange('tslAtrMult', parseFloat(e.target.value))} step="0.1" className={inputClass}/></div>
-                    <div><label className="text-neutral-400 text-xs">Trend SMA</label><input type="number" value={params.trendFilterPeriod} onChange={(e)=>onParamChange('trendFilterPeriod', parseInt(e.target.value))} className={inputClass}/></div>
-                </div>
+        <div className="bot-card p-6 bg-black/40 border-white/5 h-full">
+            <h4 className="text-white text-xs font-bold uppercase mb-4 tracking-tighter">Monthly Breakdown</h4>
+            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                {data.map((d, i) => (
+                    <div key={i} className="flex justify-between items-center border-b border-white/5 pb-2">
+                        <span className="text-neutral-400 text-sm font-mono">{d.month}</span>
+                        <span className={`font-bold ${d.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {d.profit >= 0 ? '+' : ''}${d.profit.toFixed(2)}
+                        </span>
+                    </div>
+                ))}
             </div>
         </div>
     );
 };
 
-// --- Main Page ---
+const WinLossPie = ({ trades }) => {
+    const wins = trades.filter(t => t.profit > 0).length;
+    const losses = trades.filter(t => t.profit <= 0).length;
+    const data = [{ name: 'Wins', value: wins }, { name: 'Losses', value: losses }];
+
+    return (
+        <div className="bot-card p-6 bg-black/40 border-white/5 flex flex-col items-center justify-center">
+            <h4 className="text-white text-xs font-bold uppercase mb-4 self-start">Win/Loss Distribution</h4>
+            <div className="h-[200px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                        <Pie data={data} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                            {data.map((entry, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
+                        </Pie>
+                        <RechartTooltip />
+                        <Legend />
+                    </PieChart>
+                </ResponsiveContainer>
+            </div>
+        </div>
+    );
+};
+
+// --- MAIN PAGE ---
 
 export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest, fetchOptions } = useBacktest(); 
   const { options = {} } = state || {};
+  const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors disabled:opacity-50";
 
-  const [selectedWinnerId, setSelectedWinnerId] = useState("");
-  const [activeTab, setActiveTab] = useState('single');
+  const [displayMode, setDisplayMode] = useState('static');
   const [isSimulating, setIsSimulating] = useState(false);
   const [liveWinners, setLiveWinners] = useState([]);
   const [backtestResults, setBacktestResults] = useState(null);
-  const [scanningWinners, setScanningWinners] = useState(false);
 
   const [formData, setFormData] = useState({ 
-    symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, 
+    symbol: "", timeframe: "", startDate: "2025-01-11", endDate: "2026-01-11", 
     initialBalance: 1000, strategyId: "", code: "", riskManagementMode: 'static', riskPercentage: 1, 
-    params: {...defaultFilterParams}, mlMode: "off", mlModel: "", mlThreshold: 0.5 
+    params: {...defaultFilterParams}, mlMode: "off" 
   });
-
-  const [comboData, setComboData] = useState({ 
-    symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, 
-    initialBalance: 1000, strategies: [{strategyId: "", code: ""}], comboConfig: { combinationRule: "OR" }, 
-    riskManagementMode: 'static', riskPercentage: 1, params: {...defaultFilterParams}, mlMode: "off", mlModel: "", mlThreshold: 0.5 
-  });
-
-  useEffect(() => { if (typeof fetchOptions === 'function') fetchOptions(); }, []);
 
   const loadWinners = useCallback(async () => {
-      setScanningWinners(true);
       try {
-        const token = localStorage.getItem("token");
-        const res = await axios.get("https://neov6backend.onrender.com/api/bot/winners", { headers: { Authorization: `Bearer ${token}` } });
+        const res = await axios.get("https://neov6backend.onrender.com/api/bot/winners", { 
+            headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } 
+        });
         setLiveWinners(Array.isArray(res.data) ? res.data : (res.data.winners || []));
-      } catch (err) { console.error("Fetch Error:", err); } finally { setScanningWinners(false); }
+      } catch (err) { console.error(err); }
   }, []);
 
-  useEffect(() => { loadWinners(); }, [loadWinners]);
+  useEffect(() => { 
+      if (typeof fetchOptions === 'function') fetchOptions(); 
+      loadWinners();
+  }, [fetchOptions, loadWinners]);
 
-  const strategyOptions = useMemo(() => {
-    const dbStrats = options?.strategies || [];
-    const baseStrats = Object.entries(STRATEGY_TYPE_TO_CODE_MAP).map(([name, code], idx) => ({ _id: `base-${code}-${idx}`, name, code }));
-    return [...baseStrats, ...dbStrats];
-  }, [options]);
-
-  const handleWinnerSelect = (e) => {
-    const id = e.target.value;
-    setSelectedWinnerId(id);
-    const win = liveWinners.find(w => (w.botId || w.id) === id);
-    if (!win) return;
-
-    const config = win.config || win;
-    const rawSym = (config.symbol || "BTC-USD").replace('/', '-');
-    const matchedSymbol = options.symbols?.find(s => s.replace('/', '-') === rawSym) || rawSym;
-    const matchedTF = options.timeframes?.find(t => t === config.timeframe) || config.timeframe || "1h";
-
-    const strats = (config.strategies || []).map(s => {
-        const code = typeof s === 'string' ? s : (s.code || "unknown");
-        const opt = strategyOptions.find(o => o.code === code);
-        return { strategyId: opt?._id || "", code, params: s.params || {} };
-    });
-
-    const update = { 
-        symbol: matchedSymbol, timeframe: matchedTF, 
-        initialBalance: config.initialBalance || 1000,
-        riskManagementMode: config.riskManagementMode || 'static',
-        riskPercentage: config.riskPercentage || 1,
-        mlMode: config.mlMode || "predictions", 
-        mlModel: config.mlModel || "", 
-        mlThreshold: config.mlThreshold || 0.5,
-        params: { ...defaultFilterParams, ...(config.params || {}) },
-        strategyId: strats[0]?.strategyId || "",
-        code: strats[0]?.code || ""
-    };
+  const processed = useMemo(() => {
+    if (!backtestResults) return null;
+    const res = backtestResults.combinedResult || backtestResults;
+    // 🟢 CRITICAL: Ensure candleData extraction is robust
+    const candles = backtestResults.candleData || res.candleData || [];
+    const trades = backtestResults.trades || res.trades || res.tradeBreakdown || [];
     
-    setFormData(p => ({ ...p, ...update }));
-    setComboData(p => ({ ...p, ...update, strategies: strats.length > 0 ? strats : [{strategyId: "", code: ""}] }));
-    setActiveTab(strats.length > 1 ? 'combo' : 'single');
-  };
+    console.log("📊 UI Pipeline Check:", { candleCount: candles.length, tradeCount: trades.length });
+    
+    return { candleData: candles, trades: trades, metrics: { ...res.metrics } };
+  }, [backtestResults]);
 
   const handleRun = async (e) => {
     e.preventDefault();
     setBacktestResults(null);
     setIsSimulating(true); 
-
-    const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
-    const activeData = activeTab === 'combo' ? comboData : formData;
-
-    if (typeof runner === 'function') {
-        const res = await runner(activeData);
-        if (res) setBacktestResults(res);
-    }
+    const res = await runNewBacktest(formData);
+    if (res) setBacktestResults(res);
     setIsSimulating(false);
   };
 
-  const processed = useMemo(() => {
-    if (!backtestResults) return null;
-    const res = backtestResults.combinedResult || backtestResults;
-    return { 
-        candleData: backtestResults.candleData || res.candleData || [], 
-        trades: backtestResults.trades || res.trades || res.tradeBreakdown || [], 
-        metrics: { ...res.metrics, totalReturn: res.metrics?.roi || 0 } 
-    };
-  }, [backtestResults]);
-
   return (
-    <div className="backtest-container p-6">
+    <div className="backtest-container p-6 space-y-8">
         <div className="grid grid-cols-12 gap-8">
-          <div className="col-span-12 lg:col-span-5">
-            <div className="bot-card p-6">
-              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 mb-6">
-                <div className="flex justify-between items-center mb-2">
-                    <label className="text-emerald-400 font-semibold text-sm">🏆 Load Alpha Strategy</label>
-                    <button type="button" onClick={loadWinners} disabled={scanningWinners} className="text-emerald-400">🔄</button>
-                </div>
-                <select value={selectedWinnerId} onChange={handleWinnerSelect} className={inputClass}>
-                  <option value="">-- Select Alpha --</option>
-                  {liveWinners.map(w => <option key={w.botId || w.id} value={w.botId || w.id}>{`${w.symbol} (ROI: ${Number(w.roi || w.metrics?.roi || 0).toFixed(1)}%)`}</option>)}
-                </select>
-              </div>
-
-              <div className="tabs flex gap-2 mb-6"> 
-                <button type="button" className={`flex-1 py-3 rounded-xl transition-all ${activeTab === 'single' ? 'bg-emerald-500 text-black font-bold' : 'bg-white/5 text-neutral-400'}`} onClick={() => setActiveTab('single')}>Single Layer</button> 
-                <button type="button" className={`flex-1 py-3 rounded-xl transition-all ${activeTab === 'combo' ? 'bg-emerald-500 text-black font-bold' : 'bg-white/5 text-neutral-400'}`} onClick={() => setActiveTab('combo')}>Combo Layers</button> 
-              </div>
-
+          <div className="col-span-12 lg:col-span-4">
+            <div className="bot-card p-6 bg-black/60 border-emerald-500/10">
+              <h2 className="text-white font-bold mb-6 flex items-center gap-2">🧪 Strategy Sandbox</h2>
               <form onSubmit={handleRun} className="space-y-6">
-                {activeTab === 'single' ? (
-                   <div><label className="text-neutral-400 text-xs">⚡ Core TA Engine</label>
-                    <select value={formData.strategyId} onChange={(e) => {
-                        const opt = strategyOptions.find(o => o._id === e.target.value);
-                        setFormData({...formData, strategyId: e.target.value, code: opt?.code || ""});
-                    }} className={inputClass}>
-                        <option value="">-- Select Strategy --</option>
-                        {strategyOptions.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
-                    </select></div>
-                ) : (
-                    <div className="space-y-3">
-                        <label className="text-emerald-400 text-xs font-bold uppercase">Strategy Layers</label>
-                        {comboData.strategies.map((s, i) => (
-                            <div key={i} className="flex gap-2">
-                                <select className={inputClass} value={s.strategyId} onChange={(e) => {
-                                    const opt = strategyOptions.find(o => o._id === e.target.value);
-                                    const n = [...comboData.strategies]; n[i] = {strategyId: e.target.value, code: opt?.code || ""};
-                                    setComboData({...comboData, strategies: n});
-                                }}><option value="">-- Select Engine --</option>{strategyOptions.map(o=><option key={o._id} value={o._id}>{o.name}</option>)}</select>
-                                <button type="button" onClick={()=>setComboData({...comboData, strategies: comboData.strategies.filter((_, idx)=>idx!==i)})} className="text-rose-400 px-2">✕</button>
-                            </div>
-                        ))}
-                        <button type="button" onClick={()=>setComboData({...comboData, strategies: [...comboData.strategies, {strategyId: "", code: ""}]})} className="w-full py-2 bg-white/5 border border-dashed border-white/20 rounded-xl text-xs text-emerald-400">+ Add Layer</button>
-                        <select name="combinationRule" value={comboData.comboConfig.combinationRule} onChange={(e)=>setComboData({...comboData, comboConfig: {combinationRule: e.target.value}})} className={inputClass}><option value="OR">Rule: OR (Any fire)</option><option value="AND">Rule: AND (All fire)</option></select>
-                    </div>
-                )}
-
-                <CommonBacktestInputs 
-                    data={activeTab === 'single' ? formData : comboData} 
-                    onChange={(e) => activeTab === 'single' ? setFormData({...formData, [e.target.name]: e.target.value}) : setComboData({...comboData, [e.target.name]: e.target.value})} 
-                    options={{ symbolOptions: options.symbols, timeframeOptions: options.timeframes, modelOptions: options.models || DEFAULT_MODEL_OPTIONS }}
-                    onParamChange={(name, val) => activeTab === 'single' ? setFormData({...formData, params: {...formData.params, [name]: val}}) : setComboData({...comboData, params: {...comboData.params, [name]: val}})}
-                />
-                
-                <button type="submit" disabled={isSimulating} className={`w-full py-4 font-bold rounded-xl shadow-lg transition-all ${isSimulating ? 'bg-neutral-800 text-neutral-500' : 'bg-emerald-500 text-black'}`}>
-                    {isSimulating ? 'Test is Running...' : '▶ Run Simulation'}
+                <button type="submit" disabled={isSimulating} className={`w-full py-4 font-bold rounded-xl shadow-lg transition-all ${isSimulating ? 'bg-neutral-800 text-neutral-500 animate-pulse' : 'bg-emerald-500 text-black hover:scale-105'}`}>
+                    {isSimulating ? 'Simulation in Progress...' : '▶ Run Simulation'}
                 </button>
               </form>
             </div>
           </div>
 
-          <div className="col-span-12 lg:col-span-7 space-y-6">
+          <div className="col-span-12 lg:col-span-8">
             {processed ? (
-              <div className="animate-in fade-in duration-500">
-                <MetricsDisplay metrics={processed.metrics} />
-                <div className="bot-card p-6 h-[500px]"><ChartIndependent results={processed} symbol={formData.symbol} /></div>
+              <div className="space-y-6 animate-in fade-in zoom-in duration-500">
+                <div className="flex justify-between items-center bg-white/5 p-2 rounded-xl border border-white/5">
+                    <div className="flex gap-2">
+                        <button onClick={() => setDisplayMode('static')} className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase transition-all ${displayMode === 'static' ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20' : 'text-neutral-400 hover:bg-white/5'}`}>Static View</button>
+                        <button onClick={() => setDisplayMode('replay')} className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase transition-all ${displayMode === 'replay' ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20' : 'text-neutral-400 hover:bg-white/5'}`}>Interactive Replay</button>
+                    </div>
+                </div>
+
+                <MetricsGrid metrics={processed.metrics} />
+
+                <div className="bot-card p-6 h-[500px] border-white/5 shadow-2xl relative">
+                  {displayMode === 'static' ? (
+                    <ChartIndependent results={processed} symbol={formData.symbol} />
+                  ) : (
+                    <ChartReplay results={processed} symbol={formData.symbol} />
+                  )}
+                </div>
+
+                {/* Restore Bottom Analytics */}
+                <div className="grid grid-cols-12 gap-6 mt-6">
+                    <div className="col-span-12 lg:col-span-8">
+                        <MonthlyAnalytics trades={processed.trades} />
+                    </div>
+                    <div className="col-span-12 lg:col-span-4">
+                        <WinLossPie trades={processed.trades} />
+                    </div>
+                </div>
               </div>
             ) : (
-              <div className="bot-card p-20 flex flex-col items-center justify-center min-h-[600px] border-dashed border-2 border-white/5 bg-transparent"> 
-                <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mb-6 text-4xl ${isSimulating ? 'animate-pulse bg-amber-500/20' : 'bg-emerald-500/10'}`}> {isSimulating ? '⏳' : '🧪'} </div> 
-                <h3 className="text-white text-xl mb-2 font-bold">{isSimulating ? 'Simulation Currently Running...' : 'Strategy Sandbox Ready'}</h3> 
+              <div className="bot-card p-20 flex flex-col items-center justify-center min-h-[700px] border-dashed border-2 border-white/5 bg-black/20"> 
+                <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-8 text-5xl bg-emerald-500/5 border border-emerald-500/20 ${isSimulating ? 'animate-spin' : ''}`}> {isSimulating ? '⚙️' : '🧪'} </div> 
+                <h3 className="text-white text-2xl mb-4 font-bold">{isSimulating ? 'Processing Historical Data...' : 'Strategy Sandbox Ready'}</h3> 
+                <p className="text-neutral-500 text-center max-w-sm">Load an alpha configuration or choose your parameters to generate a visual backtest result.</p>
               </div>
             )}
           </div>
