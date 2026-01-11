@@ -4,7 +4,6 @@ import { useBacktest } from "../hooks/useBacktest.js";
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
 import "./Backtests.css"; 
 
-// --- CONSTANTS ---
 const STRATEGY_TYPE_TO_CODE_MAP = {
   "Moving Average Crossover": "sma_crossover", "RSI": "rsi_divergence", "MACD": "macd_crossover",
   "CCI": "cci_oversold", "Bollinger Bands": "bollinger_bands", "ATR": "atr_breakout",
@@ -19,7 +18,6 @@ const DEFAULT_MODEL_OPTIONS = [
 ];
 
 const defaultFilterParams = { minAtrPct: 0.5, trendFilterPeriod: 200, minAdxLevel: 10, tslAtrMult: 3.5, regime_threshold: 25 };
-
 const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-colors";
 
 const getDefaultDates = () => {
@@ -29,17 +27,16 @@ const getDefaultDates = () => {
   return { startDate: start.toISOString().split('T')[0], endDate: end.toISOString().split('T')[0] };
 };
 
-// --- SUB-COMPONENTS (Defined Outside to ensure Scope Accessibility) ---
+// --- SUB-COMPONENTS ---
 
 const MetricsDisplay = ({ metrics }) => {
   if (!metrics) return null;
   const items = [
-    { label: "ROI", value: `${(metrics.roi || metrics.totalReturn || 0).toFixed(2)}%`, color: "text-emerald-400" },
+    { label: "ROI", value: `${(metrics.roi || 0).toFixed(2)}%`, color: "text-emerald-400" },
     { label: "Win Rate", value: `${(metrics.winRate || 0).toFixed(2)}%`, color: "text-violet-400" },
     { label: "Trades", value: metrics.totalTrades || 0, color: "text-cyan-400" },
     { label: "Expectancy", value: `$${(metrics.expectancy || 0).toFixed(2)}`, color: "text-amber-400" }
   ];
-
   return (
     <div className="grid grid-cols-4 gap-4 mb-6">
       {items.map((item, idx) => (
@@ -76,12 +73,6 @@ const CommonBacktestInputs = ({ data, onChange, options, onParamChange }) => {
                     <input type="number" name="initialBalance" value={data.initialBalance} onChange={onChange} className={inputClass} />
                 </div>
             </div>
-
-            <div className="form-grid" style={{gridTemplateColumns: '1fr 1fr'}}>
-                <div><label className="text-neutral-400 text-xs">Start Date</label><input type="date" name="startDate" value={data.startDate} onChange={onChange} className={inputClass}/></div>
-                <div><label className="text-neutral-400 text-xs">End Date</label><input type="date" name="endDate" value={data.endDate} onChange={onChange} className={inputClass}/></div>
-            </div>
-
             <div className="bot-card bg-emerald-500/5 border-emerald-500/20 p-4">
                 <div className="panel-header mb-4 pb-2 border-b border-emerald-500/20"><h4 className="text-emerald-400 font-bold uppercase text-xs">ML & Risk</h4></div>
                 <div className="form-grid">
@@ -109,19 +100,11 @@ const CommonBacktestInputs = ({ data, onChange, options, onParamChange }) => {
                     )}
                 </div>
             </div>
-
-            <div className="bot-card p-4 border-white/10">
-                <div className="panel-header mb-4 pb-2 border-b border-white/10"><h4 className="text-white font-bold uppercase text-xs">Advanced Filters</h4></div>
-                <div className="form-grid">
-                    <div><label className="text-neutral-400 text-xs">Min ATR %</label><input type="number" value={params.minAtrPct} onChange={(e)=>onParamChange('minAtrPct', e.target.value)} step="0.05" className={inputClass}/></div>
-                    <div><label className="text-neutral-400 text-xs">Trend Filter</label><input type="number" value={params.trendFilterPeriod} onChange={(e)=>onParamChange('trendFilterPeriod', e.target.value)} className={inputClass}/></div>
-                </div>
-            </div>
         </div>
     );
 };
 
-// --- MAIN DASHBOARD ---
+// --- MAIN PAGE ---
 
 export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest, fetchOptions } = useBacktest(); 
@@ -132,23 +115,17 @@ export default function Backtests() {
   const [isSimulating, setIsSimulating] = useState(false);
   const [liveWinners, setLiveWinners] = useState([]);
   const [backtestResults, setBacktestResults] = useState(null);
-  const [scanningWinners, setScanningWinners] = useState(false);
 
-  const [formData, setFormData] = useState({ symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, initialBalance: 1000, strategyId: "", riskManagementMode: 'static', riskPercentage: 1, params: {...defaultFilterParams}, mlMode: "off", mlModel: "", mlThreshold: 0.5 });
-  const [comboData, setComboData] = useState({ symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, initialBalance: 1000, strategies: [{strategyId: ""}], comboConfig: { combinationRule: "OR" }, riskManagementMode: 'static', riskPercentage: 1, params: {...defaultFilterParams}, mlMode: "off", mlModel: "", mlThreshold: 0.5 });
+  const [formData, setFormData] = useState({ symbol: "", timeframe: "", startDate: getDefaultDates().startDate, endDate: getDefaultDates().endDate, initialBalance: 1000, strategyId: "", code: "", riskManagementMode: 'static', riskPercentage: 1, params: {...defaultFilterParams}, mlMode: "off", mlModel: "", mlThreshold: 0.5 });
 
-  // Initial Load - Memoized to prevent infinite fetches
-  useEffect(() => { 
-    if (typeof fetchOptions === 'function') fetchOptions(); 
-  }, [fetchOptions]);
+  useEffect(() => { if (typeof fetchOptions === 'function') fetchOptions(); }, [fetchOptions]);
 
   const loadWinners = useCallback(async () => {
-      setScanningWinners(true);
       try {
         const token = localStorage.getItem("token");
         const res = await axios.get("https://neov6backend.onrender.com/api/bot/winners", { headers: { Authorization: `Bearer ${token}` } });
         setLiveWinners(Array.isArray(res.data) ? res.data : (res.data.winners || []));
-      } catch (err) { console.error("Fetch Error:", err); } finally { setScanningWinners(false); }
+      } catch (err) { console.error("Fetch Error:", err); }
   }, []);
 
   useEffect(() => { loadWinners(); }, [loadWinners]);
@@ -168,19 +145,26 @@ export default function Backtests() {
     const config = win.config || win;
     const rawSym = (config.symbol || "BTC-USD").replace('/', '-');
     const matchedSymbol = options.symbols?.find(s => s.replace('/', '-') === rawSym) || rawSym;
-    const matchedTF = options.timeframes?.find(t => t === config.timeframe) || config.timeframe || "1h";
+    
+    // Resolve Strategy Code for backend requirements
+    const strats = (config.strategies || []).map(s => {
+        const code = typeof s === 'string' ? s : (s.code || "sma_crossover");
+        const opt = strategyOptions.find(o => o.code === code);
+        return { strategyId: opt?._id || "", code, params: s.params || {} };
+    });
 
     const update = { 
-        symbol: matchedSymbol, timeframe: matchedTF, 
+        symbol: matchedSymbol, timeframe: config.timeframe || "1h", 
         initialBalance: config.initialBalance || 1000,
         riskManagementMode: config.riskManagementMode || 'static',
         mlMode: config.mlMode || "predictions", 
         mlModel: config.mlModel || "", 
-        params: { ...defaultFilterParams, ...(config.params || {}) } 
+        params: { ...defaultFilterParams, ...(config.params || {}) },
+        strategyId: strats[0]?.strategyId || "",
+        code: strats[0]?.code || "sma_crossover" // 🟢 Essential fix
     };
     
     setFormData(p => ({ ...p, ...update }));
-    setComboData(p => ({ ...p, ...update }));
   };
 
   const handleRun = async (e) => {
@@ -188,13 +172,15 @@ export default function Backtests() {
     setBacktestResults(null);
     setIsSimulating(true); 
 
-    const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
-    const data = activeTab === 'combo' ? comboData : formData;
-
-    if (typeof runner === 'function') {
-        const res = await runner(data);
-        if (res) setBacktestResults(res);
+    // 🟢 Ensure code is derived from strategyOptions if not present
+    const finalData = { ...formData };
+    if (!finalData.code && finalData.strategyId) {
+        const selected = strategyOptions.find(s => s._id === finalData.strategyId);
+        finalData.code = selected?.code || "";
     }
+
+    const res = await runNewBacktest(finalData);
+    if (res) setBacktestResults(res);
     setIsSimulating(false);
   };
 
@@ -212,7 +198,7 @@ export default function Backtests() {
               <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 mb-6">
                 <div className="flex justify-between items-center mb-2">
                     <label className="text-emerald-400 font-semibold text-sm">🏆 Load Alpha Strategy</label>
-                    <button type="button" onClick={loadWinners} disabled={scanningWinners} className="text-emerald-400 transition-all"> {scanningWinners ? '...' : '🔄'} </button>
+                    <button type="button" onClick={loadWinners} className="text-emerald-400">🔄</button>
                 </div>
                 <select value={selectedWinnerId} onChange={handleWinnerSelect} className={inputClass}>
                   <option value="">-- Select Alpha --</option>
@@ -221,12 +207,24 @@ export default function Backtests() {
               </div>
 
               <form onSubmit={handleRun} className="space-y-6">
+                <div>
+                    <label className="text-neutral-400 text-xs">⚡ Engine</label>
+                    <select value={formData.strategyId} onChange={(e) => {
+                        const opt = strategyOptions.find(s => s._id === e.target.value);
+                        setFormData({...formData, strategyId: e.target.value, code: opt?.code || ""});
+                    }} className={inputClass}>
+                        <option value="">-- Select --</option>
+                        {strategyOptions.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+                    </select>
+                </div>
+
                 <CommonBacktestInputs 
                     data={formData} 
                     onChange={(e) => setFormData({...formData, [e.target.name]: e.target.value})} 
-                    options={{ symbolOptions: options.symbols, timeframeOptions: options.timeframes, modelOptions: options.models }} 
+                    options={{ symbolOptions: options.symbols, timeframeOptions: options.timeframes, modelOptions: options.models || DEFAULT_MODEL_OPTIONS }}
                     onParamChange={(name, val) => setFormData({...formData, params: {...formData.params, [name]: val}})}
                 />
+                
                 <button type="submit" disabled={isSimulating} className={`w-full py-4 font-bold rounded-xl shadow-lg transition-all ${isSimulating ? 'bg-neutral-800 text-neutral-500' : 'bg-emerald-500 text-black'}`}>
                     {isSimulating ? 'Test is Running...' : '▶ Run Simulation'}
                 </button>
@@ -234,7 +232,7 @@ export default function Backtests() {
             </div>
           </div>
 
-          <div className="col-span-12 lg:col-span-7">
+          <div className="col-span-12 lg:col-span-7 space-y-6">
             {processed ? (
               <div className="animate-in fade-in duration-500">
                 <MetricsDisplay metrics={processed.metrics} />
