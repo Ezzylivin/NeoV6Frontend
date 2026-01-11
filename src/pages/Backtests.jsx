@@ -8,6 +8,7 @@ import { ChartIndependent } from "../components/ChartIndependent.jsx";
 import { ChartReplay } from "../components/ChartReplay.jsx";
 import "./Backtests.css"; 
 
+// --- CONSTANTS ---
 const STRATEGY_TYPE_TO_CODE_MAP = {
   "Moving Average Crossover": "sma_crossover", "RSI": "rsi_divergence", "MACD": "macd_crossover",
   "CCI": "cci_oversold", "Bollinger Bands": "bollinger_bands", "ATR": "atr_breakout",
@@ -52,17 +53,17 @@ const CommonInputs = ({ data, onChange, options, onParamChange }) => {
     return (
         <div className="space-y-6">
             <div className="form-grid">
-                <div><label className="text-neutral-400 text-xs">Symbol</label>
+                <div><label className="text-neutral-400 text-xs font-bold">Symbol</label>
                 <select name="symbol" value={data.symbol} onChange={onChange} className={inputClass}>
                     <option value="">-- Select Symbol --</option>
                     {options.symbolOptions?.map(s => <option key={s} value={s}>{s}</option>)}
                 </select></div>
-                <div><label className="text-neutral-400 text-xs">Timeframe</label>
+                <div><label className="text-neutral-400 text-xs font-bold">Timeframe</label>
                 <select name="timeframe" value={data.timeframe} onChange={onChange} className={inputClass}>
                     <option value="">-- Select TF --</option>
                     {options.timeframeOptions?.map(t => <option key={t} value={t}>{t}</option>)}
                 </select></div>
-                <div><label className="text-neutral-400 text-xs">Initial Balance</label>
+                <div><label className="text-neutral-400 text-xs font-bold">Initial Balance</label>
                 <input type="number" name="initialBalance" value={data.initialBalance} onChange={onChange} className={inputClass} /></div>
             </div>
 
@@ -153,17 +154,34 @@ export default function Backtests() {
     setSelectedWinnerId(id);
     const win = liveWinners.find(w => (w.botId || w.id) === id);
     if (!win) return;
+    
     const config = win.config || win;
     const rawSym = (config.symbol || "BTC-USD").replace('/', '-');
     const matchedSymbol = options.symbols?.find(s => s.replace('/', '-') === rawSym) || rawSym;
     
+    // 🟢 RESOLVE STRATEGY ENGINE & CODE
+    const resolvedStrats = (config.strategies || []).map(s => {
+        const code = typeof s === 'string' ? s : (s.code || "unknown");
+        const opt = strategyOptions.find(o => o.code === code);
+        return { strategyId: opt?._id || "", code, params: s.params || {} };
+    });
+
     const update = { 
-        symbol: matchedSymbol, timeframe: config.timeframe || "1h", 
-        initialBalance: config.initialBalance || 1000, mlMode: config.mlMode || "off",
-        params: { ...defaultFilterParams, ...(config.params || {}) } 
+        symbol: matchedSymbol, 
+        timeframe: config.timeframe || "1h", 
+        initialBalance: config.initialBalance || 1000,
+        riskManagementMode: config.riskManagementMode || 'static',
+        riskPercentage: config.riskPercentage || 1,
+        mlMode: config.mlMode || "off",
+        mlModel: config.mlModel || "",
+        params: { ...defaultFilterParams, ...(config.params || {}) },
+        strategyId: resolvedStrats[0]?.strategyId || "",
+        code: resolvedStrats[0]?.code || ""
     };
+
     setFormData(p => ({ ...p, ...update }));
-    setComboData(p => ({ ...p, ...update }));
+    setComboData(p => ({ ...p, ...update, strategies: resolvedStrats.length > 0 ? resolvedStrats : [{strategyId: "", code: ""}] }));
+    setActiveTab(resolvedStrats.length > 1 ? 'combo' : 'single');
   };
 
   const handleRun = async (e) => {
@@ -186,7 +204,6 @@ export default function Backtests() {
   return (
     <div className="backtest-container p-6 space-y-8">
         <div className="grid grid-cols-12 gap-8">
-          {/* Left Panel: Form Control */}
           <div className="col-span-12 lg:col-span-4">
             <div className="bot-card p-6 bg-black/60 border-emerald-500/10">
               <div className="flex justify-between items-center mb-6">
@@ -196,12 +213,12 @@ export default function Backtests() {
 
               <select value={selectedWinnerId} onChange={handleWinnerSelect} className={inputClass + " mb-6"}>
                 <option value="">-- Load Alpha Strategy --</option>
-                {liveWinners.map(w => <option key={w.id} value={w.id}>{`${w.symbol} (ROI: ${w.roi}%)`}</option>)}
+                {liveWinners.map(w => <option key={w.botId || w.id} value={w.botId || w.id}>{`${w.symbol} (ROI: ${w.roi}%)`}</option>)}
               </select>
 
               <div className="tabs flex gap-2 mb-6 bg-white/5 p-1 rounded-xl"> 
-                <button type="button" className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'single' ? 'bg-emerald-500 text-black shadow-lg' : 'text-neutral-400'}`} onClick={() => setActiveTab('single')}>Single Layer</button> 
-                <button type="button" className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'combo' ? 'bg-emerald-500 text-black shadow-lg' : 'text-neutral-400'}`} onClick={() => setActiveTab('combo')}>Combo Layers</button> 
+                <button type="button" className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'single' ? 'bg-emerald-500 text-black' : 'text-neutral-400'}`} onClick={() => setActiveTab('single')}>Single Layer</button> 
+                <button type="button" className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'combo' ? 'bg-emerald-500 text-black' : 'text-neutral-400'}`} onClick={() => setActiveTab('combo')}>Combo Layers</button> 
               </div>
 
               <form onSubmit={handleRun} className="space-y-6">
@@ -238,22 +255,15 @@ export default function Backtests() {
                 />
                 
                 <button type="submit" disabled={isSimulating} className={`w-full py-4 font-bold rounded-xl shadow-lg transition-all ${isSimulating ? 'bg-neutral-800 text-neutral-500 animate-pulse' : 'bg-emerald-500 text-black hover:scale-105'}`}>
-                    {isSimulating ? 'Processing...' : '▶ Run Simulation'}
+                    {isSimulating ? 'Processing Test...' : '▶ Run Simulation'}
                 </button>
               </form>
             </div>
           </div>
 
-          {/* Right Panel: Chart & Analytics */}
-          <div className="col-span-12 lg:col-span-8 space-y-6">
+          <div className="col-span-12 lg:col-span-8">
             {processed ? (
               <div className="animate-in fade-in zoom-in duration-500">
-                <div className="flex justify-between items-center mb-6">
-                    <div className="flex gap-2">
-                        <button onClick={() => setDisplayMode('static')} className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase transition-all ${displayMode === 'static' ? 'bg-emerald-500 text-black' : 'text-neutral-400'}`}>Static View</button>
-                        <button onClick={() => setDisplayMode('replay')} className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase transition-all ${displayMode === 'replay' ? 'bg-emerald-500 text-black' : 'text-neutral-400'}`}>interactive Replay</button>
-                    </div>
-                </div>
                 <MetricsGrid metrics={processed.metrics} />
                 <div className="bot-card p-6 h-[500px] border-white/5 relative">
                   {displayMode === 'static' ? <ChartIndependent results={processed} symbol={formData.symbol} /> : <ChartReplay results={processed} symbol={formData.symbol} />}
@@ -263,7 +273,7 @@ export default function Backtests() {
               <div className="bot-card p-20 flex flex-col items-center justify-center min-h-[700px] border-dashed border-2 border-white/5 bg-black/20 text-center"> 
                 <div className="w-24 h-24 rounded-full flex items-center justify-center mb-8 text-5xl bg-emerald-500/5 border border-emerald-500/20">🧪</div> 
                 <h3 className="text-white text-2xl mb-4 font-bold">Strategy Sandbox Ready</h3> 
-                <p className="text-neutral-500 max-w-sm text-sm">Define your technical logic and run a historical simulation to see potential performance.</p>
+                <p className="text-neutral-500 max-w-sm text-sm">Select an Alpha or define your logic to start.</p>
               </div>
             )}
           </div>
