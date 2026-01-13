@@ -195,10 +195,27 @@ export default function Backtests() {
     setIsSimulating(false);
   };
 
+  // 🟢 INTEGRATED PROCESSED MEMO
   const processed = useMemo(() => {
     if (!backtestResults) return null;
-    const res = backtestResults.combinedResult || backtestResults;
-    return { candleData: res.candleData || [], trades: res.trades || res.tradeBreakdown || [], metrics: { ...res.metrics } };
+
+    // Check root level first, then nested combinedResult
+    const candles = backtestResults.candleData || 
+                    backtestResults.combinedResult?.candleData || 
+                    [];
+
+    const trades = backtestResults.trades || 
+                   backtestResults.tradeBreakdown || 
+                   backtestResults.combinedResult?.trades || 
+                   [];
+
+    const metrics = backtestResults.metrics || 
+                    backtestResults.combinedResult?.metrics || 
+                    {};
+
+    console.log("📊 Pipeline Check:", { candleCount: candles.length, tradeCount: trades.length });
+
+    return { candleData: candles, trades, metrics };
   }, [backtestResults]);
 
   return (
