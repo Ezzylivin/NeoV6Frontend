@@ -145,9 +145,17 @@ export default function Backtests() {
 
   const loadWinners = useCallback(async () => {
       try {
-        const res = await axios.get("https://neov6backend.onrender.com/api/bot/winners");
+        // 🟢 FIX: Added Authorization Header
+        const token = localStorage.getItem("token");
+        const res = await axios.get("https://neov6backend.onrender.com/api/bot/winners", {
+            headers: { 
+                Authorization: `Bearer ${token}` 
+            }
+        });
         setLiveWinners(Array.isArray(res.data) ? res.data : (res.data.winners || []));
-      } catch (err) { console.error(err); }
+      } catch (err) { 
+        console.error("Winner Fetch Error:", err); 
+      }
   }, []);
 
   useEffect(() => { loadWinners(); }, [loadWinners]);
