@@ -188,7 +188,7 @@ export default function Backtests() {
   }, [options]);
 
   // 🟢 🎯 MASTER AUTO-POPULATOR FOR TREND REGIME & ML
-  const handleWinnerSelect = (e) => {
+ const handleWinnerSelect = (e) => {
     const id = e.target.value;
     if (!id) return;
     
@@ -196,15 +196,21 @@ export default function Backtests() {
     const win = liveWinners.find(w => (w.botId || w.id) === id);
     if (!win) return;
     
+    // 1. Resolve the Configuration Root
     const config = win.config || win;
     
-    // Resolve multi-layer strategies
+    // 2. Resolve Dynamic Strategy Layers
     const resolvedStrats = (config.strategies || []).map(s => {
         const code = typeof s === 'string' ? s : (s.code || "sma_crossover");
         const opt = strategyOptions.find(o => o.code === code);
-        return { strategyId: opt?._id || `base-${code}`, code, params: s.params || {} };
+        return { 
+            strategyId: opt?._id || `base-${code}`, 
+            code, 
+            params: s.params || {} 
+        };
     });
 
+    // 3. Construct Global State Update
     const update = { 
         symbol: config.symbol || "BTC-USD", 
         timeframe: config.timeframe || "1h", 
@@ -213,29 +219,30 @@ export default function Backtests() {
         initialBalance: config.initialBalance || 1000,
         risk_mode: config.risk_mode || 'static',
         risk_percentage: config.risk_percentage || 1.0,
-        // Pop-up logic triggers
+        // Auto-Trigger for ML section
         mlMode: config.mlMode || (config.mlModel ? "predictions" : "off"), 
         mlModel: config.mlModel || "",
         params: { 
             ...defaultFilterParams, 
             ...(config.params || {}),
-            // Trend Regime & Advanced Filter population
+            // Explicitly map Trend Regime keys
             minAdxLevel: config.params?.minAdxLevel || 20,
             trendFilterPeriod: config.params?.trendFilterPeriod || 200,
-            tslAtrMult: config.params?.tslAtrMult || 3.0,
-            minAtrPct: config.params?.minAtrPct || 0.5
+            tslAtrMult: config.params?.tslAtrMult || 3.0
         },
         strategyId: resolvedStrats[0]?.strategyId || "",
         code: resolvedStrats[0]?.code || "sma_crossover" 
     };
 
+    // 4. Force state update for both Single and Multi tabs
     setFormData(p => ({ ...p, ...update }));
     setComboData(p => ({ ...p, ...update, strategies: resolvedStrats }));
+    
+    // 5. Automatically switch to "Hybrid" if multiple layers exist
     setActiveTab(resolvedStrats.length > 1 ? 'combo' : 'single');
     
-    console.log("📈 Trend Regime & Alpha Config Populated Successfully.");
+    console.log("✅ SYSTEM SYNCED: All components populated from Alpha state.");
   };
-
   const handleRun = async (e) => {
     e.preventDefault();
     setBacktestResults(null);
