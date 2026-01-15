@@ -9,7 +9,7 @@ import { ChartIndependent } from "../components/ChartIndependent.jsx";
 import { ChartReplay } from "../components/ChartReplay.jsx";
 import "./Backtests.css"; 
 
-// --- 🟢 SYNCED CONSTANTS (Strict match with Python strategies.py) ---
+// --- 🟢 FULL REGISTRY SYNC (Strict match with Python strategies.py) ---
 const STRATEGY_TYPE_TO_CODE_MAP = {
   "Moving Average Crossover": "sma_crossover", 
   "RSI Threshold": "rsi_threshold", 
@@ -29,12 +29,8 @@ const DEFAULT_MODEL_OPTIONS = [
 ];
 
 const defaultFilterParams = { 
-    minAtrPct: 0.5, 
-    trendFilterPeriod: 200, 
-    minAdxLevel: 20, 
-    tslAtrMult: 3.0, 
-    commission: 0.001,
-    slippage: 0.0005
+    minAtrPct: 0.5, trendFilterPeriod: 200, minAdxLevel: 20, 
+    tslAtrMult: 3.0, commission: 0.001, slippage: 0.0005 
 };
 
 const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-all text-sm outline-none hover:border-white/20";
@@ -94,11 +90,12 @@ const CommonInputs = ({ data, onChange, options, onParamChange }) => {
                 </div>
             </div>
 
-            <div className={`bot-card p-5 rounded-2xl border transition-all duration-500 ${data.mlMode !== 'off' ? 'bg-emerald-500/5 border-emerald-500/20 shadow-[0_0_20px_rgba(16,185,129,0.1)]' : 'bg-black/40 border-white/5'}`}>
-                <h4 className="text-emerald-400 font-black uppercase text-[10px] tracking-widest mb-4 border-b border-emerald-500/10 pb-2">Intelligence & Sizing</h4>
+            {/* 🤖 INTELLIGENCE & RISK SECTION */}
+            <div className={`bot-card p-5 rounded-2xl border transition-all duration-500 ${data.mlMode !== 'off' ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-black/40 border-white/5'}`}>
+                <h4 className="text-emerald-400 font-black uppercase text-[10px] mb-4 border-b border-emerald-500/10 pb-2">Intelligence & Sizing</h4>
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-neutral-400 text-[10px] uppercase mb-1 block">Initial Cash</label>
+                      <label className="text-neutral-400 text-[10px] uppercase mb-1 block">Initial Balance</label>
                       <input type="number" name="initialBalance" value={data.initialBalance} onChange={onChange} className={inputClass} />
                     </div>
                     <div>
@@ -110,13 +107,13 @@ const CommonInputs = ({ data, onChange, options, onParamChange }) => {
                     <div>
                       <label className="text-neutral-400 text-[10px] uppercase mb-1 block">ML Veto Mode</label>
                       <select name="mlMode" value={data.mlMode} onChange={onChange} className={inputClass}>
-                          <option value="off">Disabled</option>
+                          <option value="off">Off</option>
                           <option value="predictions">Active</option>
                       </select>
                     </div>
                     {data.mlMode !== 'off' && (
-                        <div className="animate-in fade-in zoom-in duration-300">
-                          <label className="text-neutral-400 text-[10px] uppercase mb-1 block">Target Model</label>
+                        <div>
+                          <label className="text-neutral-400 text-[10px] uppercase mb-1 block">ML Model</label>
                           <select name="mlModel" value={data.mlModel} onChange={onChange} className={inputClass}>
                               <option value="">-- Choose Model --</option>
                               {(options.modelOptions || DEFAULT_MODEL_OPTIONS).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -126,12 +123,13 @@ const CommonInputs = ({ data, onChange, options, onParamChange }) => {
                 </div>
             </div>
 
+            {/* 📈 REGIME & EXECUTION FILTERS */}
             <div className="bot-card p-5 border border-white/5 bg-white/5 rounded-2xl">
-                <h4 className="text-white font-black uppercase text-[10px] tracking-widest mb-4 border-b border-white/5 pb-2">Trend Regime Control</h4>
+                <h4 className="text-white font-black uppercase text-[10px] mb-4 border-b border-white/5 pb-2">Trend Regime & Execution</h4>
                 <div className="grid grid-cols-2 gap-4">
                     <div><label className="text-neutral-500 text-[10px] uppercase mb-1 block">Min ATR %</label><input type="number" value={params.minAtrPct} onChange={(e)=>onParamChange('minAtrPct', parseFloat(e.target.value))} step="0.1" className={inputClass}/></div>
                     <div><label className="text-neutral-500 text-[10px] uppercase mb-1 block">TSL ATR Mult</label><input type="number" value={params.tslAtrMult} onChange={(e)=>onParamChange('tslAtrMult', parseFloat(e.target.value))} step="0.1" className={inputClass}/></div>
-                    <div><label className="text-neutral-500 text-[10px] uppercase mb-1 block">Chop Filter (ADX)</label><input type="number" value={params.minAdxLevel} onChange={(e)=>onParamChange('minAdxLevel', parseInt(e.target.value))} className={inputClass}/></div>
+                    <div><label className="text-neutral-500 text-[10px] uppercase mb-1 block">ADX Regime Level</label><input type="number" value={params.minAdxLevel} onChange={(e)=>onParamChange('minAdxLevel', parseInt(e.target.value))} className={inputClass}/></div>
                     <div><label className="text-neutral-500 text-[10px] uppercase mb-1 block">Trend Filter SMA</label><input type="number" value={params.trendFilterPeriod} onChange={(e)=>onParamChange('trendFilterPeriod', parseInt(e.target.value))} className={inputClass}/></div>
                 </div>
             </div>
@@ -171,7 +169,7 @@ export default function Backtests() {
             headers: { Authorization: `Bearer ${token}` }
         });
         setLiveWinners(Array.isArray(res.data) ? res.data : (res.data.winners || []));
-      } catch (err) { console.error("Sync Failed:", err); }
+      } catch (err) { console.error("401 Check: Unauthorized. Log in again."); }
   }, []);
 
   useEffect(() => { loadWinners(); }, [loadWinners]);
@@ -182,7 +180,7 @@ export default function Backtests() {
     return [...baseStrats, ...dbStrats];
   }, [options]);
 
-  // 🟢 🎯 MASTER AUTO-POPULATOR FOR TREND REGIME & ML
+  // 🟢 🎯 THE MASTER AUTO-POPULATOR (TAB & FIELD FIX)
   const handleWinnerSelect = (e) => {
     const id = e.target.value;
     if (!id) return;
@@ -193,7 +191,7 @@ export default function Backtests() {
     
     const config = win.config || win;
     
-    // Resolve multi-layer strategy mapping
+    // Resolve strategy layers and force match with strategyOptions _id
     const resolvedStrats = (config.strategies || []).map(s => {
         const code = typeof s === 'string' ? s : (s.code || "sma_crossover");
         const opt = strategyOptions.find(o => o.code === code);
@@ -203,36 +201,32 @@ export default function Backtests() {
     const update = { 
         symbol: config.symbol || "BTC-USD", 
         timeframe: config.timeframe || "1h", 
-        // 🟢 DATE FORMAT FIX
+        // Force YYYY-MM-DD format
         startDate: config.startDate ? config.startDate.split('T')[0] : "2025-01-01",
         endDate: config.endDate ? config.endDate.split('T')[0] : "2026-01-01",
         initialBalance: config.initialBalance || 1000,
         risk_mode: config.risk_mode || 'static',
         risk_percentage: config.risk_percentage || config.riskPercentage || 1.0,
-        // 🟢 ML POP-UP TRIGGER
         mlMode: config.mlMode || (config.mlModel ? "predictions" : "off"), 
         mlModel: config.mlModel || "",
         params: { 
             ...defaultFilterParams, 
             ...(config.params || {}),
-            // 🟢 TREND REGIME AUTO-POPULATION
             minAdxLevel: config.params?.minAdxLevel || config.params?.min_adx || 20,
             trendFilterPeriod: config.params?.trendFilterPeriod || config.params?.trend_sma || 200,
-            tslAtrMult: config.params?.tslAtrMult || config.params?.tsl_mult || 3.0,
-            minAtrPct: config.params?.minAtrPct || config.params?.min_atr || 0.5
+            tslAtrMult: config.params?.tslAtrMult || config.params?.tsl_mult || 3.0
         },
+        // Force-set primary strategy ID so dropdown populates
         strategyId: resolvedStrats[0]?.strategyId || "",
         code: resolvedStrats[0]?.code || "sma_crossover" 
     };
 
-    // 🟢 ATOMIC STATE SYNC
+    // 🟢 FORCED TAB RECONCILIATION
+    setActiveTab(resolvedStrats.length > 1 ? 'combo' : 'single');
     setFormData(update);
     setComboData({ ...update, strategies: resolvedStrats });
     
-    // 🟢 TAB SWITCH FIX
-    setActiveTab(resolvedStrats.length > 1 ? 'combo' : 'single');
-    
-    console.log("📈 All Components Populated from Alpha Winner.");
+    console.log("✅ Auto-Population Sync Complete.");
   };
 
   const handleRun = async (e) => {
@@ -283,17 +277,18 @@ export default function Backtests() {
             <div className="bot-card p-7 bg-black/60 border border-white/5 rounded-[32px] sticky top-10 shadow-2xl backdrop-blur-xl">
               <div className="flex justify-between items-center mb-8">
                 <h2 className="text-white font-black text-xs tracking-[0.3em] uppercase">🧪 Strategy Sandbox</h2>
-                <button type="button" onClick={loadWinners} className="text-emerald-400 text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 px-3 py-1 rounded-full">Sync Alpha</button>
+                <button type="button" onClick={loadWinners} className="text-emerald-400 text-[9px] font-black uppercase bg-emerald-500/10 px-3 py-1 rounded-full">Sync Alpha</button>
               </div>
 
+              {/* WINNER SELECTOR */}
               <select value={selectedWinnerId} onChange={handleWinnerSelect} className={inputClass + " mb-8"}>
-                <option value="">-- Load Global Alpha Configuration --</option>
+                <option value="">-- Load Winning Alpha Configuration --</option>
                 {liveWinners.map(w => <option key={w.id} value={w.id}>{`${w.symbol} (ROI: ${w.roi}%)`}</option>)}
               </select>
 
               <div className="tabs flex gap-2 mb-8 bg-white/5 p-1.5 rounded-2xl"> 
-                <button type="button" className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'single' ? 'bg-emerald-500 text-black shadow-lg' : 'text-neutral-500'}`} onClick={() => setActiveTab('single')}>Atomic</button> 
-                <button type="button" className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'combo' ? 'bg-emerald-500 text-black shadow-lg' : 'text-neutral-500'}`} onClick={() => setActiveTab('combo')}>Hybrid</button> 
+                <button type="button" className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${activeTab === 'single' ? 'bg-emerald-500 text-black shadow-lg' : 'text-neutral-500'}`} onClick={() => setActiveTab('single')}>Atomic</button> 
+                <button type="button" className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${activeTab === 'combo' ? 'bg-emerald-500 text-black shadow-lg' : 'text-neutral-500'}`} onClick={() => setActiveTab('combo')}>Hybrid</button> 
               </div>
 
               <form onSubmit={handleRun} className="space-y-8">
@@ -308,7 +303,7 @@ export default function Backtests() {
                     </select></div>
                 ) : (
                     <div className="space-y-4">
-                        <label className="text-neutral-500 text-[10px] uppercase font-black mb-1 block">Decision Layers</label>
+                        <label className="text-neutral-500 text-[10px] uppercase font-black mb-1 block">Signal Layers</label>
                         {comboData.strategies.map((s, i) => (
                             <div key={i} className="flex gap-2">
                                 <select className={inputClass} value={s.strategyId} onChange={(e) => {
@@ -319,7 +314,7 @@ export default function Backtests() {
                                 <button type="button" onClick={()=>setComboData({...comboData, strategies: comboData.strategies.filter((_, idx)=>idx!==i)})} className="text-rose-500 px-2 text-xl">✕</button>
                             </div>
                         ))}
-                        <button type="button" onClick={()=>setComboData({...comboData, strategies: [...comboData.strategies, {strategyId: "", code: ""}]})} className="w-full py-3 border-dashed border-2 border-white/10 rounded-2xl text-[9px] text-emerald-400 uppercase font-black tracking-widest hover:bg-emerald-500/5 transition-all">+ Add Logic Layer</button>
+                        <button type="button" onClick={()=>setComboData({...comboData, strategies: [...comboData.strategies, {strategyId: "", code: ""}]})} className="w-full py-3 border-dashed border-2 border-white/10 rounded-2xl text-[9px] text-emerald-400 uppercase font-black">+ Add Layer</button>
                     </div>
                 )}
 
@@ -330,7 +325,7 @@ export default function Backtests() {
                     onParamChange={(name, val) => activeTab === 'single' ? setFormData({...formData, params: {...formData.params, [name]: val}}) : setComboData({...comboData, params: {...comboData.params, [name]: val}})}
                 />
                 
-                <button type="submit" disabled={isSimulating} className={`w-full py-5 font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl transition-all ${isSimulating ? 'bg-neutral-800 text-neutral-500 animate-pulse' : 'bg-emerald-500 text-black hover:scale-[1.02]'}`}>
+                <button type="submit" disabled={isSimulating} className={`w-full py-5 font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl transition-all ${isSimulating ? 'bg-neutral-800 text-neutral-500 animate-pulse' : 'bg-emerald-500 text-black hover:scale-[1.02] active:scale-95'}`}>
                     {isSimulating ? '🔬 Decoding Market...' : '▶ Launch Backtest'}
                 </button>
               </form>
@@ -342,9 +337,9 @@ export default function Backtests() {
               <div className="animate-in fade-in slide-in-from-bottom-10 duration-700">
                 <div className="flex justify-between items-center mb-8">
                     <h3 className="text-white font-black uppercase tracking-[0.2em] text-[10px] opacity-60">Verification Cycle: {formData.symbol}</h3>
-                    <div className="flex bg-black/40 p-1.5 rounded-2xl border border-white/5">
-                        <button onClick={() => setDisplayMode('static')} className={`px-5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${displayMode === 'static' ? 'bg-white/10 text-white' : 'text-neutral-500'}`}>Static</button>
-                        <button onClick={() => setDisplayMode('replay')} className={`px-5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${displayMode === 'replay' ? 'bg-white/10 text-white' : 'text-neutral-500'}`}>Replay</button>
+                    <div className="flex bg-black/40 p-1.5 rounded-2xl border border-white/5 shadow-inner">
+                        <button onClick={() => setDisplayMode('static')} className={`px-5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${displayMode === 'static' ? 'bg-white/10 text-white shadow-lg' : 'text-neutral-500'}`}>Static</button>
+                        <button onClick={() => setDisplayMode('replay')} className={`px-5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${displayMode === 'replay' ? 'bg-white/10 text-white shadow-lg' : 'text-neutral-500'}`}>Replay</button>
                     </div>
                 </div>
 
@@ -352,25 +347,30 @@ export default function Backtests() {
 
                 <div className="grid grid-cols-12 gap-8 mb-8">
                     <div className="col-span-12 md:col-span-4 bot-card p-7 bg-black/40 border border-white/5 h-[340px] rounded-[32px]">
+                        <h4 className="text-neutral-500 font-black text-[9px] uppercase tracking-widest mb-6">Win Distribution</h4>
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie data={processed.pieData} innerRadius={70} outerRadius={90} paddingAngle={8} dataKey="value">
                                     <Cell fill="#10b981" stroke="none" /><Cell fill="#ef4444" stroke="none" />
                                 </Pie>
-                                <RechartTooltip contentStyle={{ backgroundColor: '#0a0a0a', border: 'none', borderRadius: '16px' }} />
+                                <RechartTooltip contentStyle={{ backgroundColor: '#0a0a0a', border: 'none', borderRadius: '16px', color: '#fff' }} />
                                 <Legend verticalAlign="bottom" height={36} iconType="circle"/>
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
+
                     <div className="col-span-12 md:col-span-8 bot-card p-7 bg-black/40 border border-white/5 h-[340px] rounded-[32px]">
+                        <h4 className="text-neutral-500 font-black text-[9px] uppercase tracking-widest mb-6">Profit Momentum (Monthly)</h4>
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={processed.barData}>
                                 <CartesianGrid strokeDasharray="4 4" stroke="#ffffff03" vertical={false} />
-                                <XAxis dataKey="name" stroke="#404040" fontSize={10} />
-                                <YAxis stroke="#404040" fontSize={10} tickFormatter={(v) => `$${v}`} />
-                                <RechartTooltip cursor={{fill: '#ffffff05'}} contentStyle={{ backgroundColor: '#0a0a0a', border: 'none' }} />
+                                <XAxis dataKey="name" stroke="#404040" fontSize={10} tickLine={false} axisLine={false} />
+                                <YAxis stroke="#404040" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v}`} />
+                                <RechartTooltip cursor={{fill: '#ffffff05'}} contentStyle={{ backgroundColor: '#0a0a0a', border: 'none', borderRadius: '16px' }} />
                                 <Bar dataKey="pnl" radius={[8, 8, 0, 0]}>
-                                    {processed.barData.map((e, i) => (<Cell key={i} fill={e.pnl > 0 ? '#10b981' : '#ef4444'} fillOpacity={0.6} stroke={e.pnl > 0 ? '#10b981' : '#ef4444'} strokeWidth={1.5} />))}
+                                    {processed.barData.map((e, i) => (
+                                        <Cell key={i} fill={e.pnl > 0 ? '#10b981' : '#ef4444'} fillOpacity={0.6} stroke={e.pnl > 0 ? '#10b981' : '#ef4444'} strokeWidth={1.5} />
+                                    ))}
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
@@ -387,7 +387,7 @@ export default function Backtests() {
               <div className="bot-card p-24 flex flex-col items-center justify-center min-h-[900px] border-2 border-dashed border-white/5 bg-black/20 text-center rounded-[48px]"> 
                 <div className="w-28 h-28 rounded-full flex items-center justify-center mb-10 text-5xl bg-emerald-500/5 border border-emerald-500/20 animate-pulse shadow-[0_0_60px_-15px_rgba(16,185,129,0.4)]">🔬</div> 
                 <h3 className="text-white text-2xl mb-5 font-black uppercase tracking-[0.2em]">Ready for Verification</h3> 
-                <p className="text-neutral-500 max-w-md text-sm leading-relaxed font-medium">Select an Alpha logic layer to calculate risk-adjusted alpha against historical market cycles.</p>
+                <p className="text-neutral-500 max-w-md text-sm leading-relaxed font-medium">Select an Alpha logic layer and timeframe to calculate risk-adjusted alpha against high-fidelity historical data.</p>
               </div>
             )}
           </div>
