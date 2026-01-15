@@ -9,7 +9,7 @@ import { ChartIndependent } from "../components/ChartIndependent.jsx";
 import { ChartReplay } from "../components/ChartReplay.jsx";
 import "./Backtests.css"; 
 
-// --- 🟢 FULL REGISTRY SYNC ---
+// --- 🟢 CORE REGISTRY SYNC ---
 const STRATEGY_TYPE_TO_CODE_MAP = {
   "Moving Average Crossover": "sma_crossover", "RSI Threshold": "rsi_threshold", 
   "MACD Crossover": "macd_crossover", "RSI Divergence": "rsi_divergence", 
@@ -91,7 +91,6 @@ const CommonInputs = ({ data, onChange, options, onParamChange }) => {
                 </div>
             </div>
 
-            {/* 🟢 NEW: ACTUAL REGIME SELECTION */}
             <div className="bot-card p-5 border border-white/5 bg-white/5 rounded-2xl">
                 <h4 className="text-white font-black uppercase text-[10px] mb-4 border-b border-white/5 pb-2">Market State Intelligence</h4>
                 <div className="mb-4">
@@ -152,7 +151,7 @@ export default function Backtests() {
     return [...baseStrats, ...dbStrats];
   }, [options]);
 
-  // 🟢 THE BULLETPROOF AUTO-POPULATOR
+  // 🟢 🎯 THE "SOVEREIGNExecutive" AUTO-POPULATOR
   const handleWinnerSelect = (e) => {
     const id = e.target.value;
     if (!id) return;
@@ -162,6 +161,8 @@ export default function Backtests() {
     if (!win) return;
     
     const config = win.config || win;
+    
+    // Resolve strategy layers and force sync IDs
     const resolvedStrats = (config.strategies || []).map(s => {
         const code = typeof s === 'string' ? s : (s.code || "sma_crossover");
         const opt = strategyOptions.find(o => o.code === code);
@@ -170,28 +171,30 @@ export default function Backtests() {
 
     const isHybrid = resolvedStrats.length > 1;
 
+    // 🟢 FORCE NUMERIC CASTING & ISO DATE CLIPPING
     const update = { 
         symbol: config.symbol || "BTC-USD", 
         timeframe: config.timeframe || "1h", 
         startDate: config.startDate ? config.startDate.split('T')[0] : "2025-01-01",
         endDate: config.endDate ? config.endDate.split('T')[0] : "2026-01-01",
-        initialBalance: config.initialBalance || 1000,
+        initialBalance: Number(config.initialBalance) || 1000,
         risk_mode: config.risk_mode || 'static',
-        risk_percentage: config.risk_percentage || config.riskPercentage || 1.0,
-        // 🟢 SYNC REGIME MODE
+        risk_percentage: Number(config.risk_percentage || config.riskPercentage) || 1.0,
         regime_mode: config.regime_mode || config.regimeMode || "adaptive",
         mlMode: config.mlMode || (config.mlModel ? "predictions" : "off"), 
         mlModel: config.mlModel || "",
         params: { 
             ...defaultFilterParams, ...(config.params || {}),
-            minAdxLevel: config.params?.minAdxLevel || config.params?.min_adx || 25,
-            trendFilterPeriod: config.params?.trendFilterPeriod || config.params?.trend_sma || 200,
-            tslAtrMult: config.params?.tslAtrMult || config.params?.tsl_mult || 3.0
+            minAdxLevel: Number(config.params?.minAdxLevel || config.params?.min_adx) || 25,
+            trendFilterPeriod: Number(config.params?.trendFilterPeriod || config.params?.trend_sma) || 200,
+            tslAtrMult: Number(config.params?.tslAtrMult || config.params?.tsl_mult) || 3.0,
+            minAtrPct: Number(config.params?.minAtrPct || config.params?.min_atr) || 0.5
         },
         strategyId: resolvedStrats[0]?.strategyId || "",
         code: resolvedStrats[0]?.code || "sma_crossover" 
     };
 
+    // Forced state override to break the NaN/Race condition cycle
     setActiveTab(isHybrid ? 'combo' : 'single');
     setFormData(update);
     setComboData({ ...update, strategies: resolvedStrats });
@@ -203,13 +206,21 @@ export default function Backtests() {
     setIsSimulating(true); 
 
     const activeData = activeTab === 'combo' ? { ...comboData } : { ...formData };
-    if (!activeData.code && activeData.strategyId) {
-        const opt = strategyOptions.find(o => o._id === activeData.strategyId);
-        activeData.code = opt?.code || "";
+    
+    // Ensure numeric types before API send
+    const payload = {
+        ...activeData,
+        initialBalance: Number(activeData.initialBalance),
+        risk_percentage: Number(activeData.risk_percentage)
+    };
+
+    if (!payload.code && payload.strategyId) {
+        const opt = strategyOptions.find(o => o._id === payload.strategyId);
+        payload.code = opt?.code || "";
     }
 
     const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
-    const res = await runner(activeData);
+    const res = await runner(payload);
     if (res) setBacktestResults(res);
     setIsSimulating(false);
   };
@@ -260,7 +271,7 @@ export default function Backtests() {
                     </select></div>
                 ) : (
                     <div className="space-y-4">
-                        <label className="text-neutral-500 text-[10px] uppercase font-black mb-1 block">Weighted Layers</label>
+                        <label className="text-neutral-500 text-[10px] uppercase font-black mb-1 block">Signal Layers</label>
                         {comboData.strategies.map((s, i) => (
                             <div key={i} className="flex gap-2">
                                 <select className={inputClass} value={s.strategyId} onChange={(e) => {
@@ -271,26 +282,26 @@ export default function Backtests() {
                                 <button type="button" onClick={()=>setComboData({...comboData, strategies: comboData.strategies.filter((_, idx)=>idx!==i)})} className="text-rose-500 px-2 text-xl hover:scale-110">✕</button>
                             </div>
                         ))}
-                        <button type="button" onClick={()=>setComboData({...comboData, strategies: [...comboData.strategies, {strategyId: "", code: ""}]})} className="w-full py-3 border-dashed border-2 border-white/10 rounded-2xl text-[9px] text-emerald-400 uppercase font-black">+ Add Logic Layer</button>
+                        <button type="button" onClick={()=>setComboData({...comboData, strategies: [...comboData.strategies, {strategyId: "", code: ""}]})} className="w-full py-3 border-dashed border-2 border-white/10 rounded-2xl text-[9px] text-emerald-400 uppercase font-black">+ Add Layer</button>
                     </div>
                 )}
 
                 <CommonInputs 
                     data={activeTab === 'single' ? formData : comboData} 
                     onChange={(e) => {
-                        const val = e.target.value;
+                        const val = e.target.type === 'number' ? Number(e.target.value) : e.target.value;
                         const name = e.target.name;
                         if (activeTab === 'single') setFormData(prev => ({...prev, [name]: val}));
                         else setComboData(prev => ({...prev, [name]: val}));
                     }}
                     options={{ symbolOptions: options.symbols, timeframeOptions: options.timeframes, modelOptions: options.models }}
                     onParamChange={(name, val) => {
-                        if (activeTab === 'single') setFormData(prev => ({...prev, params: {...prev.params, [name]: val}}));
-                        else setComboData(prev => ({...prev, params: {...prev.params, [name]: val}}));
+                        if (activeTab === 'single') setFormData(prev => ({...prev, params: {...prev.params, [name]: Number(val)}}));
+                        else setComboData(prev => ({...prev, params: {...prev.params, [name]: Number(val)}}));
                     }}
                 />
                 
-                <button type="submit" disabled={isSimulating} className={`w-full py-5 font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl transition-all ${isSimulating ? 'bg-neutral-800 text-neutral-500 animate-pulse' : 'bg-emerald-500 text-black hover:scale-[1.02]'}`}>
+                <button type="submit" disabled={isSimulating} className={`w-full py-5 font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl transition-all ${isSimulating ? 'bg-neutral-800 text-neutral-500 animate-pulse' : 'bg-emerald-500 text-black hover:scale-[1.02] active:scale-95'}`}>
                     {isSimulating ? '🔬 CRUNCHING HISTORY...' : '▶ Launch Backtest'}
                 </button>
               </form>
