@@ -9,7 +9,7 @@ import { ChartIndependent } from "../components/ChartIndependent.jsx";
 import { ChartReplay } from "../components/ChartReplay.jsx";
 import "./Backtests.css"; 
 
-// --- 🟢 1. GLOBAL CONSTANTS (Defined outside to prevent ReferenceErrors) ---
+// --- 🟢 1. GLOBAL CONSTANTS ---
 
 const STRAT_POOL = [
   { name: "SMA Crossover", code: "sma_crossover" },
@@ -104,7 +104,7 @@ export default function Backtests() {
   const [liveWinners, setLiveWinners] = useState([]);
   const [backtestResults, setBacktestResults] = useState(null);
 
-  // Initial State Data
+  // 🟢 Updated Data State with Alpha Shield Parameters
   const [data, setData] = useState({
     symbol: "BTC-USD", 
     timeframe: "1h", 
@@ -119,7 +119,19 @@ export default function Backtests() {
     mlModel: "btc_1h_xgboost", 
     regime_mode: "adaptive",
     strategies: [{ strategyId: "", code: "", params: {} }],
-    params: { tslAtrMult: 3.0, minAdxLevel: 25, trendFilterPeriod: 200, minAtrPct: 0.5, commission: 0.006, slippage: 0.001 }
+    params: { 
+        tslAtrMult: 3.0, 
+        minAdxLevel: 15, 
+        trendFilterPeriod: 200, 
+        minAtrPct: 0.5, 
+        commission: 0.006, 
+        slippage: 0.001,
+        // Alpha Shield defaults
+        squeeze_threshold: 0.003,
+        vol_multiplier: 1.02,
+        session_start: 12,
+        session_end: 21
+    }
   });
 
   const loadWinners = useCallback(async () => {
@@ -148,7 +160,6 @@ export default function Backtests() {
 
     const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
     
-    // Ensure nested params sync combinationRule for aggregator
     const payload = {
         ...data,
         params: { ...data.params, combinationRule: data.combinationRule }
@@ -196,7 +207,7 @@ export default function Backtests() {
                 ))}
               </div>
 
-              <form onSubmit={handleRun} className="space-y-6">
+              <form onSubmit={handleRun} className="space-y-6 h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
                 
                 {/* 3. Signal Engine Config */}
                 {activeTab === 'single' ? (
@@ -256,49 +267,56 @@ export default function Backtests() {
 
                 {/* 4. Data & Environment */}
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
-                    <div className="col-span-1">
+                    <div>
                         <label className="text-neutral-500 text-[9px] uppercase font-bold mb-2 block">Symbol</label>
                         <select value={data.symbol} onChange={(e)=>setData({...data, symbol: e.target.value})} className={inputClass}>
                             <option value="BTC-USD">BTC-USD</option><option value="ETH-USD">ETH-USD</option><option value="SOL-USD">SOL-USD</option>
                         </select>
                     </div>
-                    <div className="col-span-1">
+                    <div>
                         <label className="text-neutral-500 text-[9px] uppercase font-bold mb-2 block">Timeframe</label>
                         <select value={data.timeframe} onChange={(e)=>setData({...data, timeframe: e.target.value})} className={inputClass}>
                             <option value="1h">1h</option><option value="15m">15m</option>
                         </select>
                     </div>
-                    <div className="col-span-1">
+                    <div>
                         <label className="text-neutral-500 text-[9px] uppercase font-bold mb-2 block">From</label>
                         <input type="date" value={data.startDate} onChange={(e)=>setData({...data, startDate: e.target.value})} className={inputClass} />
                     </div>
-                    <div className="col-span-1">
+                    <div>
                         <label className="text-neutral-500 text-[9px] uppercase font-bold mb-2 block">To</label>
                         <input type="date" value={data.endDate} onChange={(e)=>setData({...data, endDate: e.target.value})} className={inputClass} />
                     </div>
                 </div>
 
-                {/* 5. Vault Risk & ML */}
-                <div className="p-5 bg-black/40 border border-white/5 rounded-[24px] space-y-4 shadow-inner">
-                    <h4 className="text-emerald-400 font-black uppercase text-[9px] tracking-widest border-b border-emerald-500/10 pb-2">Vault Risk & Machine Learning</h4>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div><label className="text-neutral-500 text-[8px] uppercase">Cash Input</label><input type="number" value={data.initialBalance} onChange={(e)=>setData({...data, initialBalance: e.target.value})} className={inputClass} /></div>
-                        <div><label className="text-neutral-500 text-[8px] uppercase">Risk % per Trade</label><input type="number" step="0.1" value={data.risk_percentage} onChange={(e)=>setData({...data, risk_percentage: e.target.value})} className={inputClass} /></div>
-                        <div className="col-span-2">
-                            <label className="text-neutral-500 text-[8px] uppercase block mb-2">ML Intelligence Filter</label>
-                            <select value={data.mlMode} onChange={(e)=>setData({...data, mlMode: e.target.value})} className={inputClass}>
-                                <option value="off">Off</option><option value="predictions">Active Filter</option>
-                            </select>
-                            {data.mlMode === 'predictions' && (
-                                <select value={data.mlModel} onChange={(e)=>setData({...data, mlModel: e.target.value})} className={inputClass + " mt-2 border-emerald-500/20"}>
-                                    <option value="btc_1h_xgboost">BTC 1H XGBoost</option><option value="btc_1h_lightgbm">BTC 1H LightGBM</option>
-                                </select>
-                            )}
+                {/* 🟢 5. Alpha Shield Config (v100.0 Integration) */}
+                <div className="p-5 bg-emerald-500/5 border border-emerald-500/10 rounded-[24px] space-y-4">
+                    <div className="flex justify-between items-center border-b border-emerald-500/10 pb-2">
+                        <h4 className="text-emerald-400 font-black uppercase text-[9px] tracking-widest">Alpha Shield (v100.0)</h4>
+                        <span className="bg-emerald-500/20 text-emerald-400 text-[7px] px-2 py-0.5 rounded-full font-bold uppercase">Cyan Zone Filter</span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-neutral-500 text-[8px] uppercase font-bold mb-1 block">Squeeze Sensitivity</label>
+                            <input type="number" step="0.001" value={data.params.squeeze_threshold} onChange={(e) => onParamChange('squeeze_threshold', parseFloat(e.target.value))} className={inputClass} />
+                        </div>
+                        <div>
+                            <label className="text-neutral-500 text-[8px] uppercase font-bold mb-1 block">Vol Fuel Mult</label>
+                            <input type="number" step="0.01" value={data.params.vol_multiplier} onChange={(e) => onParamChange('vol_multiplier', parseFloat(e.target.value))} className={inputClass} />
+                        </div>
+                        <div>
+                            <label className="text-neutral-500 text-[8px] uppercase font-bold mb-1 block">Session Start</label>
+                            <input type="number" min="0" max="23" value={data.params.session_start} onChange={(e) => onParamChange('session_start', parseInt(e.target.value))} className={inputClass} />
+                        </div>
+                        <div>
+                            <label className="text-neutral-500 text-[8px] uppercase font-bold mb-1 block">Session End</label>
+                            <input type="number" min="0" max="23" value={data.params.session_end} onChange={(e) => onParamChange('session_end', parseInt(e.target.value))} className={inputClass} />
                         </div>
                     </div>
                 </div>
 
-                {/* 6. Market State Intelligence */}
+                {/* 6. Vault Risk & Intelligence */}
                 <div className="p-5 bg-black/40 border border-white/5 rounded-[24px] space-y-4">
                     <h4 className="text-white font-black uppercase text-[9px] tracking-widest border-b border-white/5 pb-2">Market State Intelligence</h4>
                     <select value={data.regime_mode} onChange={(e)=>setData({...data, regime_mode: e.target.value})} className={inputClass}>
@@ -308,21 +326,17 @@ export default function Backtests() {
                         <div><label className="text-neutral-500 text-[8px] uppercase">TSL Mult</label><input type="number" step="0.1" value={data.params.tslAtrMult} onChange={(e)=>onParamChange('tslAtrMult', parseFloat(e.target.value))} className={inputClass} /></div>
                         <div><label className="text-neutral-500 text-[8px] uppercase">Chop ADX</label><input type="number" value={data.params.minAdxLevel} onChange={(e)=>onParamChange('minAdxLevel', parseInt(e.target.value))} className={inputClass} /></div>
                         <div><label className="text-neutral-500 text-[8px] uppercase">Trend SMA</label><input type="number" value={data.params.trendFilterPeriod} onChange={(e)=>onParamChange('trendFilterPeriod', parseInt(e.target.value))} className={inputClass} /></div>
-                        <div><label className="text-neutral-500 text-[8px] uppercase">Min ATR %</label><input type="number" step="0.1" value={data.params.minAtrPct} onChange={(e)=>onParamChange('minAtrPct', parseFloat(e.target.value))} className={inputClass} /></div>
+                        <div><label className="text-neutral-500 text-[8px] uppercase">Risk %</label><input type="number" step="0.1" value={data.risk_percentage} onChange={(e)=>setData({...data, risk_percentage: e.target.value})} className={inputClass} /></div>
                     </div>
                 </div>
 
-                {/* 🟢 Fee Switcher Presets */}
-                <div className="space-y-2">
-                   <label className="text-[8px] text-neutral-500 uppercase font-bold">Exchange Friction Tiers</label>
-                   <div className="grid grid-cols-3 gap-2">
-                        {FEE_TIERS.map(t => (
-                            <button key={t.label} type="button" onClick={() => { onParamChange('commission', t.val); onParamChange('slippage', t.slip); }}
-                                className={`py-2 rounded-lg text-[8px] font-bold border transition-all ${data.params.commission === t.val ? 'bg-emerald-500 text-black border-emerald-500' : 'bg-transparent text-neutral-500 border-white/10 hover:border-white/30'}`}>
-                                {t.label}
-                            </button>
-                        ))}
-                   </div>
+                <div className="grid grid-cols-3 gap-2">
+                    {FEE_TIERS.map(t => (
+                        <button key={t.label} type="button" onClick={() => { onParamChange('commission', t.val); onParamChange('slippage', t.slip); }}
+                            className={`py-2 rounded-lg text-[8px] font-bold border transition-all ${data.params.commission === t.val ? 'bg-emerald-500 text-black border-emerald-500' : 'bg-transparent text-neutral-500 border-white/10 hover:border-white/30'}`}>
+                            {t.label}
+                        </button>
+                    ))}
                 </div>
 
                 <button 
@@ -340,17 +354,6 @@ export default function Backtests() {
           <div className="col-span-12 lg:col-span-8 space-y-6">
             {backtestResults ? (
                 <div className="animate-in fade-in slide-in-from-bottom-5 duration-700">
-                    <div className="flex justify-between items-center mb-6">
-                        <div className="flex flex-col">
-                            <h3 className="text-emerald-400 font-black uppercase tracking-widest text-[10px]">Verification Cycle Online</h3>
-                            <span className="text-[9px] text-neutral-500 font-bold uppercase">{data.symbol} / {data.timeframe} / {data.startDate} → {data.endDate}</span>
-                        </div>
-                        <div className="flex bg-white/5 p-1 rounded-xl border border-white/5">
-                            {['static', 'replay'].map(m => (
-                                <button key={m} onClick={()=>setDisplayMode(m)} className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${displayMode === m ? 'bg-white/10 text-white shadow-lg shadow-white/5' : 'text-neutral-500 hover:text-neutral-300'}`}>{m}</button>
-                            ))}
-                        </div>
-                    </div>
                     <MetricsGrid metrics={backtestResults.metrics || {}} />
                     <div className="bot-card p-5 h-[720px] bg-black/40 border border-white/5 rounded-[40px] overflow-hidden shadow-2xl backdrop-blur-sm relative">
                         {displayMode === 'static' ? (
@@ -361,10 +364,9 @@ export default function Backtests() {
                     </div>
                 </div>
             ) : (
-                <div className="h-[1000px] flex flex-col items-center justify-center border-2 border-dashed border-white/5 bg-black/20 rounded-[48px] text-center p-10 group hover:border-emerald-500/10 transition-all duration-1000">
-                    <div className="w-24 h-24 rounded-full flex items-center justify-center mb-8 text-4xl bg-emerald-500/5 border border-emerald-500/10 animate-pulse group-hover:scale-110 group-hover:bg-emerald-500/10 transition-all duration-700 shadow-2xl shadow-emerald-500/5">🔬</div>
+                <div className="h-[80vh] flex flex-col items-center justify-center border-2 border-dashed border-white/5 bg-black/20 rounded-[48px] text-center p-10 group hover:border-emerald-500/10 transition-all duration-1000">
+                    <div className="w-24 h-24 rounded-full flex items-center justify-center mb-8 text-4xl bg-emerald-500/5 border border-emerald-500/10 animate-pulse shadow-2xl shadow-emerald-500/5">🔬</div>
                     <h3 className="text-white text-xl font-black uppercase tracking-widest">Ready for Verification</h3>
-                    <p className="text-neutral-500 max-w-sm text-xs mt-3 leading-relaxed font-medium">Configure logic layers and launch simulation to verify risk-adjusted alpha performance against the selected timeframe.</p>
                 </div>
             )}
           </div>
