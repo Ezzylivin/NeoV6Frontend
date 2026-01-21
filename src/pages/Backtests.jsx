@@ -25,8 +25,10 @@ const STRAT_POOL = [
 ];
 
 const AI_ARCHITECTURES = [
-  { id: "stacking", name: "Council of Experts (Stacking)" },
+  { id: "stacking", name: "Council Consensus (Stacking)" },
   { id: "XGBoost", name: "XGBoost (Tabular Gradient)" },
+  { id: "RandomForest", name: "Random Forest (Robust Bagging)" },
+  { id: "LSTM", name: "LSTM (Sequential Memory)" },
   { id: "TabPFN", name: "TabPFN (Bayesian Foundation)" },
   { id: "Transformer", name: "TFT (Temporal Attention)" }
 ];
@@ -88,7 +90,7 @@ const MetricsGrid = ({ metrics }) => (
             { l: "Drawdown", v: `${(metrics.maxDrawdown || 0).toFixed(2)}%`, c: "text-rose-400" },
             { l: "Trades", v: metrics.totalTrades || 0, c: "text-cyan-400" },
             { l: "Profit Factor", v: (metrics.profitFactor || 0).toFixed(2), c: "text-teal-400" },
-            { l: "Model Engine", v: metrics.model_type || "Classic", c: "text-blue-400" }
+            { l: "Brain", v: metrics.model_type || "V7 Stacking", c: "text-blue-400" }
         ].map((m, i) => (
             <div key={i} className="bot-card p-4 text-center bg-black/40 border border-white/5 rounded-2xl shadow-xl">
                 <div className="text-neutral-500 text-[9px] uppercase font-black tracking-widest mb-1">{m.l}</div>
@@ -112,7 +114,7 @@ export default function Backtests() {
   const [availableModels, setAvailableModels] = useState([]);
   const [backtestResults, setBacktestResults] = useState(null);
 
-  // 🟢 UPGRADED Data State: Synchronized with V7 Architecture
+  // 🟢 FULL SPECTRUM STATE: Includes all 6 High-Alpha Architectures
   const [data, setData] = useState({
     symbol: "BTC-USD", 
     timeframe: "1h", 
@@ -126,10 +128,10 @@ export default function Backtests() {
     regime_mode: "adaptive",
     strategies: [{ strategyId: "", code: "", params: {} }],
     params: { 
-        model_type: "stacking",  // Choices: stacking, XGBoost, TabPFN, Transformer
-        long_threshold: 0.65,    // Confident Judge entry
-        short_threshold: 0.35,   // Confident Judge short
-        lookback: 50,            // Temporal context size
+        model_type: "stacking",  
+        long_threshold: 0.65,    
+        short_threshold: 0.35,   
+        lookback: 50,            
         tslAtrMult: 3.0, 
         minAdxLevel: 15, 
         trendFilterPeriod: 200, 
@@ -139,7 +141,11 @@ export default function Backtests() {
         squeeze_threshold: 0.003,
         vol_multiplier: 1.02,
         session_start: 12,
-        session_end: 21
+        session_end: 21,
+        // UI Metadata
+        available_architectures: [
+            "stacking", "XGBoost", "RandomForest", "LSTM", "TabPFN", "Transformer"
+        ]
     }
   });
 
@@ -150,18 +156,14 @@ export default function Backtests() {
             headers: { Authorization: `Bearer ${token}` }
         });
         setLiveWinners(res.data.winners || res.data || []);
-    } catch (e) { 
-        console.error("Alpha Sync failed:", e); 
-    }
+    } catch (e) { console.error("Alpha Sync failed:", e); }
   }, []);
 
   const loadModels = useCallback(async () => {
       try {
           const res = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/ml/available-models`);
           setAvailableModels(res.data.models || []);
-      } catch (e) {
-          console.warn("Could not fetch available models from ML server.");
-      }
+      } catch (e) { console.warn("ML Server discovery offline."); }
   }, []);
 
   useEffect(() => { loadWinners(); loadModels(); }, [loadWinners, loadModels]);
@@ -178,13 +180,11 @@ export default function Backtests() {
 
     const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
     
-    // Clean payload for the Python SystemController
     const payload = {
         ...data,
         params: { 
             ...data.params, 
             combinationRule: data.combinationRule,
-            // Ensure numeric precision for thresholds
             long_threshold: parseFloat(data.params.long_threshold),
             short_threshold: parseFloat(data.params.short_threshold)
         }
@@ -209,16 +209,10 @@ export default function Backtests() {
               </div>
 
               {/* 1. Global Winner Selection */}
-              <select 
-                className={inputClass + " mb-6"} 
-                value={selectedWinnerId} 
-                onChange={(e) => setSelectedWinnerId(e.target.value)}
-              >
+              <select className={inputClass + " mb-6"} value={selectedWinnerId} onChange={(e) => setSelectedWinnerId(e.target.value)}>
                 <option value="">-- Choose High-Alpha Winner --</option>
                 {liveWinners.map(w => (
-                    <option key={w.id || w.botId} value={w.id || w.botId}>
-                        {w.symbol} (ROI: {w.roi || 0}%)
-                    </option>
+                    <option key={w.id || w.botId} value={w.id || w.botId}>{w.symbol} (ROI: {w.roi || 0}%)</option>
                 ))}
               </select>
 
@@ -234,11 +228,11 @@ export default function Backtests() {
 
               <form onSubmit={handleRun} className="space-y-6 h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
                 
-                {/* 🟢 3. AI Intelligence Hub (Council of Experts) */}
+                {/* 🟢 3. AI Intelligence Hub (Council of Experts: 6 Models Supported) */}
                 <div className="p-5 bg-violet-500/5 border border-violet-500/10 rounded-[24px] space-y-4">
                     <div className="flex justify-between items-center border-b border-violet-500/10 pb-2">
                         <h4 className="text-violet-400 font-black uppercase text-[9px] tracking-widest">Ensemble Intelligence</h4>
-                        <span className="bg-violet-500/20 text-violet-400 text-[7px] px-2 py-0.5 rounded-full font-bold uppercase">V7 Brain</span>
+                        <span className="bg-violet-500/20 text-violet-400 text-[7px] px-2 py-0.5 rounded-full font-bold uppercase">V7.Council</span>
                     </div>
                     
                     <div className="space-y-3">
@@ -246,7 +240,7 @@ export default function Backtests() {
                             <label className="text-neutral-500 text-[8px] uppercase font-bold mb-1 block">Architecture Selector</label>
                             <select value={data.params.model_type} onChange={(e)=>onParamChange('model_type', e.target.value)} className={inputClass}>
                                 {AI_ARCHITECTURES.map(arch => <option key={arch.id} value={arch.id}>{arch.name}</option>)}
-                                {availableModels.map(m => <option key={m.id} value={m.id}>Saved: {m.id}</option>)}
+                                {availableModels.map(m => <option key={m.id} value={m.id}>Disk: {m.id}</option>)}
                             </select>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
@@ -266,20 +260,11 @@ export default function Backtests() {
                 {activeTab === 'single' ? (
                   <div className="space-y-4">
                     <label className="text-neutral-500 text-[10px] uppercase font-black block">Base Layer Engine</label>
-                    <select 
-                        value={data.code} 
-                        onChange={(e) => setData({...data, code: e.target.value, strategyId: `base-${e.target.value}`})} 
-                        className={inputClass}
-                    >
+                    <select value={data.code} onChange={(e) => setData({...data, code: e.target.value, strategyId: `base-${e.target.value}`})} className={inputClass}>
                         <option value="">-- Select Signal Engine --</option>
                         {STRAT_POOL.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
                     </select>
-                    {data.code && (
-                        <StrategyParamInputs 
-                            strategy={data} 
-                            onChange={(p) => setData({...data, params: {...data.params, ...p}})} 
-                        />
-                    )}
+                    {data.code && <StrategyParamInputs strategy={data} onChange={(p) => setData({...data, params: {...data.params, ...p}})} />}
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -302,16 +287,9 @@ export default function Backtests() {
                                 <option value="">-- Select Engine --</option>
                                 {STRAT_POOL.map(o=><option key={o.code} value={o.code}>{o.name}</option>)}
                             </select>
-                            {s.code && (
-                                <StrategyParamInputs 
-                                    strategy={s} 
-                                    onChange={(p) => { 
-                                        const n = [...data.strategies]; 
-                                        n[i].params = p; 
-                                        setData({...data, strategies: n}); 
-                                    }} 
-                                />
-                            )}
+                            {s.code && <StrategyParamInputs strategy={s} onChange={(p) => { 
+                                const n = [...data.strategies]; n[i].params = p; setData({...data, strategies: n}); 
+                            }} />}
                         </div>
                     ))}
                     <button type="button" onClick={() => setData({...data, strategies: [...data.strategies, {code: "", strategyId: "", params: {}}]})} className="w-full py-3 border-dashed border-2 border-white/10 rounded-2xl text-[9px] text-emerald-400 uppercase font-black hover:border-emerald-500/40 transition-all">+ Add Layer</button>
@@ -342,30 +320,14 @@ export default function Backtests() {
                     </div>
                 </div>
 
-                {/* 🟢 6. Alpha Shield Config (v100.0 Integration) */}
+                {/* 🟢 6. Alpha Shield Config */}
                 <div className="p-5 bg-emerald-500/5 border border-emerald-500/10 rounded-[24px] space-y-4">
                     <div className="flex justify-between items-center border-b border-emerald-500/10 pb-2">
                         <h4 className="text-emerald-400 font-black uppercase text-[9px] tracking-widest">Alpha Shield (v100.0)</h4>
-                        <span className="bg-emerald-500/20 text-emerald-400 text-[7px] px-2 py-0.5 rounded-full font-bold uppercase">Cyan Zone Filter</span>
                     </div>
-                    
                     <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="text-neutral-500 text-[8px] uppercase font-bold mb-1 block">Squeeze Sensitivity</label>
-                            <input type="number" step="0.001" value={data.params.squeeze_threshold} onChange={(e) => onParamChange('squeeze_threshold', parseFloat(e.target.value))} className={inputClass} />
-                        </div>
-                        <div>
-                            <label className="text-neutral-500 text-[8px] uppercase font-bold mb-1 block">Vol Fuel Mult</label>
-                            <input type="number" step="0.01" value={data.params.vol_multiplier} onChange={(e) => onParamChange('vol_multiplier', parseFloat(e.target.value))} className={inputClass} />
-                        </div>
-                        <div>
-                            <label className="text-neutral-500 text-[8px] uppercase font-bold mb-1 block">Session Start</label>
-                            <input type="number" min="0" max="23" value={data.params.session_start} onChange={(e) => onParamChange('session_start', parseInt(e.target.value))} className={inputClass} />
-                        </div>
-                        <div>
-                            <label className="text-neutral-500 text-[8px] uppercase font-bold mb-1 block">Session End</label>
-                            <input type="number" min="0" max="23" value={data.params.session_end} onChange={(e) => onParamChange('session_end', parseInt(e.target.value))} className={inputClass} />
-                        </div>
+                        <div><label className="text-[8px] uppercase font-bold text-neutral-500">Squeeze</label><input type="number" step="0.001" value={data.params.squeeze_threshold} onChange={(e) => onParamChange('squeeze_threshold', parseFloat(e.target.value))} className={inputClass} /></div>
+                        <div><label className="text-[8px] uppercase font-bold text-neutral-500">Vol Fuel</label><input type="number" step="0.01" value={data.params.vol_multiplier} onChange={(e) => onParamChange('vol_multiplier', parseFloat(e.target.value))} className={inputClass} /></div>
                     </div>
                 </div>
 
@@ -377,8 +339,6 @@ export default function Backtests() {
                     </select>
                     <div className="grid grid-cols-2 gap-3">
                         <div><label className="text-neutral-500 text-[8px] uppercase">TSL Mult</label><input type="number" step="0.1" value={data.params.tslAtrMult} onChange={(e)=>onParamChange('tslAtrMult', parseFloat(e.target.value))} className={inputClass} /></div>
-                        <div><label className="text-neutral-500 text-[8px] uppercase">Chop ADX</label><input type="number" value={data.params.minAdxLevel} onChange={(e)=>onParamChange('minAdxLevel', parseInt(e.target.value))} className={inputClass} /></div>
-                        <div><label className="text-neutral-500 text-[8px] uppercase">Trend SMA</label><input type="number" value={data.params.trendFilterPeriod} onChange={(e)=>onParamChange('trendFilterPeriod', parseInt(e.target.value))} className={inputClass} /></div>
                         <div><label className="text-neutral-500 text-[8px] uppercase">Risk %</label><input type="number" step="0.1" value={data.risk_percentage} onChange={(e)=>setData({...data, risk_percentage: e.target.value})} className={inputClass} /></div>
                     </div>
                 </div>
@@ -392,12 +352,10 @@ export default function Backtests() {
                     ))}
                 </div>
 
-                <button 
-                    type="submit" 
-                    disabled={isSimulating} 
+                <button type="submit" disabled={isSimulating} 
                     className={`w-full py-5 font-black uppercase tracking-[0.2em] rounded-2xl transition-all shadow-xl shadow-emerald-500/10 ${isSimulating ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed animate-pulse' : 'bg-emerald-500 text-black hover:scale-[1.02] hover:shadow-emerald-500/30 active:scale-95'}`}
                 >
-                    {isSimulating ? '🔬 CRUNCHING HISTORY...' : '▶ Launch Backtest'}
+                    {isSimulating ? '🔬 CRUNCHING...' : '▶ Launch Backtest'}
                 </button>
               </form>
             </div>
