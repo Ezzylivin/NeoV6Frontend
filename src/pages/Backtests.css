@@ -1,56 +1,80 @@
-/* --- CARD STYLES --- */
+/* --- 🟢 1. EXISTING HARDENING (STAYS) --- */
 .bot-card {
-  /* 🚀 FORCE BLACK: The !important tag overrides any lingering Tailwind slate classes */
   background-color: #0a0a0a !important; 
   background: rgba(10, 10, 10, 0.95) !important;
-  
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  
-  /* 🚀 FORCE EMERALD BORDER */
   border: 1px solid rgba(16, 185, 129, 0.2) !important; 
-  
-  border-radius: 16px;
+  border-radius: 24px; /* Slightly softer for modern institutional look */
   padding: 28px;
   margin-bottom: 24px;
-  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.7);
-  min-width: 0;
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.8);
 }
 
-/* --- FORM ELEMENTS --- */
+/* --- 🟣 2. ENSEMBLE HUB (NEW) --- */
+/* Highlighting the AI Architecture section */
+.ai-intelligence-panel {
+  background: rgba(139, 92, 246, 0.03) !important; /* Subtle Violet tint */
+  border: 1px solid rgba(139, 92, 246, 0.2) !important;
+  border-radius: 16px;
+  padding: 20px;
+  margin-top: 10px;
+}
+
+.ai-intelligence-panel h4 {
+  color: #a78bfa; /* Violet text for AI headers */
+  letter-spacing: 0.1em;
+  font-size: 10px;
+}
+
+/* --- 📊 3. PROBABILITY GATES (NEW) --- */
+/* Style for Long/Short threshold inputs */
+input[type="number"].gate-input {
+  color: #10b981 !important; /* Emerald for entry logic */
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+}
+
+/* --- 🛠️ 4. FORM ELEMENTS REFINEMENT --- */
 select, input {
-  /* 🚀 FORCE BLACK INPUTS */
-  background-color: #0a0a0a !important; 
-  background: #0a0a0a !important;
-  
-  border: 1px solid #262626 !important;
+  background-color: #030303 !important; 
+  border: 1px solid #222 !important;
   color: #ffffff !important;
-  
-  padding: 14px 18px;
-  border-radius: 8px;
-  width: 100%;
-  font-size: 1rem;
-  font-weight: 500;
-  font-family: inherit;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.6);
-  box-sizing: border-box;
+  padding: 12px 16px;
+  border-radius: 12px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-select:focus, input:focus {
-  border-color: #10b981 !important;
-  background: #0a0a0a !important;
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.4) !important;
+select:hover, input:hover {
+  border-color: #444 !important;
 }
 
-/* Ensure the Tabs are also forced black if they are stubborn */
-.tabs {
-  background: #0a0a0a !important;
-  border: 1px solid #262626 !important;
+/* --- 🧪 5. SCROLLBAR SANITIZATION --- */
+/* Ensuring the long parameter list stays sleek */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
 }
 
-.metric-item {
-  background: #0a0a0a !important;
-  border: 1px solid #262626 !important;
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #222;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #10b981;
+}
+
+/* --- 🚩 6. LIVE HUD POSITION STYLING --- */
+/* Used for the normalize_positions display */
+.pos-conviction-badge {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  border: 1px solid rgba(16, 185, 129, 0.2);
 }
