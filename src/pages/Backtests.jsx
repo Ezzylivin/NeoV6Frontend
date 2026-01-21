@@ -114,7 +114,6 @@ export default function Backtests() {
   const [availableModels, setAvailableModels] = useState([]);
   const [backtestResults, setBacktestResults] = useState(null);
 
-  // 🟢 FULL SPECTRUM STATE: Includes all 6 High-Alpha Architectures
   const [data, setData] = useState({
     symbol: "BTC-USD", 
     timeframe: "1h", 
@@ -142,7 +141,6 @@ export default function Backtests() {
         vol_multiplier: 1.02,
         session_start: 12,
         session_end: 21,
-        // UI Metadata
         available_architectures: [
             "stacking", "XGBoost", "RandomForest", "LSTM", "TabPFN", "Transformer"
         ]
@@ -201,7 +199,7 @@ export default function Backtests() {
           
           {/* --- LEFT: CONTROL PANEL --- */}
           <div className="col-span-12 lg:col-span-4 space-y-6">
-            <div className="bot-card p-7 bg-black/60 border border-white/5 rounded-[32px] shadow-2xl backdrop-blur-xl sticky top-10">
+            <div className="bot-card p-7 sticky top-10">
               
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-white font-black text-xs tracking-widest uppercase">🧪 Strategy Sandbox</h2>
@@ -228,10 +226,10 @@ export default function Backtests() {
 
               <form onSubmit={handleRun} className="space-y-6 h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
                 
-                {/* 🟢 3. AI Intelligence Hub (Council of Experts: 6 Models Supported) */}
-                <div className="p-5 bg-violet-500/5 border border-violet-500/10 rounded-[24px] space-y-4">
+                {/* 🟢 3. AI Intelligence Hub (Council of Experts) */}
+                <div className="ai-intelligence-panel space-y-4">
                     <div className="flex justify-between items-center border-b border-violet-500/10 pb-2">
-                        <h4 className="text-violet-400 font-black uppercase text-[9px] tracking-widest">Ensemble Intelligence</h4>
+                        <h4 className="font-black uppercase tracking-widest">Ensemble Intelligence</h4>
                         <span className="bg-violet-500/20 text-violet-400 text-[7px] px-2 py-0.5 rounded-full font-bold uppercase">V7.Council</span>
                     </div>
                     
@@ -246,11 +244,15 @@ export default function Backtests() {
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <label className="text-neutral-500 text-[8px] uppercase font-bold mb-1 block">Long Gate (Min Conf)</label>
-                                <input type="number" step="0.01" min="0.5" max="1.0" value={data.params.long_threshold} onChange={(e) => onParamChange('long_threshold', parseFloat(e.target.value))} className={inputClass} />
+                                <input type="number" step="0.01" min="0.5" max="1.0" value={data.params.long_threshold} 
+                                  onChange={(e) => onParamChange('long_threshold', parseFloat(e.target.value))} 
+                                  className={inputClass + " gate-input"} />
                             </div>
                             <div>
                                 <label className="text-neutral-500 text-[8px] uppercase font-bold mb-1 block">Short Gate (Max Conf)</label>
-                                <input type="number" step="0.01" min="0.0" max="0.5" value={data.params.short_threshold} onChange={(e) => onParamChange('short_threshold', parseFloat(e.target.value))} className={inputClass} />
+                                <input type="number" step="0.01" min="0.0" max="0.5" value={data.params.short_threshold} 
+                                  onChange={(e) => onParamChange('short_threshold', parseFloat(e.target.value))} 
+                                  className={inputClass + " gate-input"} />
                             </div>
                         </div>
                     </div>
