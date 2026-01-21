@@ -24,6 +24,13 @@ const STRAT_POOL = [
   { name: "OBV Volume", code: "obv_trend" }
 ];
 
+const AI_ARCHITECTURES = [
+  { id: "stacking", name: "Council of Experts (Stacking)" },
+  { id: "XGBoost", name: "XGBoost (Tabular Gradient)" },
+  { id: "TabPFN", name: "TabPFN (Bayesian Foundation)" },
+  { id: "Transformer", name: "TFT (Temporal Attention)" }
+];
+
 const REGIME_OPTIONS = [
   { id: "static", name: "Static (Indicator Veto)" },
   { id: "adaptive", name: "Adaptive (State Classifier)" },
@@ -81,7 +88,7 @@ const MetricsGrid = ({ metrics }) => (
             { l: "Drawdown", v: `${(metrics.maxDrawdown || 0).toFixed(2)}%`, c: "text-rose-400" },
             { l: "Trades", v: metrics.totalTrades || 0, c: "text-cyan-400" },
             { l: "Profit Factor", v: (metrics.profitFactor || 0).toFixed(2), c: "text-teal-400" },
-            { l: "Sharpe", v: (metrics.sharpeRatio || 0).toFixed(2), c: "text-amber-400" }
+            { l: "Model Engine", v: metrics.model_type || "Classic", c: "text-blue-400" }
         ].map((m, i) => (
             <div key={i} className="bot-card p-4 text-center bg-black/40 border border-white/5 rounded-2xl shadow-xl">
                 <div className="text-neutral-500 text-[9px] uppercase font-black tracking-widest mb-1">{m.l}</div>
@@ -102,9 +109,10 @@ export default function Backtests() {
   const [displayMode, setDisplayMode] = useState('static');
   const [isSimulating, setIsSimulating] = useState(false);
   const [liveWinners, setLiveWinners] = useState([]);
+  const [availableModels, setAvailableModels] = useState([]);
   const [backtestResults, setBacktestResults] = useState(null);
 
-  // 🟢 Updated Data State with Alpha Shield Parameters
+  // 🟢 UPGRADED Data State: Synchronized with V7 Architecture
   const [data, setData] = useState({
     symbol: "BTC-USD", 
     timeframe: "1h", 
@@ -115,18 +123,19 @@ export default function Backtests() {
     strategyId: "", 
     code: "", 
     combinationRule: "OR",
-    mlMode: "off", 
-    mlModel: "btc_1h_xgboost", 
     regime_mode: "adaptive",
     strategies: [{ strategyId: "", code: "", params: {} }],
     params: { 
+        model_type: "stacking",  // Choices: stacking, XGBoost, TabPFN, Transformer
+        long_threshold: 0.65,    // Confident Judge entry
+        short_threshold: 0.35,   // Confident Judge short
+        lookback: 50,            // Temporal context size
         tslAtrMult: 3.0, 
         minAdxLevel: 15, 
         trendFilterPeriod: 200, 
         minAtrPct: 0.5, 
         commission: 0.006, 
         slippage: 0.001,
-        // Alpha Shield defaults
         squeeze_threshold: 0.003,
         vol_multiplier: 1.02,
         session_start: 12,
@@ -137,7 +146,7 @@ export default function Backtests() {
   const loadWinners = useCallback(async () => {
     try {
         const token = localStorage.getItem("token");
-        const res = await axios.get("https://neov6backend.onrender.com/api/bot/winners", {
+        const res = await axios.get(`${process.env.REACT_APP_API_URL || 'https://neov6backend.onrender.com'}/api/bot/winners`, {
             headers: { Authorization: `Bearer ${token}` }
         });
         setLiveWinners(res.data.winners || res.data || []);
@@ -146,7 +155,16 @@ export default function Backtests() {
     }
   }, []);
 
-  useEffect(() => { loadWinners(); }, [loadWinners]);
+  const loadModels = useCallback(async () => {
+      try {
+          const res = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/ml/available-models`);
+          setAvailableModels(res.data.models || []);
+      } catch (e) {
+          console.warn("Could not fetch available models from ML server.");
+      }
+  }, []);
+
+  useEffect(() => { loadWinners(); loadModels(); }, [loadWinners, loadModels]);
   useEffect(() => { if (typeof fetchOptions === 'function') fetchOptions(); }, [fetchOptions]);
 
   const onParamChange = (name, val) => {
@@ -160,9 +178,16 @@ export default function Backtests() {
 
     const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
     
+    // Clean payload for the Python SystemController
     const payload = {
         ...data,
-        params: { ...data.params, combinationRule: data.combinationRule }
+        params: { 
+            ...data.params, 
+            combinationRule: data.combinationRule,
+            // Ensure numeric precision for thresholds
+            long_threshold: parseFloat(data.params.long_threshold),
+            short_threshold: parseFloat(data.params.short_threshold)
+        }
     };
 
     const res = await runner(payload);
@@ -209,7 +234,35 @@ export default function Backtests() {
 
               <form onSubmit={handleRun} className="space-y-6 h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
                 
-                {/* 3. Signal Engine Config */}
+                {/* 🟢 3. AI Intelligence Hub (Council of Experts) */}
+                <div className="p-5 bg-violet-500/5 border border-violet-500/10 rounded-[24px] space-y-4">
+                    <div className="flex justify-between items-center border-b border-violet-500/10 pb-2">
+                        <h4 className="text-violet-400 font-black uppercase text-[9px] tracking-widest">Ensemble Intelligence</h4>
+                        <span className="bg-violet-500/20 text-violet-400 text-[7px] px-2 py-0.5 rounded-full font-bold uppercase">V7 Brain</span>
+                    </div>
+                    
+                    <div className="space-y-3">
+                        <div>
+                            <label className="text-neutral-500 text-[8px] uppercase font-bold mb-1 block">Architecture Selector</label>
+                            <select value={data.params.model_type} onChange={(e)=>onParamChange('model_type', e.target.value)} className={inputClass}>
+                                {AI_ARCHITECTURES.map(arch => <option key={arch.id} value={arch.id}>{arch.name}</option>)}
+                                {availableModels.map(m => <option key={m.id} value={m.id}>Saved: {m.id}</option>)}
+                            </select>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-neutral-500 text-[8px] uppercase font-bold mb-1 block">Long Gate (Min Conf)</label>
+                                <input type="number" step="0.01" min="0.5" max="1.0" value={data.params.long_threshold} onChange={(e) => onParamChange('long_threshold', parseFloat(e.target.value))} className={inputClass} />
+                            </div>
+                            <div>
+                                <label className="text-neutral-500 text-[8px] uppercase font-bold mb-1 block">Short Gate (Max Conf)</label>
+                                <input type="number" step="0.01" min="0.0" max="0.5" value={data.params.short_threshold} onChange={(e) => onParamChange('short_threshold', parseFloat(e.target.value))} className={inputClass} />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 4. Signal Engine Config */}
                 {activeTab === 'single' ? (
                   <div className="space-y-4">
                     <label className="text-neutral-500 text-[10px] uppercase font-black block">Base Layer Engine</label>
@@ -265,7 +318,7 @@ export default function Backtests() {
                   </div>
                 )}
 
-                {/* 4. Data & Environment */}
+                {/* 5. Data & Environment */}
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
                     <div>
                         <label className="text-neutral-500 text-[9px] uppercase font-bold mb-2 block">Symbol</label>
@@ -289,7 +342,7 @@ export default function Backtests() {
                     </div>
                 </div>
 
-                {/* 🟢 5. Alpha Shield Config (v100.0 Integration) */}
+                {/* 🟢 6. Alpha Shield Config (v100.0 Integration) */}
                 <div className="p-5 bg-emerald-500/5 border border-emerald-500/10 rounded-[24px] space-y-4">
                     <div className="flex justify-between items-center border-b border-emerald-500/10 pb-2">
                         <h4 className="text-emerald-400 font-black uppercase text-[9px] tracking-widest">Alpha Shield (v100.0)</h4>
@@ -316,7 +369,7 @@ export default function Backtests() {
                     </div>
                 </div>
 
-                {/* 6. Vault Risk & Intelligence */}
+                {/* 7. Vault Risk & Intelligence */}
                 <div className="p-5 bg-black/40 border border-white/5 rounded-[24px] space-y-4">
                     <h4 className="text-white font-black uppercase text-[9px] tracking-widest border-b border-white/5 pb-2">Market State Intelligence</h4>
                     <select value={data.regime_mode} onChange={(e)=>setData({...data, regime_mode: e.target.value})} className={inputClass}>
