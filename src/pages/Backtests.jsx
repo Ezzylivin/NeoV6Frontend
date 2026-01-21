@@ -1,15 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios"; 
 import { useBacktest } from "../hooks/useBacktest.js";
-import { 
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartTooltip, Legend,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid
-} from "recharts";
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
 import { ChartReplay } from "../components/ChartReplay.jsx";
 import "./Backtests.css"; 
 
-// --- 🟢 1. GLOBAL CONSTANTS ---
+// --- 🟢 1. UNIFIED CONSTANTS ---
 
 const STRAT_POOL = [
   { name: "SMA Crossover", code: "sma_crossover" },
@@ -27,7 +23,6 @@ const STRAT_POOL = [
 const AI_ARCHITECTURES = [
   { id: "stacking", name: "Council Consensus (Stacking)" },
   { id: "XGBoost", name: "XGBoost (Tabular Gradient)" },
-  { id: "RandomForest", name: "Random Forest (Robust Bagging)" },
   { id: "LSTM", name: "LSTM (Sequential Memory)" },
   { id: "TabPFN", name: "TabPFN (Bayesian Foundation)" },
   { id: "Transformer", name: "TFT (Temporal Attention)" }
@@ -47,7 +42,7 @@ const FEE_TIERS = [
 
 const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-all text-sm outline-none";
 
-// --- 🛠️ 2. DYNAMIC STRATEGY PARAMETER COMPONENT ---
+// --- 🛠️ 2. DYNAMIC STRATEGY PARAMETER COMPONENT (From File 1 & 2) ---
 
 const StrategyParamInputs = ({ strategy, onChange }) => {
     const { code, params = {} } = strategy;
@@ -80,7 +75,7 @@ const StrategyParamInputs = ({ strategy, onChange }) => {
     );
 };
 
-// --- 📊 3. METRICS COMPONENT ---
+// --- 📊 3. METRICS COMPONENT (Integrated Version) ---
 
 const MetricsGrid = ({ metrics }) => (
     <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
@@ -90,7 +85,7 @@ const MetricsGrid = ({ metrics }) => (
             { l: "Drawdown", v: `${(metrics.maxDrawdown || 0).toFixed(2)}%`, c: "text-rose-400" },
             { l: "Trades", v: metrics.totalTrades || 0, c: "text-cyan-400" },
             { l: "Profit Factor", v: (metrics.profitFactor || 0).toFixed(2), c: "text-teal-400" },
-            { l: "Brain", v: metrics.model_type || "V7 Stacking", c: "text-blue-400" }
+            { l: "Calmar", v: (metrics.calmarRatio || 0).toFixed(2), c: "text-amber-400" }
         ].map((m, i) => (
             <div key={i} className="bot-card p-4 text-center bg-black/40 border border-white/5 rounded-2xl shadow-xl">
                 <div className="text-neutral-500 text-[9px] uppercase font-black tracking-widest mb-1">{m.l}</div>
@@ -100,72 +95,49 @@ const MetricsGrid = ({ metrics }) => (
     </div>
 );
 
-// --- 🚀 4. MAIN COMPONENT ---
+// --- 🚀 4. MASTER COMPONENT ---
 
 export default function Backtests() {
   const { state, runNewBacktest, runComboBacktest, fetchOptions } = useBacktest(); 
-  const { options = {} } = state || {};
-
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
   const [activeTab, setActiveTab] = useState('single');
-  const [displayMode, setDisplayMode] = useState('static');
   const [isSimulating, setIsSimulating] = useState(false);
   const [liveWinners, setLiveWinners] = useState([]);
   const [availableModels, setAvailableModels] = useState([]);
   const [backtestResults, setBacktestResults] = useState(null);
 
+  // 🟢 CONSOLIDATED STATE: Combines all parameters from both versions
   const [data, setData] = useState({
-    symbol: "BTC-USD", 
-    timeframe: "1h", 
-    startDate: "2025-01-01", 
-    endDate: "2026-01-01", 
-    initialBalance: 1000, 
-    risk_percentage: 1, 
-    strategyId: "", 
-    code: "", 
-    combinationRule: "OR",
-    regime_mode: "adaptive",
+    symbol: "BTC-USD", timeframe: "1h", 
+    startDate: "2025-01-01", endDate: "2026-01-01", 
+    initialBalance: 1000, risk_percentage: 1, 
+    combinationRule: "OR", mlMode: "off", regime_mode: "adaptive",
     strategies: [{ strategyId: "", code: "", params: {} }],
     params: { 
         model_type: "stacking",  
-        long_threshold: 0.65,    
-        short_threshold: 0.35,   
-        lookback: 50,            
-        tslAtrMult: 3.0, 
-        minAdxLevel: 15, 
-        trendFilterPeriod: 200, 
-        minAtrPct: 0.5, 
-        commission: 0.006, 
-        slippage: 0.001,
-        squeeze_threshold: 0.003,
-        vol_multiplier: 1.02,
-        session_start: 12,
-        session_end: 21,
-        available_architectures: [
-            "stacking", "XGBoost", "RandomForest", "LSTM", "TabPFN", "Transformer"
-        ]
+        long_threshold: 0.65, short_threshold: 0.35, exit_threshold: 0.50,
+        lookback: 50, tslAtrMult: 3.0, minAdxLevel: 25, trendFilterPeriod: 200, 
+        commission: 0.0006, slippage: 0.0001,
+        squeeze_threshold: 0.003, vol_multiplier: 1.02,
+        session_start: 12, session_end: 21
     }
   });
 
   const loadWinners = useCallback(async () => {
     try {
-        const token = localStorage.getItem("token");
-        const res = await axios.get(`${process.env.REACT_APP_API_URL || 'https://neov6backend.onrender.com'}/api/bot/winners`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-        setLiveWinners(res.data.winners || res.data || []);
-    } catch (e) { console.error("Alpha Sync failed:", e); }
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/bot/winners`);
+        setLiveWinners(res.data.winners || []);
+    } catch (e) { console.error("Alpha Sync offline."); }
   }, []);
 
   const loadModels = useCallback(async () => {
       try {
-          const res = await axios.get(`${process.env.REACT_APP_API_URL || 'https://neov6backend.onrender.com'}/api/ml/available-models`);
+          const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/ml/available-models`);
           setAvailableModels(res.data.models || []);
-      } catch (e) { console.warn("ML Server discovery offline."); }
+      } catch (e) { console.warn("Model Discovery offline."); }
   }, []);
 
   useEffect(() => { loadWinners(); loadModels(); }, [loadWinners, loadModels]);
-  useEffect(() => { if (typeof fetchOptions === 'function') fetchOptions(); }, [fetchOptions]);
 
   const onParamChange = (name, val) => {
     setData(p => ({ ...p, params: { ...p.params, [name]: val } }));
@@ -175,20 +147,8 @@ export default function Backtests() {
     e.preventDefault();
     setBacktestResults(null);
     setIsSimulating(true); 
-
     const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
-    
-    const payload = {
-        ...data,
-        params: { 
-            ...data.params, 
-            combinationRule: data.combinationRule,
-            long_threshold: parseFloat(data.params.long_threshold),
-            short_threshold: parseFloat(data.params.short_threshold)
-        }
-    };
-
-    const res = await runner(payload);
+    const res = await runner(data);
     if (res) setBacktestResults(res);
     setIsSimulating(false);
   };
@@ -203,18 +163,15 @@ export default function Backtests() {
               
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-white font-black text-xs tracking-widest uppercase">🧪 Strategy Sandbox</h2>
-                <button type="button" onClick={loadWinners} className="text-emerald-400 text-[9px] font-bold bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 hover:bg-emerald-500/20 transition-all">Sync Alpha</button>
+                <button type="button" onClick={loadWinners} className="text-emerald-400 text-[9px] font-bold bg-emerald-500/10 px-3 py-1 rounded-full">Sync Alpha</button>
               </div>
 
-              {/* 1. Global Winner Selection */}
               <select className={inputClass + " mb-6"} value={selectedWinnerId} onChange={(e) => setSelectedWinnerId(e.target.value)}>
                 <option value="">-- Choose High-Alpha Winner --</option>
-                {liveWinners.map(w => (
-                    <option key={w.id || w.botId} value={w.id || w.botId}>{w.symbol} (ROI: {w.roi || 0}%)</option>
-                ))}
+                {liveWinners.map(w => <option key={w.botId} value={w.botId}>{w.symbol} ({w.roi}%)</option>)}
               </select>
 
-              {/* 2. Architecture Tabs */}
+              {/* TABS */}
               <div className="flex gap-2 mb-8 bg-white/5 p-1.5 rounded-2xl"> 
                 {['single', 'combo'].map(t => (
                   <button key={t} type="button" onClick={() => setActiveTab(t)}
@@ -226,160 +183,99 @@ export default function Backtests() {
 
               <form onSubmit={handleRun} className="space-y-6 h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
                 
-                {/* 🟢 3. AI Intelligence Hub (Council of Experts) */}
+                {/* 🟣 AI INTELLIGENCE HUB */}
                 <div className="ai-intelligence-panel space-y-4">
                     <div className="flex justify-between items-center border-b border-violet-500/10 pb-2">
-                        <h4 className="font-black uppercase tracking-widest">Ensemble Intelligence</h4>
-                        <span className="bg-violet-500/20 text-violet-400 text-[7px] px-2 py-0.5 rounded-full font-bold uppercase">V7.Council</span>
+                        <h4 className="font-black tracking-widest text-violet-400 text-[9px]">Ensemble Intelligence</h4>
+                        <select value={data.mlMode} onChange={(e)=>setData({...data, mlMode: e.target.value})} className="bg-violet-500/10 text-[8px] rounded px-2 py-1 text-violet-300">
+                            <option value="off">Bypass AI</option><option value="on">AI Filter</option>
+                        </select>
                     </div>
-                    
-                    <div className="space-y-3">
-                        <div>
-                            <label className="text-neutral-500 text-[8px] uppercase font-bold mb-1 block">Architecture Selector</label>
+                    {data.mlMode === "on" && (
+                        <div className="space-y-3 animate-in fade-in zoom-in-95">
                             <select value={data.params.model_type} onChange={(e)=>onParamChange('model_type', e.target.value)} className={inputClass}>
                                 {AI_ARCHITECTURES.map(arch => <option key={arch.id} value={arch.id}>{arch.name}</option>)}
                                 {availableModels.map(m => <option key={m.id} value={m.id}>Disk: {m.id}</option>)}
                             </select>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="text-neutral-500 text-[8px] uppercase font-bold mb-1 block">Long Gate (Min Conf)</label>
-                                <input type="number" step="0.01" min="0.5" max="1.0" value={data.params.long_threshold} 
-                                  onChange={(e) => onParamChange('long_threshold', parseFloat(e.target.value))} 
-                                  className={inputClass + " gate-input"} />
-                            </div>
-                            <div>
-                                <label className="text-neutral-500 text-[8px] uppercase font-bold mb-1 block">Short Gate (Max Conf)</label>
-                                <input type="number" step="0.01" min="0.0" max="0.5" value={data.params.short_threshold} 
-                                  onChange={(e) => onParamChange('short_threshold', parseFloat(e.target.value))} 
-                                  className={inputClass + " gate-input"} />
+                            <div className="grid grid-cols-2 gap-3">
+                                <input type="number" step="0.01" value={data.params.long_threshold} onChange={(e) => onParamChange('long_threshold', parseFloat(e.target.value))} className={inputClass + " gate-input"} placeholder="Long Gate" />
+                                <input type="number" step="0.01" value={data.params.short_threshold} onChange={(e) => onParamChange('short_threshold', parseFloat(e.target.value))} className={inputClass + " gate-input"} placeholder="Short Gate" />
                             </div>
                         </div>
-                    </div>
+                    )}
                 </div>
 
-                {/* 4. Signal Engine Config */}
-                {activeTab === 'single' ? (
-                  <div className="space-y-4">
-                    <label className="text-neutral-500 text-[10px] uppercase font-black block">Base Layer Engine</label>
-                    <select value={data.code} onChange={(e) => setData({...data, code: e.target.value, strategyId: `base-${e.target.value}`})} className={inputClass}>
-                        <option value="">-- Select Signal Engine --</option>
-                        {STRAT_POOL.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
-                    </select>
-                    {data.code && <StrategyParamInputs strategy={data} onChange={(p) => setData({...data, params: {...data.params, ...p}})} />}
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl mb-4">
-                        <label className="text-emerald-400 text-[9px] font-black uppercase mb-2 block">Decision Logic (Aggregator)</label>
-                        <select className={inputClass} value={data.combinationRule} onChange={(e) => setData({...data, combinationRule: e.target.value})}>
-                            <option value="OR">OR (Aggressive)</option>
-                            <option value="AND">AND (Conservative)</option>
-                        </select>
-                    </div>
-                    {data.strategies.map((s, i) => (
-                        <div key={i} className="p-4 bg-white/5 rounded-2xl border border-white/5 relative group transition-all hover:border-emerald-500/30">
-                            <button type="button" onClick={() => setData({...data, strategies: data.strategies.filter((_, idx)=>idx!==i)})} className="absolute top-2 right-3 text-rose-500 text-xs opacity-50 group-hover:opacity-100 transition-opacity">✕</button>
-                            <label className="text-[9px] text-neutral-500 uppercase font-bold mb-2 block">Layer {i+1}</label>
-                            <select className={inputClass + " mb-2"} value={s.code} onChange={(e) => {
-                                const n = [...data.strategies]; 
-                                n[i] = { code: e.target.value, strategyId: `base-${e.target.value}`, params: {} };
-                                setData({...data, strategies: n});
-                            }}>
-                                <option value="">-- Select Engine --</option>
-                                {STRAT_POOL.map(o=><option key={o.code} value={o.code}>{o.name}</option>)}
-                            </select>
-                            {s.code && <StrategyParamInputs strategy={s} onChange={(p) => { 
-                                const n = [...data.strategies]; n[i].params = p; setData({...data, strategies: n}); 
-                            }} />}
-                        </div>
-                    ))}
-                    <button type="button" onClick={() => setData({...data, strategies: [...data.strategies, {code: "", strategyId: "", params: {}}]})} className="w-full py-3 border-dashed border-2 border-white/10 rounded-2xl text-[9px] text-emerald-400 uppercase font-black hover:border-emerald-500/40 transition-all">+ Add Layer</button>
-                  </div>
-                )}
-
-                {/* 5. Data & Environment */}
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
-                    <div>
-                        <label className="text-neutral-500 text-[9px] uppercase font-bold mb-2 block">Symbol</label>
-                        <select value={data.symbol} onChange={(e)=>setData({...data, symbol: e.target.value})} className={inputClass}>
-                            <option value="BTC-USD">BTC-USD</option><option value="ETH-USD">ETH-USD</option><option value="SOL-USD">SOL-USD</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="text-neutral-500 text-[9px] uppercase font-bold mb-2 block">Timeframe</label>
-                        <select value={data.timeframe} onChange={(e)=>setData({...data, timeframe: e.target.value})} className={inputClass}>
-                            <option value="1h">1h</option><option value="15m">15m</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="text-neutral-500 text-[9px] uppercase font-bold mb-2 block">From</label>
-                        <input type="date" value={data.startDate} onChange={(e)=>setData({...data, startDate: e.target.value})} className={inputClass} />
-                    </div>
-                    <div>
-                        <label className="text-neutral-500 text-[9px] uppercase font-bold mb-2 block">To</label>
-                        <input type="date" value={data.endDate} onChange={(e)=>setData({...data, endDate: e.target.value})} className={inputClass} />
-                    </div>
-                </div>
-
-                {/* 🟢 6. Alpha Shield Config */}
+                {/* 🟢 ALPHA SHIELD (v100.0) */}
                 <div className="p-5 bg-emerald-500/5 border border-emerald-500/10 rounded-[24px] space-y-4">
-                    <div className="flex justify-between items-center border-b border-emerald-500/10 pb-2">
-                        <h4 className="text-emerald-400 font-black uppercase text-[9px] tracking-widest">Alpha Shield (v100.0)</h4>
-                    </div>
+                    <h4 className="text-emerald-400 font-black uppercase text-[9px] tracking-widest border-b border-emerald-500/10 pb-2">Alpha Shield v100</h4>
                     <div className="grid grid-cols-2 gap-3">
-                        <div><label className="text-[8px] uppercase font-bold text-neutral-500">Squeeze</label><input type="number" step="0.001" value={data.params.squeeze_threshold} onChange={(e) => onParamChange('squeeze_threshold', parseFloat(e.target.value))} className={inputClass} /></div>
-                        <div><label className="text-[8px] uppercase font-bold text-neutral-500">Vol Fuel</label><input type="number" step="0.01" value={data.params.vol_multiplier} onChange={(e) => onParamChange('vol_multiplier', parseFloat(e.target.value))} className={inputClass} /></div>
+                        <div><label className="text-[8px] uppercase text-neutral-500">Squeeze</label><input type="number" step="0.001" value={data.params.squeeze_threshold} onChange={(e) => onParamChange('squeeze_threshold', parseFloat(e.target.value))} className={inputClass} /></div>
+                        <div><label className="text-[8px] uppercase text-neutral-500">Vol Fuel</label><input type="number" step="0.01" value={data.params.vol_multiplier} onChange={(e) => onParamChange('vol_multiplier', parseFloat(e.target.value))} className={inputClass} /></div>
                     </div>
                 </div>
 
-                {/* 7. Vault Risk & Intelligence */}
+                {/* STRATEGY LAYERS */}
+                <div className="space-y-4">
+                    <label className="text-neutral-500 text-[10px] uppercase font-black block tracking-widest">Signal Layers</label>
+                    {activeTab === 'single' ? (
+                        <>
+                        <select value={data.code} onChange={(e) => setData({...data, code: e.target.value})} className={inputClass}>
+                            <option value="">-- Select Signal Engine --</option>
+                            {STRAT_POOL.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
+                        </select>
+                        {data.code && <StrategyParamInputs strategy={data} onChange={(p) => setData({...data, params: {...data.params, ...p}})} />}
+                        </>
+                    ) : (
+                        <div className="space-y-4">
+                            {data.strategies.map((s, i) => (
+                                <div key={i} className="p-4 bg-white/5 rounded-2xl border border-white/5 relative group">
+                                    <button type="button" onClick={() => setData({...data, strategies: data.strategies.filter((_, idx)=>idx!==i)})} className="absolute top-2 right-3 text-rose-500 text-xs">✕</button>
+                                    <select className={inputClass + " mb-2"} value={s.code} onChange={(e) => {
+                                        const n = [...data.strategies]; n[i] = { code: e.target.value, params: {} };
+                                        setData({...data, strategies: n});
+                                    }}>
+                                        <option value="">-- Select Layer --</option>
+                                        {STRAT_POOL.map(o=><option key={o.code} value={o.code}>{o.name}</option>)}
+                                    </select>
+                                    {s.code && <StrategyParamInputs strategy={s} onChange={(p) => { const n = [...data.strategies]; n[i].params = p; setData({...data, strategies: n}); }} />}
+                                </div>
+                            ))}
+                            <button type="button" onClick={() => setData({...data, strategies: [...data.strategies, {code: "", params: {}}]})} className="w-full py-3 border-dashed border-2 border-white/10 rounded-2xl text-[9px] text-emerald-400 font-black uppercase">+ Add Layer</button>
+                        </div>
+                    )}
+                </div>
+
+                {/* RISK & REGIME */}
                 <div className="p-5 bg-black/40 border border-white/5 rounded-[24px] space-y-4">
-                    <h4 className="text-white font-black uppercase text-[9px] tracking-widest border-b border-white/5 pb-2">Market State Intelligence</h4>
+                    <h4 className="text-white font-black uppercase text-[9px] border-b border-white/5 pb-2">Vault Risk Intelligence</h4>
                     <select value={data.regime_mode} onChange={(e)=>setData({...data, regime_mode: e.target.value})} className={inputClass}>
                         {REGIME_OPTIONS.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                     </select>
                     <div className="grid grid-cols-2 gap-3">
-                        <div><label className="text-neutral-500 text-[8px] uppercase">TSL Mult</label><input type="number" step="0.1" value={data.params.tslAtrMult} onChange={(e)=>onParamChange('tslAtrMult', parseFloat(e.target.value))} className={inputClass} /></div>
-                        <div><label className="text-neutral-500 text-[8px] uppercase">Risk %</label><input type="number" step="0.1" value={data.risk_percentage} onChange={(e)=>setData({...data, risk_percentage: e.target.value})} className={inputClass} /></div>
+                        <input type="number" step="0.1" value={data.risk_percentage} onChange={(e)=>setData({...data, risk_percentage: e.target.value})} className={inputClass} placeholder="Risk %" />
+                        <input type="number" step="0.1" value={data.params.tslAtrMult} onChange={(e)=>onParamChange('tslAtrMult', parseFloat(e.target.value))} className={inputClass} placeholder="TSL ATR" />
                     </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
-                    {FEE_TIERS.map(t => (
-                        <button key={t.label} type="button" onClick={() => { onParamChange('commission', t.val); onParamChange('slippage', t.slip); }}
-                            className={`py-2 rounded-lg text-[8px] font-bold border transition-all ${data.params.commission === t.val ? 'bg-emerald-500 text-black border-emerald-500' : 'bg-transparent text-neutral-500 border-white/10 hover:border-white/30'}`}>
-                            {t.label}
-                        </button>
-                    ))}
-                </div>
-
-                <button type="submit" disabled={isSimulating} 
-                    className={`w-full py-5 font-black uppercase tracking-[0.2em] rounded-2xl transition-all shadow-xl shadow-emerald-500/10 ${isSimulating ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed animate-pulse' : 'bg-emerald-500 text-black hover:scale-[1.02] hover:shadow-emerald-500/30 active:scale-95'}`}
-                >
+                <button type="submit" disabled={isSimulating} className={`w-full py-5 font-black uppercase tracking-[0.2em] rounded-2xl bg-emerald-500 text-black ${isSimulating ? 'opacity-50 animate-pulse' : ''}`}>
                     {isSimulating ? '🔬 CRUNCHING...' : '▶ Launch Backtest'}
                 </button>
               </form>
             </div>
           </div>
 
-          {/* --- RIGHT: RESULTS PANEL --- */}
-          <div className="col-span-12 lg:col-span-8 space-y-6">
+          <div className="col-span-12 lg:col-span-8">
             {backtestResults ? (
                 <div className="animate-in fade-in slide-in-from-bottom-5 duration-700">
                     <MetricsGrid metrics={backtestResults.metrics || {}} />
-                    <div className="bot-card p-5 h-[720px] bg-black/40 border border-white/5 rounded-[40px] overflow-hidden shadow-2xl backdrop-blur-sm relative">
-                        {displayMode === 'static' ? (
-                            <ChartIndependent results={backtestResults} symbol={data.symbol} />
-                        ) : (
-                            <ChartReplay results={backtestResults} symbol={data.symbol} />
-                        )}
+                    <div className="bot-card p-5 h-[720px] bg-black/40 border border-white/5 rounded-[40px] relative">
+                        <ChartIndependent results={backtestResults} symbol={data.symbol} />
                     </div>
                 </div>
             ) : (
                 <div className="h-[80vh] flex flex-col items-center justify-center border-2 border-dashed border-white/5 bg-black/20 rounded-[48px] text-center p-10 group hover:border-emerald-500/10 transition-all duration-1000">
-                    <div className="w-24 h-24 rounded-full flex items-center justify-center mb-8 text-4xl bg-emerald-500/5 border border-emerald-500/10 animate-pulse shadow-2xl shadow-emerald-500/5">🔬</div>
-                    <h3 className="text-white text-xl font-black uppercase tracking-widest">Ready for Verification</h3>
+                    <div className="w-24 h-24 rounded-full flex items-center justify-center mb-8 text-4xl bg-emerald-500/5 border border-emerald-500/10 animate-pulse">🔬</div>
+                    <h3 className="text-white text-xl font-black uppercase tracking-widest">Ensemble Ready</h3>
                 </div>
             )}
           </div>
