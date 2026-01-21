@@ -159,7 +159,7 @@ export default function Backtests() {
 
   const loadModels = useCallback(async () => {
       try {
-          const res = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/ml/available-models`);
+          const res = await axios.get(`${process.env.REACT_APP_API_URL || 'https://neov6backend.onrender.com'}/api/ml/available-models`);
           setAvailableModels(res.data.models || []);
       } catch (e) { console.warn("ML Server discovery offline."); }
   }, []);
