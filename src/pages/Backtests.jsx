@@ -4,58 +4,24 @@ import { useBacktest } from "../hooks/useBacktest.js";
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
 import "./Backtests.css"; 
 
-const STRAT_POOL = [
-  { name: "SMA Crossover", code: "sma_crossover" },
-  { name: "MACD Crossover", code: "macd_crossover" },
-  { name: "RSI Threshold", code: "rsi_threshold" },
-  { name: "RSI Divergence", code: "rsi_divergence" },
-  { name: "ATR Breakout", code: "atr_breakout" }
-];
-
-// 🟢 UPDATED ROSTER: Now matches the synced Python Council
-const AI_ARCHITECTURES = [
-  { id: "stacking", name: "Council Consensus (Stacking)" },
-  { id: "XGBoost", name: "XGBoost (Gradient Boost)" },
-  { id: "RandomForest", name: "RandomForest (Decision Trees)" },
-  { id: "Transformer", name: "Transformer (Attention Layer)" }
-];
-
-const REGIME_OPTIONS = [
-  { id: "static", name: "Static (Indicator Veto)" },
-  { id: "adaptive", name: "Adaptive (State Classifier)" }
-];
-
-const FEE_TIERS = [
-  { label: "CB Adv (0.6%)", val: 0.006, slip: 0.001 },
-  { label: "CB Pro (0.4%)", val: 0.004, slip: 0.0008 },
-  { label: "Binance (0.1%)", val: 0.001, slip: 0.0005 }
-];
-
-const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-all text-sm outline-none";
-
-// 🛠️ FIXED: Now accepts a consistent 'params' object and 'onChange' callback
-const StrategyParamInputs = ({ params = {}, onChange }) => {
+// --- MOVE COMPONENTS OUTSIDE TO PREVENT FOCUS LOSS ---
+const StrategyParamInputs = ({ strategy, onChange }) => {
+    const { code, params = {} } = strategy;
     const update = (key, val) => onChange({ ...params, [key]: val });
-    
     const field = (label, key, type = "number", step = "1") => (
         <div className="flex flex-col">
             <label className="text-[8px] text-neutral-500 uppercase font-bold mb-1">{label}</label>
-            <input 
-                type={type} 
-                step={step} 
-                value={params[key] ?? ""} 
+            <input type={type} step={step} value={params[key] ?? ""} 
                 onChange={(e) => update(key, type === "number" ? parseFloat(e.target.value) : e.target.value)}
                 className="bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-emerald-400 outline-none"
             />
         </div>
     );
-
-    // Logic to detect which strategy fields to show based on code is handled by parent
     return (
         <div className="grid grid-cols-2 gap-2 p-3 bg-black/20 rounded-xl border border-white/5 mt-2">
-            {params.code === "sma_crossover" && <>{field("Fast SMA", "fast_sma")}{field("Slow SMA", "slow_sma")}</>}
-            {params.code === "macd_crossover" && <>{field("Fast", "fast")}{field("Slow", "slow")}{field("Signal", "signal")}</>}
-            {params.code === "rsi_threshold" && <>{field("Len", "rsi_length")}{field("OS", "oversold_level")}{field("OB", "overbought_level")}</>}
+            {code === "sma_crossover" && <>{field("Fast SMA", "fast_sma")}{field("Slow SMA", "slow_sma")}</>}
+            {code === "macd_crossover" && <>{field("Fast", "fast")}{field("Slow", "slow")}{field("Signal", "signal")}</>}
+            {code === "rsi_threshold" && <>{field("Len", "rsi_length")}{field("OS", "oversold_level")}{field("OB", "overbought_level")}</>}
         </div>
     );
 };
@@ -78,6 +44,35 @@ const MetricsGrid = ({ metrics }) => (
     </div>
 );
 
+// --- CONSTANTS ---
+const STRAT_POOL = [
+  { name: "SMA Crossover", code: "sma_crossover" },
+  { name: "MACD Crossover", code: "macd_crossover" },
+  { name: "RSI Threshold", code: "rsi_threshold" },
+  { name: "RSI Divergence", code: "rsi_divergence" },
+  { name: "ATR Breakout", code: "atr_breakout" }
+];
+
+const AI_ARCHITECTURES = [
+  { id: "stacking", name: "Council Consensus (Stacking)" },
+  { id: "XGBoost", name: "XGBoost (Gradient Boost)" },
+  { id: "RandomForest", name: "RandomForest (Trees)" }, // Keep fixed RF
+  { id: "Transformer", name: "Transformer (Attention)" }
+];
+
+const REGIME_OPTIONS = [
+  { id: "static", name: "Static (Indicator Veto)" },
+  { id: "adaptive", name: "Adaptive (State Classifier)" }
+];
+
+const FEE_TIERS = [
+  { label: "CB Adv (0.6%)", val: 0.006, slip: 0.001 },
+  { label: "CB Pro (0.4%)", val: 0.004, slip: 0.0008 },
+  { label: "Binance (0.1%)", val: 0.001, slip: 0.0005 }
+];
+
+const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-all text-sm outline-none";
+
 export default function Backtests() {
   const { runNewBacktest, runComboBacktest } = useBacktest(); 
   const [activeTab, setActiveTab] = useState('single');
@@ -90,8 +85,7 @@ export default function Backtests() {
     startDate: "2025-12-01", endDate: "2026-01-22", 
     initialBalance: 10000, risk_percentage: 1.0, 
     mlMode: "on", regime_mode: "adaptive", combinationRule: "OR",
-    code: "sma_crossover", 
-    strategies: [{ code: "sma_crossover", params: { fast_sma: 50, slow_sma: 200 } }],
+    code: "sma_crossover", strategies: [{ code: "", params: {} }],
     params: { 
         model_type: "stacking", long_threshold: 0.65, short_threshold: 0.35,
         tslAtrMult: 3.0, minAdxLevel: 25, trendFilterPeriod: 200, minAtrPct: 0.5,
@@ -118,19 +112,10 @@ export default function Backtests() {
     e.preventDefault();
     setBacktestResults(null);
     setIsSimulating(true); 
-    
-    // 🧬 Clean Payload Construction
-    const payload = { ...data, mode: activeTab };
     const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
-    
-    try {
-        const res = await runner(payload);
-        if (res) setBacktestResults(res);
-    } catch (err) {
-        console.error("Backtest execution crashed:", err);
-    } finally {
-        setIsSimulating(false);
-    }
+    const res = await runner(data);
+    if (res) setBacktestResults(res);
+    setIsSimulating(false);
   };
 
   return (
@@ -152,7 +137,7 @@ export default function Backtests() {
 
               <form onSubmit={handleRun} className="space-y-6 h-[75vh] overflow-y-auto pr-2 custom-scrollbar">
                 
-                {/* 🟣 SECTION: AI HUB */}
+                {/* 🟣 AI HUB (FIXED) */}
                 <div className="ai-intelligence-panel space-y-4">
                     <div className="flex justify-between items-center border-b border-violet-500/10 pb-2">
                         <h4 className="text-violet-400 font-black text-[9px] tracking-widest uppercase">Ensemble Logic</h4>
@@ -167,73 +152,62 @@ export default function Backtests() {
                                 {availableModels.map(m => <option key={m.id} value={m.id}>Disk: {m.id}</option>)}
                             </select>
                             <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-[8px] text-neutral-500 uppercase font-bold">Long Gate</label>
-                                    <input type="number" step="0.01" value={data.params.long_threshold} onChange={(e) => onParamChange('long_threshold', parseFloat(e.target.value))} className={inputClass} />
-                                </div>
-                                <div>
-                                    <label className="text-[8px] text-neutral-500 uppercase font-bold">Short Gate</label>
-                                    <input type="number" step="0.01" value={data.params.short_threshold} onChange={(e) => onParamChange('short_threshold', parseFloat(e.target.value))} className={inputClass} />
-                                </div>
+                                <div><label className="text-[8px] text-neutral-500 uppercase font-bold">Long Gate</label><input type="number" step="0.01" value={data.params.long_threshold} onChange={(e) => onParamChange('long_threshold', parseFloat(e.target.value))} className={inputClass} /></div>
+                                <div><label className="text-[8px] text-neutral-500 uppercase font-bold">Short Gate</label><input type="number" step="0.01" value={data.params.short_threshold} onChange={(e) => onParamChange('short_threshold', parseFloat(e.target.value))} className={inputClass} /></div>
                             </div>
                         </div>
                     )}
                 </div>
 
-                {/* ⚪ SECTION: STRATEGY LAYERS */}
-                <div className="space-y-4">
-                    <label className="text-neutral-500 text-[10px] uppercase font-black block tracking-widest">Signal Engine</label>
-                    {activeTab === 'single' ? (
-                        <div className="space-y-3">
-                            <select value={data.code} onChange={(e) => setData({...data, code: e.target.value})} className={inputClass}>
-                                <option value="">-- Select Engine --</option>
-                                {STRAT_POOL.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
-                            </select>
-                            {data.code && (
-                                <StrategyParamInputs 
-                                    params={{ ...data.params, code: data.code }} 
-                                    onChange={(newParams) => setData(prev => ({ ...prev, params: { ...prev.params, ...newParams } }))} 
-                                />
-                            )}
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            <select className={inputClass} value={data.combinationRule} onChange={(e) => setData({...data, combinationRule: e.target.value})}>
-                                <option value="OR">OR Logic (Aggressive)</option><option value="AND">AND Logic (Safe)</option>
-                            </select>
-                            {data.strategies.map((s, i) => (
-                                <div key={i} className="p-4 bg-white/5 rounded-2xl border border-white/5 relative">
-                                    <button type="button" onClick={() => setData(prev => ({ ...prev, strategies: prev.strategies.filter((_, idx)=>idx!==i)}))} className="absolute top-2 right-3 text-rose-500">✕</button>
-                                    <select className={inputClass + " mb-2"} value={s.code} onChange={(e) => {
-                                        const n = [...data.strategies]; n[i] = { code: e.target.value, params: {} };
-                                        setData(prev => ({ ...prev, strategies: n }));
-                                    }}>
-                                        <option value="">-- Layer {i+1} --</option>
-                                        {STRAT_POOL.map(o=><option key={o.code} value={o.code}>{o.name}</option>)}
-                                    </select>
-                                    {s.code && (
-                                        <StrategyParamInputs 
-                                            params={{ ...s.params, code: s.code }} 
-                                            onChange={(newP) => {
-                                                const n = [...data.strategies];
-                                                n[i].params = newP;
-                                                setData(prev => ({ ...prev, strategies: n }));
-                                            }} 
-                                        />
-                                    )}
-                                </div>
-                            ))}
-                            <button type="button" onClick={() => setData(prev => ({ ...prev, strategies: [...prev.strategies, {code: "", params: {}}] }))} className="w-full py-3 border-dashed border-2 border-white/10 rounded-2xl text-[9px] text-emerald-400 uppercase font-black">+ Add Layer</button>
-                        </div>
-                    )}
+                {/* 🟢 ALPHA SHIELD (RESTORED ALL INPUTS) */}
+                <div className="p-5 bg-emerald-500/5 border border-emerald-500/10 rounded-[24px] space-y-4">
+                    <h4 className="text-emerald-400 font-black text-[9px] tracking-widest uppercase border-b border-emerald-500/10 pb-2">Alpha Shield v100</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div><label className="text-[8px] text-neutral-500 uppercase font-bold">Squeeze</label><input type="number" step="0.001" value={data.params.squeeze_threshold} onChange={(e) => onParamChange('squeeze_threshold', parseFloat(e.target.value))} className={inputClass} /></div>
+                        <div><label className="text-[8px] text-neutral-500 uppercase font-bold">Vol Fuel</label><input type="number" step="0.01" value={data.params.vol_multiplier} onChange={(e) => onParamChange('vol_multiplier', parseFloat(e.target.value))} className={inputClass} /></div>
+                        <div><label className="text-[8px] text-neutral-500 uppercase font-bold">Start Hr</label><input type="number" value={data.params.session_start} onChange={(e) => onParamChange('session_start', parseInt(e.target.value))} className={inputClass} /></div>
+                        <div><label className="text-[8px] text-neutral-500 uppercase font-bold">End Hr</label><input type="number" value={data.params.session_end} onChange={(e) => onParamChange('session_end', parseInt(e.target.value))} className={inputClass} /></div>
+                    </div>
                 </div>
 
-                {/* 🔵 SECTION: DATA & ENVIRONMENT */}
+                {/* ⚪ STRATEGY LAYERS */}
+                <div className="space-y-4">
+                    <label className="text-neutral-500 text-[10px] uppercase font-black block tracking-widest">Signal Engine</label>
+                    <select value={data.code} onChange={(e) => setData({...data, code: e.target.value})} className={inputClass}>
+                        <option value="">-- Select Engine --</option>
+                        {STRAT_POOL.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
+                    </select>
+                    {data.code && <StrategyParamInputs strategy={data} onChange={(p) => setData({...data, params: {...data.params, ...p}})} />}
+                </div>
+
+                {/* 🔵 DATA & ENVIRONMENT (RESTORED ASSETS) */}
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
-                    <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Asset</label><select value={data.symbol} onChange={(e)=>setData({...data, symbol: e.target.value})} className={inputClass}><option value="BTC-USD">BTC-USD</option><option value="ETH-USD">ETH-USD</option><option value="PEPE-USD">PEPE-USD</option></select></div>
+                    <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Asset</label>
+                        <select value={data.symbol} onChange={(e)=>setData({...data, symbol: e.target.value})} className={inputClass}>
+                            <option value="BTC-USD">BTC-USD</option>
+                            <option value="ETH-USD">ETH-USD</option>
+                            <option value="SOL-USD">SOL-USD</option>
+                            <option value="XRP-USD">XRP-USD</option>
+                            <option value="PEPE-USD">PEPE-USD</option>
+                        </select>
+                    </div>
                     <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Initial Cash</label><input type="number" value={data.initialBalance} onChange={(e)=>setData({...data, initialBalance: parseFloat(e.target.value)})} className={inputClass} /></div>
                     <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Sim From</label><input type="date" value={data.startDate} onChange={(e)=>setData({...data, startDate: e.target.value})} className={inputClass} /></div>
                     <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Sim To</label><input type="date" value={data.endDate} onChange={(e)=>setData({...data, endDate: e.target.value})} className={inputClass} /></div>
+                </div>
+
+                {/* 🟠 RISK VAULT (RESTORED ALL INPUTS) */}
+                <div className="p-5 bg-black/40 border border-white/5 rounded-[24px] space-y-4 shadow-xl">
+                    <h4 className="text-white font-black uppercase text-[9px] border-b border-white/5 pb-2">Vault Risk Intelligence</h4>
+                    <select value={data.regime_mode} onChange={(e)=>setData({...data, regime_mode: e.target.value})} className={inputClass}>
+                        {REGIME_OPTIONS.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                    </select>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div><label className="text-[8px] uppercase text-neutral-500">TSL ATR</label><input type="number" step="0.1" value={data.params.tslAtrMult} onChange={(e)=>onParamChange('tslAtrMult', parseFloat(e.target.value))} className={inputClass} /></div>
+                        <div><label className="text-[8px] uppercase text-neutral-500">Risk %</label><input type="number" step="0.1" value={data.risk_percentage} onChange={(e)=>setData({...data, risk_percentage: parseFloat(e.target.value)})} className={inputClass} /></div>
+                        <div><label className="text-[8px] uppercase text-neutral-500">Chop ADX</label><input type="number" value={data.params.minAdxLevel} onChange={(e)=>onParamChange('minAdxLevel', parseInt(e.target.value))} className={inputClass} /></div>
+                        <div><label className="text-[8px] uppercase text-neutral-500">SMA Filter</label><input type="number" value={data.params.trendFilterPeriod} onChange={(e)=>onParamChange('trendFilterPeriod', parseInt(e.target.value))} className={inputClass} /></div>
+                    </div>
                 </div>
 
                 <button type="submit" disabled={isSimulating} className={`w-full py-5 font-black uppercase tracking-[0.2em] rounded-2xl bg-emerald-500 text-black ${isSimulating ? 'opacity-50 animate-pulse' : 'hover:scale-[1.02] shadow-xl shadow-emerald-500/10'}`}>
@@ -255,7 +229,6 @@ export default function Backtests() {
                 <div className="h-[90vh] flex flex-col items-center justify-center border-2 border-dashed border-white/5 bg-black/20 rounded-[48px] text-center p-10">
                     <div className="text-4xl mb-4">🔬</div>
                     <h3 className="text-white text-xl font-black uppercase tracking-widest">Ensemble Sandbox Ready</h3>
-                    <p className="text-neutral-500 text-sm mt-2 max-w-xs">Configure your council and strategy engine on the left to begin simulation.</p>
                 </div>
             )}
           </div>
