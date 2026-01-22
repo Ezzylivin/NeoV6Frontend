@@ -56,7 +56,7 @@ const STRAT_POOL = [
 const AI_ARCHITECTURES = [
   { id: "stacking", name: "Council Consensus (Stacking)" },
   { id: "XGBoost", name: "XGBoost (Gradient Boost)" },
-  { id: "RandomForest", name: "RandomForest (Trees)" }, // Keep fixed RF
+  { id: "RandomForest", name: "RandomForest (Trees)" },
   { id: "Transformer", name: "Transformer (Attention)" }
 ];
 
@@ -137,7 +137,7 @@ export default function Backtests() {
 
               <form onSubmit={handleRun} className="space-y-6 h-[75vh] overflow-y-auto pr-2 custom-scrollbar">
                 
-                {/* 🟣 AI HUB (FIXED) */}
+                {/* 🟣 AI HUB */}
                 <div className="ai-intelligence-panel space-y-4">
                     <div className="flex justify-between items-center border-b border-violet-500/10 pb-2">
                         <h4 className="text-violet-400 font-black text-[9px] tracking-widest uppercase">Ensemble Logic</h4>
@@ -159,7 +159,7 @@ export default function Backtests() {
                     )}
                 </div>
 
-                {/* 🟢 ALPHA SHIELD (RESTORED ALL INPUTS) */}
+                {/* 🟢 ALPHA SHIELD */}
                 <div className="p-5 bg-emerald-500/5 border border-emerald-500/10 rounded-[24px] space-y-4">
                     <h4 className="text-emerald-400 font-black text-[9px] tracking-widest uppercase border-b border-emerald-500/10 pb-2">Alpha Shield v100</h4>
                     <div className="grid grid-cols-2 gap-3">
@@ -180,7 +180,7 @@ export default function Backtests() {
                     {data.code && <StrategyParamInputs strategy={data} onChange={(p) => setData({...data, params: {...data.params, ...p}})} />}
                 </div>
 
-                {/* 🔵 DATA & ENVIRONMENT (RESTORED ASSETS) */}
+                {/* 🔵 DATA & ENVIRONMENT */}
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
                     <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Asset</label>
                         <select value={data.symbol} onChange={(e)=>setData({...data, symbol: e.target.value})} className={inputClass}>
@@ -196,7 +196,22 @@ export default function Backtests() {
                     <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Sim To</label><input type="date" value={data.endDate} onChange={(e)=>setData({...data, endDate: e.target.value})} className={inputClass} /></div>
                 </div>
 
-                {/* 🟠 RISK VAULT (RESTORED ALL INPUTS) */}
+                {/* 💰 MARKET LIQUIDITY & FEES (RE-ADDED & ENLARGED) */}
+                <div className="p-5 bg-cyan-500/5 border border-cyan-500/10 rounded-[24px] space-y-4">
+                    <h4 className="text-cyan-400 font-black text-[9px] tracking-widest uppercase border-b border-cyan-500/10 pb-2">Fee Tiers & Slippage</h4>
+                    <div className="grid grid-cols-1 gap-2">
+                        {FEE_TIERS.map(t => (
+                            <button key={t.label} type="button" 
+                                onClick={() => { onParamChange('commission', t.val); onParamChange('slippage', t.slip); }}
+                                className={`py-4 px-4 rounded-xl text-xs font-black uppercase tracking-wider border transition-all flex justify-between items-center ${data.params.commission === t.val ? 'bg-emerald-500 text-black border-emerald-500' : 'bg-black/40 text-neutral-500 border-white/10 hover:border-emerald-500/50'}`}>
+                                <span>{t.label}</span>
+                                <span className="text-[9px] opacity-60">SLIP: {t.slip}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* 🟠 RISK VAULT */}
                 <div className="p-5 bg-black/40 border border-white/5 rounded-[24px] space-y-4 shadow-xl">
                     <h4 className="text-white font-black uppercase text-[9px] border-b border-white/5 pb-2">Vault Risk Intelligence</h4>
                     <select value={data.regime_mode} onChange={(e)=>setData({...data, regime_mode: e.target.value})} className={inputClass}>
