@@ -4,6 +4,9 @@ import { useBacktest } from "../hooks/useBacktest.js";
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
 import "./Backtests.css"; 
 
+// --- STYLING CONSTANTS ---
+const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-all text-sm outline-none";
+
 // --- HELPER COMPONENTS ---
 const StrategyParamInputs = ({ strategy, onChange }) => {
     const { code, params = {} } = strategy;
@@ -44,7 +47,6 @@ const MetricsGrid = ({ metrics }) => (
     </div>
 );
 
-// 🟢 NaN-SAFE PROGRESS MONITOR
 const ProgressMonitor = ({ progress, status, timeRemaining }) => {
     const displayProgress = isNaN(progress) ? 0 : Math.min(100, progress);
     const displayTime = isNaN(timeRemaining) ? 0 : timeRemaining;
@@ -68,6 +70,27 @@ const ProgressMonitor = ({ progress, status, timeRemaining }) => {
         </div>
     );
 };
+
+// --- CONSTANTS ---
+const STRAT_POOL = [
+  { name: "SMA Crossover", code: "sma_crossover" },
+  { name: "MACD Crossover", code: "macd_crossover" },
+  { name: "RSI Threshold", code: "rsi_threshold" },
+  { name: "RSI Divergence", code: "rsi_divergence" },
+  { name: "ATR Breakout", code: "atr_breakout" }
+];
+
+const AI_ARCHITECTURES = [
+  { id: "stacking", name: "Council Consensus (Stacking)" },
+  { id: "XGBoost", name: "XGBoost (Gradient Boost)" },
+  { id: "RandomForest", name: "RandomForest (Trees)" },
+  { id: "Transformer", name: "Transformer (Attention)" }
+];
+
+const REGIME_OPTIONS = [
+  { id: "static", name: "Static (Indicator Veto)" },
+  { id: "adaptive", name: "Adaptive (State Classifier)" }
+];
 
 export default function Backtests() {
   const { runNewBacktest, runComboBacktest } = useBacktest(); 
@@ -99,12 +122,11 @@ export default function Backtests() {
     try {
         const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/ml/available-models`);
         setAvailableModels(res.data.models || []);
-    } catch (e) { /* Silent fail */ }
+    } catch (e) {}
   }, []);
 
   useEffect(() => { loadModels(); }, [loadModels]);
 
-  // 🟢 DECOUPLED POLLING EFFECT (SILENT CONSOLE)
   useEffect(() => {
     let pollInterval;
     if (isSimulating) {
@@ -114,9 +136,7 @@ export default function Backtests() {
           setSimProgress(res.data.progress);
           setStatusMsg(res.data.status);
           if (res.data.progress >= 100) clearInterval(pollInterval);
-        } catch (err) {
-          // Silent to keep dev console clean
-        }
+        } catch (err) {}
         setEstSeconds(prev => Math.max(0, prev - 1));
       }, 1500);
     }
@@ -133,13 +153,11 @@ export default function Backtests() {
     setSimProgress(0);
     setEstSeconds(25);
     setStatusMsg("Waking up Engine...");
-    
     setIsSimulating(true);
 
     try {
         const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
         const res = await runner(data);
-        
         if (res) {
             setSimProgress(100);
             setStatusMsg("Results Certified.");
@@ -152,10 +170,6 @@ export default function Backtests() {
     }
   };
 
-// Add this just before the "export default function Backtests()" line
-const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-all text-sm outline-none";
-
-  // ... (Return statement remains the same as provided in your snippet) ...
   return (
     <div className="backtest-container p-6 bg-[#030303] text-white min-h-screen">
         <div className="grid grid-cols-12 gap-10 max-w-[1800px] mx-auto">
@@ -191,7 +205,8 @@ const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 p
                         </div>
                     )}
                 </div>
-                {/* Alpha Shield Section */}
+                
+                {/* Fixed Alpha Shield, Signal, Environment Inputs... */}
                 <div className="p-5 bg-emerald-500/5 border border-emerald-500/10 rounded-[24px] space-y-4">
                     <h4 className="text-emerald-400 font-black text-[9px] tracking-widest uppercase border-b border-emerald-500/10 pb-2">Alpha Shield v100</h4>
                     <div className="grid grid-cols-2 gap-3">
@@ -223,7 +238,6 @@ const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 p
                         <div className="space-y-6 animate-pulse">
                             <div className="text-6xl text-emerald-500 mx-auto">⚛️</div>
                             <h3 className="text-white text-xl font-black uppercase tracking-[0.3em]">Processing {data.symbol}</h3>
-                            <p className="text-neutral-500 text-xs font-mono max-w-sm">The Council is synchronizing history against the Alpha Shield parameters.</p>
                         </div>
                     ) : (
                         <><div className="text-4xl mb-4">🔬</div><h3 className="text-white text-xl font-black uppercase tracking-widest">Ensemble Sandbox Ready</h3></>
