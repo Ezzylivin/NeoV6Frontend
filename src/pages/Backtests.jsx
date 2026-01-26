@@ -176,6 +176,7 @@ export default function Backtests() {
           <div className="col-span-12 lg:col-span-4 space-y-6">
             <div className="bot-card p-7 sticky top-10">
               <h2 className="text-white font-black text-xs tracking-widest uppercase mb-6">🧪 Strategy Sandbox</h2>
+              
               <div className="flex gap-2 mb-8 bg-white/5 p-1.5 rounded-2xl"> 
                 {['single', 'combo'].map(t => (
                   <button key={t} type="button" onClick={() => setActiveTab(t)}
@@ -184,7 +185,10 @@ export default function Backtests() {
                   </button>
                 ))}
               </div>
+
               <form onSubmit={handleRun} className="space-y-6 h-[75vh] overflow-y-auto pr-2 custom-scrollbar">
+                
+                {/* 🟣 AI HUB */}
                 <div className="ai-intelligence-panel space-y-4">
                     <div className="flex justify-between items-center border-b border-violet-500/10 pb-2">
                         <h4 className="text-violet-400 font-black text-[9px] tracking-widest uppercase">Ensemble Logic</h4>
@@ -206,7 +210,7 @@ export default function Backtests() {
                     )}
                 </div>
                 
-                {/* Fixed Alpha Shield, Signal, Environment Inputs... */}
+                {/* 🟢 ALPHA SHIELD */}
                 <div className="p-5 bg-emerald-500/5 border border-emerald-500/10 rounded-[24px] space-y-4">
                     <h4 className="text-emerald-400 font-black text-[9px] tracking-widest uppercase border-b border-emerald-500/10 pb-2">Alpha Shield v100</h4>
                     <div className="grid grid-cols-2 gap-3">
@@ -217,6 +221,46 @@ export default function Backtests() {
                     </div>
                 </div>
 
+                {/* ⚪ STRATEGY LAYERS */}
+                <div className="space-y-4">
+                    <label className="text-neutral-500 text-[10px] uppercase font-black block tracking-widest">Signal Engine</label>
+                    <select value={data.code} onChange={(e) => setData({...data, code: e.target.value})} className={inputClass}>
+                        <option value="">-- Select Engine --</option>
+                        {STRAT_POOL.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
+                    </select>
+                    {data.code && <StrategyParamInputs strategy={data} onChange={(p) => setData({...data, params: {...data.params, ...p}})} />}
+                </div>
+
+                {/* 🔵 DATA & ENVIRONMENT */}
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
+                    <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Asset</label>
+                        <select value={data.symbol} onChange={(e)=>setData({...data, symbol: e.target.value})} className={inputClass}>
+                            <option value="BTC-USD">BTC-USD</option>
+                            <option value="ETH-USD">ETH-USD</option>
+                            <option value="SOL-USD">SOL-USD</option>
+                            <option value="XRP-USD">XRP-USD</option>
+                            <option value="PEPE-USD">PEPE-USD</option>
+                        </select>
+                    </div>
+                    <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Initial Cash</label><input type="number" value={data.initialBalance} onChange={(e)=>setData({...data, initialBalance: parseFloat(e.target.value)})} className={inputClass} /></div>
+                    <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Sim From</label><input type="date" value={data.startDate} onChange={(e)=>setData({...data, startDate: e.target.value})} className={inputClass} /></div>
+                    <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Sim To</label><input type="date" value={data.endDate} onChange={(e)=>setData({...data, endDate: e.target.value})} className={inputClass} /></div>
+                </div>
+
+                {/* 🟠 RISK VAULT */}
+                <div className="p-5 bg-black/40 border border-white/5 rounded-[24px] space-y-4 shadow-xl">
+                    <h4 className="text-white font-black uppercase text-[9px] border-b border-white/5 pb-2">Vault Risk Intelligence</h4>
+                    <select value={data.regime_mode} onChange={(e)=>setData({...data, regime_mode: e.target.value})} className={inputClass}>
+                        {REGIME_OPTIONS.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                    </select>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div><label className="text-[8px] uppercase text-neutral-500">TSL ATR</label><input type="number" step="0.1" value={data.params.tslAtrMult} onChange={(e)=>onParamChange('tslAtrMult', parseFloat(e.target.value))} className={inputClass} /></div>
+                        <div><label className="text-[8px] uppercase text-neutral-500">Risk %</label><input type="number" step="0.1" value={data.risk_percentage} onChange={(e)=>setData({...data, risk_percentage: parseFloat(e.target.value)})} className={inputClass} /></div>
+                        <div><label className="text-[8px] uppercase text-neutral-500">Chop ADX</label><input type="number" value={data.params.minAdxLevel} onChange={(e)=>onParamChange('minAdxLevel', parseInt(e.target.value))} className={inputClass} /></div>
+                        <div><label className="text-[8px] uppercase text-neutral-500">SMA Filter</label><input type="number" value={data.params.trendFilterPeriod} onChange={(e)=>onParamChange('trendFilterPeriod', parseInt(e.target.value))} className={inputClass} /></div>
+                    </div>
+                </div>
+
                 <button type="submit" disabled={isSimulating} className={`w-full py-5 font-black uppercase tracking-[0.2em] rounded-2xl bg-emerald-500 text-black ${isSimulating ? 'opacity-50' : 'hover:scale-[1.02] shadow-xl shadow-emerald-500/10'}`}>
                     {isSimulating ? '🔬 CRUNCHING...' : '▶ Launch Backtest'}
                 </button>
@@ -224,6 +268,7 @@ export default function Backtests() {
               </form>
             </div>
           </div>
+
           <div className="col-span-12 lg:col-span-8 space-y-6">
             {backtestResults ? (
                 <div className="animate-in fade-in slide-in-from-bottom-5 duration-700">
@@ -238,6 +283,7 @@ export default function Backtests() {
                         <div className="space-y-6 animate-pulse">
                             <div className="text-6xl text-emerald-500 mx-auto">⚛️</div>
                             <h3 className="text-white text-xl font-black uppercase tracking-[0.3em]">Processing {data.symbol}</h3>
+                            <p className="text-neutral-500 text-xs font-mono max-w-sm">The Council is synchronizing history against the Alpha Shield parameters.</p>
                         </div>
                     ) : (
                         <><div className="text-4xl mb-4">🔬</div><h3 className="text-white text-xl font-black uppercase tracking-widest">Ensemble Sandbox Ready</h3></>
