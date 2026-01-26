@@ -92,6 +92,12 @@ const REGIME_OPTIONS = [
   { id: "adaptive", name: "Adaptive (State Classifier)" }
 ];
 
+const FEE_TIERS = [
+  { label: "CB Adv (0.6%)", val: 0.006, slip: 0.001, desc: "Standard US Retail" },
+  { label: "CB Pro (0.4%)", val: 0.004, slip: 0.0008, desc: "US Pro Tier" },
+  { label: "Binance (0.1%)", val: 0.001, slip: 0.0005, desc: "Global Low Fee" }
+];
+
 export default function Backtests() {
   const { runNewBacktest, runComboBacktest } = useBacktest(); 
   const [activeTab, setActiveTab] = useState('single');
@@ -245,6 +251,24 @@ export default function Backtests() {
                     <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Initial Cash</label><input type="number" value={data.initialBalance} onChange={(e)=>setData({...data, initialBalance: parseFloat(e.target.value)})} className={inputClass} /></div>
                     <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Sim From</label><input type="date" value={data.startDate} onChange={(e)=>setData({...data, startDate: e.target.value})} className={inputClass} /></div>
                     <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Sim To</label><input type="date" value={data.endDate} onChange={(e)=>setData({...data, endDate: e.target.value})} className={inputClass} /></div>
+                </div>
+
+                {/* 💰 LIQUIDITY & FEES */}
+                <div className="p-5 bg-cyan-500/5 border border-cyan-500/10 rounded-[24px] space-y-4">
+                    <h4 className="text-cyan-400 font-black text-[9px] tracking-widest uppercase border-b border-cyan-500/10 pb-2">Fee Tiers & Slippage</h4>
+                    <div className="grid grid-cols-1 gap-2">
+                        {FEE_TIERS.map(t => (
+                            <button key={t.label} type="button" 
+                                onClick={() => { onParamChange('commission', t.val); onParamChange('slippage', t.slip); }}
+                                className={`py-4 px-4 rounded-xl text-xs font-black uppercase tracking-wider border transition-all flex justify-between items-center ${data.params.commission === t.val ? 'bg-emerald-500 text-black border-emerald-500' : 'bg-black/40 text-neutral-500 border-white/10 hover:border-emerald-500/50'}`}>
+                                <div className="flex flex-col items-start">
+                                    <span>{t.label}</span>
+                                    <span className="text-[7px] text-neutral-500 mt-1">{t.desc}</span>
+                                </div>
+                                <span className="text-[9px] opacity-60">SLIP: {t.slip}</span>
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 {/* 🟠 RISK VAULT */}
