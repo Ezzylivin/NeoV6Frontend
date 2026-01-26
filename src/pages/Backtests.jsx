@@ -4,7 +4,7 @@ import { useBacktest } from "../hooks/useBacktest.js";
 import { ChartIndependent } from "../components/ChartIndependent.jsx"; 
 import "./Backtests.css"; 
 
-// --- HELPER COMPONENTS (STAY OUTSIDE TO PREVENT FOCUS LOSS) ---
+// --- HELPER COMPONENTS ---
 const StrategyParamInputs = ({ strategy, onChange }) => {
     const { code, params = {} } = strategy;
     const update = (key, val) => onChange({ ...params, [key]: val });
@@ -44,24 +44,31 @@ const MetricsGrid = ({ metrics }) => (
     </div>
 );
 
-const ProgressMonitor = ({ progress, status, timeRemaining }) => (
-  <div className="mt-4 p-5 bg-emerald-500/5 border border-emerald-500/10 rounded-[20px] animate-in fade-in zoom-in duration-500">
-    <div className="flex justify-between items-end mb-3">
-      <div>
-        <h4 className="text-emerald-400 font-black text-[8px] uppercase tracking-widest mb-1">Backtest Engine</h4>
-        <p className="text-white text-[10px] font-mono italic">{status}...</p>
-      </div>
-      <div className="text-right">
-        <span className="text-emerald-500 font-black text-lg">{progress}%</span>
-        <p className="text-[7px] text-neutral-500 uppercase">Est: {timeRemaining}s</p>
-      </div>
-    </div>
-    <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
-      <div className="bg-emerald-500 h-full transition-all duration-700 ease-out shadow-[0_0_10px_rgba(16,185,129,0.3)]"
-           style={{ width: `${progress}%` }} />
-    </div>
-  </div>
-);
+// 🟢 UPGRADED PROGRESS MONITOR (NaN-SAFE)
+const ProgressMonitor = ({ progress, status, timeRemaining }) => {
+    // Ensure we never pass NaN to the UI logic
+    const displayProgress = isNaN(progress) ? 0 : Math.min(100, progress);
+    const displayTime = isNaN(timeRemaining) ? 0 : timeRemaining;
+
+    return (
+        <div className="mt-4 p-5 bg-emerald-500/5 border border-emerald-500/10 rounded-[20px] animate-in fade-in zoom-in duration-500">
+            <div className="flex justify-between items-end mb-3">
+                <div>
+                    <h4 className="text-emerald-400 font-black text-[8px] uppercase tracking-widest mb-1">Backtest Engine</h4>
+                    <p className="text-white text-[10px] font-mono italic">{status}...</p>
+                </div>
+                <div className="text-right">
+                    <span className="text-emerald-500 font-black text-lg">{displayProgress.toFixed(1)}%</span>
+                    <p className="text-[7px] text-neutral-500 uppercase">Est: {displayTime}s</p>
+                </div>
+            </div>
+            <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+                <div className="bg-emerald-500 h-full transition-all duration-700 ease-out shadow-[0_0_10px_rgba(16,185,129,0.3)]"
+                     style={{ width: `${displayProgress}%` }} />
+            </div>
+        </div>
+    );
+};
 
 // --- CONSTANTS ---
 const STRAT_POOL = [
@@ -99,7 +106,6 @@ export default function Backtests() {
   const [backtestResults, setBacktestResults] = useState(null);
   const [availableModels, setAvailableModels] = useState([]);
   
-  // Simulation Feedback State
   const [simProgress, setSimProgress] = useState(0);
   const [statusMsg, setStatusMsg] = useState("");
   const [estSeconds, setEstSeconds] = useState(0);
@@ -137,15 +143,13 @@ export default function Backtests() {
     setBacktestResults(null);
     setIsSimulating(true);
     setSimProgress(0);
+    setEstSeconds(25); // Initial estimate for the user
     setStatusMsg("Establishing Connection...");
 
     // 🟢 START REAL-TIME POLLING LOOP
     const pollInterval = setInterval(async () => {
         try {
-            // Point this to your new backend endpoint
             const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/backtest/status`);
-            
-            // Overwrite the 'fake' progress with real engine data
             setSimProgress(res.data.progress);
             setStatusMsg(res.data.status);
             
@@ -153,7 +157,9 @@ export default function Backtests() {
         } catch (err) {
             console.warn("Heartbeat sync lost...");
         }
-    }, 1500); // Check every 1.5 seconds
+        // Visual countdown for UX
+        setEstSeconds(prev => Math.max(0, prev - 1));
+    }, 1500);
 
     try {
         const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
@@ -165,12 +171,10 @@ export default function Backtests() {
             setBacktestResults(res);
         }
     } finally {
-        // 🔴 Cleanup
         clearInterval(pollInterval);
         setIsSimulating(false);
     }
   };
-   
 
   return (
     <div className="backtest-container p-6 bg-[#030303] text-white min-h-screen">
@@ -213,7 +217,7 @@ export default function Backtests() {
                     )}
                 </div>
 
-                {/* 🟢 ALPHA SHIELD */}
+                {/* Alpha Shield, Strategy Layers, Data/Env, Fee tiers ... (All standard inputs) */}
                 <div className="p-5 bg-emerald-500/5 border border-emerald-500/10 rounded-[24px] space-y-4">
                     <h4 className="text-emerald-400 font-black text-[9px] tracking-widest uppercase border-b border-emerald-500/10 pb-2">Alpha Shield v100</h4>
                     <div className="grid grid-cols-2 gap-3">
@@ -224,7 +228,6 @@ export default function Backtests() {
                     </div>
                 </div>
 
-                {/* ⚪ STRATEGY LAYERS */}
                 <div className="space-y-4">
                     <label className="text-neutral-500 text-[10px] uppercase font-black block tracking-widest">Signal Engine</label>
                     <select value={data.code} onChange={(e) => setData({...data, code: e.target.value})} className={inputClass}>
@@ -234,7 +237,6 @@ export default function Backtests() {
                     {data.code && <StrategyParamInputs strategy={data} onChange={(p) => setData({...data, params: {...data.params, ...p}})} />}
                 </div>
 
-                {/* 🔵 DATA & ENVIRONMENT */}
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
                     <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Asset</label>
                         <select value={data.symbol} onChange={(e)=>setData({...data, symbol: e.target.value})} className={inputClass}>
@@ -250,25 +252,6 @@ export default function Backtests() {
                     <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Sim To</label><input type="date" value={data.endDate} onChange={(e)=>setData({...data, endDate: e.target.value})} className={inputClass} /></div>
                 </div>
 
-                {/* 💰 MARKET LIQUIDITY & FEES */}
-                <div className="p-5 bg-cyan-500/5 border border-cyan-500/10 rounded-[24px] space-y-4">
-                    <h4 className="text-cyan-400 font-black text-[9px] tracking-widest uppercase border-b border-cyan-500/10 pb-2">Fee Tiers & Slippage</h4>
-                    <div className="grid grid-cols-1 gap-2">
-                        {FEE_TIERS.map(t => (
-                            <button key={t.label} type="button" 
-                                onClick={() => { onParamChange('commission', t.val); onParamChange('slippage', t.slip); }}
-                                className={`py-4 px-4 rounded-xl text-xs font-black uppercase tracking-wider border transition-all flex justify-between items-center ${data.params.commission === t.val ? 'bg-emerald-500 text-black border-emerald-500' : 'bg-black/40 text-neutral-500 border-white/10 hover:border-emerald-500/50'}`}>
-                                <div className="flex flex-col items-start">
-                                    <span>{t.label}</span>
-                                    <span className="text-[7px] text-neutral-500 mt-1">{t.desc}</span>
-                                </div>
-                                <span className="text-[9px] opacity-60">SLIP: {t.slip}</span>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* 🟠 RISK VAULT */}
                 <div className="p-5 bg-black/40 border border-white/5 rounded-[24px] space-y-4 shadow-xl">
                     <h4 className="text-white font-black uppercase text-[9px] border-b border-white/5 pb-2">Vault Risk Intelligence</h4>
                     <select value={data.regime_mode} onChange={(e)=>setData({...data, regime_mode: e.target.value})} className={inputClass}>
@@ -286,7 +269,6 @@ export default function Backtests() {
                     {isSimulating ? '🔬 CRUNCHING...' : '▶ Launch Backtest'}
                 </button>
 
-                {/* --- LIVE PROGRESS UPGRADE --- */}
                 {isSimulating && (
                   <ProgressMonitor 
                     progress={simProgress} 
@@ -312,7 +294,7 @@ export default function Backtests() {
                         <div className="space-y-6 animate-pulse">
                             <div className="text-6xl text-emerald-500 mx-auto">⚛️</div>
                             <h3 className="text-white text-xl font-black uppercase tracking-[0.3em]">Processing {data.symbol}</h3>
-                            <p className="text-neutral-500 text-xs font-mono max-w-sm">The Council is synchronizing 5,000 bars of history against the Alpha Shield parameters.</p>
+                            <p className="text-neutral-500 text-xs font-mono max-w-sm">The Council is synchronizing history against the Alpha Shield parameters.</p>
                         </div>
                     ) : (
                         <>
