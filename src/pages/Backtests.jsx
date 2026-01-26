@@ -46,57 +46,28 @@ const MetricsGrid = ({ metrics }) => (
 
 // 🟢 NaN-SAFE PROGRESS MONITOR
 const ProgressMonitor = ({ progress, status, timeRemaining }) => {
-  const displayProgress = isNaN(progress) ? 0 : Math.min(100, progress);
-  const displayTime = isNaN(timeRemaining) ? 0 : timeRemaining;
+    const displayProgress = isNaN(progress) ? 0 : Math.min(100, progress);
+    const displayTime = isNaN(timeRemaining) ? 0 : timeRemaining;
 
-  return (
-    <div className="mt-4 p-5 bg-emerald-500/5 border border-emerald-500/10 rounded-[20px] animate-in fade-in zoom-in duration-500">
-      <div className="flex justify-between items-end mb-3">
-        <div>
-          <h4 className="text-emerald-400 font-black text-[8px] uppercase tracking-widest mb-1">Backtest Engine</h4>
-          <p className="text-white text-[10px] font-mono italic">{status}...</p>
+    return (
+        <div className="mt-4 p-5 bg-emerald-500/5 border border-emerald-500/10 rounded-[20px] animate-in fade-in zoom-in duration-500">
+            <div className="flex justify-between items-end mb-3">
+                <div>
+                    <h4 className="text-emerald-400 font-black text-[8px] uppercase tracking-widest mb-1">Backtest Engine</h4>
+                    <p className="text-white text-[10px] font-mono italic">{status}...</p>
+                </div>
+                <div className="text-right">
+                    <span className="text-emerald-500 font-black text-lg">{displayProgress.toFixed(1)}%</span>
+                    <p className="text-[7px] text-neutral-500 uppercase">Est: {displayTime}s</p>
+                </div>
+            </div>
+            <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+                <div className="bg-emerald-500 h-full transition-all duration-700 ease-out shadow-[0_0_10px_rgba(16,185,129,0.3)]"
+                     style={{ width: `${displayProgress}%` }} />
+            </div>
         </div>
-        <div className="text-right">
-          <span className="text-emerald-500 font-black text-lg">{displayProgress.toFixed(1)}%</span>
-          <p className="text-[7px] text-neutral-500 uppercase">Est: {displayTime}s</p>
-        </div>
-      </div>
-      <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
-        <div className="bg-emerald-500 h-full transition-all duration-700 ease-out shadow-[0_0_10px_rgba(16,185,129,0.3)]"
-             style={{ width: `${displayProgress}%` }} />
-      </div>
-    </div>
-  );
+    );
 };
-
-// --- CONSTANTS ---
-const STRAT_POOL = [
-  { name: "SMA Crossover", code: "sma_crossover" },
-  { name: "MACD Crossover", code: "macd_crossover" },
-  { name: "RSI Threshold", code: "rsi_threshold" },
-  { name: "RSI Divergence", code: "rsi_divergence" },
-  { name: "ATR Breakout", code: "atr_breakout" }
-];
-
-const AI_ARCHITECTURES = [
-  { id: "stacking", name: "Council Consensus (Stacking)" },
-  { id: "XGBoost", name: "XGBoost (Gradient Boost)" },
-  { id: "RandomForest", name: "RandomForest (Trees)" },
-  { id: "Transformer", name: "Transformer (Attention)" }
-];
-
-const REGIME_OPTIONS = [
-  { id: "static", name: "Static (Indicator Veto)" },
-  { id: "adaptive", name: "Adaptive (State Classifier)" }
-];
-
-const FEE_TIERS = [
-  { label: "CB Adv (0.6%)", val: 0.006, slip: 0.001, desc: "Standard US Retail" },
-  { label: "CB Pro (0.4%)", val: 0.004, slip: 0.0008, desc: "US Pro Tier" },
-  { label: "Binance (0.1%)", val: 0.001, slip: 0.0005, desc: "Global Low Fee" }
-];
-
-const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-all text-sm outline-none";
 
 export default function Backtests() {
   const { runNewBacktest, runComboBacktest } = useBacktest(); 
@@ -128,13 +99,12 @@ export default function Backtests() {
     try {
         const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/ml/available-models`);
         setAvailableModels(res.data.models || []);
-    } catch (e) { /* Silent error to keep console clean */ }
+    } catch (e) { /* Silent fail */ }
   }, []);
 
   useEffect(() => { loadModels(); }, [loadModels]);
 
-  // 🟢 DECOUPLED POLLING EFFECT
-  // This logic runs independently of the main handles to keep UI active.
+  // 🟢 DECOUPLED POLLING EFFECT (SILENT CONSOLE)
   useEffect(() => {
     let pollInterval;
     if (isSimulating) {
@@ -145,7 +115,7 @@ export default function Backtests() {
           setStatusMsg(res.data.status);
           if (res.data.progress >= 100) clearInterval(pollInterval);
         } catch (err) {
-          /* Silent error to keep console clean */
+          // Silent to keep dev console clean
         }
         setEstSeconds(prev => Math.max(0, prev - 1));
       }, 1500);
@@ -164,7 +134,7 @@ export default function Backtests() {
     setEstSeconds(25);
     setStatusMsg("Waking up Engine...");
     
-    setIsSimulating(true); // Triggers the useEffect polling
+    setIsSimulating(true);
 
     try {
         const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
@@ -178,10 +148,11 @@ export default function Backtests() {
     } catch (err) {
         setStatusMsg("Engine Error.");
     } finally {
-        setIsSimulating(false); // Stops the useEffect polling
+        setIsSimulating(false);
     }
   };
 
+  // ... (Return statement remains the same as provided in your snippet) ...
   return (
     <div className="backtest-container p-6 bg-[#030303] text-white min-h-screen">
         <div className="grid grid-cols-12 gap-10 max-w-[1800px] mx-auto">
@@ -217,6 +188,7 @@ export default function Backtests() {
                         </div>
                     )}
                 </div>
+                {/* Alpha Shield Section */}
                 <div className="p-5 bg-emerald-500/5 border border-emerald-500/10 rounded-[24px] space-y-4">
                     <h4 className="text-emerald-400 font-black text-[9px] tracking-widest uppercase border-b border-emerald-500/10 pb-2">Alpha Shield v100</h4>
                     <div className="grid grid-cols-2 gap-3">
@@ -226,36 +198,7 @@ export default function Backtests() {
                         <div><label className="text-[8px] text-neutral-500 uppercase font-bold">End Hr</label><input type="number" value={data.params.session_end} onChange={(e) => onParamChange('session_end', parseInt(e.target.value))} className={inputClass} /></div>
                     </div>
                 </div>
-                <div className="space-y-4">
-                    <label className="text-neutral-500 text-[10px] uppercase font-black block tracking-widest">Signal Engine</label>
-                    <select value={data.code} onChange={(e) => setData({...data, code: e.target.value})} className={inputClass}>
-                        <option value="">-- Select Engine --</option>
-                        {STRAT_POOL.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
-                    </select>
-                    {data.code && <StrategyParamInputs strategy={data} onChange={(p) => setData({...data, params: {...data.params, ...p}})} />}
-                </div>
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
-                    <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Asset</label>
-                        <select value={data.symbol} onChange={(e)=>setData({...data, symbol: e.target.value})} className={inputClass}>
-                            <option value="BTC-USD">BTC-USD</option><option value="ETH-USD">ETH-USD</option><option value="SOL-USD">SOL-USD</option><option value="XRP-USD">XRP-USD</option><option value="PEPE-USD">PEPE-USD</option>
-                        </select>
-                    </div>
-                    <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Initial Cash</label><input type="number" value={data.initialBalance} onChange={(e)=>setData({...data, initialBalance: parseFloat(e.target.value)})} className={inputClass} /></div>
-                    <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Sim From</label><input type="date" value={data.startDate} onChange={(e)=>setData({...data, startDate: e.target.value})} className={inputClass} /></div>
-                    <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Sim To</label><input type="date" value={data.endDate} onChange={(e)=>setData({...data, endDate: e.target.value})} className={inputClass} /></div>
-                </div>
-                <div className="p-5 bg-black/40 border border-white/5 rounded-[24px] space-y-4 shadow-xl">
-                    <h4 className="text-white font-black uppercase text-[9px] border-b border-white/5 pb-2">Vault Risk Intelligence</h4>
-                    <select value={data.regime_mode} onChange={(e)=>setData({...data, regime_mode: e.target.value})} className={inputClass}>
-                        {REGIME_OPTIONS.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                    </select>
-                    <div className="grid grid-cols-2 gap-3">
-                        <div><label className="text-[8px] uppercase text-neutral-500">TSL ATR</label><input type="number" step="0.1" value={data.params.tslAtrMult} onChange={(e)=>onParamChange('tslAtrMult', parseFloat(e.target.value))} className={inputClass} /></div>
-                        <div><label className="text-[8px] uppercase text-neutral-500">Risk %</label><input type="number" step="0.1" value={data.risk_percentage} onChange={(e)=>setData({...data, risk_percentage: parseFloat(e.target.value)})} className={inputClass} /></div>
-                        <div><label className="text-[8px] uppercase text-neutral-500">Chop ADX</label><input type="number" value={data.params.minAdxLevel} onChange={(e)=>onParamChange('minAdxLevel', parseInt(e.target.value))} className={inputClass} /></div>
-                        <div><label className="text-[8px] uppercase text-neutral-500">SMA Filter</label><input type="number" value={data.params.trendFilterPeriod} onChange={(e)=>onParamChange('trendFilterPeriod', parseInt(e.target.value))} className={inputClass} /></div>
-                    </div>
-                </div>
+
                 <button type="submit" disabled={isSimulating} className={`w-full py-5 font-black uppercase tracking-[0.2em] rounded-2xl bg-emerald-500 text-black ${isSimulating ? 'opacity-50' : 'hover:scale-[1.02] shadow-xl shadow-emerald-500/10'}`}>
                     {isSimulating ? '🔬 CRUNCHING...' : '▶ Launch Backtest'}
                 </button>
