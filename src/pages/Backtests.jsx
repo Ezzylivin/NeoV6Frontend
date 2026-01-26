@@ -152,6 +152,9 @@ export default function Backtests() {
     }
   };
 
+// Add this just before the "export default function Backtests()" line
+const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-emerald-500 transition-all text-sm outline-none";
+
   // ... (Return statement remains the same as provided in your snippet) ...
   return (
     <div className="backtest-container p-6 bg-[#030303] text-white min-h-screen">
