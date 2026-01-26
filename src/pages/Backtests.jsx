@@ -137,36 +137,40 @@ export default function Backtests() {
     setBacktestResults(null);
     setIsSimulating(true);
     setSimProgress(0);
-    setEstSeconds(15); // Avg processing time for 5k candles
+    setStatusMsg("Establishing Connection...");
 
-    // Simulation Interval
-    const progressInterval = setInterval(() => {
-        setSimProgress(prev => {
-            const next = prev + Math.random() * 7;
-            if (next > 98) return 98;
+    // 🟢 START REAL-TIME POLLING LOOP
+    const pollInterval = setInterval(async () => {
+        try {
+            // Point this to your new backend endpoint
+            const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/backtest/status`);
             
-            // Background Descriptions
-            if (next < 20) setStatusMsg("Pulling Exchange History");
-            else if (next < 50) setStatusMsg("Engineering Council Features");
-            else if (next < 80) setStatusMsg("Running Ensemble Stacking");
-            else setStatusMsg("Auditing Trade Metrics");
+            // Overwrite the 'fake' progress with real engine data
+            setSimProgress(res.data.progress);
+            setStatusMsg(res.data.status);
             
-            return Math.floor(next);
-        });
-        setEstSeconds(prev => Math.max(0, prev - 1));
-    }, 900);
+            if (res.data.progress >= 100) clearInterval(pollInterval);
+        } catch (err) {
+            console.warn("Heartbeat sync lost...");
+        }
+    }, 1500); // Check every 1.5 seconds
 
-    const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
-    const res = await runner(data);
-    
-    clearInterval(progressInterval);
-    if (res) {
-        setSimProgress(100);
-        setStatusMsg("Simulation Complete");
-        setBacktestResults(res);
+    try {
+        const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
+        const res = await runner(data);
+        
+        if (res) {
+            setSimProgress(100);
+            setStatusMsg("Results Certified.");
+            setBacktestResults(res);
+        }
+    } finally {
+        // 🔴 Cleanup
+        clearInterval(pollInterval);
+        setIsSimulating(false);
     }
-    setIsSimulating(false);
   };
+   
 
   return (
     <div className="backtest-container p-6 bg-[#030303] text-white min-h-screen">
