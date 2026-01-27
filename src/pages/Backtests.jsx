@@ -47,30 +47,6 @@ const MetricsGrid = ({ metrics }) => (
     </div>
 );
 
-const ProgressMonitor = ({ progress, status, timeRemaining }) => {
-    const displayProgress = isNaN(progress) ? 0 : Math.min(100, progress);
-    const displayTime = isNaN(timeRemaining) ? 0 : timeRemaining;
-
-    return (
-        <div className="mt-4 p-5 bg-emerald-500/5 border border-emerald-500/10 rounded-[20px] animate-in fade-in zoom-in duration-500">
-            <div className="flex justify-between items-end mb-3">
-                <div>
-                    <h4 className="text-emerald-400 font-black text-[8px] uppercase tracking-widest mb-1">Backtest Engine</h4>
-                    <p className="text-white text-[10px] font-mono italic">{status}...</p>
-                </div>
-                <div className="text-right">
-                    <span className="text-emerald-500 font-black text-lg">{displayProgress.toFixed(1)}%</span>
-                    <p className="text-[7px] text-neutral-500 uppercase">Est: {displayTime}s</p>
-                </div>
-            </div>
-            <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
-                <div className="bg-emerald-500 h-full transition-all duration-700 ease-out shadow-[0_0_10px_rgba(16,185,129,0.3)]"
-                     style={{ width: `${displayProgress}%` }} />
-            </div>
-        </div>
-    );
-};
-
 // --- CONSTANTS ---
 const STRAT_POOL = [
   { name: "SMA Crossover", code: "sma_crossover" },
@@ -104,10 +80,7 @@ export default function Backtests() {
   const [isSimulating, setIsSimulating] = useState(false);
   const [backtestResults, setBacktestResults] = useState(null);
   const [availableModels, setAvailableModels] = useState([]);
-  
-  const [simProgress, setSimProgress] = useState(0);
   const [statusMsg, setStatusMsg] = useState("");
-  const [estSeconds, setEstSeconds] = useState(0);
 
   const [data, setData] = useState({
     symbol: "BTC-USD", timeframe: "1h", 
@@ -133,22 +106,6 @@ export default function Backtests() {
 
   useEffect(() => { loadModels(); }, [loadModels]);
 
-  useEffect(() => {
-    let pollInterval;
-    if (isSimulating) {
-      pollInterval = setInterval(async () => {
-        try {
-          const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/backtest/status`);
-          setSimProgress(res.data.progress);
-          setStatusMsg(res.data.status);
-          if (res.data.progress >= 100) clearInterval(pollInterval);
-        } catch (err) {}
-        setEstSeconds(prev => Math.max(0, prev - 1));
-      }, 1500);
-    }
-    return () => clearInterval(pollInterval);
-  }, [isSimulating]);
-
   const onParamChange = (name, val) => {
     setData(p => ({ ...p, params: { ...p.params, [name]: val } }));
   };
@@ -156,21 +113,18 @@ export default function Backtests() {
   const handleRun = async (e) => {
     e.preventDefault();
     setBacktestResults(null);
-    setSimProgress(0);
-    setEstSeconds(25);
-    setStatusMsg("Waking up Engine...");
+    setStatusMsg("Handshaking with AI Engine...");
     setIsSimulating(true);
 
     try {
         const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
         const res = await runner(data);
         if (res) {
-            setSimProgress(100);
-            setStatusMsg("Results Certified.");
             setBacktestResults(res);
+            setStatusMsg("Results Certified.");
         }
     } catch (err) {
-        setStatusMsg("Engine Error.");
+        setStatusMsg("Engine Link Failure.");
     } finally {
         setIsSimulating(false);
     }
@@ -288,7 +242,6 @@ export default function Backtests() {
                 <button type="submit" disabled={isSimulating} className={`w-full py-5 font-black uppercase tracking-[0.2em] rounded-2xl bg-emerald-500 text-black ${isSimulating ? 'opacity-50' : 'hover:scale-[1.02] shadow-xl shadow-emerald-500/10'}`}>
                     {isSimulating ? '🔬 CRUNCHING...' : '▶ Launch Backtest'}
                 </button>
-                {isSimulating && <ProgressMonitor progress={simProgress} status={statusMsg} timeRemaining={estSeconds} />}
               </form>
             </div>
           </div>
@@ -307,7 +260,8 @@ export default function Backtests() {
                         <div className="space-y-6 animate-pulse">
                             <div className="text-6xl text-emerald-500 mx-auto">⚛️</div>
                             <h3 className="text-white text-xl font-black uppercase tracking-[0.3em]">Processing {data.symbol}</h3>
-                            <p className="text-neutral-500 text-xs font-mono max-w-sm">The Council is synchronizing history against the Alpha Shield parameters.</p>
+                            <p className="text-emerald-400 text-xs font-mono">{statusMsg}</p>
+                            <p className="text-neutral-500 text-[10px] font-mono max-w-sm">The Council is synchronizing history against the Alpha Shield parameters.</p>
                         </div>
                     ) : (
                         <><div className="text-4xl mb-4">🔬</div><h3 className="text-white text-xl font-black uppercase tracking-widest">Ensemble Sandbox Ready</h3></>
