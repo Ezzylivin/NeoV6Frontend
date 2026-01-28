@@ -14,7 +14,10 @@ const StrategyParamInputs = ({ strategy, onChange }) => {
     const field = (label, key, type = "number", step = "1") => (
         <div className="flex flex-col">
             <label className="text-[8px] text-neutral-500 uppercase font-bold mb-1">{label}</label>
-            <input type={type} step={step} value={params[key] ?? ""} 
+            <input 
+                type={type} 
+                step={step} 
+                value={params[key] ?? ""} 
                 onChange={(e) => update(key, type === "number" ? parseFloat(e.target.value) : e.target.value)}
                 className="bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-emerald-400 outline-none"
             />
@@ -84,7 +87,7 @@ export default function Backtests() {
 
   const [data, setData] = useState({
     symbol: "BTC-USD", timeframe: "1h", 
-    startDate: "2025-12-01", endDate: "2026-01-22", 
+    startDate: "2024-12-01", endDate: "2026-01-22", 
     initialBalance: 10000, risk_percentage: 1.0, 
     mlMode: "on", regime_mode: "adaptive", combinationRule: "OR",
     code: "sma_crossover", strategies: [{ code: "", params: {} }],
@@ -116,9 +119,22 @@ export default function Backtests() {
     setStatusMsg("Handshaking with AI Engine...");
     setIsSimulating(true);
 
+    // 🟢 DEFENSIVE SANITIZATION: Prevents NaN Transmission
+    const sanitizedData = {
+        ...data,
+        initialBalance: parseFloat(data.initialBalance) || 10000,
+        risk_percentage: parseFloat(data.risk_percentage) || 1.0,
+        params: {
+            ...data.params,
+            long_threshold: parseFloat(data.params.long_threshold) || 0.65,
+            short_threshold: parseFloat(data.params.short_threshold) || 0.35,
+            minAdxLevel: parseInt(data.params.minAdxLevel) || 15
+        }
+    };
+
     try {
         const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
-        const res = await runner(data);
+        const res = await runner(sanitizedData);
         if (res) {
             setBacktestResults(res);
             setStatusMsg("Results Certified.");
