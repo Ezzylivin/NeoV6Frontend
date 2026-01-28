@@ -132,6 +132,8 @@ export default function Backtests() {
         }
     };
 
+      console.log("📡 SCOUT: Sending to Engine:", JSON.stringify(sanitizedData, null, 2));
+      
     try {
         const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
         const res = await runner(sanitizedData);
