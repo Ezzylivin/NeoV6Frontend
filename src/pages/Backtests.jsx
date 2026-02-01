@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { useBacktest } from "@/hooks/useBacktest.js";
-import { ChartIndependent } from "@/components/ChartIndependent.jsx";
+import { useBacktest } from "../hooks/useBacktest.js";
+import { ChartIndependent } from "../components/ChartIndependent.jsx";
 import { Play, BarChart3, Layers, Plus, Trash2, Shield, Globe, Cpu } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_URL;
