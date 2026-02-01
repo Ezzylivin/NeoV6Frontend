@@ -95,11 +95,6 @@ const AI_ARCHITECTURES = [
   { id: "Transformer", name: "Transformer (Attention)" }
 ];
 
-const REGIME_OPTIONS = [
-  { id: "static", name: "Static (Indicator Veto)" },
-  { id: "adaptive", name: "Adaptive (State Classifier)" }
-];
-
 const FEE_TIERS = [
   { label: "CB Adv (0.6%)", val: 0.006, slip: 0.001, desc: "Standard US Retail" },
   { label: "CB Pro (0.4%)", val: 0.004, slip: 0.0008, desc: "US Pro Tier" },
@@ -116,18 +111,29 @@ export default function Backtests() {
   const [statusMsg, setStatusMsg] = useState("");
 
   const [data, setData] = useState({
-    symbol: "BTC-USD", timeframe: "1h", 
-    startDate: "2024-12-01", endDate: "2026-01-22", 
-    initialBalance: 10000, risk_percentage: 1.0, 
+    symbol: "SOL-USD", timeframe: "1h", 
+    startDate: "2025-06-01", endDate: "2026-01-31", 
+    initialBalance: 1000, risk_percentage: 1.0, 
     mlMode: "on", regime_mode: "adaptive", combinationRule: "OR",
-    code: "sma_crossover", // for single mode
-    strategies: [{ code: "sma_crossover", params: { fast_sma: 20, slow_sma: 50 } }], // for hybrid mode
+    code: "rsi_threshold",
+    strategies: [{ code: "rsi_threshold", params: { rsi_length: 12, oversold_level: 22, overbought_level: 80 } }],
     params: { 
-        model_type: "stacking", long_threshold: 0.65, short_threshold: 0.35,
-        tslAtrMult: 3.0, minAdxLevel: 25, trendFilterPeriod: 200, minAtrPct: 0.5,
-        commission: 0.006, slippage: 0.001,
-        squeeze_threshold: 0.003, vol_multiplier: 1.02,
-        session_start: 0, session_end: 23
+        model_type: "stacking", 
+        long_threshold: 0.81, 
+        short_threshold: 0.95,
+        take_profit: 0.052,
+        stop_loss: 0.019,
+        tslAtrMult: 3.0, 
+        atrPeriod: 14,
+        minAdxLevel: 25, 
+        trendFilterPeriod: 200, 
+        minAtrPct: 0.5,
+        commission: 0.004, 
+        slippage: 0.0008,
+        squeeze_threshold: 0.003, 
+        vol_multiplier: 1.02,
+        session_start: 0, 
+        session_end: 23
     }
   });
 
@@ -150,17 +156,12 @@ export default function Backtests() {
             setProgress(res.data.progress || 0);
             setStatusMsg(res.data.status || "Processing...");
           }
-        } catch (e) {
-          console.error("Heartbeat Lost");
-        }
+        } catch (e) { console.error("Heartbeat Lost"); }
       }, 1000);
-    } else {
-      setProgress(0);
-    }
+    } else { setProgress(0); }
     return () => clearInterval(poller);
   }, [isSimulating]);
 
-  // --- STRATEGY ARRAY HANDLERS ---
   const addStrategy = () => {
     setData(prev => ({
         ...prev,
@@ -200,11 +201,8 @@ export default function Backtests() {
             setBacktestResults(res);
             setStatusMsg("Results Certified.");
         }
-    } catch (err) {
-        setStatusMsg("Engine Link Failure.");
-    } finally {
-        setIsSimulating(false);
-    }
+    } catch (err) { setStatusMsg("Engine Link Failure."); } 
+    finally { setIsSimulating(false); }
   };
 
   return (
@@ -254,11 +252,7 @@ export default function Backtests() {
                             {activeTab === 'single' ? 'Signal Engine' : 'Ensemble Layers'}
                         </label>
                         {activeTab === 'combo' && (
-                            <button 
-                                type="button" 
-                                onClick={addStrategy}
-                                className="text-[9px] bg-emerald-500/10 text-emerald-500 px-3 py-1 rounded-lg border border-emerald-500/20 hover:bg-emerald-500 hover:text-black transition-all font-bold uppercase"
-                            >
+                            <button type="button" onClick={addStrategy} className="text-[9px] bg-emerald-500/10 text-emerald-500 px-3 py-1 rounded-lg border border-emerald-500/20 hover:bg-emerald-500 hover:text-black transition-all font-bold uppercase">
                                 + Add Layer
                             </button>
                         )}
@@ -290,13 +284,7 @@ export default function Backtests() {
                                             {STRAT_POOL.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
                                         </select>
                                         {data.strategies.length > 1 && (
-                                            <button 
-                                                type="button"
-                                                onClick={() => removeStrategy(index)}
-                                                className="text-rose-500 hover:bg-rose-500/20 rounded-lg px-3 transition-colors"
-                                            >
-                                                ✕
-                                            </button>
+                                            <button type="button" onClick={() => removeStrategy(index)} className="text-rose-500 hover:bg-rose-500/20 rounded-lg px-3 transition-colors">✕</button>
                                         )}
                                     </div>
                                     <StrategyParamInputs 
@@ -305,14 +293,9 @@ export default function Backtests() {
                                     />
                                 </div>
                             ))}
-                            
                             <div>
                                 <label className="text-[8px] text-neutral-500 uppercase font-bold mb-1 block ml-1">Logical Gate</label>
-                                <select 
-                                    value={data.combinationRule} 
-                                    onChange={(e) => setData({...data, combinationRule: e.target.value})}
-                                    className={inputClass}
-                                >
+                                <select value={data.combinationRule} onChange={(e) => setData({...data, combinationRule: e.target.value})} className={inputClass}>
                                     <option value="OR">OR (Aggressive - Any Signal)</option>
                                     <option value="AND">AND (Conservative - All Signal)</option>
                                 </select>
@@ -321,12 +304,19 @@ export default function Backtests() {
                     )}
                 </div>
 
-                {/* 🟢 ALPHA SHIELD */}
+                {/* 🟢 ALPHA SHIELD (UPGRADED) */}
                 <div className="p-5 bg-emerald-500/5 border border-emerald-500/10 rounded-[24px] space-y-4">
                     <h4 className="text-emerald-400 font-black text-[9px] tracking-widest uppercase border-b border-emerald-500/10 pb-2">Execution Shield</h4>
                     <div className="grid grid-cols-2 gap-3">
+                        <div><label className="text-[8px] text-neutral-500 uppercase font-bold">TSL ATR Mult</label><input type="number" step="0.1" value={data.params.tslAtrMult} onChange={(e) => onParamChange('tslAtrMult', parseFloat(e.target.value))} className={inputClass} /></div>
+                        <div><label className="text-[8px] text-neutral-500 uppercase font-bold">ATR Period</label><input type="number" value={data.params.atrPeriod} onChange={(e) => onParamChange('atrPeriod', parseInt(e.target.value))} className={inputClass} /></div>
+                        
+                        <div><label className="text-[8px] text-neutral-500 uppercase font-bold">Take Profit %</label><input type="number" step="0.001" value={data.params.take_profit} onChange={(e) => onParamChange('take_profit', parseFloat(e.target.value))} className={inputClass} /></div>
+                        <div><label className="text-[8px] text-neutral-500 uppercase font-bold">Stop Loss %</label><input type="number" step="0.001" value={data.params.stop_loss} onChange={(e) => onParamChange('stop_loss', parseFloat(e.target.value))} className={inputClass} /></div>
+                        
+                        <div><label className="text-[8px] text-neutral-500 uppercase font-bold">Min ADX</label><input type="number" value={data.params.minAdxLevel} onChange={(e) => onParamChange('minAdxLevel', parseInt(e.target.value))} className={inputClass} /></div>
                         <div><label className="text-[8px] text-neutral-500 uppercase font-bold">Squeeze</label><input type="number" step="0.001" value={data.params.squeeze_threshold} onChange={(e) => onParamChange('squeeze_threshold', parseFloat(e.target.value))} className={inputClass} /></div>
-                        <div><label className="text-[8px] text-neutral-500 uppercase font-bold">Vol Fuel</label><input type="number" step="0.01" value={data.params.vol_multiplier} onChange={(e) => onParamChange('vol_multiplier', parseFloat(e.target.value))} className={inputClass} /></div>
+                        
                         <div><label className="text-[8px] text-neutral-500 uppercase font-bold">Start Hr</label><input type="number" value={data.params.session_start} onChange={(e) => onParamChange('session_start', parseInt(e.target.value))} className={inputClass} /></div>
                         <div><label className="text-[8px] text-neutral-500 uppercase font-bold">End Hr</label><input type="number" value={data.params.session_end} onChange={(e) => onParamChange('session_end', parseInt(e.target.value))} className={inputClass} /></div>
                     </div>
@@ -344,7 +334,7 @@ export default function Backtests() {
                         </select>
                     </div>
                     <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Initial Cash</label><input type="number" value={data.initialBalance} onChange={(e)=>setData({...data, initialBalance: parseFloat(e.target.value)})} className={inputClass} /></div>
-                    <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Risk Per Trade %</label><input type="number" step="0.1" value={data.risk_percentage} onChange={(e)=>setData({...data, risk_percentage: parseFloat(e.target.value)})} className={inputClass} /></div>
+                    <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Risk %</label><input type="number" step="0.1" value={data.risk_percentage} onChange={(e)=>setData({...data, risk_percentage: parseFloat(e.target.value)})} className={inputClass} /></div>
                     <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Sim From</label><input type="date" value={data.startDate} onChange={(e)=>setData({...data, startDate: e.target.value})} className={inputClass} /></div>
                     <div><label className="text-[8px] uppercase text-neutral-500 font-bold">Sim To</label><input type="date" value={data.endDate} onChange={(e)=>setData({...data, endDate: e.target.value})} className={inputClass} /></div>
                 </div>
@@ -385,11 +375,7 @@ export default function Backtests() {
             ) : (
                 <div className="h-[90vh] flex flex-col items-center justify-center border-2 border-dashed border-white/5 bg-black/10 rounded-[48px] text-center p-10">
                     {isSimulating ? (
-                        <ProgressShield 
-                            progress={progress} 
-                            statusMsg={statusMsg} 
-                            symbol={data.symbol} 
-                        />
+                        <ProgressShield progress={progress} statusMsg={statusMsg} symbol={data.symbol} />
                     ) : (
                         <div className="space-y-4">
                             <div className="text-4xl animate-pulse">📡</div>
