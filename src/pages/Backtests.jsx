@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { ChartIndependent } from "../components/ChartIndependent.jsx";
@@ -13,13 +13,18 @@ const API_BASE = VITE_API.endsWith('/api') ? VITE_API : `${VITE_API}/api`;
 const inputClass = "w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-amber-500 transition-all text-xs outline-none";
 const labelClass = "text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1";
 
+// --- 🎯 CONFIGURATION: 10 STRATEGIES ---
 const DEFAULT_STRATEGY_PARAMS = {
     rsi_threshold: { rsi_length: 14, oversold: 30, overbought: 70 },
     sma_crossover: { fast_sma: 50, slow_sma: 200 },
     supertrend: { st_atr: 10, st_factor: 3.0 },
     macd_crossover: { fast: 12, slow: 26, signal: 9 },
     atr_breakout: { atr_length: 14, multiplier: 1.5 },
-    bb_fade: { bb_period: 20, bb_std: 2.0 }
+    bb_fade: { bb_period: 20, bb_std: 2.0 },
+    stoch: { k_period: 14, d_period: 3, slowing: 3 },
+    ema_cloud: { fast_ema: 9, slow_ema: 21 },
+    pa_breakout: { lookback: 20, buffer: 0.01 },
+    vol_profile: { vol_ma: 20, threshold: 1.5 }
 };
 
 const STRAT_POOL = [
@@ -27,7 +32,12 @@ const STRAT_POOL = [
     { name: "SMA Crossover", code: "sma_crossover" },
     { name: "SuperTrend Follow", code: "supertrend" },
     { name: "MACD Crossover", code: "macd_crossover" },
-    { name: "ATR Breakout", code: "atr_breakout" }
+    { name: "ATR Breakout", code: "atr_breakout" },
+    { name: "Bollinger Band Fade", code: "bb_fade" },
+    { name: "Stochastic Osc", code: "stoch" },
+    { name: "EMA Cloud", code: "ema_cloud" },
+    { name: "Price Action Break", code: "pa_breakout" },
+    { name: "Volume Profile", code: "vol_profile" }
 ];
 
 export default function Backtests() {
@@ -37,8 +47,6 @@ export default function Backtests() {
     const [backtestResults, setBacktestResults] = useState(null);
     const [progress, setProgress] = useState(0);
     const [statusMsg, setStatusMsg] = useState("");
-    
-    // 🎯 NEW: Track the specific Job ID for the poller
     const [currentJobId, setCurrentJobId] = useState(null);
 
     const [data, setData] = useState({
@@ -64,15 +72,13 @@ export default function Backtests() {
         }
     });
 
-    // --- 📡 POLLING ENGINE (JOB-ID SYNCED) ---
+    // --- 📡 POLLING ENGINE ---
     useEffect(() => {
         let poller;
         if (isSimulating && currentJobId) {
             poller = setInterval(async () => {
                 try {
                     const token = localStorage.getItem('token');
-                    
-                    // ✅ FIXED: Sending jobId instead of userId to match new backend schema
                     const res = await axios.get(`${API_BASE}/backtest/status`, {
                         params: { jobId: currentJobId },
                         headers: { 'Authorization': `Bearer ${token}` }
@@ -94,7 +100,7 @@ export default function Backtests() {
         return () => clearInterval(poller);
     }, [isSimulating, currentJobId]);
 
-    // --- 🚀 EXECUTION HANDLER ---
+    // --- 🚀 EXECUTION HANDLER (WITH PAYLOAD CLEANING) ---
     const handleRun = async (e) => {
         e.preventDefault();
         setBacktestResults(null);
@@ -103,20 +109,26 @@ export default function Backtests() {
         
         const userStr = localStorage.getItem('user');
         const dynamicUserId = userStr ? JSON.parse(userStr)._id : null;
-        const payload = { ...data, userId: dynamicUserId };
+
+        // 🎯 CLEANING LOGIC: Remove conflicting keys based on Active Tab
+        let payload;
+        if (activeTab === 'single') {
+            const { strategies, combinationRule, ...rest } = data;
+            payload = { ...rest, userId: dynamicUserId };
+        } else {
+            const { code, ...rest } = data;
+            payload = { ...rest, code: 'hybrid_ensemble', userId: dynamicUserId };
+        }
 
         try {
-            // 1. Kick off simulation
             const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
             const res = await runner(payload);
             
-            // 🎯 NEW: Grab the Job ID if simulation starts but isn't finished yet
             if (res?.jobId) {
                 setCurrentJobId(res.jobId);
                 setIsSimulating(true);
             }
 
-            // 2. Process final data if it returns instantly
             if (res && res.equityCurve) {
                 const formattedCurve = res.equityCurve.map(pt => ({
                     time: Math.floor(new Date(pt.time).getTime() / 1000),
@@ -131,7 +143,14 @@ export default function Backtests() {
         }
     };
 
-    const handleAtomicCodeChange = (code) => setData(p => ({ ...p, code, params: { ...p.params, ...DEFAULT_STRATEGY_PARAMS[code] } }));
+    const handleAtomicCodeChange = (code) => {
+        setData(p => ({ 
+            ...p, 
+            code, 
+            params: { ...p.params, ...DEFAULT_STRATEGY_PARAMS[code] } 
+        }));
+    };
+
     const onParamChange = (k, v) => setData(p => ({ ...p, params: { ...p.params, [k]: v } }));
 
     return (
@@ -162,12 +181,21 @@ export default function Backtests() {
                             <div className="space-y-4 border-t border-zinc-800 pt-6">
                                 <div className="flex justify-between items-center">
                                     <h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Logic Ensemble</h4>
-                                    {activeTab === 'combo' && <button type="button" onClick={() => setData(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: { ...DEFAULT_STRATEGY_PARAMS.rsi_threshold } }] }))} className="p-1.5 bg-emerald-500/10 text-emerald-500 rounded-lg border border-emerald-500/20"><Plus className="w-3.5 h-3.5" /></button>}
+                                    {activeTab === 'combo' && (
+                                        <button type="button" 
+                                            onClick={() => setData(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: { ...DEFAULT_STRATEGY_PARAMS.rsi_threshold } }] }))} 
+                                            className="p-1.5 bg-emerald-500/10 text-emerald-500 rounded-lg border border-emerald-500/20">
+                                            <Plus className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
                                 </div>
+
                                 {activeTab === 'single' ? (
                                     <div className="space-y-3">
-                                        <select value={data.code} onChange={(e) => handleAtomicCodeChange(e.target.value)} className={inputClass}>{STRAT_POOL.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}</select>
-                                        <StrategyParamInputs strategy={data} onChange={(p) => setData({...data, params: {...data.params, ...p}})} />
+                                        <select value={data.code} onChange={(e) => handleAtomicCodeChange(e.target.value)} className={inputClass}>
+                                            {STRAT_POOL.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
+                                        </select>
+                                        <StrategyParamInputs strategy={{code: data.code, params: data.params}} onChange={(p) => setData({...data, params: {...data.params, ...p}})} />
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
@@ -178,8 +206,14 @@ export default function Backtests() {
                                                         const newStrats = [...data.strategies];
                                                         newStrats[i] = { code: e.target.value, params: DEFAULT_STRATEGY_PARAMS[e.target.value] };
                                                         setData({...data, strategies: newStrats});
-                                                    }} className="bg-transparent text-[10px] font-black outline-none text-emerald-400">{STRAT_POOL.map(opt => <option key={opt.code} value={opt.code}>{opt.name}</option>)}</select>
-                                                    {data.strategies.length > 1 && <button type="button" onClick={() => setData(p => ({ ...p, strategies: p.strategies.filter((_, idx) => idx !== i) }))} className="text-zinc-600 hover:text-rose-500"><Trash2 className="w-3.5 h-3.5" /></button>}
+                                                    }} className="bg-transparent text-[10px] font-black outline-none text-emerald-400">
+                                                        {STRAT_POOL.map(opt => <option key={opt.code} value={opt.code}>{opt.name}</option>)}
+                                                    </select>
+                                                    {data.strategies.length > 1 && (
+                                                        <button type="button" onClick={() => setData(p => ({ ...p, strategies: p.strategies.filter((_, idx) => idx !== i) }))} className="text-zinc-600 hover:text-rose-500">
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
                                                 </div>
                                                 <StrategyParamInputs strategy={s} onChange={(p) => {
                                                     const newStrats = [...data.strategies];
@@ -235,13 +269,25 @@ export default function Backtests() {
 function StrategyParamInputs({ strategy, onChange }) {
     const { code, params = {} } = strategy;
     const update = (k, v) => onChange({ ...params, [k]: v });
-    const f = (l, k, s = "1") => (<div className="flex flex-col"><label className={labelClass}>{l}</label><input type="number" step={s} value={params[k] ?? ""} onChange={(e)=>update(k, parseFloat(e.target.value))} className="bg-zinc-950/50 border border-zinc-700/50 rounded-lg px-2 py-1.5 text-[10px] text-amber-400 outline-none" /></div>);
+    const f = (l, k, s = "1") => (
+        <div className="flex flex-col">
+            <label className={labelClass}>{l}</label>
+            <input type="number" step={s} value={params[k] ?? ""} onChange={(e)=>update(k, parseFloat(e.target.value))} className="bg-zinc-950/50 border border-zinc-700/50 rounded-lg px-2 py-1.5 text-[10px] text-amber-400 outline-none" />
+        </div>
+    );
+
     return (
         <div className="grid grid-cols-2 gap-3 mt-3">
             {code === "rsi_threshold" && <>{f("RSI Len", "rsi_length")}{f("Oversold", "oversold")}{f("Overbought", "overbought")}</>}
             {code === "sma_crossover" && <>{f("Fast SMA", "fast_sma")}{f("Slow SMA", "slow_sma")}</>}
             {code === "supertrend" && <>{f("ATR Len", "st_atr")}{f("Factor", "st_factor", "0.1")}</>}
             {code === "macd_crossover" && <>{f("Fast", "fast")}{f("Slow", "slow")}{f("Signal", "signal")}</>}
+            {code === "atr_breakout" && <>{f("ATR Len", "atr_length")}{f("Mult", "multiplier", "0.1")}</>}
+            {code === "bb_fade" && <>{f("Period", "bb_period")}{f("Std Dev", "bb_std", "0.1")}</>}
+            {code === "stoch" && <>{f("K", "k_period")}{f("D", "d_period")}{f("Slow", "slowing")}</>}
+            {code === "ema_cloud" && <>{f("Fast EMA", "fast_ema")}{f("Slow EMA", "slow_ema")}</>}
+            {code === "pa_breakout" && <>{f("Lookback", "lookback")}{f("Buffer", "buffer", "0.001")}</>}
+            {code === "vol_profile" && <>{f("Vol MA", "vol_ma")}{f("Thresh", "threshold", "0.1")}</>}
         </div>
     );
 }
