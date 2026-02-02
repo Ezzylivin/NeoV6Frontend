@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-// ✅ FIXED: Relative path to bypass Vercel/Vite alias errors
 import { useBacktest } from "../hooks/useBacktest.js";
 import { ChartIndependent } from "../components/ChartIndependent.jsx";
 import { 
@@ -10,7 +9,6 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://74.208.28.77:8000";
 
-// --- STYLING ---
 const inputClass = "w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-amber-500 transition-all text-xs outline-none";
 const labelClass = "text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1";
 
@@ -41,7 +39,7 @@ const STRAT_POOL = [
     { name: "ADX Trend Strength", code: "adx_filter" }
 ];
 
-// --- 🛠️ UPGRADE: CHART DIAGNOSTIC COMPONENT ---
+// --- 🛠️ CHART DIAGNOSTIC LAYER ---
 const ChartInspector = ({ results }) => {
     useEffect(() => {
         if (results) {
@@ -51,10 +49,8 @@ const ChartInspector = ({ results }) => {
                 console.error("❌ MISSING DATA: Neither 'equityCurve' nor 'equity_curve' found.");
             } else {
                 console.log(`✅ FOUND CURVE: ${curve.length} data points.`);
-                console.log("First Point Sample:", curve[0]);
                 const firstPoint = curve[0];
-                const timeType = typeof firstPoint.time;
-                console.log(`🕒 Time Format: ${timeType} (Expected: 'string' or 'number')`);
+                console.log("First Point Sample:", firstPoint);
             }
             console.groupEnd();
         }
@@ -191,10 +187,10 @@ export default function Backtests() {
     };
 
     return (
-        <div className="min-h-screen bg-zinc-950 text-white font-sans">
+        <div className="min-h-screen bg-zinc-950 text-white font-sans selection:bg-amber-500/30">
             <header className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-sm sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center">
+                    <div className="w-9 h-9 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/10">
                         <BarChart3 className="w-5 h-5 text-white" />
                     </div>
                     <div>
@@ -209,12 +205,13 @@ export default function Backtests() {
             </header>
 
             <div className="max-w-[1800px] mx-auto p-6 grid grid-cols-12 gap-8">
+                {/* 🟠 SIDEBAR CONFIG */}
                 <div className="col-span-12 lg:col-span-4 xl:col-span-3">
                     <div className="bg-zinc-900/40 border border-zinc-800 rounded-3xl p-6 sticky top-24">
                         <div className="flex gap-1 p-1 bg-zinc-800/50 rounded-xl mb-8">
                             {['single', 'combo'].map(tab => (
                                 <button key={tab} type="button" onClick={() => setActiveTab(tab)}
-                                    className={`flex-1 py-2.5 px-4 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === tab ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>
+                                    className={`flex-1 py-2.5 px-4 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === tab ? 'bg-zinc-700 text-white shadow-xl' : 'text-zinc-500 hover:text-zinc-300'}`}>
                                     {tab === 'single' ? 'Atomic' : 'Hybrid'}
                                 </button>
                             ))}
@@ -224,7 +221,20 @@ export default function Backtests() {
                             <AIConfig mlMode={data.mlMode} setMlMode={(m)=>setData({...data, mlMode:m})} params={data.params} onParamChange={onParamChange} />
                             
                             <div className="space-y-4 border-t border-zinc-800 pt-6">
-                                <h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Logic Ensemble</h4>
+                                <div className="flex justify-between items-center">
+                                    <h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Logic Ensemble</h4>
+                                    {/* 🟢 UPGRADE: ADD STRATEGY BUTTON */}
+                                    {activeTab === 'combo' && (
+                                        <button 
+                                            type="button" 
+                                            onClick={addStrategy}
+                                            className="p-1.5 bg-emerald-500/10 hover:bg-emerald-500 hover:text-zinc-950 text-emerald-500 rounded-lg transition-all border border-emerald-500/20"
+                                        >
+                                            <Plus className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                </div>
+
                                 {activeTab === 'single' ? (
                                     <div className="space-y-3">
                                         <select value={data.code} onChange={(e) => handleAtomicCodeChange(e.target.value)} className={inputClass}>
@@ -235,16 +245,29 @@ export default function Backtests() {
                                 ) : (
                                     <div className="space-y-4">
                                         {data.strategies.map((s, i) => (
-                                            <div key={i} className="p-4 bg-zinc-800/30 rounded-2xl border border-zinc-700/50">
+                                            <div key={i} className="p-4 bg-zinc-800/30 rounded-2xl border border-zinc-700/50 relative group">
                                                 <div className="flex justify-between mb-3">
                                                     <select value={s.code} onChange={(e)=>updateStrategy(i, {...s, code:e.target.value})} className="bg-transparent text-[10px] font-black outline-none text-emerald-400">
                                                         {STRAT_POOL.map(opt => <option key={opt.code} value={opt.code}>{opt.name}</option>)}
                                                     </select>
-                                                    {data.strategies.length > 1 && <button type="button" onClick={()=>removeStrategy(i)}><Trash2 className="w-3 h-3 text-zinc-600 hover:text-rose-500"/></button>}
+                                                    {/* 🔴 UPGRADE: REMOVE STRATEGY BUTTON */}
+                                                    {data.strategies.length > 1 && (
+                                                        <button type="button" onClick={()=>removeStrategy(i)} className="text-zinc-600 hover:text-rose-500 transition-colors">
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
                                                 </div>
                                                 <StrategyParamInputs strategy={s} onChange={(p) => updateStrategy(i, {...s, params: p})} />
                                             </div>
                                         ))}
+                                        {/* ⚖️ COMBINATION RULE */}
+                                        <div>
+                                            <label className={labelClass}>Signal Logic Gate</label>
+                                            <select value={data.combinationRule} onChange={(e)=>setData({...data, combinationRule:e.target.value})} className={inputClass}>
+                                                <option value="OR">OR (Aggressive: Any Signal triggers)</option>
+                                                <option value="AND">AND (Conservative: All Signals must align)</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -252,21 +275,20 @@ export default function Backtests() {
                             <ExecutionParams params={data.params} onParamChange={onParamChange} />
                             <MarketConfig data={data} setData={setData} />
 
-                            <button type="submit" disabled={isSimulating} className="w-full flex items-center justify-center gap-3 py-5 bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 text-zinc-950 font-black uppercase text-xs rounded-2xl transition-all shadow-xl">
+                            <button type="submit" disabled={isSimulating} className="w-full flex items-center justify-center gap-3 py-5 bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 font-black uppercase text-xs rounded-2xl transition-all shadow-xl shadow-amber-500/10">
+                                {isSimulating ? <div className="w-4 h-4 border-2 border-zinc-950 border-t-transparent rounded-full animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
                                 {isSimulating ? 'Crunching...' : 'Initiate Simulation'}
                             </button>
                         </form>
                     </div>
                 </div>
 
-                <div className="col-span-12 lg:col-span-8 xl:col-span-9">
+                {/* 📈 RESULTS VIEWPORT */}
+                <div className="col-span-12 lg:col-span-8 xl:col-span-9 space-y-8">
                     {backtestResults ? (
                         <div className="animate-in fade-in slide-in-from-bottom-5 duration-700 space-y-8">
                             <MetricsPanel metrics={backtestResults.metrics || {}} />
-                            
-                            {/* UPGRADED: DIAGNOSTIC LAYER */}
                             <ChartInspector results={backtestResults} />
-
                             <div className="bg-zinc-900/40 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
                                 <div className="h-[650px] w-full">
                                     <ChartIndependent results={backtestResults} symbol={data.symbol} />
@@ -284,7 +306,8 @@ export default function Backtests() {
     );
 }
 
-// --- REMAINING SUB-COMPONENTS ---
+// --- SUB-COMPONENTS ---
+
 function StrategyParamInputs({ strategy, onChange }) {
     const { code, params = {} } = strategy;
     const update = (k, v) => onChange({ ...params, [k]: v });
