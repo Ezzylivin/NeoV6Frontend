@@ -4,7 +4,7 @@ import { useBacktest } from "../hooks/useBacktest.js";
 import { ChartIndependent } from "../components/ChartIndependent.jsx";
 import { 
     Play, BarChart3, Layers, Plus, Trash2, 
-    Shield, Globe, Cpu, Zap, Activity, Percent, Calendar, Wallet
+    Shield, Globe, Cpu, Zap, Activity, Percent, Calendar, Wallet, Filter, Settings2
 } from "lucide-react";
 
 const VITE_API = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
@@ -13,7 +13,7 @@ const API_BASE = VITE_API.endsWith('/api') ? VITE_API : `${VITE_API}/api`;
 const inputClass = "w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-amber-500 transition-all text-xs outline-none";
 const labelClass = "text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1";
 
-// --- 🎯 CONFIGURATION: 10 STRATEGIES ---
+// --- 🎯 CONFIGURATION ---
 const DEFAULT_STRATEGY_PARAMS = {
     rsi_threshold: { rsi_length: 14, oversold: 30, overbought: 70 },
     sma_crossover: { fast_sma: 50, slow_sma: 200 },
@@ -60,6 +60,13 @@ export default function Backtests() {
         combinationRule: "OR",
         code: "rsi_threshold",
         strategies: [{ code: "rsi_threshold", params: { ...DEFAULT_STRATEGY_PARAMS.rsi_threshold } }],
+        // 🛡️ ADVANCED FILTERS STATE
+        advanced_filters: {
+            trend_filter: "ema_200",
+            vol_min: 0,
+            atr_filter: 1.5,
+            trade_window: "all"
+        },
         params: {
             model_type: "stacking",
             long_threshold: 0.81,
@@ -72,7 +79,6 @@ export default function Backtests() {
         }
     });
 
-    // --- 📡 POLLING ENGINE ---
     useEffect(() => {
         let poller;
         if (isSimulating && currentJobId) {
@@ -100,7 +106,6 @@ export default function Backtests() {
         return () => clearInterval(poller);
     }, [isSimulating, currentJobId]);
 
-    // --- 🚀 EXECUTION HANDLER (WITH PAYLOAD CLEANING) ---
     const handleRun = async (e) => {
         e.preventDefault();
         setBacktestResults(null);
@@ -110,7 +115,6 @@ export default function Backtests() {
         const userStr = localStorage.getItem('user');
         const dynamicUserId = userStr ? JSON.parse(userStr)._id : null;
 
-        // 🎯 CLEANING LOGIC: Remove conflicting keys based on Active Tab
         let payload;
         if (activeTab === 'single') {
             const { strategies, combinationRule, ...rest } = data;
@@ -152,6 +156,7 @@ export default function Backtests() {
     };
 
     const onParamChange = (k, v) => setData(p => ({ ...p, params: { ...p.params, [k]: v } }));
+    const onFilterChange = (k, v) => setData(p => ({ ...p, advanced_filters: { ...p.advanced_filters, [k]: v } }));
 
     return (
         <div className="min-h-screen bg-zinc-950 text-white font-sans">
@@ -226,6 +231,9 @@ export default function Backtests() {
                                 )}
                             </div>
 
+                            {/* 🔍 ADDED: ADVANCED FILTERS SECTION */}
+                            <AdvancedFilters filters={data.advanced_filters} onChange={onFilterChange} />
+
                             <ExecutionParams params={data.params} onParamChange={onParamChange} />
                             
                             <div className="space-y-4 border-t border-zinc-800 pt-6">
@@ -266,6 +274,33 @@ export default function Backtests() {
 }
 
 // --- SUB-COMPONENTS ---
+
+function AdvancedFilters({ filters, onChange }) {
+    return (
+        <div className="space-y-4 border-t border-zinc-800 pt-6">
+            <div className="flex items-center gap-2"><Filter className="w-3 h-3 text-indigo-400"/><h4 className="text-[10px] text-indigo-400 font-black uppercase tracking-widest">Environmental Filters</h4></div>
+            <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                    <label className={labelClass}>Trend Filter (EMA)</label>
+                    <select value={filters.trend_filter} onChange={(e)=>onChange('trend_filter', e.target.value)} className={inputClass}>
+                        <option value="none">NO FILTER</option>
+                        <option value="ema_200">200 EMA (LONG ONLY)</option>
+                        <option value="ema_50">50 EMA (MOMENTUM)</option>
+                    </select>
+                </div>
+                <div>
+                    <label className={labelClass}>Min Vol MA</label>
+                    <input type="number" value={filters.vol_min} onChange={(e)=>onChange('vol_min', parseFloat(e.target.value))} className={inputClass} placeholder="e.g. 100000"/>
+                </div>
+                <div>
+                    <label className={labelClass}>ATR Choppiness</label>
+                    <input type="number" step="0.1" value={filters.atr_filter} onChange={(e)=>onChange('atr_filter', parseFloat(e.target.value))} className={inputClass}/>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function StrategyParamInputs({ strategy, onChange }) {
     const { code, params = {} } = strategy;
     const update = (k, v) => onChange({ ...params, [k]: v });
