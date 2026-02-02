@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-// ✅ FIXED: Relative path to bypass Vercel/Vite alias errors
 import { useBacktest } from "../hooks/useBacktest.js";
 import { ChartIndependent } from "../components/ChartIndependent.jsx";
 import { 
@@ -14,7 +13,20 @@ const API_BASE = import.meta.env.VITE_API_URL || "http://74.208.28.77:8000";
 const inputClass = "w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-amber-500 transition-all text-xs outline-none";
 const labelClass = "text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1";
 
-// --- FULL STRATEGY POOL (10 ENGINES) ---
+// --- 🎯 STRATEGY DEFAULTS DICTIONARY ---
+const DEFAULT_STRATEGY_PARAMS = {
+    rsi_threshold: { rsi_length: 14, oversold: 30, overbought: 70 },
+    sma_crossover: { fast_sma: 50, slow_sma: 200 },
+    ema_cloud: { lead_ema: 20, base_ema: 50 },
+    macd_crossover: { fast: 12, slow: 26, signal: 9 },
+    atr_breakout: { atr_length: 14, multiplier: 1.5 },
+    bb_fade: { bb_period: 20, bb_std: 2.0 },
+    supertrend: { st_atr: 10, st_factor: 3.0 },
+    vol_profile: { vp_lookback: 24, vp_va: 70 },
+    stoch_oscillator: { stoch_k: 14, stoch_d: 3 },
+    adx_filter: { adx_len: 14, adx_min: 25 }
+};
+
 const STRAT_POOL = [
     { name: "RSI Threshold", code: "rsi_threshold" },
     { name: "SMA Crossover", code: "sma_crossover" },
@@ -46,7 +58,10 @@ export default function Backtests() {
         mlMode: "on",
         combinationRule: "OR",
         code: "rsi_threshold",
-        strategies: [{ code: "rsi_threshold", params: { rsi_length: 12, oversold: 22, overbought: 80 } }],
+        strategies: [{ 
+            code: "rsi_threshold", 
+            params: DEFAULT_STRATEGY_PARAMS.rsi_threshold 
+        }],
         params: {
             model_type: "stacking",
             long_threshold: 0.81,
@@ -69,7 +84,10 @@ export default function Backtests() {
     const addStrategy = () => {
         setData(prev => ({
             ...prev,
-            strategies: [...prev.strategies, { code: "rsi_threshold", params: { rsi_length: 14, oversold: 30, overbought: 70 } }]
+            strategies: [
+                ...prev.strategies, 
+                { code: "rsi_threshold", params: { ...DEFAULT_STRATEGY_PARAMS.rsi_threshold } }
+            ]
         }));
     };
 
@@ -82,6 +100,10 @@ export default function Backtests() {
 
     const updateStrategy = (index, updatedStrat) => {
         const newStrats = [...data.strategies];
+        // If code changed, reset params to that code's defaults
+        if (newStrats[index].code !== updatedStrat.code) {
+            updatedStrat.params = { ...DEFAULT_STRATEGY_PARAMS[updatedStrat.code] };
+        }
         newStrats[index] = updatedStrat;
         setData(prev => ({ ...prev, strategies: newStrats }));
     };
@@ -126,7 +148,6 @@ export default function Backtests() {
 
     return (
         <div className="min-h-screen bg-zinc-950 text-white font-sans selection:bg-amber-500/30">
-            {/* 🟡 HEADER */}
             <header className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-sm sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <div className="w-9 h-9 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/10">
@@ -146,7 +167,6 @@ export default function Backtests() {
             </header>
 
             <div className="max-w-[1800px] mx-auto p-6 grid grid-cols-12 gap-8">
-                {/* 🟠 CONFIGURATION SIDEBAR */}
                 <div className="col-span-12 lg:col-span-4 xl:col-span-3">
                     <div className="bg-zinc-900/40 border border-zinc-800 rounded-3xl p-6 sticky top-24">
                         <div className="flex gap-1 p-1 bg-zinc-800/50 rounded-xl mb-8">
@@ -182,7 +202,7 @@ export default function Backtests() {
                                 )}
                             </div>
 
-                            {/* SIGNAL ENGINE (DYNAMC) */}
+                            {/* SIGNAL ENGINE */}
                             <div className="space-y-4 border-t border-zinc-800 pt-6">
                                 <div className="flex justify-between items-center">
                                     <div className="flex items-center gap-2"><Layers className="w-3 h-3 text-emerald-400"/><h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Logic Ensemble</h4></div>
@@ -190,7 +210,18 @@ export default function Backtests() {
                                 </div>
                                 {activeTab === 'single' ? (
                                     <div className="space-y-3">
-                                        <select value={data.code} onChange={(e)=>setData({...data, code: e.target.value})} className={inputClass}>
+                                        <select 
+                                            value={data.code} 
+                                            onChange={(e) => {
+                                                const newCode = e.target.value;
+                                                setData({
+                                                    ...data, 
+                                                    code: newCode, 
+                                                    params: { ...data.params, ...DEFAULT_STRATEGY_PARAMS[newCode] } 
+                                                });
+                                            }} 
+                                            className={inputClass}
+                                        >
                                             {STRAT_POOL.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
                                         </select>
                                         <StrategyParamInputs strategy={data} onChange={(p) => setData({...data, params: {...data.params, ...p}})} />
@@ -236,7 +267,7 @@ export default function Backtests() {
                     </div>
                 </div>
 
-                {/* 📈 RESULTS VIEWPORT */}
+                {/* RESULTS */}
                 <div className="col-span-12 lg:col-span-8 xl:col-span-9 space-y-8">
                     {backtestResults ? (
                         <div className="animate-in fade-in slide-in-from-bottom-5 duration-700">
@@ -270,7 +301,7 @@ export default function Backtests() {
     );
 }
 
-// --- INTEGRATED SUB-COMPONENTS ---
+// --- SUB-COMPONENTS ---
 
 function StrategyParamInputs({ strategy, onChange }) {
     const { code, params = {} } = strategy;
