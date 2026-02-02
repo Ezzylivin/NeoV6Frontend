@@ -4,10 +4,10 @@ import { useBacktest } from "../hooks/useBacktest.js";
 import { ChartIndependent } from "../components/ChartIndependent.jsx";
 import { 
     Play, BarChart3, Layers, Plus, Trash2, 
-    Shield, Globe, Cpu, Zap, Activity, Percent
+    Shield, Globe, Cpu, Zap, Activity, Percent, Calendar, Wallet
 } from "lucide-react";
 
-// ✅ SAFE BASE URL: Prevents "api/api" doubling
+// ✅ SAFE BASE URL
 const VITE_API = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
 const API_BASE = VITE_API.endsWith('/api') ? VITE_API : `${VITE_API}/api`;
 
@@ -20,10 +20,7 @@ const DEFAULT_STRATEGY_PARAMS = {
     supertrend: { st_atr: 10, st_factor: 3.0 },
     macd_crossover: { fast: 12, slow: 26, signal: 9 },
     atr_breakout: { atr_length: 14, multiplier: 1.5 },
-    bb_fade: { bb_period: 20, bb_std: 2.0 },
-    vol_profile: { vp_lookback: 24, vp_va: 70 },
-    stoch_oscillator: { stoch_k: 14, stoch_d: 3 },
-    adx_filter: { adx_len: 14, adx_min: 25 }
+    bb_fade: { bb_period: 20, bb_std: 2.0 }
 };
 
 const STRAT_POOL = [
@@ -31,9 +28,7 @@ const STRAT_POOL = [
     { name: "SMA Crossover", code: "sma_crossover" },
     { name: "SuperTrend Follow", code: "supertrend" },
     { name: "MACD Crossover", code: "macd_crossover" },
-    { name: "ATR Breakout", code: "atr_breakout" },
-    { name: "Bollinger Fade", code: "bb_fade" },
-    { name: "ADX Trend Strength", code: "adx_filter" }
+    { name: "ATR Breakout", code: "atr_breakout" }
 ];
 
 export default function Backtests() {
@@ -73,28 +68,21 @@ export default function Backtests() {
         if (isSimulating) {
             poller = setInterval(async () => {
                 try {
-                    // 🔄 DYNAMIC FETCH FROM STORAGE
                     const token = localStorage.getItem('token');
                     const userStr = localStorage.getItem('user');
                     const userId = userStr ? JSON.parse(userStr)._id : null;
 
-                    if (!token || !userId) {
-                        console.warn("Auth missing for poller");
-                        return;
-                    }
+                    if (!token || !userId) return;
 
                     const res = await axios.get(`${API_BASE}/backtest/status`, {
-                        params: { userId }, // Correct param name for backend check
+                        params: { userId },
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
 
                     if (res.data) {
                         setProgress(res.data.progress || 0);
                         setStatusMsg(res.data.status || "Processing...");
-                        if (res.data.progress >= 100) {
-                            setIsSimulating(false);
-                            clearInterval(poller);
-                        }
+                        if (res.data.progress >= 100) { setIsSimulating(false); clearInterval(poller); }
                     }
                 } catch (e) { console.error("Poll Error:", e.response?.status); }
             }, 1500);
@@ -108,7 +96,6 @@ export default function Backtests() {
         setBacktestResults(null);
         setIsSimulating(true);
 
-        // 🔄 INJECT DYNAMIC USER DATA INTO PAYLOAD
         const userStr = localStorage.getItem('user');
         const dynamicUserId = userStr ? JSON.parse(userStr)._id : null;
         const payload = { ...data, userId: dynamicUserId };
@@ -118,7 +105,7 @@ export default function Backtests() {
             const res = await runner(payload);
             
             if (res && res.equityCurve) {
-                // 🛠️ CHART FIX: Convert ISO strings to Unix numbers
+                // 🛠️ CHART FIX: ISO string to Unix conversion
                 const formattedCurve = res.equityCurve.map(pt => ({
                     time: Math.floor(new Date(pt.time).getTime() / 1000),
                     value: pt.balance
@@ -128,20 +115,16 @@ export default function Backtests() {
         } catch (err) { setIsSimulating(false); }
     };
 
-    // --- 🟢 UI HELPERS ---
     const handleAtomicCodeChange = (code) => setData(p => ({ ...p, code, params: { ...p.params, ...DEFAULT_STRATEGY_PARAMS[code] } }));
-    const addStrategy = () => setData(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: { ...DEFAULT_STRATEGY_PARAMS.rsi_threshold } }] }));
-    const removeStrategy = (i) => setData(p => ({ ...p, strategies: p.strategies.filter((_, idx) => idx !== i) }));
     const onParamChange = (k, v) => setData(p => ({ ...p, params: { ...p.params, [k]: v } }));
 
     return (
-        <div className="min-h-screen bg-zinc-950 text-white font-sans">
+        <div className="min-h-screen bg-zinc-950 text-white font-sans selection:bg-amber-500/30">
+            {/* 🟡 HEADER */}
             <header className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-sm sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center">
-                        <BarChart3 className="w-5 h-5 text-white" />
-                    </div>
-                    <div><h1 className="text-sm font-black uppercase tracking-widest">Sovereign Quant Suite</h1></div>
+                    <div className="w-9 h-9 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center"><BarChart3 className="w-5 h-5 text-white" /></div>
+                    <div><h1 className="text-sm font-black uppercase tracking-widest text-white">Sovereign Quant Suite</h1></div>
                 </div>
                 <div className="px-3 py-1 bg-zinc-900 rounded-full border border-zinc-800 text-[10px] font-mono text-zinc-400">
                     <Activity className="w-3 h-3 inline mr-2 text-emerald-500" /> GATEWAY: ACTIVE
@@ -154,25 +137,22 @@ export default function Backtests() {
                         <div className="flex gap-1 p-1 bg-zinc-800/50 rounded-xl mb-8">
                             {['single', 'combo'].map(tab => (
                                 <button key={tab} type="button" onClick={() => setActiveTab(tab)}
-                                    className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === tab ? 'bg-zinc-700 text-white shadow-xl' : 'text-zinc-500'}`}>
-                                    {tab === 'single' ? 'Atomic' : 'Hybrid'}
-                                </button>
+                                    className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === tab ? 'bg-zinc-700 text-white shadow-xl' : 'text-zinc-500'}`}>{tab === 'single' ? 'Atomic' : 'Hybrid'}</button>
                             ))}
                         </div>
 
                         <form onSubmit={handleRun} className="space-y-8 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
                             <AIConfig mlMode={data.mlMode} setMlMode={(m)=>setData({...data, mlMode:m})} params={data.params} onParamChange={onParamChange} />
                             
+                            {/* INDICATORS SECTION */}
                             <div className="space-y-4 border-t border-zinc-800 pt-6">
                                 <div className="flex justify-between items-center">
                                     <h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Logic Ensemble</h4>
-                                    {activeTab === 'combo' && <button type="button" onClick={addStrategy} className="p-1.5 bg-emerald-500/10 text-emerald-500 rounded-lg border border-emerald-500/20"><Plus className="w-3.5 h-3.5" /></button>}
+                                    {activeTab === 'combo' && <button type="button" onClick={() => setData(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: { ...DEFAULT_STRATEGY_PARAMS.rsi_threshold } }] }))} className="p-1.5 bg-emerald-500/10 text-emerald-500 rounded-lg border border-emerald-500/20"><Plus className="w-3.5 h-3.5" /></button>}
                                 </div>
                                 {activeTab === 'single' ? (
                                     <div className="space-y-3">
-                                        <select value={data.code} onChange={(e) => handleAtomicCodeChange(e.target.value)} className={inputClass}>
-                                            {STRAT_POOL.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
-                                        </select>
+                                        <select value={data.code} onChange={(e) => handleAtomicCodeChange(e.target.value)} className={inputClass}>{STRAT_POOL.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}</select>
                                         <StrategyParamInputs strategy={data} onChange={(p) => setData({...data, params: {...data.params, ...p}})} />
                                     </div>
                                 ) : (
@@ -184,10 +164,8 @@ export default function Backtests() {
                                                         const newStrats = [...data.strategies];
                                                         newStrats[i] = { code: e.target.value, params: DEFAULT_STRATEGY_PARAMS[e.target.value] };
                                                         setData({...data, strategies: newStrats});
-                                                    }} className="bg-transparent text-[10px] font-black outline-none text-emerald-400">
-                                                        {STRAT_POOL.map(opt => <option key={opt.code} value={opt.code}>{opt.name}</option>)}
-                                                    </select>
-                                                    {data.strategies.length > 1 && <button type="button" onClick={()=>removeStrategy(i)}><Trash2 className="w-3.5 h-3.5 text-zinc-600 hover:text-rose-500" /></button>}
+                                                    }} className="bg-transparent text-[10px] font-black outline-none text-emerald-400">{STRAT_POOL.map(opt => <option key={opt.code} value={opt.code}>{opt.name}</option>)}</select>
+                                                    {data.strategies.length > 1 && <button type="button" onClick={() => setData(p => ({ ...p, strategies: p.strategies.filter((_, idx) => idx !== i) }))} className="text-zinc-600 hover:text-rose-500"><Trash2 className="w-3.5 h-3.5" /></button>}
                                                 </div>
                                                 <StrategyParamInputs strategy={s} onChange={(p) => {
                                                     const newStrats = [...data.strategies];
@@ -200,15 +178,19 @@ export default function Backtests() {
                                 )}
                             </div>
 
+                            {/* RESTORED: EXECUTION SHIELD */}
                             <ExecutionParams params={data.params} onParamChange={onParamChange} />
                             
-                            <div className="border-t border-zinc-800 pt-6">
-                                <label className={labelClass}>Environment</label>
-                                <select value={data.symbol} onChange={(e)=>setData({...data, symbol:e.target.value})} className={inputClass}>
-                                    <option value="SOL-USD">SOL-USD</option>
-                                    <option value="BTC-USD">BTC-USD</option>
-                                    <option value="ETH-USD">ETH-USD</option>
-                                </select>
+                            {/* RESTORED: GLOBAL MARKET CONFIG */}
+                            <div className="space-y-4 border-t border-zinc-800 pt-6">
+                                <div className="flex items-center gap-2"><Globe className="w-3 h-3 text-cyan-400"/><h4 className="text-[10px] text-cyan-400 font-black uppercase tracking-widest">Market Environment</h4></div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="col-span-2"><label className={labelClass}>Asset</label><select value={data.symbol} onChange={(e)=>setData({...data, symbol:e.target.value})} className={inputClass}><option value="SOL-USD">SOL-USD</option><option value="BTC-USD">BTC-USD</option><option value="ETH-USD">ETH-USD</option></select></div>
+                                    <div><label className={labelClass}>Cash Balance</label><input type="number" value={data.initialBalance} onChange={(e)=>setData({...data, initialBalance: parseFloat(e.target.value)})} className={inputClass}/></div>
+                                    <div><label className={labelClass}>Risk % / Trade</label><input type="number" step="0.1" value={data.risk_percentage} onChange={(e)=>setData({...data, risk_percentage: parseFloat(e.target.value)})} className={inputClass}/></div>
+                                    <div><label className={labelClass}>Start Date</label><input type="date" value={data.startDate} onChange={(e)=>setData({...data, startDate: e.target.value})} className={inputClass}/></div>
+                                    <div><label className={labelClass}>End Date</label><input type="date" value={data.endDate} onChange={(e)=>setData({...data, endDate: e.target.value})} className={inputClass}/></div>
+                                </div>
                             </div>
 
                             <button type="submit" disabled={isSimulating} className="w-full py-5 bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 text-zinc-950 font-black uppercase text-xs rounded-2xl shadow-xl transition-all">
@@ -218,6 +200,7 @@ export default function Backtests() {
                     </div>
                 </div>
 
+                {/* 📈 RESULTS */}
                 <div className="col-span-12 lg:col-span-8 xl:col-span-9 space-y-8">
                     {backtestResults ? (
                         <div className="animate-in fade-in slide-in-from-bottom-5 duration-700 space-y-8">
@@ -228,11 +211,7 @@ export default function Backtests() {
                         </div>
                     ) : (
                         <div className="h-[85vh] flex flex-col items-center justify-center border-2 border-dashed border-zinc-800 rounded-[48px] bg-zinc-900/5">
-                            {isSimulating ? (
-                                <ProgressIndicator progress={progress} statusMsg={statusMsg} symbol={data.symbol} />
-                            ) : (
-                                <div className="opacity-30 text-center"><BarChart3 className="w-20 h-20 mx-auto mb-4" /><p className="uppercase tracking-widest text-xs">Waiting for Parameters</p></div>
-                            )}
+                            {isSimulating ? <ProgressIndicator progress={progress} statusMsg={statusMsg} symbol={data.symbol} /> : <div className="opacity-30 text-center"><BarChart3 className="w-20 h-20 mx-auto mb-4" /><p className="uppercase tracking-widest text-xs tracking-[0.2em]">Sovereign Engine Idle</p></div>}
                         </div>
                     )}
                 </div>
@@ -241,15 +220,27 @@ export default function Backtests() {
     );
 }
 
-// --- SUB-COMPONENTS ---
+// --- REUSABLE SUB-COMPONENTS ---
+function StrategyParamInputs({ strategy, onChange }) {
+    const { code, params = {} } = strategy;
+    const update = (k, v) => onChange({ ...params, [k]: v });
+    const f = (l, k, s = "1") => (<div className="flex flex-col"><label className={labelClass}>{l}</label><input type="number" step={s} value={params[k] ?? ""} onChange={(e)=>update(k, parseFloat(e.target.value))} className="bg-zinc-950/50 border border-zinc-700/50 rounded-lg px-2 py-1.5 text-[10px] text-amber-400 outline-none" /></div>);
+    return (
+        <div className="grid grid-cols-2 gap-3 mt-3">
+            {code === "rsi_threshold" && <>{f("RSI Len", "rsi_length")}{f("Oversold", "oversold")}{f("Overbought", "overbought")}</>}
+            {code === "sma_crossover" && <>{f("Fast SMA", "fast_sma")}{f("Slow SMA", "slow_sma")}</>}
+            {code === "supertrend" && <>{f("ATR Len", "st_atr")}{f("Factor", "st_factor", "0.1")}</>}
+            {code === "macd_crossover" && <>{f("Fast", "fast")}{f("Slow", "slow")}{f("Signal", "signal")}</>}
+        </div>
+    );
+}
+
 function AIConfig({ mlMode, setMlMode, params, onParamChange }) {
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2"><Cpu className="w-3 h-3 text-violet-400"/><h4 className="text-[10px] text-violet-400 font-black uppercase tracking-widest">Neural Gates</h4></div>
-                <select value={mlMode} onChange={(e)=>setMlMode(e.target.value)} className="bg-zinc-800 text-[9px] rounded-md px-2 py-1 text-violet-300">
-                    <option value="off">BYPASS</option><option value="on">ACTIVE</option>
-                </select>
+                <select value={mlMode} onChange={(e)=>setMlMode(e.target.value)} className="bg-zinc-800 text-[9px] rounded-md px-2 py-1 text-violet-300"><option value="off">BYPASS</option><option value="on">ACTIVE</option></select>
             </div>
             {mlMode === "on" && (
                 <div className="grid grid-cols-2 gap-3">
@@ -258,22 +249,6 @@ function AIConfig({ mlMode, setMlMode, params, onParamChange }) {
                     <div><label className={labelClass}>Short Gate</label><input type="number" step="0.01" value={params.short_threshold} onChange={(e)=>onParamChange('short_threshold', parseFloat(e.target.value))} className={inputClass}/></div>
                 </div>
             )}
-        </div>
-    );
-}
-
-function StrategyParamInputs({ strategy, onChange }) {
-    const { code, params = {} } = strategy;
-    const update = (k, v) => onChange({ ...params, [k]: v });
-    const f = (l, k, s = "1") => (
-        <div className="flex flex-col"><label className={labelClass}>{l}</label><input type="number" step={s} value={params[k] ?? ""} onChange={(e)=>update(k, parseFloat(e.target.value))} className="bg-zinc-950/50 border border-zinc-700/50 rounded-lg px-2 py-1.5 text-[10px] text-amber-400 outline-none" /></div>
-    );
-    return (
-        <div className="grid grid-cols-2 gap-3 mt-3">
-            {code === "rsi_threshold" && <>{f("RSI Len", "rsi_length")}{f("Oversold", "oversold")}{f("Overbought", "overbought")}</>}
-            {code === "sma_crossover" && <>{f("Fast SMA", "fast_sma")}{f("Slow SMA", "slow_sma")}</>}
-            {code === "supertrend" && <>{f("ATR Len", "st_atr")}{f("Factor", "st_factor", "0.1")}</>}
-            {code === "macd_crossover" && <>{f("Fast", "fast")}{f("Slow", "slow")}{f("Signal", "signal")}</>}
         </div>
     );
 }
