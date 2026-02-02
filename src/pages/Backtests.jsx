@@ -153,21 +153,18 @@ export default function Backtests() {
     const onParamChange = (name, val) => setData(p => ({ ...p, params: { ...p.params, [name]: val } }));
 
 
-// --- POLLING ENGINE (URL-SAFE) ---
+// --- POLLING ENGINE (FIXED FOR 400 ERROR) ---
 useEffect(() => {
     let poller;
     if (isSimulating) {
         poller = setInterval(async () => {
             try {
                 const token = localStorage.getItem('token');
-                
-                // 🛑 SAFETY LOGIC: Ensure we don't have double /api
-                // If API_BASE already ends in /api, we just add /backtest/status
-                const cleanBase = API_BASE.endsWith('/api') 
-                    ? API_BASE 
-                    : `${API_BASE}/api`;
-                
-                const res = await axios.get(`${cleanBase}/backtest/status`, {
+                // Ensure you have a way to get the current userId (from localStorage or a user context)
+                const userId = localStorage.getItem('userId') || "68b33a9a00093db11e60295f"; 
+
+                const res = await axios.get(`${API_BASE}/api/backtest/status`, {
+                    params: { userId: userId }, // ⬅️ The missing piece causing the 400 error
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
@@ -181,10 +178,6 @@ useEffect(() => {
                 }
             } catch (e) {
                 console.error("Status poll failed:", e.message);
-                // If we get a 404, the path logic above will help you debug it in the console
-                if (e.response?.status === 404) {
-                    console.warn("Path requested was:", e.config.url);
-                }
             }
         }, 1500);
     }
