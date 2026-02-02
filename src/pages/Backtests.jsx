@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { ChartIndependent } from "../components/ChartIndependent.jsx";
@@ -7,7 +7,6 @@ import {
     Shield, Globe, Cpu, Zap, Activity, Percent, Calendar, Wallet
 } from "lucide-react";
 
-// ✅ SAFE BASE URL
 const VITE_API = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
 const API_BASE = VITE_API.endsWith('/api') ? VITE_API : `${VITE_API}/api`;
 
@@ -38,6 +37,9 @@ export default function Backtests() {
     const [backtestResults, setBacktestResults] = useState(null);
     const [progress, setProgress] = useState(0);
     const [statusMsg, setStatusMsg] = useState("");
+    
+    // 🎯 NEW: Track the specific Job ID for the poller
+    const [currentJobId, setCurrentJobId] = useState(null);
 
     const [data, setData] = useState({
         symbol: "SOL-USD",
@@ -62,72 +64,85 @@ export default function Backtests() {
         }
     });
 
-    // --- 📡 POLLING ENGINE (DYNAMIC AUTH) ---
+    // --- 📡 POLLING ENGINE (JOB-ID SYNCED) ---
     useEffect(() => {
         let poller;
-        if (isSimulating) {
+        if (isSimulating && currentJobId) {
             poller = setInterval(async () => {
                 try {
                     const token = localStorage.getItem('token');
-                    const userStr = localStorage.getItem('user');
-                    const userId = userStr ? JSON.parse(userStr)._id : null;
-
-                    if (!token || !userId) return;
-
+                    
+                    // ✅ FIXED: Sending jobId instead of userId to match new backend schema
                     const res = await axios.get(`${API_BASE}/backtest/status`, {
-                        params: { userId },
+                        params: { jobId: currentJobId },
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
 
                     if (res.data) {
                         setProgress(res.data.progress || 0);
-                        setStatusMsg(res.data.status || "Processing...");
-                        if (res.data.progress >= 100) { setIsSimulating(false); clearInterval(poller); }
+                        setStatusMsg(res.data.status || "Analyzing Market...");
+                        if (res.data.progress >= 100 || res.data.status === "COMPLETED") {
+                            setIsSimulating(false);
+                            clearInterval(poller);
+                        }
                     }
-                } catch (e) { console.error("Poll Error:", e.response?.status); }
+                } catch (e) { 
+                    console.error("Poller Error:", e.response?.data?.message || e.message);
+                }
             }, 1500);
         }
         return () => clearInterval(poller);
-    }, [isSimulating]);
+    }, [isSimulating, currentJobId]);
 
     // --- 🚀 EXECUTION HANDLER ---
     const handleRun = async (e) => {
         e.preventDefault();
         setBacktestResults(null);
-        setIsSimulating(true);
-
+        setProgress(1);
+        setStatusMsg("Initializing Engine...");
+        
         const userStr = localStorage.getItem('user');
         const dynamicUserId = userStr ? JSON.parse(userStr)._id : null;
         const payload = { ...data, userId: dynamicUserId };
 
         try {
+            // 1. Kick off simulation
             const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
             const res = await runner(payload);
             
+            // 🎯 NEW: Grab the Job ID if simulation starts but isn't finished yet
+            if (res?.jobId) {
+                setCurrentJobId(res.jobId);
+                setIsSimulating(true);
+            }
+
+            // 2. Process final data if it returns instantly
             if (res && res.equityCurve) {
-                // 🛠️ CHART FIX: ISO string to Unix conversion
                 const formattedCurve = res.equityCurve.map(pt => ({
                     time: Math.floor(new Date(pt.time).getTime() / 1000),
                     value: pt.balance
                 }));
                 setBacktestResults({ ...res, equityCurve: formattedCurve });
+                setIsSimulating(false);
             }
-        } catch (err) { setIsSimulating(false); }
+        } catch (err) {
+            console.error("Run failed:", err);
+            setIsSimulating(false);
+        }
     };
 
     const handleAtomicCodeChange = (code) => setData(p => ({ ...p, code, params: { ...p.params, ...DEFAULT_STRATEGY_PARAMS[code] } }));
     const onParamChange = (k, v) => setData(p => ({ ...p, params: { ...p.params, [k]: v } }));
 
     return (
-        <div className="min-h-screen bg-zinc-950 text-white font-sans selection:bg-amber-500/30">
-            {/* 🟡 HEADER */}
+        <div className="min-h-screen bg-zinc-950 text-white font-sans">
             <header className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-sm sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center"><BarChart3 className="w-5 h-5 text-white" /></div>
+                    <div className="w-9 h-9 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg"><BarChart3 className="w-5 h-5 text-white" /></div>
                     <div><h1 className="text-sm font-black uppercase tracking-widest text-white">Sovereign Quant Suite</h1></div>
                 </div>
                 <div className="px-3 py-1 bg-zinc-900 rounded-full border border-zinc-800 text-[10px] font-mono text-zinc-400">
-                    <Activity className="w-3 h-3 inline mr-2 text-emerald-500" /> GATEWAY: ACTIVE
+                    <Activity className="w-3 h-3 inline mr-2 text-emerald-500" /> GATEWAY: SYNCED
                 </div>
             </header>
 
@@ -144,7 +159,6 @@ export default function Backtests() {
                         <form onSubmit={handleRun} className="space-y-8 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
                             <AIConfig mlMode={data.mlMode} setMlMode={(m)=>setData({...data, mlMode:m})} params={data.params} onParamChange={onParamChange} />
                             
-                            {/* INDICATORS SECTION */}
                             <div className="space-y-4 border-t border-zinc-800 pt-6">
                                 <div className="flex justify-between items-center">
                                     <h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Logic Ensemble</h4>
@@ -178,18 +192,16 @@ export default function Backtests() {
                                 )}
                             </div>
 
-                            {/* RESTORED: EXECUTION SHIELD */}
                             <ExecutionParams params={data.params} onParamChange={onParamChange} />
                             
-                            {/* RESTORED: GLOBAL MARKET CONFIG */}
                             <div className="space-y-4 border-t border-zinc-800 pt-6">
                                 <div className="flex items-center gap-2"><Globe className="w-3 h-3 text-cyan-400"/><h4 className="text-[10px] text-cyan-400 font-black uppercase tracking-widest">Market Environment</h4></div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="col-span-2"><label className={labelClass}>Asset</label><select value={data.symbol} onChange={(e)=>setData({...data, symbol:e.target.value})} className={inputClass}><option value="SOL-USD">SOL-USD</option><option value="BTC-USD">BTC-USD</option><option value="ETH-USD">ETH-USD</option></select></div>
-                                    <div><label className={labelClass}>Cash Balance</label><input type="number" value={data.initialBalance} onChange={(e)=>setData({...data, initialBalance: parseFloat(e.target.value)})} className={inputClass}/></div>
-                                    <div><label className={labelClass}>Risk % / Trade</label><input type="number" step="0.1" value={data.risk_percentage} onChange={(e)=>setData({...data, risk_percentage: parseFloat(e.target.value)})} className={inputClass}/></div>
-                                    <div><label className={labelClass}>Start Date</label><input type="date" value={data.startDate} onChange={(e)=>setData({...data, startDate: e.target.value})} className={inputClass}/></div>
-                                    <div><label className={labelClass}>End Date</label><input type="date" value={data.endDate} onChange={(e)=>setData({...data, endDate: e.target.value})} className={inputClass}/></div>
+                                    <div><label className={labelClass}>Initial Cash</label><input type="number" value={data.initialBalance} onChange={(e)=>setData({...data, initialBalance: parseFloat(e.target.value)})} className={inputClass}/></div>
+                                    <div><label className={labelClass}>Risk %</label><input type="number" step="0.1" value={data.risk_percentage} onChange={(e)=>setData({...data, risk_percentage: parseFloat(e.target.value)})} className={inputClass}/></div>
+                                    <div><label className={labelClass}>Start</label><input type="date" value={data.startDate} onChange={(e)=>setData({...data, startDate: e.target.value})} className={inputClass}/></div>
+                                    <div><label className={labelClass}>End</label><input type="date" value={data.endDate} onChange={(e)=>setData({...data, endDate: e.target.value})} className={inputClass}/></div>
                                 </div>
                             </div>
 
@@ -200,7 +212,6 @@ export default function Backtests() {
                     </div>
                 </div>
 
-                {/* 📈 RESULTS */}
                 <div className="col-span-12 lg:col-span-8 xl:col-span-9 space-y-8">
                     {backtestResults ? (
                         <div className="animate-in fade-in slide-in-from-bottom-5 duration-700 space-y-8">
@@ -211,7 +222,7 @@ export default function Backtests() {
                         </div>
                     ) : (
                         <div className="h-[85vh] flex flex-col items-center justify-center border-2 border-dashed border-zinc-800 rounded-[48px] bg-zinc-900/5">
-                            {isSimulating ? <ProgressIndicator progress={progress} statusMsg={statusMsg} symbol={data.symbol} /> : <div className="opacity-30 text-center"><BarChart3 className="w-20 h-20 mx-auto mb-4" /><p className="uppercase tracking-widest text-xs tracking-[0.2em]">Sovereign Engine Idle</p></div>}
+                            {isSimulating ? <ProgressIndicator progress={progress} statusMsg={statusMsg} symbol={data.symbol} /> : <div className="opacity-30 text-center"><BarChart3 className="w-20 h-20 mx-auto mb-4" /><p className="uppercase tracking-widest text-xs">Waiting for Quantitative Parameters</p></div>}
                         </div>
                     )}
                 </div>
@@ -220,7 +231,7 @@ export default function Backtests() {
     );
 }
 
-// --- REUSABLE SUB-COMPONENTS ---
+// --- SUB-COMPONENTS ---
 function StrategyParamInputs({ strategy, onChange }) {
     const { code, params = {} } = strategy;
     const update = (k, v) => onChange({ ...params, [k]: v });
