@@ -5,7 +5,7 @@ import { ChartIndependent } from "../components/ChartIndependent.jsx";
 import { PerformanceChart } from "../components/PerformanceChart.jsx";
 import { 
     Play, BarChart3, Layers, Plus, Trash2, 
-    Shield, Globe, Cpu, Zap, Activity, Percent, Calendar, Filter, TrendingUp, Settings2, Footprints
+    Shield, Globe, Cpu, Zap, Activity, Percent, Calendar, Filter, TrendingUp, Settings2, Footprints, Wallet
 } from "lucide-react";
 
 const VITE_API = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
@@ -43,7 +43,7 @@ const DEFAULT_STRATEGY_PARAMS = {
 export default function Backtests() {
     const { runNewBacktest, runComboBacktest } = useBacktest();
     const [activeTab, setActiveTab] = useState('single');
-    const [view, setView] = useState('execution');
+    const [view, setView] = useState('execution'); 
     const [isSimulating, setIsSimulating] = useState(false);
     const [backtestResults, setBacktestResults] = useState(null);
     const [progress, setProgress] = useState(0);
@@ -61,14 +61,14 @@ export default function Backtests() {
         combinationRule: "OR",
         code: "rsi_threshold",
         strategies: [{ code: "rsi_threshold", params: { ...DEFAULT_STRATEGY_PARAMS.rsi_threshold } }],
-        advanced_filters: { trend_filter: "ema_200", vol_min: 0, atr_filter: 1.5, trade_window: "all" },
+        advanced_filters: { trend_filter: "ema_200", vol_min: 0, atr_filter: 1.5 },
         params: {
             model_type: "stacking",
             long_threshold: 0.81,
             short_threshold: 0.95,
             take_profit: 0.052,
             stop_loss: 0.019,
-            trailing_stop: 0.015, // 🎯 DEFAULT 1.5% TRAILING
+            trailing_stop: 0.015,
             commission: 0.004,
             slippage: 0.0008,
             ...DEFAULT_STRATEGY_PARAMS.rsi_threshold 
@@ -102,9 +102,9 @@ export default function Backtests() {
                         setIsSimulating(false);
                     } else if (res.data) {
                         setProgress(res.data.progress || 0);
-                        setStatusMsg(res.data.status || "Analyzing...");
+                        setStatusMsg(res.data.status || "Analyzing Market...");
                     }
-                } catch (e) { console.error(e); }
+                } catch (e) { console.error("Poller Error:", e); }
             }, 1500);
         }
         return () => clearInterval(poller);
@@ -114,7 +114,7 @@ export default function Backtests() {
         e.preventDefault();
         setBacktestResults(null);
         setProgress(1);
-        setStatusMsg("Initializing...");
+        setStatusMsg("Initializing Engine...");
         
         const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
         let payload = { ...data, userId: dynamicUserId };
@@ -138,25 +138,32 @@ export default function Backtests() {
         setData(p => ({ ...p, code, params: { ...p.params, ...DEFAULT_STRATEGY_PARAMS[code] } }));
     };
 
+    const onParamChange = (k, v) => setData(p => ({ ...p, params: { ...p.params, [k]: v } }));
+    const updateMarket = (k, v) => setData(p => ({ ...p, [k]: v }));
+
     return (
         <div className="min-h-screen bg-zinc-950 text-white font-sans p-6">
             <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8">
+                
+                {/* SIDEBAR CONFIG */}
                 <div className="col-span-12 lg:col-span-3">
                     <div className="bg-zinc-900/40 border border-zinc-800 rounded-3xl p-6 sticky top-6 max-h-[90vh] overflow-y-auto custom-scrollbar">
+                        
                         <div className="flex gap-1 p-1 bg-zinc-800/50 rounded-xl mb-8">
                             {['single', 'combo'].map(tab => (
-                                <button key={tab} onClick={() => setActiveTab(tab)}
+                                <button key={tab} type="button" onClick={() => setActiveTab(tab)}
                                     className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === tab ? 'bg-zinc-700 text-white shadow-xl' : 'text-zinc-500'}`}>{tab === 'single' ? 'Atomic' : 'Hybrid'}</button>
                             ))}
                         </div>
 
                         <form onSubmit={handleRun} className="space-y-8">
-                            <AIConfig mlMode={data.mlMode} setMlMode={(m)=>setData({...data, mlMode:m})} params={data.params} onParamChange={(k,v)=>setData(p=>({...p, params:{...p.params,[k]:v}}))} />
                             
+                            <AIConfig mlMode={data.mlMode} setMlMode={(m)=>updateMarket('mlMode', m)} params={data.params} onParamChange={onParamChange} />
+
                             <div className="space-y-4 border-t border-zinc-800 pt-6">
                                 <div className="flex justify-between items-center">
                                     <h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Logic Ensemble</h4>
-                                    {activeTab === 'combo' && <button type="button" onClick={() => setData(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="p-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-md"><Plus size={14} /></button>}
+                                    {activeTab === 'combo' && <button type="button" onClick={() => setData(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="p-1 bg-emerald-500 text-black rounded"><Plus size={14} /></button>}
                                 </div>
                                 {activeTab === 'single' ? (
                                     <div className="space-y-3">
@@ -169,7 +176,7 @@ export default function Backtests() {
                                             <div key={i} className="p-3 bg-zinc-800/30 rounded-xl border border-zinc-700">
                                                 <div className="flex justify-between mb-2">
                                                     <select value={s.code} onChange={(e) => { const n = [...data.strategies]; n[i] = { code: e.target.value, params: DEFAULT_STRATEGY_PARAMS[e.target.value] }; setData({...data, strategies: n}); }} className="bg-transparent text-[10px] font-bold text-amber-500 outline-none">{STRAT_POOL.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}</select>
-                                                    <button type="button" onClick={() => setData(p => ({ ...p, strategies: p.strategies.filter((_, idx) => idx !== i) }))} className="text-zinc-600 hover:text-rose-500"><Trash2 size={12}/></button>
+                                                    <button type="button" onClick={() => setData(p => ({ ...p, strategies: p.strategies.filter((_, idx) => idx !== i) }))} className="text-zinc-500 hover:text-rose-500"><Trash2 size={12}/></button>
                                                 </div>
                                                 <StrategyParamInputs strategy={s} onChange={(p) => { const n = [...data.strategies]; n[i].params = p; setData({...data, strategies: n}); }} />
                                             </div>
@@ -180,37 +187,71 @@ export default function Backtests() {
 
                             <AdvancedFilters filters={data.advanced_filters} onChange={(k,v)=>setData(p=>({...p, advanced_filters:{...p.advanced_filters,[k]:v}}))} />
                             
-                            {/* 🛡️ EXECUTION SHIELD WITH TRAILING STOP */}
                             <div className="space-y-4 border-t border-zinc-800 pt-6">
                                 <div className="flex items-center gap-2"><Shield size={14} className="text-amber-500"/><h4 className="text-[10px] text-amber-500 font-black uppercase tracking-widest">Execution Shield</h4></div>
                                 <div className="grid grid-cols-2 gap-3">
-                                    <div><label className={labelClass}>TP %</label><input type="number" step="0.001" value={data.params.take_profit} onChange={(e)=>setData(p=>({...p,params:{...p.params,take_profit:parseFloat(e.target.value)}}))} className={inputClass}/></div>
-                                    <div><label className={labelClass}>SL %</label><input type="number" step="0.001" value={data.params.stop_loss} onChange={(e)=>setData(p=>({...p,params:{...p.params,stop_loss:parseFloat(e.target.value)}}))} className={inputClass}/></div>
+                                    <div><label className={labelClass}>TP %</label><input type="number" step="0.001" value={data.params.take_profit} onChange={(e)=>onParamChange('take_profit', parseFloat(e.target.value))} className={inputClass}/></div>
+                                    <div><label className={labelClass}>SL %</label><input type="number" step="0.001" value={data.params.stop_loss} onChange={(e)=>onParamChange('stop_loss', parseFloat(e.target.value))} className={inputClass}/></div>
                                     <div className="col-span-2">
                                         <label className={labelClass}>Trailing Stop %</label>
                                         <div className="relative">
-                                            <input type="number" step="0.001" value={data.params.trailing_stop} onChange={(e)=>setData(p=>({...p,params:{...p.params,trailing_stop:parseFloat(e.target.value)}}))} className={`${inputClass} pl-8`}/>
+                                            <input type="number" step="0.001" value={data.params.trailing_stop} onChange={(e)=>onParamChange('trailing_stop', parseFloat(e.target.value))} className={`${inputClass} pl-8`}/>
                                             <Footprints size={12} className="absolute left-2.5 top-2.5 text-amber-500/50" />
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <button type="submit" disabled={isSimulating} className="w-full py-4 bg-amber-500 text-zinc-950 font-black uppercase text-xs rounded-2xl hover:bg-amber-400 shadow-xl shadow-amber-500/10 transition-all">
-                                {isSimulating ? "Crunching..." : "Initiate Simulation"}
+                            {/* RESTORED: MARKET ENVIRONMENT & CAPITAL */}
+                            <div className="space-y-4 border-t border-zinc-800 pt-6">
+                                <div className="flex items-center gap-2"><Globe size={14} className="text-cyan-400"/><h4 className="text-[10px] text-cyan-400 font-black uppercase tracking-widest">Market Environment</h4></div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="col-span-2">
+                                        <label className={labelClass}>Asset Pair</label>
+                                        <select value={data.symbol} onChange={(e)=>updateMarket('symbol', e.target.value)} className={inputClass}>
+                                            <option value="SOL-USD">SOL-USD</option>
+                                            <option value="BTC-USD">BTC-USD</option>
+                                            <option value="ETH-USD">ETH-USD</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className={labelClass}>Timeframe</label>
+                                        <select value={data.timeframe} onChange={(e)=>updateMarket('timeframe', e.target.value)} className={inputClass}>
+                                            <option value="15m">15m</option>
+                                            <option value="1h">1h</option>
+                                            <option value="4h">4h</option>
+                                            <option value="1d">1d</option>
+                                        </select>
+                                    </div>
+                                    <div><label className={labelClass}>Risk %</label><input type="number" step="0.1" value={data.risk_percentage} onChange={(e)=>updateMarket('risk_percentage', parseFloat(e.target.value))} className={inputClass}/></div>
+                                    <div><label className={labelClass}>Start Date</label><input type="date" value={data.startDate} onChange={(e)=>updateMarket('startDate', e.target.value)} className={inputClass}/></div>
+                                    <div><label className={labelClass}>End Date</label><input type="date" value={data.endDate} onChange={(e)=>updateMarket('endDate', e.target.value)} className={inputClass}/></div>
+                                    <div className="col-span-2">
+                                        <label className={labelClass}>Initial Cash</label>
+                                        <div className="relative">
+                                            <input type="number" value={data.initialBalance} onChange={(e)=>updateMarket('initialBalance', parseFloat(e.target.value))} className={`${inputClass} pl-8`}/>
+                                            <Wallet size={12} className="absolute left-2.5 top-2.5 text-cyan-500/50" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button type="submit" disabled={isSimulating} className="w-full py-4 bg-amber-500 text-zinc-950 font-black uppercase text-xs rounded-2xl hover:bg-amber-400 shadow-xl transition-all">
+                                {isSimulating ? "Processing Simulation..." : "Initiate Engine"}
                             </button>
                         </form>
                     </div>
                 </div>
 
+                {/* RESULTS PANEL */}
                 <div className="col-span-12 lg:col-span-9 space-y-6">
                     {backtestResults ? (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-5 duration-700">
                             <MetricsPanel metrics={backtestResults.metrics} />
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] overflow-hidden shadow-2xl">
                                 <div className="flex bg-zinc-800/50 p-2 border-b border-zinc-800">
-                                    <button onClick={() => setView('execution')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'execution' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Execution</button>
-                                    <button onClick={() => setView('performance')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'performance' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Performance</button>
+                                    <button onClick={() => setView('execution')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'execution' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Market Execution</button>
+                                    <button onClick={() => setView('performance')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'performance' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Alpha Performance</button>
                                 </div>
                                 <div className="h-[600px] p-8">
                                     {view === 'execution' ? <ChartIndependent results={backtestResults} symbol={data.symbol} /> : <PerformanceChart results={backtestResults} />}
@@ -228,7 +269,7 @@ export default function Backtests() {
     );
 }
 
-// --- HELPERS ---
+// --- SUB-COMPONENTS ---
 
 function StrategyParamInputs({ strategy, onChange }) {
     const { code, params = {} } = strategy;
@@ -241,7 +282,7 @@ function StrategyParamInputs({ strategy, onChange }) {
             {code === "sma_crossover" && <>{f("Fast", "fast_sma")}{f("Slow", "slow_sma")}</>}
             {code === "supertrend" && <>{f("ATR", "st_atr")}{f("Factor", "st_factor", "0.1")}</>}
             {code === "macd_crossover" && <>{f("Fast", "fast")}{f("Slow", "slow")}{f("Signal", "signal")}</>}
-            {code === "bb_fade" && <>{f("Period", "bb_period")}{f("Std", "bb_std", "0.1")}</>}
+            {code === "pa_breakout" && <>{f("Lookback", "lookback")}{f("Buffer", "buffer", "0.001")}</>}
         </div>
     );
 }
