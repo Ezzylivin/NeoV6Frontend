@@ -157,7 +157,7 @@ export default function Backtests() {
         if (isSimulating) {
             poller = setInterval(async () => {
                 try {
-                    const res = await axios.get(`${API_BASE}/api/backtest/status`);
+                    const res = await axios.get(`${API_BASE}/backtest/status`);
                     if (res.data) {
                         setProgress(res.data.progress || 0);
                         setStatusMsg(res.data.status || "Processing...");
