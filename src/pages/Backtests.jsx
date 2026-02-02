@@ -153,19 +153,22 @@ export default function Backtests() {
     const onParamChange = (name, val) => setData(p => ({ ...p, params: { ...p.params, [name]: val } }));
 
 
+// --- POLLING ENGINE (URL-SAFE) ---
 useEffect(() => {
     let poller;
     if (isSimulating) {
         poller = setInterval(async () => {
             try {
-                // 1. Retrieve your auth token (Update 'token' key if yours is named differently)
-                const token = localStorage.getItem('token'); 
+                const token = localStorage.getItem('token');
                 
-                const res = await axios.get(`${API_BASE}/api/backtest/status`, {
-                    headers: {
-                        // 2. Attach the token so the backend allows the request
-                        'Authorization': `Bearer ${token}`
-                    }
+                // 🛑 SAFETY LOGIC: Ensure we don't have double /api
+                // If API_BASE already ends in /api, we just add /backtest/status
+                const cleanBase = API_BASE.endsWith('/api') 
+                    ? API_BASE 
+                    : `${API_BASE}/api`;
+                
+                const res = await axios.get(`${cleanBase}/backtest/status`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
 
                 if (res.data) {
@@ -176,19 +179,18 @@ useEffect(() => {
                         clearInterval(poller);
                     }
                 }
-            } catch (e) { 
-                console.error("Status poll failed - Check Auth/Token:", e); 
-                // Optional: Stop polling if we keep getting unauthorized
-                if (e.response?.status === 401) {
-                    setStatusMsg("Auth Failure: Re-login required");
-                    setIsSimulating(false);
+            } catch (e) {
+                console.error("Status poll failed:", e.message);
+                // If we get a 404, the path logic above will help you debug it in the console
+                if (e.response?.status === 404) {
+                    console.warn("Path requested was:", e.config.url);
                 }
             }
         }, 1500);
     }
     return () => clearInterval(poller);
 }, [isSimulating]);
-
+    
     const handleRun = async (e) => {
         e.preventDefault();
         setBacktestResults(null);
