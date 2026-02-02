@@ -152,25 +152,42 @@ export default function Backtests() {
 
     const onParamChange = (name, val) => setData(p => ({ ...p, params: { ...p.params, [name]: val } }));
 
-    useEffect(() => {
-        let poller;
-        if (isSimulating) {
-            poller = setInterval(async () => {
-                try {
-                    const res = await axios.get(`${API_BASE}/backtest/status`);
-                    if (res.data) {
-                        setProgress(res.data.progress || 0);
-                        setStatusMsg(res.data.status || "Processing...");
-                        if (res.data.progress >= 100 || res.data.status === "COMPLETED") {
-                            setIsSimulating(false);
-                            clearInterval(poller);
-                        }
+
+useEffect(() => {
+    let poller;
+    if (isSimulating) {
+        poller = setInterval(async () => {
+            try {
+                // 1. Retrieve your auth token (Update 'token' key if yours is named differently)
+                const token = localStorage.getItem('token'); 
+                
+                const res = await axios.get(`${API_BASE}/api/backtest/status`, {
+                    headers: {
+                        // 2. Attach the token so the backend allows the request
+                        'Authorization': `Bearer ${token}`
                     }
-                } catch (e) { console.error("Status poll failed"); }
-            }, 1500);
-        }
-        return () => clearInterval(poller);
-    }, [isSimulating]);
+                });
+
+                if (res.data) {
+                    setProgress(res.data.progress || 0);
+                    setStatusMsg(res.data.status || "Processing...");
+                    if (res.data.progress >= 100 || res.data.status === "COMPLETED") {
+                        setIsSimulating(false);
+                        clearInterval(poller);
+                    }
+                }
+            } catch (e) { 
+                console.error("Status poll failed - Check Auth/Token:", e); 
+                // Optional: Stop polling if we keep getting unauthorized
+                if (e.response?.status === 401) {
+                    setStatusMsg("Auth Failure: Re-login required");
+                    setIsSimulating(false);
+                }
+            }
+        }, 1500);
+    }
+    return () => clearInterval(poller);
+}, [isSimulating]);
 
     const handleRun = async (e) => {
         e.preventDefault();
