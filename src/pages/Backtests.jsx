@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+// ✅ FIXED: Relative path to bypass Vercel/Vite alias errors
 import { useBacktest } from "../hooks/useBacktest.js";
 import { ChartIndependent } from "../components/ChartIndependent.jsx";
 import { 
     Play, BarChart3, Layers, Plus, Trash2, 
-    Shield, Globe, Cpu, Zap, Activity 
+    Shield, Globe, Cpu, Zap, Activity, Percent
 } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://74.208.28.77:8000";
 
+// --- STYLING ---
 const inputClass = "w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-amber-500 transition-all text-xs outline-none";
 const labelClass = "text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1";
 
@@ -39,7 +41,7 @@ const STRAT_POOL = [
     { name: "ADX Trend Strength", code: "adx_filter" }
 ];
 
-// --- 🛠️ CHART DIAGNOSTIC LAYER ---
+// --- 🛠️ CHART DIAGNOSTIC COMPONENT ---
 const ChartInspector = ({ results }) => {
     useEffect(() => {
         if (results) {
@@ -49,8 +51,7 @@ const ChartInspector = ({ results }) => {
                 console.error("❌ MISSING DATA: Neither 'equityCurve' nor 'equity_curve' found.");
             } else {
                 console.log(`✅ FOUND CURVE: ${curve.length} data points.`);
-                const firstPoint = curve[0];
-                console.log("First Point Sample:", firstPoint);
+                console.log("First Point Sample:", curve[0]);
             }
             console.groupEnd();
         }
@@ -111,8 +112,8 @@ export default function Backtests() {
             tslAtrMult: 3.0,
             atrPeriod: 14,
             minAdxLevel: 25,
-            commission: 0.004,
-            slippage: 0.0008,
+            commission: 0.004, // 0.4% Fee
+            slippage: 0.0008,   // 0.08% Slippage
             squeeze_threshold: 0.003,
             vol_multiplier: 1.05,
             session_start: 0,
@@ -190,12 +191,12 @@ export default function Backtests() {
         <div className="min-h-screen bg-zinc-950 text-white font-sans selection:bg-amber-500/30">
             <header className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-sm sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/10">
+                    <div className="w-9 h-9 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
                         <BarChart3 className="w-5 h-5 text-white" />
                     </div>
                     <div>
                         <h1 className="text-sm font-black uppercase tracking-widest">Sovereign Quant Suite</h1>
-                        <p className="text-[10px] text-zinc-500 font-mono">CORE_ENGINE: NEO-V7-PRO</p>
+                        <p className="text-[10px] text-zinc-500 font-mono text-xs opacity-50">ENGINE: NEO-V7</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2 px-3 py-1 bg-zinc-900 rounded-full border border-zinc-800 text-[10px] font-mono text-zinc-400">
@@ -205,7 +206,6 @@ export default function Backtests() {
             </header>
 
             <div className="max-w-[1800px] mx-auto p-6 grid grid-cols-12 gap-8">
-                {/* 🟠 SIDEBAR CONFIG */}
                 <div className="col-span-12 lg:col-span-4 xl:col-span-3">
                     <div className="bg-zinc-900/40 border border-zinc-800 rounded-3xl p-6 sticky top-24">
                         <div className="flex gap-1 p-1 bg-zinc-800/50 rounded-xl mb-8">
@@ -223,18 +223,12 @@ export default function Backtests() {
                             <div className="space-y-4 border-t border-zinc-800 pt-6">
                                 <div className="flex justify-between items-center">
                                     <h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Logic Ensemble</h4>
-                                    {/* 🟢 UPGRADE: ADD STRATEGY BUTTON */}
                                     {activeTab === 'combo' && (
-                                        <button 
-                                            type="button" 
-                                            onClick={addStrategy}
-                                            className="p-1.5 bg-emerald-500/10 hover:bg-emerald-500 hover:text-zinc-950 text-emerald-500 rounded-lg transition-all border border-emerald-500/20"
-                                        >
+                                        <button type="button" onClick={addStrategy} className="p-1.5 bg-emerald-500/10 hover:bg-emerald-500 hover:text-zinc-950 text-emerald-500 rounded-lg transition-all border border-emerald-500/20">
                                             <Plus className="w-3.5 h-3.5" />
                                         </button>
                                     )}
                                 </div>
-
                                 {activeTab === 'single' ? (
                                     <div className="space-y-3">
                                         <select value={data.code} onChange={(e) => handleAtomicCodeChange(e.target.value)} className={inputClass}>
@@ -250,40 +244,31 @@ export default function Backtests() {
                                                     <select value={s.code} onChange={(e)=>updateStrategy(i, {...s, code:e.target.value})} className="bg-transparent text-[10px] font-black outline-none text-emerald-400">
                                                         {STRAT_POOL.map(opt => <option key={opt.code} value={opt.code}>{opt.name}</option>)}
                                                     </select>
-                                                    {/* 🔴 UPGRADE: REMOVE STRATEGY BUTTON */}
                                                     {data.strategies.length > 1 && (
-                                                        <button type="button" onClick={()=>removeStrategy(i)} className="text-zinc-600 hover:text-rose-500 transition-colors">
-                                                            <Trash2 className="w-3.5 h-3.5" />
-                                                        </button>
+                                                        <button type="button" onClick={()=>removeStrategy(i)} className="text-zinc-600 hover:text-rose-500"><Trash2 className="w-3.5 h-3.5"/></button>
                                                     )}
                                                 </div>
                                                 <StrategyParamInputs strategy={s} onChange={(p) => updateStrategy(i, {...s, params: p})} />
                                             </div>
                                         ))}
-                                        {/* ⚖️ COMBINATION RULE */}
-                                        <div>
-                                            <label className={labelClass}>Signal Logic Gate</label>
-                                            <select value={data.combinationRule} onChange={(e)=>setData({...data, combinationRule:e.target.value})} className={inputClass}>
-                                                <option value="OR">OR (Aggressive: Any Signal triggers)</option>
-                                                <option value="AND">AND (Conservative: All Signals must align)</option>
-                                            </select>
-                                        </div>
+                                        <select value={data.combinationRule} onChange={(e)=>setData({...data, combinationRule:e.target.value})} className={inputClass}>
+                                            <option value="OR">OR Logic</option><option value="AND">AND Logic</option>
+                                        </select>
                                     </div>
                                 )}
                             </div>
 
+                            {/* 💰 UPDATED: EXECUTION SHIELD WITH FEES */}
                             <ExecutionParams params={data.params} onParamChange={onParamChange} />
                             <MarketConfig data={data} setData={setData} />
 
-                            <button type="submit" disabled={isSimulating} className="w-full flex items-center justify-center gap-3 py-5 bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 font-black uppercase text-xs rounded-2xl transition-all shadow-xl shadow-amber-500/10">
-                                {isSimulating ? <div className="w-4 h-4 border-2 border-zinc-950 border-t-transparent rounded-full animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
+                            <button type="submit" disabled={isSimulating} className="w-full flex items-center justify-center gap-3 py-5 bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 text-zinc-950 font-black uppercase text-xs rounded-2xl transition-all shadow-xl">
                                 {isSimulating ? 'Crunching...' : 'Initiate Simulation'}
                             </button>
                         </form>
                     </div>
                 </div>
 
-                {/* 📈 RESULTS VIEWPORT */}
                 <div className="col-span-12 lg:col-span-8 xl:col-span-9 space-y-8">
                     {backtestResults ? (
                         <div className="animate-in fade-in slide-in-from-bottom-5 duration-700 space-y-8">
@@ -362,6 +347,15 @@ function ExecutionParams({ params, onParamChange }) {
                 <div><label className={labelClass}>ATR Period</label><input type="number" value={params.atrPeriod} onChange={(e)=>onParamChange('atrPeriod', parseInt(e.target.value))} className={inputClass}/></div>
                 <div><label className={labelClass}>TP %</label><input type="number" step="0.001" value={params.take_profit} onChange={(e)=>onParamChange('take_profit', parseFloat(e.target.value))} className={inputClass}/></div>
                 <div><label className={labelClass}>SL %</label><input type="number" step="0.001" value={params.stop_loss} onChange={(e)=>onParamChange('stop_loss', parseFloat(e.target.value))} className={inputClass}/></div>
+                
+                {/* 💰 NEW: FEE OPTIONS */}
+                <div className="col-span-2 border-t border-zinc-800/50 mt-2 pt-4">
+                     <div className="flex items-center gap-2 mb-3"><Percent className="w-3 h-3 text-rose-400"/><h4 className="text-[9px] text-rose-400 font-black uppercase tracking-widest">Exchange Constraints</h4></div>
+                     <div className="grid grid-cols-2 gap-3">
+                        <div><label className={labelClass}>Commission %</label><input type="number" step="0.001" value={params.commission} onChange={(e)=>onParamChange('commission', parseFloat(e.target.value))} className={inputClass}/></div>
+                        <div><label className={labelClass}>Slippage %</label><input type="number" step="0.0001" value={params.slippage} onChange={(e)=>onParamChange('slippage', parseFloat(e.target.value))} className={inputClass}/></div>
+                     </div>
+                </div>
             </div>
         </div>
     );
