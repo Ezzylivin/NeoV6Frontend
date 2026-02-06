@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { ChartIndependent } from "../components/ChartIndependent.jsx";
 import { PerformanceChart } from "../components/PerformanceChart.jsx";
 import { 
     Play, BarChart3, Layers, Plus, Trash2, 
-    Shield, Globe, Cpu, Zap, Activity, Percent, Calendar, Filter, TrendingUp, Settings2, Footprints, Wallet
+    Shield, Globe, Cpu, Filter
 } from "lucide-react";
 
 const VITE_API = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
@@ -14,7 +14,7 @@ const API_BASE = VITE_API.endsWith('/api') ? VITE_API : `${VITE_API}/api`;
 const inputClass = "w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-amber-500 transition-all text-xs outline-none";
 const labelClass = "text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1";
 
-// --- 🎯 CONFIGURATION: 10 STRATEGIES ---
+// --- CONFIGURATION ---
 const STRAT_POOL = [
     { name: "RSI Threshold", code: "rsi_threshold" },
     { name: "SMA Crossover", code: "sma_crossover" },
@@ -52,26 +52,22 @@ export default function Backtests() {
     const [currentJobId, setCurrentJobId] = useState(null);
 
     const [data, setData] = useState({
-        symbol: "SOL-USD",
+        symbol: "BTC-USD",
         timeframe: "1h",
-        startDate: "2025-06-01",
-        endDate: "2026-01-31",
-        initialBalance: 1000,
+        startDate: "2025-02-19",
+        endDate: "2026-01-18",
+        initialBalance: 250,
         risk_percentage: 1.0,
         mlMode: "on",
-        combinationRule: "OR",
+        combinationRule: "AND",
         code: "rsi_threshold",
-        strategies: [{ code: "rsi_threshold", params: { ...DEFAULT_STRATEGY_PARAMS.rsi_threshold } }],
-        advanced_filters: { trend_filter: "ema_200", vol_min: 0, atr_filter: 1.5, trade_window: "all" },
+        strategies: [{ code: "stoch", params: { ...DEFAULT_STRATEGY_PARAMS.stoch } }, { code: "bb_fade", params: { ...DEFAULT_STRATEGY_PARAMS.bb_fade, bb_std: 2.568 } }],
+        advanced_filters: { trend_filter: "none", vol_min: 0, atr_filter: 0, trade_window: "all" },
         params: {
             model_type: "stacking",
-            long_threshold: 0.81,
-            short_threshold: 0.95,
-            take_profit: 0.052,
-            stop_loss: 0.019,
-            trailing_stop: 0.015,
-            commission: 0.004,
-            slippage: 0.0008,
+            take_profit: 0.13,
+            stop_loss: 0.086,
+            trailing_stop: 0.086,
             ...DEFAULT_STRATEGY_PARAMS.rsi_threshold 
         }
     });
@@ -87,19 +83,14 @@ export default function Backtests() {
                         params: { jobId: currentJobId },
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
-
                     if (res.data) {
                         setProgress(res.data.progress || 0);
-                        setStatusMsg(res.data.status || "Analyzing...");
-
                         if (res.data.status === "COMPLETED") {
-                            console.group("✅ BACKTEST COMPLETED");
                             clearInterval(poller);
                             const finalRes = await axios.get(`${API_BASE}/backtest/results/${currentJobId}`, {
                                 headers: { 'Authorization': `Bearer ${token}` }
                             });
                             processResults(finalRes.data);
-                            console.groupEnd();
                         }
                     }
                 } catch (e) { console.error("Poller Error:", e); }
@@ -108,20 +99,24 @@ export default function Backtests() {
         return () => clearInterval(poller);
     }, [isSimulating, currentJobId]);
 
-    // Helper to format and set results
     const processResults = (responseData) => {
-        if (!responseData || !responseData.equityCurve) {
-            console.error("Invalid response data:", responseData);
-            setIsSimulating(false);
-            return;
-        }
+        if (!responseData) return;
 
-        const formattedCurve = responseData.equityCurve.map(pt => ({
+        // 🟢 DEBUG: Check if candleData exists immediately
+        console.log("📦 Processing Results. CandleData Rows:", responseData.candleData?.length || 0);
+
+        const formattedCurve = (responseData.equityCurve || []).map(pt => ({
             time: Math.floor(new Date(pt.time).getTime() / 1000),
             value: pt.balance
         })).sort((a,b) => a.time - b.time);
 
-        setBacktestResults({ ...responseData, equityCurve: formattedCurve });
+        setBacktestResults({
+            ...responseData,
+            equityCurve: formattedCurve,
+            // 🛡️ EXPLICITLY PASS CANDLE DATA to ensure it survives the spread
+            candleData: responseData.candleData || []
+        });
+        
         setIsSimulating(false);
         setProgress(100);
         setStatusMsg("Complete");
@@ -129,15 +124,14 @@ export default function Backtests() {
 
     const handleRun = async (e) => {
         e.preventDefault();
-        console.group("🚀 BACKTEST START");
         setBacktestResults(null);
         setProgress(10);
         setStatusMsg("Initializing...");
+        setIsSimulating(true);
         
         const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
         let payload = { ...data, userId: dynamicUserId };
 
-        // Handle Tab Logic
         if (activeTab === 'single') {
             const { strategies, combinationRule, ...rest } = payload;
             payload = rest;
@@ -146,19 +140,20 @@ export default function Backtests() {
             payload = { ...rest, code: 'hybrid_ensemble' };
         }
 
-        console.log("📤 Sanitized Payload:", payload);
-        console.groupEnd();
-
         try {
             const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
             const res = await runner(payload);
             
-            // Handle Direct Results (Python) or Job ID (Node/Legacy)
-            if (res && res.metrics) {
+            // 🟢 DEBUG: Inspect raw response from hook
+            console.log("📥 Raw Response from Hook:", res);
+
+            if (res && (res.metrics || res.candleData)) {
                 processResults(res);
             } else if (res?.jobId) {
                 setCurrentJobId(res.jobId);
-                setIsSimulating(true);
+            } else {
+                console.error("❌ No valid results or Job ID found");
+                setIsSimulating(false);
             }
         } catch (err) { 
             console.error("Run failed:", err);
@@ -310,7 +305,7 @@ export default function Backtests() {
 function StrategyParamInputs({ strategy, onChange }) {
     const { code, params = {} } = strategy;
     
-    // ✅ NaN FIX: Handles empty input strings
+    // Clean NaN fix
     const handleNumChange = (k, valStr) => {
         if (valStr === "" || valStr === "-") {
             onChange({ ...params, [k]: "" });
@@ -326,7 +321,6 @@ function StrategyParamInputs({ strategy, onChange }) {
             <input 
                 type="number" 
                 step={s} 
-                // ✅ NaN FIX: Prevents React warning by checking undefined/NaN
                 value={params[k] === undefined || isNaN(params[k]) ? "" : params[k]} 
                 onChange={(e) => handleNumChange(k, e.target.value)} 
                 className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1 text-[10px] text-amber-500 outline-none" 
