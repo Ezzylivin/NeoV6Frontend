@@ -59,7 +59,7 @@ export default function Backtests() {
         initialBalance: 1000,
         risk_percentage: 1.0,
         mlMode: "on",
-        combinationRule: "OR", // Default rule
+        combinationRule: "OR",
         code: "rsi_threshold",
         strategies: [{ code: "rsi_threshold", params: { ...DEFAULT_STRATEGY_PARAMS.rsi_threshold } }],
         advanced_filters: { trend_filter: "ema_200", vol_min: 0, atr_filter: 1.5, trade_window: "all" },
@@ -98,14 +98,7 @@ export default function Backtests() {
                             const finalRes = await axios.get(`${API_BASE}/backtest/results/${currentJobId}`, {
                                 headers: { 'Authorization': `Bearer ${token}` }
                             });
-                            
-                            const formattedCurve = finalRes.data.equityCurve.map(pt => ({
-                                time: Math.floor(new Date(pt.time).getTime() / 1000),
-                                value: pt.balance
-                            })).sort((a,b) => a.time - b.time);
-
-                            setBacktestResults({ ...finalRes.data, equityCurve: formattedCurve });
-                            setIsSimulating(false);
+                            processResults(finalRes.data);
                             console.groupEnd();
                         }
                     }
@@ -115,24 +108,40 @@ export default function Backtests() {
         return () => clearInterval(poller);
     }, [isSimulating, currentJobId]);
 
+    // Helper to format and set results
+    const processResults = (responseData) => {
+        if (!responseData || !responseData.equityCurve) {
+            console.error("Invalid response data:", responseData);
+            setIsSimulating(false);
+            return;
+        }
+
+        const formattedCurve = responseData.equityCurve.map(pt => ({
+            time: Math.floor(new Date(pt.time).getTime() / 1000),
+            value: pt.balance
+        })).sort((a,b) => a.time - b.time);
+
+        setBacktestResults({ ...responseData, equityCurve: formattedCurve });
+        setIsSimulating(false);
+        setProgress(100);
+        setStatusMsg("Complete");
+    };
+
     const handleRun = async (e) => {
         e.preventDefault();
         console.group("🚀 BACKTEST START");
         setBacktestResults(null);
-        setProgress(1);
+        setProgress(10);
         setStatusMsg("Initializing...");
         
         const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
-        
-        // Prepare Payload based on Tab
         let payload = { ...data, userId: dynamicUserId };
 
+        // Handle Tab Logic
         if (activeTab === 'single') {
-            // Remove Combo-specific fields
             const { strategies, combinationRule, ...rest } = payload;
             payload = rest;
         } else {
-            // Hybrid Mode: Force code to 'hybrid_ensemble'
             const { code, ...rest } = payload;
             payload = { ...rest, code: 'hybrid_ensemble' };
         }
@@ -143,7 +152,11 @@ export default function Backtests() {
         try {
             const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
             const res = await runner(payload);
-            if (res?.jobId) {
+            
+            // Handle Direct Results (Python) or Job ID (Node/Legacy)
+            if (res && res.metrics) {
+                processResults(res);
+            } else if (res?.jobId) {
                 setCurrentJobId(res.jobId);
                 setIsSimulating(true);
             }
@@ -296,9 +309,31 @@ export default function Backtests() {
 
 function StrategyParamInputs({ strategy, onChange }) {
     const { code, params = {} } = strategy;
+    
+    // ✅ NaN FIX: Handles empty input strings
+    const handleNumChange = (k, valStr) => {
+        if (valStr === "" || valStr === "-") {
+            onChange({ ...params, [k]: "" });
+        } else {
+            const val = parseFloat(valStr);
+            onChange({ ...params, [k]: isNaN(val) ? "" : val });
+        }
+    };
+
     const f = (l, k, s = "1") => (
-        <div className="flex flex-col"><label className={labelClass}>{l}</label><input type="number" step={s} value={params[k] ?? ""} onChange={(e)=>onChange({...params, [k]: parseFloat(e.target.value)})} className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1 text-[10px] text-amber-500 outline-none" /></div>
+        <div className="flex flex-col">
+            <label className={labelClass}>{l}</label>
+            <input 
+                type="number" 
+                step={s} 
+                // ✅ NaN FIX: Prevents React warning by checking undefined/NaN
+                value={params[k] === undefined || isNaN(params[k]) ? "" : params[k]} 
+                onChange={(e) => handleNumChange(k, e.target.value)} 
+                className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1 text-[10px] text-amber-500 outline-none" 
+            />
+        </div>
     );
+
     return (
         <div className="grid grid-cols-2 gap-2 mt-2">
             {code === "rsi_threshold" && <>{f("RSI Len", "rsi_length")}{f("OB", "overbought")}{f("OS", "oversold")}</>}
