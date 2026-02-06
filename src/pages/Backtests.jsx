@@ -59,7 +59,7 @@ export default function Backtests() {
         initialBalance: 1000,
         risk_percentage: 1.0,
         mlMode: "on",
-        combinationRule: "OR",
+        combinationRule: "OR", // Default rule
         code: "rsi_threshold",
         strategies: [{ code: "rsi_threshold", params: { ...DEFAULT_STRATEGY_PARAMS.rsi_threshold } }],
         advanced_filters: { trend_filter: "ema_200", vol_min: 0, atr_filter: 1.5, trade_window: "all" },
@@ -123,12 +123,16 @@ export default function Backtests() {
         setStatusMsg("Initializing...");
         
         const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
+        
+        // Prepare Payload based on Tab
         let payload = { ...data, userId: dynamicUserId };
 
         if (activeTab === 'single') {
+            // Remove Combo-specific fields
             const { strategies, combinationRule, ...rest } = payload;
             payload = rest;
         } else {
+            // Hybrid Mode: Force code to 'hybrid_ensemble'
             const { code, ...rest } = payload;
             payload = { ...rest, code: 'hybrid_ensemble' };
         }
@@ -187,9 +191,15 @@ export default function Backtests() {
                                 <div className="flex justify-between items-center">
                                     <h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Logic Ensemble</h4>
                                     {activeTab === 'combo' && (
-                                        <button type="button" onClick={() => setData(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="p-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-md">
-                                            <Plus size={14} />
-                                        </button>
+                                        <div className="flex gap-2">
+                                            <select value={data.combinationRule} onChange={(e) => setData({...data, combinationRule: e.target.value})} className="bg-zinc-800 text-[9px] rounded-md px-2 py-1 text-emerald-400 border border-emerald-500/20 outline-none">
+                                                <option value="OR">ANY (OR)</option>
+                                                <option value="AND">ALL (AND)</option>
+                                            </select>
+                                            <button type="button" onClick={() => setData(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="p-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-md">
+                                                <Plus size={14} />
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
                                 {activeTab === 'single' ? (
