@@ -102,10 +102,36 @@ export default function Backtests() {
     const processResults = (responseData) => {
         if (!responseData) return;
 
-        // 🟢 DEBUG: Check if candleData exists immediately
-        console.log("📦 Processing Results. CandleData Rows:", responseData.candleData?.length || 0);
+        // 🕵️‍♂️ DATA DETECTIVE: Find the candles wherever they are hiding
+        let rawCandles = [];
+        let source = "none";
 
-        const formattedCurve = (responseData.equityCurve || []).map(pt => ({
+        // 1. Check Root (Standard)
+        if (responseData.candleData && Array.isArray(responseData.candleData)) {
+            rawCandles = responseData.candleData;
+            source = "root";
+        } 
+        // 2. Check Combined Result (Hybrid/Combo Nesting)
+        else if (responseData.combinedResult && Array.isArray(responseData.combinedResult.candleData)) {
+            rawCandles = responseData.combinedResult.candleData;
+            source = "combinedResult";
+        }
+        // 3. Check Metrics (Trojan Horse / Legacy)
+        else if (responseData.metrics && Array.isArray(responseData.metrics.candle_data)) {
+             rawCandles = responseData.metrics.candle_data;
+             source = "metrics.candle_data";
+        }
+        // 4. Check Root snake_case (Python default)
+        else if (responseData.candle_data && Array.isArray(responseData.candle_data)) {
+            rawCandles = responseData.candle_data;
+            source = "root_snake";
+        }
+
+        console.log(`📦 RESULTS PROCESSED: Found ${rawCandles.length} candles in [${source}]`);
+
+        // Format Equity Curve
+        const rawCurve = responseData.equityCurve || responseData.combinedResult?.equityCurve || [];
+        const formattedCurve = rawCurve.map(pt => ({
             time: Math.floor(new Date(pt.time).getTime() / 1000),
             value: pt.balance
         })).sort((a,b) => a.time - b.time);
@@ -113,9 +139,14 @@ export default function Backtests() {
         setBacktestResults({
             ...responseData,
             equityCurve: formattedCurve,
-            // 🛡️ EXPLICITLY PASS CANDLE DATA to ensure it survives the spread
-            candleData: responseData.candleData || []
+            // 🛡️ Force the found candles into the spot the Chart expects
+            candleData: rawCandles 
         });
+        
+        setIsSimulating(false);
+        setProgress(100);
+        setStatusMsg("Complete");
+    };
         
         setIsSimulating(false);
         setProgress(100);
