@@ -329,7 +329,6 @@ export default function Backtests() {
             </div>
         </div>
     );
-}
 
 // --- SUB-COMPONENTS ---
 
