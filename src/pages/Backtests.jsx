@@ -99,10 +99,10 @@ export default function Backtests() {
         return () => clearInterval(poller);
     }, [isSimulating, currentJobId]);
 
+    // 🕵️‍♂️ DATA DETECTIVE: Finds candles wherever they hide
     const processResults = (responseData) => {
         if (!responseData) return;
 
-        // 🕵️‍♂️ DATA DETECTIVE: Find the candles wherever they are hiding
         let rawCandles = [];
         let source = "none";
 
@@ -116,7 +116,7 @@ export default function Backtests() {
             rawCandles = responseData.combinedResult.candleData;
             source = "combinedResult";
         }
-        // 3. Check Metrics (Trojan Horse / Legacy)
+        // 3. Check Metrics (Legacy/Trojan Horse)
         else if (responseData.metrics && Array.isArray(responseData.metrics.candle_data)) {
              rawCandles = responseData.metrics.candle_data;
              source = "metrics.candle_data";
@@ -129,7 +129,7 @@ export default function Backtests() {
 
         console.log(`📦 RESULTS PROCESSED: Found ${rawCandles.length} candles in [${source}]`);
 
-        // Format Equity Curve
+        // Handle Equity Curve formatting safely
         const rawCurve = responseData.equityCurve || responseData.combinedResult?.equityCurve || [];
         const formattedCurve = rawCurve.map(pt => ({
             time: Math.floor(new Date(pt.time).getTime() / 1000),
@@ -139,14 +139,8 @@ export default function Backtests() {
         setBacktestResults({
             ...responseData,
             equityCurve: formattedCurve,
-            // 🛡️ Force the found candles into the spot the Chart expects
-            candleData: rawCandles 
+            candleData: rawCandles // 🛡️ Force found candles into correct spot
         });
-        
-        setIsSimulating(false);
-        setProgress(100);
-        setStatusMsg("Complete");
-    };
         
         setIsSimulating(false);
         setProgress(100);
@@ -175,10 +169,9 @@ export default function Backtests() {
             const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
             const res = await runner(payload);
             
-            // 🟢 DEBUG: Inspect raw response from hook
             console.log("📥 Raw Response from Hook:", res);
 
-            if (res && (res.metrics || res.candleData)) {
+            if (res && (res.metrics || res.candleData || res.combinedResult)) {
                 processResults(res);
             } else if (res?.jobId) {
                 setCurrentJobId(res.jobId);
@@ -329,6 +322,7 @@ export default function Backtests() {
             </div>
         </div>
     );
+}
 
 // --- SUB-COMPONENTS ---
 
