@@ -36,16 +36,6 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
             }
         });
         const sorted = Array.from(uniqueCandles.values()).sort((a, b) => a.time - b.time);
-        
-        // Debug Log
-        if (sorted.length > 0) {
-            console.log("📊 Chart Range:", 
-                new Date(sorted[0].time * 1000).toLocaleDateString(), 
-                "->", 
-                new Date(sorted[sorted.length-1].time * 1000).toLocaleDateString()
-            );
-        }
-        
         return sorted;
     }, [results]);
 
@@ -54,6 +44,7 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
         const trades = results?.trades || [];
         if (trades.length === 0) return { markers: [], tradeLookup: {} };
 
+        // Ensure trades are sorted and mapped
         const formattedTrades = trades.map(t => ({
             ...t,
             time: formatTime(t.entry_time || t.time),
@@ -64,18 +55,23 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
         let lastEntry = null;
 
         formattedTrades.forEach(t => {
+            // Map the trade to its timestamp for O(1) lookup on hover
             lookup[t.time] = t;
-            if (t.type === 'buy' || t.type === 'sell' || t.type === 'long' || t.type === 'short') {
+
+            // Link Entries and Exits
+            if (['buy', 'sell', 'long', 'short'].includes(t.type)) {
                 lastEntry = t;
             } else if ((t.type.includes('close') || t.type.includes('flip')) && lastEntry) {
                 lastEntry.exitMatch = t;
                 t.entryMatch = lastEntry;
+                // Update lookup to ensure both "ends" of the trade know about each other
                 lookup[lastEntry.time] = lastEntry;
                 lookup[t.time] = t;
                 lastEntry = null;
             }
         });
 
+        // Create Visual Markers
         const markersList = formattedTrades.map(t => {
             if (t.type === "buy" || t.type === "long") return { time: t.time, position: "belowBar", color: "#10b981", shape: "arrowUp", text: "L" };
             if (t.type === "sell" || t.type === "short") return { time: t.time, position: "aboveBar", color: "#ef4444", shape: "arrowDown", text: "S" };
@@ -95,7 +91,12 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
             height: 500,
             layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: "#94a3b8" },
             grid: { vertLines: { color: "rgba(255, 255, 255, 0.05)" }, horzLines: { color: "rgba(255, 255, 255, 0.05)" } },
-            timeScale: { timeVisible: true, borderColor: "#374151" },
+            timeScale: { 
+                timeVisible: true, 
+                borderColor: "#374151",
+                rightOffset: 5, // Small offset to ensure the last candle is visible
+                barSpacing: 6   // Start with a reasonable zoom level
+            },
             crosshair: { mode: CrosshairMode.Normal },
         });
 
@@ -103,9 +104,9 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
         candleSeries.setData(candles);
         candleSeries.setMarkers(markers);
 
-        // Connector Line Series
+        // Connector Line Series (Dashed White Line)
         const tradeLineSeries = chart.addLineSeries({
-            color: 'rgba(255, 255, 255, 0.5)',
+            color: 'rgba(255, 255, 255, 0.6)',
             lineWidth: 1,
             lineStyle: LineStyle.Dashed,
             crosshairMarkerVisible: false,
@@ -114,8 +115,9 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
         });
         tradeLineSeriesRef.current = tradeLineSeries;
 
-        // Set Initial Legend
+        // Legend Updater
         const updateLegend = (data) => {
+            if (!data || !data.time) return;
             const dateStr = new Date(data.time * 1000).toLocaleDateString();
             setLegend({
                 open: data.open, high: data.high, low: data.low, close: data.close,
@@ -123,20 +125,36 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
             });
         };
 
+        // Initialize Legend with Last Candle
         const lastCandle = candles[candles.length - 1];
         if (lastCandle) updateLegend(lastCandle);
 
-        // Hover Listener
+        // 🟢 HOVER LOGIC
         chart.subscribeCrosshairMove((param) => {
             if (param.time) {
+                // 1. Update Legend Data
                 const data = param.seriesData.get(candleSeries);
                 if (data) updateLegend(data);
 
-                if (tradeLookup[param.time]) {
-                    const trade = tradeLookup[param.time];
+                // 2. Draw Connector Line
+                const trade = tradeLookup[param.time];
+                if (trade) {
                     let points = [];
-                    if (trade.exitMatch) points = [{ time: trade.time, value: trade.price }, { time: trade.exitMatch.time, value: trade.exitMatch.price }];
-                    else if (trade.entryMatch) points = [{ time: trade.entryMatch.time, value: trade.entryMatch.price }, { time: trade.time, value: trade.price }];
+                    // Logic: Always sort points by time (Ascending) for the chart engine
+                    if (trade.exitMatch) {
+                        points = [
+                            { time: trade.time, value: trade.price },
+                            { time: trade.exitMatch.time, value: trade.exitMatch.price }
+                        ];
+                    } else if (trade.entryMatch) {
+                        points = [
+                            { time: trade.entryMatch.time, value: trade.entryMatch.price },
+                            { time: trade.time, value: trade.price }
+                        ];
+                    }
+                    
+                    // Sort is CRITICAL for Lightweight Charts
+                    points.sort((a,b) => a.time - b.time);
                     
                     if (points.length > 0) tradeLineSeries.setData(points);
                     else tradeLineSeries.setData([]);
@@ -144,26 +162,27 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
                     tradeLineSeries.setData([]);
                 }
             } else {
+                // Mouse Leave
                 if (lastCandle) updateLegend(lastCandle);
                 tradeLineSeries.setData([]);
             }
         });
 
-        // 🟢 FIX: FORCE VISIBLE RANGE (Hard Reset)
+        // 🟢 FORCE VISIBLE RANGE (Fix for "Starting in Middle")
         if (candles.length > 0) {
             const startTime = candles[0].time;
             const endTime = candles[candles.length - 1].time;
             
-            // Attempt 1: Immediate Fit
+            // Apply immediate fit
             chart.timeScale().fitContent();
 
-            // Attempt 2: Explicit Set Range after DOM paint
+            // Apply forced range after a render cycle to override default "right-align"
             setTimeout(() => {
                 chart.timeScale().setVisibleRange({
                     from: startTime,
                     to: endTime
                 });
-            }, 100);
+            }, 50);
         }
         
         const handleResize = () => {
@@ -182,8 +201,9 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
 
     return (
         <div className="w-full h-full relative group">
-            {/* Legend Overlay */}
+            {/* 🟢 LEGEND OVERLAY */}
             <div className="absolute top-4 left-4 z-50 pointer-events-none select-none">
+                {/* OHLC Data Box */}
                 <div className="bg-zinc-950/90 backdrop-blur-md p-3 rounded-xl border border-zinc-800 shadow-2xl mb-2">
                     <div className="flex gap-4 items-center mb-1">
                         <span className="font-black text-amber-500 text-xs tracking-wider">{symbol}</span>
@@ -197,6 +217,7 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
                     </div>
                 </div>
 
+                {/* Marker Key */}
                 <div className="flex gap-3 bg-zinc-950/80 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-zinc-800/50 w-fit">
                     <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500"></div><span className="text-[9px] text-zinc-400 font-bold">L = LONG</span></div>
                     <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-rose-500"></div><span className="text-[9px] text-zinc-400 font-bold">S = SHORT</span></div>
