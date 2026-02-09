@@ -3,6 +3,7 @@ import axios from "axios";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { ChartIndependent } from "../components/ChartIndependent.jsx";
 import { PerformanceChart } from "../components/PerformanceChart.jsx";
+import { ChartReplay } from "../components/ChartReplay.jsx"; // 👈 Import the new component
 import { 
     Play, BarChart3, Layers, Plus, Trash2, 
     Shield, Globe, Cpu, Filter
@@ -189,6 +190,13 @@ export default function Backtests() {
         setData(p => ({ ...p, code, params: { ...p.params, ...DEFAULT_STRATEGY_PARAMS[code] } }));
     };
 
+    // Helper to render the active chart view
+    const renderActiveView = () => {
+        if (view === 'execution') return <ChartIndependent results={backtestResults} symbol={data.symbol} />;
+        if (view === 'performance') return <PerformanceChart results={backtestResults} />;
+        if (view === 'replay') return <ChartReplay results={backtestResults} symbol={data.symbol} />;
+    };
+
     return (
         <div className="min-h-screen bg-zinc-950 text-white font-sans p-6">
             <header className="max-w-[1800px] mx-auto mb-8 flex justify-between items-center">
@@ -305,11 +313,14 @@ export default function Backtests() {
                             <MetricsPanel metrics={backtestResults.metrics} />
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] overflow-hidden shadow-2xl">
                                 <div className="flex bg-zinc-800/50 p-2 border-b border-zinc-800">
+                                    {/* 🔴 TAB SWITCHER */}
                                     <button onClick={() => setView('execution')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'execution' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Execution</button>
                                     <button onClick={() => setView('performance')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'performance' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Performance</button>
+                                    <button onClick={() => setView('replay')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'replay' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Replay</button>
                                 </div>
                                 <div className="h-[600px] p-8">
-                                    {view === 'execution' ? <ChartIndependent results={backtestResults} symbol={data.symbol} /> : <PerformanceChart results={backtestResults} />}
+                                    {/* 🔴 DYNAMIC COMPONENT RENDERING */}
+                                    {renderActiveView()}
                                 </div>
                             </div>
                         </div>
