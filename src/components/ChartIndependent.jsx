@@ -37,7 +37,6 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
         });
         const sorted = Array.from(uniqueCandles.values()).sort((a, b) => a.time - b.time);
         
-        // Debug: Check if February data exists
         if (sorted.length > 0) {
             console.log("📅 Chart Data Range:", 
                 new Date(sorted[0].time * 1000).toISOString(), 
@@ -151,11 +150,11 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
         });
 
         // 🟢 FORCE FIT CONTENT (Fixes Start Date View)
+        // We use a small delay to ensure the container is fully rendered before fitting
         chart.timeScale().fitContent();
-        // Double check after a small delay to ensure canvas is ready
         setTimeout(() => {
             chart.timeScale().fitContent();
-        }, 100);
+        }, 50);
         
         const handleResize = () => {
             if (chartContainerRef.current) {
