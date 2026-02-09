@@ -31,7 +31,7 @@ const STRAT_POOL = [
     { name: "Volume Profile", code: "vol_profile" }
 ];
 
-// 🟢 DEFAULT MODELS (Fallback if server fetch fails)
+// 🟢 DEFAULT MODELS
 const DEFAULT_MODELS = [
     { id: "xgboost", name: "XGBoost (Gradient Boosting)" },
     { id: "random_forest", name: "Random Forest (Bagging)" },
@@ -63,8 +63,6 @@ export default function Backtests() {
     const [progress, setProgress] = useState(0);
     const [statusMsg, setStatusMsg] = useState("");
     const [currentJobId, setCurrentJobId] = useState(null);
-    
-    // 🟢 DYNAMIC MODEL STATE
     const [availableModels, setAvailableModels] = useState(DEFAULT_MODELS);
 
     const [data, setData] = useState({
@@ -88,7 +86,6 @@ export default function Backtests() {
         }
     });
 
-    // --- 📡 MODEL FETCHING ENGINE ---
     useEffect(() => {
         const fetchModels = async () => {
             try {
@@ -96,17 +93,12 @@ export default function Backtests() {
                 const res = await axios.get(`${API_BASE}/ml/models`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                if (res.data && Array.isArray(res.data)) {
-                    setAvailableModels(res.data);
-                }
-            } catch (e) {
-                console.warn("Could not fetch models from server, using defaults.");
-            }
+                if (res.data && Array.isArray(res.data)) setAvailableModels(res.data);
+            } catch (e) { console.warn("Could not fetch models from server, using defaults."); }
         };
         fetchModels();
     }, []);
 
-    // --- 📡 POLLING ENGINE ---
     useEffect(() => {
         let poller;
         if (isSimulating && currentJobId) {
@@ -133,7 +125,6 @@ export default function Backtests() {
         return () => clearInterval(poller);
     }, [isSimulating, currentJobId]);
 
-    // 🧮 FRONTEND METRIC CALCULATOR
     const calculateAdvancedMetrics = (results) => {
         const trades = results.trades || [];
         const curve = results.equityCurve || [];
@@ -220,7 +211,6 @@ export default function Backtests() {
         };
     };
 
-    // 🕵️‍♂️ DATA DETECTIVE
     const processResults = (responseData) => {
         if (!responseData) return;
 
@@ -240,8 +230,6 @@ export default function Backtests() {
             rawCandles = responseData.candle_data;
             source = "root_snake";
         }
-
-        console.log(`📦 RESULTS PROCESSED: Found ${rawCandles.length} candles in [${source}]`);
 
         const rawCurve = responseData.equityCurve || responseData.combinedResult?.equityCurve || [];
         const formattedCurve = rawCurve.map(pt => ({
@@ -272,7 +260,6 @@ export default function Backtests() {
         setProgress(10);
         setStatusMsg("Initializing...");
         setIsSimulating(true);
-        
         const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
         let payload = { ...data, userId: dynamicUserId };
 
@@ -287,21 +274,14 @@ export default function Backtests() {
         try {
             const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
             const res = await runner(payload);
-            
-            console.log("📥 Raw Response from Hook:", res);
-
             if (res && (res.metrics || res.candleData || res.combinedResult)) {
                 processResults(res);
             } else if (res?.jobId) {
                 setCurrentJobId(res.jobId);
             } else {
-                console.error("❌ No valid results or Job ID found");
                 setIsSimulating(false);
             }
-        } catch (err) { 
-            console.error("Run failed:", err);
-            setIsSimulating(false); 
-        }
+        } catch (err) { setIsSimulating(false); }
     };
 
     const handleAtomicCodeChange = (code) => {
@@ -316,7 +296,6 @@ export default function Backtests() {
 
     return (
         <div className="min-h-screen bg-zinc-950 text-white font-sans p-6">
-            
             <header className="max-w-[1800px] mx-auto mb-8 flex items-center gap-12">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
@@ -324,7 +303,6 @@ export default function Backtests() {
                     </div>
                     <h1 className="text-sm font-black uppercase tracking-widest">Sovereign <span className="text-amber-500">Quant</span></h1>
                 </div>
-
                 <div className="flex gap-2 p-1 bg-zinc-900 rounded-xl border border-zinc-800">
                     {['single', 'combo'].map(tab => (
                         <button key={tab} type="button" onClick={() => setActiveTab(tab)}
@@ -339,15 +317,7 @@ export default function Backtests() {
                 <div className="col-span-12 lg:col-span-3">
                     <div className="bg-zinc-900/40 border border-zinc-800 rounded-3xl p-6 sticky top-6 max-h-[90vh] overflow-y-auto custom-scrollbar">
                         <form onSubmit={handleRun} className="space-y-8">
-                            
-                            <AIConfig 
-                                mlMode={data.mlMode} 
-                                setMlMode={(m)=>setData({...data, mlMode: m})} 
-                                params={data.params} 
-                                availableModels={availableModels}
-                                onParamChange={(k,v)=>setData(p=>({...p, params:{...p.params,[k]:v}}))} 
-                            />
-                            
+                            <AIConfig mlMode={data.mlMode} setMlMode={(m)=>setData({...data, mlMode: m})} params={data.params} availableModels={availableModels} onParamChange={(k,v)=>setData(p=>({...p, params:{...p.params,[k]:v}}))} />
                             <div className="space-y-4 border-t border-zinc-800 pt-6">
                                 <div className="flex justify-between items-center">
                                     <h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Logic Ensemble</h4>
@@ -357,37 +327,22 @@ export default function Backtests() {
                                                 <option value="OR">ANY (OR)</option>
                                                 <option value="AND">ALL (AND)</option>
                                             </select>
-                                            <button type="button" onClick={() => setData(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="p-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-md">
-                                                <Plus size={14} />
-                                            </button>
+                                            <button type="button" onClick={() => setData(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="p-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-md"><Plus size={14} /></button>
                                         </div>
                                     )}
                                 </div>
                                 {activeTab === 'single' ? (
                                     <div className="space-y-3">
-                                        <select value={data.code} onChange={(e) => handleAtomicCodeChange(e.target.value)} className={inputClass}>
-                                            {STRAT_POOL.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
-                                        </select>
-                                        <StrategyParamInputs 
-                                            strategy={{code: data.code, params: data.params}} 
-                                            onChange={(p) => setData(p_old => ({...p_old, params: {...p_old.params, ...p}}))} 
-                                        />
+                                        <select value={data.code} onChange={(e) => handleAtomicCodeChange(e.target.value)} className={inputClass}>{STRAT_POOL.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}</select>
+                                        <StrategyParamInputs strategy={{code: data.code, params: data.params}} onChange={(p) => setData(p_old => ({...p_old, params: {...p_old.params, ...p}}))} />
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
                                         {data.strategies.map((s, i) => (
                                             <div key={i} className="p-3 bg-zinc-800/30 rounded-xl border border-zinc-700">
                                                 <div className="flex justify-between mb-2">
-                                                    <select value={s.code} onChange={(e) => { 
-                                                        const n = [...data.strategies]; 
-                                                        n[i] = { code: e.target.value, params: DEFAULT_STRATEGY_PARAMS[e.target.value] }; 
-                                                        setData({...data, strategies: n}); 
-                                                    }} className="bg-transparent text-[10px] font-bold text-amber-500 outline-none">
-                                                        {STRAT_POOL.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
-                                                    </select>
-                                                    <button type="button" onClick={() => setData(p => ({ ...p, strategies: p.strategies.filter((_, idx) => idx !== i) }))} className="text-zinc-500 hover:text-rose-500">
-                                                        <Trash2 size={12}/>
-                                                    </button>
+                                                    <select value={s.code} onChange={(e) => { const n = [...data.strategies]; n[i] = { code: e.target.value, params: DEFAULT_STRATEGY_PARAMS[e.target.value] }; setData({...data, strategies: n}); }} className="bg-transparent text-[10px] font-bold text-amber-500 outline-none">{STRAT_POOL.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}</select>
+                                                    <button type="button" onClick={() => setData(p => ({ ...p, strategies: p.strategies.filter((_, idx) => idx !== i) }))} className="text-zinc-500 hover:text-rose-500"><Trash2 size={12}/></button>
                                                 </div>
                                                 <StrategyParamInputs strategy={s} onChange={(p) => { const n = [...data.strategies]; n[i].params = p; setData({...data, strategies: n}); }} />
                                             </div>
@@ -395,12 +350,7 @@ export default function Backtests() {
                                     </div>
                                 )}
                             </div>
-
-                            <AdvancedFilters 
-                                filters={data.advanced_filters} 
-                                onChange={(k,v)=>setData(p=>({...p, advanced_filters:{...p.advanced_filters,[k]:v}}))} 
-                            />
-                            
+                            <AdvancedFilters filters={data.advanced_filters} onChange={(k,v)=>setData(p=>({...p, advanced_filters:{...p.advanced_filters,[k]:v}}))} />
                             <div className="space-y-4 border-t border-zinc-800 pt-6">
                                 <div className="flex items-center gap-2"><Shield size={14} className="text-amber-500"/><h4 className="text-[10px] text-amber-500 font-black uppercase tracking-widest">Execution Shield</h4></div>
                                 <div className="grid grid-cols-2 gap-3">
@@ -409,7 +359,6 @@ export default function Backtests() {
                                     <div className="col-span-2"><label className={labelClass}>Trailing Stop %</label><input type="number" step="0.001" value={data.params.trailing_stop} onChange={(e)=>setData(p=>({...p,params:{...p.params,trailing_stop:parseFloat(e.target.value)}}))} className={inputClass}/></div>
                                 </div>
                             </div>
-
                             <div className="space-y-4 border-t border-zinc-800 pt-6">
                                 <div className="flex items-center gap-2"><Globe size={14} className="text-cyan-400"/><h4 className="text-[10px] text-cyan-400 font-black uppercase tracking-widest">Market</h4></div>
                                 <div className="grid grid-cols-2 gap-3">
@@ -420,10 +369,7 @@ export default function Backtests() {
                                     <div><label className={labelClass}>Risk %</label><input type="number" step="0.1" value={data.risk_percentage} onChange={(e)=>setData({...data, risk_percentage: parseFloat(e.target.value)})} className={inputClass}/></div>
                                 </div>
                             </div>
-
-                            <button type="submit" disabled={isSimulating} className="w-full py-4 bg-amber-500 text-zinc-950 font-black uppercase text-xs rounded-2xl hover:bg-amber-400 shadow-xl transition-all">
-                                {isSimulating ? "Crunching..." : "Initiate Simulation"}
-                            </button>
+                            <button type="submit" disabled={isSimulating} className="w-full py-4 bg-amber-500 text-zinc-950 font-black uppercase text-xs rounded-2xl hover:bg-amber-400 shadow-xl transition-all">{isSimulating ? "Crunching..." : "Initiate Simulation"}</button>
                         </form>
                     </div>
                 </div>
@@ -431,10 +377,8 @@ export default function Backtests() {
                 <div className="col-span-12 lg:col-span-9 space-y-6">
                     {backtestResults ? (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-5 duration-700">
-                            
-                            {/* 🟢 UPGRADED & SEPARATED METRICS PANEL */}
+                            {/* 🟢 SEPARATED METRICS PANEL */}
                             <MetricsPanel metrics={backtestResults.metrics} />
-                            
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] overflow-hidden shadow-2xl">
                                 <div className="flex bg-zinc-800/50 p-2 border-b border-zinc-800">
                                     <button onClick={() => setView('execution')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'execution' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Execution</button>
@@ -457,59 +401,18 @@ export default function Backtests() {
     );
 }
 
-// 🟢 UPGRADED AI CONFIG
 function AIConfig({ mlMode, setMlMode, params, onParamChange, availableModels = [] }) {
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                    <Cpu size={14} className="text-violet-400"/>
-                    <h4 className="text-[10px] text-violet-400 font-black uppercase tracking-widest">Neural Gate</h4>
-                </div>
-                <select 
-                    value={mlMode} 
-                    onChange={(e)=>setMlMode(e.target.value)} 
-                    className="bg-zinc-800 text-[9px] rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-violet-500/50"
-                >
-                    <option value="off">BYPASS</option>
-                    <option value="on">ACTIVE</option>
-                </select>
+                <div className="flex items-center gap-2"><Cpu size={14} className="text-violet-400"/><h4 className="text-[10px] text-violet-400 font-black uppercase tracking-widest">Neural Gate</h4></div>
+                <select value={mlMode} onChange={(e)=>setMlMode(e.target.value)} className="bg-zinc-800 text-[9px] rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-violet-500/50"><option value="off">BYPASS</option><option value="on">ACTIVE</option></select>
             </div>
-            
             {mlMode === "on" && (
                 <div className="grid grid-cols-2 gap-3">
-                    <div className="col-span-2">
-                        <label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1">Architecture</label>
-                        <select 
-                            value={params.model_type} 
-                            onChange={(e)=>onParamChange('model_type', e.target.value)} 
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none"
-                        >
-                            {availableModels.map(model => (
-                                <option key={model.id} value={model.id}>{model.name}</option>
-                            ))}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1">Long Gate</label>
-                        <input 
-                            type="number" 
-                            step="0.01" 
-                            value={params.long_threshold} 
-                            onChange={(e)=>onParamChange('long_threshold', parseFloat(e.target.value))} 
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none"
-                        />
-                    </div>
-                    <div>
-                        <label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1">Short Gate</label>
-                        <input 
-                            type="number" 
-                            step="0.01" 
-                            value={params.short_threshold} 
-                            onChange={(e)=>onParamChange('short_threshold', parseFloat(e.target.value))} 
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none"
-                        />
-                    </div>
+                    <div className="col-span-2"><label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1">Architecture</label><select value={params.model_type} onChange={(e)=>onParamChange('model_type', e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none">{availableModels.map(model => (<option key={model.id} value={model.id}>{model.name}</option>))}</select></div>
+                    <div><label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1">Long Gate</label><input type="number" step="0.01" value={params.long_threshold} onChange={(e)=>onParamChange('long_threshold', parseFloat(e.target.value))} className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none" /></div>
+                    <div><label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1">Short Gate</label><input type="number" step="0.01" value={params.short_threshold} onChange={(e)=>onParamChange('short_threshold', parseFloat(e.target.value))} className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none" /></div>
                 </div>
             )}
         </div>
@@ -521,10 +424,7 @@ function MetricsPanel({ metrics }) {
     const MetricCard = ({ label, value, subValue, icon: Icon, color = "text-white" }) => (
         <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl shadow-xl flex items-center justify-between">
             <div>
-                <p className="text-[10px] text-zinc-500 uppercase font-black mb-1 flex items-center gap-1">
-                    {Icon && <Icon size={12} className="opacity-50" />}
-                    {label}
-                </p>
+                <p className="text-[10px] text-zinc-500 uppercase font-black mb-1 flex items-center gap-1">{Icon && <Icon size={12} className="opacity-50" />}{label}</p>
                 <p className={`text-2xl font-mono ${color}`}>{value}</p>
                 {subValue && <p className="text-[10px] text-zinc-600 font-mono mt-1">{subValue}</p>}
             </div>
@@ -542,117 +442,39 @@ function MetricsPanel({ metrics }) {
 
     return (
         <div className="space-y-6">
-            {/* 🟢 Financial Performance Section */}
+            {/* 🟢 Financial Performance */}
             <div>
-                <h5 className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-3 flex items-center gap-2">
-                    <DollarSign size={14} /> Financial Performance
-                </h5>
+                <h5 className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-3 flex items-center gap-2"><DollarSign size={14} /> Financial Performance</h5>
                 <div className="grid grid-cols-4 gap-4">
-                    <MetricCard 
-                        label="Net Profit" 
-                        icon={DollarSign}
-                        value={`$${netProfit.toFixed(2)}`} 
-                        color={netProfit >= 0 ? "text-emerald-400" : "text-rose-400"}
-                        subValue={`Final: $${(metrics.final_balance || 0).toFixed(2)}`}
-                    />
-                    <MetricCard 
-                        label="ROI" 
-                        icon={TrendingUp}
-                        value={`${roi.toFixed(2)}%`} 
-                        color={roi >= 0 ? "text-emerald-400" : "text-rose-400"}
-                    />
-                    <MetricCard 
-                        label="Win Rate" 
-                        icon={Percent}
-                        value={`${winRate.toFixed(1)}%`} 
-                        color={winRate > 50 ? "text-emerald-400" : "text-amber-400"}
-                        subValue={`W: ${metrics.total_wins} / L: ${metrics.total_losses}`}
-                    />
-                    <MetricCard 
-                        label="Profit Factor" 
-                        icon={Activity}
-                        value={pf.toFixed(2)} 
-                        color={pf > 1.5 ? "text-emerald-400" : pf > 1 ? "text-amber-400" : "text-rose-400"}
-                    />
-                    <MetricCard 
-                        label="Total Trades" 
-                        icon={Layers}
-                        value={metrics.total_trades || 0}
-                    />
-                    <MetricCard 
-                        label="Avg Trade" 
-                        icon={DollarSign}
-                        value={`$${(metrics.avg_trade || 0).toFixed(2)}`}
-                        color={metrics.avg_trade >= 0 ? "text-emerald-400" : "text-rose-400"}
-                    />
-                    <MetricCard 
-                        label="Avg Win" 
-                        icon={TrendingUp}
-                        value={`$${(metrics.avg_win || 0).toFixed(2)}`} 
-                        color="text-emerald-400"
-                    />
-                    <MetricCard 
-                        label="Avg Loss" 
-                        icon={TrendingDown}
-                        value={`$${(metrics.avg_loss || 0).toFixed(2)}`} 
-                        color="text-rose-400"
-                    />
+                    <MetricCard label="Net Profit" icon={DollarSign} value={`$${netProfit.toFixed(2)}`} color={netProfit >= 0 ? "text-emerald-400" : "text-rose-400"} subValue={`Final: $${(metrics.final_balance || 0).toFixed(2)}`} />
+                    <MetricCard label="ROI" icon={TrendingUp} value={`${roi.toFixed(2)}%`} color={roi >= 0 ? "text-emerald-400" : "text-rose-400"} />
+                    <MetricCard label="Win Rate" icon={Percent} value={`${winRate.toFixed(1)}%`} color={winRate > 50 ? "text-emerald-400" : "text-amber-400"} subValue={`W: ${metrics.total_wins} / L: ${metrics.total_losses}`} />
+                    <MetricCard label="Profit Factor" icon={Activity} value={pf.toFixed(2)} color={pf > 1.5 ? "text-emerald-400" : pf > 1 ? "text-amber-400" : "text-rose-400"} />
+                    <MetricCard label="Total Trades" icon={Layers} value={metrics.total_trades || 0} />
+                    <MetricCard label="Avg Trade" icon={DollarSign} value={`$${(metrics.avg_trade || 0).toFixed(2)}`} color={metrics.avg_trade >= 0 ? "text-emerald-400" : "text-rose-400"} />
+                    <MetricCard label="Avg Win" icon={TrendingUp} value={`$${(metrics.avg_win || 0).toFixed(2)}`} color="text-emerald-400" />
+                    <MetricCard label="Avg Loss" icon={TrendingDown} value={`$${(metrics.avg_loss || 0).toFixed(2)}`} color="text-rose-400" />
                 </div>
             </div>
 
-            {/* 🟢 Risk & Advanced Analytics Section */}
+            {/* 🟢 Advanced Analytics */}
             <div>
-                <h5 className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-3 flex items-center gap-2">
-                    <Activity size={14} /> Risk & Advanced Analytics
-                </h5>
+                <h5 className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-3 flex items-center gap-2"><Activity size={14} /> Advanced Analytics</h5>
                 <div className="grid grid-cols-4 gap-4">
-                    <MetricCard 
-                        label="Max Drawdown" 
-                        icon={AlertTriangle}
-                        value={`-${dd.toFixed(2)}%`} 
-                        color={dd < 20 ? "text-zinc-300" : "text-rose-400"}
-                    />
-                    <MetricCard 
-                        label="Sharpe Ratio" 
-                        icon={Award}
-                        value={sharpe.toFixed(2)} 
-                        color={sharpe > 1 ? "text-emerald-400" : "text-zinc-400"}
-                    />
-                    <MetricCard 
-                        label="Volatility" 
-                        icon={Zap}
-                        value={`${vol.toFixed(2)}%`} 
-                        color="text-zinc-300"
-                    />
-                    <MetricCard 
-                        label="CAGR" 
-                        icon={Scale}
-                        value={`${cagr.toFixed(2)}%`} 
-                        color={cagr > 0 ? "text-emerald-400" : "text-zinc-400"}
-                    />
-                    <MetricCard 
-                        label="Largest Win" 
-                        icon={Award}
-                        value={`$${(metrics.largest_win || 0).toFixed(2)}`} 
-                        color="text-emerald-400"
-                    />
-                    <MetricCard 
-                        label="Largest Loss" 
-                        icon={AlertTriangle}
-                        value={`$${(metrics.largest_loss || 0).toFixed(2)}`} 
-                        color="text-rose-400"
-                    />
-                    <div className="bg-zinc-900/50 border border-zinc-800/50 p-5 rounded-2xl flex items-center justify-center opacity-50 col-span-2">
-                        <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest flex items-center gap-2">
-                            <LayoutGrid size={14}/> Sovereign Quant Analytics
-                        </span>
-                    </div>
+                    <MetricCard label="Max Drawdown" icon={AlertTriangle} value={`-${dd.toFixed(2)}%`} color={dd < 20 ? "text-zinc-300" : "text-rose-400"} />
+                    <MetricCard label="Sharpe Ratio" icon={Award} value={sharpe.toFixed(2)} color={sharpe > 1 ? "text-emerald-400" : "text-zinc-400"} />
+                    <MetricCard label="Volatility" icon={Zap} value={`${vol.toFixed(2)}%`} color="text-zinc-300" />
+                    <MetricCard label="CAGR" icon={Scale} value={`${cagr.toFixed(2)}%`} color={cagr > 0 ? "text-emerald-400" : "text-zinc-400"} />
+                    <MetricCard label="Largest Win" icon={Award} value={`$${(metrics.largest_win || 0).toFixed(2)}`} color="text-emerald-400" />
+                    <MetricCard label="Largest Loss" icon={AlertTriangle} value={`$${(metrics.largest_loss || 0).toFixed(2)}`} color="text-rose-400" />
+                    <div className="bg-zinc-900/50 border border-zinc-800/50 p-5 rounded-2xl flex items-center justify-center opacity-50 col-span-2"><span className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest flex items-center gap-2"><LayoutGrid size={14}/> Sovereign Quant Analytics</span></div>
                 </div>
             </div>
         </div>
     );
 }
 
+// ... (Rest of components remain unchanged)
 function StrategyParamInputs({ strategy, onChange }) {
     const { code, params = {} } = strategy;
     const handleNumChange = (k, valStr) => {
