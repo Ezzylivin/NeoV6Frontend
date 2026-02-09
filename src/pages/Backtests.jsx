@@ -8,7 +8,7 @@ import {
     Play, BarChart3, Layers, Plus, Trash2, 
     Shield, Globe, Cpu, Filter, TrendingUp, 
     Activity, Percent, DollarSign, AlertTriangle, 
-    Zap, Scale, Award, TrendingDown
+    Zap, Scale, Award, TrendingDown, LayoutGrid
 } from "lucide-react";
 
 const VITE_API = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
@@ -133,7 +133,7 @@ export default function Backtests() {
         return () => clearInterval(poller);
     }, [isSimulating, currentJobId]);
 
-    // 🧮 FRONTEND METRIC CALCULATOR (Enhanced)
+    // 🧮 FRONTEND METRIC CALCULATOR
     const calculateAdvancedMetrics = (results) => {
         const trades = results.trades || [];
         const curve = results.equityCurve || [];
@@ -148,7 +148,6 @@ export default function Backtests() {
         let largestLoss = 0;
         let previousBalance = initialBalance;
 
-        // Trade Analysis
         trades.forEach(t => {
             if (t.balance && t.balance !== previousBalance) {
                 const pnl = t.balance - previousBalance;
@@ -173,7 +172,6 @@ export default function Backtests() {
         const netProfit = finalBalance - initialBalance;
         const avgTrade = totalTrades > 0 ? netProfit / totalTrades : 0;
 
-        // Drawdown Analysis
         let peak = -Infinity;
         let maxDrawdown = 0;
         curve.forEach(pt => {
@@ -183,7 +181,6 @@ export default function Backtests() {
             if (dd > maxDrawdown) maxDrawdown = dd;
         });
 
-        // Sharpe & Volatility (Daily Returns Approximation)
         let returns = [];
         for (let i = 1; i < curve.length; i++) {
             const prev = curve[i-1].balance || curve[i-1].value;
@@ -197,12 +194,9 @@ export default function Backtests() {
             const meanReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
             const variance = returns.reduce((a, b) => a + Math.pow(b - meanReturn, 2), 0) / returns.length;
             volatility = Math.sqrt(variance);
-            // Annualized Sharpe (assuming hourly data -> 24 * 365 ~ 8760 periods)
-            // Adjust constant based on timeframe if needed, using sqrt(periods)
             sharpe = volatility > 0 ? (meanReturn / volatility) * Math.sqrt(365 * 24) : 0; 
         }
 
-        // CAGR
         const days = (new Date(results.endDate) - new Date(results.startDate)) / (1000 * 60 * 60 * 24);
         const years = days / 365;
         const cagr = years > 0 ? (Math.pow(finalBalance / initialBalance, 1 / years) - 1) * 100 : 0;
@@ -221,7 +215,7 @@ export default function Backtests() {
             largest_win: largestWin,
             largest_loss: largestLoss,
             sharpe_ratio: sharpe,
-            volatility: volatility * 100, // as percentage
+            volatility: volatility * 100, 
             cagr: cagr
         };
     };
@@ -437,8 +431,10 @@ export default function Backtests() {
                 <div className="col-span-12 lg:col-span-9 space-y-6">
                     {backtestResults ? (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-5 duration-700">
-                            {/* 🟢 UPGRADED METRICS PANEL */}
+                            
+                            {/* 🟢 UPGRADED & SEPARATED METRICS PANEL */}
                             <MetricsPanel metrics={backtestResults.metrics} />
+                            
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] overflow-hidden shadow-2xl">
                                 <div className="flex bg-zinc-800/50 p-2 border-b border-zinc-800">
                                     <button onClick={() => setView('execution')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'execution' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Execution</button>
@@ -461,7 +457,7 @@ export default function Backtests() {
     );
 }
 
-// 🟢 UPGRADED AI CONFIG: Accepts Dynamic 'availableModels' prop
+// 🟢 UPGRADED AI CONFIG
 function AIConfig({ mlMode, setMlMode, params, onParamChange, availableModels = [] }) {
     return (
         <div className="space-y-4">
@@ -489,7 +485,6 @@ function AIConfig({ mlMode, setMlMode, params, onParamChange, availableModels = 
                             onChange={(e)=>onParamChange('model_type', e.target.value)} 
                             className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none"
                         >
-                            {/* 🟢 DYNAMIC MAPPING */}
                             {availableModels.map(model => (
                                 <option key={model.id} value={model.id}>{model.name}</option>
                             ))}
@@ -521,7 +516,7 @@ function AIConfig({ mlMode, setMlMode, params, onParamChange, availableModels = 
     );
 }
 
-// --- METRICS PANEL ---
+// 🟢 SEPARATED METRICS PANEL
 function MetricsPanel({ metrics }) {
     const MetricCard = ({ label, value, subValue, icon: Icon, color = "text-white" }) => (
         <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl shadow-xl flex items-center justify-between">
@@ -546,112 +541,130 @@ function MetricsPanel({ metrics }) {
     const cagr = metrics.cagr || 0;
 
     return (
-        <div className="grid grid-cols-4 gap-4">
-            <MetricCard 
-                label="Net Profit" 
-                icon={DollarSign}
-                value={`$${netProfit.toFixed(2)}`} 
-                color={netProfit >= 0 ? "text-emerald-400" : "text-rose-400"}
-                subValue={`Final Balance: $${(metrics.final_balance || 0).toFixed(2)}`}
-            />
-            <MetricCard 
-                label="ROI" 
-                icon={TrendingUp}
-                value={`${roi.toFixed(2)}%`} 
-                color={roi >= 0 ? "text-emerald-400" : "text-rose-400"}
-            />
-            <MetricCard 
-                label="Win Rate" 
-                icon={Percent}
-                value={`${winRate.toFixed(1)}%`} 
-                color={winRate > 50 ? "text-emerald-400" : "text-amber-400"}
-                subValue={`W: ${metrics.total_wins || 0} / L: ${metrics.total_losses || 0}`}
-            />
-            <MetricCard 
-                label="Profit Factor" 
-                icon={Activity}
-                value={pf.toFixed(2)} 
-                color={pf > 1.5 ? "text-emerald-400" : pf > 1 ? "text-amber-400" : "text-rose-400"}
-            />
-            <MetricCard 
-                label="Max Drawdown" 
-                icon={AlertTriangle}
-                value={`-${dd.toFixed(2)}%`} 
-                color={dd < 20 ? "text-zinc-300" : "text-rose-400"}
-            />
-            <MetricCard 
-                label="Sharpe Ratio" 
-                icon={Award}
-                value={sharpe.toFixed(2)} 
-                color={sharpe > 1 ? "text-emerald-400" : "text-zinc-400"}
-            />
-            <MetricCard 
-                label="Volatility" 
-                icon={Zap}
-                value={`${vol.toFixed(2)}%`} 
-                color="text-zinc-300"
-            />
-            <MetricCard 
-                label="CAGR" 
-                icon={Scale}
-                value={`${cagr.toFixed(2)}%`} 
-                color={cagr > 0 ? "text-emerald-400" : "text-zinc-400"}
-            />
-            
-            <MetricCard 
-                label="Avg Win" 
-                icon={TrendingUp}
-                value={`$${(metrics.avg_win || 0).toFixed(2)}`} 
-                color="text-emerald-400"
-            />
-            <MetricCard 
-                label="Avg Loss" 
-                icon={TrendingDown}
-                value={`$${(metrics.avg_loss || 0).toFixed(2)}`} 
-                color="text-rose-400"
-            />
-            <MetricCard 
-                label="Largest Win" 
-                icon={Award}
-                value={`$${(metrics.largest_win || 0).toFixed(2)}`} 
-                color="text-emerald-400"
-            />
-            <MetricCard 
-                label="Largest Loss" 
-                icon={AlertTriangle}
-                value={`$${(metrics.largest_loss || 0).toFixed(2)}`} 
-                color="text-rose-400"
-            />
+        <div className="space-y-6">
+            {/* 🟢 Financial Performance Section */}
+            <div>
+                <h5 className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <DollarSign size={14} /> Financial Performance
+                </h5>
+                <div className="grid grid-cols-4 gap-4">
+                    <MetricCard 
+                        label="Net Profit" 
+                        icon={DollarSign}
+                        value={`$${netProfit.toFixed(2)}`} 
+                        color={netProfit >= 0 ? "text-emerald-400" : "text-rose-400"}
+                        subValue={`Final: $${(metrics.final_balance || 0).toFixed(2)}`}
+                    />
+                    <MetricCard 
+                        label="ROI" 
+                        icon={TrendingUp}
+                        value={`${roi.toFixed(2)}%`} 
+                        color={roi >= 0 ? "text-emerald-400" : "text-rose-400"}
+                    />
+                    <MetricCard 
+                        label="Win Rate" 
+                        icon={Percent}
+                        value={`${winRate.toFixed(1)}%`} 
+                        color={winRate > 50 ? "text-emerald-400" : "text-amber-400"}
+                        subValue={`W: ${metrics.total_wins} / L: ${metrics.total_losses}`}
+                    />
+                    <MetricCard 
+                        label="Profit Factor" 
+                        icon={Activity}
+                        value={pf.toFixed(2)} 
+                        color={pf > 1.5 ? "text-emerald-400" : pf > 1 ? "text-amber-400" : "text-rose-400"}
+                    />
+                    <MetricCard 
+                        label="Total Trades" 
+                        icon={Layers}
+                        value={metrics.total_trades || 0}
+                    />
+                    <MetricCard 
+                        label="Avg Trade" 
+                        icon={DollarSign}
+                        value={`$${(metrics.avg_trade || 0).toFixed(2)}`}
+                        color={metrics.avg_trade >= 0 ? "text-emerald-400" : "text-rose-400"}
+                    />
+                    <MetricCard 
+                        label="Avg Win" 
+                        icon={TrendingUp}
+                        value={`$${(metrics.avg_win || 0).toFixed(2)}`} 
+                        color="text-emerald-400"
+                    />
+                    <MetricCard 
+                        label="Avg Loss" 
+                        icon={TrendingDown}
+                        value={`$${(metrics.avg_loss || 0).toFixed(2)}`} 
+                        color="text-rose-400"
+                    />
+                </div>
+            </div>
+
+            {/* 🟢 Risk & Advanced Analytics Section */}
+            <div>
+                <h5 className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <Activity size={14} /> Risk & Advanced Analytics
+                </h5>
+                <div className="grid grid-cols-4 gap-4">
+                    <MetricCard 
+                        label="Max Drawdown" 
+                        icon={AlertTriangle}
+                        value={`-${dd.toFixed(2)}%`} 
+                        color={dd < 20 ? "text-zinc-300" : "text-rose-400"}
+                    />
+                    <MetricCard 
+                        label="Sharpe Ratio" 
+                        icon={Award}
+                        value={sharpe.toFixed(2)} 
+                        color={sharpe > 1 ? "text-emerald-400" : "text-zinc-400"}
+                    />
+                    <MetricCard 
+                        label="Volatility" 
+                        icon={Zap}
+                        value={`${vol.toFixed(2)}%`} 
+                        color="text-zinc-300"
+                    />
+                    <MetricCard 
+                        label="CAGR" 
+                        icon={Scale}
+                        value={`${cagr.toFixed(2)}%`} 
+                        color={cagr > 0 ? "text-emerald-400" : "text-zinc-400"}
+                    />
+                    <MetricCard 
+                        label="Largest Win" 
+                        icon={Award}
+                        value={`$${(metrics.largest_win || 0).toFixed(2)}`} 
+                        color="text-emerald-400"
+                    />
+                    <MetricCard 
+                        label="Largest Loss" 
+                        icon={AlertTriangle}
+                        value={`$${(metrics.largest_loss || 0).toFixed(2)}`} 
+                        color="text-rose-400"
+                    />
+                    <div className="bg-zinc-900/50 border border-zinc-800/50 p-5 rounded-2xl flex items-center justify-center opacity-50 col-span-2">
+                        <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest flex items-center gap-2">
+                            <LayoutGrid size={14}/> Sovereign Quant Analytics
+                        </span>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
 
 function StrategyParamInputs({ strategy, onChange }) {
     const { code, params = {} } = strategy;
-    
-    // Clean NaN fix
     const handleNumChange = (k, valStr) => {
-        if (valStr === "" || valStr === "-") {
-            onChange({ ...params, [k]: "" });
-        } else {
-            const val = parseFloat(valStr);
-            onChange({ ...params, [k]: isNaN(val) ? "" : val });
-        }
+        if (valStr === "" || valStr === "-") onChange({ ...params, [k]: "" });
+        else onChange({ ...params, [k]: isNaN(parseFloat(valStr)) ? "" : parseFloat(valStr) });
     };
-
     const f = (l, k, s = "1") => (
         <div className="flex flex-col">
             <label className={labelClass}>{l}</label>
-            <input 
-                type="number" 
-                step={s} 
-                value={params[k] === undefined || isNaN(params[k]) ? "" : params[k]} 
-                onChange={(e) => handleNumChange(k, e.target.value)} 
-                className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1 text-[10px] text-amber-500 outline-none" 
-            />
+            <input type="number" step={s} value={params[k] === undefined || isNaN(params[k]) ? "" : params[k]} onChange={(e) => handleNumChange(k, e.target.value)} className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1 text-[10px] text-amber-500 outline-none" />
         </div>
     );
-
     return (
         <div className="grid grid-cols-2 gap-2 mt-2">
             {code === "rsi_threshold" && <>{f("RSI Len", "rsi_length")}{f("OB", "overbought")}{f("OS", "oversold")}</>}
