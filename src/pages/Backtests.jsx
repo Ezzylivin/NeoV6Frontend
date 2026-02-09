@@ -30,6 +30,16 @@ const STRAT_POOL = [
     { name: "Volume Profile", code: "vol_profile" }
 ];
 
+// 🟢 DEFAULT MODELS (Fallback if server fetch fails)
+const DEFAULT_MODELS = [
+    { id: "xgboost", name: "XGBoost (Gradient Boosting)" },
+    { id: "random_forest", name: "Random Forest (Bagging)" },
+    { id: "gradient_boosting", name: "Gradient Boosting (Sklearn)" },
+    { id: "lstm", name: "LSTM (Deep Recurrent)" },
+    { id: "transformer", name: "Transformer (Attention)" },
+    { id: "stacking", name: "Stacking Ensemble (Hybrid)" }
+];
+
 const DEFAULT_STRATEGY_PARAMS = {
     rsi_threshold: { rsi_length: 14, oversold: 30, overbought: 70 },
     sma_crossover: { fast_sma: 50, slow_sma: 200 },
@@ -52,6 +62,9 @@ export default function Backtests() {
     const [progress, setProgress] = useState(0);
     const [statusMsg, setStatusMsg] = useState("");
     const [currentJobId, setCurrentJobId] = useState(null);
+    
+    // 🟢 DYNAMIC MODEL STATE
+    const [availableModels, setAvailableModels] = useState(DEFAULT_MODELS);
 
     const [data, setData] = useState({
         symbol: "BTC-USD",
@@ -73,6 +86,26 @@ export default function Backtests() {
             ...DEFAULT_STRATEGY_PARAMS.rsi_threshold 
         }
     });
+
+    // --- 📡 MODEL FETCHING ENGINE ---
+    useEffect(() => {
+        const fetchModels = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                // Attempts to fetch 'GET /api/ml/models' - ensure your backend has this route!
+                const res = await axios.get(`${API_BASE}/ml/models`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.data && Array.isArray(res.data)) {
+                    setAvailableModels(res.data);
+                }
+            } catch (e) {
+                // Silent fail: use DEFAULT_MODELS if endpoint doesn't exist
+                console.warn("Could not fetch models from server, using defaults.");
+            }
+        };
+        fetchModels();
+    }, []);
 
     // --- 📡 POLLING ENGINE ---
     useEffect(() => {
@@ -108,16 +141,13 @@ export default function Backtests() {
         const initialBalance = results.initialBalance || 1000;
         const finalBalance = results.metrics?.final_balance || initialBalance;
 
-        // 1. Profit/Loss Analysis
         let wins = 0;
         let losses = 0;
         let grossProfit = 0;
         let grossLoss = 0;
         let previousBalance = initialBalance;
 
-        // Iterate through trades to find PnL (Logic assumes trades are chronological)
         trades.forEach(t => {
-            // Only count closing trades or flips that change balance
             if (t.balance && t.balance !== previousBalance) {
                 const pnl = t.balance - previousBalance;
                 if (pnl > 0) {
@@ -135,7 +165,6 @@ export default function Backtests() {
         const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
         const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 100 : 0;
         
-        // 2. Drawdown Analysis
         let peak = -Infinity;
         let maxDrawdown = 0;
         
@@ -146,9 +175,6 @@ export default function Backtests() {
             if (dd > maxDrawdown) maxDrawdown = dd;
         });
 
-        // 3. Sharpe Ratio (Simplified Annualized)
-        // Assuming hourly data (24 * 365 = 8760 candles/year roughly)
-        // We calculate avg return per trade for simplicity here
         const netProfit = finalBalance - initialBalance;
         const avgTrade = totalTrades > 0 ? netProfit / totalTrades : 0;
 
@@ -156,7 +182,7 @@ export default function Backtests() {
             ...results.metrics,
             win_rate: winRate,
             profit_factor: profitFactor,
-            max_drawdown: maxDrawdown * 100, // Convert to %
+            max_drawdown: maxDrawdown * 100, 
             net_profit: netProfit,
             total_wins: wins,
             total_losses: losses,
@@ -164,44 +190,35 @@ export default function Backtests() {
         };
     };
 
-    // 🕵️‍♂️ DATA DETECTIVE: Finds candles wherever they hide
+    // 🕵️‍♂️ DATA DETECTIVE
     const processResults = (responseData) => {
         if (!responseData) return;
 
         let rawCandles = [];
         let source = "none";
 
-        // 1. Check Root (Standard)
         if (responseData.candleData && Array.isArray(responseData.candleData)) {
             rawCandles = responseData.candleData;
             source = "root";
-        } 
-        // 2. Check Combined Result (Hybrid/Combo Nesting)
-        else if (responseData.combinedResult && Array.isArray(responseData.combinedResult.candleData)) {
+        } else if (responseData.combinedResult && Array.isArray(responseData.combinedResult.candleData)) {
             rawCandles = responseData.combinedResult.candleData;
             source = "combinedResult";
-        }
-        // 3. Check Metrics (Legacy/Trojan Horse)
-        else if (responseData.metrics && Array.isArray(responseData.metrics.candle_data)) {
+        } else if (responseData.metrics && Array.isArray(responseData.metrics.candle_data)) {
              rawCandles = responseData.metrics.candle_data;
              source = "metrics.candle_data";
-        }
-        // 4. Check Root snake_case (Python default)
-        else if (responseData.candle_data && Array.isArray(responseData.candle_data)) {
+        } else if (responseData.candle_data && Array.isArray(responseData.candle_data)) {
             rawCandles = responseData.candle_data;
             source = "root_snake";
         }
 
         console.log(`📦 RESULTS PROCESSED: Found ${rawCandles.length} candles in [${source}]`);
 
-        // Handle Equity Curve formatting safely
         const rawCurve = responseData.equityCurve || responseData.combinedResult?.equityCurve || [];
         const formattedCurve = rawCurve.map(pt => ({
             time: Math.floor(new Date(pt.time).getTime() / 1000),
             value: pt.balance
         })).sort((a,b) => a.time - b.time);
 
-        // 🧮 CALCULATE ENHANCED METRICS
         const enhancedMetrics = calculateAdvancedMetrics({
             ...responseData,
             equityCurve: formattedCurve
@@ -209,7 +226,7 @@ export default function Backtests() {
 
         setBacktestResults({
             ...responseData,
-            metrics: enhancedMetrics, // Override with calculated metrics
+            metrics: enhancedMetrics, 
             equityCurve: formattedCurve,
             candleData: rawCandles 
         });
@@ -261,7 +278,6 @@ export default function Backtests() {
         setData(p => ({ ...p, code, params: { ...p.params, ...DEFAULT_STRATEGY_PARAMS[code] } }));
     };
 
-    // Helper to render the active chart view
     const renderActiveView = () => {
         if (view === 'execution') return <ChartIndependent results={backtestResults} symbol={data.symbol} />;
         if (view === 'performance') return <PerformanceChart results={backtestResults} />;
@@ -291,10 +307,13 @@ export default function Backtests() {
                 <div className="col-span-12 lg:col-span-3">
                     <div className="bg-zinc-900/40 border border-zinc-800 rounded-3xl p-6 sticky top-6 max-h-[90vh] overflow-y-auto custom-scrollbar">
                         <form onSubmit={handleRun} className="space-y-8">
+                            
+                            {/* 🟢 PASSING DYNAMIC MODELS TO AI CONFIG */}
                             <AIConfig 
                                 mlMode={data.mlMode} 
                                 setMlMode={(m)=>setData({...data, mlMode: m})} 
                                 params={data.params} 
+                                availableModels={availableModels}
                                 onParamChange={(k,v)=>setData(p=>({...p, params:{...p.params,[k]:v}}))} 
                             />
                             
@@ -381,17 +400,14 @@ export default function Backtests() {
                 <div className="col-span-12 lg:col-span-9 space-y-6">
                     {backtestResults ? (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-5 duration-700">
-                            {/* 🟢 UPGRADED METRICS PANEL */}
                             <MetricsPanel metrics={backtestResults.metrics} />
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] overflow-hidden shadow-2xl">
                                 <div className="flex bg-zinc-800/50 p-2 border-b border-zinc-800">
-                                    {/* 🔴 TAB SWITCHER */}
                                     <button onClick={() => setView('execution')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'execution' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Execution</button>
                                     <button onClick={() => setView('performance')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'performance' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Performance</button>
                                     <button onClick={() => setView('replay')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'replay' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Replay</button>
                                 </div>
                                 <div className="h-[600px] p-8">
-                                    {/* 🔴 DYNAMIC COMPONENT RENDERING */}
                                     {renderActiveView()}
                                 </div>
                             </div>
@@ -407,9 +423,67 @@ export default function Backtests() {
     );
 }
 
-// --- SUB-COMPONENTS ---
+// 🟢 UPGRADED AI CONFIG: Accepts Dynamic 'availableModels' prop
+function AIConfig({ mlMode, setMlMode, params, onParamChange, availableModels = [] }) {
+    return (
+        <div className="space-y-4">
+            <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                    <Cpu size={14} className="text-violet-400"/>
+                    <h4 className="text-[10px] text-violet-400 font-black uppercase tracking-widest">Neural Gate</h4>
+                </div>
+                <select 
+                    value={mlMode} 
+                    onChange={(e)=>setMlMode(e.target.value)} 
+                    className="bg-zinc-800 text-[9px] rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-violet-500/50"
+                >
+                    <option value="off">BYPASS</option>
+                    <option value="on">ACTIVE</option>
+                </select>
+            </div>
+            
+            {mlMode === "on" && (
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2">
+                        <label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1">Architecture</label>
+                        <select 
+                            value={params.model_type} 
+                            onChange={(e)=>onParamChange('model_type', e.target.value)} 
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none"
+                        >
+                            {/* 🟢 DYNAMIC MAPPING */}
+                            {availableModels.map(model => (
+                                <option key={model.id} value={model.id}>{model.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1">Long Gate</label>
+                        <input 
+                            type="number" 
+                            step="0.01" 
+                            value={params.long_threshold} 
+                            onChange={(e)=>onParamChange('long_threshold', parseFloat(e.target.value))} 
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1">Short Gate</label>
+                        <input 
+                            type="number" 
+                            step="0.01" 
+                            value={params.short_threshold} 
+                            onChange={(e)=>onParamChange('short_threshold', parseFloat(e.target.value))} 
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none"
+                        />
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
 
-// 🟢 NEW METRICS PANEL WITH DETAILED STATS
+// ... (Rest of components: MetricsPanel, StrategyParamInputs, AdvancedFilters, etc. remain unchanged)
 function MetricsPanel({ metrics }) {
     const MetricCard = ({ label, value, subValue, icon: Icon, color = "text-white" }) => (
         <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl shadow-xl flex items-center justify-between">
@@ -475,7 +549,6 @@ function MetricsPanel({ metrics }) {
                 value={`$${(metrics.avg_trade || 0).toFixed(2)}`}
                 color={metrics.avg_trade >= 0 ? "text-emerald-400" : "text-rose-400"}
             />
-             {/* Dynamic filler for 8th slot */}
              <div className="bg-zinc-900/50 border border-zinc-800/50 p-5 rounded-2xl flex items-center justify-center opacity-50">
                 <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">Sovereign Quant</span>
             </div>
@@ -525,18 +598,59 @@ function StrategyParamInputs({ strategy, onChange }) {
     );
 }
 
-function AIConfig({ mlMode, setMlMode, params, onParamChange }) {
+function AIConfig({ mlMode, setMlMode, params, onParamChange, availableModels = [] }) {
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2"><Cpu size={14} className="text-violet-400"/><h4 className="text-[10px] text-violet-400 font-black uppercase tracking-widest">Neural Gate</h4></div>
-                <select value={mlMode} onChange={(e)=>setMlMode(e.target.value)} className="bg-zinc-800 text-[9px] rounded-md px-2 py-1"><option value="off">BYPASS</option><option value="on">ACTIVE</option></select>
+                <div className="flex items-center gap-2">
+                    <Cpu size={14} className="text-violet-400"/>
+                    <h4 className="text-[10px] text-violet-400 font-black uppercase tracking-widest">Neural Gate</h4>
+                </div>
+                <select 
+                    value={mlMode} 
+                    onChange={(e)=>setMlMode(e.target.value)} 
+                    className="bg-zinc-800 text-[9px] rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-violet-500/50"
+                >
+                    <option value="off">BYPASS</option>
+                    <option value="on">ACTIVE</option>
+                </select>
             </div>
+            
             {mlMode === "on" && (
                 <div className="grid grid-cols-2 gap-3">
-                    <div className="col-span-2"><label className={labelClass}>Architecture</label><select value={params.model_type} onChange={(e)=>onParamChange('model_type', e.target.value)} className={inputClass}><option value="stacking">Stacking</option><option value="Transformer">Transformer</option></select></div>
-                    <div><label className={labelClass}>Long Gate</label><input type="number" step="0.01" value={params.long_threshold} onChange={(e)=>onParamChange('long_threshold', parseFloat(e.target.value))} className={inputClass}/></div>
-                    <div><label className={labelClass}>Short Gate</label><input type="number" step="0.01" value={params.short_threshold} onChange={(e)=>onParamChange('short_threshold', parseFloat(e.target.value))} className={inputClass}/></div>
+                    <div className="col-span-2">
+                        <label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1">Architecture</label>
+                        <select 
+                            value={params.model_type} 
+                            onChange={(e)=>onParamChange('model_type', e.target.value)} 
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none"
+                        >
+                            {/* 🟢 DYNAMIC MAPPING */}
+                            {availableModels.map(model => (
+                                <option key={model.id} value={model.id}>{model.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1">Long Gate</label>
+                        <input 
+                            type="number" 
+                            step="0.01" 
+                            value={params.long_threshold} 
+                            onChange={(e)=>onParamChange('long_threshold', parseFloat(e.target.value))} 
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1">Short Gate</label>
+                        <input 
+                            type="number" 
+                            step="0.01" 
+                            value={params.short_threshold} 
+                            onChange={(e)=>onParamChange('short_threshold', parseFloat(e.target.value))} 
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none"
+                        />
+                    </div>
                 </div>
             )}
         </div>
