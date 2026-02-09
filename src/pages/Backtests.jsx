@@ -286,13 +286,19 @@ export default function Backtests() {
 
     return (
         <div className="min-h-screen bg-zinc-950 text-white font-sans p-6">
-            <header className="max-w-[1800px] mx-auto mb-8 flex justify-between items-center">
+            
+            {/* 🟢 HEADER LAYOUT CHANGED: gap-12 creates space, items-center aligns left */}
+            <header className="max-w-[1800px] mx-auto mb-8 flex items-center gap-12">
+                
+                {/* Logo Section */}
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
                         <BarChart3 className="text-black w-6 h-6" />
                     </div>
                     <h1 className="text-sm font-black uppercase tracking-widest">Sovereign <span className="text-amber-500">Quant</span></h1>
                 </div>
+
+                {/* 🟢 MOVED TABS HERE (Left Side) */}
                 <div className="flex gap-2 p-1 bg-zinc-900 rounded-xl border border-zinc-800">
                     {['single', 'combo'].map(tab => (
                         <button key={tab} type="button" onClick={() => setActiveTab(tab)}
@@ -301,6 +307,7 @@ export default function Backtests() {
                         </button>
                     ))}
                 </div>
+
             </header>
 
             <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8">
