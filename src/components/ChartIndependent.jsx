@@ -37,12 +37,12 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
         });
         const sorted = Array.from(uniqueCandles.values()).sort((a, b) => a.time - b.time);
         
-        // Debug: Check if February data exists
+        // Debug Log
         if (sorted.length > 0) {
-            console.log("📅 Chart Data Range:", 
-                new Date(sorted[0].time * 1000).toISOString(), 
-                "to", 
-                new Date(sorted[sorted.length-1].time * 1000).toISOString()
+            console.log("📊 Chart Range:", 
+                new Date(sorted[0].time * 1000).toLocaleDateString(), 
+                "->", 
+                new Date(sorted[sorted.length-1].time * 1000).toLocaleDateString()
             );
         }
         
@@ -132,7 +132,6 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
                 const data = param.seriesData.get(candleSeries);
                 if (data) updateLegend(data);
 
-                // Connector Lines
                 if (tradeLookup[param.time]) {
                     const trade = tradeLookup[param.time];
                     let points = [];
@@ -150,12 +149,22 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
             }
         });
 
-        // 🟢 FORCE FIT CONTENT (Fixes Start Date View)
-        // We use a small delay to ensure the container is fully rendered before fitting
-        chart.timeScale().fitContent();
-        setTimeout(() => {
+        // 🟢 FIX: FORCE VISIBLE RANGE (Hard Reset)
+        if (candles.length > 0) {
+            const startTime = candles[0].time;
+            const endTime = candles[candles.length - 1].time;
+            
+            // Attempt 1: Immediate Fit
             chart.timeScale().fitContent();
-        }, 50);
+
+            // Attempt 2: Explicit Set Range after DOM paint
+            setTimeout(() => {
+                chart.timeScale().setVisibleRange({
+                    from: startTime,
+                    to: endTime
+                });
+            }, 100);
+        }
         
         const handleResize = () => {
             if (chartContainerRef.current) {
@@ -173,9 +182,8 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
 
     return (
         <div className="w-full h-full relative group">
-            {/* 🟢 LEGEND OVERLAY (Always Visible) */}
+            {/* Legend Overlay */}
             <div className="absolute top-4 left-4 z-50 pointer-events-none select-none">
-                {/* OHLC Data */}
                 <div className="bg-zinc-950/90 backdrop-blur-md p-3 rounded-xl border border-zinc-800 shadow-2xl mb-2">
                     <div className="flex gap-4 items-center mb-1">
                         <span className="font-black text-amber-500 text-xs tracking-wider">{symbol}</span>
@@ -189,7 +197,6 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
                     </div>
                 </div>
 
-                {/* Markers Key */}
                 <div className="flex gap-3 bg-zinc-950/80 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-zinc-800/50 w-fit">
                     <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500"></div><span className="text-[9px] text-zinc-400 font-bold">L = LONG</span></div>
                     <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-rose-500"></div><span className="text-[9px] text-zinc-400 font-bold">S = SHORT</span></div>
