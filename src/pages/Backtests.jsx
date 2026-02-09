@@ -3,10 +3,11 @@ import axios from "axios";
 import { useBacktest } from "../hooks/useBacktest.js";
 import { ChartIndependent } from "../components/ChartIndependent.jsx";
 import { PerformanceChart } from "../components/PerformanceChart.jsx";
-import { ChartReplay } from "../components/ChartReplay.jsx"; // 👈 Import the new component
+import { ChartReplay } from "../components/ChartReplay.jsx"; 
 import { 
     Play, BarChart3, Layers, Plus, Trash2, 
-    Shield, Globe, Cpu, Filter
+    Shield, Globe, Cpu, Filter, TrendingUp, 
+    Activity, Percent, DollarSign, AlertTriangle
 } from "lucide-react";
 
 const VITE_API = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
@@ -100,6 +101,69 @@ export default function Backtests() {
         return () => clearInterval(poller);
     }, [isSimulating, currentJobId]);
 
+    // 🧮 FRONTEND METRIC CALCULATOR
+    const calculateAdvancedMetrics = (results) => {
+        const trades = results.trades || [];
+        const curve = results.equityCurve || [];
+        const initialBalance = results.initialBalance || 1000;
+        const finalBalance = results.metrics?.final_balance || initialBalance;
+
+        // 1. Profit/Loss Analysis
+        let wins = 0;
+        let losses = 0;
+        let grossProfit = 0;
+        let grossLoss = 0;
+        let previousBalance = initialBalance;
+
+        // Iterate through trades to find PnL (Logic assumes trades are chronological)
+        trades.forEach(t => {
+            // Only count closing trades or flips that change balance
+            if (t.balance && t.balance !== previousBalance) {
+                const pnl = t.balance - previousBalance;
+                if (pnl > 0) {
+                    wins++;
+                    grossProfit += pnl;
+                } else {
+                    losses++;
+                    grossLoss += Math.abs(pnl);
+                }
+                previousBalance = t.balance;
+            }
+        });
+
+        const totalTrades = wins + losses;
+        const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
+        const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 100 : 0;
+        
+        // 2. Drawdown Analysis
+        let peak = -Infinity;
+        let maxDrawdown = 0;
+        
+        curve.forEach(pt => {
+            const val = pt.balance || pt.value;
+            if (val > peak) peak = val;
+            const dd = (peak - val) / peak;
+            if (dd > maxDrawdown) maxDrawdown = dd;
+        });
+
+        // 3. Sharpe Ratio (Simplified Annualized)
+        // Assuming hourly data (24 * 365 = 8760 candles/year roughly)
+        // We calculate avg return per trade for simplicity here
+        const netProfit = finalBalance - initialBalance;
+        const avgTrade = totalTrades > 0 ? netProfit / totalTrades : 0;
+
+        return {
+            ...results.metrics,
+            win_rate: winRate,
+            profit_factor: profitFactor,
+            max_drawdown: maxDrawdown * 100, // Convert to %
+            net_profit: netProfit,
+            total_wins: wins,
+            total_losses: losses,
+            avg_trade: avgTrade
+        };
+    };
+
     // 🕵️‍♂️ DATA DETECTIVE: Finds candles wherever they hide
     const processResults = (responseData) => {
         if (!responseData) return;
@@ -137,10 +201,17 @@ export default function Backtests() {
             value: pt.balance
         })).sort((a,b) => a.time - b.time);
 
+        // 🧮 CALCULATE ENHANCED METRICS
+        const enhancedMetrics = calculateAdvancedMetrics({
+            ...responseData,
+            equityCurve: formattedCurve
+        });
+
         setBacktestResults({
             ...responseData,
+            metrics: enhancedMetrics, // Override with calculated metrics
             equityCurve: formattedCurve,
-            candleData: rawCandles // 🛡️ Force found candles into correct spot
+            candleData: rawCandles 
         });
         
         setIsSimulating(false);
@@ -310,6 +381,7 @@ export default function Backtests() {
                 <div className="col-span-12 lg:col-span-9 space-y-6">
                     {backtestResults ? (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-5 duration-700">
+                            {/* 🟢 UPGRADED METRICS PANEL */}
                             <MetricsPanel metrics={backtestResults.metrics} />
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] overflow-hidden shadow-2xl">
                                 <div className="flex bg-zinc-800/50 p-2 border-b border-zinc-800">
@@ -336,6 +408,80 @@ export default function Backtests() {
 }
 
 // --- SUB-COMPONENTS ---
+
+// 🟢 NEW METRICS PANEL WITH DETAILED STATS
+function MetricsPanel({ metrics }) {
+    const MetricCard = ({ label, value, subValue, icon: Icon, color = "text-white" }) => (
+        <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl shadow-xl flex items-center justify-between">
+            <div>
+                <p className="text-[10px] text-zinc-500 uppercase font-black mb-1 flex items-center gap-1">
+                    {Icon && <Icon size={12} className="opacity-50" />}
+                    {label}
+                </p>
+                <p className={`text-2xl font-mono ${color}`}>{value}</p>
+                {subValue && <p className="text-[10px] text-zinc-600 font-mono mt-1">{subValue}</p>}
+            </div>
+        </div>
+    );
+
+    const netProfit = metrics.net_profit || 0;
+    const roi = metrics.roi || 0;
+    const winRate = metrics.win_rate || 0;
+    const pf = metrics.profit_factor || 0;
+    const dd = metrics.max_drawdown || 0;
+
+    return (
+        <div className="grid grid-cols-4 gap-4">
+            <MetricCard 
+                label="Net Profit" 
+                icon={DollarSign}
+                value={`$${netProfit.toFixed(2)}`} 
+                color={netProfit >= 0 ? "text-emerald-400" : "text-rose-400"}
+                subValue={`Final Balance: $${(metrics.final_balance || 0).toFixed(2)}`}
+            />
+            <MetricCard 
+                label="ROI" 
+                icon={TrendingUp}
+                value={`${roi.toFixed(2)}%`} 
+                color={roi >= 0 ? "text-emerald-400" : "text-rose-400"}
+            />
+            <MetricCard 
+                label="Win Rate" 
+                icon={Percent}
+                value={`${winRate.toFixed(1)}%`} 
+                color={winRate > 50 ? "text-emerald-400" : "text-amber-400"}
+                subValue={`W: ${metrics.total_wins || 0} / L: ${metrics.total_losses || 0}`}
+            />
+            <MetricCard 
+                label="Profit Factor" 
+                icon={Activity}
+                value={pf.toFixed(2)} 
+                color={pf > 1.5 ? "text-emerald-400" : pf > 1 ? "text-amber-400" : "text-rose-400"}
+            />
+            <MetricCard 
+                label="Max Drawdown" 
+                icon={AlertTriangle}
+                value={`-${dd.toFixed(2)}%`} 
+                color={dd < 20 ? "text-zinc-300" : "text-rose-400"}
+            />
+            <MetricCard 
+                label="Total Trades" 
+                icon={Layers}
+                value={metrics.total_trades || 0}
+            />
+            <MetricCard 
+                label="Avg Trade" 
+                icon={DollarSign}
+                value={`$${(metrics.avg_trade || 0).toFixed(2)}`}
+                color={metrics.avg_trade >= 0 ? "text-emerald-400" : "text-rose-400"}
+            />
+             {/* Dynamic filler for 8th slot */}
+             <div className="bg-zinc-900/50 border border-zinc-800/50 p-5 rounded-2xl flex items-center justify-center opacity-50">
+                <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">Sovereign Quant</span>
+            </div>
+        </div>
+    );
+}
 
 function StrategyParamInputs({ strategy, onChange }) {
     const { code, params = {} } = strategy;
@@ -406,19 +552,6 @@ function AdvancedFilters({ filters, onChange }) {
                 <div><label className={labelClass}>Min Vol</label><input type="number" value={filters.vol_min} onChange={(e)=>onChange('vol_min', parseFloat(e.target.value))} className={inputClass}/></div>
                 <div><label className={labelClass}>ATR Filter</label><input type="number" step="0.1" value={filters.atr_filter} onChange={(e)=>onChange('atr_filter', parseFloat(e.target.value))} className={inputClass}/></div>
             </div>
-        </div>
-    );
-}
-
-function MetricsPanel({ metrics }) {
-    return (
-        <div className="grid grid-cols-4 gap-4">
-            {Object.entries(metrics || {}).map(([k, v]) => (
-                <div key={k} className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-xl">
-                    <p className="text-[10px] text-zinc-500 uppercase font-black mb-1">{k}</p>
-                    <p className="text-2xl font-mono text-white">{typeof v === 'number' ? v.toFixed(2) : v}</p>
-                </div>
-            ))}
         </div>
     );
 }
