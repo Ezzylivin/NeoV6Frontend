@@ -483,7 +483,7 @@ function AIConfig({ mlMode, setMlMode, params, onParamChange, availableModels = 
     );
 }
 
-// ... (Rest of components: MetricsPanel, StrategyParamInputs, AdvancedFilters, etc. remain unchanged)
+// --- METRICS PANEL ---
 function MetricsPanel({ metrics }) {
     const MetricCard = ({ label, value, subValue, icon: Icon, color = "text-white" }) => (
         <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl shadow-xl flex items-center justify-between">
@@ -594,65 +594,6 @@ function StrategyParamInputs({ strategy, onChange }) {
             {code === "ema_cloud" && <>{f("Fast EMA", "fast_ema")}{f("Slow EMA", "slow_ema")}</>}
             {code === "pa_breakout" && <>{f("Lookback", "lookback")}{f("Buffer", "buffer", "0.001")}</>}
             {code === "vol_profile" && <>{f("Vol MA", "vol_ma")}{f("Thresh", "threshold", "0.1")}</>}
-        </div>
-    );
-}
-
-function AIConfig({ mlMode, setMlMode, params, onParamChange, availableModels = [] }) {
-    return (
-        <div className="space-y-4">
-            <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                    <Cpu size={14} className="text-violet-400"/>
-                    <h4 className="text-[10px] text-violet-400 font-black uppercase tracking-widest">Neural Gate</h4>
-                </div>
-                <select 
-                    value={mlMode} 
-                    onChange={(e)=>setMlMode(e.target.value)} 
-                    className="bg-zinc-800 text-[9px] rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-violet-500/50"
-                >
-                    <option value="off">BYPASS</option>
-                    <option value="on">ACTIVE</option>
-                </select>
-            </div>
-            
-            {mlMode === "on" && (
-                <div className="grid grid-cols-2 gap-3">
-                    <div className="col-span-2">
-                        <label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1">Architecture</label>
-                        <select 
-                            value={params.model_type} 
-                            onChange={(e)=>onParamChange('model_type', e.target.value)} 
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none"
-                        >
-                            {/* 🟢 DYNAMIC MAPPING */}
-                            {availableModels.map(model => (
-                                <option key={model.id} value={model.id}>{model.name}</option>
-                            ))}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1">Long Gate</label>
-                        <input 
-                            type="number" 
-                            step="0.01" 
-                            value={params.long_threshold} 
-                            onChange={(e)=>onParamChange('long_threshold', parseFloat(e.target.value))} 
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none"
-                        />
-                    </div>
-                    <div>
-                        <label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1">Short Gate</label>
-                        <input 
-                            type="number" 
-                            step="0.01" 
-                            value={params.short_threshold} 
-                            onChange={(e)=>onParamChange('short_threshold', parseFloat(e.target.value))} 
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none"
-                        />
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
