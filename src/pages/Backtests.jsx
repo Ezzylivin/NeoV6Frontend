@@ -7,7 +7,8 @@ import { ChartReplay } from "../components/ChartReplay.jsx";
 import { 
     Play, BarChart3, Layers, Plus, Trash2, 
     Shield, Globe, Cpu, Filter, TrendingUp, 
-    Activity, Percent, DollarSign, AlertTriangle
+    Activity, Percent, DollarSign, AlertTriangle, 
+    Zap, Scale, Award, TrendingDown
 } from "lucide-react";
 
 const VITE_API = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
@@ -92,7 +93,6 @@ export default function Backtests() {
         const fetchModels = async () => {
             try {
                 const token = localStorage.getItem('token');
-                // Attempts to fetch 'GET /api/ml/models' - ensure your backend has this route!
                 const res = await axios.get(`${API_BASE}/ml/models`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
@@ -100,7 +100,6 @@ export default function Backtests() {
                     setAvailableModels(res.data);
                 }
             } catch (e) {
-                // Silent fail: use DEFAULT_MODELS if endpoint doesn't exist
                 console.warn("Could not fetch models from server, using defaults.");
             }
         };
@@ -134,7 +133,7 @@ export default function Backtests() {
         return () => clearInterval(poller);
     }, [isSimulating, currentJobId]);
 
-    // 🧮 FRONTEND METRIC CALCULATOR
+    // 🧮 FRONTEND METRIC CALCULATOR (Enhanced)
     const calculateAdvancedMetrics = (results) => {
         const trades = results.trades || [];
         const curve = results.equityCurve || [];
@@ -145,17 +144,22 @@ export default function Backtests() {
         let losses = 0;
         let grossProfit = 0;
         let grossLoss = 0;
+        let largestWin = 0;
+        let largestLoss = 0;
         let previousBalance = initialBalance;
 
+        // Trade Analysis
         trades.forEach(t => {
             if (t.balance && t.balance !== previousBalance) {
                 const pnl = t.balance - previousBalance;
                 if (pnl > 0) {
                     wins++;
                     grossProfit += pnl;
+                    if (pnl > largestWin) largestWin = pnl;
                 } else {
                     losses++;
                     grossLoss += Math.abs(pnl);
+                    if (pnl < largestLoss) largestLoss = pnl;
                 }
                 previousBalance = t.balance;
             }
@@ -164,10 +168,14 @@ export default function Backtests() {
         const totalTrades = wins + losses;
         const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
         const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 100 : 0;
-        
+        const avgWin = wins > 0 ? grossProfit / wins : 0;
+        const avgLoss = losses > 0 ? grossLoss / losses : 0;
+        const netProfit = finalBalance - initialBalance;
+        const avgTrade = totalTrades > 0 ? netProfit / totalTrades : 0;
+
+        // Drawdown Analysis
         let peak = -Infinity;
         let maxDrawdown = 0;
-        
         curve.forEach(pt => {
             const val = pt.balance || pt.value;
             if (val > peak) peak = val;
@@ -175,8 +183,29 @@ export default function Backtests() {
             if (dd > maxDrawdown) maxDrawdown = dd;
         });
 
-        const netProfit = finalBalance - initialBalance;
-        const avgTrade = totalTrades > 0 ? netProfit / totalTrades : 0;
+        // Sharpe & Volatility (Daily Returns Approximation)
+        let returns = [];
+        for (let i = 1; i < curve.length; i++) {
+            const prev = curve[i-1].balance || curve[i-1].value;
+            const curr = curve[i].balance || curve[i].value;
+            if (prev > 0) returns.push((curr - prev) / prev);
+        }
+        
+        let volatility = 0;
+        let sharpe = 0;
+        if (returns.length > 0) {
+            const meanReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+            const variance = returns.reduce((a, b) => a + Math.pow(b - meanReturn, 2), 0) / returns.length;
+            volatility = Math.sqrt(variance);
+            // Annualized Sharpe (assuming hourly data -> 24 * 365 ~ 8760 periods)
+            // Adjust constant based on timeframe if needed, using sqrt(periods)
+            sharpe = volatility > 0 ? (meanReturn / volatility) * Math.sqrt(365 * 24) : 0; 
+        }
+
+        // CAGR
+        const days = (new Date(results.endDate) - new Date(results.startDate)) / (1000 * 60 * 60 * 24);
+        const years = days / 365;
+        const cagr = years > 0 ? (Math.pow(finalBalance / initialBalance, 1 / years) - 1) * 100 : 0;
 
         return {
             ...results.metrics,
@@ -186,7 +215,14 @@ export default function Backtests() {
             net_profit: netProfit,
             total_wins: wins,
             total_losses: losses,
-            avg_trade: avgTrade
+            avg_trade: avgTrade,
+            avg_win: avgWin,
+            avg_loss: avgLoss,
+            largest_win: largestWin,
+            largest_loss: largestLoss,
+            sharpe_ratio: sharpe,
+            volatility: volatility * 100, // as percentage
+            cagr: cagr
         };
     };
 
@@ -287,10 +323,7 @@ export default function Backtests() {
     return (
         <div className="min-h-screen bg-zinc-950 text-white font-sans p-6">
             
-            {/* 🟢 HEADER LAYOUT CHANGED: gap-12 creates space, items-center aligns left */}
             <header className="max-w-[1800px] mx-auto mb-8 flex items-center gap-12">
-                
-                {/* Logo Section */}
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
                         <BarChart3 className="text-black w-6 h-6" />
@@ -298,7 +331,6 @@ export default function Backtests() {
                     <h1 className="text-sm font-black uppercase tracking-widest">Sovereign <span className="text-amber-500">Quant</span></h1>
                 </div>
 
-                {/* 🟢 MOVED TABS HERE (Left Side) */}
                 <div className="flex gap-2 p-1 bg-zinc-900 rounded-xl border border-zinc-800">
                     {['single', 'combo'].map(tab => (
                         <button key={tab} type="button" onClick={() => setActiveTab(tab)}
@@ -307,7 +339,6 @@ export default function Backtests() {
                         </button>
                     ))}
                 </div>
-
             </header>
 
             <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8">
@@ -315,7 +346,6 @@ export default function Backtests() {
                     <div className="bg-zinc-900/40 border border-zinc-800 rounded-3xl p-6 sticky top-6 max-h-[90vh] overflow-y-auto custom-scrollbar">
                         <form onSubmit={handleRun} className="space-y-8">
                             
-                            {/* 🟢 PASSING DYNAMIC MODELS TO AI CONFIG */}
                             <AIConfig 
                                 mlMode={data.mlMode} 
                                 setMlMode={(m)=>setData({...data, mlMode: m})} 
@@ -407,6 +437,7 @@ export default function Backtests() {
                 <div className="col-span-12 lg:col-span-9 space-y-6">
                     {backtestResults ? (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-5 duration-700">
+                            {/* 🟢 UPGRADED METRICS PANEL */}
                             <MetricsPanel metrics={backtestResults.metrics} />
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] overflow-hidden shadow-2xl">
                                 <div className="flex bg-zinc-800/50 p-2 border-b border-zinc-800">
@@ -510,6 +541,9 @@ function MetricsPanel({ metrics }) {
     const winRate = metrics.win_rate || 0;
     const pf = metrics.profit_factor || 0;
     const dd = metrics.max_drawdown || 0;
+    const sharpe = metrics.sharpe_ratio || 0;
+    const vol = metrics.volatility || 0;
+    const cagr = metrics.cagr || 0;
 
     return (
         <div className="grid grid-cols-4 gap-4">
@@ -546,19 +580,48 @@ function MetricsPanel({ metrics }) {
                 color={dd < 20 ? "text-zinc-300" : "text-rose-400"}
             />
             <MetricCard 
-                label="Total Trades" 
-                icon={Layers}
-                value={metrics.total_trades || 0}
+                label="Sharpe Ratio" 
+                icon={Award}
+                value={sharpe.toFixed(2)} 
+                color={sharpe > 1 ? "text-emerald-400" : "text-zinc-400"}
             />
             <MetricCard 
-                label="Avg Trade" 
-                icon={DollarSign}
-                value={`$${(metrics.avg_trade || 0).toFixed(2)}`}
-                color={metrics.avg_trade >= 0 ? "text-emerald-400" : "text-rose-400"}
+                label="Volatility" 
+                icon={Zap}
+                value={`${vol.toFixed(2)}%`} 
+                color="text-zinc-300"
             />
-             <div className="bg-zinc-900/50 border border-zinc-800/50 p-5 rounded-2xl flex items-center justify-center opacity-50">
-                <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">Sovereign Quant</span>
-            </div>
+            <MetricCard 
+                label="CAGR" 
+                icon={Scale}
+                value={`${cagr.toFixed(2)}%`} 
+                color={cagr > 0 ? "text-emerald-400" : "text-zinc-400"}
+            />
+            
+            <MetricCard 
+                label="Avg Win" 
+                icon={TrendingUp}
+                value={`$${(metrics.avg_win || 0).toFixed(2)}`} 
+                color="text-emerald-400"
+            />
+            <MetricCard 
+                label="Avg Loss" 
+                icon={TrendingDown}
+                value={`$${(metrics.avg_loss || 0).toFixed(2)}`} 
+                color="text-rose-400"
+            />
+            <MetricCard 
+                label="Largest Win" 
+                icon={Award}
+                value={`$${(metrics.largest_win || 0).toFixed(2)}`} 
+                color="text-emerald-400"
+            />
+            <MetricCard 
+                label="Largest Loss" 
+                icon={AlertTriangle}
+                value={`$${(metrics.largest_loss || 0).toFixed(2)}`} 
+                color="text-rose-400"
+            />
         </div>
     );
 }
