@@ -54,7 +54,7 @@ const DEFAULT_STRATEGY_PARAMS = {
     vol_profile: { vol_ma: 20, threshold: 1.5 }
 };
 
-// 🟢 TOOLTIP COMPONENT
+// 🟢 TOOLTIP COMPONENT (Enhanced for Readability)
 const Tooltip = ({ text, children }) => {
     const [visible, setVisible] = useState(false);
 
@@ -62,7 +62,7 @@ const Tooltip = ({ text, children }) => {
         <div className="relative flex items-center" onMouseEnter={() => setVisible(true)} onMouseLeave={() => setVisible(false)}>
             {children}
             {visible && (
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 bg-zinc-800 text-white text-[10px] p-2 rounded shadow-lg z-50 border border-zinc-700 pointer-events-none">
+                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 bg-zinc-800 text-zinc-200 text-[11px] leading-relaxed p-3 rounded-lg shadow-xl z-50 border border-zinc-700 pointer-events-none">
                     {text}
                     <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-zinc-800"></div>
                 </div>
@@ -544,19 +544,19 @@ function MetricsPanel({ metrics }) {
             <div className="bg-zinc-900/40 p-4 rounded-3xl border border-zinc-800/50">
                 <h5 className="text-[10px] text-violet-400 font-black uppercase tracking-widest mb-4 flex items-center gap-2 border-b border-zinc-800 pb-2"><Activity size={14} /> Risk & Advanced Analytics</h5>
                 <div className="grid grid-cols-2 gap-3">
-                    <MetricCard label="Max Drawdown" icon={AlertTriangle} value={`-${dd.toFixed(2)}%`} color={dd < 20 ? "text-zinc-300" : "text-rose-400"} tooltip="Maximum peak-to-valley decline in account value." />
-                    <MetricCard label="Sharpe Ratio" icon={Award} value={sharpe.toFixed(2)} color={sharpe > 1 ? "text-emerald-400" : "text-zinc-400"} tooltip="Measure of risk-adjusted return." />
-                    <MetricCard label="Volatility" icon={Zap} value={`${vol.toFixed(2)}%`} color="text-zinc-300" tooltip="Standard deviation of returns (risk measure)." />
-                    <MetricCard label="CAGR" icon={Scale} value={`${cagr.toFixed(2)}%`} color={cagr > 0 ? "text-emerald-400" : "text-zinc-400"} tooltip="Compound Annual Growth Rate." />
-                    <MetricCard label="Largest Win" icon={Award} value={`$${(metrics.largest_win || 0).toFixed(2)}`} color="text-emerald-400" tooltip="Single largest profitable trade." />
-                    <MetricCard label="Largest Loss" icon={AlertTriangle} value={`$${(metrics.largest_loss || 0).toFixed(2)}`} color="text-rose-400" tooltip="Single largest losing trade." />
+                    <MetricCard label="Max Drawdown" icon={AlertTriangle} value={`-${dd.toFixed(2)}%`} color={dd < 20 ? "text-zinc-300" : "text-rose-400"} tooltip="Maximum drawdown (MDD) is the largest single drop from peak to bottom in the value of a portfolio (before a new peak is achieved). It is an indicator of downside risk over a specified time period." />
+                    <MetricCard label="Sharpe Ratio" icon={Award} value={sharpe.toFixed(2)} color={sharpe > 1 ? "text-emerald-400" : "text-zinc-400"} tooltip="Sharpe ratio is used to help investors understand the return of an investment compared to its risk. The ratio is the average return earned in excess of the risk-free rate per unit of volatility or total risk." />
+                    <MetricCard label="Volatility" icon={Zap} value={`${vol.toFixed(2)}%`} color="text-zinc-300" tooltip="Volatility is a statistical measure of the dispersion of returns for a given security or market index. In most cases, the higher the volatility, the riskier the security." />
+                    <MetricCard label="CAGR" icon={Scale} value={`${cagr.toFixed(2)}%`} color={cagr > 0 ? "text-emerald-400" : "text-zinc-400"} tooltip="Compound annual growth rate (CAGR) is the rate of return that would be required for an investment to grow from its beginning balance to its ending balance, assuming the profits were reinvested at the end of each year of the investment's lifespan." />
+                    <MetricCard label="Largest Win" icon={Award} value={`$${(metrics.largest_win || 0).toFixed(2)}`} color="text-emerald-400" tooltip="The single largest profit made from one trade in the given period." />
+                    <MetricCard label="Largest Loss" icon={AlertTriangle} value={`$${(metrics.largest_loss || 0).toFixed(2)}`} color="text-rose-400" tooltip="The single largest loss taken from one trade in the given period." />
                     <MetricCard
                         label="SQN Score"
                         icon={LayoutGrid}
                         value={sqn.toFixed(2)}
                         color={sqn > 2.5 ? "text-emerald-400" : sqn > 1.5 ? "text-amber-400" : "text-zinc-400"}
                         subValue="System Quality"
-                        tooltip="System Quality Number: Measures strategy quality (>2.0 is good)."
+                        tooltip="System Quality Number (SQN) measures the relationship between your trading edge and the consistency of that edge. It is calculated by taking the square root of the number of trades and multiplying it by the average profit divided by the standard deviation of profit/loss."
                     />
                     <div className="flex items-center justify-center opacity-30">
                         <span className="text-[9px] font-black uppercase text-zinc-700 tracking-widest">Sovereign Quant</span>
@@ -584,16 +584,16 @@ function StrategyParamInputs({ strategy, onChange }) {
     );
     return (
         <div className="grid grid-cols-2 gap-2 mt-2">
-            {code === "rsi_threshold" && <>{f("RSI Len", "rsi_length", "1", "Lookback period for RSI.")}{f("OB", "overbought", "1", "Level to sell.")}{f("OS", "oversold", "1", "Level to buy.")}</>}
-            {code === "sma_crossover" && <>{f("Fast", "fast_sma", "1", "Short-term moving average.")}{f("Slow", "slow_sma", "1", "Long-term moving average.")}</>}
-            {code === "supertrend" && <>{f("ATR", "st_atr", "1", "Volatility period.")}{f("Factor", "st_factor", "0.1", "Multiplier for band distance.")}</>}
-            {code === "macd_crossover" && <>{f("Fast", "fast", "1", "Fast EMA period.")}{f("Slow", "slow", "1", "Slow EMA period.")}{f("Signal", "signal", "1", "Signal line period.")}</>}
-            {code === "atr_breakout" && <>{f("ATR Len", "atr_length", "1", "Period for ATR calculation.")}{f("Mult", "multiplier", "0.1", "Breakout threshold multiplier.")}</>}
-            {code === "bb_fade" && <>{f("Period", "bb_period", "1", "Bollinger Band period.")}{f("Std", "bb_std", "0.1", "Standard deviations away from mean.")}</>}
-            {code === "stoch" && <>{f("K", "k_period", "1", "%K Line period.")}{f("D", "d_period", "1", "%D Line period.")}{f("Slow", "slowing", "1", "Slowing factor.")}</>}
-            {code === "ema_cloud" && <>{f("Fast EMA", "fast_ema", "1", "Cloud top edge.")}{f("Slow EMA", "slow_ema", "1", "Cloud bottom edge.")}</>}
-            {code === "pa_breakout" && <>{f("Lookback", "lookback", "1", "Bars to check for highs/lows.")}{f("Buffer", "buffer", "0.001", "Extra distance required for breakout.")}</>}
-            {code === "vol_profile" && <>{f("Vol MA", "vol_ma", "1", "Volume Moving Average period.")}{f("Thresh", "threshold", "0.1", "Volume spike threshold.")}</>}
+            {code === "rsi_threshold" && <>{f("RSI Len", "rsi_length", "1", "RSI Length is the number of previous trading sessions used to calculate the Relative Strength Index (RSI).")}{f("OB", "overbought", "1", "The overbought level is a threshold on the RSI indicator, typically set at 70, which suggests that an asset may be overvalued and due for a price correction.")}{f("OS", "oversold", "1", "The oversold level is a threshold on the RSI indicator, typically set at 30, which suggests that an asset may be undervalued and due for a price bounce.")}</>}
+            {code === "sma_crossover" && <>{f("Fast", "fast_sma", "1", "The Fast Simple Moving Average (SMA) calculates the average price over a shorter number of periods, reacting more quickly to price changes.")}{f("Slow", "slow_sma", "1", "The Slow Simple Moving Average (SMA) calculates the average price over a longer number of periods, smoothing out price noise to show the broader trend.")}</>}
+            {code === "supertrend" && <>{f("ATR", "st_atr", "1", "The ATR Period for SuperTrend determines the lookback window for calculating volatility, which influences the distance of the stop-loss line from the price.")}{f("Factor", "st_factor", "0.1", "The SuperTrend Factor is a multiplier applied to the ATR value to set the distance of the trend line from the price; a higher factor keeps the line further away.")}</>}
+            {code === "macd_crossover" && <>{f("Fast", "fast", "1", "Fast EMA Period is the shorter time period used to calculate the first Exponential Moving Average in the MACD formula.")}{f("Slow", "slow", "1", "Slow EMA Period is the longer time period used to calculate the second Exponential Moving Average in the MACD formula.")}{f("Signal", "signal", "1", "Signal Line Period is the time period for the EMA of the MACD line itself, used to generate buy and sell signals.")}</>}
+            {code === "atr_breakout" && <>{f("ATR Len", "atr_length", "1", "ATR Length determines the number of periods used to calculate the Average True Range, measuring market volatility.")}{f("Mult", "multiplier", "0.1", "ATR Multiplier scales the ATR value to set dynamic stop-loss or breakout levels based on current volatility.")}</>}
+            {code === "bb_fade" && <>{f("Period", "bb_period", "1", "Bollinger Band Period is the number of candles used to calculate the Simple Moving Average (SMA) which serves as the middle band.")}{f("Std", "bb_std", "0.1", "Standard Deviation Multiplier determines the width of the Bollinger Bands; typically set to 2, representing two standard deviations from the moving average.")}</>}
+            {code === "stoch" && <>{f("K", "k_period", "1", "%K Period is the number of periods used to calculate the main line of the Stochastic Oscillator.")}{f("D", "d_period", "1", "%D Period is the number of periods used to calculate the moving average of the %K line, creating the signal line.")}{f("Slow", "slowing", "1", "Slowing is a smoothing factor applied to the %K line to reduce noise and false signals in the Stochastic Oscillator.")}</>}
+            {code === "ema_cloud" && <>{f("Fast EMA", "fast_ema", "1", "Fast EMA in an EMA Cloud represents the shorter-term moving average that typically forms the upper boundary in an uptrend.")}{f("Slow EMA", "slow_ema", "1", "Slow EMA in an EMA Cloud represents the longer-term moving average that typically forms the lower boundary in an uptrend.")}</>}
+            {code === "pa_breakout" && <>{f("Lookback", "lookback", "1", "Lookback Period defines how many past candles are analyzed to identify significant support or resistance levels.")}{f("Buffer", "buffer", "0.001", "Buffer is a small additional value added to a breakout level to filter out false breakouts and confirm price momentum.")}</>}
+            {code === "vol_profile" && <>{f("Vol MA", "vol_ma", "1", "Volume Moving Average Period calculates the average trading volume over a set number of bars to establish a baseline for volume activity.")}{f("Thresh", "threshold", "0.1", "Volume Threshold is a multiplier or value that current volume must exceed relative to the average to trigger a signal.")}</>}
         </div>
     );
 }
@@ -601,29 +601,11 @@ function StrategyParamInputs({ strategy, onChange }) {
 function AdvancedFilters({ filters, onChange }) {
     return (
         <div className="space-y-4 border-t border-zinc-800 pt-6">
-            <div className="flex items-center gap-2"><Filter size={14} className="text-indigo-400" /><h4 className="text-[10px] text-indigo-400 font-black uppercase tracking-widest flex items-center gap-1">Sanity Filters <Tooltip text="Additional checks to confirm trade validity."><Info size={10} className="text-zinc-500" /></Tooltip></h4></div>
+            <div className="flex items-center gap-2"><Filter size={14} className="text-indigo-400"/><h4 className="text-[10px] text-indigo-400 font-black uppercase tracking-widest">Sanity Filters</h4></div>
             <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
-                    <div className="flex items-center justify-between mb-1">
-                        <label className={labelClass}>Trend Filter</label>
-                        <Tooltip text="Only take trades in the direction of the trend."><Info size={10} className="text-zinc-600" /></Tooltip>
-                    </div>
-                    <select value={filters.trend_filter} onChange={(e) => onChange('trend_filter', e.target.value)} className={inputClass}><option value="none">None</option><option value="ema_200">200 EMA</option></select>
-                </div>
-                <div>
-                    <div className="flex items-center justify-between mb-1">
-                        <label className={labelClass}>Min Vol</label>
-                        <Tooltip text="Minimum volume required to trade."><Info size={10} className="text-zinc-600" /></Tooltip>
-                    </div>
-                    <input type="number" value={filters.vol_min} onChange={(e) => onChange('vol_min', parseFloat(e.target.value))} className={inputClass} />
-                </div>
-                <div>
-                    <div className="flex items-center justify-between mb-1">
-                        <label className={labelClass}>ATR Filter</label>
-                        <Tooltip text="Minimum volatility (ATR) required."><Info size={10} className="text-zinc-600" /></Tooltip>
-                    </div>
-                    <input type="number" step="0.1" value={filters.atr_filter} onChange={(e) => onChange('atr_filter', parseFloat(e.target.value))} className={inputClass} />
-                </div>
+                <div className="col-span-2"><label className={labelClass}>Trend Filter</label><select value={filters.trend_filter} onChange={(e)=>onChange('trend_filter', e.target.value)} className={inputClass}><option value="none">None</option><option value="ema_200">200 EMA</option></select></div>
+                <div><label className={labelClass}>Min Vol</label><input type="number" value={filters.vol_min} onChange={(e)=>onChange('vol_min', parseFloat(e.target.value))} className={inputClass}/></div>
+                <div><label className={labelClass}>ATR Filter</label><input type="number" step="0.1" value={filters.atr_filter} onChange={(e)=>onChange('atr_filter', parseFloat(e.target.value))} className={inputClass}/></div>
             </div>
         </div>
     );
