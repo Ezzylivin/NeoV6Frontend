@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v9.0 - Added Reset Button to UI
+// 🚀 UPGRADE: v9.3 - Fixed Log Rendering Crash (Object vs String)
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
@@ -9,7 +9,6 @@ import toast, { Toaster } from "react-hot-toast";
 import { useBot } from "../hooks/useBot";
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup";
 import { UIModeProvider } from "../context/UIModeContext";
-// 🟢 FIXED IMPORT NAME
 import { LiveTradingChart } from "../components/LiveTradingChart.jsx"; 
 import { 
     Play, BarChart3, Layers, Plus, Trash2, 
@@ -256,14 +255,11 @@ const TradingBotContainer = () => {
     const handleReset = async () => {
         if (window.confirm("Are you sure? This will wipe all trade history and reset the bot state.")) {
             try {
-                // Call reset function from hook
                 if (resetBot) await resetBot();
-                // Manually trigger reset endpoint if hook doesn't cover it (safety)
-                await axios.post(`${API_BASE}/bot/reset`, { userId: address }, {
+                else await axios.post(`${API_BASE}/bot/reset`, { userId: address }, {
                     headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
                 });
                 toast.success("Bot Reset Successfully");
-                // Refresh page to clear local state
                 window.location.reload();
             } catch (e) {
                 toast.error("Reset Failed: " + e.message);
@@ -355,7 +351,6 @@ const TradingBotContainer = () => {
                                             {isStarting ? "Initializing..." : "Engage Systems"}
                                         </button>
                                         
-                                        {/* 🟢 NEW: RESET BUTTON (Only when stopped) */}
                                         <button type="button" onClick={handleReset} className="w-full py-2 bg-zinc-800 text-zinc-400 font-bold uppercase text-[10px] rounded-xl hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-all flex items-center justify-center gap-2">
                                             <RefreshCw size={12} /> Reset Bot State
                                         </button>
@@ -389,10 +384,9 @@ const TradingBotContainer = () => {
                             </div>
                         </div>
 
-                        {/* 🟢 LIVE CHART REPLACES THE OLD CONSOLE */}
+                        {/* 🟢 LIVE CHART */}
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] overflow-hidden shadow-2xl h-[600px] flex flex-col relative">
                             
-                            {/* Header */}
                             <div className="bg-zinc-800/50 p-3 border-b border-zinc-800 flex items-center justify-between z-10">
                                 <div className="flex items-center gap-2">
                                     <Activity size={14} className="text-emerald-500"/>
@@ -409,7 +403,6 @@ const TradingBotContainer = () => {
                                 )}
                             </div>
 
-                            {/* Chart Layer */}
                             <div className="flex-1 relative">
                                 <LiveTradingChart 
                                     symbol={formConfig.symbol} 
@@ -417,24 +410,30 @@ const TradingBotContainer = () => {
                                     isRunning={botStatus?.status === 'running'}
                                     logs={logs}
                                     activePositions={patchedStatus.positions}
+                                    candleData={botStatus?.candles || []}
                                 />
                                 
-                                {/* 🟢 OVERLAY: BOT THOUGHT STREAM */}
-                                {/* This floats over the chart so you can see the text and the candles simultaneously */}
+                                {/* 🟢 OVERLAY: BOT THOUGHT STREAM (CRASH FIXED) */}
                                 <div className="absolute bottom-4 left-4 w-80 max-h-48 overflow-y-auto custom-scrollbar bg-black/80 backdrop-blur-md border border-zinc-800 rounded-xl p-3 z-20 pointer-events-auto">
                                     <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
                                         <Cpu size={12} className="text-violet-400" />
                                         <span className="text-[10px] font-bold text-violet-400 uppercase tracking-wider">Neural Stream</span>
                                     </div>
                                     <div className="space-y-1.5">
-                                        {logs.slice(-5).map((log, i) => (
-                                            <div key={i} className="text-[10px] font-mono animate-in slide-in-from-left-2 fade-in duration-300">
-                                                <span className="text-zinc-500 mr-2">{new Date().toLocaleTimeString().split(' ')[0]}</span>
-                                                <span className={log.includes('Signal') ? 'text-amber-400' : log.includes('Executing') ? 'text-emerald-400' : 'text-zinc-300'}>
-                                                    {log}
-                                                </span>
-                                            </div>
-                                        ))}
+                                        {logs.slice(-5).map((log, i) => {
+                                            // 🟢 SAFE PARSING: Handle both string and object logs
+                                            const message = typeof log === 'object' && log !== null ? (log.message || JSON.stringify(log)) : String(log);
+                                            const timestamp = typeof log === 'object' && log.timestamp ? new Date(log.timestamp).toLocaleTimeString().split(' ')[0] : new Date().toLocaleTimeString().split(' ')[0];
+                                            
+                                            return (
+                                                <div key={i} className="text-[10px] font-mono animate-in slide-in-from-left-2 fade-in duration-300">
+                                                    <span className="text-zinc-500 mr-2">{timestamp}</span>
+                                                    <span className={message.includes('Signal') ? 'text-amber-400' : message.includes('Executing') ? 'text-emerald-400' : 'text-zinc-300'}>
+                                                        {message}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
                                         {logs.length === 0 && <span className="text-[10px] text-zinc-600 italic">Waiting for market data...</span>}
                                     </div>
                                 </div>
@@ -447,7 +446,7 @@ const TradingBotContainer = () => {
     );
 };
 
-// --- HELPER COMPONENTS (DUPLICATED FROM BACKTESTS FOR CONGRUENCY) ---
+// --- HELPER COMPONENTS ---
 
 function AIConfig({ mlMode, setMlMode, params, onParamChange, availableModels = [] }) {
     return (
