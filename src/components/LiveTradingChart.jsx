@@ -1,3 +1,6 @@
+// File: src/components/LiveTradingChart.jsx
+// 🚀 UPGRADE: v9.4 - Fixed Crash on Object Logs
+
 import React, { useEffect, useRef, useState } from "react";
 import { createChart, ColorType, CrosshairMode } from "lightweight-charts";
 import axios from "axios";
@@ -6,35 +9,41 @@ import axios from "axios";
 const VITE_API = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
 const API_BASE = VITE_API.endsWith('/api') ? VITE_API : `${VITE_API}/api`;
 
-export function LiveTradingChart({ symbol, timeframe, isRunning, logs = [] }) {
+// Add prop for initial data so it loads instantly if provided
+export function LiveTradingChart({ symbol, timeframe, isRunning, logs = [], candleData: initialData = [] }) {
     const chartContainerRef = useRef(null);
     const chartRef = useRef(null);
     const candleSeriesRef = useRef(null);
     
     // Data State
-    const [candleData, setCandleData] = useState([]);
+    const [candleData, setCandleData] = useState(initialData);
 
     // 1. 🟢 REAL DATA: Fetch Historical History on Mount
     useEffect(() => {
+        // If parent passed data, use it
+        if (initialData && initialData.length > 0) {
+            setCandleData(initialData);
+            return;
+        }
+
         const fetchHistory = async () => {
             try {
-                // Ensure your backend has this endpoint or adjust accordingly
                 const res = await axios.get(`${API_BASE}/market/candles`, { 
                     params: { symbol, timeframe, limit: 100 } 
                 });
                 
                 if (res.data && Array.isArray(res.data)) {
                     // Sort by time just in case
-                    const sorted = res.data.sort((a, b) => a.time - b.time);
+                    const sorted = res.data.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
                     setCandleData(sorted);
                 }
             } catch (e) { 
-                console.error("Failed to load historical market data:", e); 
+                console.warn("Chart: Waiting for market data..."); 
             }
         };
         
         fetchHistory();
-    }, [symbol, timeframe]);
+    }, [symbol, timeframe, initialData]);
 
     // 2. Initialize Chart
     useEffect(() => {
@@ -74,7 +83,11 @@ export function LiveTradingChart({ symbol, timeframe, isRunning, logs = [] }) {
     // 3. Load Initial Data to Series
     useEffect(() => {
         if (candleSeriesRef.current && candleData.length > 0) {
-            candleSeriesRef.current.setData(candleData);
+            // Ensure data is sorted and unique to prevent lightweight-charts errors
+            const uniqueData = [...new Map(candleData.map(item => [item.time, item])).values()];
+            const sortedData = uniqueData.sort((a, b) => (new Date(a.time).getTime() - new Date(b.time).getTime()));
+            
+            candleSeriesRef.current.setData(sortedData);
             chartRef.current.timeScale().fitContent(); 
         }
     }, [candleData]);
@@ -103,9 +116,9 @@ export function LiveTradingChart({ symbol, timeframe, isRunning, logs = [] }) {
                     candleSeriesRef.current.update(updatedCandle);
                 }
             } catch (e) {
-                console.error("Live polling failed:", e);
+                // Silent fail for polling
             }
-        }, 2000); // Poll every 2 seconds
+        }, 5000); // Poll every 5 seconds to reduce load
 
         return () => clearInterval(interval);
     }, [isRunning, candleData, symbol]);
@@ -119,13 +132,18 @@ export function LiveTradingChart({ symbol, timeframe, isRunning, logs = [] }) {
         
         if (!lastCandle) return;
 
+        // 🟢 SAFE PARSING: Extract string message from object or string
+        const logMessage = typeof latestLog === 'object' && latestLog !== null 
+            ? (latestLog.message || "") 
+            : String(latestLog);
+
         let newMarker = null;
 
-        if (latestLog.includes("Signal") || latestLog.includes("Trigger")) {
+        if (logMessage.includes("Signal") || logMessage.includes("Trigger")) {
             newMarker = { time: lastCandle.time, position: 'aboveBar', color: '#f59e0b', shape: 'arrowDown', text: 'Signal' };
-        } else if (latestLog.includes("Buying") || latestLog.includes("Long")) {
+        } else if (logMessage.includes("Buying") || logMessage.includes("Long")) {
             newMarker = { time: lastCandle.time, position: 'belowBar', color: '#10b981', shape: 'arrowUp', text: 'BUY' };
-        } else if (latestLog.includes("Selling") || latestLog.includes("Short")) {
+        } else if (logMessage.includes("Selling") || logMessage.includes("Short")) {
             newMarker = { time: lastCandle.time, position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'SELL' };
         }
 
