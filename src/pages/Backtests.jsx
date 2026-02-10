@@ -109,21 +109,49 @@ export default function Backtests() {
                         params: { jobId: currentJobId },
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
+                    
                     if (res.data) {
-                        setProgress(res.data.progress || 0);
+                        // 🧠 SMART PROGRESS MAPPING
+                        // Map backend stages to specific progress %
+                        let serverStage = res.data.stage || res.data.status || "processing";
+                        let simulatedProgress = 0;
+
+                        switch (serverStage.toLowerCase()) {
+                            case 'queued': simulatedProgress = 5; setStatusMsg("Queued in Cloud..."); break;
+                            case 'initializing': simulatedProgress = 10; setStatusMsg("Warming Up GPU..."); break;
+                            case 'downloading': simulatedProgress = 30; setStatusMsg("Fetching Market Data..."); break;
+                            case 'processing': simulatedProgress = 50; setStatusMsg("Crunching Numbers..."); break;
+                            case 'training': simulatedProgress = 70; setStatusMsg("Training Neural Network..."); break;
+                            case 'executing': simulatedProgress = 85; setStatusMsg("Running Strategy Logic..."); break;
+                            case 'finalizing': simulatedProgress = 95; setStatusMsg("Compiling Results..."); break;
+                            case 'completed': simulatedProgress = 100; setStatusMsg("Finalizing..."); break;
+                            default: simulatedProgress = progress + 1; // Fallback: slow increment
+                        }
+
+                        // Only update if new progress is higher (don't go backwards)
+                        if (simulatedProgress > progress) {
+                            setProgress(simulatedProgress);
+                        }
+
                         if (res.data.status === "COMPLETED") {
                             clearInterval(poller);
+                            setStatusMsg("Downloading Report...");
                             const finalRes = await axios.get(`${API_BASE}/backtest/results/${currentJobId}`, {
                                 headers: { 'Authorization': `Bearer ${token}` }
                             });
                             processResults(finalRes.data);
+                        } else if (res.data.status === "FAILED") {
+                            clearInterval(poller);
+                            setIsSimulating(false);
+                            setStatusMsg("Backtest Failed.");
+                            alert("Backtest failed on server. Please check params.");
                         }
                     }
                 } catch (e) { console.error("Poller Error:", e); }
-            }, 1500);
+            }, 1000); // Poll every 1 second
         }
         return () => clearInterval(poller);
-    }, [isSimulating, currentJobId]);
+    }, [isSimulating, currentJobId, progress]);
 
     const calculateAdvancedMetrics = (results) => {
         const trades = results.trades || [];
@@ -257,9 +285,10 @@ export default function Backtests() {
     const handleRun = async (e) => {
         e.preventDefault();
         setBacktestResults(null);
-        setProgress(10);
-        setStatusMsg("Initializing...");
+        setProgress(5); // Start at 5%
+        setStatusMsg("Initiating Handshake...");
         setIsSimulating(true);
+        
         const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
         let payload = { ...data, userId: dynamicUserId };
 
@@ -274,14 +303,27 @@ export default function Backtests() {
         try {
             const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
             const res = await runner(payload);
+            
+            console.log("📥 Raw Response from Hook:", res);
+
+            // If immediate result (rare for heavy jobs)
             if (res && (res.metrics || res.candleData || res.combinedResult)) {
                 processResults(res);
-            } else if (res?.jobId) {
+            } 
+            // If Job ID returned (Standard Async Flow)
+            else if (res?.jobId) {
                 setCurrentJobId(res.jobId);
+                setStatusMsg("Job Queued...");
             } else {
+                console.error("❌ No valid results or Job ID found");
                 setIsSimulating(false);
+                setStatusMsg("Connection Failed");
             }
-        } catch (err) { setIsSimulating(false); }
+        } catch (err) { 
+            console.error("Run failed:", err);
+            setIsSimulating(false); 
+            setStatusMsg("Error: " + err.message);
+        }
     };
 
     const handleAtomicCodeChange = (code) => {
