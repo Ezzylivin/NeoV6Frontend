@@ -1,15 +1,20 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import { createChart, CrosshairMode, ColorType, LineStyle } from "lightweight-charts";
 
+// 🚀 FIXED: Explicit 'export function' to match the import in Backtests.jsx
 export function ChartIndependent({ results, symbol = "SOL-USD" }) {
     const chartContainerRef = useRef(null);
     const chartRef = useRef(null);
     const tradeLineSeriesRef = useRef(null);
     
+    // 🟢 Ref to prevent chart from auto-resetting while you scroll
+    const isFitRef = useRef(false);
+    
     // 🟢 State for the Floating Legend
     const [legend, setLegend] = useState({ 
         open: "--", high: "--", low: "--", close: "--", 
-        timeStr: "--" 
+        timeStr: "--",
+        tradeInfo: null 
     });
 
     const formatTime = (t) => {
@@ -36,15 +41,6 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
             }
         });
         const sorted = Array.from(uniqueCandles.values()).sort((a, b) => a.time - b.time);
-        
-        if (sorted.length > 0) {
-            console.log("📊 Chart Range:", 
-                new Date(sorted[0].time * 1000).toLocaleDateString(), 
-                "->", 
-                new Date(sorted[sorted.length-1].time * 1000).toLocaleDateString()
-            );
-        }
-        
         return sorted;
     }, [results]);
 
@@ -65,8 +61,8 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
             ...t,
             time: formatTime(t.entry_time || t.time),
             price: parseFloat(t.price),
-            // 🟢 Robust Size Check: Check multiple common field names
-            size: parseFloat(t.size || t.amount || t.quantity || t.position_size || 0),
+            // 🟢 Robust Size Check: Check multiple common field names including 'qty', 'vol'
+            size: parseFloat(t.size || t.amount || t.quantity || t.qty || t.vol || t.position_size || 0),
             pnl: parseFloat(t.pnl || t.profit || t.realized_pnl || t.net_profit || 0),
             rawType: t.type
         })).sort((a,b) => a.time - b.time);
@@ -86,15 +82,15 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
                 lastEntry.exitMatch = t;
                 t.entryMatch = lastEntry;
 
-                // 🟢 CRITICAL FIX: Pass PnL from Exit back to Entry so tooltip shows it
-                lastEntry.pnl = t.pnl;
-                
-                // Pass Size from Entry to Exit if missing
-                if (!t.size) t.size = lastEntry.size;
+                // 🟢 CRITICAL FIX: Share PnL and Size between Entry and Exit objects
+                // If PnL exists on exit, pass it to entry
+                if (t.pnl !== 0) lastEntry.pnl = t.pnl;
+                // If Size exists on entry, pass it to exit
+                if (lastEntry.size !== 0 && t.size === 0) t.size = lastEntry.size;
 
-                // Update lookup with linked data
+                // Ensure both objects have the final data for the tooltip
                 lookup[lastEntry.time] = lastEntry;
-                lookup[t.time] = t;
+                lookup[t.time] = t; // Update lookup with the modified exit object
                 
                 lastEntry = null;
             }
@@ -104,6 +100,7 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
             const label = getLabel(t.rawType);
             if (label === "LONG") return { time: t.time, position: "belowBar", color: "#10b981", shape: "arrowUp", text: "L" };
             if (label === "SHORT") return { time: t.time, position: "aboveBar", color: "#ef4444", shape: "arrowDown", text: "S" };
+            // Ensure EXIT markers are visible
             if (label === "EXIT") return { time: t.time, position: "aboveBar", color: "#fbbf24", shape: "circle", text: "X" };
             return null;
         }).filter(Boolean);
@@ -115,12 +112,20 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
         if (!chartContainerRef.current || candles.length === 0) return;
         if (chartRef.current) chartRef.current.remove();
 
+        // Reset fit ref when data changes completely (e.g. new backtest)
+        isFitRef.current = false;
+
         const chart = createChart(chartContainerRef.current, {
             width: chartContainerRef.current.clientWidth,
             height: 500,
             layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: "#94a3b8" },
             grid: { vertLines: { color: "rgba(255, 255, 255, 0.05)" }, horzLines: { color: "rgba(255, 255, 255, 0.05)" } },
-            timeScale: { timeVisible: true, borderColor: "#374151", barSpacing: 10, rightOffset: 5 },
+            timeScale: { 
+                timeVisible: true, 
+                borderColor: "#374151", 
+                barSpacing: 6, // Adjusted zoom level
+                rightOffset: 10 
+            },
             crosshair: { mode: CrosshairMode.Normal },
         });
 
@@ -161,12 +166,15 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
 
                 if (trade) {
                     let points = [];
+                    // Handle Entry -> Exit Line
                     if (trade.exitMatch) {
                         points = [
                             { time: trade.time, value: trade.price },
                             { time: trade.exitMatch.time, value: trade.exitMatch.price }
                         ];
-                    } else if (trade.entryMatch) {
+                    } 
+                    // Handle Exit -> Entry Line (hovering the exit)
+                    else if (trade.entryMatch) {
                         points = [
                             { time: trade.entryMatch.time, value: trade.entryMatch.price },
                             { time: trade.time, value: trade.price }
@@ -188,12 +196,15 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
             }
         });
 
-        // Force Start from Beginning
-        if (candles.length > 0) {
-            chart.timeScale().fitContent();
+        // 🟢 FIX: FORCE VISIBLE RANGE (ONLY ONCE)
+        // We use isFitRef to ensure we only force the view to the start ONCE upon load.
+        // This prevents the "stuck" behavior when you try to scroll.
+        if (candles.length > 0 && !isFitRef.current) {
             setTimeout(() => {
+                // Show the first 150 bars from the left
                 const logicalRange = { from: 0, to: 150 }; 
                 chart.timeScale().setVisibleLogicalRange(logicalRange);
+                isFitRef.current = true; // Mark as fitted so we don't lock it again
             }, 100);
         }
         
@@ -213,7 +224,7 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
 
     // Helper to format trade label for UI
     const getDisplayType = (rawType) => {
-        const t = rawType.toLowerCase();
+        const t = (rawType || "").toLowerCase();
         if (t === 'buy' || t === 'long') return 'LONG';
         if (t === 'sell' || t === 'short') return 'SHORT';
         return 'EXIT';
@@ -247,8 +258,8 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
                                 SIZE: <span className="text-white">{legend.tradeInfo.size > 0 ? legend.tradeInfo.size : "N/A"}</span>
                             </div>
                             <div className="text-zinc-400">
-                                PNL: <span className={legend.tradeInfo.pnl >= 0 ? "text-emerald-400" : "text-rose-400"}>
-                                    {legend.tradeInfo.pnl >= 0 ? "+" : ""}${legend.tradeInfo.pnl.toFixed(2)}
+                                PNL: <span className={(legend.tradeInfo.pnl || 0) >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                                    {(legend.tradeInfo.pnl || 0) >= 0 ? "+" : ""}${(legend.tradeInfo.pnl || 0).toFixed(2)}
                                 </span>
                             </div>
                         </div>
