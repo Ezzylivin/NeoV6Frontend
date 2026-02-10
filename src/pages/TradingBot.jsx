@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v8.1 - Fixed Build Import Error
+// 🚀 UPGRADE: v9.0 - Added Reset Button to UI
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
@@ -15,7 +15,7 @@ import {
     Play, BarChart3, Layers, Plus, Trash2, 
     Shield, Globe, Cpu, Filter, TrendingUp, 
     Activity, Percent, DollarSign, AlertTriangle, 
-    Zap, Scale, Award, TrendingDown, LayoutGrid, Info, Power
+    Zap, Scale, Award, TrendingDown, LayoutGrid, Info, Power, RefreshCw
 } from "lucide-react";
 import "./TradingBot.css";
 import "../styles/Themes.css";
@@ -175,7 +175,7 @@ const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
 // --- MAIN PAGE ---
 
 const TradingBotContainer = () => {
-    const { botStatus, logs, loading: botLoading, startBot, stopBot } = useBot();
+    const { botStatus, logs, loading: botLoading, startBot, stopBot, resetBot } = useBot();
     const { setups } = useBacktestSetupFunction();
     const { isConnected, address } = useAccount();
 
@@ -251,6 +251,24 @@ const TradingBotContainer = () => {
             toast.success("Bot Started!");
         } catch (err) { toast.error("Start Failed: " + err.message); }
         finally { setIsStarting(false); }
+    };
+
+    const handleReset = async () => {
+        if (window.confirm("Are you sure? This will wipe all trade history and reset the bot state.")) {
+            try {
+                // Call reset function from hook
+                if (resetBot) await resetBot();
+                // Manually trigger reset endpoint if hook doesn't cover it (safety)
+                await axios.post(`${API_BASE}/bot/reset`, { userId: address }, {
+                    headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+                });
+                toast.success("Bot Reset Successfully");
+                // Refresh page to clear local state
+                window.location.reload();
+            } catch (e) {
+                toast.error("Reset Failed: " + e.message);
+            }
+        }
     };
 
     const patchedStatus = {
@@ -332,9 +350,16 @@ const TradingBotContainer = () => {
                                         <Power size={16} /> Emergency Stop
                                     </button>
                                 ) : (
-                                    <button type="submit" disabled={isStarting} className="w-full py-4 bg-emerald-500 text-black font-black uppercase text-xs rounded-2xl hover:bg-emerald-400 shadow-xl transition-all">
-                                        {isStarting ? "Initializing..." : "Engage Systems"}
-                                    </button>
+                                    <div className="space-y-3">
+                                        <button type="submit" disabled={isStarting} className="w-full py-4 bg-emerald-500 text-black font-black uppercase text-xs rounded-2xl hover:bg-emerald-400 shadow-xl transition-all">
+                                            {isStarting ? "Initializing..." : "Engage Systems"}
+                                        </button>
+                                        
+                                        {/* 🟢 NEW: RESET BUTTON (Only when stopped) */}
+                                        <button type="button" onClick={handleReset} className="w-full py-2 bg-zinc-800 text-zinc-400 font-bold uppercase text-[10px] rounded-xl hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-all flex items-center justify-center gap-2">
+                                            <RefreshCw size={12} /> Reset Bot State
+                                        </button>
+                                    </div>
                                 )}
                             </form>
                         </div>
@@ -391,6 +416,7 @@ const TradingBotContainer = () => {
                                     timeframe={formConfig.timeframe} 
                                     isRunning={botStatus?.status === 'running'}
                                     logs={logs}
+                                    activePositions={patchedStatus.positions}
                                 />
                                 
                                 {/* 🟢 OVERLAY: BOT THOUGHT STREAM */}
