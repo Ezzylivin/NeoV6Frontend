@@ -1,27 +1,25 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
-import { Play, Pause, RotateCcw, FastForward } from 'lucide-react';
+import { Play, Pause, RotateCcw } from 'lucide-react';
 
 export const ChartReplay = ({ results, symbol = "SOL-USD" }) => {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const candlestickSeriesRef = useRef(null);
-  const tradeLineSeriesRef = useRef(null); // 🟢 Ref for the connector line
+  const tradeLineSeriesRef = useRef(null);
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(100); 
   const [currentIndex, setCurrentIndex] = useState(0);
   
-  // 🟢 State for the Hover Tooltip/Legend
-  const [legend, setLegend] = useState({ open: '--', high: '--', low: '--', close: '--', color: '' });
+  // 🟢 State for Legend + Trade Info
+  const [legend, setLegend] = useState({ open: '--', high: '--', low: '--', close: '--', tradeInfo: null });
 
-  // 1. Helper: Format Time
   const formatTime = (t) => {
       const date = new Date(t);
       return Math.floor(date.getTime() / 1000);
   };
 
-  // 2. Prepare Candle Data (Deduped & Sorted)
   const candles = useMemo(() => {
     const rawData = results?.candleData || [];
     if (rawData.length === 0) return [];
@@ -42,7 +40,6 @@ export const ChartReplay = ({ results, symbol = "SOL-USD" }) => {
     return Array.from(uniqueCandles.values()).sort((a, b) => a.time - b.time);
   }, [results]);
 
-  // 3. Process Trades for Markers & Connection Lines
   const { allMarkers, tradeLookup } = useMemo(() => {
       const trades = results?.trades || [];
       if (trades.length === 0) return { allMarkers: [], tradeLookup: {} };
@@ -50,7 +47,9 @@ export const ChartReplay = ({ results, symbol = "SOL-USD" }) => {
       const formattedTrades = trades.map(t => ({
           ...t,
           time: formatTime(t.entry_time || t.time),
-          price: parseFloat(t.price)
+          price: parseFloat(t.price),
+          size: t.size || t.amount || 0,
+          pnl: t.pnl || t.profit || 0
       })).sort((a,b) => a.time - b.time);
 
       const lookup = {}; 
@@ -58,7 +57,6 @@ export const ChartReplay = ({ results, symbol = "SOL-USD" }) => {
 
       formattedTrades.forEach(t => {
           lookup[t.time] = t;
-
           if (t.type === 'buy' || t.type === 'sell' || t.type === 'long' || t.type === 'short') {
               lastEntry = t;
           } else if ((t.type.includes('close') || t.type.includes('flip')) && lastEntry) {
@@ -73,15 +71,13 @@ export const ChartReplay = ({ results, symbol = "SOL-USD" }) => {
       const markersList = formattedTrades.map(t => {
           if (t.type === "buy" || t.type === "long") return { time: t.time, position: "belowBar", color: "#10b981", shape: "arrowUp", text: "L" };
           if (t.type === "sell" || t.type === "short") return { time: t.time, position: "aboveBar", color: "#ef4444", shape: "arrowDown", text: "S" };
-          if (t.type === "close_long") return { time: t.time, position: "aboveBar", color: "#fbbf24", shape: "circle", text: "X" };
-          if (t.type === "close_short") return { time: t.time, position: "belowBar", color: "#fbbf24", shape: "circle", text: "X" };
+          if (t.type.includes("close")) return { time: t.time, position: "aboveBar", color: "#fbbf24", shape: "circle", text: "X" };
           return null;
       }).filter(Boolean);
 
       return { allMarkers: markersList, tradeLookup: lookup };
   }, [results]);
 
-  // 4. Initialize Chart
   useEffect(() => {
     if (!chartContainerRef.current || candles.length === 0) return;
     if (chartRef.current) chartRef.current.remove();
@@ -97,12 +93,10 @@ export const ChartReplay = ({ results, symbol = "SOL-USD" }) => {
 
     const series = chart.addCandlestickSeries({ upColor: '#10b981', downColor: '#ef4444', borderVisible: false, wickVisible: true });
     
-    // 🟢 Initialize with just the first candle
     const firstCandle = candles[0];
     series.setData([firstCandle]); 
-    setLegend(firstCandle); 
+    setLegend({ ...firstCandle, tradeInfo: null });
 
-    // 🟢 Create Hidden Line Series for Connections
     const tradeLineSeries = chart.addLineSeries({
         color: 'rgba(255, 255, 255, 0.5)',
         lineWidth: 1,
@@ -113,30 +107,20 @@ export const ChartReplay = ({ results, symbol = "SOL-USD" }) => {
     });
     tradeLineSeriesRef.current = tradeLineSeries;
 
-    // 🟢 Crosshair Listener (Hover Logic)
     chart.subscribeCrosshairMove((param) => {
         if (param.time) {
             const data = param.seriesData.get(series);
-            if (data) setLegend(data);
+            const trade = tradeLookup[param.time];
+            
+            if (data) setLegend({ ...data, tradeInfo: trade || null });
 
-            // Draw Connection Line Logic
-            if (tradeLookup[param.time]) {
-                const trade = tradeLookup[param.time];
+            if (trade) {
                 let points = [];
+                if (trade.exitMatch) points = [{ time: trade.time, value: trade.price }, { time: trade.exitMatch.time, value: trade.exitMatch.price }];
+                else if (trade.entryMatch) points = [{ time: trade.entryMatch.time, value: trade.entryMatch.price }, { time: trade.time, value: trade.price }];
 
-                if (trade.exitMatch) {
-                    points = [
-                        { time: trade.time, value: trade.price },
-                        { time: trade.exitMatch.time, value: trade.exitMatch.price }
-                    ];
-                } else if (trade.entryMatch) {
-                    points = [
-                        { time: trade.entryMatch.time, value: trade.entryMatch.price },
-                        { time: trade.time, value: trade.price }
-                    ];
-                }
-
-                if (points.length > 0) {
+                if (points.length === 2) {
+                    points.sort((a,b) => a.time - b.time);
                     tradeLineSeries.setData(points);
                 } else {
                     tradeLineSeries.setData([]);
@@ -152,7 +136,6 @@ export const ChartReplay = ({ results, symbol = "SOL-USD" }) => {
     return () => chart.remove();
   }, [candles, tradeLookup]);
 
-  // 5. Replay Logic (Updates Candles AND Markers)
   useEffect(() => {
     let interval = null;
     if (isPlaying && currentIndex < candles.length - 1) {
@@ -160,12 +143,9 @@ export const ChartReplay = ({ results, symbol = "SOL-USD" }) => {
         const nextIndex = currentIndex + 1;
         const nextCandle = candles[nextIndex];
         
-        // Update Candle
         candlestickSeriesRef.current.update(nextCandle);
-        setLegend(nextCandle);
+        setLegend({ ...nextCandle, tradeInfo: null }); // Reset trade info on new bar unless hovered
         
-        // 🟢 Update Markers Dynamically
-        // We filter markers to only show those whose time is <= current candle time
         const currentMarkers = allMarkers.filter(m => m.time <= nextCandle.time);
         candlestickSeriesRef.current.setMarkers(currentMarkers);
 
@@ -194,13 +174,21 @@ export const ChartReplay = ({ results, symbol = "SOL-USD" }) => {
              <div>L: <span className="text-zinc-400">{Number(legend.low).toFixed(2)}</span></div>
              <div>C: <span className={legend.open > legend.close ? 'text-rose-400' : 'text-emerald-400'}>{Number(legend.close).toFixed(2)}</span></div>
           </div>
+          {/* 🟢 DYNAMIC TRADE INFO FOR REPLAY */}
+          {legend.tradeInfo && (
+                <div className="mt-2 pt-2 border-t border-zinc-800 flex gap-4 text-[10px] font-mono">
+                    <div className="text-zinc-400">TYPE: <span className={legend.tradeInfo.type.includes('buy') || legend.tradeInfo.type.includes('long') ? "text-emerald-400" : "text-rose-400"}>{legend.tradeInfo.type.toUpperCase()}</span></div>
+                    <div className="text-zinc-400">SIZE: <span className="text-white">{legend.tradeInfo.size || "N/A"}</span></div>
+                    <div className="text-zinc-400">PNL: <span className={legend.tradeInfo.pnl >= 0 ? "text-emerald-400" : "text-rose-400"}>${(legend.tradeInfo.pnl || 0).toFixed(2)}</span></div>
+                </div>
+            )}
       </div>
 
       <div className="flex items-center gap-4 px-6 py-3 bg-zinc-900/50 border-b border-zinc-800">
           <button onClick={() => { 
               setCurrentIndex(0); 
               candlestickSeriesRef.current.setData([candles[0]]); 
-              candlestickSeriesRef.current.setMarkers([]); // Reset markers
+              candlestickSeriesRef.current.setMarkers([]); 
               setLegend(candles[0]); 
           }} className="text-zinc-500 hover:text-white transition-colors"><RotateCcw size={16}/></button>
           
