@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v8.0 - Live Visual Dashboard with Real Data Integration
+// 🚀 UPGRADE: v8.1 - Fixed Build Import Error
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
@@ -9,8 +9,8 @@ import toast, { Toaster } from "react-hot-toast";
 import { useBot } from "../hooks/useBot";
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup";
 import { UIModeProvider } from "../context/UIModeContext";
-import { LiveExecutionChart } from "../components/LiveExecutionChart.jsx"; // 🟢 NEW IMPORT
-import DeskLayout from "../components/layouts/DeskLayout"; // Kept for reference if needed, though we implement custom layout here
+// 🟢 FIXED IMPORT NAME
+import { LiveTradingChart } from "../components/LiveTradingChart.jsx"; 
 import { 
     Play, BarChart3, Layers, Plus, Trash2, 
     Shield, Globe, Cpu, Filter, TrendingUp, 
@@ -25,43 +25,6 @@ const API_BASE = VITE_API.endsWith('/api') ? VITE_API : `${VITE_API}/api`;
 
 const inputClass = "w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-emerald-500 transition-all text-xs outline-none";
 const labelClass = "text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1";
-
-// --- CONFIGURATION ---
-const STRAT_POOL = [
-    { name: "RSI Threshold", code: "rsi_threshold" },
-    { name: "SMA Crossover", code: "sma_crossover" },
-    { name: "SuperTrend Follow", code: "supertrend" },
-    { name: "MACD Crossover", code: "macd_crossover" },
-    { name: "ATR Breakout", code: "atr_breakout" },
-    { name: "Bollinger Band Fade", code: "bb_fade" },
-    { name: "Stochastic Osc", code: "stoch" },
-    { name: "EMA Cloud", code: "ema_cloud" },
-    { name: "Price Action Break", code: "pa_breakout" },
-    { name: "Volume Profile", code: "vol_profile" }
-];
-
-// 🟢 DEFAULT MODELS
-const DEFAULT_MODELS = [
-    { id: "xgboost", name: "XGBoost (Gradient Boosting)" },
-    { id: "random_forest", name: "Random Forest (Bagging)" },
-    { id: "gradient_boosting", name: "Gradient Boosting (Sklearn)" },
-    { id: "lstm", name: "LSTM (Deep Recurrent)" },
-    { id: "transformer", name: "Transformer (Attention)" },
-    { id: "stacking", name: "Stacking Ensemble (Hybrid)" }
-];
-
-const DEFAULT_STRATEGY_PARAMS = {
-    rsi_threshold: { rsi_length: 14, oversold: 30, overbought: 70 },
-    sma_crossover: { fast_sma: 50, slow_sma: 200 },
-    supertrend: { st_atr: 10, st_factor: 3.0 },
-    macd_crossover: { fast: 12, slow: 26, signal: 9 },
-    atr_breakout: { atr_length: 14, multiplier: 1.5 },
-    bb_fade: { bb_period: 20, bb_std: 2.0 },
-    stoch: { k_period: 14, d_period: 3, slowing: 3 },
-    ema_cloud: { fast_ema: 9, slow_ema: 21 },
-    pa_breakout: { lookback: 20, buffer: 0.01 },
-    vol_profile: { vol_ma: 20, threshold: 1.5 }
-};
 
 // 🟢 TOOLTIP COMPONENT
 const Tooltip = ({ text, children }) => {
@@ -79,8 +42,44 @@ const Tooltip = ({ text, children }) => {
     );
 };
 
-// --- MODALS (Wallet, Mode, Pre-Flight) ---
+// --- CONFIGURATION ---
+const STRAT_POOL = [
+    { name: "RSI Threshold", code: "rsi_threshold" },
+    { name: "SMA Crossover", code: "sma_crossover" },
+    { name: "SuperTrend Follow", code: "supertrend" },
+    { name: "MACD Crossover", code: "macd_crossover" },
+    { name: "ATR Breakout", code: "atr_breakout" },
+    { name: "Bollinger Band Fade", code: "bb_fade" },
+    { name: "Stochastic Osc", code: "stoch" },
+    { name: "EMA Cloud", code: "ema_cloud" },
+    { name: "Price Action Break", code: "pa_breakout" },
+    { name: "Volume Profile", code: "vol_profile" }
+];
 
+const DEFAULT_STRATEGY_PARAMS = {
+    rsi_threshold: { rsi_length: 14, oversold: 30, overbought: 70 },
+    sma_crossover: { fast_sma: 50, slow_sma: 200 },
+    supertrend: { st_atr: 10, st_factor: 3.0 },
+    macd_crossover: { fast: 12, slow: 26, signal: 9 },
+    atr_breakout: { atr_length: 14, multiplier: 1.5 },
+    bb_fade: { bb_period: 20, bb_std: 2.0 },
+    stoch: { k_period: 14, d_period: 3, slowing: 3 },
+    ema_cloud: { fast_ema: 9, slow_ema: 21 },
+    pa_breakout: { lookback: 20, buffer: 0.01 },
+    vol_profile: { vol_ma: 20, threshold: 1.5 }
+};
+
+// 🟢 DEFAULT MODELS
+const DEFAULT_MODELS = [
+    { id: "xgboost", name: "XGBoost (Gradient Boosting)" },
+    { id: "random_forest", name: "Random Forest (Bagging)" },
+    { id: "gradient_boosting", name: "Gradient Boosting (Sklearn)" },
+    { id: "lstm", name: "LSTM (Deep Recurrent)" },
+    { id: "transformer", name: "Transformer (Attention)" },
+    { id: "stacking", name: "Stacking Ensemble (Hybrid)" }
+];
+
+// --- MODALS ---
 const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, address }) => {
     const [checks, setChecks] = useState({ wallet: false, keys: false, capital: false, strategy: false });
 
@@ -387,12 +386,11 @@ const TradingBotContainer = () => {
 
                             {/* Chart Layer */}
                             <div className="flex-1 relative">
-                                <LiveExecutionChart 
+                                <LiveTradingChart 
                                     symbol={formConfig.symbol} 
                                     timeframe={formConfig.timeframe} 
                                     isRunning={botStatus?.status === 'running'}
                                     logs={logs}
-                                    activePositions={patchedStatus.positions}
                                 />
                                 
                                 {/* 🟢 OVERLAY: BOT THOUGHT STREAM */}
@@ -495,7 +493,7 @@ function StrategyParamInputs({ strategy, onChange }) {
 function AdvancedFilters({ filters, onChange }) {
     return (
         <div className="space-y-4 border-t border-zinc-800 pt-6">
-            <div className="flex items-center gap-2"><Filter size={14} className="text-indigo-400"/><h4 className="text-[10px] text-indigo-400 font-black uppercase tracking-widest flex items-center gap-1">Sanity Filters <Tooltip text="Additional checks to confirm trade validity."><Info size={10} className="text-zinc-500" /></Tooltip></h4></div>
+            <div className="flex items-center gap-2"><Filter size={14} className="text-indigo-400"/><h4 className="text-[10px] text-indigo-400 font-black uppercase tracking-widest">Sanity Filters <Tooltip text="Additional checks to confirm trade validity."><Info size={10} className="text-zinc-500" /></Tooltip></h4></div>
             <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2"><label className={labelClass}>Trend Filter</label><select value={filters.trend_filter} onChange={(e)=>onChange('trend_filter', e.target.value)} className={inputClass}><option value="none">None</option><option value="ema_200">200 EMA</option></select></div>
                 <div><label className={labelClass}>Min Vol</label><input type="number" value={filters.vol_min} onChange={(e)=>onChange('vol_min', parseFloat(e.target.value))} className={inputClass}/></div>
