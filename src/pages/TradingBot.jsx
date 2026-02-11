@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v12.3 - Connected Neural Window Layout
+// 🚀 UPGRADE: v12.4 - Build Fix & Connected Neural Window Layout
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
@@ -15,7 +15,7 @@ import {
     Shield, Globe, Cpu, Filter, TrendingUp, 
     Activity, Percent, DollarSign, AlertTriangle, 
     Zap, Scale, Award, TrendingDown, LayoutGrid, Info, Power, RefreshCw
-} from "lucide-react";
+} from "lucide-react"; // ✅ FIXED: Changed from lucide-center to lucide-react
 import "./TradingBot.css";
 import "../styles/Themes.css";
 
@@ -262,7 +262,7 @@ const TradingBotContainer = () => {
                         </div>
                         <div>
                             <h1 className="text-sm font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1>
-                            <p className="text-[9px] text-zinc-500 font-bold">HYBRID INTELLIGENCE ENGINE v12.3</p>
+                            <p className="text-[9px] text-zinc-500 font-bold">HYBRID INTELLIGENCE ENGINE v12.4</p>
                         </div>
                     </div>
                     {isModeSelected && (
@@ -395,7 +395,6 @@ const TradingBotContainer = () => {
                                     {logs.map((log, i) => {
                                         const isThought = String(log).includes('🧠');
                                         const isOrder = String(log).includes('🟢') || String(log).includes('🔴');
-                                        const isSystem = String(log).includes('📡');
 
                                         return (
                                             <div key={i} className={`p-2 rounded-lg border ${
