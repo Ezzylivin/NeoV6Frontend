@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v12.4 - Build Fix & Connected Neural Window Layout
+// 🚀 UPGRADE: v12.4.1 - Full Config Restoration & Lateral Neural Layout
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
@@ -15,7 +15,7 @@ import {
     Shield, Globe, Cpu, Filter, TrendingUp, 
     Activity, Percent, DollarSign, AlertTriangle, 
     Zap, Scale, Award, TrendingDown, LayoutGrid, Info, Power, RefreshCw
-} from "lucide-react"; // ✅ FIXED: Changed from lucide-center to lucide-react
+} from "lucide-react"; 
 import "./TradingBot.css";
 import "../styles/Themes.css";
 
@@ -193,13 +193,13 @@ const TradingBotContainer = () => {
         mlMode: "off", mlModel: "", mlThreshold: 0.5,
         riskManagementMode: "static", riskPercentage: 1, hybridMode: "AND",
         growthCapitalTarget: 2000, maxDailyLoss: 5, maxDrawdown: 10, maxTradesPerDay: 20,
-        params: { ...DEFAULT_STRATEGY_PARAMS.rsi_threshold, take_profit: 0.05, stop_loss: 0.02, trailing_stop: 0.01 }
+        params: { ...DEFAULT_STRATEGY_PARAMS.rsi_threshold, take_profit: 0.05, stop_loss: 0.02, trailing_stop: 0.01 },
+        filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 }
     });
 
-    // Auto-scroll logic for the side Neural Stream
     useEffect(() => {
         if (logContainerRef.current) {
-            logContainerRef.current.scrollTop = 0; // Newest logs are unshifted to the top
+            logContainerRef.current.scrollTop = 0; 
         }
     }, [logs]);
 
@@ -277,23 +277,49 @@ const TradingBotContainer = () => {
 
                 <div className={`max-w-[1800px] mx-auto grid grid-cols-12 gap-6 transition-all duration-500 ${!isModeSelected || showPreFlight ? 'blur-sm pointer-events-none' : ''}`}>
                     
-                    {/* --- LEFT: CONFIG PANEL (3 Cols) --- */}
+                    {/* --- LEFT SIDEBAR: FULL CONFIGURATION (3 Cols) --- */}
                     <div className="col-span-12 lg:col-span-3 space-y-6">
                         <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 sticky top-6 max-h-[85vh] overflow-y-auto custom-scrollbar shadow-2xl">
                             <form onSubmit={(e) => { e.preventDefault(); setShowPreFlight(true); }} className="space-y-8">
-                                <AIConfig mlMode={formConfig.mlMode} setMlMode={(m)=>setFormConfig({...formConfig, mlMode: m})} params={formConfig.params} availableModels={availableModels} onParamChange={(k,v)=>setFormConfig(p=>({...p, params:{...p.params,[k]:v}}))} />
                                 
+                                {/* 1. AI Configuration */}
+                                <AIConfig 
+                                    mlMode={formConfig.mlMode} 
+                                    setMlMode={(m)=>setFormConfig({...formConfig, mlMode: m})} 
+                                    params={formConfig.params} 
+                                    availableModels={availableModels} 
+                                    onParamChange={(k,v)=>setFormConfig(p=>({...p, params:{...p.params,[k]:v}}))} 
+                                />
+                                
+                                {/* 2. Strategy Ensemble */}
                                 <div className="space-y-4 border-t border-zinc-800 pt-6">
                                     <div className="flex justify-between items-center">
-                                        <h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest flex items-center gap-1">Logic Ensemble</h4>
-                                        <button type="button" onClick={() => setFormConfig(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="p-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-md"><Plus size={14} /></button>
+                                        <h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest flex items-center gap-1">
+                                            Logic Ensemble 
+                                            <Tooltip text="Combine multiple strategies. Both must signal to trigger a trade."><Info size={10} className="text-zinc-500" /></Tooltip>
+                                        </h4>
+                                        <button type="button" onClick={() => setFormConfig(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="p-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-md">
+                                            <Plus size={14} />
+                                        </button>
                                     </div>
                                     <div className="space-y-3">
                                         {formConfig.strategies.map((s, i) => (
                                             <div key={i} className="p-3 bg-zinc-800/30 rounded-xl border border-zinc-700">
                                                 <div className="flex justify-between mb-2">
-                                                    <select value={s.code} onChange={(e) => { const n = [...formConfig.strategies]; n[i] = { code: e.target.value, params: DEFAULT_STRATEGY_PARAMS[e.target.value] }; setFormConfig({...formConfig, strategies: n}); }} className="bg-transparent text-[10px] font-bold text-amber-500 outline-none">{STRAT_POOL.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}</select>
-                                                    <button type="button" onClick={() => setFormConfig(p => ({ ...p, strategies: p.strategies.filter((_, idx) => idx !== i) }))} className="text-zinc-500 hover:text-rose-500"><Trash2 size={12}/></button>
+                                                    <select 
+                                                        value={s.code} 
+                                                        onChange={(e) => { 
+                                                            const n = [...formConfig.strategies]; 
+                                                            n[i] = { code: e.target.value, params: DEFAULT_STRATEGY_PARAMS[e.target.value] }; 
+                                                            setFormConfig({...formConfig, strategies: n}); 
+                                                        }} 
+                                                        className="bg-transparent text-[10px] font-bold text-amber-500 outline-none"
+                                                    >
+                                                        {STRAT_POOL.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
+                                                    </select>
+                                                    <button type="button" onClick={() => setFormConfig(p => ({ ...p, strategies: p.strategies.filter((_, idx) => idx !== i) }))} className="text-zinc-500 hover:text-rose-500">
+                                                        <Trash2 size={12}/>
+                                                    </button>
                                                 </div>
                                                 <StrategyParamInputs strategy={s} onChange={(p) => { const n = [...formConfig.strategies]; n[i].params = p; setFormConfig({...formConfig, strategies: n}); }} />
                                             </div>
@@ -301,14 +327,58 @@ const TradingBotContainer = () => {
                                     </div>
                                 </div>
 
+                                {/* 3. Risk Shield */}
                                 <div className="space-y-4 border-t border-zinc-800 pt-6">
-                                    <div className="flex items-center gap-2"><Shield size={14} className="text-amber-500"/><h4 className="text-[10px] text-amber-500 font-black uppercase tracking-widest">Execution Shield</h4></div>
+                                    <div className="flex items-center gap-2">
+                                        <Shield size={14} className="text-amber-500"/>
+                                        <h4 className="text-[10px] text-amber-500 font-black uppercase tracking-widest flex items-center gap-1">
+                                            Execution Shield
+                                            <Tooltip text="TP/SL percentages relative to entry price."><Info size={10} className="text-zinc-500" /></Tooltip>
+                                        </h4>
+                                    </div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div><label className={labelClass}>TP %</label><input type="number" step="0.001" value={formConfig.params.take_profit} onChange={(e)=>setFormConfig(p=>({...p,params:{...p.params,take_profit:parseFloat(e.target.value)}}))} className={inputClass}/></div>
                                         <div><label className={labelClass}>SL %</label><input type="number" step="0.001" value={formConfig.params.stop_loss} onChange={(e)=>setFormConfig(p=>({...p,params:{...p.params,stop_loss:parseFloat(e.target.value)}}))} className={inputClass}/></div>
+                                        <div className="col-span-2"><label className={labelClass}>Trailing Stop %</label><input type="number" step="0.001" value={formConfig.params.trailing_stop} onChange={(e)=>setFormConfig(p=>({...p,params:{...p.params,trailing_stop:parseFloat(e.target.value)}}))} className={inputClass}/></div>
                                     </div>
                                 </div>
 
+                                {/* 4. Market Scope */}
+                                <div className="space-y-4 border-t border-zinc-800 pt-6">
+                                    <div className="flex items-center gap-2">
+                                        <Globe size={14} className="text-cyan-400"/>
+                                        <h4 className="text-[10px] text-cyan-400 font-black uppercase tracking-widest flex items-center gap-1">Market scope</h4>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="col-span-2">
+                                            <label className={labelClass}>Asset Pair</label>
+                                            <select value={formConfig.symbol} onChange={(e)=>setFormConfig({...formConfig, symbol: e.target.value})} className={inputClass}>
+                                                <option value="BTC-USD">BTC-USD</option>
+                                                <option value="ETH-USD">ETH-USD</option>
+                                                <option value="SOL-USD">SOL-USD</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className={labelClass}>Interval</label>
+                                            <select value={formConfig.timeframe} onChange={(e)=>setFormConfig({...formConfig, timeframe: e.target.value})} className={inputClass}>
+                                                <option value="1m">1m</option>
+                                                <option value="5m">5m</option>
+                                                <option value="15m">15m</option>
+                                                <option value="1h">1h</option>
+                                                <option value="4h">4h</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className={labelClass}>Capital</label>
+                                            <input type="number" value={formConfig.capitalAllocation} onChange={(e)=>setFormConfig({...formConfig, capitalAllocation: parseFloat(e.target.value)})} className={inputClass} disabled={formConfig.tradingMode === 'paper'} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* 5. Sanity Filters */}
+                                <AdvancedFilters filters={formConfig.filters} onChange={(k, v) => setFormConfig(p => ({...p, filters: {...p.filters, [k]: v}}))} />
+
+                                {/* Action Buttons */}
                                 <div className="pt-6">
                                     {botStatus?.status === 'running' ? (
                                         <button type="button" onClick={stopBot} className="w-full py-4 bg-rose-500 text-white font-black uppercase text-xs rounded-2xl hover:bg-rose-600 shadow-xl transition-all flex items-center justify-center gap-2 animate-pulse">
@@ -324,10 +394,10 @@ const TradingBotContainer = () => {
                         </div>
                     </div>
 
-                    {/* --- RIGHT: DASHBOARD GRID (9 Cols) --- */}
+                    {/* --- RIGHT: DASHBOARD (9 Cols) --- */}
                     <div className="col-span-12 lg:col-span-9 space-y-6">
                         
-                        {/* Status Row */}
+                        {/* Status Cards */}
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl">
                                 <p className="text-[10px] text-zinc-500 uppercase font-black mb-1">Engine State</p>
@@ -339,23 +409,23 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
                             <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl">
-                                <p className="text-[10px] text-zinc-500 uppercase font-black mb-1">Active Exposure</p>
+                                <p className="text-[10px] text-zinc-500 uppercase font-black mb-1">Exposure</p>
                                 <p className="text-xl font-mono text-white">0.00%</p>
                             </div>
                             <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl">
-                                <p className="text-[10px] text-zinc-500 uppercase font-black mb-1">Session PnL</p>
+                                <p className="text-[10px] text-zinc-500 uppercase font-black mb-1">PnL</p>
                                 <p className="text-xl font-mono text-emerald-400">+$0.00</p>
                             </div>
                             <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl">
-                                <p className="text-[10px] text-zinc-500 uppercase font-black mb-1">Current Balance</p>
+                                <p className="text-[10px] text-zinc-500 uppercase font-black mb-1">Balance</p>
                                 <p className="text-xl font-mono text-white">${botStatus?.currentBalance?.toFixed(2) || formConfig.capitalAllocation.toFixed(2)}</p>
                             </div>
                         </div>
 
-                        {/* --- THE HYBRID WINDOW (Side-by-Side Chart & Neural Window) --- */}
+                        {/* Lateral Layout Container */}
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 h-[650px]">
                             
-                            {/* Chart (75% Width) */}
+                            {/* Terminal Window (Chart) */}
                             <div className="lg:col-span-3 bg-zinc-900 border border-zinc-800 rounded-[32px] overflow-hidden flex flex-col relative shadow-2xl">
                                 <div className="bg-zinc-800/30 p-4 border-b border-zinc-800/50 flex items-center justify-between">
                                     <div className="flex items-center gap-3">
@@ -379,7 +449,7 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
 
-                            {/* Connected Neural Window (25% Width) */}
+                            {/* Lateral Neural Stream Window */}
                             <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 rounded-[32px] flex flex-col overflow-hidden shadow-2xl">
                                 <div className="p-4 border-b border-zinc-800 bg-zinc-800/30">
                                     <h3 className="text-[10px] font-black text-violet-400 uppercase tracking-widest flex items-center gap-2">
@@ -393,8 +463,9 @@ const TradingBotContainer = () => {
                                     className="flex-1 overflow-y-auto p-5 font-mono text-[10px] leading-relaxed space-y-4 custom-scrollbar bg-black/20"
                                 >
                                     {logs.map((log, i) => {
-                                        const isThought = String(log).includes('🧠');
-                                        const isOrder = String(log).includes('🟢') || String(log).includes('🔴');
+                                        const msg = String(log);
+                                        const isThought = msg.includes('🧠');
+                                        const isOrder = msg.includes('🟢') || msg.includes('🔴');
 
                                         return (
                                             <div key={i} className={`p-2 rounded-lg border ${
@@ -402,21 +473,15 @@ const TradingBotContainer = () => {
                                                 isThought ? 'bg-violet-500/5 border-violet-500/10 text-zinc-300' : 
                                                 'bg-zinc-800/20 border-transparent text-zinc-500'
                                             } animate-in fade-in slide-in-from-right-2 duration-500`}>
-                                                {String(log)}
+                                                {msg}
                                             </div>
                                         );
                                     })}
                                     {logs.length === 0 && (
                                         <div className="text-zinc-600 italic text-center mt-20 p-4">
-                                            Awaiting synchronization with Alpha-Server...
+                                            Awaiting link to Alpha-Server...
                                         </div>
                                     )}
-                                </div>
-
-                                <div className="p-4 border-t border-zinc-800 bg-zinc-800/10 text-center">
-                                    <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-tighter">
-                                        Auto-Sync Active • No Latency Detected
-                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -428,20 +493,42 @@ const TradingBotContainer = () => {
     );
 };
 
-// --- CONFIG SUB-COMPONENTS ---
+// --- SUB-COMPONENTS ---
 
 function AIConfig({ mlMode, setMlMode, params, onParamChange, availableModels = [] }) {
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2"><Cpu size={14} className="text-violet-400" /><h4 className="text-[10px] text-violet-400 font-black uppercase tracking-widest flex items-center gap-1">Neural Gate</h4></div>
-                <select value={mlMode} onChange={(e) => setMlMode(e.target.value)} className="bg-zinc-800 text-[9px] rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-violet-500/50"><option value="off">BYPASS</option><option value="on">ACTIVE</option></select>
+                <div className="flex items-center gap-2">
+                    <Cpu size={14} className="text-violet-400" />
+                    <h4 className="text-[10px] text-violet-400 font-black uppercase tracking-widest flex items-center gap-1">Neural Gate</h4>
+                </div>
+                <select value={mlMode} onChange={(e) => setMlMode(e.target.value)} className="bg-zinc-800 text-[9px] rounded-md px-2 py-1 outline-none">
+                    <option value="off">BYPASS</option>
+                    <option value="on">ACTIVE</option>
+                </select>
             </div>
             {mlMode === "on" && (
                 <div className="grid grid-cols-1 gap-3 animate-in fade-in duration-300">
-                    <div className="space-y-1">
+                    <div>
                         <label className="text-[9px] text-zinc-500 uppercase font-bold ml-1">Architecture</label>
-                        <select className={inputClass}>{availableModels.map(m => (<option key={m.id} value={m.id}>{m.name}</option>))}</select>
+                        <select 
+                            value={params.model_type} 
+                            onChange={(e) => onParamChange('model_type', e.target.value)}
+                            className={inputClass}
+                        >
+                            {availableModels.map(m => (<option key={m.id} value={m.id}>{m.name}</option>))}
+                        </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                         <div>
+                            <label className="text-[9px] text-zinc-500 uppercase font-bold ml-1">Long Gate</label>
+                            <input type="number" step="0.01" value={params.long_threshold || 0.5} onChange={(e)=>onParamChange('long_threshold', parseFloat(e.target.value))} className={inputClass}/>
+                        </div>
+                        <div>
+                            <label className="text-[9px] text-zinc-500 uppercase font-bold ml-1">Short Gate</label>
+                            <input type="number" step="0.01" value={params.short_threshold || 0.5} onChange={(e)=>onParamChange('short_threshold', parseFloat(e.target.value))} className={inputClass}/>
+                        </div>
                     </div>
                 </div>
             )}
@@ -451,17 +538,48 @@ function AIConfig({ mlMode, setMlMode, params, onParamChange, availableModels = 
 
 function StrategyParamInputs({ strategy, onChange }) {
     const { code, params = {} } = strategy;
-    const f = (l, k) => (
+    const f = (l, k, s = "1") => (
         <div className="flex flex-col">
             <label className="text-[8px] text-zinc-600 uppercase font-bold mb-1 ml-1">{l}</label>
-            <input type="number" value={params[k] || ""} onChange={(e) => onChange({...params, [k]: parseFloat(e.target.value)})} className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1 text-[9px] text-amber-500 outline-none" />
+            <input 
+                type="number" 
+                step={s}
+                value={params[k] === undefined ? "" : params[k]} 
+                onChange={(e) => onChange({...params, [k]: parseFloat(e.target.value)})} 
+                className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1 text-[9px] text-amber-500 outline-none" 
+            />
         </div>
     );
     return (
         <div className="grid grid-cols-2 gap-2 mt-1">
-            {code === "rsi_threshold" && <>{f("Length", "rsi_length")}{f("Oversold", "oversold")}</>}
-            {code === "stoch" && <>{f("K-Period", "k_period")}{f("D-Period", "d_period")}</>}
-            {code === "bb_fade" && <>{f("Lookback", "bb_period")}{f("Deviation", "bb_std")}</>}
+            {code === "rsi_threshold" && <>{f("Length", "rsi_length")}{f("Oversold", "oversold")}{f("Overbought", "overbought")}</>}
+            {code === "stoch" && <>{f("K-Period", "k_period")}{f("D-Period", "d_period")}{f("Slowing", "slowing")}</>}
+            {code === "bb_fade" && <>{f("Period", "bb_period")}{f("Deviation", "bb_std", "0.1")}</>}
+            {code === "sma_crossover" && <>{f("Fast", "fast_sma")}{f("Slow", "slow_sma")}</>}
+            {code === "macd_crossover" && <>{f("Fast", "fast")}{f("Slow", "slow")}{f("Signal", "signal")}</>}
+        </div>
+    );
+}
+
+function AdvancedFilters({ filters, onChange }) {
+    return (
+        <div className="space-y-4 border-t border-zinc-800 pt-6">
+            <div className="flex items-center gap-2">
+                <Filter size={14} className="text-indigo-400"/>
+                <h4 className="text-[10px] text-indigo-400 font-black uppercase tracking-widest">Sanity Filters</h4>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                    <label className={labelClass}>Trend Filter</label>
+                    <select value={filters.trend_filter} onChange={(e)=>onChange('trend_filter', e.target.value)} className={inputClass}>
+                        <option value="none">None</option>
+                        <option value="ema_200">200 EMA</option>
+                        <option value="sma_200">200 SMA</option>
+                    </select>
+                </div>
+                <div><label className={labelClass}>Min Vol</label><input type="number" value={filters.vol_min} onChange={(e)=>onChange('vol_min', parseFloat(e.target.value))} className={inputClass}/></div>
+                <div><label className={labelClass}>ATR Min</label><input type="number" step="0.1" value={filters.atr_filter} onChange={(e)=>onChange('atr_filter', parseFloat(e.target.value))} className={inputClass}/></div>
+            </div>
         </div>
     );
 }
