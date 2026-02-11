@@ -1,181 +1,147 @@
 // File: src/hooks/useBot.js
-// 🚀 UPGRADE: v10.6 - Resilience & Smart Polling
-// 🛠 FIX: Handles 500 errors without crashing React
-// 🛠 FIX: Auto-maps 'activePosition' for UI
-// 🛠 PERF: Polls every 3s only when running
-
+// 🚀 UPGRADE: v9.6 - Fixes 422 Start Error (Correct Payload Structure)
 import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
-import { useAccount } from 'wagmi';
+import toast from 'react-hot-toast';
+
+const API_URL = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
+const BASE_URL = API_URL.endsWith('/api') ? API_URL : `${API_URL}/api`;
 
 export const useBot = () => {
-    const { address, isConnected } = useAccount();
     const [botStatus, setBotStatus] = useState(null);
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+    
+    // We use a ref to track if we should be polling
+    const shouldPoll = useRef(false);
 
-    // Ref to track status without triggering re-renders
-    // 'idle' | 'starting' | 'running' | 'stopping' | 'stopped'
-    const statusRef = useRef('idle');
-
-    const API_URL = "https://neov6backend.onrender.com/api";
-
-    // 🔄 Core Polling Function
-    const refreshBotData = useCallback(async () => {
-        if (!isConnected || !address) return;
-
+    // 1. Fetch Status (The Pulse)
+    const fetchStatus = useCallback(async () => {
         try {
-            const token = localStorage.getItem('token');
+            const token = localStorage.getItem("token");
+            const userId = JSON.parse(localStorage.getItem("user"))?._id;
             
-            const res = await axios.get(`${API_URL}/bot/status`, {
-                params: { userId: address },
+            if (!token || !userId) return;
+
+            const res = await axios.get(`${BASE_URL}/bot/status`, {
+                params: { userId },
                 headers: { Authorization: `Bearer ${token}` }
             });
+
+            const data = res.data;
             
-            // 🛡️ DATA MAPPING
-            const hydratedStatus = {
-                ...res.data,
-                candles: res.data.candles || [],
-                trades: res.data.trades || [],
-                logs: res.data.logs || [],
-                
-                // 🟢 CRITICAL: Sync 'activePosition' for the UI
-                activePosition: res.data.activePosition || (res.data.activePositions && res.data.activePositions[0]) || null,
-                currentPosition: res.data.activePosition || (res.data.activePositions && res.data.activePositions[0]) || null
+            // Update State
+            setBotStatus(data);
+            
+            // Merge Logs (avoid duplicates)
+            if (data.logs && Array.isArray(data.logs)) {
+                setLogs(prev => {
+                    const newLogs = data.logs.filter(
+                        newLog => !prev.some(prevLog => 
+                            prevLog.timestamp === newLog.timestamp || 
+                            prevLog.message === newLog.message
+                        )
+                    );
+                    return [...newLogs, ...prev].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 100);
+                });
+            }
+
+            // Decide if we should keep polling
+            if (data.status === 'running') {
+                shouldPoll.current = true;
+            } else {
+                shouldPoll.current = false;
+            }
+
+        } catch (error) {
+            // Silent fail for heartbeat to avoid console spam
+        }
+    }, []);
+
+    // 2. Start/Stop Handlers
+    const startBot = async (flatConfig) => {
+        setLoading(true);
+        setLogs([]); // Clear old logs on start
+        try {
+            const token = localStorage.getItem("token");
+            
+            // 🟢 FIX: Wrap the config to match Python's Schema
+            const payload = {
+                userId: flatConfig.userId,
+                config: flatConfig
             };
 
-            setBotStatus(hydratedStatus);
-            
-            // Only update ref if we are not in a transitional state like 'stopping'
-            if (statusRef.current !== 'stopping') {
-                statusRef.current = hydratedStatus.status; 
-            }
-            
-            if (res.data.logs) setLogs(res.data.logs);
-            setError(null);
-
-        } catch (err) {
-            // 🟢 HANDLE 404 (Bot Not Found/Stopped)
-            if (err.response && err.response.status === 404) {
-                // If backend says 404, the bot is definitely stopped
-                setBotStatus((prev) => ({ 
-                    ...prev, 
-                    status: 'stopped', 
-                    activePosition: null 
-                }));
-                statusRef.current = 'stopped';
-            } 
-            // 🔴 HANDLE 500 (Server Crash/Booting)
-            else if (err.response && err.response.status === 500) {
-                console.warn("⚠️ Backend initializing or error (500). Retrying...");
-                // Do NOT change statusRef here; let it keep trying
-            }
-            else {
-                console.warn("Poll Error:", err.message);
-            }
-        }
-    }, [address, isConnected]);
-
-    // 🚀 Start Bot
-    const startBot = async (config) => {
-        setLoading(true);
-        try {
-            statusRef.current = 'starting'; // Enable polling immediately
-            const token = localStorage.getItem('token');
-            const payload = { ...config, userId: address }; 
-            
-            const res = await axios.post(`${API_URL}/bot/start`, payload, {
+            await axios.post(`${BASE_URL}/bot/start`, payload, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             
-            setBotStatus(res.data);
-            statusRef.current = 'running';
+            shouldPoll.current = true;
+            toast.success("Bot Started Successfully");
             
-            // Immediate refresh to populate initial state
-            setTimeout(refreshBotData, 500); 
-            return res.data;
-        } catch (err) {
-            statusRef.current = 'stopped'; // Revert on failure
-            const msg = err.response?.data?.message || err.message;
-            setError(msg);
-            throw new Error(msg);
+            // Immediate fetch to populate UI
+            setTimeout(fetchStatus, 1000); 
+            setTimeout(fetchStatus, 3000); 
+            
+        } catch (error) {
+            console.error("Start Error:", error);
+            toast.error("Failed to start: " + (error.response?.data?.detail?.[0]?.msg || error.message));
         } finally {
             setLoading(false);
         }
     };
 
-    // 🛑 Stop Bot
     const stopBot = async () => {
         setLoading(true);
-        statusRef.current = 'stopping'; // Prevent poll from overwriting state momentarily
         try {
-            const token = localStorage.getItem('token');
-            await axios.post(`${API_URL}/bot/stop`, { userId: address }, {
+            const token = localStorage.getItem("token");
+            const userId = JSON.parse(localStorage.getItem("user"))?._id;
+            await axios.post(`${BASE_URL}/bot/stop`, { userId }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
-            statusRef.current = 'stopped'; // Disable polling
-            await refreshBotData(); // One last fetch to confirm stop
-        } catch (err) {
-            console.error("Stop Error:", err);
-            // Even if API fails, UI should reflect stopped to allow retry
-            statusRef.current = 'stopped'; 
+            shouldPoll.current = false;
+            toast.success("Bot Stopped");
+            await fetchStatus(); 
+        } catch (error) {
+            toast.error("Failed to stop bot");
         } finally {
             setLoading(false);
         }
     };
 
-    // ♻️ Reset Bot
-    const resetBot = async (config) => {
-        setLoading(true);
+    const resetBot = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const payload = { ...config, userId: address };
-            
-            await axios.post(`${API_URL}/bot/reset`, payload, {
+            const token = localStorage.getItem("token");
+            const userId = JSON.parse(localStorage.getItem("user"))?._id;
+            await axios.post(`${BASE_URL}/bot/reset`, { userId }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
             setBotStatus(null);
             setLogs([]);
-            statusRef.current = 'stopped';
-            setTimeout(refreshBotData, 1000);
-        } catch (err) {
-            const msg = err.response?.data?.message || err.message;
-            console.error("Reset Error:", msg);
-            throw new Error(msg);
-        } finally {
-            setLoading(false);
+            shouldPoll.current = false;
+        } catch (e) {
+            console.error(e);
         }
     };
 
-    // ⏱️ SMART POLLING EFFECT
+    // 3. The Heartbeat Effect (Polls every 2 seconds)
     useEffect(() => {
-        if (!isConnected || !address) return;
-        
-        // 1. Initial Fetch
-        refreshBotData(); 
-
-        // 2. Poll ONLY if running or starting
-        const intervalId = setInterval(() => {
-            const currentStatus = statusRef.current;
-            if (currentStatus === 'running' || currentStatus === 'starting') {
-                refreshBotData();
+        fetchStatus(); // Initial fetch
+        const interval = setInterval(() => {
+            if (shouldPoll.current) {
+                fetchStatus();
             }
-        }, 3000); // 3 Seconds (Fast enough for UI, slow enough for server)
+        }, 2000); 
 
-        return () => clearInterval(intervalId);
-    }, [isConnected, address, refreshBotData]); 
+        return () => clearInterval(interval);
+    }, [fetchStatus]);
 
     return { 
         botStatus, 
         logs, 
         loading, 
-        error, 
         startBot, 
         stopBot,
-        resetBot, 
-        refreshBotData 
+        resetBot,
+        refresh: fetchStatus 
     };
 };
