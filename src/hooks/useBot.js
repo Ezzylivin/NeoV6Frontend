@@ -1,8 +1,9 @@
 // File: src/hooks/useBot.js
-// 🚀 UPGRADE: v9.6 - Fixes 422 Start Error (Correct Payload Structure)
+// 🚀 UPGRADE: v12.0 - Wallet-Aware Polling (Fixes ID Mismatch)
 import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useAccount } from 'wagmi'; // 🟢 NEW: Import Wagmi
 
 const API_URL = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
 const BASE_URL = API_URL.endsWith('/api') ? API_URL : `${API_URL}/api`;
@@ -11,17 +12,25 @@ export const useBot = () => {
     const [botStatus, setBotStatus] = useState(null);
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(false);
-    
-    // We use a ref to track if we should be polling
     const shouldPoll = useRef(false);
+    
+    // 🟢 1. Get Wallet Address
+    const { address } = useAccount();
 
-    // 1. Fetch Status (The Pulse)
+    // 🟢 2. Determine Active ID (Prioritize Wallet -> then DB ID)
+    const getActiveUserId = useCallback(() => {
+        if (address) return address; // Use Wallet if connected
+        const user = JSON.parse(localStorage.getItem("user"));
+        return user?._id; // Fallback to DB ID
+    }, [address]);
+
+    // 3. Fetch Status (The Pulse)
     const fetchStatus = useCallback(async () => {
         try {
             const token = localStorage.getItem("token");
-            const userId = JSON.parse(localStorage.getItem("user"))?._id;
+            const userId = getActiveUserId(); // 🟢 Use Dynamic ID
             
-            if (!token || !userId) return;
+            if (!userId) return;
 
             const res = await axios.get(`${BASE_URL}/bot/status`, {
                 params: { userId },
@@ -29,11 +38,9 @@ export const useBot = () => {
             });
 
             const data = res.data;
-            
-            // Update State
             setBotStatus(data);
             
-            // Merge Logs (avoid duplicates)
+            // Merge Logs
             if (data.logs && Array.isArray(data.logs)) {
                 setLogs(prev => {
                     const newLogs = data.logs.filter(
@@ -46,29 +53,26 @@ export const useBot = () => {
                 });
             }
 
-            // Decide if we should keep polling
-            if (data.status === 'running') {
-                shouldPoll.current = true;
-            } else {
-                shouldPoll.current = false;
-            }
+            // Keep polling if running OR initializing
+            shouldPoll.current = (data.status === 'running' || data.status === 'initializing');
 
         } catch (error) {
-            // Silent fail for heartbeat to avoid console spam
+            // Silent fail
         }
-    }, []);
+    }, [getActiveUserId]); // Re-create if ID changes
 
-    // 2. Start/Stop Handlers
+    // 4. Start Bot
     const startBot = async (flatConfig) => {
         setLoading(true);
-        setLogs([]); // Clear old logs on start
+        setLogs([]);
         try {
             const token = localStorage.getItem("token");
-            
-            // 🟢 FIX: Wrap the config to match Python's Schema
+            const userId = getActiveUserId();
+
+            // Wrapped Payload
             const payload = {
-                userId: flatConfig.userId,
-                config: flatConfig
+                userId: userId, 
+                config: { ...flatConfig, userId } // Ensure ID matches
             };
 
             await axios.post(`${BASE_URL}/bot/start`, payload, {
@@ -78,23 +82,27 @@ export const useBot = () => {
             shouldPoll.current = true;
             toast.success("Bot Started Successfully");
             
-            // Immediate fetch to populate UI
-            setTimeout(fetchStatus, 1000); 
+            // Aggressive initial polling
+            setTimeout(fetchStatus, 500); 
+            setTimeout(fetchStatus, 1500); 
             setTimeout(fetchStatus, 3000); 
             
         } catch (error) {
             console.error("Start Error:", error);
-            toast.error("Failed to start: " + (error.response?.data?.detail?.[0]?.msg || error.message));
+            const msg = error.response?.data?.message || "Failed to start bot";
+            toast.error(msg);
         } finally {
             setLoading(false);
         }
     };
 
+    // 5. Stop Bot
     const stopBot = async () => {
         setLoading(true);
         try {
             const token = localStorage.getItem("token");
-            const userId = JSON.parse(localStorage.getItem("user"))?._id;
+            const userId = getActiveUserId();
+            
             await axios.post(`${BASE_URL}/bot/stop`, { userId }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -108,24 +116,24 @@ export const useBot = () => {
         }
     };
 
+    // 6. Reset Bot
     const resetBot = async () => {
         try {
             const token = localStorage.getItem("token");
-            const userId = JSON.parse(localStorage.getItem("user"))?._id;
+            const userId = getActiveUserId();
+            
             await axios.post(`${BASE_URL}/bot/reset`, { userId }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setBotStatus(null);
             setLogs([]);
             shouldPoll.current = false;
-        } catch (e) {
-            console.error(e);
-        }
+        } catch (e) { console.error(e); }
     };
 
-    // 3. The Heartbeat Effect (Polls every 2 seconds)
+    // 7. Polling Effect
     useEffect(() => {
-        fetchStatus(); // Initial fetch
+        fetchStatus();
         const interval = setInterval(() => {
             if (shouldPoll.current) {
                 fetchStatus();
@@ -135,13 +143,5 @@ export const useBot = () => {
         return () => clearInterval(interval);
     }, [fetchStatus]);
 
-    return { 
-        botStatus, 
-        logs, 
-        loading, 
-        startBot, 
-        stopBot,
-        resetBot,
-        refresh: fetchStatus 
-    };
+    return { botStatus, logs, loading, startBot, stopBot, resetBot, refresh: fetchStatus };
 };
