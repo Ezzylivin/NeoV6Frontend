@@ -1,5 +1,5 @@
 // File: src/hooks/useBot.js
-// 🚀 UPGRADE: v13.0 - Sticky Identity (Prevents ID switching mid-trade)
+// 🚀 UPGRADE: v14.0 - Persisted Identity (Survives Refreshes & Wallet Flickers)
 import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -12,41 +12,41 @@ export const useBot = () => {
     const [botStatus, setBotStatus] = useState(null);
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(false);
-    
-    // 🟢 STICKY ID: Remembers who started the bot
-    const activeUserId = useRef(null); 
     const shouldPoll = useRef(false);
     
-    const { address } = useAccount();
+    const { address, isConnected } = useAccount();
 
-    // Helper to get the best available ID
-    const getCurrentId = useCallback(() => {
-        // 1. If we are running, use the ID that started it (STICKY)
-        if (activeUserId.current) return activeUserId.current;
-        // 2. Else, prefer Wallet
-        if (address) return address;
-        // 3. Fallback to Database ID
+    // 🟢 1. INTELLIGENT ID RESOLVER
+    const resolveActiveId = useCallback(() => {
+        // A. Priority: The ID explicitly saved as "Running"
+        const savedId = localStorage.getItem("neo_active_bot_id");
+        if (savedId) return savedId;
+
+        // B. Secondary: Connected Wallet
+        if (isConnected && address) return address;
+
+        // C. Fallback: Database User
         const user = JSON.parse(localStorage.getItem("user"));
         return user?._id;
-    }, [address]);
+    }, [address, isConnected]);
 
-    // 1. Fetch Status
+    // 2. Fetch Status
     const fetchStatus = useCallback(async () => {
         try {
             const token = localStorage.getItem("token");
-            const userId = getCurrentId(); 
+            const targetId = resolveActiveId(); // 🟢 Use Resolved ID
             
-            if (!token || !userId) return;
+            if (!targetId || !token) return;
 
             const res = await axios.get(`${BASE_URL}/bot/status`, {
-                params: { userId },
+                params: { userId: targetId },
                 headers: { Authorization: `Bearer ${token}` }
             });
 
             const data = res.data;
             setBotStatus(data);
             
-            // Log Merging
+            // Merge Logs
             if (data.logs && Array.isArray(data.logs)) {
                 setLogs(prev => {
                     const newLogs = data.logs.filter(
@@ -59,33 +59,38 @@ export const useBot = () => {
                 });
             }
 
-            // Logic: If running, LOCK the ID and keep polling
+            // 🟢 PERSISTENCE LOGIC
             if (data.status === 'running' || data.status === 'initializing') {
                 shouldPoll.current = true;
-                activeUserId.current = userId; // <--- LOCK ID
+                // Remember this ID so we don't lose it on refresh
+                if (targetId !== localStorage.getItem("neo_active_bot_id")) {
+                    localStorage.setItem("neo_active_bot_id", targetId);
+                }
             } else {
                 shouldPoll.current = false;
-                // Only unlock if we were previously polling
-                if (!loading) activeUserId.current = null; 
+                // Only clear if we were previously polling and it stopped cleanly
+                if (!loading && data.status === 'stopped') {
+                     localStorage.removeItem("neo_active_bot_id");
+                }
             }
 
         } catch (error) {
             // Silent fail
         }
-    }, [getCurrentId, loading]);
+    }, [resolveActiveId, loading]);
 
-    // 2. Start Bot
+    // 3. Start Bot
     const startBot = async (flatConfig) => {
         setLoading(true);
         setLogs([]);
         try {
             const token = localStorage.getItem("token");
             
-            // Determine who is starting this
+            // Determine Identity (Prefer Wallet)
             const userId = address || JSON.parse(localStorage.getItem("user"))?._id;
             
-            // 🟢 LOCK ID IMMEDIATELY
-            activeUserId.current = userId;
+            // 🟢 FORCE SAVE ID
+            localStorage.setItem("neo_active_bot_id", userId);
 
             const payload = { userId, config: { ...flatConfig, userId } };
 
@@ -102,7 +107,7 @@ export const useBot = () => {
             
         } catch (error) {
             console.error("Start Error:", error);
-            activeUserId.current = null; // Unlock on fail
+            localStorage.removeItem("neo_active_bot_id"); // Clear on fail
             const msg = error.response?.data?.message || "Failed to start bot";
             toast.error(msg);
         } finally {
@@ -110,18 +115,21 @@ export const useBot = () => {
         }
     };
 
-    // 3. Stop Bot
+    // 4. Stop Bot
     const stopBot = async () => {
         setLoading(true);
         try {
             const token = localStorage.getItem("token");
-            const userId = activeUserId.current || getCurrentId(); // Use Locked ID
+            const userId = resolveActiveId();
             
             await axios.post(`${BASE_URL}/bot/stop`, { userId }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             shouldPoll.current = false;
-            activeUserId.current = null; // Unlock
+            
+            // 🟢 CLEAR SAVED ID
+            localStorage.removeItem("neo_active_bot_id");
+            
             toast.success("Bot Stopped");
             await fetchStatus(); 
         } catch (error) {
@@ -131,11 +139,11 @@ export const useBot = () => {
         }
     };
 
-    // 4. Reset Bot
+    // 5. Reset Bot
     const resetBot = async () => {
         try {
             const token = localStorage.getItem("token");
-            const userId = activeUserId.current || getCurrentId();
+            const userId = resolveActiveId();
             
             await axios.post(`${BASE_URL}/bot/reset`, { userId }, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -143,16 +151,19 @@ export const useBot = () => {
             setBotStatus(null);
             setLogs([]);
             shouldPoll.current = false;
-            activeUserId.current = null; // Unlock
+            localStorage.removeItem("neo_active_bot_id");
         } catch (e) { console.error(e); }
     };
 
-    // 5. Polling Loop
+    // 6. Polling Loop
     useEffect(() => {
         fetchStatus();
         const interval = setInterval(() => {
-            if (shouldPoll.current) fetchStatus();
+            if (shouldPoll.current) {
+                fetchStatus();
+            }
         }, 2000); 
+
         return () => clearInterval(interval);
     }, [fetchStatus]);
 
