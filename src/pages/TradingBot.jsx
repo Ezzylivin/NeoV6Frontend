@@ -15,7 +15,7 @@ import {
     Shield, Globe, Cpu, Filter, TrendingUp, 
     Activity, Percent, DollarSign, AlertTriangle, 
     Zap, Scale, Award, TrendingDown, LayoutGrid, Info, Power, RefreshCw
-} from "lucide-center";
+} from "lucide-react";
 import "./TradingBot.css";
 import "../styles/Themes.css";
 
