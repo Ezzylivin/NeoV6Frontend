@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v9.3 - Fixed Log Rendering Crash (Object vs String)
+// 🚀 UPGRADE: v9.4 - Added Reset Button to Initial Balance Screen
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
@@ -123,7 +123,8 @@ const CheckItem = ({ label, status }) => (
     </div>
 );
 
-const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
+// 🟢 UPDATED: ModeSelectionModal now accepts `onReset`
+const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys, onReset }) => {
     const [step, setStep] = useState('selection');
     const [paperBalance, setPaperBalance] = useState(10000);
 
@@ -160,9 +161,19 @@ const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys }) => {
                     <div className="max-w-sm mx-auto bg-[#111] border border-white/10 p-8 rounded-xl">
                         <h3 className="text-xl font-bold text-white mb-4">Initial Balance</h3>
                         <input type="number" value={paperBalance} onChange={(e) => setPaperBalance(Number(e.target.value))} className="w-full bg-black border border-white/20 rounded p-3 text-xl text-white mb-6 focus:border-emerald-500 outline-none" />
-                        <div className="flex gap-3">
+                        <div className="flex gap-3 mb-6">
                             <button onClick={() => setStep('selection')} className="flex-1 py-3 text-neutral-400 hover:text-white">Back</button>
                             <button onClick={() => onSelect('paper', paperBalance)} className="flex-[2] bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded">Start</button>
+                        </div>
+                        
+                        {/* 🟢 NEW RESET BUTTON ADDED HERE */}
+                        <div className="pt-4 border-t border-zinc-800">
+                             <button 
+                                onClick={onReset} 
+                                className="text-[10px] text-zinc-500 hover:text-rose-500 flex items-center justify-center gap-1.5 w-full transition-colors uppercase font-bold tracking-wide"
+                            >
+                                <RefreshCw size={10} /> Reset Previous Session Data
+                            </button>
                         </div>
                     </div>
                 )}
@@ -278,7 +289,16 @@ const TradingBotContainer = () => {
             <div className="min-h-screen bg-zinc-950 text-white font-sans p-6">
                 <Toaster position="top-right" toastOptions={{ style: { background: "#333", color: "#fff" } }} />
                 
-                {!isModeSelected && <ModeSelectionModal onSelect={handleModeSelection} isConnected={isConnected} hasApiKeys={hasApiKeys} />}
+                {/* 🟢 UPDATED: Passed onReset to ModeSelectionModal */}
+                {!isModeSelected && (
+                    <ModeSelectionModal 
+                        onSelect={handleModeSelection} 
+                        isConnected={isConnected} 
+                        hasApiKeys={hasApiKeys} 
+                        onReset={handleReset} 
+                    />
+                )}
+                
                 {showPreFlight && <PreFlightModal config={formConfig} onConfirm={handleConfirmStart} onCancel={() => setShowPreFlight(false)} isStarting={isStarting} hasApiKeys={hasApiKeys} address={address} />}
 
                 <header className={`max-w-[1800px] mx-auto mb-8 flex items-center gap-12 transition-all duration-500 ${!isModeSelected || showPreFlight ? 'blur-sm' : ''}`}>
