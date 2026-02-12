@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v12.24 - FULL Feature Restoration (Selection Popup, Shield, Risk, Charts)
+// 🚀 UPGRADE: v12.25 - Wallet Gate + Environment Selection + Full Risk Restoration
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
@@ -36,6 +36,7 @@ const parseLog = (log) => {
     return log.message || log.msg || JSON.stringify(log);
 };
 
+// --- CONFIG DEFAULTS ---
 const STRAT_POOL = [
     { name: "RSI Threshold", code: "rsi_threshold" },
     { name: "SMA Crossover", code: "sma_crossover" },
@@ -52,7 +53,7 @@ const DEFAULT_STRATEGY_PARAMS = {
     macd_crossover: { fast: 12, slow: 26, signal: 9 }
 };
 
-// 🟢 RESTORED: MODAL COMPONENTS
+// --- MODALS ---
 const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, address }) => {
     const [checks, setChecks] = useState({ wallet: false, keys: false, capital: false, strategy: false });
     useEffect(() => {
@@ -71,14 +72,12 @@ const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, a
                 <div className="space-y-3 mb-10">
                     <CheckItem label="Wallet Connection" status={checks.wallet} />
                     <CheckItem label={config.tradingMode === 'live' ? "API Keys (Active)" : "API Keys (Bypassed)"} status={checks.keys} />
-                    <CheckItem label={`Allocated Capital ($${config.capitalAllocation})`} status={checks.capital} />
+                    <CheckItem label={`Capital ($${config.capitalAllocation})`} status={checks.capital} />
                     <CheckItem label={`${config.strategies.length} Strategy Modules`} status={checks.strategy} />
                 </div>
                 <div className="flex gap-4">
                     <button onClick={onCancel} className="flex-1 py-4 border border-zinc-800 rounded-2xl text-zinc-500 font-black uppercase text-[10px] hover:text-white transition-all">Abort</button>
-                    <button onClick={onConfirm} disabled={!allPassed || isStarting} className={`flex-2 py-4 rounded-2xl font-black uppercase text-[10px] transition-all shadow-lg ${allPassed ? 'bg-emerald-500 text-black hover:bg-emerald-400' : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'}`}>
-                        {isStarting ? 'Igniting Engine...' : 'Execute Launch'}
-                    </button>
+                    <button onClick={onConfirm} disabled={!allPassed || isStarting} className={`flex-2 py-4 rounded-2xl font-black uppercase text-[10px] transition-all shadow-lg ${allPassed ? 'bg-emerald-500 text-black hover:bg-emerald-400' : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'}`}>{isStarting ? 'Igniting Engine...' : 'Execute Launch'}</button>
                 </div>
             </div>
         </div>
@@ -97,11 +96,12 @@ const TradingBotContainer = () => {
     const { startBot, stopBot, resetBot } = useBot(); 
     const { isConnected, address } = useAccount();
     
-    // 🟢 RESTORED: MISSING STATE VARIABLES
     const [isModeSelected, setIsModeSelected] = useState(false);
     const [hasApiKeys, setHasApiKeys] = useState(false);
     const [showPreFlight, setShowPreFlight] = useState(false);
     const [isStarting, setIsStarting] = useState(false);
+    const [paperBalance, setPaperBalance] = useState(10000);
+    const [modeStep, setModeStep] = useState('selection');
     
     const [socketLogs, setSocketLogs] = useState([]);
     const [socketStatus, setSocketStatus] = useState({ 
@@ -111,7 +111,7 @@ const TradingBotContainer = () => {
     const [uptime, setUptime] = useState("00:00:00");
     const logContainerRef = useRef(null);
 
-    // 🟢 FORM STATE (Restored All Advanced Logic)
+    // 🟢 FORM STATE (Fully Restored Logic)
     const [formConfig, setFormConfig] = useState({
         symbol: "BTC-USD", timeframe: "1h", capitalAllocation: 1000,
         tradingMode: "paper", strategies: [{ code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }],
@@ -122,7 +122,23 @@ const TradingBotContainer = () => {
         filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 }
     });
 
-    // 🟢 RESTORED: API KEY CHECK
+    // Enforce Wallet Gate
+    if (!isConnected) {
+        return (
+            <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6">
+                <div className="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-[40px] p-12 text-center shadow-2xl">
+                    <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-inner">
+                        <Wallet className="text-emerald-500 w-8 h-8" />
+                    </div>
+                    <h2 className="text-2xl font-black text-white mb-3 uppercase tracking-tighter">Terminal Encrypted</h2>
+                    <p className="text-zinc-500 text-xs mb-10 font-bold uppercase tracking-widest leading-relaxed">Authorization required. Connect your wallet to access high-frequency modules.</p>
+                    <div className="flex justify-center scale-110"><ConnectButton /></div>
+                </div>
+            </div>
+        );
+    }
+
+    // Effects for Keys, Uptime, Socket
     useEffect(() => {
         if (isConnected) {
             axios.get(`${API_BASE}/users/keys`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
@@ -131,7 +147,6 @@ const TradingBotContainer = () => {
         }
     }, [isConnected]);
 
-    // 🟢 UPTIME COUNTER
     useEffect(() => {
         let interval;
         if (socketStatus.status === 'running' && socketStatus.startedAt) {
@@ -146,7 +161,6 @@ const TradingBotContainer = () => {
         return () => clearInterval(interval);
     }, [socketStatus.status, socketStatus.startedAt]);
 
-    // 🟢 SOCKET INTEGRATION
     useEffect(() => {
         if (!address) return;
         const socket = io(SOCKET_URL, { query: { userId: address }, transports: ['websocket', 'polling'] });
@@ -176,22 +190,37 @@ const TradingBotContainer = () => {
             <div className="min-h-screen bg-zinc-950 text-white font-sans p-6 overflow-x-hidden">
                 <Toaster position="top-right" />
                 
-                {/* 🟢 RESTORED: ENVIRONMENT SELECTION POPUP */}
+                {/* 🟢 RESTORED: ENVIRONMENT SELECTION POPUP WITH BALANCE */}
                 {!isModeSelected && socketStatus.status !== 'running' && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md">
-                        <div className="max-w-3xl w-full p-6 text-center">
-                            <h1 className="text-3xl font-black text-white mb-10 tracking-tighter uppercase">Environment Selection</h1>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div onClick={() => { setFormConfig(p=>({...p, tradingMode: 'paper'})); setIsModeSelected(true); }} className="group cursor-pointer bg-[#0a0a0a] border border-white/10 hover:border-emerald-500/50 p-12 rounded-2xl transition-all shadow-2xl">
-                                    <h3 className="text-2xl font-black text-emerald-400 mb-2">PAPER</h3>
-                                    <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Simulated Logic Gate</p>
+                        <div className="max-w-4xl w-full p-6 text-center">
+                            {modeStep === 'selection' ? (
+                                <>
+                                    <h1 className="text-4xl font-black text-white mb-4 tracking-tighter uppercase">Protocol Selection</h1>
+                                    <p className="text-zinc-500 text-xs font-bold uppercase tracking-[0.3em] mb-12">Select your operational environment</p>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div onClick={() => setModeStep('paper_setup')} className="group cursor-pointer bg-zinc-900 border border-white/5 hover:border-emerald-500/50 p-16 rounded-[40px] transition-all shadow-2xl">
+                                            <h3 className="text-3xl font-black text-emerald-400 mb-3">PAPER</h3>
+                                            <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">Logic-Only Simulation</p>
+                                        </div>
+                                        <div onClick={() => { if(hasApiKeys) { setFormConfig(p=>({...p, tradingMode: 'live'})); setIsModeSelected(true); } else { toast.error("Connect API Keys First"); } }} 
+                                             className={`p-16 rounded-[40px] border transition-all ${hasApiKeys ? 'cursor-pointer bg-zinc-900 border-white/5 hover:border-red-500 shadow-2xl' : 'bg-zinc-900/50 opacity-20 cursor-not-allowed'}`}>
+                                            <h3 className="text-3xl font-black text-red-500 mb-3">LIVE</h3>
+                                            <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">Real Capital Execution</p>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="max-w-md mx-auto bg-zinc-900 border border-zinc-800 p-12 rounded-[40px] shadow-2xl">
+                                    <h3 className="text-2xl font-black text-white mb-2 uppercase tracking-tighter">Initial Balance</h3>
+                                    <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-8">Define your simulated treasury</p>
+                                    <input type="number" value={paperBalance} onChange={(e) => setPaperBalance(Number(e.target.value))} className="w-full bg-black border border-zinc-800 rounded-2xl p-5 text-2xl font-mono text-center text-emerald-500 mb-8 focus:border-emerald-500 outline-none" />
+                                    <div className="flex gap-4">
+                                        <button onClick={() => setModeStep('selection')} className="flex-1 py-4 border border-zinc-800 rounded-2xl text-zinc-500 font-black uppercase text-[10px]">Back</button>
+                                        <button onClick={() => { setFormConfig(p=>({...p, tradingMode: 'paper', capitalAllocation: paperBalance})); setIsModeSelected(true); }} className="flex-2 py-4 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px]">Initialize</button>
+                                    </div>
                                 </div>
-                                <div onClick={() => { if(hasApiKeys) { setFormConfig(p=>({...p, tradingMode: 'live'})); setIsModeSelected(true); } else { toast.error("Connect API Keys First"); } }} 
-                                     className={`p-12 rounded-2xl border transition-all ${hasApiKeys ? 'cursor-pointer bg-[#0a0a0a] border-white/10 hover:border-red-500 shadow-2xl' : 'bg-zinc-900/50 opacity-30 cursor-not-allowed'}`}>
-                                    <h3 className="text-2xl font-black text-red-500 mb-2">LIVE</h3>
-                                    <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Real Capital Execution</p>
-                                </div>
-                            </div>
+                            )}
                         </div>
                     </div>
                 )}
@@ -201,21 +230,18 @@ const TradingBotContainer = () => {
                 <header className={`max-w-[1800px] mx-auto mb-10 flex items-center justify-between transition-all duration-500 ${(!isModeSelected && socketStatus.status !== 'running') || showPreFlight ? 'blur-sm' : ''}`}>
                     <div className="flex items-center gap-3">
                         <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/30"><Activity className="text-black w-7 h-7" /></div>
-                        <div>
-                            <h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1>
-                            <p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Hybrid Intelligence Terminal v12.24</p>
-                        </div>
+                        <div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Hybrid Intelligence Terminal v12.25</p></div>
                     </div>
                     <ConnectButton />
                 </header>
 
                 <div className={`max-w-[1800px] mx-auto grid grid-cols-12 gap-8 transition-all duration-500 ${(!isModeSelected && socketStatus.status !== 'running') || showPreFlight ? 'blur-sm pointer-events-none' : ''}`}>
                     
-                    {/* --- LEFT SIDEBAR: LOGIC & RISK --- */}
+                    {/* --- SIDEBAR CONFIG --- */}
                     <div className="col-span-12 lg:col-span-3 space-y-6">
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-10 shadow-2xl sticky top-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
                             
-                            {/* RESTORED: Neural Gate Architecture */}
+                            {/* Neural Gate */}
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center"><div className="flex items-center gap-2"><Cpu size={16} className="text-violet-400" /><h4 className="text-[10px] font-black uppercase tracking-widest text-violet-400">Neural Gate</h4></div>
                                 <select value={formConfig.mlMode} onChange={(e)=>setFormConfig({...formConfig, mlMode: e.target.value})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase"><option value="off">Bypass</option><option value="on">Active</option></select></div>
@@ -230,22 +256,22 @@ const TradingBotContainer = () => {
                                 )}
                             </div>
 
-                            {/* RESTORED: Logic Ensemble Modules */}
+                            {/* Logic Ensemble */}
                             <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                 <div className="flex justify-between items-center"><h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Logic Ensemble</h4>
                                 <select value={formConfig.hybridMode} onChange={(e) => setFormConfig({...formConfig, hybridMode: e.target.value})} className="bg-zinc-950 border border-zinc-700 text-[9px] rounded px-2 py-1 text-emerald-500 font-bold uppercase"><option value="AND">Strict</option><option value="OR">Loose</option></select></div>
                                 <div className="space-y-3">
                                     {formConfig.strategies.map((s, i) => (
-                                        <div key={i} className="p-4 bg-zinc-800/30 rounded-2xl border border-zinc-800">
+                                        <div key={i} className="p-4 bg-zinc-800/30 rounded-2xl border border-zinc-800 shadow-inner">
                                             <div className="flex justify-between mb-3"><span className="text-[10px] font-black text-amber-500 uppercase">{s.code.replace('_', ' ')}</span><button type="button" onClick={() => setFormConfig(p => ({ ...p, strategies: p.strategies.filter((_, idx) => idx !== i) }))} className="text-zinc-600 hover:text-rose-500"><Trash2 size={12}/></button></div>
                                             <StrategyParamInputs strategy={s} onChange={(p) => { const n = [...formConfig.strategies]; n[i].params = p; setFormConfig({...formConfig, strategies: n}); }} />
                                         </div>
                                     ))}
-                                    <button type="button" onClick={() => setFormConfig(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="w-full py-2 border border-dashed border-zinc-800 rounded-xl text-zinc-600 hover:text-emerald-500 hover:border-emerald-500/50 transition-all flex items-center justify-center gap-2 font-black text-[9px] uppercase"><Plus size={12}/> Add Module</button>
+                                    <button type="button" onClick={() => setFormConfig(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="w-full py-3 border border-dashed border-zinc-800 rounded-xl text-zinc-600 hover:text-emerald-500 transition-all flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-tighter"><Plus size={12}/> Add Signal Module</button>
                                 </div>
                             </div>
 
-                            {/* RESTORED: Execution Shield Inputs */}
+                            {/* Execution Shield */}
                             <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                 <div className="flex items-center gap-2"><Shield size={16} className="text-amber-500"/><h4 className="text-[10px] font-black uppercase tracking-widest text-amber-500">Execution Shield</h4></div>
                                 <div className="grid grid-cols-2 gap-3">
@@ -255,7 +281,7 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
 
-                            {/* RESTORED: Risk Protocols Section */}
+                            {/* 🟢 RESTORED: RISK PROTOCOLS SECTION */}
                             <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                 <div className="flex items-center gap-2"><Scale size={16} className="text-rose-400"/><h4 className="text-[10px] font-black uppercase tracking-widest text-rose-400">Risk Protocols</h4></div>
                                 <div className="grid grid-cols-2 gap-3">
@@ -266,12 +292,24 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
 
+                            {/* 🟢 RESTORED: SANITY FILTERS SECTION */}
+                            <div className="space-y-4 border-t border-zinc-800/50 pt-8">
+                                <div className="flex items-center gap-2"><Filter size={16} className="text-cyan-400"/><h4 className="text-[10px] font-black uppercase tracking-widest text-cyan-400">Sanity Filters</h4></div>
+                                <div className="space-y-3">
+                                    <div><label className={labelClass}>Trend Filter</label><select value={formConfig.filters.trend_filter} onChange={(e)=>setFormConfig({...formConfig, filters:{...formConfig.filters, trend_filter: e.target.value}})} className={inputClass}><option value="none">None</option><option value="ema_200">200 EMA</option><option value="sma_200">200 SMA</option></select></div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div><label className={labelClass}>Min Vol</label><input type="number" value={formConfig.filters.vol_min} onChange={(e)=>setFormConfig({...formConfig, filters:{...formConfig.filters, vol_min: parseFloat(e.target.value)}})} className={inputClass}/></div>
+                                        <div><label className={labelClass}>ATR Min</label><input type="number" step="0.1" value={formConfig.filters.atr_filter} onChange={(e)=>setFormConfig({...formConfig, filters:{...formConfig.filters, atr_filter: parseFloat(e.target.value)}})} className={inputClass}/></div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div className="pt-4 space-y-3">
-                                <button onClick={socketStatus.status === 'running' ? stopBot : () => setShowPreFlight(true)} className={`w-full py-5 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all ${socketStatus.status === 'running' ? 'bg-rose-500 hover:bg-rose-600 shadow-xl shadow-rose-500/20' : 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-xl shadow-emerald-500/20'}`}>
+                                <button onClick={socketStatus.status === 'running' ? stopBot : () => setShowPreFlight(true)} className={`w-full py-5 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all ${socketStatus.status === 'running' ? 'bg-rose-500 hover:bg-rose-600 shadow-rose-500/20' : 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-emerald-500/20'}`}>
                                     {socketStatus.status === 'running' ? 'Emergency Abort' : 'Initiate Engine'}
                                 </button>
                                 {socketStatus.status !== 'running' && (
-                                    <button onClick={resetBot} className="w-full py-3 border border-zinc-800 rounded-xl text-zinc-500 text-[9px] font-black uppercase hover:text-white transition-all flex items-center justify-center gap-2 tracking-widest"><RefreshCw size={12}/> Reset Logic State</button>
+                                    <button onClick={resetBot} className="w-full py-3 border border-zinc-800 rounded-xl text-zinc-500 text-[9px] font-black uppercase hover:text-white transition-all flex items-center justify-center gap-2 tracking-widest"><RefreshCw size={12}/> Reset Terminal State</button>
                                 )}
                             </div>
                         </div>
@@ -279,13 +317,11 @@ const TradingBotContainer = () => {
 
                     {/* --- MAIN DASHBOARD --- */}
                     <div className="col-span-12 lg:col-span-9 space-y-8">
-                        
-                        {/* Metrics Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                             <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
                                 <div className="flex justify-between items-start mb-1"><p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">Engine</p>{socketStatus.status === 'running' && <Timer size={12} className="text-emerald-500 animate-pulse" />}</div>
                                 <p className={`text-lg font-mono font-black ${socketStatus.status === 'running' ? 'text-emerald-400' : 'text-zinc-600'}`}>{socketStatus.status === 'running' ? 'OPERATIONAL' : 'STANDBY'}</p>
-                                <p className="text-[9px] font-mono text-zinc-500 mt-1 uppercase">UPTIME: {uptime}</p>
+                                <p className="text-[9px] font-mono text-zinc-500 mt-1 uppercase tracking-tighter">UPTIME: {uptime}</p>
                             </div>
                             <MetricCard label="Daily Profit" value={`${socketStatus.dailyProfit >= 0 ? '+' : ''}$${(socketStatus.dailyProfit || 0).toFixed(2)}`} color={socketStatus.dailyProfit >= 0 ? 'text-emerald-400' : 'text-rose-500'} icon={<DollarSign size={10}/>} />
                             <MetricCard label="Floating PnL" value={`${socketStatus.unrealizedPnl >= 0 ? '+' : ''}$${(socketStatus.unrealizedPnl || 0).toFixed(2)}`} color={socketStatus.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'} />
@@ -293,23 +329,20 @@ const TradingBotContainer = () => {
                             <MetricCard label="Bot Balance" value={`$${(socketStatus.currentBalance || formConfig.capitalAllocation).toFixed(2)}`} />
                         </div>
 
-                        {/* Chart Row */}
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[680px]">
                             <div className="lg:col-span-3 bg-zinc-900 border border-zinc-800 rounded-[40px] overflow-hidden flex flex-col relative shadow-2xl">
                                 <div className="bg-zinc-800/20 p-5 border-b border-zinc-800/50 flex items-center justify-between">
                                     <div className="flex items-center gap-3"><TrendingUp size={18} className="text-emerald-500" /><span className="text-[11px] font-black uppercase tracking-widest">{formConfig.symbol} Terminal</span></div>
-                                    <div className="px-3 py-1 bg-zinc-950 rounded-full border border-zinc-800 text-[10px] font-mono text-zinc-400 uppercase tracking-tighter">Live HLOC Stream</div>
+                                    <div className="px-3 py-1 bg-zinc-950 rounded-full border border-zinc-800 text-[10px] font-mono text-zinc-400 uppercase tracking-tighter">Live HLOC Feed</div>
                                 </div>
                                 <div className="flex-1 bg-[#090b0f] pb-8"><LiveTradingChart symbol={formConfig.symbol} timeframe={formConfig.timeframe} isRunning={socketStatus.status === 'running'} activePositions={socketStatus.positions} candleData={socketStatus.candles || []} /></div>
                             </div>
-
                             <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 rounded-[40px] flex flex-col overflow-hidden shadow-2xl">
                                 <div className="p-5 border-b border-zinc-800 bg-zinc-800/20 flex justify-between items-center"><h3 className="text-[10px] font-black text-violet-400 uppercase tracking-widest">Neural Stream</h3>{socketConnected ? <Wifi size={14} className="text-emerald-500" /> : <WifiOff size={14} className="text-rose-500 animate-pulse" />}</div>
                                 <div ref={logContainerRef} className="flex-1 overflow-y-auto p-6 font-mono text-[10px] space-y-5 bg-black/20 custom-scrollbar">{uniqueLogs.map((log, i) => <div key={i} className={`p-3 rounded-xl border leading-relaxed ${parseLog(log).includes('🟢') ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400 shadow-lg shadow-emerald-500/5' : 'bg-zinc-800/20 border-transparent text-zinc-500'}`}>{parseLog(log)}</div>)}</div>
                             </div>
                         </div>
 
-                        {/* Footer Section: Growth & Operations */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-20">
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
                                 <div className="flex items-center justify-between mb-8"><div className="flex items-center gap-2"><TrendingUp size={18} className="text-emerald-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Equity Growth</h3></div></div>
@@ -323,7 +356,6 @@ const TradingBotContainer = () => {
                                     </ResponsiveContainer>
                                 </div>
                             </div>
-
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
                                 <div className="flex items-center gap-2 mb-8"><Box size={18} className="text-amber-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Active Operations</h3></div>
                                 <div className="overflow-x-auto">
@@ -331,19 +363,13 @@ const TradingBotContainer = () => {
                                         <thead><tr className="text-zinc-600 uppercase font-black border-b border-zinc-800 pb-4"><th className="pb-4 tracking-widest">Type</th><th className="pb-4 tracking-widest">Entry</th><th className="pb-4 tracking-widest">Size</th><th className="pb-4 text-right tracking-widest">Action</th></tr></thead>
                                         <tbody className="divide-y divide-zinc-800/50">
                                             {socketStatus.positions.length > 0 ? socketStatus.positions.map((pos, idx) => (
-                                                <tr key={idx} className="group">
-                                                    <td className="py-5 font-black text-emerald-400 flex items-center gap-2"><ArrowUpRight size={14}/> LONG</td>
-                                                    <td className="py-5 font-mono font-black text-zinc-200">${pos.entry.toLocaleString()}</td>
-                                                    <td className="py-5 font-mono text-zinc-500">{pos.size.toFixed(4)} BTC</td>
-                                                    <td className="py-5 text-right"><button onClick={stopBot} className="px-4 py-2 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-xl hover:bg-rose-500 hover:text-white transition-all font-black text-[9px] uppercase tracking-widest">Liquidate</button></td>
-                                                </tr>
+                                                <tr key={idx} className="group"><td className="py-5 font-black text-emerald-400 flex items-center gap-2"><ArrowUpRight size={14}/> LONG</td><td className="py-5 font-mono font-black text-zinc-200">${pos.entry.toLocaleString()}</td><td className="py-5 font-mono text-zinc-500">{pos.size.toFixed(4)} BTC</td><td className="py-5 text-right"><button onClick={stopBot} className="px-4 py-2 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-xl hover:bg-rose-500 hover:text-white transition-all font-black text-[9px] uppercase tracking-widest">Liquidate</button></td></tr>
                                             )) : <tr><td colSpan="4" className="py-16 text-center text-zinc-600 italic font-bold uppercase tracking-widest">Awaiting Signal...</td></tr>}
                                         </tbody>
                                     </table>
                                 </div>
                             </div>
                         </div>
-
                     </div>
                 </div>
             </div>
@@ -354,10 +380,7 @@ const TradingBotContainer = () => {
 const MetricCard = ({ label, value, color = "text-white", icon = null }) => (
     <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden shadow-xl">
         <p className="text-[9px] text-zinc-500 uppercase font-black tracking-[0.15em] mb-2">{label}</p>
-        <div className="flex items-center gap-1.5">
-            {icon && <span className={color}>{icon}</span>}
-            <p className={`text-lg font-mono font-black tracking-tighter ${color}`}>{value}</p>
-        </div>
+        <div className="flex items-center gap-1.5">{icon && <span className={color}>{icon}</span>}<p className={`text-lg font-mono font-black tracking-tighter ${color}`}>{value}</p></div>
     </div>
 );
 
