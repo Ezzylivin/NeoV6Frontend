@@ -1,9 +1,9 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v12.4.1 - Full Config Restoration & Lateral Neural Layout
+// 🚀 UPGRADE: v12.9 - Log Parser Fix & Removed Date Inputs
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
-import { useAccount } from "wagmi";
+import { useAccount, useBalance } from "wagmi"; 
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import toast, { Toaster } from "react-hot-toast";
 import { useBot } from "../hooks/useBot";
@@ -14,7 +14,7 @@ import {
     Play, BarChart3, Layers, Plus, Trash2, 
     Shield, Globe, Cpu, Filter, TrendingUp, 
     Activity, Percent, DollarSign, AlertTriangle, 
-    Zap, Scale, Award, TrendingDown, LayoutGrid, Info, Power, RefreshCw
+    Zap, Scale, Award, TrendingDown, LayoutGrid, Info, Power, RefreshCw, Wallet
 } from "lucide-react"; 
 import "./TradingBot.css";
 import "../styles/Themes.css";
@@ -24,6 +24,17 @@ const API_BASE = VITE_API.endsWith('/api') ? VITE_API : `${VITE_API}/api`;
 
 const inputClass = "w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-emerald-500 transition-all text-xs outline-none";
 const labelClass = "text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1";
+
+// 🟢 SAFE LOG PARSER (Fixes [object Object] error)
+const parseLog = (log) => {
+    if (!log) return "";
+    if (typeof log === 'string') return log;
+    if (typeof log === 'object') {
+        // Handle MongoDB/Node objects gracefully
+        return log.message || log.msg || log.text || JSON.stringify(log);
+    }
+    return String(log);
+};
 
 // 🟢 TOOLTIP COMPONENT
 const Tooltip = ({ text, children }) => {
@@ -179,6 +190,46 @@ const TradingBotContainer = () => {
     const { botStatus, logs, loading: botLoading, startBot, stopBot, resetBot } = useBot();
     const { setups } = useBacktestSetupFunction();
     const { isConnected, address } = useAccount();
+    
+    // 🟢 1. REAL USER & WALLET DATA
+    const { data: nativeBalance } = useBalance({ address, enabled: !!address });
+    const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+    const userEmail = storedUser.email || "No Email Linked";
+    const userName = storedUser.name || "Operator";
+
+    // 🟢 2. REAL USD PRICE FETCH
+    const [nativePrice, setNativePrice] = useState(0);
+    useEffect(() => {
+        const fetchPrice = async () => {
+            try {
+                // Fetch ETH price from Binance API (No Key Needed)
+                const res = await axios.get("https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT");
+                if (res.data?.price) setNativePrice(parseFloat(res.data.price));
+            } catch (e) { console.error("Price feed error", e); }
+        };
+        fetchPrice();
+        const interval = setInterval(fetchPrice, 60000); 
+        return () => clearInterval(interval);
+    }, []);
+
+    // 🟢 3. LOG FILTER: Fixes "Object" error and Duplicates
+    const uniqueLogs = useMemo(() => {
+        if (!logs || !Array.isArray(logs) || logs.length === 0) return [];
+        const seen = new Set();
+        return logs.filter(log => {
+            const rawMsg = parseLog(log); // 🟢 USE SAFE PARSER
+            const content = rawMsg.replace(/^\[.*?\]/, '').trim(); // Remove timestamp for deduplication
+            
+            // Always show Buy/Sell orders
+            if (content.includes('BUY') || content.includes('SELL')) return true;
+            
+            // Deduplicate repeating thoughts
+            if (seen.has(content)) return false;
+            seen.add(content);
+            return true;
+        });
+    }, [logs]);
+
     const logContainerRef = useRef(null);
 
     const [isModeSelected, setIsModeSelected] = useState(false);
@@ -195,13 +246,14 @@ const TradingBotContainer = () => {
         growthCapitalTarget: 2000, maxDailyLoss: 5, maxDrawdown: 10, maxTradesPerDay: 20,
         params: { ...DEFAULT_STRATEGY_PARAMS.rsi_threshold, take_profit: 0.05, stop_loss: 0.02, trailing_stop: 0.01 },
         filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 }
+        // 🟢 REMOVED DATE INPUTS FROM STATE
     });
 
     useEffect(() => {
         if (logContainerRef.current) {
             logContainerRef.current.scrollTop = 0; 
         }
-    }, [logs]);
+    }, [uniqueLogs]); 
 
     useEffect(() => {
         if (isConnected) {
@@ -247,6 +299,8 @@ const TradingBotContainer = () => {
         positions: botStatus?.activePositions || []
     };
 
+    const tradedCoin = formConfig.symbol ? formConfig.symbol.split('-')[0] : 'BTC';
+
     return (
         <UIModeProvider>
             <div className="min-h-screen bg-zinc-950 text-white font-sans p-6 overflow-x-hidden">
@@ -262,7 +316,7 @@ const TradingBotContainer = () => {
                         </div>
                         <div>
                             <h1 className="text-sm font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1>
-                            <p className="text-[9px] text-zinc-500 font-bold">HYBRID INTELLIGENCE ENGINE v12.4</p>
+                            <p className="text-[9px] text-zinc-500 font-bold">HYBRID INTELLIGENCE ENGINE v12.9</p>
                         </div>
                     </div>
                     {isModeSelected && (
@@ -270,7 +324,6 @@ const TradingBotContainer = () => {
                              <div className="px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-[10px] uppercase font-bold text-zinc-400">
                                 Mode: <span className={formConfig.tradingMode === 'live' ? 'text-red-500' : 'text-emerald-500'}>{formConfig.tradingMode}</span>
                             </div>
-                            <ConnectButton accountStatus="avatar" chainStatus="icon" />
                         </div>
                     )}
                 </header>
@@ -279,10 +332,38 @@ const TradingBotContainer = () => {
                     
                     {/* --- LEFT SIDEBAR: FULL CONFIGURATION (3 Cols) --- */}
                     <div className="col-span-12 lg:col-span-3 space-y-6">
-                        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 sticky top-6 max-h-[85vh] overflow-y-auto custom-scrollbar shadow-2xl">
+                        
+                        {/* 🟢 REAL USER & WALLET CARD */}
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex flex-col gap-1 shadow-lg">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="text-[8px] text-emerald-500 uppercase font-black tracking-widest mb-1">Active Operator</p>
+                                    <h2 className="text-sm font-bold text-white truncate w-32">{userName}</h2>
+                                    <p className="text-[10px] text-zinc-500 truncate w-40">{userEmail}</p>
+                                </div>
+                                <div className="text-right">
+                                    <div className="flex items-center justify-end gap-1 text-zinc-400 mb-1">
+                                        <Wallet size={10} />
+                                        <span className="text-[9px] font-bold uppercase">Wallet Assets</span>
+                                    </div>
+                                    <p className="text-sm font-mono text-emerald-400 font-bold">
+                                        {nativeBalance ? `$${(parseFloat(nativeBalance.formatted) * nativePrice).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "$0.00"}
+                                    </p>
+                                    <p className="text-[10px] font-mono text-zinc-500">
+                                        {nativeBalance ? `${parseFloat(nativeBalance.formatted).toFixed(4)} ${nativeBalance.symbol}` : "0.0000 ETH"}
+                                    </p>
+                                    {formConfig.symbol && !formConfig.symbol.includes(nativeBalance?.symbol || "ETH") && (
+                                        <p className="text-[9px] font-mono text-zinc-600 mt-1 border-t border-zinc-800 pt-1">
+                                            {tradedCoin}: 0.0000
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 sticky top-6 max-h-[75vh] overflow-y-auto custom-scrollbar shadow-2xl">
                             <form onSubmit={(e) => { e.preventDefault(); setShowPreFlight(true); }} className="space-y-8">
                                 
-                                {/* 1. AI Configuration */}
                                 <AIConfig 
                                     mlMode={formConfig.mlMode} 
                                     setMlMode={(m)=>setFormConfig({...formConfig, mlMode: m})} 
@@ -291,7 +372,6 @@ const TradingBotContainer = () => {
                                     onParamChange={(k,v)=>setFormConfig(p=>({...p, params:{...p.params,[k]:v}}))} 
                                 />
                                 
-                                {/* 2. Strategy Ensemble */}
                                 <div className="space-y-4 border-t border-zinc-800 pt-6">
                                     <div className="flex justify-between items-center">
                                         <h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest flex items-center gap-1">
@@ -327,7 +407,6 @@ const TradingBotContainer = () => {
                                     </div>
                                 </div>
 
-                                {/* 3. Risk Shield */}
                                 <div className="space-y-4 border-t border-zinc-800 pt-6">
                                     <div className="flex items-center gap-2">
                                         <Shield size={14} className="text-amber-500"/>
@@ -343,7 +422,7 @@ const TradingBotContainer = () => {
                                     </div>
                                 </div>
 
-                                {/* 4. Market Scope */}
+                                {/* 🟢 REMOVED DATE INPUTS */}
                                 <div className="space-y-4 border-t border-zinc-800 pt-6">
                                     <div className="flex items-center gap-2">
                                         <Globe size={14} className="text-cyan-400"/>
@@ -375,10 +454,8 @@ const TradingBotContainer = () => {
                                     </div>
                                 </div>
 
-                                {/* 5. Sanity Filters */}
                                 <AdvancedFilters filters={formConfig.filters} onChange={(k, v) => setFormConfig(p => ({...p, filters: {...p.filters, [k]: v}}))} />
 
-                                {/* Action Buttons */}
                                 <div className="pt-6">
                                     {botStatus?.status === 'running' ? (
                                         <button type="button" onClick={stopBot} className="w-full py-4 bg-rose-500 text-white font-black uppercase text-xs rounded-2xl hover:bg-rose-600 shadow-xl transition-all flex items-center justify-center gap-2 animate-pulse">
@@ -397,7 +474,6 @@ const TradingBotContainer = () => {
                     {/* --- RIGHT: DASHBOARD (9 Cols) --- */}
                     <div className="col-span-12 lg:col-span-9 space-y-6">
                         
-                        {/* Status Cards */}
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl">
                                 <p className="text-[10px] text-zinc-500 uppercase font-black mb-1">Engine State</p>
@@ -422,10 +498,7 @@ const TradingBotContainer = () => {
                             </div>
                         </div>
 
-                        {/* Lateral Layout Container */}
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 h-[650px]">
-                            
-                            {/* Terminal Window (Chart) */}
                             <div className="lg:col-span-3 bg-zinc-900 border border-zinc-800 rounded-[32px] overflow-hidden flex flex-col relative shadow-2xl">
                                 <div className="bg-zinc-800/30 p-4 border-b border-zinc-800/50 flex items-center justify-between">
                                     <div className="flex items-center gap-3">
@@ -442,14 +515,13 @@ const TradingBotContainer = () => {
                                         symbol={formConfig.symbol} 
                                         timeframe={formConfig.timeframe} 
                                         isRunning={botStatus?.status === 'running'}
-                                        logs={logs}
+                                        logs={uniqueLogs}
                                         activePositions={patchedStatus.positions}
                                         candleData={botStatus?.candles || []}
                                     />
                                 </div>
                             </div>
 
-                            {/* Lateral Neural Stream Window */}
                             <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 rounded-[32px] flex flex-col overflow-hidden shadow-2xl">
                                 <div className="p-4 border-b border-zinc-800 bg-zinc-800/30">
                                     <h3 className="text-[10px] font-black text-violet-400 uppercase tracking-widest flex items-center gap-2">
@@ -462,8 +534,8 @@ const TradingBotContainer = () => {
                                     ref={logContainerRef}
                                     className="flex-1 overflow-y-auto p-5 font-mono text-[10px] leading-relaxed space-y-4 custom-scrollbar bg-black/20"
                                 >
-                                    {logs.map((log, i) => {
-                                        const msg = String(log);
+                                    {uniqueLogs.map((log, i) => {
+                                        const msg = parseLog(log);
                                         const isThought = msg.includes('🧠');
                                         const isOrder = msg.includes('🟢') || msg.includes('🔴');
 
@@ -477,7 +549,7 @@ const TradingBotContainer = () => {
                                             </div>
                                         );
                                     })}
-                                    {logs.length === 0 && (
+                                    {uniqueLogs.length === 0 && (
                                         <div className="text-zinc-600 italic text-center mt-20 p-4">
                                             Awaiting link to Alpha-Server...
                                         </div>
@@ -538,9 +610,12 @@ function AIConfig({ mlMode, setMlMode, params, onParamChange, availableModels = 
 
 function StrategyParamInputs({ strategy, onChange }) {
     const { code, params = {} } = strategy;
-    const f = (l, k, s = "1") => (
+    const f = (l, k, s = "1", beginnerDesc) => (
         <div className="flex flex-col">
-            <label className="text-[8px] text-zinc-600 uppercase font-bold mb-1 ml-1">{l}</label>
+            <div className="flex items-center justify-between mb-1">
+                <label className="text-[8px] text-zinc-600 uppercase font-bold ml-1">{l}</label>
+                {beginnerDesc && <Tooltip text={beginnerDesc}><Info size={8} className="text-zinc-700" /></Tooltip>}
+            </div>
             <input 
                 type="number" 
                 step={s}
@@ -550,13 +625,43 @@ function StrategyParamInputs({ strategy, onChange }) {
             />
         </div>
     );
+    
+    // 🟢 BEGINNER DESCRIPTIONS
     return (
         <div className="grid grid-cols-2 gap-2 mt-1">
-            {code === "rsi_threshold" && <>{f("Length", "rsi_length")}{f("Oversold", "oversold")}{f("Overbought", "overbought")}</>}
-            {code === "stoch" && <>{f("K-Period", "k_period")}{f("D-Period", "d_period")}{f("Slowing", "slowing")}</>}
-            {code === "bb_fade" && <>{f("Period", "bb_period")}{f("Deviation", "bb_std", "0.1")}</>}
-            {code === "sma_crossover" && <>{f("Fast", "fast_sma")}{f("Slow", "slow_sma")}</>}
-            {code === "macd_crossover" && <>{f("Fast", "fast")}{f("Slow", "slow")}{f("Signal", "signal")}</>}
+            {code === "rsi_threshold" && (
+                <>
+                    {f("Length", "rsi_length", "1", "Higher values smooth the line, lower values make it more sensitive to small price changes.")}
+                    {f("Oversold", "oversold", "1", "Commonly 30. When price dips below this, it may be ready to bounce back up.")}
+                    {f("Overbought", "overbought", "1", "Commonly 70. When price goes above this, it may be ready to drop back down.")}
+                </>
+            )}
+            {code === "stoch" && (
+                <>
+                    {f("K-Period", "k_period", "1", "The number of periods used for the main Stoch line.")}
+                    {f("D-Period", "d_period", "1", "The signal line period. D crosses K to trigger trades.")}
+                    {f("Slowing", "slowing", "1", "Smooths the indicator to reduce false buy/sell signals.")}
+                </>
+            )}
+            {code === "bb_fade" && (
+                <>
+                    {f("Period", "bb_period", "1", "The lookback for the middle average of the bands.")}
+                    {f("Deviation", "bb_std", "0.1", "Standard Deviation. Higher values mean wider bands that contain more price action.")}
+                </>
+            )}
+            {code === "sma_crossover" && (
+                <>
+                    {f("Fast", "fast_sma", "1", "Short-term moving average. High sensitivity.")}
+                    {f("Slow", "slow_sma", "1", "Long-term moving average. Low sensitivity, defines trend.")}
+                </>
+            )}
+            {code === "macd_crossover" && (
+                <>
+                    {f("Fast", "fast", "1", "Fast line period for the momentum trend.")}
+                    {f("Slow", "slow", "1", "Slow line period for the base trend.")}
+                    {f("Signal", "signal", "1", "Triggers the crossover entries.")}
+                </>
+            )}
         </div>
     );
 }
