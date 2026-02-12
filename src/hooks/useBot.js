@@ -1,5 +1,5 @@
 // File: src/hooks/useBot.js
-// 🚀 UPGRADE: v14.2 - Immediate State Sync (Fixes "Standby" Ghosting)
+// 🚀 UPGRADE: v14.3 - Neural History Sync (Persistent Logs Recovery)
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
@@ -8,7 +8,6 @@ import { useAccount } from 'wagmi';
 import { io } from "socket.io-client"; 
 
 const API_URL = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
-// Ensure Socket connects to root, not /api
 const SOCKET_URL = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
 const BASE_URL = API_URL.endsWith('/api') ? API_URL : `${API_URL}/api`;
 
@@ -20,80 +19,73 @@ export const useBot = () => {
     const { address, isConnected } = useAccount();
     const socketRef = useRef(null);
 
-    // 🟢 1. INTELLIGENT ID RESOLVER
     const resolveActiveId = useCallback(() => {
-        // A. Priority: The ID explicitly saved as "Running"
         const savedId = localStorage.getItem("neo_active_bot_id");
         if (savedId) return savedId;
-
-        // B. Secondary: Connected Wallet
         if (isConnected && address) return address;
-
-        // C. Fallback: Database User
         const user = JSON.parse(localStorage.getItem("user"));
         return user?._id;
     }, [address, isConnected]);
 
     const activeUserId = resolveActiveId();
 
-    // 🟢 2. INITIAL STATUS SYNC (The Fix)
-    // We fetch status via HTTP REST immediately to see if bot is already running
+    // 🟢 INITIAL STATUS & LOG HISTORY SYNC
     useEffect(() => {
         if (!activeUserId) return;
 
         const syncInitialState = async () => {
             try {
                 const token = localStorage.getItem("token");
-                const res = await axios.get(`${BASE_URL}/bot/status`, {
+                const headers = { Authorization: `Bearer ${token}` };
+
+                // 1. Fetch Basic Bot Status (Balance, Positions, State)
+                const statusRes = await axios.get(`${BASE_URL}/bot/status`, {
                     params: { userId: activeUserId },
-                    headers: { Authorization: `Bearer ${token}` }
+                    headers
                 });
 
-                if (res.data) {
-                    setBotStatus(res.data); // 🟢 Syncs "Operational" state immediately
-                    
-                    // Restore logs if they exist
-                    if (res.data.logs && Array.isArray(res.data.logs)) {
-                        setLogs(res.data.logs.slice(0, 100));
-                    }
-
-                    // Re-persist ID if running
-                    if (res.data.status === 'running') {
+                if (statusRes.data) {
+                    setBotStatus(statusRes.data);
+                    if (statusRes.data.status === 'running') {
                         localStorage.setItem("neo_active_bot_id", activeUserId);
                     }
                 }
+
+                // 2. 🟢 CATCH-UP: Fetch Persistent Log History from MongoDB
+                // This ensures the stream is full even if the user just logged in
+                const logsRes = await axios.get(`${BASE_URL}/bot/logs/${activeUserId}`, { headers });
+                
+                if (Array.isArray(logsRes.data)) {
+                    // Logs from API are already sorted/formatted by the backend
+                    setLogs(logsRes.data); 
+                } else if (statusRes.data.logs) {
+                    // Fallback to memory logs if DB history is empty
+                    setLogs(statusRes.data.logs.slice(0, 100));
+                }
+
             } catch (err) {
-                // Silent fail (bot might just be stopped, which is fine)
+                console.error("Sync Error:", err.message);
             }
         };
 
         syncInitialState();
     }, [activeUserId]);
 
-    // 🟢 3. WEBSOCKET CONNECTION
+    // 🟢 WEBSOCKET CONNECTION (Real-time updates)
     useEffect(() => {
         if (!activeUserId) return;
 
         if (!socketRef.current) {
-            console.log("🔌 Connecting Hook Socket for:", activeUserId);
-            
             socketRef.current = io(SOCKET_URL, {
                 query: { userId: activeUserId },
                 transports: ['websocket'],
                 reconnectionAttempts: 5
             });
 
-            socketRef.current.on("connect", () => {
-                console.log("✅ Bot Hook Connected");
-            });
-
             socketRef.current.on("bot_status_update", (data) => {
                 setBotStatus(data);
-                
                 if (data.status === 'running' || data.status === 'initializing') {
-                    if (activeUserId !== localStorage.getItem("neo_active_bot_id")) {
-                        localStorage.setItem("neo_active_bot_id", activeUserId);
-                    }
+                    localStorage.setItem("neo_active_bot_id", activeUserId);
                 } else if (data.status === 'stopped') {
                     localStorage.removeItem("neo_active_bot_id");
                 }
@@ -101,10 +93,6 @@ export const useBot = () => {
 
             socketRef.current.on("bot_log", (newLog) => {
                 setLogs(prev => [newLog, ...prev].slice(0, 100));
-            });
-
-            socketRef.current.on("disconnect", () => {
-                console.log("❌ Bot Hook Disconnected");
             });
         }
 
@@ -116,33 +104,23 @@ export const useBot = () => {
         };
     }, [activeUserId]);
 
-    // 🟢 4. ACTIONS
     const startBot = async (configData) => {
         setLoading(true);
         setLogs([]); 
         try {
             const token = localStorage.getItem("token");
             const userId = activeUserId || address; 
-            
             localStorage.setItem("neo_active_bot_id", userId);
 
-            let payload;
-            if (configData.config) {
-                payload = configData; 
-            } else {
-                payload = { userId, config: { ...configData, userId } }; 
-            }
+            const payload = configData.config ? configData : { userId, config: { ...configData, userId } };
 
             await axios.post(`${BASE_URL}/bot/start`, payload, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
             toast.success("Start Command Sent");
         } catch (error) {
-            console.error("Start Error:", error);
             localStorage.removeItem("neo_active_bot_id");
-            const msg = error.response?.data?.message || "Failed to start bot";
-            toast.error(msg);
+            toast.error(error.response?.data?.message || "Failed to start bot");
         } finally {
             setLoading(false);
         }
@@ -152,12 +130,9 @@ export const useBot = () => {
         setLoading(true);
         try {
             const token = localStorage.getItem("token");
-            const userId = resolveActiveId();
-            
-            await axios.post(`${BASE_URL}/bot/stop`, { userId }, {
+            await axios.post(`${BASE_URL}/bot/stop`, { userId: resolveActiveId() }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
             localStorage.removeItem("neo_active_bot_id");
             toast.success("Stop Command Sent");
         } catch (error) {
@@ -170,12 +145,9 @@ export const useBot = () => {
     const resetBot = async () => {
         try {
             const token = localStorage.getItem("token");
-            const userId = resolveActiveId();
-            
-            await axios.post(`${BASE_URL}/bot/reset`, { userId }, {
+            await axios.post(`${BASE_URL}/bot/reset`, { userId: resolveActiveId() }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
             setBotStatus(null);
             setLogs([]);
             localStorage.removeItem("neo_active_bot_id");
@@ -183,9 +155,5 @@ export const useBot = () => {
         } catch (e) { console.error(e); }
     };
 
-    const refresh = useCallback(() => {
-        // Optional manual refresh hook
-    }, []);
-
-    return { botStatus, logs, loading, startBot, stopBot, resetBot, refresh };
+    return { botStatus, logs, loading, startBot, stopBot, resetBot };
 };
