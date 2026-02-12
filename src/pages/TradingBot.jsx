@@ -1,9 +1,9 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v12.5 - Full Identity Integration, Date Scopes, and Beginner UX Restoration
+// 🚀 UPGRADE: v12.4.1 - Full Config Restoration & Lateral Neural Layout
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { useAccount, useBalance } from "wagmi"; // Integrated for live balance
+import { useAccount } from "wagmi";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import toast, { Toaster } from "react-hot-toast";
 import { useBot } from "../hooks/useBot";
@@ -14,7 +14,7 @@ import {
     Play, BarChart3, Layers, Plus, Trash2, 
     Shield, Globe, Cpu, Filter, TrendingUp, 
     Activity, Percent, DollarSign, AlertTriangle, 
-    Zap, Scale, Award, TrendingDown, LayoutGrid, Info, Power, RefreshCw, Calendar
+    Zap, Scale, Award, TrendingDown, LayoutGrid, Info, Power, RefreshCw
 } from "lucide-react"; 
 import "./TradingBot.css";
 import "../styles/Themes.css";
@@ -179,13 +179,6 @@ const TradingBotContainer = () => {
     const { botStatus, logs, loading: botLoading, startBot, stopBot, resetBot } = useBot();
     const { setups } = useBacktestSetupFunction();
     const { isConnected, address } = useAccount();
-    
-    // 🟢 DYNAMIC USER DATA
-    const { data: balanceData } = useBalance({ address, enabled: !!address });
-    const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
-    const userEmail = storedUser.email || "No Email Linked";
-    const userName = storedUser.name || "Operator";
-
     const logContainerRef = useRef(null);
 
     const [isModeSelected, setIsModeSelected] = useState(false);
@@ -200,8 +193,6 @@ const TradingBotContainer = () => {
         mlMode: "off", mlModel: "", mlThreshold: 0.5,
         riskManagementMode: "static", riskPercentage: 1, hybridMode: "AND",
         growthCapitalTarget: 2000, maxDailyLoss: 5, maxDrawdown: 10, maxTradesPerDay: 20,
-        startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        endDate: new Date().toISOString().split('T')[0],
         params: { ...DEFAULT_STRATEGY_PARAMS.rsi_threshold, take_profit: 0.05, stop_loss: 0.02, trailing_stop: 0.01 },
         filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 }
     });
@@ -271,7 +262,7 @@ const TradingBotContainer = () => {
                         </div>
                         <div>
                             <h1 className="text-sm font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1>
-                            <p className="text-[9px] text-zinc-500 font-bold">HYBRID INTELLIGENCE ENGINE v12.5</p>
+                            <p className="text-[9px] text-zinc-500 font-bold">HYBRID INTELLIGENCE ENGINE v12.4</p>
                         </div>
                     </div>
                     {isModeSelected && (
@@ -288,21 +279,7 @@ const TradingBotContainer = () => {
                     
                     {/* --- LEFT SIDEBAR: FULL CONFIGURATION (3 Cols) --- */}
                     <div className="col-span-12 lg:col-span-3 space-y-6">
-                        
-                        {/* 🟢 USER PROFILE CARD */}
-                        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex flex-col gap-1">
-                            <p className="text-[8px] text-emerald-500 uppercase font-black tracking-widest">Active Identity</p>
-                            <h2 className="text-sm font-bold text-white truncate">{userName}</h2>
-                            <p className="text-[10px] text-zinc-500 truncate">{userEmail}</p>
-                            <div className="mt-3 pt-3 border-t border-zinc-800 flex justify-between items-center">
-                                <span className="text-[9px] text-zinc-500 uppercase font-bold">Wallet Balance</span>
-                                <span className="text-xs font-mono text-emerald-400">
-                                    {balanceData ? `${parseFloat(balanceData.formatted).toFixed(4)} ${balanceData.symbol}` : "$0.00"}
-                                </span>
-                            </div>
-                        </div>
-
-                        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 sticky top-6 max-h-[75vh] overflow-y-auto custom-scrollbar shadow-2xl">
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 sticky top-6 max-h-[85vh] overflow-y-auto custom-scrollbar shadow-2xl">
                             <form onSubmit={(e) => { e.preventDefault(); setShowPreFlight(true); }} className="space-y-8">
                                 
                                 {/* 1. AI Configuration */}
@@ -366,7 +343,7 @@ const TradingBotContainer = () => {
                                     </div>
                                 </div>
 
-                                {/* 4. Market Scope (Restored Dates) */}
+                                {/* 4. Market Scope */}
                                 <div className="space-y-4 border-t border-zinc-800 pt-6">
                                     <div className="flex items-center gap-2">
                                         <Globe size={14} className="text-cyan-400"/>
@@ -394,17 +371,6 @@ const TradingBotContainer = () => {
                                         <div>
                                             <label className={labelClass}>Capital</label>
                                             <input type="number" value={formConfig.capitalAllocation} onChange={(e)=>setFormConfig({...formConfig, capitalAllocation: parseFloat(e.target.value)})} className={inputClass} disabled={formConfig.tradingMode === 'paper'} />
-                                        </div>
-                                        {/* 🟢 START/END DATE INPUTS */}
-                                        <div className="col-span-2 space-y-3 pt-2">
-                                            <div>
-                                                <label className={labelClass}><Calendar size={8} className="inline mr-1"/> Start Window</label>
-                                                <input type="date" value={formConfig.startDate} onChange={(e)=>setFormConfig({...formConfig, startDate: e.target.value})} className={inputClass} />
-                                            </div>
-                                            <div>
-                                                <label className={labelClass}><Calendar size={8} className="inline mr-1"/> End Window</label>
-                                                <input type="date" value={formConfig.endDate} onChange={(e)=>setFormConfig({...formConfig, endDate: e.target.value})} className={inputClass} />
-                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -465,6 +431,10 @@ const TradingBotContainer = () => {
                                     <div className="flex items-center gap-3">
                                         <TrendingUp size={16} className="text-emerald-500" />
                                         <span className="text-xs font-bold tracking-tighter uppercase">{formConfig.symbol} • {formConfig.timeframe} Terminal</span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <div className="h-1.5 w-8 rounded-full bg-zinc-700"></div>
+                                        <div className="h-1.5 w-8 rounded-full bg-zinc-700"></div>
                                     </div>
                                 </div>
                                 <div className="flex-1 bg-[#0b0e14]">
@@ -568,12 +538,9 @@ function AIConfig({ mlMode, setMlMode, params, onParamChange, availableModels = 
 
 function StrategyParamInputs({ strategy, onChange }) {
     const { code, params = {} } = strategy;
-    const f = (l, k, s = "1", beginnerDesc) => (
+    const f = (l, k, s = "1") => (
         <div className="flex flex-col">
-            <div className="flex items-center justify-between mb-1">
-                <label className="text-[8px] text-zinc-600 uppercase font-bold ml-1">{l}</label>
-                {beginnerDesc && <Tooltip text={beginnerDesc}><Info size={8} className="text-zinc-700" /></Tooltip>}
-            </div>
+            <label className="text-[8px] text-zinc-600 uppercase font-bold mb-1 ml-1">{l}</label>
             <input 
                 type="number" 
                 step={s}
@@ -583,43 +550,13 @@ function StrategyParamInputs({ strategy, onChange }) {
             />
         </div>
     );
-    
-    // 🟢 BEGINNER DESCRIPTIONS RESTORED
     return (
         <div className="grid grid-cols-2 gap-2 mt-1">
-            {code === "rsi_threshold" && (
-                <>
-                    {f("Length", "rsi_length", "1", "Higher values smooth the line, lower values make it more sensitive to small price changes.")}
-                    {f("Oversold", "oversold", "1", "Commonly 30. When price dips below this, it may be ready to bounce back up.")}
-                    {f("Overbought", "overbought", "1", "Commonly 70. When price goes above this, it may be ready to drop back down.")}
-                </>
-            )}
-            {code === "stoch" && (
-                <>
-                    {f("K-Period", "k_period", "1", "The number of periods used for the main Stoch line.")}
-                    {f("D-Period", "d_period", "1", "The signal line period. D crosses K to trigger trades.")}
-                    {f("Slowing", "slowing", "1", "Smooths the indicator to reduce false buy/sell signals.")}
-                </>
-            )}
-            {code === "bb_fade" && (
-                <>
-                    {f("Period", "bb_period", "1", "The lookback for the middle average of the bands.")}
-                    {f("Deviation", "bb_std", "0.1", "Standard Deviation. Higher values mean wider bands that contain more price action.")}
-                </>
-            )}
-            {code === "sma_crossover" && (
-                <>
-                    {f("Fast", "fast_sma", "1", "Short-term moving average. High sensitivity.")}
-                    {f("Slow", "slow_sma", "1", "Long-term moving average. Low sensitivity, defines trend.")}
-                </>
-            )}
-            {code === "macd_crossover" && (
-                <>
-                    {f("Fast", "fast", "1", "Fast line period for the momentum trend.")}
-                    {f("Slow", "slow", "1", "Slow line period for the base trend.")}
-                    {f("Signal", "signal", "1", "Triggers the crossover entries.")}
-                </>
-            )}
+            {code === "rsi_threshold" && <>{f("Length", "rsi_length")}{f("Oversold", "oversold")}{f("Overbought", "overbought")}</>}
+            {code === "stoch" && <>{f("K-Period", "k_period")}{f("D-Period", "d_period")}{f("Slowing", "slowing")}</>}
+            {code === "bb_fade" && <>{f("Period", "bb_period")}{f("Deviation", "bb_std", "0.1")}</>}
+            {code === "sma_crossover" && <>{f("Fast", "fast_sma")}{f("Slow", "slow_sma")}</>}
+            {code === "macd_crossover" && <>{f("Fast", "fast")}{f("Slow", "slow")}{f("Signal", "signal")}</>}
         </div>
     );
 }
