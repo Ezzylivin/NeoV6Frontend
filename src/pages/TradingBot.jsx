@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v12.23 - Sovereign UI + Full Feature Restoration (No Dates)
+// 🚀 UPGRADE: v12.24 - FULL Feature Restoration (Selection Popup, Shield, Risk, Charts)
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
@@ -36,7 +36,6 @@ const parseLog = (log) => {
     return log.message || log.msg || JSON.stringify(log);
 };
 
-// --- CONFIG DEFAULTS ---
 const STRAT_POOL = [
     { name: "RSI Threshold", code: "rsi_threshold" },
     { name: "SMA Crossover", code: "sma_crossover" },
@@ -53,28 +52,56 @@ const DEFAULT_STRATEGY_PARAMS = {
     macd_crossover: { fast: 12, slow: 26, signal: 9 }
 };
 
-const Tooltip = ({ text, children }) => {
-    const [visible, setVisible] = useState(false);
+// 🟢 RESTORED: MODAL COMPONENTS
+const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, address }) => {
+    const [checks, setChecks] = useState({ wallet: false, keys: false, capital: false, strategy: false });
+    useEffect(() => {
+        setChecks({
+            wallet: !!address,
+            keys: config.tradingMode === 'paper' || hasApiKeys,
+            capital: Number(config.capitalAllocation) >= 100,
+            strategy: (config.strategies && config.strategies.length > 0)
+        });
+    }, [config, hasApiKeys, address]);
+    const allPassed = Object.values(checks).every(Boolean);
     return (
-        <div className="relative flex items-center" onMouseEnter={() => setVisible(true)} onMouseLeave={() => setVisible(false)}>
-            {children}
-            {visible && (
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 bg-zinc-800 text-zinc-200 text-[10px] p-2 rounded border border-zinc-700 z-50 pointer-events-none">
-                    {text}
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 backdrop-blur-xl p-4">
+            <div className="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-3xl p-8 shadow-2xl">
+                <h3 className="text-xl font-black text-white mb-8 flex items-center gap-2 uppercase tracking-tighter"><span className="text-emerald-500">🚀</span> Pre-Flight Check</h3>
+                <div className="space-y-3 mb-10">
+                    <CheckItem label="Wallet Connection" status={checks.wallet} />
+                    <CheckItem label={config.tradingMode === 'live' ? "API Keys (Active)" : "API Keys (Bypassed)"} status={checks.keys} />
+                    <CheckItem label={`Allocated Capital ($${config.capitalAllocation})`} status={checks.capital} />
+                    <CheckItem label={`${config.strategies.length} Strategy Modules`} status={checks.strategy} />
                 </div>
-            )}
+                <div className="flex gap-4">
+                    <button onClick={onCancel} className="flex-1 py-4 border border-zinc-800 rounded-2xl text-zinc-500 font-black uppercase text-[10px] hover:text-white transition-all">Abort</button>
+                    <button onClick={onConfirm} disabled={!allPassed || isStarting} className={`flex-2 py-4 rounded-2xl font-black uppercase text-[10px] transition-all shadow-lg ${allPassed ? 'bg-emerald-500 text-black hover:bg-emerald-400' : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'}`}>
+                        {isStarting ? 'Igniting Engine...' : 'Execute Launch'}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };
+
+const CheckItem = ({ label, status }) => (
+    <div className="flex items-center justify-between p-4 bg-black/40 rounded-xl border border-zinc-800">
+        <span className="text-[10px] text-zinc-400 font-bold uppercase">{label}</span>
+        {status ? <span className="text-emerald-500 text-[9px] font-black tracking-widest">✔ READY</span> : <span className="text-rose-500 text-[9px] font-black tracking-widest">MISSING</span>}
+    </div>
+);
 
 // --- MAIN CONTAINER ---
 const TradingBotContainer = () => {
     const { startBot, stopBot, resetBot } = useBot(); 
     const { isConnected, address } = useAccount();
     
+    // 🟢 RESTORED: MISSING STATE VARIABLES
     const [isModeSelected, setIsModeSelected] = useState(false);
     const [hasApiKeys, setHasApiKeys] = useState(false);
     const [showPreFlight, setShowPreFlight] = useState(false);
+    const [isStarting, setIsStarting] = useState(false);
     
     const [socketLogs, setSocketLogs] = useState([]);
     const [socketStatus, setSocketStatus] = useState({ 
@@ -84,7 +111,7 @@ const TradingBotContainer = () => {
     const [uptime, setUptime] = useState("00:00:00");
     const logContainerRef = useRef(null);
 
-    // 🟢 FORM STATE (Restored All Inputs)
+    // 🟢 FORM STATE (Restored All Advanced Logic)
     const [formConfig, setFormConfig] = useState({
         symbol: "BTC-USD", timeframe: "1h", capitalAllocation: 1000,
         tradingMode: "paper", strategies: [{ code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }],
@@ -95,6 +122,7 @@ const TradingBotContainer = () => {
         filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 }
     });
 
+    // 🟢 RESTORED: API KEY CHECK
     useEffect(() => {
         if (isConnected) {
             axios.get(`${API_BASE}/users/keys`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
@@ -103,6 +131,7 @@ const TradingBotContainer = () => {
         }
     }, [isConnected]);
 
+    // 🟢 UPTIME COUNTER
     useEffect(() => {
         let interval;
         if (socketStatus.status === 'running' && socketStatus.startedAt) {
@@ -117,6 +146,7 @@ const TradingBotContainer = () => {
         return () => clearInterval(interval);
     }, [socketStatus.status, socketStatus.startedAt]);
 
+    // 🟢 SOCKET INTEGRATION
     useEffect(() => {
         if (!address) return;
         const socket = io(SOCKET_URL, { query: { userId: address }, transports: ['websocket', 'polling'] });
@@ -134,7 +164,11 @@ const TradingBotContainer = () => {
     const uniqueLogs = useMemo(() => socketLogs.filter((log, i, self) => i === self.findIndex(t => parseLog(t) === parseLog(log))), [socketLogs]);
 
     const handleConfirmStart = async () => {
-        try { await startBot({ userId: address, config: { ...formConfig, comboConfig: { strategyCodes: formConfig.strategies.map(s => s.code), combinationRule: formConfig.hybridMode } } }); setShowPreFlight(false); } catch (e) {}
+        setIsStarting(true);
+        try { 
+            await startBot({ userId: address, config: { ...formConfig, comboConfig: { strategyCodes: formConfig.strategies.map(s => s.code), combinationRule: formConfig.hybridMode } } }); 
+            setShowPreFlight(false); 
+        } finally { setIsStarting(false); }
     };
 
     return (
@@ -142,6 +176,7 @@ const TradingBotContainer = () => {
             <div className="min-h-screen bg-zinc-950 text-white font-sans p-6 overflow-x-hidden">
                 <Toaster position="top-right" />
                 
+                {/* 🟢 RESTORED: ENVIRONMENT SELECTION POPUP */}
                 {!isModeSelected && socketStatus.status !== 'running' && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md">
                         <div className="max-w-3xl w-full p-6 text-center">
@@ -161,46 +196,32 @@ const TradingBotContainer = () => {
                     </div>
                 )}
 
-                {showPreFlight && (
-                    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 backdrop-blur-xl p-4">
-                        <div className="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-3xl p-8 shadow-2xl">
-                            <h3 className="text-xl font-black text-white mb-8 flex items-center gap-2 uppercase tracking-tighter"><span className="text-emerald-500">🚀</span> Pre-Flight Check</h3>
-                            <div className="space-y-4 mb-10">
-                                <div className="flex justify-between items-center p-4 bg-black/40 rounded-xl border border-zinc-800"><span className="text-xs text-zinc-400 font-bold uppercase">Wallet Access</span><span className="text-emerald-500 text-[10px] font-black tracking-widest">AUTHORIZED</span></div>
-                                <div className="flex justify-between items-center p-4 bg-black/40 rounded-xl border border-zinc-800"><span className="text-xs text-zinc-400 font-bold uppercase">Allocated Capital</span><span className="text-white text-[10px] font-mono">${formConfig.capitalAllocation}</span></div>
-                            </div>
-                            <div className="flex gap-4">
-                                <button onClick={() => setShowPreFlight(false)} className="flex-1 py-4 border border-zinc-800 rounded-2xl text-zinc-500 font-black uppercase text-[10px] hover:text-white transition-all">Abort</button>
-                                <button onClick={handleConfirmStart} className="flex-2 py-4 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] hover:bg-emerald-400 transition-all">Execute Launch</button>
-                            </div>
-                        </div>
-                    </div>
-                )}
+                {showPreFlight && <PreFlightModal config={formConfig} onConfirm={handleConfirmStart} onCancel={() => setShowPreFlight(false)} isStarting={isStarting} hasApiKeys={hasApiKeys} address={address} />}
 
-                <header className={`max-w-[1800px] mx-auto mb-10 flex items-center justify-between transition-all ${(!isModeSelected && socketStatus.status !== 'running') || showPreFlight ? 'blur-sm' : ''}`}>
+                <header className={`max-w-[1800px] mx-auto mb-10 flex items-center justify-between transition-all duration-500 ${(!isModeSelected && socketStatus.status !== 'running') || showPreFlight ? 'blur-sm' : ''}`}>
                     <div className="flex items-center gap-3">
                         <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/30"><Activity className="text-black w-7 h-7" /></div>
                         <div>
                             <h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1>
-                            <p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Hybrid Intelligence Terminal v12.23</p>
+                            <p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Hybrid Intelligence Terminal v12.24</p>
                         </div>
                     </div>
                     <ConnectButton />
                 </header>
 
-                <div className={`max-w-[1800px] mx-auto grid grid-cols-12 gap-8 transition-all ${(!isModeSelected && socketStatus.status !== 'running') || showPreFlight ? 'blur-sm pointer-events-none' : ''}`}>
+                <div className={`max-w-[1800px] mx-auto grid grid-cols-12 gap-8 transition-all duration-500 ${(!isModeSelected && socketStatus.status !== 'running') || showPreFlight ? 'blur-sm pointer-events-none' : ''}`}>
                     
                     {/* --- LEFT SIDEBAR: LOGIC & RISK --- */}
                     <div className="col-span-12 lg:col-span-3 space-y-6">
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-10 shadow-2xl sticky top-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
                             
-                            {/* Neural Gate */}
+                            {/* RESTORED: Neural Gate Architecture */}
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center"><div className="flex items-center gap-2"><Cpu size={16} className="text-violet-400" /><h4 className="text-[10px] font-black uppercase tracking-widest text-violet-400">Neural Gate</h4></div>
                                 <select value={formConfig.mlMode} onChange={(e)=>setFormConfig({...formConfig, mlMode: e.target.value})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase"><option value="off">Bypass</option><option value="on">Active</option></select></div>
                                 {formConfig.mlMode === 'on' && (
                                     <div className="space-y-4 animate-in slide-in-from-top-2">
-                                        <div><label className={labelClass}>Architecture</label><select className={inputClass}><option>XGBoost Engine</option><option>LSTM Temporal</option></select></div>
+                                        <div><label className={labelClass}>Architecture</label><select className={inputClass} value={formConfig.mlModel} onChange={(e)=>setFormConfig({...formConfig, mlModel: e.target.value})}><option value="xgboost">XGBoost Engine</option><option value="lstm">LSTM Temporal</option></select></div>
                                         <div className="grid grid-cols-2 gap-3">
                                             <div><label className={labelClass}>Long Gate</label><input type="number" step="0.01" value={formConfig.params.long_threshold} onChange={(e)=>setFormConfig({...formConfig, params:{...formConfig.params, long_threshold: parseFloat(e.target.value)}})} className={inputClass}/></div>
                                             <div><label className={labelClass}>Short Gate</label><input type="number" step="0.01" value={formConfig.params.short_threshold} onChange={(e)=>setFormConfig({...formConfig, params:{...formConfig.params, short_threshold: parseFloat(e.target.value)}})} className={inputClass}/></div>
@@ -209,10 +230,10 @@ const TradingBotContainer = () => {
                                 )}
                             </div>
 
-                            {/* Logic Ensemble */}
+                            {/* RESTORED: Logic Ensemble Modules */}
                             <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                 <div className="flex justify-between items-center"><h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Logic Ensemble</h4>
-                                <select value={formConfig.hybridMode} onChange={(e) => setFormConfig({...formConfig, hybridMode: e.target.value})} className="bg-zinc-950 border border-zinc-700 text-[9px] rounded px-2 py-1 text-emerald-500 font-bold uppercase"><option value="AND">Strict (AND)</option><option value="OR">Loose (OR)</option></select></div>
+                                <select value={formConfig.hybridMode} onChange={(e) => setFormConfig({...formConfig, hybridMode: e.target.value})} className="bg-zinc-950 border border-zinc-700 text-[9px] rounded px-2 py-1 text-emerald-500 font-bold uppercase"><option value="AND">Strict</option><option value="OR">Loose</option></select></div>
                                 <div className="space-y-3">
                                     {formConfig.strategies.map((s, i) => (
                                         <div key={i} className="p-4 bg-zinc-800/30 rounded-2xl border border-zinc-800">
@@ -224,7 +245,7 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
 
-                            {/* Execution Shield */}
+                            {/* RESTORED: Execution Shield Inputs */}
                             <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                 <div className="flex items-center gap-2"><Shield size={16} className="text-amber-500"/><h4 className="text-[10px] font-black uppercase tracking-widest text-amber-500">Execution Shield</h4></div>
                                 <div className="grid grid-cols-2 gap-3">
@@ -234,11 +255,13 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
 
-                            {/* Risk Protocols */}
+                            {/* RESTORED: Risk Protocols Section */}
                             <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                 <div className="flex items-center gap-2"><Scale size={16} className="text-rose-400"/><h4 className="text-[10px] font-black uppercase tracking-widest text-rose-400">Risk Protocols</h4></div>
                                 <div className="grid grid-cols-2 gap-3">
+                                    <div><label className={labelClass}>Mode</label><select value={formConfig.riskManagementMode} onChange={(e)=>setFormConfig({...formConfig, riskManagementMode: e.target.value})} className={inputClass}><option value="static">Static %</option><option value="kelly">Kelly</option></select></div>
                                     <div><label className={labelClass}>Risk/Trade %</label><input type="number" step="0.1" value={formConfig.riskPercentage} onChange={(e)=>setFormConfig({...formConfig, riskPercentage: parseFloat(e.target.value)})} className={inputClass}/></div>
+                                    <div><label className={labelClass}>Max Drawdown</label><input type="number" step="0.1" value={formConfig.maxDrawdown} onChange={(e)=>setFormConfig({...formConfig, maxDrawdown: parseFloat(e.target.value)})} className={inputClass}/></div>
                                     <div><label className={labelClass}>Max Daily Loss</label><input type="number" step="1" value={formConfig.maxDailyLoss} onChange={(e)=>setFormConfig({...formConfig, maxDailyLoss: parseFloat(e.target.value)})} className={inputClass}/></div>
                                 </div>
                             </div>
@@ -254,7 +277,7 @@ const TradingBotContainer = () => {
                         </div>
                     </div>
 
-                    {/* --- MAIN DASHBOARD: TERMINAL & CHARTS --- */}
+                    {/* --- MAIN DASHBOARD --- */}
                     <div className="col-span-12 lg:col-span-9 space-y-8">
                         
                         {/* Metrics Grid */}
@@ -270,12 +293,12 @@ const TradingBotContainer = () => {
                             <MetricCard label="Bot Balance" value={`$${(socketStatus.currentBalance || formConfig.capitalAllocation).toFixed(2)}`} />
                         </div>
 
-                        {/* Chart & Stream Row */}
+                        {/* Chart Row */}
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[680px]">
                             <div className="lg:col-span-3 bg-zinc-900 border border-zinc-800 rounded-[40px] overflow-hidden flex flex-col relative shadow-2xl">
                                 <div className="bg-zinc-800/20 p-5 border-b border-zinc-800/50 flex items-center justify-between">
                                     <div className="flex items-center gap-3"><TrendingUp size={18} className="text-emerald-500" /><span className="text-[11px] font-black uppercase tracking-widest">{formConfig.symbol} Terminal</span></div>
-                                    <div className="px-3 py-1 bg-zinc-950 rounded-full border border-zinc-800 text-[10px] font-mono text-zinc-400 uppercase tracking-tighter">Live Data Stream</div>
+                                    <div className="px-3 py-1 bg-zinc-950 rounded-full border border-zinc-800 text-[10px] font-mono text-zinc-400 uppercase tracking-tighter">Live HLOC Stream</div>
                                 </div>
                                 <div className="flex-1 bg-[#090b0f] pb-8"><LiveTradingChart symbol={formConfig.symbol} timeframe={formConfig.timeframe} isRunning={socketStatus.status === 'running'} activePositions={socketStatus.positions} candleData={socketStatus.candles || []} /></div>
                             </div>
@@ -286,7 +309,7 @@ const TradingBotContainer = () => {
                             </div>
                         </div>
 
-                        {/* Footer Analytics Section */}
+                        {/* Footer Section: Growth & Operations */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-20">
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
                                 <div className="flex items-center justify-between mb-8"><div className="flex items-center gap-2"><TrendingUp size={18} className="text-emerald-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Equity Growth</h3></div></div>
