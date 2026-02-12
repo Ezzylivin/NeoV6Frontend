@@ -1,11 +1,12 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v12.12 - Fixed Payload Structure & Neural Stream Visibility
+// 🚀 UPGRADE: v12.14 - WebSocket Integration (Real-Time Stream)
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { useAccount, useBalance } from "wagmi"; 
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import toast, { Toaster } from "react-hot-toast";
+import { io } from "socket.io-client"; // 🟢 1. IMPORT SOCKET CLIENT
 import { useBot } from "../hooks/useBot";
 import { useBacktestSetupFunction } from "../hooks/useBacktestSetup";
 import { UIModeProvider } from "../context/UIModeContext";
@@ -186,25 +187,60 @@ const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys, onReset }) => {
 };
 
 const TradingBotContainer = () => {
-    const { botStatus, logs, loading: botLoading, startBot, stopBot, resetBot } = useBot();
-    const { setups } = useBacktestSetupFunction();
+    // 🟢 2. WE USE USEBOT FOR ACTIONS, BUT SOCKETS FOR DATA
+    const { startBot, stopBot, resetBot } = useBot(); 
     const { isConnected, address } = useAccount();
     
-    // 🟢 1. FETCH REAL USER DATA
+    // 🟢 3. REAL-TIME SOCKET STATE
+    const [socketLogs, setSocketLogs] = useState([]);
+    const [socketStatus, setSocketStatus] = useState({ status: 'stopped', currentBalance: 0 });
+    const logContainerRef = useRef(null);
+
+    // 🟢 4. SOCKET CONNECTION LOGIC
+    useEffect(() => {
+        if (!address) return;
+
+        // Connect to your Backend (Assuming Node.js runs at VITE_API)
+        // If your socket server is on a different port, change API_BASE
+        const socket = io(VITE_API, {
+            query: { userId: address }, // Handshake with UserID
+            transports: ['websocket'] // Force WebSocket to avoid polling fallback
+        });
+
+        socket.on("connect", () => {
+            console.log("🔌 WebSocket Connected");
+            toast.success("Live Stream Connected");
+        });
+
+        // Listen for specific events from Backend
+        socket.on("bot_status_update", (data) => {
+            setSocketStatus(data);
+        });
+
+        socket.on("bot_log", (newLog) => {
+            setSocketLogs(prev => [newLog, ...prev].slice(0, 100)); // Keep last 100
+        });
+
+        return () => {
+            socket.disconnect();
+        };
+    }, [address]);
+
+    // 🟢 5. FETCH REAL USER DATA
     const { data: nativeBalance } = useBalance({ address, enabled: !!address });
     const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
     const userEmail = storedUser.email || "No Email Linked";
     const userName = storedUser.name || "Operator";
 
-    // 🟢 2. REAL USD PRICE FETCH
+    // 🟢 6. REAL USD PRICE FETCH (COINBASE)
     const [nativePrice, setNativePrice] = useState(0);
     useEffect(() => {
         const fetchPrice = async () => {
             try {
-                const res = await axios.get("https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT");
-                if (res.data?.price) setNativePrice(parseFloat(res.data.price));
+                const res = await axios.get("https://api.coinbase.com/v2/prices/ETH-USD/spot");
+                if (res.data?.data?.amount) setNativePrice(parseFloat(res.data.data.amount));
             } catch (e) { 
-                // Silent fail
+                console.error("Price fetch error", e); 
             }
         };
         fetchPrice();
@@ -212,31 +248,28 @@ const TradingBotContainer = () => {
         return () => clearInterval(interval);
     }, []);
 
-    // 🟢 3. STREAM VISIBILITY FIX
-    // Allows messages to appear even if similar, as long as they are distinct events
+    // 🟢 7. LOG FILTER (Deduplication)
     const uniqueLogs = useMemo(() => {
-        if (!logs || !Array.isArray(logs) || logs.length === 0) return [];
-        
+        if (!socketLogs || socketLogs.length === 0) return [];
         const filtered = [];
         let lastContent = "";
 
-        logs.forEach(log => {
+        socketLogs.forEach(log => {
             const rawMsg = parseLog(log);
-            // We strip timestamp only to check for pure duplicates, 
-            // but we allow them if enough time passed or it's a new heartbeat
             const content = rawMsg.replace(/^\[.*?\]/, '').trim();
-            
-            // Only filter if it's the EXACT same message back-to-back
-            // This allows [10:00] Waiting... and [10:01] Waiting... to both show
             if (content !== lastContent) {
                 filtered.push(log);
                 lastContent = content;
             }
         });
         return filtered;
-    }, [logs]);
+    }, [socketLogs]);
 
-    const logContainerRef = useRef(null);
+    useEffect(() => {
+        if (logContainerRef.current) {
+            logContainerRef.current.scrollTop = 0; 
+        }
+    }, [uniqueLogs]); 
 
     const [isModeSelected, setIsModeSelected] = useState(false);
     const [hasApiKeys, setHasApiKeys] = useState(false);
@@ -255,12 +288,6 @@ const TradingBotContainer = () => {
     });
 
     useEffect(() => {
-        if (logContainerRef.current) {
-            logContainerRef.current.scrollTop = 0; 
-        }
-    }, [uniqueLogs]); 
-
-    useEffect(() => {
         if (isConnected) {
             axios.get(`${API_BASE}/users/keys`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
                 .then(res => {
@@ -275,11 +302,9 @@ const TradingBotContainer = () => {
         setIsModeSelected(true);
     };
 
-    // 🟢 4. PAYLOAD FIX (Prevents $300 -> $1000 jump)
     const handleConfirmStart = async () => {
         setIsStarting(true);
         try {
-            // Correctly structure the payload for Python Pydantic model
             const payload = {
                 userId: address, 
                 config: {
@@ -309,9 +334,9 @@ const TradingBotContainer = () => {
     };
 
     const patchedStatus = {
-        ...botStatus,
-        currentPosition: botStatus?.activePosition || botStatus?.currentPosition || null,
-        positions: botStatus?.activePositions || []
+        ...socketStatus, // 🟢 USE SOCKET STATUS INSTEAD OF HTTP POLLING
+        currentPosition: socketStatus?.activePosition || socketStatus?.currentPosition || null,
+        positions: socketStatus?.activePositions || []
     };
 
     const tradedCoin = formConfig.symbol ? formConfig.symbol.split('-')[0] : 'BTC';
@@ -331,7 +356,7 @@ const TradingBotContainer = () => {
                         </div>
                         <div>
                             <h1 className="text-sm font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1>
-                            <p className="text-[9px] text-zinc-500 font-bold">HYBRID INTELLIGENCE ENGINE v12.12</p>
+                            <p className="text-[9px] text-zinc-500 font-bold">HYBRID INTELLIGENCE ENGINE v12.14</p>
                         </div>
                     </div>
                     {isModeSelected && (
@@ -471,7 +496,7 @@ const TradingBotContainer = () => {
                                 <AdvancedFilters filters={formConfig.filters} onChange={(k, v) => setFormConfig(p => ({...p, filters: {...p.filters, [k]: v}}))} />
 
                                 <div className="pt-6">
-                                    {botStatus?.status === 'running' ? (
+                                    {socketStatus?.status === 'running' ? (
                                         <button type="button" onClick={stopBot} className="w-full py-4 bg-rose-500 text-white font-black uppercase text-xs rounded-2xl hover:bg-rose-600 shadow-xl transition-all flex items-center justify-center gap-2 animate-pulse">
                                             <Power size={16} /> Emergency Abort
                                         </button>
@@ -492,9 +517,9 @@ const TradingBotContainer = () => {
                             <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl">
                                 <p className="text-[10px] text-zinc-500 uppercase font-black mb-1">Engine State</p>
                                 <div className="flex items-center gap-2">
-                                    <div className={`w-2 h-2 rounded-full ${botStatus?.status === 'running' ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-600'}`}></div>
-                                    <p className={`text-xl font-mono ${botStatus?.status === 'running' ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                                        {botStatus?.status === 'running' ? 'OPERATIONAL' : 'STANDBY'}
+                                    <div className={`w-2 h-2 rounded-full ${socketStatus?.status === 'running' ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-600'}`}></div>
+                                    <p className={`text-xl font-mono ${socketStatus?.status === 'running' ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                                        {socketStatus?.status === 'running' ? 'OPERATIONAL' : 'STANDBY'}
                                     </p>
                                 </div>
                             </div>
@@ -509,9 +534,9 @@ const TradingBotContainer = () => {
                             <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl">
                                 <p className="text-[10px] text-zinc-500 uppercase font-black mb-1">Balance</p>
                                 <p className="text-xl font-mono text-white">
-                                    {/* 🟢 BALANCE DISPLAY FIX: Use input capital if live balance is invalid/default */}
-                                    ${botStatus?.status === 'running' && botStatus.currentBalance !== undefined && botStatus.currentBalance !== 1000
-                                        ? botStatus.currentBalance.toFixed(2) 
+                                    {/* 🟢 SOCKET BALANCE OR FALLBACK */}
+                                    ${socketStatus?.status === 'running' && socketStatus.currentBalance !== undefined && socketStatus.currentBalance !== 1000
+                                        ? socketStatus.currentBalance.toFixed(2) 
                                         : formConfig.capitalAllocation.toFixed(2)}
                                 </p>
                             </div>
@@ -533,10 +558,10 @@ const TradingBotContainer = () => {
                                     <LiveTradingChart 
                                         symbol={formConfig.symbol} 
                                         timeframe={formConfig.timeframe} 
-                                        isRunning={botStatus?.status === 'running'}
+                                        isRunning={socketStatus?.status === 'running'}
                                         logs={uniqueLogs}
                                         activePositions={patchedStatus.positions}
-                                        candleData={botStatus?.candles || []}
+                                        candleData={patchedStatus?.candles || []}
                                     />
                                 </div>
                             </div>
@@ -544,7 +569,7 @@ const TradingBotContainer = () => {
                             <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 rounded-[32px] flex flex-col overflow-hidden shadow-2xl">
                                 <div className="p-4 border-b border-zinc-800 bg-zinc-800/30">
                                     <h3 className="text-[10px] font-black text-violet-400 uppercase tracking-widest flex items-center gap-2">
-                                        <span className={`w-2 h-2 rounded-full ${botStatus?.status === 'running' ? 'bg-violet-500 animate-ping' : 'bg-zinc-700'}`}></span>
+                                        <span className={`w-2 h-2 rounded-full ${socketStatus?.status === 'running' ? 'bg-violet-500 animate-ping' : 'bg-zinc-700'}`}></span>
                                         Neural Logic Stream
                                     </h3>
                                 </div>
@@ -570,7 +595,7 @@ const TradingBotContainer = () => {
                                     })}
                                     {uniqueLogs.length === 0 && (
                                         <div className="text-zinc-600 italic text-center mt-20 p-4">
-                                            Awaiting link to Alpha-Server...
+                                            Awaiting live feed via Socket...
                                         </div>
                                     )}
                                 </div>
