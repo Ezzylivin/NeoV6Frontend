@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v12.38 - Unified Halt Logic + Risk Section + Neural Continuity Fix
+// 🚀 UPGRADE: v12.39 - Optimistic Halt Lock + Full Menu Restoration + Risk Section
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
@@ -16,9 +16,7 @@ import {
     ArrowUpRight, Clock, Box, Timer, DollarSign, Info, BarChart, Settings2, Zap
 } from "lucide-react"; 
 
-import { 
-    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer
-} from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 
 import "./TradingBot.css";
 import "../styles/Themes.css";
@@ -135,6 +133,9 @@ const TradingBotContainer = () => {
     const [paperBalance, setPaperBalance] = useState(10000);
     const [modeStep, setModeStep] = useState('selection');
     
+    // 🟢 HALT LOCK: Prevents socket packets from undoing the Halt command
+    const [isHalting, setIsHalting] = useState(false);
+    
     const [socketLogs, setSocketLogs] = useState([]);
     const [socketStatus, setSocketStatus] = useState({ 
         status: 'stopped', currentBalance: 0, unrealizedPnl: 0, exposure: 0, positions: [], equityCurve: [], startedAt: null, dailyProfit: 0, initialCapital: 0, tradeMarkers: []
@@ -153,7 +154,6 @@ const TradingBotContainer = () => {
         filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 }
     });
 
-    // 🟢 DYNAMIC LAYOUT CALCULATION
     const isBotRunning = socketStatus.status === 'running';
 
     const activeBalance = useMemo(() => {
@@ -171,14 +171,11 @@ const TradingBotContainer = () => {
         }
     }, [isConnected]);
 
-    // 🟢 UPTIME COUNTER FIX
     useEffect(() => {
         let interval;
         if (isBotRunning && socketStatus.startedAt) {
             interval = setInterval(() => {
-                const start = new Date(socketStatus.startedAt).getTime();
-                const now = new Date().getTime();
-                const diff = Math.max(0, now - start);
+                const diff = Math.max(0, new Date().getTime() - new Date(socketStatus.startedAt).getTime());
                 const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
                 const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
                 const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
@@ -188,13 +185,15 @@ const TradingBotContainer = () => {
         return () => clearInterval(interval);
     }, [isBotRunning, socketStatus.startedAt]);
 
-    // 🟢 NEURAL STREAM & METRIC FIX
     useEffect(() => {
         if (!address) return;
         const socket = io(SOCKET_URL, { query: { userId: address }, transports: ['websocket'] });
         socket.on("connect", () => setSocketConnected(true));
-        
+
         socket.on("bot_status_update", (data) => {
+            // 🟢 CRITICAL: Ignore incoming "Running" status if we just clicked Halt
+            if (isHalting) return;
+
             setSocketStatus(prev => ({ 
                 ...prev, ...data, 
                 positions: data.activePositions || prev.positions,
@@ -207,7 +206,6 @@ const TradingBotContainer = () => {
             setSocketLogs(prev => {
                 const msgText = typeof newLog === 'string' ? newLog : (newLog.message || newLog.msg);
                 const logTime = newLog.time || new Date().toISOString();
-                // 🟢 Continuity Fix: Check timestamp to allow 1-minute logic updates
                 const isDuplicate = prev.some(l => parseLog(l) === msgText && l.time === logTime);
                 if (isDuplicate) return prev;
                 return [{ msg: msgText, time: logTime, ...newLog }, ...prev].slice(0, 100);
@@ -215,7 +213,7 @@ const TradingBotContainer = () => {
         });
 
         return () => socket.disconnect();
-    }, [address]);
+    }, [address, isHalting]);
 
     const performanceData = useMemo(() => {
         if (!socketStatus.equityCurve?.length) return [{ time: 'Start', balance: formConfig.capitalAllocation }];
@@ -226,18 +224,25 @@ const TradingBotContainer = () => {
         }));
     }, [socketStatus.equityCurve, formConfig.capitalAllocation]);
 
-    const uniqueLogs = useMemo(() => socketLogs.filter((log, i, self) => i === self.findIndex(t => parseLog(t) === parseLog(log))), [socketLogs]);
-
     const handleConfirmStart = async () => {
         setIsStarting(true);
+        setIsHalting(false); // Reset lock
         try { await startBot({ userId: address, config: { ...formConfig, comboConfig: { strategyCodes: formConfig.strategies.map(s => s.code), combinationRule: formConfig.hybridMode } } }); setShowPreFlight(false); } catch (e) {} finally { setIsStarting(false); }
     };
 
+    // 🟢 UNIFIED HALT LOGIC: Sets local lock and forces menu return
     const handleHalt = async () => {
+        setIsHalting(true); 
+        setSocketStatus(prev => ({ ...prev, status: 'stopped' })); // Optimistic state update
         try {
-            await stopBot(); // 🟢 HEADER HALT FIX: Synchronized with engine
-            toast.success("Engine Halted Safely");
-        } catch (e) { toast.error("Halt Command Failed"); }
+            await stopBot();
+            toast.success("Safe Abort Confirmed");
+            // Keep lock active for 3 seconds to let socket traffic clear
+            setTimeout(() => setIsHalting(false), 3000);
+        } catch (e) { 
+            toast.error("Halt Signal Dropped"); 
+            setIsHalting(false);
+        }
     };
 
     if (!isConnected) {
@@ -257,7 +262,6 @@ const TradingBotContainer = () => {
             <div className="min-h-screen bg-zinc-950 text-white font-sans p-6 overflow-x-hidden transition-all duration-700">
                 <Toaster position="top-right" />
                 
-                {/* Protocol Selection */}
                 {!isModeSelected && !isBotRunning && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md">
                         <div className="max-w-4xl w-full p-6 text-center">
@@ -266,12 +270,12 @@ const TradingBotContainer = () => {
                                     <h1 className="text-4xl font-black text-white mb-10 tracking-tighter uppercase">Protocol Selection</h1>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                         <div onClick={() => setModeStep('paper_setup')} className="group cursor-pointer bg-zinc-900 border border-white/5 hover:border-emerald-500/50 p-16 rounded-[40px] transition-all shadow-2xl"><h3 className="text-3xl font-black text-emerald-400 mb-3 uppercase">PAPER</h3><p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">Logic Simulation</p></div>
-                                        <div onClick={() => { if(hasApiKeys) { setFormConfig(p=>({...p, tradingMode: 'live'})); setIsModeSelected(true); } else { toast.error("Settings -> Connect API Keys"); } }} className={`p-16 rounded-[40px] border transition-all ${hasApiKeys ? 'cursor-pointer bg-zinc-900 border-white/5 hover:border-red-500 shadow-2xl' : 'bg-zinc-900/50 opacity-20'}`}><h3 className="text-3xl font-black text-red-500 mb-3 uppercase">LIVE</h3><p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">Execution</p></div>
+                                        <div onClick={() => { if(hasApiKeys) { setFormConfig(p=>({...p, tradingMode: 'live'})); setIsModeSelected(true); } else { toast.error("Connect API Keys First"); } }} className={`p-16 rounded-[40px] border transition-all ${hasApiKeys ? 'cursor-pointer bg-zinc-900 border-white/5 hover:border-red-500 shadow-2xl' : 'bg-zinc-900/50 opacity-20'}`}><h3 className="text-3xl font-black text-red-500 mb-3 uppercase">LIVE</h3><p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">Real Capital Execution</p></div>
                                     </div>
                                 </>
                             ) : (
                                 <div className="max-w-md mx-auto bg-zinc-900 border border-zinc-800 p-12 rounded-[40px] shadow-2xl">
-                                    <h3 className="text-2xl font-black text-white mb-8 uppercase tracking-tighter">Initialize Treasury</h3>
+                                    <h3 className="text-2xl font-black text-white mb-8 uppercase tracking-tighter">Treasury Seed</h3>
                                     <input type="number" value={paperBalance} onChange={(e) => setPaperBalance(Number(e.target.value))} className="w-full bg-black border border-zinc-800 rounded-2xl p-5 text-2xl font-mono text-center text-emerald-500 mb-8 outline-none shadow-inner" />
                                     <div className="flex gap-4"><button onClick={() => setModeStep('selection')} className="flex-1 py-4 border border-zinc-800 rounded-2xl text-zinc-500 font-black uppercase text-[10px]">Back</button><button onClick={() => { setFormConfig(p=>({...p, tradingMode: 'paper', capitalAllocation: paperBalance})); setIsModeSelected(true); }} className="flex-2 py-4 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px]">Ignite</button></div>
                                 </div>
@@ -283,7 +287,7 @@ const TradingBotContainer = () => {
                 {showPreFlight && <PreFlightModal config={formConfig} onConfirm={handleConfirmStart} onCancel={() => setShowPreFlight(false)} isStarting={isStarting} hasApiKeys={hasApiKeys} address={address} />}
 
                 <header className="max-w-[1800px] mx-auto mb-10 flex items-center justify-between transition-all">
-                    <div className="flex items-center gap-3"><div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div><div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v12.38</p></div></div>
+                    <div className="flex items-center gap-3"><div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div><div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v12.39</p></div></div>
                     <div className="flex items-center gap-4">
                         {isBotRunning && <button onClick={handleHalt} className="px-6 py-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-xl font-black text-[10px] uppercase hover:bg-rose-500 hover:text-white transition-all flex items-center gap-2 shadow-lg shadow-rose-500/10"><Power size={12}/> Emergency Halt</button>}
                         <ConnectButton />
@@ -292,7 +296,6 @@ const TradingBotContainer = () => {
 
                 <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8">
                     
-                    {/* 🟢 SIDEBAR: Automatically returns when stopped */}
                     {!isBotRunning && (
                         <div className="col-span-12 lg:col-span-3 space-y-6 animate-in slide-in-from-left-10 duration-700">
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-10 shadow-2xl sticky top-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
@@ -304,8 +307,8 @@ const TradingBotContainer = () => {
                                         <div className="space-y-4">
                                             <div><label className={labelClass}>Architecture</label><select className={inputClass} value={formConfig.mlModel} onChange={(e)=>setFormConfig({...formConfig, mlModel: e.target.value})}>{MODEL_POOL.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
                                             <div className="grid grid-cols-2 gap-3">
-                                                <div><div className="flex justify-between items-center"><label className={labelClass}>Long Gate</label><Tooltip text="Minimum AI confidence for BUY."><Info size={10} className="text-zinc-600 mb-1" /></Tooltip></div><input type="number" step="0.01" value={formConfig.params.long_threshold} onChange={(e)=>setFormConfig({...formConfig, params:{...formConfig.params, long_threshold: parseFloat(e.target.value)}})} className={inputClass}/></div>
-                                                <div><div className="flex justify-between items-center"><label className={labelClass}>Short Gate</label><Tooltip text="Minimum AI confidence for SELL."><Info size={10} className="text-zinc-600 mb-1" /></Tooltip></div><input type="number" step="0.01" value={formConfig.params.short_threshold} onChange={(e)=>setFormConfig({...formConfig, params:{...formConfig.params, short_threshold: parseFloat(e.target.value)}})} className={inputClass}/></div>
+                                                <div><div className="flex justify-between items-center"><label className={labelClass}>Long Gate</label><Tooltip text="AI confidence required for BUY."><Info size={10} className="text-zinc-600 mb-1" /></Tooltip></div><input type="number" step="0.01" value={formConfig.params.long_threshold} onChange={(e)=>setFormConfig({...formConfig, params:{...formConfig.params, long_threshold: parseFloat(e.target.value)}})} className={inputClass}/></div>
+                                                <div><div className="flex justify-between items-center"><label className={labelClass}>Short Gate</label><Tooltip text="AI confidence required for SELL."><Info size={10} className="text-zinc-600 mb-1" /></Tooltip></div><input type="number" step="0.01" value={formConfig.params.short_threshold} onChange={(e)=>setFormConfig({...formConfig, params:{...formConfig.params, short_threshold: parseFloat(e.target.value)}})} className={inputClass}/></div>
                                             </div>
                                         </div>
                                     )}
@@ -315,7 +318,7 @@ const TradingBotContainer = () => {
                                     <div className="flex justify-between items-center"><h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Logic Ensemble</h4><select value={formConfig.hybridMode} onChange={(e) => setFormConfig({...formConfig, hybridMode: e.target.value})} className="bg-zinc-950 border border-zinc-700 text-[9px] rounded px-2 py-1 text-emerald-500 font-bold uppercase"><option value="AND">Strict</option><option value="OR">Loose</option></select></div>
                                     <div className="space-y-3">
                                         {formConfig.strategies.map((s, i) => (
-                                            <div key={i} className="p-4 bg-zinc-800/30 rounded-2xl border border-zinc-800 shadow-inner">
+                                            <div key={i} className="p-4 bg-zinc-800/30 rounded-2xl border border-zinc-800">
                                                 <div className="flex justify-between mb-3"><select value={s.code} onChange={(e) => { const n = [...formConfig.strategies]; n[i] = { code: e.target.value, params: DEFAULT_STRATEGY_PARAMS[e.target.value] }; setFormConfig({...formConfig, strategies: n}); }} className="bg-transparent text-[10px] font-black text-amber-500 uppercase outline-none">{STRAT_POOL.map(opt => <option key={opt.code} value={opt.code}>{opt.name}</option>)}</select><button type="button" onClick={() => setFormConfig(p => ({ ...p, strategies: p.strategies.filter((_, idx) => idx !== i) }))} className="text-zinc-600 hover:text-rose-500"><Trash2 size={12}/></button></div>
                                                 <StrategyParamInputs strategy={s} onChange={(p) => { const n = [...formConfig.strategies]; n[i].params = p; setFormConfig({...formConfig, strategies: n}); }} />
                                             </div>
@@ -328,7 +331,7 @@ const TradingBotContainer = () => {
                                     <div className="flex items-center gap-2"><Shield size={16} className="text-amber-500"/><h4 className="text-[10px] font-black uppercase tracking-widest text-amber-500">Execution Shield</h4></div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div><div className="flex justify-between items-center"><label className={labelClass}>TP %</label><Tooltip text="Auto-exit gain target."><Info size={10} className="text-zinc-600" /></Tooltip></div><input type="number" step="0.001" value={formConfig.params.take_profit} onChange={(e)=>setFormConfig({...formConfig, params:{...formConfig.params, take_profit: parseFloat(e.target.value)}})} className={inputClass}/></div>
-                                        <div><div className="flex justify-between items-center"><label className={labelClass}>SL %</label><Tooltip text="Hard stop loss."><Info size={10} className="text-zinc-600" /></Tooltip></div><input type="number" step="0.001" value={formConfig.params.stop_loss} onChange={(e)=>setFormConfig({...formConfig, params:{...formConfig.params, stop_loss: parseFloat(e.target.value)}})} className={inputClass}/></div>
+                                        <div><div className="flex justify-between items-center"><label className={labelClass}>SL %</label><Tooltip text="Hard preservation exit."><Info size={10} className="text-zinc-600" /></Tooltip></div><input type="number" step="0.001" value={formConfig.params.stop_loss} onChange={(e)=>setFormConfig({...formConfig, params:{...formConfig.params, stop_loss: parseFloat(e.target.value)}})} className={inputClass}/></div>
                                     </div>
                                 </div>
 
@@ -356,7 +359,6 @@ const TradingBotContainer = () => {
                                 <p className={`text-lg font-mono font-black ${isBotRunning ? 'text-emerald-400' : 'text-zinc-600'}`}>{isBotRunning ? 'OPERATIONAL' : 'STANDBY'}</p>
                                 <p className="text-[9px] font-mono text-zinc-500 mt-1 uppercase tracking-tighter font-black">SESSION: {uptime}</p>
                             </div>
-                            {isBotRunning && <MetricCard label="Market Latency" value={`22ms`} color="text-violet-400" icon={<Zap size={10}/>} />}
                             <MetricCard label="Daily Profit" value={`${socketStatus.dailyProfit >= 0 ? '+' : ''}$${(socketStatus.dailyProfit || 0).toFixed(2)}`} color="text-emerald-400" icon={<DollarSign size={10}/>} />
                             <MetricCard label="Floating PnL" value={`${socketStatus.unrealizedPnl >= 0 ? '+' : ''}$${(socketStatus.unrealizedPnl || 0).toFixed(2)}`} color={socketStatus.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'} icon={<Activity size={10}/>} />
                             <MetricCard label="Exposure" value={`${socketStatus.exposure || 0}%`} />
@@ -379,7 +381,7 @@ const TradingBotContainer = () => {
                             </div>
                         </div>
 
-                        {/* --- 🟢 ADVANCED ANALYTICS SECTION --- */}
+                        {/* --- 🟢 ADVANCED ANALYTICS row --- */}
                         {isBotRunning && (
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-10 duration-1000">
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
@@ -388,7 +390,7 @@ const TradingBotContainer = () => {
                                 </div>
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
                                     <div className="flex items-center gap-2 mb-8"><Zap size={18} className="text-violet-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Logic Confidence</h3></div>
-                                    <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={performanceData}><Area type="step" dataKey="confidence" stroke="#a78bfa" fill="#a78bfa" fillOpacity={0.1} strokeWidth={2} /><XAxis dataKey="time" hide /><YAxis hide /><RechartsTooltip contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '12px' }} /></AreaChart></ResponsiveContainer></div>
+                                    <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={performanceData}><Area type="step" dataKey="confidence" stroke="#a78bfa" fill="#a78bfa" fillOpacity={0.1} strokeWidth={2} /><XAxis dataKey="time" hide /><YAxis hide /><RechartsTooltip contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '12px', fontSize: '10px' }} /></AreaChart></ResponsiveContainer></div>
                                 </div>
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl overflow-hidden flex flex-col">
                                     <div className="flex items-center gap-2 mb-8"><Box size={18} className="text-amber-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Live Operations</h3></div>
@@ -429,7 +431,7 @@ function StrategyParamInputs({ strategy, onChange }) {
     );
     return (
         <div className="grid grid-cols-2 gap-2">
-            {code === "rsi_threshold" && <>{f("Length", "rsi_length", "1", "Candles for RSI calc.")}{f("Oversold", "oversold", "1", "Undervalued gate.")}{f("Overbought", "overbought", "1", "Overvalued gate.")}</>}
+            {code === "rsi_threshold" && <>{f("Length", "rsi_length", "1", "Relative Strength Index period.")}{f("Oversold", "oversold", "1", "Undervalued gate.")}{f("Overbought", "overbought", "1", "Overvalued gate.")}</>}
             {code === "sma_crossover" && <>{f("Fast", "fast_sma", "1")}{f("Slow", "slow_sma", "1")}</>}
             {code === "supertrend" && <>{f("Period", "st_atr", "1")}{f("Mult", "st_factor", "0.1")}</>}
             {code === "macd_crossover" && <>{f("Fast", "fast", "1")}{f("Slow", "slow", "1")}</>}
