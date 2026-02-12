@@ -1,11 +1,11 @@
 // File: src/hooks/useBot.js
-// 🚀 UPGRADE: v14.1 - WebSocket Enabled (Real-Time Data, No Polling)
+// 🚀 UPGRADE: v14.2 - Immediate State Sync (Fixes "Standby" Ghosting)
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { useAccount } from 'wagmi'; 
-import { io } from "socket.io-client"; // 🟢 1. Import Socket Client
+import { io } from "socket.io-client"; 
 
 const API_URL = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
 // Ensure Socket connects to root, not /api
@@ -20,7 +20,7 @@ export const useBot = () => {
     const { address, isConnected } = useAccount();
     const socketRef = useRef(null);
 
-    // 🟢 2. INTELLIGENT ID RESOLVER
+    // 🟢 1. INTELLIGENT ID RESOLVER
     const resolveActiveId = useCallback(() => {
         // A. Priority: The ID explicitly saved as "Running"
         const savedId = localStorage.getItem("neo_active_bot_id");
@@ -36,21 +36,53 @@ export const useBot = () => {
 
     const activeUserId = resolveActiveId();
 
-    // 🟢 3. WEBSOCKET CONNECTION (Replaces Polling Loop)
+    // 🟢 2. INITIAL STATUS SYNC (The Fix)
+    // We fetch status via HTTP REST immediately to see if bot is already running
     useEffect(() => {
         if (!activeUserId) return;
 
-        // Initialize Socket only if not already active
+        const syncInitialState = async () => {
+            try {
+                const token = localStorage.getItem("token");
+                const res = await axios.get(`${BASE_URL}/bot/status`, {
+                    params: { userId: activeUserId },
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+
+                if (res.data) {
+                    setBotStatus(res.data); // 🟢 Syncs "Operational" state immediately
+                    
+                    // Restore logs if they exist
+                    if (res.data.logs && Array.isArray(res.data.logs)) {
+                        setLogs(res.data.logs.slice(0, 100));
+                    }
+
+                    // Re-persist ID if running
+                    if (res.data.status === 'running') {
+                        localStorage.setItem("neo_active_bot_id", activeUserId);
+                    }
+                }
+            } catch (err) {
+                // Silent fail (bot might just be stopped, which is fine)
+            }
+        };
+
+        syncInitialState();
+    }, [activeUserId]);
+
+    // 🟢 3. WEBSOCKET CONNECTION
+    useEffect(() => {
+        if (!activeUserId) return;
+
         if (!socketRef.current) {
             console.log("🔌 Connecting Hook Socket for:", activeUserId);
             
             socketRef.current = io(SOCKET_URL, {
                 query: { userId: activeUserId },
-                transports: ['websocket'], // Force WebSocket to prevent polling fallbacks
+                transports: ['websocket'],
                 reconnectionAttempts: 5
             });
 
-            // --- LISTENERS ---
             socketRef.current.on("connect", () => {
                 console.log("✅ Bot Hook Connected");
             });
@@ -58,7 +90,6 @@ export const useBot = () => {
             socketRef.current.on("bot_status_update", (data) => {
                 setBotStatus(data);
                 
-                // Smart Persistence: Keep ID if running, clear if stopped
                 if (data.status === 'running' || data.status === 'initializing') {
                     if (activeUserId !== localStorage.getItem("neo_active_bot_id")) {
                         localStorage.setItem("neo_active_bot_id", activeUserId);
@@ -69,10 +100,7 @@ export const useBot = () => {
             });
 
             socketRef.current.on("bot_log", (newLog) => {
-                setLogs(prev => {
-                    // Add new log to top, keep list size manageable (100 items)
-                    return [newLog, ...prev].slice(0, 100);
-                });
+                setLogs(prev => [newLog, ...prev].slice(0, 100));
             });
 
             socketRef.current.on("disconnect", () => {
@@ -80,7 +108,6 @@ export const useBot = () => {
             });
         }
 
-        // Cleanup on unmount or ID change
         return () => {
             if (socketRef.current) {
                 socketRef.current.disconnect();
@@ -89,24 +116,21 @@ export const useBot = () => {
         };
     }, [activeUserId]);
 
-    // 🟢 4. ACTIONS (Commands still use HTTP REST)
-    
+    // 🟢 4. ACTIONS
     const startBot = async (configData) => {
         setLoading(true);
-        setLogs([]); // Clear logs for fresh start
+        setLogs([]); 
         try {
             const token = localStorage.getItem("token");
             const userId = activeUserId || address; 
             
-            // Persist intent immediately
             localStorage.setItem("neo_active_bot_id", userId);
 
-            // Handle both flat config and pre-structured payload
             let payload;
             if (configData.config) {
-                payload = configData; // Already structured
+                payload = configData; 
             } else {
-                payload = { userId, config: { ...configData, userId } }; // Auto-structure
+                payload = { userId, config: { ...configData, userId } }; 
             }
 
             await axios.post(`${BASE_URL}/bot/start`, payload, {
@@ -114,8 +138,6 @@ export const useBot = () => {
             });
             
             toast.success("Start Command Sent");
-            // No need to fetchStatus(), socket will push the update
-            
         } catch (error) {
             console.error("Start Error:", error);
             localStorage.removeItem("neo_active_bot_id");
@@ -136,7 +158,6 @@ export const useBot = () => {
                 headers: { Authorization: `Bearer ${token}` }
             });
             
-            // Clear persistence
             localStorage.removeItem("neo_active_bot_id");
             toast.success("Stop Command Sent");
         } catch (error) {
@@ -162,12 +183,8 @@ export const useBot = () => {
         } catch (e) { console.error(e); }
     };
 
-    // Manual refresh is rarely needed with Sockets, but kept for compatibility
     const refresh = useCallback(() => {
-        if (socketRef.current && socketRef.current.connected) {
-            // We could emit a "request_status" event here if backend supports it
-            // For now, we rely on the push updates
-        }
+        // Optional manual refresh hook
     }, []);
 
     return { botStatus, logs, loading, startBot, stopBot, resetBot, refresh };
