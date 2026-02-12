@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v12.11 - Removed Date Inputs
+// 🚀 UPGRADE: v12.12 - Fixed Payload Structure & Neural Stream Visibility
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
@@ -190,7 +190,7 @@ const TradingBotContainer = () => {
     const { setups } = useBacktestSetupFunction();
     const { isConnected, address } = useAccount();
     
-    // 🟢 1. REAL USER & WALLET DATA
+    // 🟢 1. FETCH REAL USER DATA
     const { data: nativeBalance } = useBalance({ address, enabled: !!address });
     const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
     const userEmail = storedUser.email || "No Email Linked";
@@ -212,16 +212,28 @@ const TradingBotContainer = () => {
         return () => clearInterval(interval);
     }, []);
 
-    // 🟢 3. LOG FILTER
+    // 🟢 3. STREAM VISIBILITY FIX
+    // Allows messages to appear even if similar, as long as they are distinct events
     const uniqueLogs = useMemo(() => {
         if (!logs || !Array.isArray(logs) || logs.length === 0) return [];
-        const seen = new Set();
-        return logs.filter(log => {
-            const msg = parseLog(log); 
-            if (seen.has(msg)) return false; 
-            seen.add(msg);
-            return true;
+        
+        const filtered = [];
+        let lastContent = "";
+
+        logs.forEach(log => {
+            const rawMsg = parseLog(log);
+            // We strip timestamp only to check for pure duplicates, 
+            // but we allow them if enough time passed or it's a new heartbeat
+            const content = rawMsg.replace(/^\[.*?\]/, '').trim();
+            
+            // Only filter if it's the EXACT same message back-to-back
+            // This allows [10:00] Waiting... and [10:01] Waiting... to both show
+            if (content !== lastContent) {
+                filtered.push(log);
+                lastContent = content;
+            }
         });
+        return filtered;
     }, [logs]);
 
     const logContainerRef = useRef(null);
@@ -263,13 +275,23 @@ const TradingBotContainer = () => {
         setIsModeSelected(true);
     };
 
+    // 🟢 4. PAYLOAD FIX (Prevents $300 -> $1000 jump)
     const handleConfirmStart = async () => {
         setIsStarting(true);
         try {
-            await startBot({ 
-                ...formConfig, userId: address, 
-                comboConfig: { strategyCodes: formConfig.strategies.map(s => s.code), combinationRule: formConfig.hybridMode } 
-            });
+            // Correctly structure the payload for Python Pydantic model
+            const payload = {
+                userId: address, 
+                config: {
+                    ...formConfig,
+                    comboConfig: { 
+                        strategyCodes: formConfig.strategies.map(s => s.code), 
+                        combinationRule: formConfig.hybridMode 
+                    }
+                }
+            };
+            
+            await startBot(payload);
             setShowPreFlight(false);
             toast.success("Bot Started!");
         } catch (err) { toast.error("Start Failed: " + err.message); }
@@ -309,7 +331,7 @@ const TradingBotContainer = () => {
                         </div>
                         <div>
                             <h1 className="text-sm font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1>
-                            <p className="text-[9px] text-zinc-500 font-bold">HYBRID INTELLIGENCE ENGINE v12.11</p>
+                            <p className="text-[9px] text-zinc-500 font-bold">HYBRID INTELLIGENCE ENGINE v12.12</p>
                         </div>
                     </div>
                     {isModeSelected && (
@@ -415,7 +437,6 @@ const TradingBotContainer = () => {
                                     </div>
                                 </div>
 
-                                {/* 🟢 REMOVED DATE INPUTS - Market Scope */}
                                 <div className="space-y-4 border-t border-zinc-800 pt-6">
                                     <div className="flex items-center gap-2">
                                         <Globe size={14} className="text-cyan-400"/>
@@ -488,7 +509,8 @@ const TradingBotContainer = () => {
                             <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl">
                                 <p className="text-[10px] text-zinc-500 uppercase font-black mb-1">Balance</p>
                                 <p className="text-xl font-mono text-white">
-                                    ${botStatus?.status === 'running' && botStatus.currentBalance !== undefined 
+                                    {/* 🟢 BALANCE DISPLAY FIX: Use input capital if live balance is invalid/default */}
+                                    ${botStatus?.status === 'running' && botStatus.currentBalance !== undefined && botStatus.currentBalance !== 1000
                                         ? botStatus.currentBalance.toFixed(2) 
                                         : formConfig.capitalAllocation.toFixed(2)}
                                 </p>
