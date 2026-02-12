@@ -21,11 +21,11 @@ export default function DashboardLayout() {
         // CHANGED: border-gray-700 -> border-white/10 (Glass Border)
         <div className="flex justify-start pl-6 pt-2 pb-2 bg-[#1a1a1a] border-b border-white/10">
           <div className="text-left">
-            <p className="font-medium">{user.username}</p>
+            <p className="font-medium">The Best</p>
             {/* CHANGED: text-gray-400 -> text-neutral-400 (True Grey) */}
-            <p className="text-neutral-400 text-sm">{user.email}</p>
+            <p className="text-neutral-400 text-sm">Trading Bot</p>
             {/* CHANGED: text-green-400 -> text-emerald-400 (Matches new Emerald theme) */}
-            <p className="text-emerald-400 font-semibold">Wallet: ${user.walletBalance?.toFixed(2)}</p>
+            <p className="text-emerald-400 font-semibold">In Existence</p>
           </div>
         </div>
       )}
