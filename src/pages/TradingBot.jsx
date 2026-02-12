@@ -148,7 +148,8 @@ const ModeSelectionModal = ({ onSelect, isConnected, hasApiKeys, onReset }) => {
 
 // --- MAIN CONTAINER ---
 const TradingBotContainer = () => {
-    const { startBot, stopBot, resetBot } = useBot(); 
+    const { startBot, stopBot, resetBot } = useBot();
+    const [isModeSelected, setIsModeSelected] = useState(false);
     const { isConnected, address } = useAccount();
     
     const [socketLogs, setSocketLogs] = useState([]);
