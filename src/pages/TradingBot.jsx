@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v12.9 - Log Parser Fix & Removed Date Inputs
+// 🚀 UPGRADE: v12.11 - Removed Date Inputs
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
@@ -25,12 +25,11 @@ const API_BASE = VITE_API.endsWith('/api') ? VITE_API : `${VITE_API}/api`;
 const inputClass = "w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-emerald-500 transition-all text-xs outline-none";
 const labelClass = "text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1";
 
-// 🟢 SAFE LOG PARSER (Fixes [object Object] error)
+// 🟢 SAFE LOG PARSER
 const parseLog = (log) => {
     if (!log) return "";
     if (typeof log === 'string') return log;
     if (typeof log === 'object') {
-        // Handle MongoDB/Node objects gracefully
         return log.message || log.msg || log.text || JSON.stringify(log);
     }
     return String(log);
@@ -202,30 +201,25 @@ const TradingBotContainer = () => {
     useEffect(() => {
         const fetchPrice = async () => {
             try {
-                // Fetch ETH price from Binance API (No Key Needed)
                 const res = await axios.get("https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT");
                 if (res.data?.price) setNativePrice(parseFloat(res.data.price));
-            } catch (e) { console.error("Price feed error", e); }
+            } catch (e) { 
+                // Silent fail
+            }
         };
         fetchPrice();
         const interval = setInterval(fetchPrice, 60000); 
         return () => clearInterval(interval);
     }, []);
 
-    // 🟢 3. LOG FILTER: Fixes "Object" error and Duplicates
+    // 🟢 3. LOG FILTER
     const uniqueLogs = useMemo(() => {
         if (!logs || !Array.isArray(logs) || logs.length === 0) return [];
         const seen = new Set();
         return logs.filter(log => {
-            const rawMsg = parseLog(log); // 🟢 USE SAFE PARSER
-            const content = rawMsg.replace(/^\[.*?\]/, '').trim(); // Remove timestamp for deduplication
-            
-            // Always show Buy/Sell orders
-            if (content.includes('BUY') || content.includes('SELL')) return true;
-            
-            // Deduplicate repeating thoughts
-            if (seen.has(content)) return false;
-            seen.add(content);
+            const msg = parseLog(log); 
+            if (seen.has(msg)) return false; 
+            seen.add(msg);
             return true;
         });
     }, [logs]);
@@ -246,7 +240,6 @@ const TradingBotContainer = () => {
         growthCapitalTarget: 2000, maxDailyLoss: 5, maxDrawdown: 10, maxTradesPerDay: 20,
         params: { ...DEFAULT_STRATEGY_PARAMS.rsi_threshold, take_profit: 0.05, stop_loss: 0.02, trailing_stop: 0.01 },
         filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 }
-        // 🟢 REMOVED DATE INPUTS FROM STATE
     });
 
     useEffect(() => {
@@ -316,7 +309,7 @@ const TradingBotContainer = () => {
                         </div>
                         <div>
                             <h1 className="text-sm font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1>
-                            <p className="text-[9px] text-zinc-500 font-bold">HYBRID INTELLIGENCE ENGINE v12.9</p>
+                            <p className="text-[9px] text-zinc-500 font-bold">HYBRID INTELLIGENCE ENGINE v12.11</p>
                         </div>
                     </div>
                     {isModeSelected && (
@@ -330,7 +323,7 @@ const TradingBotContainer = () => {
 
                 <div className={`max-w-[1800px] mx-auto grid grid-cols-12 gap-6 transition-all duration-500 ${!isModeSelected || showPreFlight ? 'blur-sm pointer-events-none' : ''}`}>
                     
-                    {/* --- LEFT SIDEBAR: FULL CONFIGURATION (3 Cols) --- */}
+                    {/* --- LEFT SIDEBAR: FULL CONFIGURATION --- */}
                     <div className="col-span-12 lg:col-span-3 space-y-6">
                         
                         {/* 🟢 REAL USER & WALLET CARD */}
@@ -422,7 +415,7 @@ const TradingBotContainer = () => {
                                     </div>
                                 </div>
 
-                                {/* 🟢 REMOVED DATE INPUTS */}
+                                {/* 🟢 REMOVED DATE INPUTS - Market Scope */}
                                 <div className="space-y-4 border-t border-zinc-800 pt-6">
                                     <div className="flex items-center gap-2">
                                         <Globe size={14} className="text-cyan-400"/>
@@ -494,7 +487,11 @@ const TradingBotContainer = () => {
                             </div>
                             <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl">
                                 <p className="text-[10px] text-zinc-500 uppercase font-black mb-1">Balance</p>
-                                <p className="text-xl font-mono text-white">${botStatus?.currentBalance?.toFixed(2) || formConfig.capitalAllocation.toFixed(2)}</p>
+                                <p className="text-xl font-mono text-white">
+                                    ${botStatus?.status === 'running' && botStatus.currentBalance !== undefined 
+                                        ? botStatus.currentBalance.toFixed(2) 
+                                        : formConfig.capitalAllocation.toFixed(2)}
+                                </p>
                             </div>
                         </div>
 
