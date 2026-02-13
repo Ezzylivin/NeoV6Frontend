@@ -234,28 +234,64 @@ const TradingBotContainer = () => {
         }));
     }, [socketStatus.equityCurve, formConfig.capitalAllocation]);
 
-    const handleConfirmStart = async () => {
-        setIsStarting(true);
-        setIsHaltLocked(false);
-        setSocketStatus(prev => ({ ...prev, equityCurve: [], tradeMarkers: [], positions: [] }));
-        setSocketLogs([]);
-        try { 
-            await startBot({ 
-                userId: address, 
-                config: { 
-                    ...formConfig, 
-                    capitalAllocation: Number(formConfig.capitalAllocation) || Number(paperBalance) || 1000,
-                    comboConfig: { strategyCodes: formConfig.strategies.map(s => s.code), combinationRule: formConfig.hybridMode } 
-                } 
-            }); 
-            setShowPreFlight(false); 
-        } catch (e) {
-            toast.error("Engine Ignition Failed");
-        } finally { 
-            setIsStarting(false); 
+   const handleConfirmStart = async () => {
+    // 1. Enter Loading State & Reset Terminal
+    setIsStarting(true);
+    setIsHaltLocked(false);
+    setSocketStatus(prev => ({ 
+        ...prev, 
+        equityCurve: [], 
+        tradeMarkers: [], 
+        positions: [],
+        candles: [] // Clear old chart data
+    }));
+    setSocketLogs([]);
+
+    // 2. Strict Configuration Mapping
+    const finalConfig = {
+        ...formConfig,
+        // Ensure capital is a valid number, fallback to 1000
+        capitalAllocation: Number(formConfig.capitalAllocation) || Number(paperBalance) || 1000,
+        
+        // Explicitly set ML parameters to ensure the Brain activates correctly
+        mlMode: formConfig.mlMode || "on", 
+        mlModel: formConfig.mlModel || "stacking", // Default to Stacking if empty
+        mlThreshold: parseFloat(formConfig.mlThreshold) || 0.5,
+
+        // Hard-force shorting permission based on UI selection
+        enable_shorting: formConfig.enable_shorting === true,
+
+        // Map ensemble logic
+        comboConfig: { 
+            strategyCodes: formConfig.strategies.map(s => s.code), 
+            combinationRule: formConfig.hybridMode || "AND",
+            minVotesRequired: formConfig.hybridMode === "AND" ? formConfig.strategies.length : 1
         }
     };
 
+    try {
+        // 3. Dispatch to API
+        const response = await startBot({ 
+            userId: address, 
+            config: finalConfig 
+        });
+
+        // 4. Success Feedback
+        if (response.status === 'running') {
+            toast.success(`Protocol Ignited: ${finalConfig.symbol}`);
+            setShowPreFlight(false);
+            
+            // Optional: Scroll terminal into view
+            logContainerRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+    } catch (e) {
+        console.error("Launch Error:", e);
+        const errorMsg = e.response?.data?.detail || e.message || "Ignition Failure";
+        toast.error(`Engine Failure: ${errorMsg}`);
+    } finally {
+        setIsStarting(false);
+    }
+};
     const handleHalt = async () => {
         setIsHaltLocked(true);
         if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; }
