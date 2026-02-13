@@ -157,7 +157,6 @@ const TradingBotContainer = () => {
 
     const activeBalance = useMemo(() => {
         if (isBotRunning) {
-            // Priority: Live Socket Balance -> Initial Capital from Backend -> Local State
             return socketStatus.currentBalance || socketStatus.initialCapital || formConfig.capitalAllocation;
         }
         return formConfig.capitalAllocation;
