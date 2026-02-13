@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v13.0 - Margin Toggle + Full Config + Treasury Sync
+// 🚀 FIX: v13.2 - Fixed Syntax Error in Strategy Inputs
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
@@ -21,9 +21,11 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsToolti
 import "./TradingBot.css";
 import "../styles/Themes.css";
 
-const VITE_API = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
-const SOCKET_URL = VITE_API.endsWith('/api') ? VITE_API.replace('/api', '') : VITE_API;
-const API_BASE = VITE_API.endsWith('/api') ? VITE_API : `${VITE_API}/api`;
+// 🟢 PRODUCTION CONFIGURATION
+const RAW_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const BASE_URL = RAW_URL.replace(/\/$/, "").replace(/\/api$/, "");
+const API_BASE = `${BASE_URL}/api`;
+const SOCKET_URL = BASE_URL;
 
 const inputClass = "w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-emerald-500 transition-all text-[11px] outline-none font-mono";
 const labelClass = "text-[9px] text-zinc-500 uppercase font-black mb-1 block ml-1 tracking-tighter";
@@ -149,7 +151,7 @@ const TradingBotContainer = () => {
         mlMode: "off", mlModel: "xgboost", mlThreshold: 0.5,
         riskManagementMode: "static", riskPercentage: 1, hybridMode: "AND",
         maxDailyLoss: 5, maxDrawdown: 10, maxTradesPerDay: 20,
-        enable_shorting: false, // 🟢 Default to OFF (Spot Mode)
+        enable_shorting: false, 
         params: { take_profit: 0.05, stop_loss: 0.02, trailing_stop: 0.01, long_threshold: 0.5, short_threshold: 0.5 },
         filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 }
     });
@@ -233,7 +235,14 @@ const TradingBotContainer = () => {
         setSocketStatus(prev => ({ ...prev, equityCurve: [], tradeMarkers: [], positions: [] }));
         setSocketLogs([]);
         try { 
-            await startBot({ userId: address, config: { ...formConfig, comboConfig: {capitalAllocation: formConfig.capitalAllocation || formConfig.initialBalance || 1000 { strategyCodes: formConfig.strategies.map(s => s.code), combinationRule: formConfig.hybridMode } } } }); 
+            await startBot({ 
+                userId: address, 
+                config: { 
+                    ...formConfig, 
+                    capitalAllocation: Number(formConfig.capitalAllocation) || Number(paperBalance) || 1000,
+                    comboConfig: { strategyCodes: formConfig.strategies.map(s => s.code), combinationRule: formConfig.hybridMode } 
+                } 
+            }); 
             setShowPreFlight(false); 
         } catch (e) {
             toast.error("Engine Ignition Failed");
@@ -263,7 +272,6 @@ const TradingBotContainer = () => {
         }
     };
 
-    // 🟢 MANUAL EXIT HANDLER
     const handleManualExit = async () => {
         if (!socketStatus.positions.length) return;
         try {
@@ -320,7 +328,7 @@ const TradingBotContainer = () => {
                 {showPreFlight && <PreFlightModal config={formConfig} onConfirm={handleConfirmStart} onCancel={() => setShowPreFlight(false)} isStarting={isStarting} hasApiKeys={hasApiKeys} address={address} />}
 
                 <header className="max-w-[1800px] mx-auto mb-10 flex items-center justify-between transition-all">
-                    <div className="flex items-center gap-3"><div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div><div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v12.47</p></div></div>
+                    <div className="flex items-center gap-3"><div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div><div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v13.2</p></div></div>
                     <div className="flex items-center gap-4">
                         {isBotRunning && <button onClick={handleHalt} className="px-6 py-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-xl font-black text-[10px] uppercase hover:bg-rose-500 hover:text-white transition-all flex items-center gap-2 shadow-lg shadow-rose-500/10"><Power size={12}/> Emergency Halt</button>}
                         <ConnectButton />
@@ -333,7 +341,6 @@ const TradingBotContainer = () => {
                         <div className="col-span-12 lg:col-span-3 space-y-6 animate-in slide-in-from-left-10 duration-700">
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-10 shadow-2xl sticky top-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
                                 
-                                {/* 🟢 NEW: DIRECTION TOGGLE */}
                                 <div className="space-y-4">
                                     <div className="flex justify-between items-center"><div className="flex items-center gap-2"><ArrowDownRight size={16} className="text-blue-400" /><h4 className="text-[10px] font-black uppercase tracking-widest text-blue-400">Direction</h4></div>
                                     <select value={formConfig.enable_shorting} onChange={(e)=>setFormConfig({...formConfig, enable_shorting: e.target.value === 'true'})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase">
@@ -342,7 +349,6 @@ const TradingBotContainer = () => {
                                     </select></div>
                                 </div>
 
-                                {/* 🧠 NEURAL GATE (ML) */}
                                 <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                     <div className="flex justify-between items-center"><div className="flex items-center gap-2"><Cpu size={16} className="text-violet-400" /><h4 className="text-[10px] font-black uppercase tracking-widest text-violet-400">Neural Gate</h4></div>
                                     <select value={formConfig.mlMode} onChange={(e)=>setFormConfig({...formConfig, mlMode: e.target.value})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase"><option value="off">Bypass</option><option value="on">Active</option></select></div>
@@ -357,21 +363,39 @@ const TradingBotContainer = () => {
                                     )}
                                 </div>
 
-                                {/* 🧩 LOGIC ENSEMBLE */}
                                 <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                     <div className="flex justify-between items-center"><h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Logic Ensemble</h4><select value={formConfig.hybridMode} onChange={(e) => setFormConfig({...formConfig, hybridMode: e.target.value})} className="bg-zinc-950 border border-zinc-700 text-[9px] rounded px-2 py-1 text-emerald-500 font-bold uppercase"><option value="AND">Strict</option><option value="OR">Loose</option></select></div>
                                     <div className="space-y-3">
                                         {formConfig.strategies.map((s, i) => (
                                             <div key={i} className="p-4 bg-zinc-800/30 rounded-2xl border border-zinc-800 shadow-inner">
-                                                <div className="flex justify-between mb-3"><select value={s.code} onChange={(e) => { const n = [...formConfig.strategies]; n[i] = { code: e.target.value, params: DEFAULT_STRATEGY_PARAMS[e.target.value] }; setFormConfig({...formConfig, strategies: n}); }} className="bg-transparent text-[10px] font-black text-amber-500 uppercase outline-none">{STRAT_POOL.map(opt => <option key={opt.code} value={opt.code}>{opt.name}</option>)}</select><button type="button" onClick={() => setFormConfig(p => ({ ...p, strategies: p.strategies.filter((_, idx) => idx !== i) }))} className="text-zinc-600 hover:text-rose-500"><Trash2 size={12}/></button></div>
-                                                <StrategyParamInputs strategy={s} onChange={(p) => { const n = [...formConfig.strategies]; n[i].params = p; setFormConfig({...formConfig, strategies: n}); }} />
+                                                <div className="flex justify-between mb-3">
+                                                    <select 
+                                                        value={s.code} 
+                                                        onChange={(e) => { 
+                                                            const n = [...formConfig.strategies]; 
+                                                            n[i] = { code: e.target.value, params: DEFAULT_STRATEGY_PARAMS[e.target.value] }; 
+                                                            setFormConfig({...formConfig, strategies: n}); 
+                                                        }} 
+                                                        className="bg-transparent text-[10px] font-black text-amber-500 uppercase outline-none"
+                                                    >
+                                                        {STRAT_POOL.map(opt => <option key={opt.code} value={opt.code}>{opt.name}</option>)}
+                                                    </select>
+                                                    <button type="button" onClick={() => setFormConfig(p => ({ ...p, strategies: p.strategies.filter((_, idx) => idx !== i) }))} className="text-zinc-600 hover:text-rose-500"><Trash2 size={12}/></button>
+                                                </div>
+                                                <StrategyParamInputs 
+                                                    strategy={s} 
+                                                    onChange={(p) => { 
+                                                        const n = [...formConfig.strategies]; 
+                                                        n[i].params = p; 
+                                                        setFormConfig({...formConfig, strategies: n}); 
+                                                    }} 
+                                                />
                                             </div>
                                         ))}
                                         <button type="button" onClick={() => setFormConfig(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="w-full py-3 border border-dashed border-zinc-800 rounded-xl text-zinc-600 hover:text-emerald-500 transition-all flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-tighter"><Plus size={12}/> Add Signal Module</button>
                                     </div>
                                 </div>
 
-                                {/* 🛡️ EXECUTION SHIELD */}
                                 <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                     <div className="flex items-center gap-2"><Shield size={16} className="text-amber-500"/><h4 className="text-[10px] font-black uppercase tracking-widest text-amber-500">Execution Shield</h4></div>
                                     <div className="grid grid-cols-2 gap-3">
@@ -384,7 +408,6 @@ const TradingBotContainer = () => {
                                     </div>
                                 </div>
 
-                                {/* ⚖️ RISK PROTOCOLS */}
                                 <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                     <div className="flex items-center gap-2"><Scale size={16} className="text-rose-400"/><h4 className="text-[10px] font-black uppercase tracking-widest text-rose-400">Risk Protocols</h4></div>
                                     <div className="grid grid-cols-2 gap-3">
@@ -506,8 +529,17 @@ function StrategyParamInputs({ strategy, onChange }) {
     const { code, params = {} } = strategy;
     const f = (l, k, s = "1", desc) => (
         <div className="flex flex-col">
-            <div className="flex justify-between items-center mb-1"><label className="text-[8px] text-zinc-600 uppercase font-bold ml-1">{l}</label>{desc && <Tooltip text={desc}><Info size={8} className="text-zinc-700" /></Tooltip>}</div>
-            <input type="number" step={s} value={params[k] ?? ""} onChange={(e) => onChange({...params, [k]: parseFloat(e.target.value)})} className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1 text-[9px] text-amber-500 outline-none font-mono" />
+            <div className="flex justify-between items-center mb-1">
+                <label className="text-[8px] text-zinc-600 uppercase font-bold ml-1">{l}</label>
+                {desc && <Tooltip text={desc}><Info size={8} className="text-zinc-700" /></Tooltip>}
+            </div>
+            <input 
+                type="number" 
+                step={s} 
+                value={params[k] ?? ""} 
+                onChange={(e) => onChange({...params, [k]: parseFloat(e.target.value)})} 
+                className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1 text-[9px] text-amber-500 outline-none font-mono" 
+            />
         </div>
     );
     return (
