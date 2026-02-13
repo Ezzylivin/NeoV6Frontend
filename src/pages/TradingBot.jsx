@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v12.49 - Hard Session Purge + Heartbeat + Fixed Risk Parameters + Full Config Restoration
+// 🚀 UPGRADE: v13.0 - Margin Toggle + Full Config + Treasury Sync
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
@@ -13,7 +13,7 @@ import { LiveTradingChart } from "../components/LiveTradingChart.jsx";
 import { 
     Plus, Trash2, Shield, Globe, Cpu, Filter, TrendingUp, 
     Activity, Scale, Power, RefreshCw, Wallet, Wifi, WifiOff,
-    ArrowUpRight, Clock, Box, Timer, DollarSign, Info, BarChart, Settings2, Zap
+    ArrowUpRight, Clock, Box, Timer, DollarSign, Info, BarChart, Settings2, Zap, ArrowDownRight
 } from "lucide-react"; 
 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
@@ -149,6 +149,7 @@ const TradingBotContainer = () => {
         mlMode: "off", mlModel: "xgboost", mlThreshold: 0.5,
         riskManagementMode: "static", riskPercentage: 1, hybridMode: "AND",
         maxDailyLoss: 5, maxDrawdown: 10, maxTradesPerDay: 20,
+        enable_shorting: false, // 🟢 Default to OFF (Spot Mode)
         params: { take_profit: 0.05, stop_loss: 0.02, trailing_stop: 0.01, long_threshold: 0.5, short_threshold: 0.5 },
         filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 }
     });
@@ -241,23 +242,6 @@ const TradingBotContainer = () => {
         }
     };
 
-
-    const handleManualExit = async () => {
-        if (!socketStatus.positions.length) return;
-        
-        try {
-            const token = localStorage.getItem("token");
-            await axios.post(`${API_BASE}/bot/close_position`, {
-                userId: address,
-                symbol: formConfig.symbol
-            }, { headers: { Authorization: `Bearer ${token}` } });
-            
-            toast.success("Position Forced Closed");
-        } catch (e) {
-            toast.error("Exit Failed: " + (e.response?.data?.detail || e.message));
-        }
-    };
-
     const handleHalt = async () => {
         setIsHaltLocked(true);
         if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; }
@@ -276,6 +260,21 @@ const TradingBotContainer = () => {
         } catch (e) { 
             toast.error("Halt Command Failed"); 
             setIsHaltLocked(false); 
+        }
+    };
+
+    // 🟢 MANUAL EXIT HANDLER
+    const handleManualExit = async () => {
+        if (!socketStatus.positions.length) return;
+        try {
+            const token = localStorage.getItem("token");
+            await axios.post(`${API_BASE}/bot/close_position`, {
+                userId: address,
+                symbol: formConfig.symbol
+            }, { headers: { Authorization: `Bearer ${token}` } });
+            toast.success("Position Forced Closed");
+        } catch (e) {
+            toast.error("Exit Failed: " + (e.response?.data?.detail || e.message));
         }
     };
 
@@ -334,8 +333,17 @@ const TradingBotContainer = () => {
                         <div className="col-span-12 lg:col-span-3 space-y-6 animate-in slide-in-from-left-10 duration-700">
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-10 shadow-2xl sticky top-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
                                 
-                                {/* 🧠 NEURAL GATE (ML) */}
+                                {/* 🟢 NEW: DIRECTION TOGGLE */}
                                 <div className="space-y-4">
+                                    <div className="flex justify-between items-center"><div className="flex items-center gap-2"><ArrowDownRight size={16} className="text-blue-400" /><h4 className="text-[10px] font-black uppercase tracking-widest text-blue-400">Direction</h4></div>
+                                    <select value={formConfig.enable_shorting} onChange={(e)=>setFormConfig({...formConfig, enable_shorting: e.target.value === 'true'})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase">
+                                        <option value="false">Spot Only (Long)</option>
+                                        <option value="true">Margin (Long/Short)</option>
+                                    </select></div>
+                                </div>
+
+                                {/* 🧠 NEURAL GATE (ML) */}
+                                <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                     <div className="flex justify-between items-center"><div className="flex items-center gap-2"><Cpu size={16} className="text-violet-400" /><h4 className="text-[10px] font-black uppercase tracking-widest text-violet-400">Neural Gate</h4></div>
                                     <select value={formConfig.mlMode} onChange={(e)=>setFormConfig({...formConfig, mlMode: e.target.value})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase"><option value="off">Bypass</option><option value="on">Active</option></select></div>
                                     {formConfig.mlMode === 'on' && (
@@ -413,7 +421,7 @@ const TradingBotContainer = () => {
                                     <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></div><span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Neural Sync Active</span></div>
                                 </div>
                                 <div className="flex-1 bg-[#090b0f] pb-8">
-                                    <LiveTradingChart symbol={formConfig.symbol} timeframe={formConfig.timeframe} isRunning={isBotRunning} activePositions={socketStatus.positions} tradeMarkers={socketStatus.tradeMarkers} candleData={socketStatus.candles || []} />
+                                    <LiveTradingChart symbol={formConfig.symbol} timeframe={formConfig.timeframe} isRunning={isBotRunning} activePositions={socketStatus.positions} tradeMarkers={socketStatus.tradeMarkers} candleData={socketStatus.candles || []} strategies={formConfig.strategies} />
                                 </div>
                             </div>
                             <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 rounded-[40px] flex flex-col overflow-hidden shadow-2xl">
@@ -427,7 +435,7 @@ const TradingBotContainer = () => {
                                 <div ref={logContainerRef} className="flex-1 overflow-y-auto p-6 font-mono text-[10px] space-y-5 bg-black/20 custom-scrollbar">
                                     {socketLogs.length === 0 ? (
                                         <div className="h-full flex items-center justify-center text-zinc-600 italic">Initializing neural link...</div>
-                                    ) : socketLogs.map((log, i) => <div key={i} className={`p-3 rounded-xl border leading-relaxed ${parseLog(log).includes('🟢') ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400 shadow-lg' : 'bg-zinc-800/20 border-transparent text-zinc-500'}`}>{parseLog(log)}</div>)}
+                                    ) : socketLogs.map((log, i) => <div key={i} className={`p-3 rounded-xl border leading-relaxed ${parseLog(log).includes('🟢') ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400 shadow-lg' : parseLog(log).includes('🔴') ? 'bg-rose-500/5 border-rose-500/20 text-rose-400' : 'bg-zinc-800/20 border-transparent text-zinc-500'}`}>{parseLog(log)}</div>)}
                                 </div>
                             </div>
                         </div>
@@ -451,13 +459,15 @@ const TradingBotContainer = () => {
                                                     <th className="pb-4">Type</th>
                                                     <th className="pb-4">Entry</th>
                                                     <th className="pb-4 text-right">Size</th>
-                                                    <th className="pb-4 text-right">Action</th> {/* Added Header */}
+                                                    <th className="pb-4 text-right">Action</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-zinc-800/50">
                                                 {socketStatus.positions.length > 0 ? socketStatus.positions.map((pos, idx) => (
                                                     <tr key={idx} className="group">
-                                                        <td className="py-5 font-black text-emerald-400 flex items-center gap-2"><ArrowUpRight size={14}/> LONG</td>
+                                                        <td className={`py-5 font-black flex items-center gap-2 ${pos.type === 'short' ? 'text-amber-500' : 'text-emerald-400'}`}>
+                                                            {pos.type === 'short' ? <ArrowDownRight size={14}/> : <ArrowUpRight size={14}/>} {pos.type.toUpperCase()}
+                                                        </td>
                                                         <td className="py-5 font-mono font-black text-zinc-200">${pos.entry.toLocaleString()}</td>
                                                         <td className="py-5 font-mono text-zinc-500 text-right">{pos.size.toFixed(4)}</td>
                                                         <td className="py-5 text-right">
