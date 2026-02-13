@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 FIX: v13.5 - Restored Symbol Select + HD Metrics
+// 🚀 FIX: v13.6 - ENABLE SHORTING CONFIG FIXED
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
@@ -156,7 +156,7 @@ const TradingBotContainer = () => {
         mlMode: "off", mlModel: "xgboost", mlThreshold: 0.5,
         riskManagementMode: "static", riskPercentage: 1, hybridMode: "AND",
         maxDailyLoss: 5, maxDrawdown: 10, maxTradesPerDay: 20,
-        enable_shorting: false, 
+        enable_shorting: true, // 🟢 DEFAULT TO TRUE FOR TESTING
         params: { take_profit: 0.05, stop_loss: 0.02, trailing_stop: 0.01, long_threshold: 0.5, short_threshold: 0.5 },
         filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 }
     });
