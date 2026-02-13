@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 UPGRADE: v12.48 - Hard Session Purge + Heartbeat + Fixed Risk Parameters
+// 🚀 UPGRADE: v12.49 - Hard Session Purge + Heartbeat + Fixed Risk Parameters + Full Config Restoration
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
@@ -157,6 +157,7 @@ const TradingBotContainer = () => {
 
     const activeBalance = useMemo(() => {
         if (isBotRunning) {
+            // Priority: Live Socket Balance -> Initial Capital from Backend -> Local State
             return socketStatus.currentBalance || socketStatus.initialCapital || formConfig.capitalAllocation;
         }
         return formConfig.capitalAllocation;
@@ -186,7 +187,6 @@ const TradingBotContainer = () => {
         return () => clearInterval(interval);
     }, [isBotRunning, socketStatus.startedAt]);
 
-    // 🟢 WebSocket Continuity Fix
     useEffect(() => {
         if (!address) return;
         
@@ -200,7 +200,8 @@ const TradingBotContainer = () => {
                 ...prev, ...data, 
                 positions: data.activePositions || data.positions || prev.positions,
                 tradeMarkers: data.tradeMarkers || prev.tradeMarkers,
-                startedAt: data.startedAt || prev.startedAt
+                startedAt: data.startedAt || prev.startedAt,
+                initialCapital: data.initialCapital || prev.initialCapital
             }));
         });
 
@@ -208,7 +209,6 @@ const TradingBotContainer = () => {
             setSocketLogs(prev => {
                 const msgText = typeof newLog === 'string' ? newLog : (newLog.message || newLog.msg);
                 const logTime = newLog.time || new Date().toISOString();
-                // Check uniqueness based on message AND time to ensure recurring thoughts show
                 const isDuplicate = prev.some(l => parseLog(l) === msgText && l.time === logTime);
                 if (isDuplicate) return prev;
                 return [{ msg: msgText, time: logTime, ...newLog }, ...prev].slice(0, 100);
@@ -230,7 +230,6 @@ const TradingBotContainer = () => {
     const handleConfirmStart = async () => {
         setIsStarting(true);
         setIsHaltLocked(false);
-        // Force state cleanup before launch
         setSocketStatus(prev => ({ ...prev, equityCurve: [], tradeMarkers: [], positions: [] }));
         setSocketLogs([]);
         try { 
@@ -243,12 +242,10 @@ const TradingBotContainer = () => {
         }
     };
 
-    // 🟢 FULL SESSION PURGE COMMAND
     const handleHalt = async () => {
         setIsHaltLocked(true);
         if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; }
 
-        // Hard Reset UI State
         setSocketStatus({ 
             status: 'stopped', currentBalance: 0, unrealizedPnl: 0, exposure: 0, positions: [], equityCurve: [], startedAt: null, dailyProfit: 0, initialCapital: 0, tradeMarkers: [] 
         });
@@ -259,7 +256,6 @@ const TradingBotContainer = () => {
         try {
             await stopBot();
             toast.success("Safe Abort: Terminal Memory Purged");
-            // Mandatory lock to prevent late server status updates
             setTimeout(() => setIsHaltLocked(false), 5000); 
         } catch (e) { 
             toast.error("Halt Command Failed"); 
@@ -322,6 +318,7 @@ const TradingBotContainer = () => {
                         <div className="col-span-12 lg:col-span-3 space-y-6 animate-in slide-in-from-left-10 duration-700">
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-10 shadow-2xl sticky top-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
                                 
+                                {/* 🧠 NEURAL GATE (ML) */}
                                 <div className="space-y-4">
                                     <div className="flex justify-between items-center"><div className="flex items-center gap-2"><Cpu size={16} className="text-violet-400" /><h4 className="text-[10px] font-black uppercase tracking-widest text-violet-400">Neural Gate</h4></div>
                                     <select value={formConfig.mlMode} onChange={(e)=>setFormConfig({...formConfig, mlMode: e.target.value})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase"><option value="off">Bypass</option><option value="on">Active</option></select></div>
@@ -336,6 +333,7 @@ const TradingBotContainer = () => {
                                     )}
                                 </div>
 
+                                {/* 🧩 LOGIC ENSEMBLE */}
                                 <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                     <div className="flex justify-between items-center"><h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Logic Ensemble</h4><select value={formConfig.hybridMode} onChange={(e) => setFormConfig({...formConfig, hybridMode: e.target.value})} className="bg-zinc-950 border border-zinc-700 text-[9px] rounded px-2 py-1 text-emerald-500 font-bold uppercase"><option value="AND">Strict</option><option value="OR">Loose</option></select></div>
                                     <div className="space-y-3">
@@ -349,6 +347,7 @@ const TradingBotContainer = () => {
                                     </div>
                                 </div>
 
+                                {/* 🛡️ EXECUTION SHIELD */}
                                 <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                     <div className="flex items-center gap-2"><Shield size={16} className="text-amber-500"/><h4 className="text-[10px] font-black uppercase tracking-widest text-amber-500">Execution Shield</h4></div>
                                     <div className="grid grid-cols-2 gap-3">
@@ -361,6 +360,7 @@ const TradingBotContainer = () => {
                                     </div>
                                 </div>
 
+                                {/* ⚖️ RISK PROTOCOLS */}
                                 <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                     <div className="flex items-center gap-2"><Scale size={16} className="text-rose-400"/><h4 className="text-[10px] font-black uppercase tracking-widest text-rose-400">Risk Protocols</h4></div>
                                     <div className="grid grid-cols-2 gap-3">
@@ -409,7 +409,6 @@ const TradingBotContainer = () => {
                                     {socketConnected ? <Wifi size={14} className="text-emerald-500" /> : <WifiOff size={14} className="text-rose-500 animate-pulse" />}
                                 </div>
                                 <div ref={logContainerRef} className="flex-1 overflow-y-auto p-6 font-mono text-[10px] space-y-5 bg-black/20 custom-scrollbar">
-                                    {/* 🟢 BLINKING HEARTBEAT FIX */}
                                     {socketLogs.length === 0 ? (
                                         <div className="h-full flex items-center justify-center text-zinc-600 italic">Initializing neural link...</div>
                                     ) : socketLogs.map((log, i) => <div key={i} className={`p-3 rounded-xl border leading-relaxed ${parseLog(log).includes('🟢') ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400 shadow-lg' : 'bg-zinc-800/20 border-transparent text-zinc-500'}`}>{parseLog(log)}</div>)}
@@ -417,7 +416,6 @@ const TradingBotContainer = () => {
                             </div>
                         </div>
 
-                        {/* --- 🟢 ANALYTICS row --- */}
                         {isBotRunning && (
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-10 duration-1000">
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
