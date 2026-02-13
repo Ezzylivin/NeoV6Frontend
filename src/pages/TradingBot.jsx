@@ -241,6 +241,23 @@ const TradingBotContainer = () => {
         }
     };
 
+
+    const handleManualExit = async () => {
+        if (!socketStatus.positions.length) return;
+        
+        try {
+            const token = localStorage.getItem("token");
+            await axios.post(`${API_BASE}/bot/close_position`, {
+                userId: address,
+                symbol: formConfig.symbol
+            }, { headers: { Authorization: `Bearer ${token}` } });
+            
+            toast.success("Position Forced Closed");
+        } catch (e) {
+            toast.error("Exit Failed: " + (e.response?.data?.detail || e.message));
+        }
+    };
+
     const handleHalt = async () => {
         setIsHaltLocked(true);
         if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; }
@@ -429,11 +446,32 @@ const TradingBotContainer = () => {
                                     <div className="flex items-center gap-2 mb-8"><Box size={18} className="text-amber-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Live Operations</h3></div>
                                     <div className="flex-1 overflow-x-auto custom-scrollbar">
                                         <table className="w-full text-left text-[11px]">
-                                            <thead><tr className="text-zinc-600 uppercase font-black border-b border-zinc-800 pb-4"><th className="pb-4">Type</th><th className="pb-4">Entry</th><th className="pb-4 text-right">Size</th></tr></thead>
+                                            <thead>
+                                                <tr className="text-zinc-600 uppercase font-black border-b border-zinc-800 pb-4">
+                                                    <th className="pb-4">Type</th>
+                                                    <th className="pb-4">Entry</th>
+                                                    <th className="pb-4 text-right">Size</th>
+                                                    <th className="pb-4 text-right">Action</th> {/* Added Header */}
+                                                </tr>
+                                            </thead>
                                             <tbody className="divide-y divide-zinc-800/50">
                                                 {socketStatus.positions.length > 0 ? socketStatus.positions.map((pos, idx) => (
-                                                    <tr key={idx} className="group"><td className="py-5 font-black text-emerald-400 flex items-center gap-2"><ArrowUpRight size={14}/> LONG</td><td className="py-5 font-mono font-black text-zinc-200">${pos.entry.toLocaleString()}</td><td className="py-5 font-mono text-zinc-500 text-right">{pos.size.toFixed(4)} BTC</td></tr>
-                                                )) : <tr><td colSpan="3" className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">Waiting for Signal...</td></tr>}
+                                                    <tr key={idx} className="group">
+                                                        <td className="py-5 font-black text-emerald-400 flex items-center gap-2"><ArrowUpRight size={14}/> LONG</td>
+                                                        <td className="py-5 font-mono font-black text-zinc-200">${pos.entry.toLocaleString()}</td>
+                                                        <td className="py-5 font-mono text-zinc-500 text-right">{pos.size.toFixed(4)}</td>
+                                                        <td className="py-5 text-right">
+                                                            <button 
+                                                                onClick={handleManualExit}
+                                                                className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 rounded-lg text-rose-500 hover:text-white font-black uppercase text-[9px] transition-all tracking-wider"
+                                                            >
+                                                                EXIT
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                )) : (
+                                                    <tr><td colSpan="4" className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">Waiting for Signal...</td></tr>
+                                                )}
                                             </tbody>
                                         </table>
                                     </div>
