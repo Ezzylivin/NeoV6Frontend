@@ -233,7 +233,7 @@ const TradingBotContainer = () => {
         setSocketStatus(prev => ({ ...prev, equityCurve: [], tradeMarkers: [], positions: [] }));
         setSocketLogs([]);
         try { 
-            await startBot({ userId: address, config: { ...formConfig, comboConfig: {capitalAllocation: formConfig.capitalAllocation || formConfig.initialBalance || 1000: { strategyCodes: formConfig.strategies.map(s => s.code), combinationRule: formConfig.hybridMode } } } }); 
+            await startBot({ userId: address, config: { ...formConfig, comboConfig: {capitalAllocation: formConfig.capitalAllocation || formConfig.initialBalance || 1000 { strategyCodes: formConfig.strategies.map(s => s.code), combinationRule: formConfig.hybridMode } } } }); 
             setShowPreFlight(false); 
         } catch (e) {
             toast.error("Engine Ignition Failed");
