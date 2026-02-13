@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 FIX: v13.2 - Fixed Syntax Error in Strategy Inputs
+// 🚀 FIX: v13.5 - Restored Symbol Select + HD Metrics
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
@@ -13,7 +13,8 @@ import { LiveTradingChart } from "../components/LiveTradingChart.jsx";
 import { 
     Plus, Trash2, Shield, Globe, Cpu, Filter, TrendingUp, 
     Activity, Scale, Power, RefreshCw, Wallet, Wifi, WifiOff,
-    ArrowUpRight, Clock, Box, Timer, DollarSign, Info, BarChart, Settings2, Zap, ArrowDownRight
+    ArrowUpRight, Clock, Box, Timer, DollarSign, Info, BarChart, Settings2, Zap, ArrowDownRight,
+    CandlestickChart
 } from "lucide-react"; 
 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
@@ -29,6 +30,10 @@ const SOCKET_URL = BASE_URL;
 
 const inputClass = "w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-emerald-500 transition-all text-[11px] outline-none font-mono";
 const labelClass = "text-[9px] text-zinc-500 uppercase font-black mb-1 block ml-1 tracking-tighter";
+
+// 🟢 ASSETS & TIMEFRAMES
+const COIN_PAIRS = ["BTC-USD", "ETH-USD", "SOL-USD", "DOGE-USD", "MATIC-USD", "LINK-USD", "ADA-USD"];
+const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"];
 
 const parseLog = (log) => {
     if (!log) return "";
@@ -298,6 +303,11 @@ const TradingBotContainer = () => {
         );
     }
 
+    // 🟢 PERCENTAGE CALCS FOR METRICS
+    const startCap = socketStatus.initialCapital || formConfig.capitalAllocation || 1;
+    const profitPct = ((socketStatus.dailyProfit || 0) / startCap) * 100;
+    const pnlPct = ((socketStatus.unrealizedPnl || 0) / startCap) * 100;
+
     return (
         <UIModeProvider>
             <div className="min-h-screen bg-zinc-950 text-white font-sans p-6 overflow-x-hidden transition-all duration-700">
@@ -328,7 +338,7 @@ const TradingBotContainer = () => {
                 {showPreFlight && <PreFlightModal config={formConfig} onConfirm={handleConfirmStart} onCancel={() => setShowPreFlight(false)} isStarting={isStarting} hasApiKeys={hasApiKeys} address={address} />}
 
                 <header className="max-w-[1800px] mx-auto mb-10 flex items-center justify-between transition-all">
-                    <div className="flex items-center gap-3"><div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div><div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v13.2</p></div></div>
+                    <div className="flex items-center gap-3"><div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div><div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v13.5</p></div></div>
                     <div className="flex items-center gap-4">
                         {isBotRunning && <button onClick={handleHalt} className="px-6 py-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-xl font-black text-[10px] uppercase hover:bg-rose-500 hover:text-white transition-all flex items-center gap-2 shadow-lg shadow-rose-500/10"><Power size={12}/> Emergency Halt</button>}
                         <ConnectButton />
@@ -341,7 +351,26 @@ const TradingBotContainer = () => {
                         <div className="col-span-12 lg:col-span-3 space-y-6 animate-in slide-in-from-left-10 duration-700">
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-10 shadow-2xl sticky top-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
                                 
+                                {/* 🟢 RESTORED: MARKET SELECTION */}
                                 <div className="space-y-4">
+                                    <div className="flex items-center gap-2"><CandlestickChart size={16} className="text-zinc-400" /><h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Market Feed</h4></div>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <div className="col-span-2">
+                                            <label className={labelClass}>Asset</label>
+                                            <select value={formConfig.symbol} onChange={(e)=>setFormConfig({...formConfig, symbol: e.target.value})} className={inputClass}>
+                                                {COIN_PAIRS.map(c => <option key={c} value={c}>{c}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="col-span-1">
+                                            <label className={labelClass}>Period</label>
+                                            <select value={formConfig.timeframe} onChange={(e)=>setFormConfig({...formConfig, timeframe: e.target.value})} className={inputClass}>
+                                                {TIMEFRAMES.map(t => <option key={t} value={t}>{t}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                     <div className="flex justify-between items-center"><div className="flex items-center gap-2"><ArrowDownRight size={16} className="text-blue-400" /><h4 className="text-[10px] font-black uppercase tracking-widest text-blue-400">Direction</h4></div>
                                     <select value={formConfig.enable_shorting} onChange={(e)=>setFormConfig({...formConfig, enable_shorting: e.target.value === 'true'})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase">
                                         <option value="false">Spot Only (Long)</option>
@@ -349,6 +378,7 @@ const TradingBotContainer = () => {
                                     </select></div>
                                 </div>
 
+                                {/* REST OF CONFIG IS THE SAME... */}
                                 <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                     <div className="flex justify-between items-center"><div className="flex items-center gap-2"><Cpu size={16} className="text-violet-400" /><h4 className="text-[10px] font-black uppercase tracking-widest text-violet-400">Neural Gate</h4></div>
                                     <select value={formConfig.mlMode} onChange={(e)=>setFormConfig({...formConfig, mlMode: e.target.value})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase"><option value="off">Bypass</option><option value="on">Active</option></select></div>
@@ -425,18 +455,43 @@ const TradingBotContainer = () => {
 
                     <div className={`${isBotRunning ? 'col-span-12' : 'col-span-12 lg:col-span-9'} space-y-8 transition-all duration-700`}>
                         
+                        {/* 🟢 ENHANCED METRICS GRID */}
                         <div className={`grid grid-cols-1 ${isBotRunning ? 'md:grid-cols-6' : 'md:grid-cols-5'} gap-4`}>
                             <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
                                 <div className="flex justify-between items-start mb-1"><p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">Engine Status</p>{isBotRunning && <Timer size={12} className="text-emerald-500 animate-pulse" />}</div>
                                 <p className={`text-lg font-mono font-black ${isBotRunning ? 'text-emerald-400' : 'text-zinc-600'}`}>{isBotRunning ? 'OPERATIONAL' : 'STANDBY'}</p>
                                 <p className="text-[9px] font-mono text-zinc-500 mt-1 uppercase tracking-tighter font-black">SESSION: {uptime}</p>
                             </div>
-                            <MetricCard label="Daily Profit" value={`${socketStatus.dailyProfit >= 0 ? '+' : ''}$${(socketStatus.dailyProfit || 0).toFixed(2)}`} color="text-emerald-400" icon={<DollarSign size={10}/>} />
-                            <MetricCard label="Floating PnL" value={`${socketStatus.unrealizedPnl >= 0 ? '+' : ''}$${(socketStatus.unrealizedPnl || 0).toFixed(2)}`} color={socketStatus.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'} icon={<Activity size={10}/>} />
-                            <MetricCard label="Exposure" value={`${socketStatus.exposure || 0}%`} />
-                            <MetricCard label="Bot Balance" value={`$${Number(activeBalance).toFixed(2)}`} /> 
+                            
+                            {/* Descriptive Metrics with Percentages */}
+                            <MetricCard 
+                                label="Daily Profit" 
+                                value={`${socketStatus.dailyProfit >= 0 ? '+' : ''}${(socketStatus.dailyProfit || 0).toFixed(2)}`} 
+                                subValue={`${profitPct >= 0 ? '+' : ''}${profitPct.toFixed(2)}%`}
+                                color={socketStatus.dailyProfit >= 0 ? "text-emerald-400" : "text-rose-500"} 
+                                icon={<DollarSign size={10}/>} 
+                            />
+                            <MetricCard 
+                                label="Floating PnL" 
+                                value={`${socketStatus.unrealizedPnl >= 0 ? '+' : ''}${(socketStatus.unrealizedPnl || 0).toFixed(2)}`} 
+                                subValue={`${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`}
+                                color={socketStatus.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'} 
+                                icon={<Activity size={10}/>} 
+                            />
+                            <MetricCard 
+                                label="Exposure" 
+                                value={`${socketStatus.exposure || 0}%`} 
+                                subValue={socketStatus.positions.length > 0 ? "Active Positions" : "Cash Heavy"}
+                                color="text-amber-400"
+                            />
+                            <MetricCard 
+                                label="Total Equity" 
+                                value={`$${Number(activeBalance).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
+                                subValue="Liquid + Locked"
+                            /> 
                         </div>
 
+                        {/* CHARTS & LOGS ... (Rest of component is same as previous, just ensure imports match) */}
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[720px]">
                             <div className="lg:col-span-3 bg-zinc-900 border border-zinc-800 rounded-[40px] overflow-hidden flex flex-col relative shadow-2xl">
                                 <div className="bg-zinc-800/20 p-6 border-b border-zinc-800/50 flex items-center justify-between">
@@ -458,7 +513,7 @@ const TradingBotContainer = () => {
                                 <div ref={logContainerRef} className="flex-1 overflow-y-auto p-6 font-mono text-[10px] space-y-5 bg-black/20 custom-scrollbar">
                                     {socketLogs.length === 0 ? (
                                         <div className="h-full flex items-center justify-center text-zinc-600 italic">Initializing neural link...</div>
-                                    ) : socketLogs.map((log, i) => <div key={i} className={`p-3 rounded-xl border leading-relaxed ${parseLog(log).includes('🟢') ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400 shadow-lg' : parseLog(log).includes('🔴') ? 'bg-rose-500/5 border-rose-500/20 text-rose-400' : 'bg-zinc-800/20 border-transparent text-zinc-500'}`}>{parseLog(log)}</div>)}
+                                    ) : socketLogs.map((log, i) => <div key={i} className={`p-3 rounded-xl border leading-relaxed ${parseLog(log).includes('🟢') ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400 shadow-lg' : parseLog(log).includes('🔴') ? 'bg-rose-500/5 border-rose-500/20 text-rose-400' : parseLog(log).includes('⏳') ? 'bg-amber-500/5 border-amber-500/20 text-amber-500' : 'bg-zinc-800/20 border-transparent text-zinc-500'}`}>{parseLog(log)}</div>)}
                                 </div>
                             </div>
                         </div>
@@ -518,10 +573,14 @@ const TradingBotContainer = () => {
     );
 };
 
-const MetricCard = ({ label, value, color = "text-white", icon = null }) => (
+// 🟢 NEW METRIC CARD WITH SUB-VALUE
+const MetricCard = ({ label, value, subValue, color = "text-white", icon = null }) => (
     <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden shadow-xl">
         <p className="text-[9px] text-zinc-500 uppercase font-black tracking-[0.15em] mb-2">{label}</p>
-        <div className="flex items-center gap-1.5">{icon && <span className={color}>{icon}</span>}<p className={`text-lg font-mono font-black tracking-tighter ${color}`}>{value}</p></div>
+        <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5">{icon && <span className={color}>{icon}</span>}<p className={`text-lg font-mono font-black tracking-tighter ${color}`}>{value}</p></div>
+            {subValue && <p className="text-[9px] font-black text-zinc-600 uppercase tracking-wide">{subValue}</p>}
+        </div>
     </div>
 );
 
