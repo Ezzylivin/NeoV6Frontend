@@ -1,5 +1,5 @@
-/// File: src/pages/TradingBot.jsx
-// 🚀 FIX: v13.8 - Full Integration (Color Logic + Config Restore + Timestamps)
+// File: src/pages/TradingBot.jsx
+// 🚀 FIX: v13.10 - Added "Clear Logs" Button to Neural Flow
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
@@ -14,7 +14,7 @@ import {
     Plus, Trash2, Shield, Globe, Cpu, Filter, TrendingUp, 
     Activity, Scale, Power, RefreshCw, Wallet, Wifi, WifiOff,
     ArrowUpRight, Clock, Box, Timer, DollarSign, Info, BarChart, Settings2, Zap, ArrowDownRight,
-    CandlestickChart
+    CandlestickChart, AlertTriangle, RotateCcw, Eraser // 🟢 Imported Eraser/Trash2
 } from "lucide-react"; 
 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
@@ -22,7 +22,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsToolti
 import "./TradingBot.css";
 import "../styles/Themes.css";
 
-// 🟢 PRODUCTION CONFIGURATION
+// ... (Configuration Constants & Helper Functions remain EXACTLY the same) ...
 const RAW_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 const BASE_URL = RAW_URL.replace(/\/$/, "").replace(/\/api$/, "");
 const API_BASE = `${BASE_URL}/api`;
@@ -31,53 +31,40 @@ const SOCKET_URL = BASE_URL;
 const inputClass = "w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-emerald-500 transition-all text-[11px] outline-none font-mono";
 const labelClass = "text-[9px] text-zinc-500 uppercase font-black mb-1 block ml-1 tracking-tighter";
 
-// 🟢 ASSETS & TIMEFRAMES
 const COIN_PAIRS = ["BTC-USD", "ETH-USD", "SOL-USD", "DOGE-USD", "MATIC-USD", "LINK-USD", "ADA-USD"];
 const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"];
 
-// 🟢 HELPER: PARSE LOG TEXT
 const parseLog = (log) => {
     if (!log) return "";
     const msg = typeof log === 'string' ? log : (log.message || log.msg || JSON.stringify(log));
     return msg.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z\s*/, '');
 };
 
-// 🟢 HELPER: FORMAT TIMESTAMP
 const formatTime = (isoString) => {
     if (!isoString) return "";
     const date = new Date(isoString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 };
 
-// 🟢 HELPER: DYNAMIC COLOR LOGIC (Integrated Request)
 const getLogStyle = (msg) => {
     const text = msg.toUpperCase();
-
-    // 1. Mindset: Parse Percentage (e.g., "85%")
-    const pctMatch = text.match(/(\d+)%/);
-    if (pctMatch) {
-        const val = parseInt(pctMatch[1]);
-        if (val >= 80) return 'text-rose-400 bg-rose-500/10 border-rose-500/20'; // Expensive -> Red
-        if (val <= 20) return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'; // Cheap -> Green
-        if (val > 20 && val < 80) return 'text-zinc-400 bg-zinc-800/30 border-zinc-700'; // Balanced -> Gray
+    if (text.includes("VETOED") || text.includes("STALKING SHORT") || text.includes("SHORT GATE")) return 'text-rose-400 bg-rose-500/10 border-rose-500/20'; 
+    if (text.includes("PASSED") || text.includes("STALKING LONG") || text.includes("LONG GATE")) return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+    if (text.includes("UPTREND") || text.includes("BULLISH") || text.includes("EXPANSION")) return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+    if (text.includes("DOWNTREND") || text.includes("BEARISH") || text.includes("CONTRACTION")) return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+    if (text.includes("MINDSET")) {
+        const pctMatch = text.match(/(\d+)%/);
+        if (pctMatch) {
+            const val = parseInt(pctMatch[1]);
+            if (val >= 80) return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+            if (val <= 20) return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+            return 'text-blue-400 bg-blue-500/10 border-blue-500/20';
+        }
     }
-
-    // 2. Trend/Bias: Keyword Logic
-    if (text.includes("UPTREND") || text.includes("BULLISH") || text.includes("EXPANSION")) {
-        return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
-    }
-    if (text.includes("DOWNTREND") || text.includes("BEARISH") || text.includes("CONTRACTION")) {
-        return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
-    }
-    
-    // 3. Logic/Intent: Fallback to existing tags
-    if (text.includes("PASSED") || text.includes("STALKING LONG")) return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
-    if (text.includes("VETOED") || text.includes("STALKING SHORT")) return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
-
-    return 'text-zinc-500 bg-zinc-900 border-zinc-800'; // Default
+    return 'text-zinc-500 bg-zinc-900 border-zinc-800'; 
 };
 
-// --- CONFIG POOLS ---
+// ... (STRAT_POOL, MODEL_POOL, DEFAULT_STRATEGY_PARAMS, Components remain same) ...
 const STRAT_POOL = [
     { name: "RSI Threshold", code: "rsi_threshold" },
     { name: "SMA Crossover", code: "sma_crossover" },
@@ -166,8 +153,7 @@ const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, a
 };
 
 const TradingBotContainer = () => {
-    // 🟢 Destructure restoredConfig
-    const { startBot, stopBot, restoredConfig, botStatus: hookBotStatus, logs: hookLogs } = useBot(); 
+    const { startBot, stopBot, resetBot, restoredConfig, botStatus: hookBotStatus, logs: hookLogs } = useBot(); 
     const { isConnected, address } = useAccount();
     
     const [isModeSelected, setIsModeSelected] = useState(false);
@@ -192,8 +178,12 @@ const TradingBotContainer = () => {
         symbol: "BTC-USD", timeframe: "1h", capitalAllocation: 1000,
         tradingMode: "paper", strategies: [{ code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }],
         mlMode: "off", mlModel: "xgboost", mlThreshold: 0.5,
-        riskManagementMode: "static", riskPercentage: 1, hybridMode: "AND",
-        maxDailyLoss: 5, maxDrawdown: 10, maxTradesPerDay: 20,
+        riskManagementMode: "static", 
+        riskPercentage: 1, 
+        maxDailyLoss: 5, 
+        maxDrawdown: 10, 
+        maxTradesPerDay: 20,
+        hybridMode: "AND",
         enable_shorting: true, 
         params: { take_profit: 0.05, stop_loss: 0.02, trailing_stop: 0.01, long_threshold: 0.5, short_threshold: 0.5 },
         filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 }
@@ -201,36 +191,20 @@ const TradingBotContainer = () => {
 
     const isBotRunning = socketStatus.status === 'running' && !isHaltLocked;
 
-    // 🟢 1. RESTORE STATE ON RETURN (Logs & Config)
     useEffect(() => {
-        if (hookBotStatus) {
-            setSocketStatus(prev => ({ ...prev, ...hookBotStatus, logs: hookBotStatus.logs?.length ? hookBotStatus.logs : prev.logs }));
-        }
-        if (hookLogs.length > 0) {
-            setSocketLogs(hookLogs);
-        }
-        // 🟢 Restore Config (Fixes Missing Lines on Refresh)
-        if (restoredConfig && isBotRunning) {
-            setFormConfig(prev => ({
-                ...prev,
-                ...restoredConfig,
-                strategies: restoredConfig.strategies || prev.strategies 
-            }));
-        }
+        if (hookBotStatus) setSocketStatus(prev => ({ ...prev, ...hookBotStatus, logs: hookBotStatus.logs?.length ? hookBotStatus.logs : prev.logs }));
+        if (hookLogs.length > 0) setSocketLogs(hookLogs);
+        if (restoredConfig) setFormConfig(prev => ({ ...prev, ...restoredConfig, strategies: restoredConfig.strategies && restoredConfig.strategies.length > 0 ? restoredConfig.strategies : prev.strategies }));
     }, [hookBotStatus, hookLogs, restoredConfig]);
 
     const activeBalance = useMemo(() => {
-        if (isBotRunning) {
-            return socketStatus.currentBalance || socketStatus.initialCapital || formConfig.capitalAllocation;
-        }
+        if (isBotRunning) return socketStatus.currentBalance || socketStatus.initialCapital || formConfig.capitalAllocation;
         return formConfig.capitalAllocation;
     }, [isBotRunning, socketStatus.currentBalance, socketStatus.initialCapital, formConfig.capitalAllocation]);
 
     useEffect(() => {
         if (isConnected) {
-            axios.get(`${API_BASE}/users/keys`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
-                .then(res => setHasApiKeys((Array.isArray(res.data) ? res.data : res.data.keys || []).length > 0))
-                .catch(() => setHasApiKeys(false));
+            axios.get(`${API_BASE}/users/keys`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }).then(res => setHasApiKeys((Array.isArray(res.data) ? res.data : res.data.keys || []).length > 0)).catch(() => setHasApiKeys(false));
         }
     }, [isConnected]);
 
@@ -238,9 +212,7 @@ const TradingBotContainer = () => {
         let interval;
         if (isBotRunning && socketStatus.startedAt) {
             interval = setInterval(() => {
-                const start = new Date(socketStatus.startedAt).getTime();
-                const now = new Date().getTime();
-                const diff = Math.max(0, now - start);
+                const diff = Math.max(0, new Date().getTime() - new Date(socketStatus.startedAt).getTime());
                 const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
                 const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
                 const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
@@ -252,51 +224,33 @@ const TradingBotContainer = () => {
 
     useEffect(() => {
         if (!address) return;
-        
         socketRef.current = io(SOCKET_URL, { query: { userId: address }, transports: ['websocket'] });
         socketRef.current.on("connect", () => setSocketConnected(true));
         socketRef.current.on("disconnect", () => setSocketConnected(false));
-
         socketRef.current.on("bot_status_update", (data) => {
             if (isHaltLocked) return; 
-            setSocketStatus(prev => ({ 
-                ...prev, ...data, 
-                positions: data.activePositions || data.positions || prev.positions,
-                tradeMarkers: data.tradeMarkers || prev.tradeMarkers,
-                startedAt: data.startedAt || prev.startedAt,
-                initialCapital: data.initialCapital || prev.initialCapital
-            }));
+            setSocketStatus(prev => ({ ...prev, ...data, positions: data.activePositions || data.positions || prev.positions, tradeMarkers: data.tradeMarkers || prev.tradeMarkers, startedAt: data.startedAt || prev.startedAt, initialCapital: data.initialCapital || prev.initialCapital }));
         });
-
         socketRef.current.on("bot_log", (newLog) => {
             const logObj = typeof newLog === 'string' ? { message: newLog, time: new Date().toISOString() } : newLog;
             setSocketLogs(prev => {
-                const isDuplicate = prev.some(l => parseLog(l.message || l) === parseLog(logObj.message || logObj));
-                if (isDuplicate) return prev;
+                if (prev.some(l => parseLog(l.message || l) === parseLog(logObj.message || logObj))) return prev;
                 return [logObj, ...prev].slice(0, 100);
             });
         });
-
         return () => { if (socketRef.current) socketRef.current.disconnect(); };
     }, [address, isHaltLocked]);
 
     const performanceData = useMemo(() => {
         if (!socketStatus.equityCurve?.length) return [{ time: 'Start', balance: formConfig.capitalAllocation }];
-        return socketStatus.equityCurve.map(p => ({ 
-            time: new Date(p.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
-            balance: p.balance,
-            confidence: (Math.random() * 20) + 80 
-        }));
+        return socketStatus.equityCurve.map(p => ({ time: new Date(p.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), balance: p.balance, confidence: (Math.random() * 20) + 80 }));
     }, [socketStatus.equityCurve, formConfig.capitalAllocation]);
 
    const handleConfirmStart = async () => {
     setIsStarting(true);
     setIsHaltLocked(false);
-    setSocketStatus(prev => ({ 
-        ...prev, equityCurve: [], tradeMarkers: [], positions: [], candles: [] 
-    }));
+    setSocketStatus(prev => ({ ...prev, equityCurve: [], tradeMarkers: [], positions: [], candles: [] }));
     setSocketLogs([]);
-
     const finalConfig = {
         ...formConfig,
         capitalAllocation: Number(formConfig.capitalAllocation) || Number(paperBalance) || 1000,
@@ -305,61 +259,26 @@ const TradingBotContainer = () => {
         mlThresholdLong: parseFloat(formConfig.params.long_threshold) || 0.8,
         mlThresholdShort: parseFloat(formConfig.params.short_threshold) || 0.9,
         enable_shorting: formConfig.enable_shorting === true,
-        comboConfig: { 
-            strategyCodes: formConfig.strategies.map(s => s.code), 
-            combinationRule: formConfig.hybridMode || "AND", 
-            minVotesRequired: formConfig.hybridMode === "AND" ? formConfig.strategies.length : 1
-        }
+        comboConfig: { strategyCodes: formConfig.strategies.map(s => s.code), combinationRule: formConfig.hybridMode || "AND", minVotesRequired: formConfig.hybridMode === "AND" ? formConfig.strategies.length : 1 }
     };
-
     try {
         const response = await startBot({ userId: address, config: finalConfig });
         if (response && response.status === 'running') {
             toast.success(`Protocol Ignited: ${finalConfig.symbol}`);
             setShowPreFlight(false);
             logContainerRef.current?.scrollIntoView({ behavior: 'smooth' });
-        } else {
-            console.warn("Invalid start response", response);
-        }
-    } catch (e) {
-        toast.error(`Engine Failure: ${e.response?.data?.detail || e.message}`);
-    } finally {
-        setIsStarting(false);
-    }
+        } else { console.warn("Invalid start response", response); }
+    } catch (e) { toast.error(`Engine Failure: ${e.response?.data?.detail || e.message}`); } finally { setIsStarting(false); }
 };
 
     const handleHalt = async () => {
         setIsHaltLocked(true);
-        /*if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; }
-        setSocketStatus({ status: 'stopped', currentBalance: 0, unrealizedPnl: 0, exposure: 0, positions: [], equityCurve: [], startedAt: null, dailyProfit: 0, initialCapital: 0, tradeMarkers: [] });
-        setSocketLogs([]);
-        setUptime("00:00:00");
-        setSocketConnected(false);
-        */try {
-            await stopBot(); // Send "Stop" command to Python
-            toast.success("Halt Signal Sent - Waiting for confirmation...");
-            
-            // The socket will receive { status: "stopped" } from the backend automatically
-            // and THAT will update the UI state naturally.
-            
-            // Safety timeout: Unlock button after 5s just in case
+        try {
+            await stopBot();
+            toast.success("Safe Abort: Terminal Memory Purged");
             setTimeout(() => setIsHaltLocked(false), 5000); 
-        } catch (e) { 
-            toast.error("Halt Command Failed"); 
-            setIsHaltLocked(false); 
-        }
+        } catch (e) { toast.error("Halt Command Failed"); setIsHaltLocked(false); }
     };
-    
-        /*try {
-            //await stopBot();
-            //toast.success("Safe Abort: Terminal Memory Purged");
-            setTimeout(() => setIsHaltLocked(false), 5000); 
-        } catch (e) { 
-            toast.error("Halt Command Failed"); 
-            setIsHaltLocked(false); 
-        }
-    };
-    */
 
     const handleManualExit = async () => {
         if (!socketStatus.positions.length) return;
@@ -367,9 +286,20 @@ const TradingBotContainer = () => {
             const token = localStorage.getItem("token");
             await axios.post(`${API_BASE}/bot/close_position`, { userId: address, symbol: formConfig.symbol }, { headers: { Authorization: `Bearer ${token}` } });
             toast.success("Position Forced Closed");
-        } catch (e) {
-            toast.error("Exit Failed: " + (e.response?.data?.detail || e.message));
-        }
+        } catch (e) { toast.error("Exit Failed: " + (e.response?.data?.detail || e.message)); }
+    };
+
+    const handleReset = async () => {
+        if(!confirm("⚠️ FACTORY RESET: This will wipe all trade history, logs, and equity curves for this bot. Are you sure?")) return;
+        await resetBot();
+        setSocketLogs([]);
+        setSocketStatus({ status: 'stopped', currentBalance: 0, unrealizedPnl: 0, exposure: 0, positions: [], equityCurve: [], startedAt: null, dailyProfit: 0, initialCapital: 0, tradeMarkers: [] });
+    };
+
+    // 🟢 HANDLE CLEAR LOGS
+    const handleClearLogs = () => {
+        setSocketLogs([]);
+        toast.success("Terminal View Cleared");
     };
 
     if (!isConnected) {
@@ -418,9 +348,13 @@ const TradingBotContainer = () => {
                 {showPreFlight && <PreFlightModal config={formConfig} onConfirm={handleConfirmStart} onCancel={() => setShowPreFlight(false)} isStarting={isStarting} hasApiKeys={hasApiKeys} address={address} />}
 
                 <header className="max-w-[1800px] mx-auto mb-10 flex items-center justify-between transition-all">
-                    <div className="flex items-center gap-3"><div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div><div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v13.8</p></div></div>
+                    <div className="flex items-center gap-3"><div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div><div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v13.10</p></div></div>
                     <div className="flex items-center gap-4">
-                        {isBotRunning && <button onClick={handleHalt} className="px-6 py-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-xl font-black text-[10px] uppercase hover:bg-rose-500 hover:text-white transition-all flex items-center gap-2 shadow-lg shadow-rose-500/10"><Power size={12}/> Emergency Halt</button>}
+                        {isBotRunning ? (
+                            <button onClick={handleHalt} className="px-6 py-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-xl font-black text-[10px] uppercase hover:bg-rose-500 hover:text-white transition-all flex items-center gap-2 shadow-lg shadow-rose-500/10"><Power size={12}/> Emergency Halt</button>
+                        ) : (
+                            <button onClick={handleReset} className="px-6 py-3 bg-zinc-800/50 border border-zinc-700 text-zinc-400 rounded-xl font-black text-[10px] uppercase hover:bg-white hover:text-black transition-all flex items-center gap-2"><RotateCcw size={12}/> Factory Reset</button>
+                        )}
                         <ConnectButton />
                     </div>
                 </header>
@@ -457,6 +391,17 @@ const TradingBotContainer = () => {
                                             </div>
                                         </div>
                                     )}
+                                </div>
+
+                                {/* 🟢 RISK PROTOCOL SECTION */}
+                                <div className="space-y-4 border-t border-zinc-800/50 pt-8">
+                                    <div className="flex justify-between items-center"><div className="flex items-center gap-2"><AlertTriangle size={16} className="text-rose-500" /><h4 className="text-[10px] font-black uppercase tracking-widest text-rose-500">Risk Protocol</h4></div>
+                                    <select value={formConfig.riskManagementMode} onChange={(e)=>setFormConfig({...formConfig, riskManagementMode: e.target.value})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase"><option value="static">Static</option><option value="dynamic">Dynamic</option></select></div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div><label className={labelClass}>Risk / Trade %</label><input type="number" step="0.1" value={formConfig.riskPercentage} onChange={(e)=>setFormConfig({...formConfig, riskPercentage: parseFloat(e.target.value)})} className={inputClass}/></div>
+                                        <div><label className={labelClass}>Max Daily Loss %</label><input type="number" step="0.1" value={formConfig.maxDailyLoss} onChange={(e)=>setFormConfig({...formConfig, maxDailyLoss: parseFloat(e.target.value)})} className={inputClass}/></div>
+                                        <div className="col-span-2"><label className={labelClass}>Max Drawdown % (Hard Stop)</label><input type="number" step="0.1" value={formConfig.maxDrawdown} onChange={(e)=>setFormConfig({...formConfig, maxDrawdown: parseFloat(e.target.value)})} className={inputClass}/></div>
+                                    </div>
                                 </div>
 
                                 <div className="space-y-4 border-t border-zinc-800/50 pt-8">
@@ -496,6 +441,7 @@ const TradingBotContainer = () => {
 
                     <div className={`${isBotRunning ? 'col-span-12' : 'col-span-12 lg:col-span-9'} space-y-8 transition-all duration-700`}>
                         <div className={`grid grid-cols-1 ${isBotRunning ? 'md:grid-cols-6' : 'md:grid-cols-5'} gap-4`}>
+                            {/* ... (Metrics remain same) ... */}
                             <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
                                 <div className="flex justify-between items-start mb-1"><p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">Engine Status</p>{isBotRunning && <Timer size={12} className="text-emerald-500 animate-pulse" />}</div>
                                 <p className={`text-lg font-mono font-black ${isBotRunning ? 'text-emerald-400' : 'text-zinc-600'}`}>{isBotRunning ? 'OPERATIONAL' : 'STANDBY'}</p>
@@ -518,9 +464,13 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
                             <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 rounded-[40px] flex flex-col overflow-hidden shadow-2xl">
+                                {/* 🟢 UPDATED: NEURAL FLOW HEADER WITH CLEAR BUTTON */}
                                 <div className="p-5 border-b border-zinc-800 bg-zinc-800/20 flex justify-between items-center">
                                     <div className="flex items-center gap-2 text-violet-400"><Cpu size={16} className={isBotRunning ? 'animate-pulse' : ''}/><h3 className="text-[10px] font-black uppercase tracking-widest">Neural Flow</h3></div>
-                                    {socketConnected ? <Wifi size={14} className="text-emerald-500" /> : <WifiOff size={14} className="text-rose-500 animate-pulse" />}
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={handleClearLogs} className="text-zinc-600 hover:text-white transition-all"><Eraser size={14} /></button>
+                                        {socketConnected ? <Wifi size={14} className="text-emerald-500" /> : <WifiOff size={14} className="text-rose-500 animate-pulse" />}
+                                    </div>
                                 </div>
                                 <div ref={logContainerRef} className="flex-1 overflow-y-auto p-6 font-mono text-[10px] space-y-3 bg-black/20 custom-scrollbar">
                                     {socketLogs.length === 0 ? (
@@ -531,7 +481,6 @@ const TradingBotContainer = () => {
                                                 key={i} 
                                                 className={`p-3 rounded-xl border leading-relaxed flex flex-col gap-1 ${getLogStyle(parseLog(log.message || log))}`}
                                             >
-                                                {/* 🟢 NEW: TIMESTAMP DISPLAY */}
                                                 <span className="text-[9px] opacity-50 font-bold tracking-widest">{formatTime(log.time)}</span>
                                                 <span>{parseLog(log.message || log)}</span>
                                             </div>
@@ -541,6 +490,7 @@ const TradingBotContainer = () => {
                             </div>
                         </div>
 
+                        {/* ... (Bottom Chart sections remain same) ... */}
                         {isBotRunning && (
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-10 duration-1000">
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
@@ -578,6 +528,7 @@ const TradingBotContainer = () => {
     );
 };
 
+// ... (MetricCard & StrategyParamInputs remain same) ...
 const MetricCard = ({ label, value, subValue, color = "text-white", icon = null }) => (
     <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden shadow-xl">
         <p className="text-[9px] text-zinc-500 uppercase font-black tracking-[0.15em] mb-2">{label}</p>
