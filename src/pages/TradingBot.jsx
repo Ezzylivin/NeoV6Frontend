@@ -257,9 +257,31 @@ const TradingBotContainer = () => {
     }, [address, isHaltLocked]);
 
     const performanceData = useMemo(() => {
-        if (!socketStatus.equityCurve?.length) return [{ time: 'Start', balance: formConfig.capitalAllocation }];
-        return socketStatus.equityCurve.map(p => ({ time: new Date(p.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), balance: p.balance, confidence: (Math.random() * 20) + 80 }));
-    }, [socketStatus.equityCurve, formConfig.capitalAllocation]);
+    // 🟢 Handle empty curve or data mismatches
+    if (!socketStatus.equityCurve || socketStatus.equityCurve.length === 0) {
+        // Return a single "Start" point so the chart has something to render
+        return [{ 
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
+            balance: Number(activeBalance) || 0,
+            confidence: 50 
+        }];
+    }
+    
+    return socketStatus.equityCurve.map(p => ({
+        // Ensure time is formatted correctly for Recharts
+        time: p.time ? new Date(p.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '00:00',
+        balance: p.balance || p.equity || 0,
+        confidence: p.confidence || 0
+    }));
+}, [socketStatus.equityCurve, activeBalance]);
+    
+    return socketStatus.equityCurve.map(p => ({
+        // Ensure time is formatted correctly for Recharts
+        time: p.time ? new Date(p.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '00:00',
+        balance: p.balance || p.equity || 0,
+        confidence: p.confidence || 0
+    }));
+}, [socketStatus.equityCurve, activeBalance]);
 
    const handleConfirmStart = async () => {
     setIsStarting(true);
