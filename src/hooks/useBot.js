@@ -1,5 +1,5 @@
 // File: src/hooks/useBot.js
-// 🚀 FIX: v14.4 - Fixed Return Value & Consolidated Log Sync
+// 🚀 FIX: v14.6 - Merged Config Hydration & Crash Fixes
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
@@ -16,6 +16,9 @@ export const useBot = () => {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(false);
     
+    // 🟢 NEW: State to hold restored config (Fixes missing lines on refresh)
+    const [restoredConfig, setRestoredConfig] = useState(null);
+    
     const { address, isConnected } = useAccount();
     const socketRef = useRef(null);
 
@@ -29,7 +32,7 @@ export const useBot = () => {
 
     const activeUserId = resolveActiveId();
 
-    // 🟢 INITIAL STATUS & LOG HISTORY SYNC
+    // 🟢 INITIAL SYNC (Status, Config, Logs)
     useEffect(() => {
         if (!activeUserId) return;
 
@@ -38,32 +41,27 @@ export const useBot = () => {
                 const token = localStorage.getItem("token");
                 const headers = { Authorization: `Bearer ${token}` };
 
-                // 1. Fetch Full Bot State (Status + Logs + Equity)
                 const statusRes = await axios.get(`${BASE_URL}/bot/status`, {
-                    params: { userId: activeUserId },
-                    headers
+                    params: { userId: activeUserId }, headers
                 });
 
                 if (statusRes.data) {
                     setBotStatus(statusRes.data);
                     
-                    // 🟢 RESUME SESSION
+                    // 🟢 Capture Config for restoration
+                    if (statusRes.data.config) {
+                        setRestoredConfig(statusRes.data.config);
+                    }
+
                     if (statusRes.data.status === 'running') {
                         localStorage.setItem("neo_active_bot_id", activeUserId);
                     }
 
-                    // 🟢 HYDRATE LOGS (From the main status payload)
-                    // The backend main3.py now returns 'logs' in this response
                     if (statusRes.data.logs && Array.isArray(statusRes.data.logs)) {
-                        // Map backend format to frontend format if needed
-                        const formattedLogs = statusRes.data.logs.map(l => ({
-                            message: l.message || l.msg,
-                            time: l.time
-                        }));
-                        setLogs(formattedLogs.reverse()); // Show newest first
+                        // Use backend logs directly
+                        setLogs(statusRes.data.logs); 
                     }
                 }
-
             } catch (err) {
                 console.error("Sync Error:", err.message);
             }
@@ -93,8 +91,9 @@ export const useBot = () => {
             });
 
             socketRef.current.on("bot_log", (newLog) => {
-                // Prepend new log (Top of list)
-                setLogs(prev => [newLog, ...prev].slice(0, 100));
+                // Ensure uniform log format
+                const logObj = typeof newLog === 'string' ? { message: newLog, time: new Date().toISOString() } : newLog;
+                setLogs(prev => [logObj, ...prev].slice(0, 200)); 
             });
         }
 
@@ -116,7 +115,6 @@ export const useBot = () => {
 
             const payload = configData.config ? configData : { userId, config: { ...configData, userId } };
 
-            // 🟢 CRITICAL FIX: Capture the response
             const response = await axios.post(`${BASE_URL}/bot/start`, payload, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -129,7 +127,7 @@ export const useBot = () => {
         } catch (error) {
             localStorage.removeItem("neo_active_bot_id");
             toast.error(error.response?.data?.message || "Failed to start bot");
-            return null; // Return null on error so UI can handle it gracefully
+            return null; 
         } finally {
             setLoading(false);
         }
@@ -165,5 +163,5 @@ export const useBot = () => {
         } catch (e) { console.error(e); }
     };
 
-    return { botStatus, logs, loading, startBot, stopBot, resetBot };
+    return { botStatus, logs, loading, restoredConfig, startBot, stopBot, resetBot };
 };
