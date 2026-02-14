@@ -1,5 +1,5 @@
 // File: src/hooks/useBot.js
-// 🚀 FIX: v14.6 - Merged Config Hydration & Crash Fixes
+// 🚀 FIX: v14.7 - Added Manual Refresh Capability
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
@@ -32,43 +32,44 @@ export const useBot = () => {
 
     const activeUserId = resolveActiveId();
 
-    // 🟢 INITIAL SYNC (Status, Config, Logs)
-    useEffect(() => {
+    // 🟢 REFRESH FUNCTION (Exposed to UI)
+    const refreshState = useCallback(async () => {
         if (!activeUserId) return;
+        try {
+            const token = localStorage.getItem("token");
+            const headers = { Authorization: `Bearer ${token}` };
 
-        const syncInitialState = async () => {
-            try {
-                const token = localStorage.getItem("token");
-                const headers = { Authorization: `Bearer ${token}` };
+            const statusRes = await axios.get(`${BASE_URL}/bot/status`, {
+                params: { userId: activeUserId }, headers
+            });
 
-                const statusRes = await axios.get(`${BASE_URL}/bot/status`, {
-                    params: { userId: activeUserId }, headers
-                });
-
-                if (statusRes.data) {
-                    setBotStatus(statusRes.data);
-                    
-                    // 🟢 Capture Config for restoration
-                    if (statusRes.data.config) {
-                        setRestoredConfig(statusRes.data.config);
-                    }
-
-                    if (statusRes.data.status === 'running') {
-                        localStorage.setItem("neo_active_bot_id", activeUserId);
-                    }
-
-                    if (statusRes.data.logs && Array.isArray(statusRes.data.logs)) {
-                        // Use backend logs directly
-                        setLogs(statusRes.data.logs); 
-                    }
+            if (statusRes.data) {
+                setBotStatus(statusRes.data);
+                
+                // 🟢 Capture Config for restoration
+                if (statusRes.data.config) {
+                    setRestoredConfig(statusRes.data.config);
                 }
-            } catch (err) {
-                console.error("Sync Error:", err.message);
-            }
-        };
 
-        syncInitialState();
+                if (statusRes.data.status === 'running') {
+                    localStorage.setItem("neo_active_bot_id", activeUserId);
+                }
+
+                // 🟢 Force Update Logs (Get last 200 from backend)
+                if (statusRes.data.logs && Array.isArray(statusRes.data.logs)) {
+                    // Use backend logs directly
+                    setLogs(statusRes.data.logs); 
+                }
+            }
+        } catch (err) {
+            console.error("Sync Error:", err.message);
+        }
     }, [activeUserId]);
+
+    // 🟢 INITIAL SYNC (Uses the refresh function)
+    useEffect(() => {
+        refreshState();
+    }, [refreshState]);
 
     // 🟢 WEBSOCKET CONNECTION
     useEffect(() => {
@@ -163,5 +164,6 @@ export const useBot = () => {
         } catch (e) { console.error(e); }
     };
 
-    return { botStatus, logs, loading, restoredConfig, startBot, stopBot, resetBot };
+    // 🟢 Export refreshState
+    return { botStatus, logs, loading, restoredConfig, startBot, stopBot, resetBot, refreshState };
 };
