@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 FIX: v13.6 - ENABLE SHORTING CONFIG FIXED
+// 🚀 FIX: v13.7 - DYNAMIC LOG COLORING & SHORTING CONFIG
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
@@ -35,12 +35,39 @@ const labelClass = "text-[9px] text-zinc-500 uppercase font-black mb-1 block ml-
 const COIN_PAIRS = ["BTC-USD", "ETH-USD", "SOL-USD", "DOGE-USD", "MATIC-USD", "LINK-USD", "ADA-USD"];
 const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"];
 
-// 🟢 LOG PARSER (Fixes Color Parsing for Frontend)
+// 🟢 LOG PARSER (Clean Timestamps)
 const parseLog = (log) => {
     if (!log) return "";
     const msg = typeof log === 'string' ? log : (log.message || log.msg || JSON.stringify(log));
-    // Strip timestamps if backend sends them raw
     return msg.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z\s*/, '');
+};
+
+// 🟢 DYNAMIC COLOR LOGIC (Number-Based)
+const getLogStyle = (msg) => {
+    const text = msg.toUpperCase();
+
+    // 1. Mindset: Parse Percentage (e.g., "85%")
+    const pctMatch = text.match(/(\d+)%/);
+    if (pctMatch) {
+        const val = parseInt(pctMatch[1]);
+        if (val >= 80) return 'text-rose-400 bg-rose-500/10 border-rose-500/20'; // Expensive -> Red
+        if (val <= 20) return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'; // Cheap -> Green
+        if (val > 20 && val < 80) return 'text-zinc-400 bg-zinc-800/30 border-zinc-700'; // Balanced -> Gray
+    }
+
+    // 2. Trend/Bias: Keyword Logic
+    if (text.includes("UPTREND") || text.includes("BULLISH") || text.includes("EXPANSION") || text.includes("UP")) {
+        return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+    }
+    if (text.includes("DOWNTREND") || text.includes("BEARISH") || text.includes("CONTRACTION") || text.includes("DOWN")) {
+        return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+    }
+    
+    // 3. Logic/Intent: Fallback to existing tags
+    if (text.includes("PASSED") || text.includes("STALKING LONG")) return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+    if (text.includes("VETOED") || text.includes("STALKING SHORT")) return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+
+    return 'text-zinc-500 bg-zinc-900 border-zinc-800'; // Default
 };
 
 // --- CONFIG POOLS ---
@@ -159,7 +186,7 @@ const TradingBotContainer = () => {
         mlMode: "off", mlModel: "xgboost", mlThreshold: 0.5,
         riskManagementMode: "static", riskPercentage: 1, hybridMode: "AND",
         maxDailyLoss: 5, maxDrawdown: 10, maxTradesPerDay: 20,
-        enable_shorting: true, // 🟢 SHORTING CONFIG
+        enable_shorting: true, 
         params: { take_profit: 0.05, stop_loss: 0.02, trailing_stop: 0.01, long_threshold: 0.5, short_threshold: 0.5 },
         filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 }
     });
@@ -250,7 +277,6 @@ const TradingBotContainer = () => {
         capitalAllocation: Number(formConfig.capitalAllocation) || Number(paperBalance) || 1000,
         mlMode: formConfig.mlMode || "on", 
         mlModel: formConfig.mlModel || "stacking", 
-        // 🟢 Pass UI Gates to Backend Logic
         mlThresholdLong: parseFloat(formConfig.params.long_threshold) || 0.8,
         mlThresholdShort: parseFloat(formConfig.params.short_threshold) || 0.9,
         enable_shorting: formConfig.enable_shorting === true,
@@ -263,10 +289,12 @@ const TradingBotContainer = () => {
 
     try {
         const response = await startBot({ userId: address, config: finalConfig });
-        if (response.status === 'running') {
+        if (response && response.status === 'running') {
             toast.success(`Protocol Ignited: ${finalConfig.symbol}`);
             setShowPreFlight(false);
             logContainerRef.current?.scrollIntoView({ behavior: 'smooth' });
+        } else {
+            console.warn("Invalid start response", response);
         }
     } catch (e) {
         toast.error(`Engine Failure: ${e.response?.data?.detail || e.message}`);
@@ -349,7 +377,7 @@ const TradingBotContainer = () => {
                 {showPreFlight && <PreFlightModal config={formConfig} onConfirm={handleConfirmStart} onCancel={() => setShowPreFlight(false)} isStarting={isStarting} hasApiKeys={hasApiKeys} address={address} />}
 
                 <header className="max-w-[1800px] mx-auto mb-10 flex items-center justify-between transition-all">
-                    <div className="flex items-center gap-3"><div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div><div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v13.6</p></div></div>
+                    <div className="flex items-center gap-3"><div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div><div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v13.7</p></div></div>
                     <div className="flex items-center gap-4">
                         {isBotRunning && <button onClick={handleHalt} className="px-6 py-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-xl font-black text-[10px] uppercase hover:bg-rose-500 hover:text-white transition-all flex items-center gap-2 shadow-lg shadow-rose-500/10"><Power size={12}/> Emergency Halt</button>}
                         <ConnectButton />
@@ -454,7 +482,18 @@ const TradingBotContainer = () => {
                                     {socketConnected ? <Wifi size={14} className="text-emerald-500" /> : <WifiOff size={14} className="text-rose-500 animate-pulse" />}
                                 </div>
                                 <div ref={logContainerRef} className="flex-1 overflow-y-auto p-6 font-mono text-[10px] space-y-5 bg-black/20 custom-scrollbar">
-                                    {socketLogs.length === 0 ? <div className="h-full flex items-center justify-center text-zinc-600 italic">Initializing neural link...</div> : socketLogs.map((log, i) => <div key={i} className={`p-3 rounded-xl border leading-relaxed ${parseLog(log).includes('🟢') || parseLog(log).includes('PASSED') ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400' : parseLog(log).includes('🔴') || parseLog(log).includes('VETOED') ? 'bg-rose-500/5 border-rose-500/20 text-rose-400' : parseLog(log).includes('STALKING') ? 'bg-amber-500/5 border-amber-500/20 text-amber-500' : 'bg-zinc-800/20 border-transparent text-zinc-500'}`}>{parseLog(log)}</div>)}
+                                    {socketLogs.length === 0 ? (
+                                        <div className="h-full flex items-center justify-center text-zinc-600 italic">Initializing neural link...</div>
+                                    ) : (
+                                        socketLogs.map((log, i) => (
+                                            <div 
+                                                key={i} 
+                                                className={`p-3 rounded-xl border leading-relaxed text-[10px] font-mono mb-2 ${getLogStyle(parseLog(log))}`}
+                                            >
+                                                {parseLog(log)}
+                                            </div>
+                                        ))
+                                    )}
                                 </div>
                             </div>
                         </div>
