@@ -304,7 +304,7 @@ const TradingBotContainer = () => {
         // This clears the dashboard immediately so it can't "revert"
         setSocketStatus({ 
             status: 'stopped', 
-            currentBalance: targetCapital,
+            currentBalance: 0,
             unrealizedPnl: 0, 
             positions: [], 
             equityCurve: [], 
