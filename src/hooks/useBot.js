@@ -15,8 +15,6 @@ export const useBot = () => {
     const [botStatus, setBotStatus] = useState(null);
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(false);
-    
-    // 🟢 NEW: State to hold restored config (Fixes missing lines on refresh)
     const [restoredConfig, setRestoredConfig] = useState(null);
     
     const { address, isConnected } = useAccount();
@@ -45,125 +43,74 @@ export const useBot = () => {
 
             if (statusRes.data) {
                 setBotStatus(statusRes.data);
-                
-                // 🟢 Capture Config for restoration
-                if (statusRes.data.config) {
-                    setRestoredConfig(statusRes.data.config);
-                }
-
-                if (statusRes.data.status === 'running') {
-                    localStorage.setItem("neo_active_bot_id", activeUserId);
-                }
-
-                // 🟢 Force Update Logs (Get last 200 from backend)
-                if (statusRes.data.logs && Array.isArray(statusRes.data.logs)) {
-                    // Use backend logs directly
-                    setLogs(statusRes.data.logs); 
-                }
+                if (statusRes.data.config) setRestoredConfig(statusRes.data.config);
+                if (statusRes.data.status === 'running') localStorage.setItem("neo_active_bot_id", activeUserId);
+                if (statusRes.data.logs && Array.isArray(statusRes.data.logs)) setLogs(statusRes.data.logs); 
             }
         } catch (err) {
             console.error("Sync Error:", err.message);
         }
     }, [activeUserId]);
 
-    // 🟢 INITIAL SYNC (Uses the refresh function)
-    useEffect(() => {
-        refreshState();
-    }, [refreshState]);
+    // Initial Sync
+    useEffect(() => { refreshState(); }, [refreshState]);
 
-    // 🟢 WEBSOCKET CONNECTION
+    // WebSocket Logic (Same as before)
     useEffect(() => {
         if (!activeUserId) return;
-
         if (!socketRef.current) {
-            socketRef.current = io(SOCKET_URL, {
-                query: { userId: activeUserId },
-                transports: ['websocket'],
-                reconnectionAttempts: 5
-            });
-
+            socketRef.current = io(SOCKET_URL, { query: { userId: activeUserId }, transports: ['websocket'], reconnectionAttempts: 5 });
             socketRef.current.on("bot_status_update", (data) => {
                 setBotStatus(data);
-                if (data.status === 'running' || data.status === 'initializing') {
-                    localStorage.setItem("neo_active_bot_id", activeUserId);
-                } else if (data.status === 'stopped') {
-                    localStorage.removeItem("neo_active_bot_id");
-                }
+                if (data.status === 'running' || data.status === 'initializing') localStorage.setItem("neo_active_bot_id", activeUserId);
+                else if (data.status === 'stopped') localStorage.removeItem("neo_active_bot_id");
             });
-
             socketRef.current.on("bot_log", (newLog) => {
-                // Ensure uniform log format
                 const logObj = typeof newLog === 'string' ? { message: newLog, time: new Date().toISOString() } : newLog;
                 setLogs(prev => [logObj, ...prev].slice(0, 200)); 
             });
         }
-
-        return () => {
-            if (socketRef.current) {
-                socketRef.current.disconnect();
-                socketRef.current = null;
-            }
-        };
+        return () => { if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; } };
     }, [activeUserId]);
 
+    // Actions
     const startBot = async (configData) => {
-        setLoading(true);
-        setLogs([]); 
+        setLoading(true); setLogs([]); 
         try {
             const token = localStorage.getItem("token");
             const userId = activeUserId || address; 
             localStorage.setItem("neo_active_bot_id", userId);
-
             const payload = configData.config ? configData : { userId, config: { ...configData, userId } };
-
-            const response = await axios.post(`${BASE_URL}/bot/start`, payload, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            
+            const response = await axios.post(`${BASE_URL}/bot/start`, payload, { headers: { Authorization: `Bearer ${token}` } });
             toast.success("Start Command Sent");
-            
-            // 🟢 CRITICAL FIX: Return data so TradingBot.jsx doesn't crash
             return response.data; 
-
         } catch (error) {
             localStorage.removeItem("neo_active_bot_id");
             toast.error(error.response?.data?.message || "Failed to start bot");
             return null; 
-        } finally {
-            setLoading(false);
-        }
+        } finally { setLoading(false); }
     };
 
     const stopBot = async () => {
         setLoading(true);
         try {
             const token = localStorage.getItem("token");
-            const response = await axios.post(`${BASE_URL}/bot/stop`, { userId: resolveActiveId() }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await axios.post(`${BASE_URL}/bot/stop`, { userId: resolveActiveId() }, { headers: { Authorization: `Bearer ${token}` } });
             localStorage.removeItem("neo_active_bot_id");
             toast.success("Stop Command Sent");
             return response.data;
-        } catch (error) {
-            toast.error("Failed to stop bot");
-        } finally {
-            setLoading(false);
-        }
+        } catch (error) { toast.error("Failed to stop bot"); } finally { setLoading(false); }
     };
 
     const resetBot = async () => {
         try {
             const token = localStorage.getItem("token");
-            await axios.post(`${BASE_URL}/bot/reset`, { userId: resolveActiveId() }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setBotStatus(null);
-            setLogs([]);
-            localStorage.removeItem("neo_active_bot_id");
+            await axios.post(`${BASE_URL}/bot/reset`, { userId: resolveActiveId() }, { headers: { Authorization: `Bearer ${token}` } });
+            setBotStatus(null); setLogs([]); localStorage.removeItem("neo_active_bot_id");
             toast.success("Bot Reset Complete");
         } catch (e) { console.error(e); }
     };
 
-    // 🟢 Export refreshState
+    // 🟢 Export refreshState here
     return { botStatus, logs, loading, restoredConfig, startBot, stopBot, resetBot, refreshState };
 };
