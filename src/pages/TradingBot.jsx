@@ -1,4 +1,4 @@
-// File: src/pages/TradingBot.jsx
+/// File: src/pages/TradingBot.jsx
 // 🚀 FIX: v13.8 - Full Integration (Color Logic + Config Restore + Timestamps)
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
@@ -204,7 +204,7 @@ const TradingBotContainer = () => {
     // 🟢 1. RESTORE STATE ON RETURN (Logs & Config)
     useEffect(() => {
         if (hookBotStatus) {
-            setSocketStatus(prev => ({ ...prev, ...hookBotStatus }));
+            setSocketStatus(prev => ({ ...prev, ...hookBotStatus, logs: hookBotStatus.logs?.length ? hookBotStatus.logs : prev.logs }));
         }
         if (hookLogs.length > 0) {
             setSocketLogs(hookLogs);
@@ -359,6 +359,7 @@ const TradingBotContainer = () => {
             setIsHaltLocked(false); 
         }
     };
+    */
 
     const handleManualExit = async () => {
         if (!socketStatus.positions.length) return;
