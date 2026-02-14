@@ -161,7 +161,7 @@ const TradingBotContainer = () => {
     const [hasApiKeys, setHasApiKeys] = useState(false);
     const [showPreFlight, setShowPreFlight] = useState(false);
     const [isStarting, setIsStarting] = useState(false);
-    const [paperBalance, setPaperBalance] = useState(10000);
+    const [paperBalance, setPaperBalance] = useState(initialConfig?.capitalAllocation || 0);
     const [modeStep, setModeStep] = useState('selection');
     
     const socketRef = useRef(null);
