@@ -293,9 +293,11 @@ const TradingBotContainer = () => {
         return () => { if (socketRef.current) socketRef.current.disconnect(); };
     }, [address, isHaltLocked]);
 
+   const equityCurve = socketStatus.equityCurve || [];
+
     const performanceData = useMemo(() => {
-        // 🟢 Safety Check: If no data, show a flat line at current balance
-        if (!socketStatus.equityCurve || socketStatus.equityCurve.length === 0) {
+        // If no data, return a flat line so the chart renders something
+        if (equityCurve.length === 0) {
             return [{ 
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
                 balance: Number(activeBalance) || 0,
@@ -303,21 +305,14 @@ const TradingBotContainer = () => {
             }];
         }
         
-        return socketStatus.equityCurve.map(p => ({
+        return equityCurve.map(p => ({
             time: p.time ? new Date(p.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '00:00',
             balance: p.balance || p.equity || 0,
             confidence: p.confidence || 0
         }));
-    }, [socketStatus.equityCurve, activeBalance]);
-    
-    return socketStatus.equityCurve.map(p => ({
-        // Ensure time is formatted correctly for Recharts
-        time: p.time ? new Date(p.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '00:00',
-        balance: p.balance || p.equity || 0,
-        confidence: p.confidence || 0
-    }));
-}, [socketStatus.equityCurve, activeBalance]);
+    }, [equityCurve, activeBalance]);
 
+    
    const handleConfirmStart = async () => {
     setIsStarting(true);
     setIsHaltLocked(false);
