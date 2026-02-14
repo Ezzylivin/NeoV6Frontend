@@ -1,5 +1,5 @@
 // File: src/hooks/useBot.js
-// 🚀 UPGRADE: v14.3 - Neural History Sync (Persistent Logs Recovery)
+// 🚀 FIX: v14.4 - Fixed Return Value & Consolidated Log Sync
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { useAccount } from 'wagmi'; 
 import { io } from "socket.io-client"; 
 
-const API_URL = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 const SOCKET_URL = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
 const BASE_URL = API_URL.endsWith('/api') ? API_URL : `${API_URL}/api`;
 
@@ -38,7 +38,7 @@ export const useBot = () => {
                 const token = localStorage.getItem("token");
                 const headers = { Authorization: `Bearer ${token}` };
 
-                // 1. Fetch Basic Bot Status (Balance, Positions, State)
+                // 1. Fetch Full Bot State (Status + Logs + Equity)
                 const statusRes = await axios.get(`${BASE_URL}/bot/status`, {
                     params: { userId: activeUserId },
                     headers
@@ -46,21 +46,22 @@ export const useBot = () => {
 
                 if (statusRes.data) {
                     setBotStatus(statusRes.data);
+                    
+                    // 🟢 RESUME SESSION
                     if (statusRes.data.status === 'running') {
                         localStorage.setItem("neo_active_bot_id", activeUserId);
                     }
-                }
 
-                // 2. 🟢 CATCH-UP: Fetch Persistent Log History from MongoDB
-                // This ensures the stream is full even if the user just logged in
-                const logsRes = await axios.get(`${BASE_URL}/bot/logs/${activeUserId}`, { headers });
-                
-                if (Array.isArray(logsRes.data)) {
-                    // Logs from API are already sorted/formatted by the backend
-                    setLogs(logsRes.data); 
-                } else if (statusRes.data.logs) {
-                    // Fallback to memory logs if DB history is empty
-                    setLogs(statusRes.data.logs.slice(0, 100));
+                    // 🟢 HYDRATE LOGS (From the main status payload)
+                    // The backend main3.py now returns 'logs' in this response
+                    if (statusRes.data.logs && Array.isArray(statusRes.data.logs)) {
+                        // Map backend format to frontend format if needed
+                        const formattedLogs = statusRes.data.logs.map(l => ({
+                            message: l.message || l.msg,
+                            time: l.time
+                        }));
+                        setLogs(formattedLogs.reverse()); // Show newest first
+                    }
                 }
 
             } catch (err) {
@@ -71,7 +72,7 @@ export const useBot = () => {
         syncInitialState();
     }, [activeUserId]);
 
-    // 🟢 WEBSOCKET CONNECTION (Real-time updates)
+    // 🟢 WEBSOCKET CONNECTION
     useEffect(() => {
         if (!activeUserId) return;
 
@@ -92,6 +93,7 @@ export const useBot = () => {
             });
 
             socketRef.current.on("bot_log", (newLog) => {
+                // Prepend new log (Top of list)
                 setLogs(prev => [newLog, ...prev].slice(0, 100));
             });
         }
@@ -114,13 +116,20 @@ export const useBot = () => {
 
             const payload = configData.config ? configData : { userId, config: { ...configData, userId } };
 
-            await axios.post(`${BASE_URL}/bot/start`, payload, {
+            // 🟢 CRITICAL FIX: Capture the response
+            const response = await axios.post(`${BASE_URL}/bot/start`, payload, {
                 headers: { Authorization: `Bearer ${token}` }
             });
+            
             toast.success("Start Command Sent");
+            
+            // 🟢 CRITICAL FIX: Return data so TradingBot.jsx doesn't crash
+            return response.data; 
+
         } catch (error) {
             localStorage.removeItem("neo_active_bot_id");
             toast.error(error.response?.data?.message || "Failed to start bot");
+            return null; // Return null on error so UI can handle it gracefully
         } finally {
             setLoading(false);
         }
@@ -130,11 +139,12 @@ export const useBot = () => {
         setLoading(true);
         try {
             const token = localStorage.getItem("token");
-            await axios.post(`${BASE_URL}/bot/stop`, { userId: resolveActiveId() }, {
+            const response = await axios.post(`${BASE_URL}/bot/stop`, { userId: resolveActiveId() }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             localStorage.removeItem("neo_active_bot_id");
             toast.success("Stop Command Sent");
+            return response.data;
         } catch (error) {
             toast.error("Failed to stop bot");
         } finally {
