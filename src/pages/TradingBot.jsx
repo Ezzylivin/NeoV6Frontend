@@ -201,10 +201,47 @@ const TradingBotContainer = () => {
 
     const isBotRunning = socketStatus.status === 'running' && !isHaltLocked;
 
-    useEffect(() => {
-        if (hookBotStatus) setSocketStatus(prev => ({ ...prev, ...hookBotStatus, logs: hookBotStatus.logs?.length ? hookBotStatus.logs : prev.logs }));
-        if (hookLogs.length > 0) setSocketLogs(hookLogs);
-        if (restoredConfig) setFormConfig(prev => ({ ...prev, ...restoredConfig, strategies: restoredConfig.strategies && restoredConfig.strategies.length > 0 ? restoredConfig.strategies : prev.strategies }));
+   useEffect(() => {
+        // 1. Sync Status (Safe Merge)
+        if (hookBotStatus) {
+            setSocketStatus(prev => ({ 
+                ...prev, 
+                ...hookBotStatus, 
+                // 🟢 Capture config if it comes via socket
+                config: hookBotStatus.config || prev.config,
+                // Preserve logs if the update is empty
+                logs: hookBotStatus.logs?.length ? hookBotStatus.logs : prev.logs 
+            }));
+        }
+
+        // 2. Sync Logs
+        if (hookLogs && hookLogs.length > 0) {
+            setSocketLogs(hookLogs);
+        }
+
+        // 3. FORCE STRATEGY RESTORATION (The Fix)
+        // We check BOTH sources: API (restoredConfig) OR Socket (hookBotStatus)
+        const incoming = restoredConfig || hookBotStatus?.config;
+        
+        // 🟢 FIX: robust check to ensure strategies exist
+        if (incoming && incoming.strategies && incoming.strategies.length > 0) {
+            
+            setFormConfig(prev => {
+                // Prevent infinite loops by checking if data is actually different
+                if (JSON.stringify(prev.strategies) === JSON.stringify(incoming.strategies)) {
+                    return prev;
+                }
+                
+                console.log("♻️ HYDRATING STRATEGIES:", incoming.strategies);
+                
+                // 🟢 MERGE STRATEGIES CORRECTLY
+                return {
+                    ...prev,
+                    ...incoming, // Restore risk/ML settings too
+                    strategies: incoming.strategies 
+                };
+            });
+        }
     }, [hookBotStatus, hookLogs, restoredConfig]);
 
     const activeBalance = useMemo(() => {
@@ -257,23 +294,21 @@ const TradingBotContainer = () => {
     }, [address, isHaltLocked]);
 
     const performanceData = useMemo(() => {
-    // 🟢 Handle empty curve or data mismatches
-    if (!socketStatus.equityCurve || socketStatus.equityCurve.length === 0) {
-        // Return a single "Start" point so the chart has something to render
-        return [{ 
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
-            balance: Number(activeBalance) || 0,
-            confidence: 50 
-        }];
-    }
-    
-    return socketStatus.equityCurve.map(p => ({
-        // Ensure time is formatted correctly for Recharts
-        time: p.time ? new Date(p.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '00:00',
-        balance: p.balance || p.equity || 0,
-        confidence: p.confidence || 0
-    }));
-}, [socketStatus.equityCurve, activeBalance]);
+        // 🟢 Safety Check: If no data, show a flat line at current balance
+        if (!socketStatus.equityCurve || socketStatus.equityCurve.length === 0) {
+            return [{ 
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
+                balance: Number(activeBalance) || 0,
+                confidence: 50 
+            }];
+        }
+        
+        return socketStatus.equityCurve.map(p => ({
+            time: p.time ? new Date(p.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '00:00',
+            balance: p.balance || p.equity || 0,
+            confidence: p.confidence || 0
+        }));
+    }, [socketStatus.equityCurve, activeBalance]);
     
     return socketStatus.equityCurve.map(p => ({
         // Ensure time is formatted correctly for Recharts
