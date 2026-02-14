@@ -330,14 +330,29 @@ const TradingBotContainer = () => {
 
     const handleHalt = async () => {
         setIsHaltLocked(true);
-        if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; }
+        /*if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; }
         setSocketStatus({ status: 'stopped', currentBalance: 0, unrealizedPnl: 0, exposure: 0, positions: [], equityCurve: [], startedAt: null, dailyProfit: 0, initialCapital: 0, tradeMarkers: [] });
         setSocketLogs([]);
         setUptime("00:00:00");
         setSocketConnected(false);
-        try {
-            await stopBot();
-            toast.success("Safe Abort: Terminal Memory Purged");
+        */try {
+            await stopBot(); // Send "Stop" command to Python
+            toast.success("Halt Signal Sent - Waiting for confirmation...");
+            
+            // The socket will receive { status: "stopped" } from the backend automatically
+            // and THAT will update the UI state naturally.
+            
+            // Safety timeout: Unlock button after 5s just in case
+            setTimeout(() => setIsHaltLocked(false), 5000); 
+        } catch (e) { 
+            toast.error("Halt Command Failed"); 
+            setIsHaltLocked(false); 
+        }
+    };
+    
+        /*try {
+            //await stopBot();
+            //toast.success("Safe Abort: Terminal Memory Purged");
             setTimeout(() => setIsHaltLocked(false), 5000); 
         } catch (e) { 
             toast.error("Halt Command Failed"); 
