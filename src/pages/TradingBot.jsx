@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 FIX: v13.10 - Added "Clear Logs" Button to Neural Flow
+// 🚀 FIX: v13.11 - Added "Sync Stream" Button
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
@@ -12,9 +12,9 @@ import { UIModeProvider } from "../context/UIModeContext";
 import { LiveTradingChart } from "../components/LiveTradingChart.jsx"; 
 import { 
     Plus, Trash2, Shield, Globe, Cpu, Filter, TrendingUp, 
-    Activity, Scale, Power, RefreshCw, Wallet, Wifi, WifiOff,
+    Activity, Scale, Power, RefreshCw, Wallet, Wifi, WifiOff, // 🟢 Added RefreshCw
     ArrowUpRight, Clock, Box, Timer, DollarSign, Info, BarChart, Settings2, Zap, ArrowDownRight,
-    CandlestickChart, AlertTriangle, RotateCcw, Eraser // 🟢 Imported Eraser/Trash2
+    CandlestickChart, AlertTriangle, RotateCcw, Eraser
 } from "lucide-react"; 
 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
@@ -153,7 +153,8 @@ const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, a
 };
 
 const TradingBotContainer = () => {
-    const { startBot, stopBot, resetBot, restoredConfig, botStatus: hookBotStatus, logs: hookLogs } = useBot(); 
+    // 🟢 DESTRUCTURE refreshState
+    const { startBot, stopBot, resetBot, refreshState, restoredConfig, botStatus: hookBotStatus, logs: hookLogs } = useBot(); 
     const { isConnected, address } = useAccount();
     
     const [isModeSelected, setIsModeSelected] = useState(false);
@@ -302,6 +303,12 @@ const TradingBotContainer = () => {
         toast.success("Terminal View Cleared");
     };
 
+    // 🟢 HANDLE SYNC LOGS
+    const handleSyncLogs = async () => {
+        await refreshState();
+        toast.success("Neural Stream Synced (Last 200 Thoughts)");
+    };
+
     if (!isConnected) {
         return (
             <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6">
@@ -348,7 +355,7 @@ const TradingBotContainer = () => {
                 {showPreFlight && <PreFlightModal config={formConfig} onConfirm={handleConfirmStart} onCancel={() => setShowPreFlight(false)} isStarting={isStarting} hasApiKeys={hasApiKeys} address={address} />}
 
                 <header className="max-w-[1800px] mx-auto mb-10 flex items-center justify-between transition-all">
-                    <div className="flex items-center gap-3"><div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div><div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v13.10</p></div></div>
+                    <div className="flex items-center gap-3"><div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div><div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v13.11</p></div></div>
                     <div className="flex items-center gap-4">
                         {isBotRunning ? (
                             <button onClick={handleHalt} className="px-6 py-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-xl font-black text-[10px] uppercase hover:bg-rose-500 hover:text-white transition-all flex items-center gap-2 shadow-lg shadow-rose-500/10"><Power size={12}/> Emergency Halt</button>
@@ -464,11 +471,16 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
                             <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 rounded-[40px] flex flex-col overflow-hidden shadow-2xl">
-                                {/* 🟢 UPDATED: NEURAL FLOW HEADER WITH CLEAR BUTTON */}
+                                {/* 🟢 UPDATED: NEURAL FLOW HEADER WITH SYNC BUTTON */}
                                 <div className="p-5 border-b border-zinc-800 bg-zinc-800/20 flex justify-between items-center">
                                     <div className="flex items-center gap-2 text-violet-400"><Cpu size={16} className={isBotRunning ? 'animate-pulse' : ''}/><h3 className="text-[10px] font-black uppercase tracking-widest">Neural Flow</h3></div>
                                     <div className="flex items-center gap-2">
-                                        <button onClick={handleClearLogs} className="text-zinc-600 hover:text-white transition-all"><Eraser size={14} /></button>
+                                        {/* 🟢 SYNC BUTTON */}
+                                        <button onClick={handleSyncLogs} className="text-zinc-600 hover:text-emerald-400 transition-all" title="Sync Last 200 Logs">
+                                            <RefreshCw size={14} />
+                                        </button>
+                                        
+                                        <button onClick={handleClearLogs} className="text-zinc-600 hover:text-white transition-all" title="Clear View"><Eraser size={14} /></button>
                                         {socketConnected ? <Wifi size={14} className="text-emerald-500" /> : <WifiOff size={14} className="text-rose-500 animate-pulse" />}
                                     </div>
                                 </div>
@@ -530,40 +542,40 @@ const TradingBotContainer = () => {
 
 // ... (MetricCard & StrategyParamInputs remain same) ...
 const MetricCard = ({ label, value, subValue, color = "text-white", icon = null }) => (
-    <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden shadow-xl">
-        <p className="text-[9px] text-zinc-500 uppercase font-black tracking-[0.15em] mb-2">{label}</p>
-        <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-1.5">{icon && <span className={color}>{icon}</span>}<p className={`text-lg font-mono font-black tracking-tighter ${color}`}>{value}</p></div>
-            {subValue && <p className="text-[9px] font-black text-zinc-600 uppercase tracking-wide">{subValue}</p>}
-        </div>
-    </div>
+    <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden shadow-xl">
+        <p className="text-[9px] text-zinc-500 uppercase font-black tracking-[0.15em] mb-2">{label}</p>
+        <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5">{icon && <span className={color}>{icon}</span>}<p className={`text-lg font-mono font-black tracking-tighter ${color}`}>{value}</p></div>
+            {subValue && <p className="text-[9px] font-black text-zinc-600 uppercase tracking-wide">{subValue}</p>}
+        </div>
+    </div>
 );
 
 function StrategyParamInputs({ strategy, onChange }) {
-    const { code, params = {} } = strategy;
-    const f = (l, k, s = "1", desc) => (
-        <div className="flex flex-col">
-            <div className="flex justify-between items-center mb-1">
-                <label className="text-[8px] text-zinc-600 uppercase font-bold ml-1">{l}</label>
-                {desc && <Tooltip text={desc}><Info size={8} className="text-zinc-700" /></Tooltip>}
-            </div>
-            <input type="number" step={s} value={params[k] ?? ""} onChange={(e) => onChange({...params, [k]: parseFloat(e.target.value)})} className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1 text-[9px] text-amber-500 outline-none font-mono" />
-        </div>
-    );
-    return (
-        <div className="grid grid-cols-2 gap-2">
-            {code === "rsi_threshold" && <>{f("Length", "rsi_length", "1")}{f("Oversold", "oversold", "1")}{f("Overbought", "overbought", "1")}</>}
-            {code === "sma_crossover" && <>{f("Fast", "fast_sma", "1")}{f("Slow", "slow_sma", "1")}</>}
-            {code === "supertrend" && <>{f("Period", "st_atr", "1")}{f("Mult", "st_factor", "0.1")}</>}
-            {code === "macd_crossover" && <>{f("Fast", "fast", "1")}{f("Slow", "slow", "1")}</>}
-            {code === "atr_breakout" && <>{f("Len", "atr_length", "1")}{f("Mult", "multiplier", "0.1")}</>}
-            {code === "bb_fade" && <>{f("Per", "bb_period", "1")}{f("Std", "bb_std", "0.1")}</>}
-            {code === "stoch" && <>{f("K-P", "k_period", "1")}{f("D-P", "d_period", "1")}</>}
-            {code === "ema_cloud" && <>{f("Fast", "fast_ema", "1")}{f("Slow", "slow_ema", "1")}</>}
-            {code === "pa_breakout" && <>{f("LB", "lookback", "1")}{f("Buf", "buffer", "0.01")}</>}
-            {code === "vol_profile" && <>{f("MA", "vol_ma", "1")}{f("T", "threshold", "0.1")}</>}
-        </div>
-    );
+    const { code, params = {} } = strategy;
+    const f = (l, k, s = "1", desc) => (
+        <div className="flex flex-col">
+            <div className="flex justify-between items-center mb-1">
+                <label className="text-[8px] text-zinc-600 uppercase font-bold ml-1">{l}</label>
+                {desc && <Tooltip text={desc}><Info size={8} className="text-zinc-700" /></Tooltip>}
+            </div>
+            <input type="number" step={s} value={params[k] ?? ""} onChange={(e) => onChange({...params, [k]: parseFloat(e.target.value)})} className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1 text-[9px] text-amber-500 outline-none font-mono" />
+        </div>
+    );
+    return (
+        <div className="grid grid-cols-2 gap-2">
+            {code === "rsi_threshold" && <>{f("Length", "rsi_length", "1")}{f("Oversold", "oversold", "1")}{f("Overbought", "overbought", "1")}</>}
+            {code === "sma_crossover" && <>{f("Fast", "fast_sma", "1")}{f("Slow", "slow_sma", "1")}</>}
+            {code === "supertrend" && <>{f("Period", "st_atr", "1")}{f("Mult", "st_factor", "0.1")}</>}
+            {code === "macd_crossover" && <>{f("Fast", "fast", "1")}{f("Slow", "slow", "1")}</>}
+            {code === "atr_breakout" && <>{f("Len", "atr_length", "1")}{f("Mult", "multiplier", "0.1")}</>}
+            {code === "bb_fade" && <>{f("Per", "bb_period", "1")}{f("Std", "bb_std", "0.1")}</>}
+            {code === "stoch" && <>{f("K-P", "k_period", "1")}{f("D-P", "d_period", "1")}</>}
+            {code === "ema_cloud" && <>{f("Fast", "fast_ema", "1")}{f("Slow", "slow_ema", "1")}</>}
+            {code === "pa_breakout" && <>{f("LB", "lookback", "1")}{f("Buf", "buffer", "0.01")}</>}
+            {code === "vol_profile" && <>{f("MA", "vol_ma", "1")}{f("T", "threshold", "0.1")}</>}
+        </div>
+    );
 }
 
 export default TradingBotContainer;
