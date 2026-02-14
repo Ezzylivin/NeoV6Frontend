@@ -61,10 +61,19 @@ export const useBot = () => {
         if (!socketRef.current) {
             socketRef.current = io(SOCKET_URL, { query: { userId: activeUserId }, transports: ['websocket'], reconnectionAttempts: 5 });
             socketRef.current.on("bot_status_update", (data) => {
-                setBotStatus(data);
-                if (data.status === 'running' || data.status === 'initializing') localStorage.setItem("neo_active_bot_id", activeUserId);
-                else if (data.status === 'stopped') localStorage.removeItem("neo_active_bot_id");
-            });
+    // 🟢 CRITICAL: If we receive a 'stopped' status, clear everything immediately
+    if (data.status === 'stopped') {
+        setBotStatus(null); // This clears the "Running" view
+        localStorage.removeItem("neo_active_bot_id");
+        return; // Stop processing this update
+    }
+    
+    // Otherwise, update normally
+    setBotStatus(data);
+    if (data.status === 'running' || data.status === 'initializing') {
+        localStorage.setItem("neo_active_bot_id", activeUserId);
+    }
+});
             socketRef.current.on("bot_log", (newLog) => {
                 const logObj = typeof newLog === 'string' ? { message: newLog, time: new Date().toISOString() } : newLog;
                 setLogs(prev => [logObj, ...prev].slice(0, 200)); 
