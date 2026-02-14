@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 FIX: v13.7 - DYNAMIC LOG COLORING & SHORTING CONFIG
+// 🚀 FIX: v13.8 - Full Integration (Color Logic + Config Restore + Timestamps)
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
@@ -35,14 +35,21 @@ const labelClass = "text-[9px] text-zinc-500 uppercase font-black mb-1 block ml-
 const COIN_PAIRS = ["BTC-USD", "ETH-USD", "SOL-USD", "DOGE-USD", "MATIC-USD", "LINK-USD", "ADA-USD"];
 const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"];
 
-// 🟢 LOG PARSER (Clean Timestamps)
+// 🟢 HELPER: PARSE LOG TEXT
 const parseLog = (log) => {
     if (!log) return "";
     const msg = typeof log === 'string' ? log : (log.message || log.msg || JSON.stringify(log));
     return msg.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z\s*/, '');
 };
 
-// 🟢 DYNAMIC COLOR LOGIC (Number-Based)
+// 🟢 HELPER: FORMAT TIMESTAMP
+const formatTime = (isoString) => {
+    if (!isoString) return "";
+    const date = new Date(isoString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+};
+
+// 🟢 HELPER: DYNAMIC COLOR LOGIC (Integrated Request)
 const getLogStyle = (msg) => {
     const text = msg.toUpperCase();
 
@@ -56,10 +63,10 @@ const getLogStyle = (msg) => {
     }
 
     // 2. Trend/Bias: Keyword Logic
-    if (text.includes("UPTREND") || text.includes("BULLISH") || text.includes("EXPANSION") || text.includes("UP")) {
+    if (text.includes("UPTREND") || text.includes("BULLISH") || text.includes("EXPANSION")) {
         return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
     }
-    if (text.includes("DOWNTREND") || text.includes("BEARISH") || text.includes("CONTRACTION") || text.includes("DOWN")) {
+    if (text.includes("DOWNTREND") || text.includes("BEARISH") || text.includes("CONTRACTION")) {
         return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
     }
     
@@ -159,7 +166,8 @@ const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, a
 };
 
 const TradingBotContainer = () => {
-    const { startBot, stopBot } = useBot(); 
+    // 🟢 Destructure restoredConfig
+    const { startBot, stopBot, restoredConfig, botStatus: hookBotStatus, logs: hookLogs } = useBot(); 
     const { isConnected, address } = useAccount();
     
     const [isModeSelected, setIsModeSelected] = useState(false);
@@ -192,6 +200,24 @@ const TradingBotContainer = () => {
     });
 
     const isBotRunning = socketStatus.status === 'running' && !isHaltLocked;
+
+    // 🟢 1. RESTORE STATE ON RETURN (Logs & Config)
+    useEffect(() => {
+        if (hookBotStatus) {
+            setSocketStatus(prev => ({ ...prev, ...hookBotStatus }));
+        }
+        if (hookLogs.length > 0) {
+            setSocketLogs(hookLogs);
+        }
+        // 🟢 Restore Config (Fixes Missing Lines on Refresh)
+        if (restoredConfig && isBotRunning) {
+            setFormConfig(prev => ({
+                ...prev,
+                ...restoredConfig,
+                strategies: restoredConfig.strategies || prev.strategies 
+            }));
+        }
+    }, [hookBotStatus, hookLogs, restoredConfig]);
 
     const activeBalance = useMemo(() => {
         if (isBotRunning) {
@@ -243,12 +269,11 @@ const TradingBotContainer = () => {
         });
 
         socketRef.current.on("bot_log", (newLog) => {
+            const logObj = typeof newLog === 'string' ? { message: newLog, time: new Date().toISOString() } : newLog;
             setSocketLogs(prev => {
-                const msgText = typeof newLog === 'string' ? newLog : (newLog.message || newLog.msg);
-                const logTime = newLog.time || new Date().toISOString();
-                const isDuplicate = prev.some(l => parseLog(l) === msgText && l.time === logTime);
+                const isDuplicate = prev.some(l => parseLog(l.message || l) === parseLog(logObj.message || logObj));
                 if (isDuplicate) return prev;
-                return [{ msg: msgText, time: logTime, ...newLog }, ...prev].slice(0, 100);
+                return [logObj, ...prev].slice(0, 100);
             });
         });
 
@@ -282,7 +307,7 @@ const TradingBotContainer = () => {
         enable_shorting: formConfig.enable_shorting === true,
         comboConfig: { 
             strategyCodes: formConfig.strategies.map(s => s.code), 
-            combinationRule: formConfig.hybridMode || "AND",
+            combinationRule: formConfig.hybridMode || "AND", 
             minVotesRequired: formConfig.hybridMode === "AND" ? formConfig.strategies.length : 1
         }
     };
@@ -377,7 +402,7 @@ const TradingBotContainer = () => {
                 {showPreFlight && <PreFlightModal config={formConfig} onConfirm={handleConfirmStart} onCancel={() => setShowPreFlight(false)} isStarting={isStarting} hasApiKeys={hasApiKeys} address={address} />}
 
                 <header className="max-w-[1800px] mx-auto mb-10 flex items-center justify-between transition-all">
-                    <div className="flex items-center gap-3"><div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div><div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v13.7</p></div></div>
+                    <div className="flex items-center gap-3"><div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div><div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v13.8</p></div></div>
                     <div className="flex items-center gap-4">
                         {isBotRunning && <button onClick={handleHalt} className="px-6 py-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-xl font-black text-[10px] uppercase hover:bg-rose-500 hover:text-white transition-all flex items-center gap-2 shadow-lg shadow-rose-500/10"><Power size={12}/> Emergency Halt</button>}
                         <ConnectButton />
@@ -481,16 +506,18 @@ const TradingBotContainer = () => {
                                     <div className="flex items-center gap-2 text-violet-400"><Cpu size={16} className={isBotRunning ? 'animate-pulse' : ''}/><h3 className="text-[10px] font-black uppercase tracking-widest">Neural Flow</h3></div>
                                     {socketConnected ? <Wifi size={14} className="text-emerald-500" /> : <WifiOff size={14} className="text-rose-500 animate-pulse" />}
                                 </div>
-                                <div ref={logContainerRef} className="flex-1 overflow-y-auto p-6 font-mono text-[10px] space-y-5 bg-black/20 custom-scrollbar">
+                                <div ref={logContainerRef} className="flex-1 overflow-y-auto p-6 font-mono text-[10px] space-y-3 bg-black/20 custom-scrollbar">
                                     {socketLogs.length === 0 ? (
                                         <div className="h-full flex items-center justify-center text-zinc-600 italic">Initializing neural link...</div>
                                     ) : (
                                         socketLogs.map((log, i) => (
                                             <div 
                                                 key={i} 
-                                                className={`p-3 rounded-xl border leading-relaxed text-[10px] font-mono mb-2 ${getLogStyle(parseLog(log))}`}
+                                                className={`p-3 rounded-xl border leading-relaxed flex flex-col gap-1 ${getLogStyle(parseLog(log.message || log))}`}
                                             >
-                                                {parseLog(log)}
+                                                {/* 🟢 NEW: TIMESTAMP DISPLAY */}
+                                                <span className="text-[9px] opacity-50 font-bold tracking-widest">{formatTime(log.time)}</span>
+                                                <span>{parseLog(log.message || log)}</span>
                                             </div>
                                         ))
                                     )}
