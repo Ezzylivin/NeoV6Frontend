@@ -293,6 +293,45 @@ const TradingBotContainer = () => {
         return () => { if (socketRef.current) socketRef.current.disconnect(); };
     }, [address, isHaltLocked]);
 
+    // Add this inside TradingBot.jsx, near your other useEffects
+
+useEffect(() => {
+    if (!address || !isConnected) return;
+
+    const restoreSession = async () => {
+        try {
+            // Ask backend for full status
+            const { data } = await axios.get(`https://neov6backend.onrender.com/api/bot/status?userId=${address}`);
+
+            // If we find a running bot (or one with balance), RESTORE IT
+            if (data && (data.status === 'running' || data.balance > 0)) {
+                console.log("♻️ SESSION RESTORED:", data);
+
+                setSocketStatus(prev => ({
+                    ...prev,
+                    status: data.status,          // "running"
+                    currentBalance: data.balance, // Restores $125 (or whatever was saved)
+                    positions: data.positions || [],
+                    equityCurve: data.equityCurve || [],
+                    tradeMarkers: data.trade_history || [],
+                    logs: data.logs || [],
+                    startedAt: data.startedAt,    // Restores the timer
+                    candles: data.candles || []   // Restores the chart instantly
+                }));
+
+                // Restore the Strategy Inputs too
+                if (data.config) {
+                    setFormConfig(prev => ({ ...prev, ...data.config }));
+                }
+            }
+        } catch (error) {
+            console.log("No active session to restore.");
+        }
+    };
+
+    restoreSession();
+}, [address, isConnected]);
+
    const equityCurve = socketStatus.equityCurve || [];
 
     const performanceData = useMemo(() => {
@@ -316,42 +355,76 @@ const TradingBotContainer = () => {
    const handleConfirmStart = async () => {
     setIsStarting(true);
     setIsHaltLocked(false);
-    setSocketStatus(prev => ({ ...prev, equityCurve: [], tradeMarkers: [], positions: [], candles: [] }));
-    setSocketLogs([]);
+    
+    // 1. Prepare the Target Capital
+    const targetCapital = Number(formConfig.capitalAllocation) || Number(paperBalance) || 1000;
 
-       const targetCapital = Number(formConfig.capitalAllocation) || Number(paperBalance) || 1000;
-
-       setSocketStatus({ 
+    // 2. Set Initial Loading State
+    setSocketStatus(prev => ({ 
+        ...prev,
         status: 'initializing', 
-        currentBalance: targetCapital, // Force UI to show $300 right now
+        currentBalance: targetCapital, 
         equityCurve: [], 
         tradeMarkers: [], 
         positions: [], 
         candles: [],
         unrealizedPnl: 0,
         dailyProfit: 0
-    });
+    }));
+    setSocketLogs([]); // Clear old logs
 
-    setSocketLogs([]);
-       
+    // 3. Prepare Final Configuration Payload
     const finalConfig = {
         ...formConfig,
         capitalAllocation: targetCapital,
         mlMode: formConfig.mlMode || "on", 
         mlModel: formConfig.mlModel || "stacking", 
-        mlThresholdLong: parseFloat(formConfig.params.long_threshold) || 0.8,
-        mlThresholdShort: parseFloat(formConfig.params.short_threshold) || 0.9,
+        mlThresholdLong: parseFloat(formConfig.params?.long_threshold) || 0.8,
+        mlThresholdShort: parseFloat(formConfig.params?.short_threshold) || 0.9,
         enable_shorting: formConfig.enable_shorting === true,
-        comboConfig: { strategyCodes: formConfig.strategies.map(s => s.code), combinationRule: formConfig.hybridMode || "AND", minVotesRequired: formConfig.hybridMode === "AND" ? formConfig.strategies.length : 1 }
+        comboConfig: { 
+            strategyCodes: formConfig.strategies.map(s => s.code), 
+            combinationRule: formConfig.hybridMode || "AND", 
+            minVotesRequired: formConfig.hybridMode === "AND" ? formConfig.strategies.length : 1 
+        }
     };
+
     try {
+        // 4. Send Command to Backend
+        // Note: Ensure startBot is returning the response.data correctly!
         const response = await startBot({ userId: address, config: finalConfig });
+
+        // 5. 🟢 THE FIX: Manually Force "Running" State
         if (response && response.status === 'running') {
+            
+            setSocketStatus(prev => ({
+                ...prev,
+                status: 'running', // <--- Force the UI to switch modes NOW
+                startedAt: new Date().toISOString(), // Start the timer immediately
+                currentBalance: targetCapital,
+                // Add a fake log so the user sees immediate feedback
+                logs: [{ time: new Date().toISOString(), message: "🚀 Engine Ignited (Command Sent)" }]
+            }));
+
             toast.success(`Protocol Ignited: ${finalConfig.symbol}`);
             setShowPreFlight(false);
-            logContainerRef.current?.scrollIntoView({ behavior: 'smooth' });
-        } else { console.warn("Invalid start response", response); }
-    } catch (e) { toast.error(`Engine Failure: ${e.response?.data?.detail || e.message}`); } finally { setIsStarting(false); }
+            
+            // Scroll to logs
+            setTimeout(() => {
+                logContainerRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }, 100);
+
+        } else { 
+            console.warn("Invalid start response", response); 
+            toast.error("Engine failed to ignite (Invalid Response)");
+        }
+
+    } catch (e) { 
+        console.error(e);
+        toast.error(`Engine Failure: ${e.response?.data?.detail || e.message}`); 
+    } finally { 
+        setIsStarting(false); 
+    }
 };
 
  const handleHalt = async () => {
