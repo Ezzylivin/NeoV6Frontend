@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 FIX: v13.18 - Optimistic Ignition + Full ML/Risk Suite
+// 🚀 FIX: v13.19 - Restored Stream Persistence + Full ML/Risk UI
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
@@ -69,6 +69,7 @@ const DEFAULT_STRATEGY_PARAMS = {
     vol_profile: { vol_ma: 20, threshold: 1.5 }
 };
 
+// --- HELPERS ---
 const parseLog = (log) => {
     if (!log) return "";
     const msg = typeof log === 'string' ? log : (log.message || log.msg || JSON.stringify(log));
@@ -99,7 +100,6 @@ const TradingBotContainer = () => {
     const [hasApiKeys, setHasApiKeys] = useState(false);
     const [showPreFlight, setShowPreFlight] = useState(false);
     const [isStarting, setIsStarting] = useState(false);
-    const [paperBalance, setPaperBalance] = useState(1000);
     
     const socketRef = useRef(null);
     const [isHaltLocked, setIsHaltLocked] = useState(false);
@@ -122,29 +122,53 @@ const TradingBotContainer = () => {
 
     const isBotRunning = socketStatus.status === 'running' && !isHaltLocked;
 
-    // 🟢 RECOVERY: Database Restoration with Auth Header
+    // 🟢 SYNC LOGIC: Deep Merge Hook Data into Component State
+    useEffect(() => {
+        if (hookBotStatus) {
+            setSocketStatus(prev => ({ 
+                ...prev, 
+                ...hookBotStatus,
+                // Critical: Preserve candles and curves if update is partial
+                candles: hookBotStatus.candles || prev.candles || [],
+                equityCurve: hookBotStatus.equityCurve || prev.equityCurve || [],
+                tradeMarkers: hookBotStatus.tradeMarkers || prev.tradeMarkers || []
+            }));
+            if (hookBotStatus.status === 'running') setIsModeSelected(true);
+        }
+        if (hookLogs && hookLogs.length > 0) {
+            setSocketLogs(hookLogs);
+        }
+        if (restoredConfig) {
+            setFormConfig(prev => ({ ...prev, ...restoredConfig }));
+        }
+    }, [hookBotStatus, hookLogs, restoredConfig]);
+
+    // 🟢 RECOVERY & SOCKETS
     useEffect(() => {
         if (!address || !isConnected) return;
-        const restoreSession = async () => {
-            try {
-                const token = localStorage.getItem("token");
-                if (!token) return;
-                const { data } = await axios.get(`${API_BASE}/bot/status`, {
-                    params: { userId: address },
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                if (data && (data.status === 'running' || data.balance > 0)) {
-                    setIsModeSelected(true); 
-                    setSocketStatus(prev => ({ ...prev, ...data, status: data.status, currentBalance: data.balance }));
-                    if (data.config) setFormConfig(prev => ({ ...prev, ...data.config }));
-                    if (data.logs) setSocketLogs(data.logs);
-                }
-            } catch (e) { console.log("System Ready."); }
-        };
-        restoreSession();
+        const token = localStorage.getItem("token");
+        if (token) {
+            axios.get(`${API_BASE}/users/keys`, { headers: { Authorization: `Bearer ${token}` } })
+                .then(res => setHasApiKeys(res.data?.length > 0))
+                .catch(() => setHasApiKeys(false));
+        }
     }, [address, isConnected]);
 
-    // 🟢 UPTIME TRACKER
+    useEffect(() => {
+        if (!address) return;
+        socketRef.current = io(SOCKET_URL, { query: { userId: address }, transports: ['websocket'] });
+        socketRef.current.on("connect", () => setSocketConnected(true));
+        socketRef.current.on("disconnect", () => setSocketConnected(false));
+        socketRef.current.on("bot_status_update", (data) => {
+            if (isHaltLocked) return;
+            setSocketStatus(prev => ({ 
+                ...prev, ...data, 
+                candles: data.candles || prev.candles 
+            }));
+        });
+        return () => socketRef.current?.disconnect();
+    }, [address, isHaltLocked]);
+
     useEffect(() => {
         let interval;
         if (isBotRunning && socketStatus.startedAt) {
@@ -159,55 +183,26 @@ const TradingBotContainer = () => {
         return () => clearInterval(interval);
     }, [isBotRunning, socketStatus.startedAt]);
 
-    // 🟢 WEBSOCKET SYNC
-    useEffect(() => {
-        if (!address) return;
-        socketRef.current = io(SOCKET_URL, { query: { userId: address }, transports: ['websocket'] });
-        socketRef.current.on("connect", () => setSocketConnected(true));
-        socketRef.current.on("disconnect", () => setSocketConnected(false));
-        socketRef.current.on("bot_status_update", (data) => {
-            if (!isHaltLocked) setSocketStatus(prev => ({ ...prev, ...data }));
-        });
-        socketRef.current.on("bot_log", (newLog) => {
-            const logObj = typeof newLog === 'string' ? { message: newLog, time: new Date().toISOString() } : newLog;
-            setSocketLogs(prev => [logObj, ...prev].slice(0, 100));
-        });
-        return () => socketRef.current?.disconnect();
-    }, [address, isHaltLocked]);
-
-    // 🟢 CORE ACTIONS: Optimistic Start logic
+    // 🟢 CORE ACTIONS
     const handleConfirmStart = async () => {
         setIsStarting(true);
         const targetCapital = Number(formConfig.capitalAllocation);
         
-        // 1. Initial local feedback state
-        setSocketStatus(prev => ({ ...prev, status: 'initializing', currentBalance: targetCapital, logs: [] }));
+        // Optimistic UI Flip
+        setSocketStatus(prev => ({ ...prev, status: 'initializing', currentBalance: targetCapital, candles: [], equityCurve: [] }));
 
         try {
             const response = await startBot(formConfig);
-            
-            // 2. 🟢 THE FIX: Optimistic State Update
-            // Force the UI into 'running' mode if the API returns success
             if (response && (response.status === 'running' || response.status === 'active')) {
-                setSocketStatus(prev => ({
-                    ...prev,
-                    status: 'running',
-                    startedAt: new Date().toISOString(),
-                    currentBalance: targetCapital
-                }));
+                setSocketStatus(prev => ({ ...prev, status: 'running', startedAt: new Date().toISOString() }));
                 setIsModeSelected(true);
                 setShowPreFlight(false);
                 toast.success(`Protocol Ignited: ${formConfig.symbol}`);
-                logContainerRef.current?.scrollIntoView({ behavior: 'smooth' });
-            } else {
-                console.warn("Unexpected Engine Response:", response);
             }
         } catch (e) {
-            toast.error("Engine failure during ignition.");
+            toast.error("Ignition failed.");
             setSocketStatus(prev => ({ ...prev, status: 'stopped' }));
-        } finally {
-            setIsStarting(false);
-        }
+        } finally { setIsStarting(false); }
     };
 
     const handleEmergencyPurge = async () => {
@@ -217,7 +212,11 @@ const TradingBotContainer = () => {
             await stopBot();
             await resetBot();
             setSocketLogs([]);
-            setSocketStatus({ status: 'stopped', currentBalance: 0, unrealizedPnl: 0, exposure: 0, positions: [], equityCurve: [], startedAt: null, dailyProfit: 0, initialCapital: 0, tradeMarkers: [], candles: [] });
+            setSocketStatus({ 
+                status: 'stopped', currentBalance: 0, unrealizedPnl: 0, exposure: 0, 
+                positions: [], equityCurve: [], startedAt: null, dailyProfit: 0, 
+                initialCapital: 0, tradeMarkers: [], candles: [] 
+            });
             localStorage.removeItem("neo_active_bot_id");
             toast.success("CLEAN SLATE: Purge Complete");
             setTimeout(() => { setIsHaltLocked(false); refreshState(); }, 5000);
@@ -250,7 +249,7 @@ const TradingBotContainer = () => {
 
     return (
         <UIModeProvider>
-            <div className="min-h-screen bg-zinc-950 text-white font-sans p-6 overflow-x-hidden">
+            <div className="min-h-screen bg-zinc-950 text-white font-sans p-6 overflow-x-hidden transition-all duration-700">
                 <Toaster position="top-right" />
                 
                 {showPreFlight && <PreFlightModal config={formConfig} onConfirm={handleConfirmStart} onCancel={() => setShowPreFlight(false)} isStarting={isStarting} address={address} />}
@@ -258,7 +257,7 @@ const TradingBotContainer = () => {
                 <header className="max-w-[1800px] mx-auto mb-10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div>
-                        <div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase">Terminal v13.18</p></div>
+                        <div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase">Terminal v13.19</p></div>
                     </div>
                     <div className="flex items-center gap-4">
                         {isBotRunning && (
@@ -270,7 +269,7 @@ const TradingBotContainer = () => {
 
                 <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8">
                     {!isBotRunning && (
-                        <div className="col-span-12 lg:col-span-3 space-y-6">
+                        <div className="col-span-12 lg:col-span-3 space-y-6 animate-in slide-in-from-left-10 duration-700">
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-10 shadow-2xl sticky top-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
                                 
                                 {/* 1. Market Selection */}
@@ -286,14 +285,14 @@ const TradingBotContainer = () => {
                                 <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                     <div className="flex justify-between items-center">
                                         <div className="flex items-center gap-2 text-emerald-500"><ArrowUpRight size={14}/><h4 className="text-[10px] font-black uppercase tracking-widest">Execution Type</h4></div>
-                                        <select value={formConfig.enable_shorting} onChange={(e)=>setFormConfig({...formConfig, enable_shorting: e.target.value === 'true'})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase outline-none">
+                                        <select value={formConfig.enable_shorting} onChange={(e)=>setFormConfig({...formConfig, enable_shorting: e.target.value === 'true'})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase text-white outline-none">
                                             <option value="false">Spot (Long)</option>
                                             <option value="true">Margin (Hybrid)</option>
                                         </select>
                                     </div>
                                 </div>
 
-                                {/* 3. Neural Gate + THRESHOLDS */}
+                                {/* 3. Neural Gate + Thresholds */}
                                 <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                     <div className="flex justify-between items-center"><div className="flex items-center gap-2 text-violet-400"><Cpu size={14}/><h4 className="text-[10px] font-black uppercase tracking-widest">Neural Gate</h4></div>
                                     <select value={formConfig.mlMode} onChange={(e)=>setFormConfig({...formConfig, mlMode: e.target.value})} className="bg-zinc-800 text-[9px] rounded px-2 py-1 font-black outline-none"><option value="off">Bypass</option><option value="on">Active</option></select></div>
@@ -318,7 +317,7 @@ const TradingBotContainer = () => {
                                     </div>
                                 </div>
 
-                                {/* 5. Strategy Modules */}
+                                {/* 5. Strategies */}
                                 <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                     <h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest mb-4">Signal Ensemble</h4>
                                     <div className="space-y-3">
@@ -343,18 +342,18 @@ const TradingBotContainer = () => {
                     <div className={`${isBotRunning ? 'col-span-12' : 'col-span-12 lg:col-span-9'} space-y-8`}>
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                             <MetricCard label="Engine Status" value={isBotRunning ? 'OPERATIONAL' : 'STANDBY'} subValue={`SESSION: ${uptime}`} color={isBotRunning ? 'text-emerald-400' : 'text-zinc-600'} icon={<Timer size={10}/>} />
-                            <MetricCard label="Floating PnL" value={`$${(socketStatus.unrealizedPnl || 0).toFixed(2)}`} subValue="Active Exposure" color={socketStatus.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'} icon={<Activity size={10}/>} />
+                            <MetricCard label="Floating PnL" value={`$${(socketStatus.unrealizedPnl || 0).toFixed(2)}`} subValue="Open Exposure" color={socketStatus.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'} icon={<Activity size={10}/>} />
                             <MetricCard label="Total Equity" value={`$${Number(activeBalance).toLocaleString()}`} subValue="Liquid + Locked" />
                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[720px]">
                             <div className="lg:col-span-3 bg-zinc-900 border border-zinc-800 rounded-[40px] overflow-hidden flex flex-col relative shadow-2xl">
                                 <div className="p-6 border-b border-zinc-800 flex justify-between bg-zinc-800/10">
-                                    <span className="text-[11px] font-black uppercase tracking-widest">{formConfig.symbol} visual stream</span>
+                                    <span className="text-[11px] font-black uppercase tracking-widest">{formConfig.symbol} Stream</span>
                                     <div className="flex items-center gap-2"><div className={`w-1.5 h-1.5 rounded-full ${socketConnected ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'}`}></div><span className="text-[9px] font-black uppercase">{socketConnected ? 'Neural Sync' : 'Link Dead'}</span></div>
                                 </div>
                                 <div className="flex-1 bg-black/40">
-                                    <LiveTradingChart symbol={formConfig.symbol} candleData={socketStatus.candles} tradeMarkers={socketStatus.tradeMarkers} activePositions={socketStatus.positions} />
+                                    <LiveTradingChart symbol={formConfig.symbol} candleData={socketStatus.candles} tradeMarkers={socketStatus.tradeMarkers} activePositions={socketStatus.positions} isRunning={isBotRunning} strategies={formConfig.strategies} />
                                 </div>
                             </div>
                             <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 rounded-[40px] flex flex-col overflow-hidden shadow-2xl">
@@ -380,11 +379,11 @@ const TradingBotContainer = () => {
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-10 duration-1000">
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
                                     <div className="flex items-center gap-2 mb-8"><BarChart size={18} className="text-emerald-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Session Equity</h3></div>
-                                    <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={performanceData}><Area type="monotone" dataKey="balance" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={3} /><XAxis dataKey="time" hide /><YAxis hide domain={['auto', 'auto']} /></AreaChart></ResponsiveContainer></div>
+                                    <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={performanceData}><Area type="monotone" dataKey="balance" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={3} /><XAxis dataKey="time" hide /><YAxis hide domain={['auto', 'auto']} /><RechartsTooltip contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '12px' }} /></AreaChart></ResponsiveContainer></div>
                                 </div>
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
                                     <div className="flex items-center gap-2 mb-8"><Zap size={18} className="text-violet-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Logic Confidence</h3></div>
-                                    <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={performanceData}><Area type="step" dataKey="confidence" stroke="#a78bfa" fill="#a78bfa" fillOpacity={0.1} strokeWidth={2} /><XAxis dataKey="time" hide /><YAxis hide /></AreaChart></ResponsiveContainer></div>
+                                    <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={performanceData}><Area type="step" dataKey="confidence" stroke="#a78bfa" fill="#a78bfa" fillOpacity={0.1} strokeWidth={2} /><XAxis dataKey="time" hide /><YAxis hide /><RechartsTooltip contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '12px' }} /></AreaChart></ResponsiveContainer></div>
                                 </div>
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl flex flex-col">
                                     <div className="flex items-center gap-2 mb-8"><Box size={18} className="text-amber-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Live Operations</h3></div>
@@ -427,8 +426,8 @@ const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, address }) =>
                 <h3 className="text-xl font-black text-white mb-8 uppercase tracking-tighter"><span className="text-emerald-500">🚀</span> Pre-Flight Check</h3>
                 <div className="space-y-3 mb-10">
                     <CheckItem label="Wallet Link" status={!!address} />
-                    <CheckItem label="Capital Reserve" status={Number(config.capitalAllocation) >= 100} />
-                    <CheckItem label="Logic Modules" status={config.strategies?.length > 0} />
+                    <CheckItem label="Liquidity Allocation" status={Number(config.capitalAllocation) >= 100} />
+                    <CheckItem label="Signal Modules" status={config.strategies?.length > 0} />
                 </div>
                 <div className="flex gap-4">
                     <button onClick={onCancel} className="flex-1 py-4 border border-zinc-800 rounded-2xl text-zinc-500 font-black uppercase text-[10px]">Abort</button>
