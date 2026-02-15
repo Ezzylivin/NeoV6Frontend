@@ -73,16 +73,16 @@ export const useBot = () => {
             });
 
             // Inside the socket logic of useBot.js
+// 🟢 FIX: Persistent State Merging
 socketRef.current.on("bot_status_update", (data) => {
     if (data.status === 'stopped') {
         setBotStatus(null);
         localStorage.removeItem("neo_active_bot_id");
     } else {
-        // 🟢 FIX: Functional update to MERGE data and preserve candles/curves
         setBotStatus(prev => ({
-            ...prev,
-            ...data,
-            // Ensure candles and curves aren't wiped if missing in this specific packet
+            ...prev,    // Keep existing data (candles, logs, etc)
+            ...data,    // Overwrite with fresh updates (PnL, Status)
+            // 🚀 CRITICAL: Prevent candles from being wiped if missing in this packet
             candles: data.candles || prev?.candles || [],
             equityCurve: data.equityCurve || prev?.equityCurve || [],
             tradeMarkers: data.tradeMarkers || prev?.tradeMarkers || []
@@ -90,7 +90,6 @@ socketRef.current.on("bot_status_update", (data) => {
         localStorage.setItem("neo_active_bot_id", activeUserId);
     }
 });
-
             socketRef.current.on("bot_log", (newLog) => {
                 const logObj = typeof newLog === 'string' ? { message: newLog, time: new Date().toISOString() } : newLog;
                 setLogs(prev => {
