@@ -72,16 +72,24 @@ export const useBot = () => {
                 reconnectionAttempts: 5 
             });
 
-            socketRef.current.on("bot_status_update", (data) => {
-                // 🟢 Immediate switch from 'initializing' to 'running'
-                if (data.status === 'stopped') {
-                    setBotStatus(null);
-                    localStorage.removeItem("neo_active_bot_id");
-                } else {
-                    setBotStatus(data);
-                    localStorage.setItem("neo_active_bot_id", activeUserId);
-                }
-            });
+            // Inside the socket logic of useBot.js
+socketRef.current.on("bot_status_update", (data) => {
+    if (data.status === 'stopped') {
+        setBotStatus(null);
+        localStorage.removeItem("neo_active_bot_id");
+    } else {
+        // 🟢 FIX: Functional update to MERGE data and preserve candles/curves
+        setBotStatus(prev => ({
+            ...prev,
+            ...data,
+            // Ensure candles and curves aren't wiped if missing in this specific packet
+            candles: data.candles || prev?.candles || [],
+            equityCurve: data.equityCurve || prev?.equityCurve || [],
+            tradeMarkers: data.tradeMarkers || prev?.tradeMarkers || []
+        }));
+        localStorage.setItem("neo_active_bot_id", activeUserId);
+    }
+});
 
             socketRef.current.on("bot_log", (newLog) => {
                 const logObj = typeof newLog === 'string' ? { message: newLog, time: new Date().toISOString() } : newLog;
