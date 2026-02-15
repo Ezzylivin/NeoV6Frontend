@@ -1,5 +1,5 @@
 // File: src/hooks/useBot.js
-// 🚀 FIX: v14.8 - Production Engine Sync & Auth Alignment
+// 🚀 FIX: v14.9 - Deep-Merge Sync & Persistent Stream Protection
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
@@ -32,7 +32,6 @@ export const useBot = () => {
     const activeUserId = resolveActiveId();
 
     // 🟢 REFRESH FUNCTION: Full sync with Backend DB
-    // Specifically fixes the "Standby" freeze by force-checking status
     const refreshState = useCallback(async () => {
         if (!activeUserId) return;
         try {
@@ -43,11 +42,12 @@ export const useBot = () => {
 
             const statusRes = await axios.get(`${BASE_URL}/bot/status`, {
                 params: { userId: activeUserId }, 
-                headers // 🟢 Critical: Included for auth gate
+                headers 
             });
 
             if (statusRes.data && statusRes.data.status !== 'inactive') {
                 console.log("📥 Syncing Engine State:", statusRes.data);
+                // Initial load: Set full state
                 setBotStatus(statusRes.data);
                 if (statusRes.data.config) setRestoredConfig(statusRes.data.config);
                 if (statusRes.data.status === 'running') localStorage.setItem("neo_active_bot_id", activeUserId);
@@ -58,10 +58,9 @@ export const useBot = () => {
         }
     }, [activeUserId]);
 
-    // Initial sync on mount
     useEffect(() => { if (isConnected) refreshState(); }, [refreshState, isConnected]);
 
-    // WebSocket Logic: Real-time UI Updates
+    // WebSocket Logic: Real-time UI Updates with Deep-Merge
     useEffect(() => {
         if (!activeUserId || !isConnected) return;
         
@@ -72,28 +71,27 @@ export const useBot = () => {
                 reconnectionAttempts: 5 
             });
 
-            // Inside the socket logic of useBot.js
-// 🟢 FIX: Persistent State Merging
-socketRef.current.on("bot_status_update", (data) => {
-    if (data.status === 'stopped') {
-        setBotStatus(null);
-        localStorage.removeItem("neo_active_bot_id");
-    } else {
-        setBotStatus(prev => ({
-            ...prev,    // Keep existing data (candles, logs, etc)
-            ...data,    // Overwrite with fresh updates (PnL, Status)
-            // 🚀 CRITICAL: Prevent candles from being wiped if missing in this packet
-            candles: data.candles || prev?.candles || [],
-            equityCurve: data.equityCurve || prev?.equityCurve || [],
-            tradeMarkers: data.tradeMarkers || prev?.tradeMarkers || []
-        }));
-        localStorage.setItem("neo_active_bot_id", activeUserId);
-    }
-});
+            // 🟢 FIX: Persistent State Merging
+            socketRef.current.on("bot_status_update", (data) => {
+                if (data.status === 'stopped') {
+                    setBotStatus(null);
+                    localStorage.removeItem("neo_active_bot_id");
+                } else {
+                    setBotStatus(prev => ({
+                        ...prev,    // Keep existing data (candles, logs, etc)
+                        ...data,    // Overwrite with fresh updates (PnL, Status)
+                        // 🚀 CRITICAL: Prevent arrays from being wiped if missing in heartbeat
+                        candles: data.candles || prev?.candles || [],
+                        equityCurve: data.equityCurve || prev?.equityCurve || [],
+                        tradeMarkers: data.tradeMarkers || prev?.tradeMarkers || []
+                    }));
+                    localStorage.setItem("neo_active_bot_id", activeUserId);
+                }
+            });
+
             socketRef.current.on("bot_log", (newLog) => {
                 const logObj = typeof newLog === 'string' ? { message: newLog, time: new Date().toISOString() } : newLog;
                 setLogs(prev => {
-                    // Prevent duplicate log entry if it already exists
                     if (prev.length > 0 && prev[0].message === logObj.message) return prev;
                     return [logObj, ...prev].slice(0, 300);
                 }); 
@@ -108,44 +106,40 @@ socketRef.current.on("bot_status_update", (data) => {
         };
     }, [activeUserId, isConnected]);
 
-    // 🚀 START ENGINE: Now includes headers to pass the Python Auth Gate
     const startBot = async (configData) => {
         setLoading(true); 
         try {
             const token = localStorage.getItem("token");
             const userId = activeUserId || address; 
             
-            // Build consistent payload for FastAPI
             const payload = configData.config 
                 ? configData 
                 : { userId, config: { ...configData, userId } };
 
             const response = await axios.post(`${BASE_URL}/bot/start`, payload, { 
-                headers: { Authorization: `Bearer ${token}` } // 🟢 Fixes 401 Unauthorized
+                headers: { Authorization: `Bearer ${token}` }
             });
 
             if (response.data.status === 'running') {
                 localStorage.setItem("neo_active_bot_id", userId);
                 toast.success("Engine Ignition Successful");
-                await refreshState(); // Instant sync
+                await refreshState(); 
             }
             return response.data; 
         } catch (error) {
-            console.error("Ignition Error:", error);
             const msg = error.response?.data?.message || "Failed to start bot";
             toast.error(`Engine Failure: ${msg}`);
             return null; 
         } finally { setLoading(false); }
     };
 
-    // 🛑 STOP ENGINE
     const stopBot = async () => {
         setLoading(true);
         try {
             const token = localStorage.getItem("token");
             const response = await axios.post(`${BASE_URL}/bot/stop`, 
                 { userId: resolveActiveId() }, 
-                { headers: { Authorization: `Bearer ${token}` } } // 🟢 Header included
+                { headers: { Authorization: `Bearer ${token}` } }
             );
             localStorage.removeItem("neo_active_bot_id");
             setBotStatus(null);
@@ -156,13 +150,12 @@ socketRef.current.on("bot_status_update", (data) => {
         } finally { setLoading(false); }
     };
 
-    // 🧹 RESET ENGINE
     const resetBot = async () => {
         try {
             const token = localStorage.getItem("token");
             await axios.post(`${BASE_URL}/bot/reset`, 
                 { userId: resolveActiveId() }, 
-                { headers: { Authorization: `Bearer ${token}` } } // 🟢 Header included
+                { headers: { Authorization: `Bearer ${token}` } }
             );
             setBotStatus(null); 
             setLogs([]); 
