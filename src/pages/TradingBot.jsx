@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 FIX: v13.12 - Full Session Persistence & Auth Alignment
+// 🚀 FIX: v13.13 - Scope & DOM Compliance Fix
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
@@ -21,6 +21,10 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsToolti
 
 import "./TradingBot.css";
 import "../styles/Themes.css";
+
+// --- GLOBAL STYLING CONSTANTS (FIXES ReferenceError) ---
+const labelClass = "text-[9px] text-zinc-500 uppercase font-black mb-1 block ml-1 tracking-tighter";
+const inputClass = "w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-emerald-500 transition-all text-[11px] outline-none font-mono";
 
 // --- CONFIGURATION CONSTANTS ---
 const RAW_URL = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
@@ -115,7 +119,6 @@ const TradingBotContainer = () => {
 
     const isBotRunning = socketStatus.status === 'running' && !isHaltLocked;
 
-    // 🟢 RECOVERY: State Restoration from Database
     useEffect(() => {
         if (!address || !isConnected) return;
         const restoreSession = async () => {
@@ -129,7 +132,6 @@ const TradingBotContainer = () => {
                 });
 
                 if (data && (data.status === 'running' || data.balance > 0)) {
-                    console.log("♻️ Session Restored:", data);
                     setIsModeSelected(true); 
                     setSocketStatus(prev => ({ ...prev, ...data, currentBalance: data.balance }));
                     if (data.config) setFormConfig(prev => ({ ...prev, ...data.config }));
@@ -140,7 +142,6 @@ const TradingBotContainer = () => {
         restoreSession();
     }, [address, isConnected]);
 
-    // 🟢 SYNC: WebSocket Stream
     useEffect(() => {
         if (!address) return;
         socketRef.current = io(SOCKET_URL, { query: { userId: address }, transports: ['websocket'] });
@@ -157,14 +158,10 @@ const TradingBotContainer = () => {
         return () => socketRef.current?.disconnect();
     }, [address, isHaltLocked]);
 
-    // 🟢 CORE ACTION: handleConfirmStart
     const handleConfirmStart = async () => {
         setIsStarting(true);
         const targetCapital = Number(formConfig.capitalAllocation);
-        
-        // Instant Feedback UI
         setSocketStatus(prev => ({ ...prev, status: 'initializing', currentBalance: targetCapital, logs: [] }));
-
         try {
             const response = await startBot({ userId: address, config: formConfig });
             if (response && response.status === 'running') {
@@ -189,9 +186,7 @@ const TradingBotContainer = () => {
         } catch (e) { setIsHaltLocked(false); }
     };
 
-    // --- RENDER LOGIC ---
     const activeBalance = useMemo(() => isBotRunning ? (socketStatus.currentBalance || formConfig.capitalAllocation) : formConfig.capitalAllocation, [isBotRunning, socketStatus.currentBalance, formConfig.capitalAllocation]);
-    const performanceData = useMemo(() => socketStatus.equityCurve?.length > 0 ? socketStatus.equityCurve.map(p => ({ time: formatTime(p.time), balance: p.balance })) : [{ time: '00:00', balance: Number(activeBalance) }], [socketStatus.equityCurve, activeBalance]);
 
     if (!isConnected) {
         return (
@@ -200,6 +195,8 @@ const TradingBotContainer = () => {
                     <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center mx-auto mb-8"><Wallet className="text-emerald-500 w-8 h-8" /></div>
                     <h2 className="text-2xl font-black text-white mb-3 uppercase tracking-tighter">Terminal Encrypted</h2>
                     <ConnectButton />
+                    {/* Fixed Auth element with autocomplete to resolve DOM Warning */}
+                    <input name="password" type="password" autoComplete="current-password" disabled className="hidden" value="password" />
                 </div>
             </div>
         );
@@ -215,7 +212,7 @@ const TradingBotContainer = () => {
                 <header className="max-w-[1800px] mx-auto mb-10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div>
-                        <div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v13.12</p></div>
+                        <div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v13.13</p></div>
                     </div>
                     <div className="flex items-center gap-4">
                         {isBotRunning ? (
@@ -228,22 +225,21 @@ const TradingBotContainer = () => {
                     {!isBotRunning && (
                         <div className="col-span-12 lg:col-span-3 space-y-6">
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-8 shadow-2xl sticky top-6">
-                                <div><label className={labelClass}>Asset</label><select value={formConfig.symbol} onChange={(e)=>setFormConfig({...formConfig, symbol: e.target.value})} className={inputClass}>{COIN_PAIRS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-                                <div><label className={labelClass}>Capital</label><input type="number" value={formConfig.capitalAllocation} onChange={(e)=>setFormConfig({...formConfig, capitalAllocation: e.target.value})} className={inputClass}/></div>
+                                <div><label className={labelClass}>Asset Pair</label><select value={formConfig.symbol} onChange={(e)=>setFormConfig({...formConfig, symbol: e.target.value})} className={inputClass}>{COIN_PAIRS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                                <div><label className={labelClass}>Initial Capital</label><input type="number" value={formConfig.capitalAllocation} onChange={(e)=>setFormConfig({...formConfig, capitalAllocation: e.target.value})} className={inputClass}/></div>
                                 <button onClick={() => setShowPreFlight(true)} className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-400 transition-all shadow-xl">Initiate Engine</button>
                             </div>
                         </div>
                     )}
 
-                    <div className={`${isBotRunning ? 'col-span-12 lg:col-span-9' : 'col-span-12 lg:col-span-9'} space-y-8`}>
+                    <div className={`${isBotRunning ? 'col-span-12' : 'col-span-12 lg:col-span-9'} space-y-8`}>
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                             <MetricCard label="Engine Status" value={isBotRunning ? 'OPERATIONAL' : 'STANDBY'} color={isBotRunning ? 'text-emerald-400' : 'text-zinc-600'} />
                             <MetricCard label="Floating PnL" value={`$${socketStatus.unrealizedPnl.toFixed(2)}`} color={socketStatus.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'} />
                             <MetricCard label="Total Equity" value={`$${Number(activeBalance).toLocaleString()}`} />
                         </div>
-
-                        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[720px]">
-                            <div className="lg:col-span-3 bg-zinc-900 border border-zinc-800 rounded-[40px] overflow-hidden flex flex-col relative shadow-2xl">
+                        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[700px] flex-1">
+                             <div className="lg:col-span-3 bg-zinc-900 border border-zinc-800 rounded-[40px] overflow-hidden flex flex-col relative shadow-2xl">
                                 <div className="p-6 border-b border-zinc-800 flex justify-between bg-zinc-800/10">
                                     <span className="text-[11px] font-black uppercase tracking-widest">{formConfig.symbol} Feed</span>
                                     <div className="flex items-center gap-2"><div className={`w-1.5 h-1.5 rounded-full ${socketConnected ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'}`}></div><span className="text-[9px] font-black uppercase">{socketConnected ? 'Neural Sync' : 'Link Dead'}</span></div>
@@ -253,7 +249,7 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
                             <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 rounded-[40px] flex flex-col overflow-hidden shadow-2xl">
-                                <div className="p-5 border-b border-zinc-800 flex justify-between bg-zinc-800/20">
+                                <div className="p-5 border-b border-zinc-800 bg-zinc-800/20 flex justify-between items-center">
                                     <div className="flex items-center gap-2 text-violet-400"><Cpu size={16}/><h3 className="text-[10px] font-black uppercase tracking-widest">Neural Flow</h3></div>
                                     <button onClick={() => setSocketLogs([])} className="text-zinc-600 hover:text-white transition-all"><Eraser size={14} /></button>
                                 </div>
