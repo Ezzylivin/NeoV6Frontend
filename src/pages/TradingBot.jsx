@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 FIX: v13.29 - Constant Scope Fix + Full Feature Restoration
+// 🚀 FIX: v13.30 - State Restoration + Form Security Sync
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
@@ -22,11 +22,9 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsToolti
 import "./TradingBot.css";
 import "../styles/Themes.css";
 
-// --- 🟢 1. GLOBAL CONSTANTS (Reordered to fix ReferenceError) ---
+// --- 🟢 1. GLOBAL CONSTANTS ---
 const RAW_URL = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
-// Define BASE_URL first
 const BASE_URL = RAW_URL.replace(/\/$/, "").replace(/\/api$/, "");
-// Now reference BASE_URL safely
 const API_BASE = `${BASE_URL}/api`;
 const SOCKET_URL = BASE_URL;
 
@@ -78,7 +76,6 @@ const parseLog = (log) => {
 const formatTime = (isoString) => {
     if (!isoString) return "";
     const date = new Date(isoString);
-    // 🟢 LOCAL TIMEZONE SYNC
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
 };
 
@@ -95,7 +92,9 @@ const TradingBotContainer = () => {
     const { isConnected, address } = useAccount();
     const [isStarting, setIsStarting] = useState(false);
     const [uptime, setUptime] = useState("00:00:00");
-    const [socketLogs, setSocketLogs] = useState([]);
+    
+    // 🟢 RESTORED: Missing showPreFlight state
+    const [showPreFlight, setShowPreFlight] = useState(false);
 
     const [formConfig, setFormConfig] = useState({
         symbol: "BTC-USD", timeframe: "1h", capitalAllocation: 1000,
@@ -183,6 +182,8 @@ const TradingBotContainer = () => {
                 <form className="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-[40px] p-12 text-center shadow-2xl">
                     <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center mx-auto mb-8"><Wallet className="text-emerald-500 w-8 h-8" /></div>
                     <ConnectButton />
+                    {/* 🟢 Accessibility Fix: Hidden username for password manager */}
+                    <input type="text" name="username" autoComplete="username" className="hidden" value={address || ""} readOnly />
                     <input name="password" type="password" autoComplete="current-password" disabled className="hidden" value="password" />
                 </form>
             </div>
@@ -199,7 +200,7 @@ const TradingBotContainer = () => {
                 <header className="max-w-[1800px] mx-auto mb-10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div>
-                        <div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase">Terminal v13.29</p></div>
+                        <div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase">Terminal v13.30</p></div>
                     </div>
                     <div className="flex items-center gap-4">
                         {isBotRunning && (
