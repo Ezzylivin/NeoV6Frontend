@@ -95,25 +95,47 @@ export const LiveTradingChart = ({
     }, [strategies]);
 
     // 3. 🟢 DATA SYNC LOOP
-    useEffect(() => {
-        if (!seriesRef.current.candle || !candleData.length) return;
+    // 3. 🟢 DATA SYNC LOOP (Enhanced for Stability)
+useEffect(() => {
+    if (!seriesRef.current.candle || !candleData.length) return;
 
-        // Update Candles
-        seriesRef.current.candle.setData(candleData.map(c => ({
-            time: c.time, open: c.open, high: c.high, low: c.low, close: c.close
-        })));
+    // 1. Filter out duplicates to prevent Lightweight-Charts "Same Time" crash
+    const seenTimes = new Set();
+    const uniqueData = candleData.filter(c => {
+        const timeVal = Number(c.time);
+        if (seenTimes.has(timeVal)) return false;
+        seenTimes.add(timeVal);
+        return true;
+    }).sort((a, b) => a.time - b.time); // Ensure chronological order
 
-        // Update Dynamic Lines
-        const overlays = seriesRef.current.overlays;
-        const validKeys = Object.keys(overlays);
+    // 2. Update Main Candles
+    seriesRef.current.candle.setData(uniqueData.map(c => ({
+        time: c.time, 
+        open: c.open, 
+        high: c.high, 
+        low: c.low, 
+        close: c.close
+    })));
+
+    // 3. Update Overlays (The Strategy Lines)
+    const overlays = seriesRef.current.overlays;
+    Object.keys(overlays).forEach(key => {
+        const linePoints = uniqueData
+            .filter(c => c[key] !== undefined && c[key] !== null) // Only points with data
+            .map(c => ({ time: c.time, value: parseFloat(c[key]) }));
         
-        validKeys.forEach(key => {
-            const dataPoints = candleData
-                .map(c => c[key] ? { time: c.time, value: c[key] } : null)
-                .filter(Boolean); // Remove nulls to prevent chart errors
-            
-            if (overlays[key]) overlays[key].setData(dataPoints);
-        });
+        if (overlays[key] && linePoints.length > 0) {
+            overlays[key].setData(linePoints);
+        }
+    });
+
+    // 4. Fit Content (Optional: Keeps the chart centered on new data)
+    if (isRunning && uniqueData.length > 0) {
+        // Only auto-fit if it's the first load to avoid jumping
+        // chartRef.current.timeScale().fitContent(); 
+    }
+
+}, [candleData, tradeMarkers, isRunning]);
 
         // Update Markers (Arrows)
         if (tradeMarkers.length > 0) {
