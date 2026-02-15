@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 FIX: v13.28 - Import Fix + Form Security + Full Configuration Restoration
+// 🚀 FIX: v13.29 - Constant Scope Fix + Full Feature Restoration
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
@@ -9,7 +9,6 @@ import toast, { Toaster } from "react-hot-toast";
 import { io } from "socket.io-client"; 
 import { useBot } from "../hooks/useBot";
 import { LiveTradingChart } from "../components/LiveTradingChart.jsx"; 
-// 🟢 FIXED: Missing Import for UIModeProvider
 import { UIModeProvider } from "../context/UIModeContext"; 
 import { 
     Plus, Trash2, Shield, Globe, Cpu, Filter, TrendingUp, 
@@ -23,13 +22,16 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsToolti
 import "./TradingBot.css";
 import "../styles/Themes.css";
 
-// --- 🟢 1. GLOBAL CONSTANTS ---
+// --- 🟢 1. GLOBAL CONSTANTS (Reordered to fix ReferenceError) ---
+const RAW_URL = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
+// Define BASE_URL first
+const BASE_URL = RAW_URL.replace(/\/$/, "").replace(/\/api$/, "");
+// Now reference BASE_URL safely
+const API_BASE = `${BASE_URL}/api`;
+const SOCKET_URL = BASE_URL;
+
 const inputClass = "w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-emerald-500 transition-all text-[11px] outline-none font-mono";
 const labelClass = "text-[9px] text-zinc-500 uppercase font-black mb-1 block ml-1 tracking-tighter";
-
-const RAW_URL = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
-const API_BASE = `${RAW_URL.replace(/\/$/, "").replace(/\/api$/, "")}/api`;
-const SOCKET_URL = BASE_URL;
 
 const COIN_PAIRS = ["BTC-USD", "ETH-USD", "SOL-USD", "DOGE-USD", "MATIC-USD", "LINK-USD", "ADA-USD"];
 const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"];
@@ -76,7 +78,7 @@ const parseLog = (log) => {
 const formatTime = (isoString) => {
     if (!isoString) return "";
     const date = new Date(isoString);
-    // 🟢 SYNCED TO BROWSER LOCAL TIMEZONE
+    // 🟢 LOCAL TIMEZONE SYNC
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
 };
 
@@ -142,8 +144,9 @@ const TradingBotContainer = () => {
             const response = await startBot(formConfig);
             if (response) {
                 toast.success("Protocol Ignited");
+                setShowPreFlight(false);
             }
-        } catch (e) { toast.error("Ignition failure."); } finally { setIsStarting(false); }
+        } catch (e) { toast.error("Ignition failed."); } finally { setIsStarting(false); }
     };
 
     const handleEmergencyPurge = async () => {
@@ -174,22 +177,13 @@ const TradingBotContainer = () => {
         }));
     }, [socketStatus.equityCurve, activeBalance]);
 
-    // 🟢 AUTH UI FOR SECURITY COMPLIANCE
     if (!isConnected) {
         return (
             <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6">
                 <form className="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-[40px] p-12 text-center shadow-2xl">
                     <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center mx-auto mb-8"><Wallet className="text-emerald-500 w-8 h-8" /></div>
                     <ConnectButton />
-                    {/* Fixed: Password attributes added */}
-                    <input 
-                        name="password" 
-                        type="password" 
-                        autoComplete="current-password" 
-                        disabled 
-                        className="hidden" 
-                        value="password" 
-                    />
+                    <input name="password" type="password" autoComplete="current-password" disabled className="hidden" value="password" />
                 </form>
             </div>
         );
@@ -205,7 +199,7 @@ const TradingBotContainer = () => {
                 <header className="max-w-[1800px] mx-auto mb-10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div>
-                        <div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase">Terminal v13.28</p></div>
+                        <div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase">Terminal v13.29</p></div>
                     </div>
                     <div className="flex items-center gap-4">
                         {isBotRunning && (
@@ -219,7 +213,6 @@ const TradingBotContainer = () => {
                     <div className="col-span-12 lg:col-span-3 space-y-6">
                         {!isBotRunning ? (
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-10 shadow-2xl sticky top-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
-                                {/* Configuration Blocks restored */}
                                 <div><label className={labelClass}>Market Feed</label>
                                     <div className="grid grid-cols-3 gap-2">
                                         <select value={formConfig.symbol} onChange={(e)=>setFormConfig({...formConfig, symbol: e.target.value})} className={inputClass + " col-span-2"}>{COIN_PAIRS.map(c => <option key={c} value={c}>{c}</option>)}</select>
