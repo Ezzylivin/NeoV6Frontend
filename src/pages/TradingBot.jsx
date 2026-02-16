@@ -199,9 +199,14 @@ const TradingBotContainer = () => {
     }, [hookBotStatus, hookLogs, restoredConfig]);
 
     const activeBalance = useMemo(() => {
-        if (isBotRunning) return socketStatus.currentBalance || socketStatus.initialCapital || formConfig.capitalAllocation;
-        return formConfig.capitalAllocation;
-    }, [isBotRunning, socketStatus.currentBalance, socketStatus.initialCapital, formConfig.capitalAllocation]);
+    // 1. If the bot is running, check if the engine has a real, active balance
+    if (isBotRunning) {
+        // We only use socketStatus if it's not 0 or null
+        return socketStatus.currentBalance || socketStatus.initialCapital || formConfig.capitalAllocation;
+    }
+    // 2. If not running, ALWAYS show the user's input
+    return formConfig.capitalAllocation;
+}, [isBotRunning, socketStatus.currentBalance, socketStatus.initialCapital, formConfig.capitalAllocation]);
 
     useEffect(() => {
         if (isConnected) {
@@ -252,9 +257,25 @@ const TradingBotContainer = () => {
     setIsHaltLocked(false);
     setSocketStatus(prev => ({ ...prev, equityCurve: [], tradeMarkers: [], positions: [], candles: [] }));
     setSocketLogs([]);
+
+       const targetCapital = Number(formConfig.capitalAllocation) || Number(paperBalance) || 1000;
+
+       setSocketStatus({ 
+        status: 'initializing', 
+        currentBalance: targetCapital, // Force UI to show $300 right now
+        equityCurve: [], 
+        tradeMarkers: [], 
+        positions: [], 
+        candles: [],
+        unrealizedPnl: 0,
+        dailyProfit: 0
+    });
+
+    setSocketLogs([]);
+       
     const finalConfig = {
         ...formConfig,
-        capitalAllocation: Number(formConfig.capitalAllocation) || Number(paperBalance) || 1000,
+        capitalAllocation: targetCapital,
         mlMode: formConfig.mlMode || "on", 
         mlModel: formConfig.mlModel || "stacking", 
         mlThresholdLong: parseFloat(formConfig.params.long_threshold) || 0.8,
@@ -283,7 +304,7 @@ const TradingBotContainer = () => {
         // This clears the dashboard immediately so it can't "revert"
         setSocketStatus({ 
             status: 'stopped', 
-            currentBalance: 0, 
+            currentBalance: targetCapital,
             unrealizedPnl: 0, 
             positions: [], 
             equityCurve: [], 
