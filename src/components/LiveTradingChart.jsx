@@ -1,5 +1,5 @@
 // File: src/components/LiveTradingChart.jsx
-// 🚀 UPGRADE: v13.9 - Hardened Data Sync & Marker Integration
+// 🚀 UPGRADE: v13.8 - Dynamic Multi-Strategy Visualizer
 
 import React, { useEffect, useRef } from 'react';
 import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
@@ -17,7 +17,7 @@ export const LiveTradingChart = ({
     const chartRef = useRef(null);
     const seriesRef = useRef({ 
         candle: null,
-        overlays: {} 
+        overlays: {} // Stores dynamic strategy lines
     });
 
     // 1. Initialize Chart
@@ -46,7 +46,6 @@ export const LiveTradingChart = ({
             if (chartContainerRef.current) chart.applyOptions({ width: chartContainerRef.current.clientWidth });
         };
         window.addEventListener('resize', handleResize);
-        
         return () => {
             window.removeEventListener('resize', handleResize);
             chart.remove();
@@ -54,77 +53,82 @@ export const LiveTradingChart = ({
     }, []);
 
     // 2. 🟢 DYNAMIC STRATEGY RENDERER
+    // Creates lines based on User Selection
     useEffect(() => {
         if (!chartRef.current) return;
 
+        // Clear old overlays
         Object.values(seriesRef.current.overlays).forEach(s => chartRef.current.removeSeries(s));
         seriesRef.current.overlays = {};
 
         strategies.forEach(strat => {
+            // Bollinger Bands
             if (strat.code === 'bb_fade') {
                 seriesRef.current.overlays['bb_upper'] = chartRef.current.addLineSeries({ color: 'rgba(59, 130, 246, 0.5)', lineWidth: 1, title: 'BB High' });
                 seriesRef.current.overlays['bb_lower'] = chartRef.current.addLineSeries({ color: 'rgba(59, 130, 246, 0.5)', lineWidth: 1, title: 'BB Low' });
             }
+            // EMA Cloud
             if (strat.code === 'ema_cloud') {
                 seriesRef.current.overlays['ema_fast'] = chartRef.current.addLineSeries({ color: '#34d399', lineWidth: 1, title: 'EMA 9' });
                 seriesRef.current.overlays['ema_slow'] = chartRef.current.addLineSeries({ color: '#f87171', lineWidth: 1, title: 'EMA 21' });
             }
+            // SMA Crossover
             if (strat.code === 'sma_crossover') {
                 seriesRef.current.overlays['sma_fast'] = chartRef.current.addLineSeries({ color: '#fbbf24', lineWidth: 2, title: 'SMA 50' });
                 seriesRef.current.overlays['sma_slow'] = chartRef.current.addLineSeries({ color: '#8b5cf6', lineWidth: 2, title: 'SMA 200' });
             }
+            // SuperTrend
             if (strat.code === 'supertrend') {
                 seriesRef.current.overlays['supertrend'] = chartRef.current.addLineSeries({ color: '#d946ef', lineWidth: 2, lineStyle: LineStyle.Step, title: 'SuperTrend' });
+            }
+            // Price Action Breakout (Donchian)
+            if (strat.code === 'pa_breakout') {
+                seriesRef.current.overlays['pa_high'] = chartRef.current.addLineSeries({ color: '#facc15', lineWidth: 1, lineStyle: LineStyle.Dashed, title: '20d High' });
+                seriesRef.current.overlays['pa_low'] = chartRef.current.addLineSeries({ color: '#facc15', lineWidth: 1, lineStyle: LineStyle.Dashed, title: '20d Low' });
+            }
+            // ATR Breakout Bands
+            if (strat.code === 'atr_breakout') {
+                seriesRef.current.overlays['atr_upper'] = chartRef.current.addLineSeries({ color: '#22d3ee', lineWidth: 1, lineStyle: LineStyle.Dotted, title: 'ATR Top' });
+                seriesRef.current.overlays['atr_lower'] = chartRef.current.addLineSeries({ color: '#22d3ee', lineWidth: 1, lineStyle: LineStyle.Dotted, title: 'ATR Bot' });
             }
         });
     }, [strategies]);
 
-    // 3. 🟢 DATA SYNC LOOP (Consolidated & Stabilized)
+    // 3. 🟢 DATA SYNC LOOP
     useEffect(() => {
         if (!seriesRef.current.candle || !candleData.length) return;
 
-        // A. Filter out duplicates and sort by time to prevent Lightweight-Charts crash
-        const seenTimes = new Set();
-        const uniqueData = candleData.filter(c => {
-            const t = Number(c.time);
-            if (!t || seenTimes.has(t)) return false;
-            seenTimes.add(t);
-            return true;
-        }).sort((a, b) => a.time - b.time);
-
-        // B. Update Main Candles
-        seriesRef.current.candle.setData(uniqueData.map(c => ({
+        // Update Candles
+        seriesRef.current.candle.setData(candleData.map(c => ({
             time: c.time, open: c.open, high: c.high, low: c.low, close: c.close
         })));
 
-        // C. Update Dynamic Lines (Overlays)
+        // Update Dynamic Lines
         const overlays = seriesRef.current.overlays;
-        Object.keys(overlays).forEach(key => {
-            const linePoints = uniqueData
-                .filter(c => c[key] !== undefined && c[key] !== null)
-                .map(c => ({ time: c.time, value: parseFloat(c[key]) }));
+        const validKeys = Object.keys(overlays);
+        
+        validKeys.forEach(key => {
+            const dataPoints = candleData
+                .map(c => c[key] ? { time: c.time, value: c[key] } : null)
+                .filter(Boolean); // Remove nulls to prevent chart errors
             
-            if (overlays[key] && linePoints.length > 0) {
-                overlays[key].setData(linePoints);
-            }
+            if (overlays[key]) overlays[key].setData(dataPoints);
         });
 
-        // D. Update Trade Markers (Arrows)
+        // Update Markers (Arrows)
         if (tradeMarkers.length > 0) {
-            const markers = tradeMarkers
-                .filter(t => seenTimes.has(Number(t.time))) // Only show markers that have a corresponding candle
-                .map(t => ({
-                    time: Number(t.time),
-                    position: t.text?.includes('Short') || t.text?.includes('High') || t.text?.includes('Veto') ? 'aboveBar' : 'belowBar',
-                    color: t.text?.includes('Short') || t.text?.includes('High') || t.text?.includes('Veto') ? '#f43f5e' : '#10b981',
-                    shape: t.text?.includes('Short') || t.text?.includes('High') || t.text?.includes('Veto') ? 'arrowDown' : 'arrowUp',
-                    text: t.text,
-                    size: 1
-                }));
+            const markers = tradeMarkers.map(t => ({
+                time: t.time,
+                position: t.text?.includes('Buy') || t.text?.includes('Long') || t.text?.includes('Low') ? 'belowBar' : 'aboveBar',
+                color: t.text?.includes('Buy') || t.text?.includes('Long') || t.text?.includes('Low') ? '#10b981' : '#ef4444',
+                shape: t.text?.includes('Buy') || t.text?.includes('Long') || t.text?.includes('Low') ? 'arrowUp' : 'arrowDown',
+                text: t.text,
+                size: 1.5
+            }));
             seriesRef.current.candle.setMarkers(markers);
         }
 
-    }, [candleData, tradeMarkers]); // Runs whenever new data or markers arrive
+    }, [candleData, tradeMarkers]);
 
     return <div ref={chartContainerRef} className="w-full h-full" />;
 };
