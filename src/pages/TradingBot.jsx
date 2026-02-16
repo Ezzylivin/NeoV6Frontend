@@ -22,15 +22,6 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsToolti
 import "./TradingBot.css";
 import "../styles/Themes.css";
 
-const initialConfig = {
-    capitalAllocation: 1000,
-    symbol: "BTC-USD",
-    timeframe: "1h",
-    tradingMode: "paper",
-    mlMode: "off",
-    hybridMode: "AND"
-};
-
 // ... (Configuration Constants & Helper Functions remain EXACTLY the same) ...
 const RAW_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 const BASE_URL = RAW_URL.replace(/\/$/, "").replace(/\/api$/, "");
@@ -170,7 +161,7 @@ const TradingBotContainer = () => {
     const [hasApiKeys, setHasApiKeys] = useState(false);
     const [showPreFlight, setShowPreFlight] = useState(false);
     const [isStarting, setIsStarting] = useState(false);
-    const [paperBalance, setPaperBalance] = useState(initialConfig?.capitalAllocation || 0);
+    const [paperBalance, setPaperBalance] = useState(10000);
     const [modeStep, setModeStep] = useState('selection');
     
     const socketRef = useRef(null);
@@ -208,14 +199,9 @@ const TradingBotContainer = () => {
     }, [hookBotStatus, hookLogs, restoredConfig]);
 
     const activeBalance = useMemo(() => {
-    // 1. If the bot is running, check if the engine has a real, active balance
-    if (isBotRunning) {
-        // We only use socketStatus if it's not 0 or null
-        return socketStatus.currentBalance || socketStatus.initialCapital || formConfig.capitalAllocation;
-    }
-    // 2. If not running, ALWAYS show the user's input
-    return formConfig.capitalAllocation;
-}, [isBotRunning, socketStatus.currentBalance, socketStatus.initialCapital, formConfig.capitalAllocation]);
+        if (isBotRunning) return socketStatus.currentBalance || socketStatus.initialCapital || formConfig.capitalAllocation;
+        return formConfig.capitalAllocation;
+    }, [isBotRunning, socketStatus.currentBalance, socketStatus.initialCapital, formConfig.capitalAllocation]);
 
     useEffect(() => {
         if (isConnected) {
@@ -266,25 +252,9 @@ const TradingBotContainer = () => {
     setIsHaltLocked(false);
     setSocketStatus(prev => ({ ...prev, equityCurve: [], tradeMarkers: [], positions: [], candles: [] }));
     setSocketLogs([]);
-
-       const targetCapital = Number(formConfig.capitalAllocation) || Number(paperBalance) || 1000;
-
-       setSocketStatus({ 
-        status: 'initializing', 
-        currentBalance: targetCapital, // Force UI to show $300 right now
-        equityCurve: [], 
-        tradeMarkers: [], 
-        positions: [], 
-        candles: [],
-        unrealizedPnl: 0,
-        dailyProfit: 0
-    });
-
-    setSocketLogs([]);
-       
     const finalConfig = {
         ...formConfig,
-        capitalAllocation: targetCapital,
+        capitalAllocation: Number(formConfig.capitalAllocation) || Number(paperBalance) || 1000,
         mlMode: formConfig.mlMode || "on", 
         mlModel: formConfig.mlModel || "stacking", 
         mlThresholdLong: parseFloat(formConfig.params.long_threshold) || 0.8,
@@ -302,38 +272,14 @@ const TradingBotContainer = () => {
     } catch (e) { toast.error(`Engine Failure: ${e.response?.data?.detail || e.message}`); } finally { setIsStarting(false); }
 };
 
- const handleHalt = async () => {
-    setIsHaltLocked(true); 
-    
-    try {
-        await stopBot();
-        
-        setSocketStatus({ 
-            status: 'stopped', 
-            // 🟢 FIX: Reference formConfig.capitalAllocation instead of targetCapital
-            currentBalance: Number(formConfig.capitalAllocation), 
-            unrealizedPnl: 0, 
-            positions: [], 
-            equityCurve: [], 
-            tradeMarkers: [],
-            startedAt: null 
-        });
-        
-        setSocketLogs([]); 
-        localStorage.removeItem("neo_active_bot_id");
-        toast.success("🚨 SYSTEM PURGED: Engine Stopped & Session Reset");
-
-        setTimeout(() => {
-            setIsHaltLocked(false);
-            refreshState(); 
-        }, 3000);
-
-    } catch (e) {
-        console.error("Halt Error:", e); // This will now show up since we fixed the filters!
-        toast.error("Halt Command Failed");
-        setIsHaltLocked(false);
-    }
-};
+    const handleHalt = async () => {
+        setIsHaltLocked(true);
+        try {
+            await stopBot();
+            toast.success("Safe Abort: Terminal Memory Purged");
+            setTimeout(() => setIsHaltLocked(false), 5000); 
+        } catch (e) { toast.error("Halt Command Failed"); setIsHaltLocked(false); }
+    };
 
     const handleManualExit = async () => {
         if (!socketStatus.positions.length) return;
