@@ -22,6 +22,15 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsToolti
 import "./TradingBot.css";
 import "../styles/Themes.css";
 
+const initialConfig = {
+    capitalAllocation: 1000,
+    symbol: "BTC-USD",
+    timeframe: "1h",
+    tradingMode: "paper",
+    mlMode: "off",
+    hybridMode: "AND"
+};
+
 // ... (Configuration Constants & Helper Functions remain EXACTLY the same) ...
 const RAW_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 const BASE_URL = RAW_URL.replace(/\/$/, "").replace(/\/api$/, "");
@@ -293,18 +302,16 @@ const TradingBotContainer = () => {
     } catch (e) { toast.error(`Engine Failure: ${e.response?.data?.detail || e.message}`); } finally { setIsStarting(false); }
 };
 
-   const handleHalt = async () => {
+ const handleHalt = async () => {
     setIsHaltLocked(true); 
     
     try {
-        // 1. Tell Backend to Kill & Reset (Confirmed working by your script!)
         await stopBot();
         
-        // 2. 🟢 HARD RESET FRONTEND STATE
-        // This clears the dashboard immediately so it can't "revert"
         setSocketStatus({ 
             status: 'stopped', 
-            currentBalance: targetCapital,
+            // 🟢 FIX: Reference formConfig.capitalAllocation instead of targetCapital
+            currentBalance: Number(formConfig.capitalAllocation), 
             unrealizedPnl: 0, 
             positions: [], 
             equityCurve: [], 
@@ -312,22 +319,17 @@ const TradingBotContainer = () => {
             startedAt: null 
         });
         
-        // 3. 🟢 WIPE LOGS & CACHE
         setSocketLogs([]); 
         localStorage.removeItem("neo_active_bot_id");
-
         toast.success("🚨 SYSTEM PURGED: Engine Stopped & Session Reset");
 
-        // 4. LOCKOUT PERIOD
-        // We stay locked for 3s to let the background loops fully dissipate
         setTimeout(() => {
             setIsHaltLocked(false);
-            // Final verify sync
             refreshState(); 
         }, 3000);
 
     } catch (e) {
-        console.error("Halt Error:", e);
+        console.error("Halt Error:", e); // This will now show up since we fixed the filters!
         toast.error("Halt Command Failed");
         setIsHaltLocked(false);
     }
