@@ -4,9 +4,13 @@ import { createChart, CrosshairMode, ColorType, LineStyle } from "lightweight-ch
 export function ChartIndependent({ results, symbol = "SOL-USD" }) {
     const chartContainerRef = useRef(null);
     const chartRef = useRef(null);
-    const tradeLineSeriesRef = useRef(null); // 🟢 Ref for the connector line
+    const tradeLineSeriesRef = useRef(null);
     
-    const [legend, setLegend] = useState({ open: "--", high: "--", low: "--", close: "--" });
+    // 🟢 State for the Floating Legend
+    const [legend, setLegend] = useState({ 
+        open: "--", high: "--", low: "--", close: "--", 
+        timeStr: "--" 
+    });
 
     const formatTime = (t) => {
         const date = new Date(t);
@@ -31,7 +35,17 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
                 });
             }
         });
-        return Array.from(uniqueCandles.values()).sort((a, b) => a.time - b.time);
+        const sorted = Array.from(uniqueCandles.values()).sort((a, b) => a.time - b.time);
+        
+        if (sorted.length > 0) {
+            console.log("📊 Chart Range:", 
+                new Date(sorted[0].time * 1000).toLocaleDateString(), 
+                "->", 
+                new Date(sorted[sorted.length-1].time * 1000).toLocaleDateString()
+            );
+        }
+        
+        return sorted;
     }, [results]);
 
     // 2. Process Trades & Markers
@@ -42,37 +56,29 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
         const formattedTrades = trades.map(t => ({
             ...t,
             time: formatTime(t.entry_time || t.time),
-            price: parseFloat(t.price) // Ensure price is a number
+            price: parseFloat(t.price)
         })).sort((a,b) => a.time - b.time);
 
-        // Map timestamps to trades for fast lookup during hover
         const lookup = {}; 
-        
-        // Simple logic: Pair every Entry with the next Exit
-        // This creates a "Chain" of trades we can look up by time
         let lastEntry = null;
 
         formattedTrades.forEach(t => {
-            lookup[t.time] = t; // Store trade by time
-
+            lookup[t.time] = t;
             if (t.type === 'buy' || t.type === 'sell' || t.type === 'long' || t.type === 'short') {
                 lastEntry = t;
             } else if ((t.type.includes('close') || t.type.includes('flip')) && lastEntry) {
-                // Link them together
                 lastEntry.exitMatch = t;
                 t.entryMatch = lastEntry;
-                // Update the lookup with the linked version
                 lookup[lastEntry.time] = lastEntry;
                 lookup[t.time] = t;
-                lastEntry = null; // Reset
+                lastEntry = null;
             }
         });
 
         const markersList = formattedTrades.map(t => {
             if (t.type === "buy" || t.type === "long") return { time: t.time, position: "belowBar", color: "#10b981", shape: "arrowUp", text: "L" };
             if (t.type === "sell" || t.type === "short") return { time: t.time, position: "aboveBar", color: "#ef4444", shape: "arrowDown", text: "S" };
-            if (t.type === "close_long") return { time: t.time, position: "aboveBar", color: "#fbbf24", shape: "circle", text: "X" };
-            if (t.type === "close_short") return { time: t.time, position: "belowBar", color: "#fbbf24", shape: "circle", text: "X" };
+            if (t.type.includes("close")) return { time: t.time, position: "aboveBar", color: "#fbbf24", shape: "circle", text: "X" };
             return null;
         }).filter(Boolean);
 
@@ -88,7 +94,12 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
             height: 500,
             layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: "#94a3b8" },
             grid: { vertLines: { color: "rgba(255, 255, 255, 0.05)" }, horzLines: { color: "rgba(255, 255, 255, 0.05)" } },
-            timeScale: { timeVisible: true, borderColor: "#374151" },
+            timeScale: { 
+                timeVisible: true, 
+                borderColor: "#374151",
+                barSpacing: 10, // 🟢 Start reasonably zoomed
+                rightOffset: 5
+            },
             crosshair: { mode: CrosshairMode.Normal },
         });
 
@@ -96,9 +107,8 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
         candleSeries.setData(candles);
         candleSeries.setMarkers(markers);
 
-        // 🟢 Create a Hidden Line Series for the Connector
         const tradeLineSeries = chart.addLineSeries({
-            color: 'rgba(255, 255, 255, 0.5)',
+            color: 'rgba(255, 255, 255, 0.6)',
             lineWidth: 1,
             lineStyle: LineStyle.Dashed,
             crosshairMarkerVisible: false,
@@ -107,52 +117,62 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
         });
         tradeLineSeriesRef.current = tradeLineSeries;
 
-        const lastCandle = candles[candles.length - 1];
-        if (lastCandle) setLegend(lastCandle);
+        const updateLegend = (data) => {
+            const dateStr = new Date(data.time * 1000).toLocaleDateString();
+            setLegend({
+                open: data.open, high: data.high, low: data.low, close: data.close,
+                timeStr: dateStr
+            });
+        };
 
-        // 🟢 HOVER LISTENER (The Magic Part)
+        const lastCandle = candles[candles.length - 1];
+        if (lastCandle) updateLegend(lastCandle);
+
         chart.subscribeCrosshairMove((param) => {
-            // 1. Update Legend
             if (param.time) {
                 const data = param.seriesData.get(candleSeries);
-                if (data) setLegend(data);
-            } else {
-                setLegend(lastCandle);
-            }
+                if (data) updateLegend(data);
 
-            // 2. Draw Connector Line
-            if (param.time && tradeLookup[param.time]) {
                 const trade = tradeLookup[param.time];
-                let points = [];
-
-                // If hovering Entry -> Draw to Exit
-                if (trade.exitMatch) {
-                    points = [
-                        { time: trade.time, value: trade.price },
-                        { time: trade.exitMatch.time, value: trade.exitMatch.price }
-                    ];
-                } 
-                // If hovering Exit -> Draw back to Entry
-                else if (trade.entryMatch) {
-                    points = [
-                        { time: trade.entryMatch.time, value: trade.entryMatch.price },
-                        { time: trade.time, value: trade.price }
-                    ];
-                }
-
-                // Update the line series
-                if (points.length > 0) {
-                    tradeLineSeries.setData(points);
+                if (trade) {
+                    let points = [];
+                    if (trade.exitMatch) {
+                        points = [
+                            { time: trade.time, value: trade.price },
+                            { time: trade.exitMatch.time, value: trade.exitMatch.price }
+                        ];
+                    } else if (trade.entryMatch) {
+                        points = [
+                            { time: trade.entryMatch.time, value: trade.entryMatch.price },
+                            { time: trade.time, value: trade.price }
+                        ];
+                    }
+                    
+                    // 🟢 SORT POINTS (Required for line series)
+                    if (points.length === 2) {
+                        points.sort((a,b) => a.time - b.time);
+                        tradeLineSeries.setData(points);
+                    } else {
+                        tradeLineSeries.setData([]);
+                    }
                 } else {
-                    tradeLineSeries.setData([]); // Clear if no pair found
+                    tradeLineSeries.setData([]);
                 }
             } else {
-                // Clear line when hovering over empty space or non-trade candles
+                if (lastCandle) updateLegend(lastCandle);
                 tradeLineSeries.setData([]);
             }
         });
 
-        chart.timeScale().fitContent();
+        // 🟢 FIX: SCROLL TO START
+        // Instead of fitContent (which often defaults to end), we scroll to the first bar
+        // using the internal logical index (negative indices scroll left).
+        // Or simply set visible logical range to start from 0.
+        
+        setTimeout(() => {
+            const logicalRange = { from: 0, to: 150 }; // Show first 150 bars
+            chart.timeScale().setVisibleLogicalRange(logicalRange);
+        }, 100);
         
         const handleResize = () => {
             if (chartContainerRef.current) {
@@ -171,16 +191,24 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
     return (
         <div className="w-full h-full relative group">
             {/* Legend Overlay */}
-            <div className="absolute top-4 left-4 z-20 font-mono text-[10px] pointer-events-none select-none bg-zinc-950/80 backdrop-blur-sm p-2 rounded border border-zinc-800/50 shadow-xl transition-opacity opacity-0 group-hover:opacity-100">
-                <div className="flex gap-4 items-center mb-1">
-                    <span className="font-black text-amber-500 text-xs">{symbol}</span>
-                    <span className="text-zinc-500">EXECUTION</span>
+            <div className="absolute top-4 left-4 z-50 pointer-events-none select-none">
+                <div className="bg-zinc-950/90 backdrop-blur-md p-3 rounded-xl border border-zinc-800 shadow-2xl mb-2">
+                    <div className="flex gap-4 items-center mb-1">
+                        <span className="font-black text-amber-500 text-xs tracking-wider">{symbol}</span>
+                        <span className="text-[10px] text-zinc-500 font-mono">{legend.timeStr}</span>
+                    </div>
+                    <div className="flex gap-4 text-[10px] font-mono text-zinc-300">
+                        <div>O: <span className={legend.open > legend.close ? 'text-rose-400' : 'text-emerald-400'}>{Number(legend.open).toFixed(2)}</span></div>
+                        <div>H: <span className="text-zinc-400">{Number(legend.high).toFixed(2)}</span></div>
+                        <div>L: <span className="text-zinc-400">{Number(legend.low).toFixed(2)}</span></div>
+                        <div>C: <span className={legend.open > legend.close ? 'text-rose-400' : 'text-emerald-400'}>{Number(legend.close).toFixed(2)}</span></div>
+                    </div>
                 </div>
-                <div className="flex gap-3 text-zinc-300">
-                    <div>O: <span className={legend.open > legend.close ? 'text-rose-400' : 'text-emerald-400'}>{Number(legend.open).toFixed(2)}</span></div>
-                    <div>H: <span className="text-zinc-400">{Number(legend.high).toFixed(2)}</span></div>
-                    <div>L: <span className="text-zinc-400">{Number(legend.low).toFixed(2)}</span></div>
-                    <div>C: <span className={legend.open > legend.close ? 'text-rose-400' : 'text-emerald-400'}>{Number(legend.close).toFixed(2)}</span></div>
+
+                <div className="flex gap-3 bg-zinc-950/80 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-zinc-800/50 w-fit">
+                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500"></div><span className="text-[9px] text-zinc-400 font-bold">L = LONG</span></div>
+                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-rose-500"></div><span className="text-[9px] text-zinc-400 font-bold">S = SHORT</span></div>
+                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-400"></div><span className="text-[9px] text-zinc-400 font-bold">X = EXIT</span></div>
                 </div>
             </div>
 
