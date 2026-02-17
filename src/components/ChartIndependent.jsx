@@ -6,10 +6,13 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
     const chartRef = useRef(null);
     const tradeLineSeriesRef = useRef(null);
     
-    // 🟢 State for the Floating Legend
+    // 🟢 Ref to ensure we only force the start position ONCE
+    const isViewInitialized = useRef(false);
+    
     const [legend, setLegend] = useState({ 
         open: "--", high: "--", low: "--", close: "--", 
-        timeStr: "--" 
+        timeStr: "--",
+        tradeInfo: null 
     });
 
     const formatTime = (t) => {
@@ -35,29 +38,20 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
                 });
             }
         });
-        const sorted = Array.from(uniqueCandles.values()).sort((a, b) => a.time - b.time);
-        
-        if (sorted.length > 0) {
-            console.log("📊 Chart Range:", 
-                new Date(sorted[0].time * 1000).toLocaleDateString(), 
-                "->", 
-                new Date(sorted[sorted.length-1].time * 1000).toLocaleDateString()
-            );
-        }
-        
-        return sorted;
+        // Sort ascending (Oldest -> Newest)
+        return Array.from(uniqueCandles.values()).sort((a, b) => a.time - b.time);
     }, [results]);
 
-    // 2. Process Trades & Markers (Fixed Logic)
+    // 2. Process Trades & Markers
     const { markers, tradeLookup } = useMemo(() => {
         const trades = results?.trades || [];
         if (trades.length === 0) return { markers: [], tradeLookup: {} };
 
-        // Helper to standardize trade type labels
-        const getLabel = (type) => {
-            const t = type.toLowerCase();
-            if (t === 'buy' || t === 'long') return 'LONG';
-            if (t === 'sell' || t === 'short') return 'SHORT';
+        // 🟢 Helper to standardize trade types
+        const normalizeType = (t) => {
+            const lower = (t || "").toLowerCase();
+            if (lower.includes('buy') || lower.includes('long')) return 'LONG';
+            if (lower.includes('sell') || lower.includes('short')) return 'SHORT';
             return 'EXIT';
         };
 
@@ -65,34 +59,33 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
             ...t,
             time: formatTime(t.entry_time || t.time),
             price: parseFloat(t.price),
-            // 🟢 Robust Size Check: Check multiple common field names
-            size: parseFloat(t.size || t.amount || t.quantity || t.position_size || 0),
-            pnl: parseFloat(t.pnl || t.profit || t.realized_pnl || t.net_profit || 0),
-            rawType: t.type
+            // 🟢 Aggressive Field Check: Check ALL possible names for size/pnl
+            size: parseFloat(t.size || t.amount || t.quantity || t.qty || t.position_size || 0),
+            pnl: parseFloat(t.pnl || t.profit || t.realized_pnl || t.net_profit || t.return || 0),
+            displayType: normalizeType(t.type)
         })).sort((a,b) => a.time - b.time);
 
         const lookup = {}; 
         let lastEntry = null;
 
         formattedTrades.forEach(t => {
-            // Initial map
             lookup[t.time] = t;
 
-            if (['buy', 'sell', 'long', 'short'].includes(t.rawType.toLowerCase())) {
+            // If it's an Entry
+            if (t.displayType === 'LONG' || t.displayType === 'SHORT') {
                 lastEntry = t;
             } 
-            else if ((t.rawType.toLowerCase().includes('close') || t.rawType === 'exit') && lastEntry) {
-                // Link Entry and Exit
+            // If it's an Exit
+            else if (t.displayType === 'EXIT' && lastEntry) {
+                // Link them
                 lastEntry.exitMatch = t;
                 t.entryMatch = lastEntry;
 
-                // 🟢 CRITICAL FIX: Pass PnL from Exit back to Entry so tooltip shows it
-                lastEntry.pnl = t.pnl;
-                
-                // Pass Size from Entry to Exit if missing
-                if (!t.size) t.size = lastEntry.size;
+                // 🟢 DATA SYNC: Copy PnL/Size to both ends so tooltip works on both
+                if (t.pnl !== 0) lastEntry.pnl = t.pnl; 
+                if (lastEntry.size !== 0) t.size = lastEntry.size;
 
-                // Update lookup with linked data
+                // Update lookup
                 lookup[lastEntry.time] = lastEntry;
                 lookup[t.time] = t;
                 
@@ -101,10 +94,9 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
         });
 
         const markersList = formattedTrades.map(t => {
-            const label = getLabel(t.rawType);
-            if (label === "LONG") return { time: t.time, position: "belowBar", color: "#10b981", shape: "arrowUp", text: "L" };
-            if (label === "SHORT") return { time: t.time, position: "aboveBar", color: "#ef4444", shape: "arrowDown", text: "S" };
-            if (label === "EXIT") return { time: t.time, position: "aboveBar", color: "#fbbf24", shape: "circle", text: "X" };
+            if (t.displayType === "LONG") return { time: t.time, position: "belowBar", color: "#10b981", shape: "arrowUp", text: "L" };
+            if (t.displayType === "SHORT") return { time: t.time, position: "aboveBar", color: "#ef4444", shape: "arrowDown", text: "S" };
+            if (t.displayType === "EXIT") return { time: t.time, position: "aboveBar", color: "#fbbf24", shape: "circle", text: "X" };
             return null;
         }).filter(Boolean);
 
@@ -113,14 +105,23 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
 
     useEffect(() => {
         if (!chartContainerRef.current || candles.length === 0) return;
-        if (chartRef.current) chartRef.current.remove();
+        
+        // Cleanup old chart
+        if (chartRef.current) {
+            chartRef.current.remove();
+            chartRef.current = null;
+        }
 
+        // Reset the "View Initialized" flag when data changes significantly
+        // (But usually we want to keep it true if just resizing)
+        // For new backtests, we might want to reset this in the parent or use a key prop.
+        
         const chart = createChart(chartContainerRef.current, {
             width: chartContainerRef.current.clientWidth,
             height: 500,
             layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: "#94a3b8" },
             grid: { vertLines: { color: "rgba(255, 255, 255, 0.05)" }, horzLines: { color: "rgba(255, 255, 255, 0.05)" } },
-            timeScale: { timeVisible: true, borderColor: "#374151", barSpacing: 10, rightOffset: 5 },
+            timeScale: { timeVisible: true, borderColor: "#374151", rightOffset: 5 },
             crosshair: { mode: CrosshairMode.Normal },
         });
 
@@ -151,7 +152,6 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
         const lastCandle = candles[candles.length - 1];
         if (lastCandle) updateLegend(lastCandle, null);
 
-        // Hover Listener
         chart.subscribeCrosshairMove((param) => {
             if (param.time) {
                 const data = param.seriesData.get(candleSeries);
@@ -188,13 +188,15 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
             }
         });
 
-        // Force Start from Beginning
-        if (candles.length > 0) {
-            chart.timeScale().fitContent();
-            setTimeout(() => {
-                const logicalRange = { from: 0, to: 150 }; 
-                chart.timeScale().setVisibleLogicalRange(logicalRange);
-            }, 100);
+        // 🟢 FIX: Initialize View (Only Once)
+        // We use a small timeout to let the chart engine render first.
+        if (!isViewInitialized.current && candles.length > 0) {
+            // Option 1: Scroll to start (Left side)
+            // Logic: "to: 150" means show index 0 to 150
+            chart.timeScale().setVisibleLogicalRange({ from: 0, to: 150 });
+            
+            // Mark as initialized so we don't reset it when you scroll later
+            isViewInitialized.current = true;
         }
         
         const handleResize = () => {
@@ -210,14 +212,6 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
             chart.remove();
         };
     }, [candles, markers, tradeLookup]);
-
-    // Helper to format trade label for UI
-    const getDisplayType = (rawType) => {
-        const t = rawType.toLowerCase();
-        if (t === 'buy' || t === 'long') return 'LONG';
-        if (t === 'sell' || t === 'short') return 'SHORT';
-        return 'EXIT';
-    };
 
     return (
         <div className="w-full h-full relative group">
@@ -239,16 +233,18 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
                     {legend.tradeInfo && (
                         <div className="mt-2 pt-2 border-t border-zinc-800 flex gap-4 text-[10px] font-mono animate-in fade-in">
                             <div className="text-zinc-400">
-                                TYPE: <span className={getDisplayType(legend.tradeInfo.rawType) === "LONG" ? "text-emerald-400" : getDisplayType(legend.tradeInfo.rawType) === "SHORT" ? "text-rose-400" : "text-amber-400"}>
-                                    {getDisplayType(legend.tradeInfo.rawType)}
+                                TYPE: <span className={legend.tradeInfo.displayType === "LONG" ? "text-emerald-400" : legend.tradeInfo.displayType === "SHORT" ? "text-rose-400" : "text-amber-400"}>
+                                    {legend.tradeInfo.displayType}
                                 </span>
                             </div>
                             <div className="text-zinc-400">
-                                SIZE: <span className="text-white">{legend.tradeInfo.size > 0 ? legend.tradeInfo.size : "N/A"}</span>
+                                SIZE: <span className="text-white">
+                                    {legend.tradeInfo.size ? Number(legend.tradeInfo.size).toFixed(4) : "N/A"}
+                                </span>
                             </div>
                             <div className="text-zinc-400">
-                                PNL: <span className={legend.tradeInfo.pnl >= 0 ? "text-emerald-400" : "text-rose-400"}>
-                                    {legend.tradeInfo.pnl >= 0 ? "+" : ""}${legend.tradeInfo.pnl.toFixed(2)}
+                                PNL: <span className={(legend.tradeInfo.pnl || 0) >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                                    {(legend.tradeInfo.pnl || 0) >= 0 ? "+" : ""}${(legend.tradeInfo.pnl || 0).toFixed(2)}
                                 </span>
                             </div>
                         </div>
