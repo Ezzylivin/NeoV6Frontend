@@ -162,6 +162,7 @@ const TradingBotContainer = () => {
     const [isStarting, setIsStarting] = useState(false);
     const [paperBalance, setPaperBalance] = useState(10000);
     const [modeStep, setModeStep] = useState('selection');
+    const [viewMode, setViewMode] = useState('active');
     
     const socketRef = useRef(null);
     const [isHaltLocked, setIsHaltLocked] = useState(false);
@@ -255,7 +256,7 @@ const TradingBotContainer = () => {
     const finalConfig = {
         ...formConfig,
         capitalAllocation: Number(formConfig.capitalAllocation) || Number(paperBalance) || 1000,
-        mlMode: formConfig.mlMode || "on", 
+        mlMode: formConfig.mlMode || "off", 
         mlModel: formConfig.mlModel || "stacking", 
         mlThresholdLong: parseFloat(formConfig.params.long_threshold) || 0.8,
         mlThresholdShort: parseFloat(formConfig.params.short_threshold) || 0.9,
@@ -523,24 +524,84 @@ const TradingBotContainer = () => {
                                     <div className="flex items-center gap-2 mb-8"><Zap size={18} className="text-violet-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Logic Confidence</h3></div>
                                     <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={performanceData}><Area type="step" dataKey="confidence" stroke="#a78bfa" fill="#a78bfa" fillOpacity={0.1} strokeWidth={2} /><XAxis dataKey="time" hide /><YAxis hide /><RechartsTooltip contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '12px' }} /></AreaChart></ResponsiveContainer></div>
                                 </div>
-                                <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl overflow-hidden flex flex-col">
-                                    <div className="flex items-center gap-2 mb-8"><Box size={18} className="text-amber-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Live Operations</h3></div>
-                                    <div className="flex-1 overflow-x-auto custom-scrollbar">
-                                        <table className="w-full text-left text-[11px]">
-                                            <thead><tr className="text-zinc-600 uppercase font-black border-b border-zinc-800 pb-4"><th className="pb-4">Type</th><th className="pb-4">Entry</th><th className="pb-4 text-right">Size</th><th className="pb-4 text-right">Action</th></tr></thead>
-                                            <tbody className="divide-y divide-zinc-800/50">
-                                                {socketStatus.positions.length > 0 ? socketStatus.positions.map((pos, idx) => (
-                                                    <tr key={idx} className="group">
-                                                        <td className={`py-5 font-black flex items-center gap-2 ${pos.type === 'short' ? 'text-amber-500' : 'text-emerald-400'}`}>{pos.type === 'short' ? <ArrowDownRight size={14}/> : <ArrowUpRight size={14}/>} {pos.type.toUpperCase()}</td>
-                                                        <td className="py-5 font-mono font-black text-zinc-200">${pos.entry.toLocaleString()}</td>
-                                                        <td className="py-5 font-mono text-zinc-500 text-right">{pos.size.toFixed(4)}</td>
-                                                        <td className="py-5 text-right"><button onClick={handleManualExit} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 rounded-lg text-rose-500 hover:text-white font-black uppercase text-[9px] transition-all tracking-wider">EXIT</button></td>
-                                                    </tr>
-                                                )) : (<tr><td colSpan="4" className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">Waiting for Signal...</td></tr>)}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
+                                {/* --- 3rd Column: Operations & History Toggle --- */}
+<div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl overflow-hidden flex flex-col">
+    <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-2">
+            <Box size={18} className="text-amber-500"/>
+            <h3 className="text-[11px] font-black uppercase tracking-widest text-zinc-100">
+                {viewMode === 'active' ? 'Live Ops' : 'Session History'}
+            </h3>
+        </div>
+        
+        {/* Toggle Switch */}
+        <div className="flex bg-zinc-950 p-1 rounded-xl border border-zinc-800">
+            <button 
+                onClick={() => setViewMode('active')}
+                className={`px-3 py-1 text-[9px] font-black rounded-lg transition-all ${viewMode === 'active' ? 'bg-zinc-800 text-emerald-400 shadow-lg' : 'text-zinc-600'}`}
+            >
+                ACTIVE
+            </button>
+            <button 
+                onClick={() => setViewMode('history')}
+                className={`px-3 py-1 text-[9px] font-black rounded-lg transition-all ${viewMode === 'history' ? 'bg-zinc-800 text-amber-400 shadow-lg' : 'text-zinc-600'}`}
+            >
+                HISTORY
+            </button>
+        </div>
+    </div>
+
+    <div className="flex-1 overflow-x-auto custom-scrollbar">
+        <table className="w-full text-left text-[11px]">
+            <thead>
+                <tr className="text-zinc-600 uppercase font-black border-b border-zinc-800 pb-4">
+                    <th className="pb-4">Type</th>
+                    <th className="pb-4">{viewMode === 'active' ? 'Entry' : 'Exit Price'}</th>
+                    <th className="pb-4 text-right">{viewMode === 'active' ? 'Size' : 'Result'}</th>
+                    <th className="pb-4 text-right">Time</th>
+                </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-800/50">
+                {viewMode === 'active' ? (
+                    // 🟢 ACTIVE POSITIONS VIEW
+                    socketStatus.positions.length > 0 ? socketStatus.positions.map((pos, idx) => (
+                        <tr key={idx} className="group transition-colors hover:bg-zinc-800/20">
+                            <td className={`py-5 font-black flex items-center gap-2 ${pos.type === 'short' ? 'text-amber-500' : 'text-emerald-400'}`}>
+                                {pos.type === 'short' ? <ArrowDownRight size={14}/> : <ArrowUpRight size={14}/>} 
+                                {pos.type.toUpperCase()}
+                            </td>
+                            <td className="py-5 font-mono font-black text-zinc-200">${pos.entry.toLocaleString()}</td>
+                            <td className="py-5 font-mono text-zinc-500 text-right">{pos.size.toFixed(4)}</td>
+                            <td className="py-5 text-right">
+                                <button onClick={handleManualExit} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 rounded-lg text-rose-500 hover:text-white font-black uppercase text-[9px] transition-all tracking-wider">EXIT</button>
+                            </td>
+                        </tr>
+                    )) : (
+                        <tr><td colSpan="4" className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">Scanning for Entries...</td></tr>
+                    )
+                ) : (
+                    // 🟠 SESSION HISTORY VIEW
+                    socketStatus.tradeMarkers && socketStatus.tradeMarkers.length > 0 ? socketStatus.tradeMarkers.map((trade, idx) => (
+                        <tr key={idx} className="group opacity-80 hover:opacity-100 transition-opacity">
+                            <td className={`py-5 font-black flex items-center gap-2 ${trade.type === 'short' || trade.type === 'sell' ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                {trade.type.toUpperCase()}
+                            </td>
+                            <td className="py-5 font-mono font-bold text-zinc-400">${trade.price.toLocaleString()}</td>
+                            <td className="py-5 text-right font-black text-zinc-500">
+                                COMPLETED
+                            </td>
+                            <td className="py-5 text-right font-mono text-zinc-600">
+                                {new Date(trade.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </td>
+                        </tr>
+                    )) : (
+                        <tr><td colSpan="4" className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">No trades recorded yet.</td></tr>
+                    )
+                )}
+            </tbody>
+        </table>
+    </div>
+</div>
                             </div>
                         )}
                     </div>
