@@ -184,7 +184,8 @@ const TradingBotContainer = () => {
         maxDrawdown: 10, 
         maxTradesPerDay: 20,
         hybridMode: "AND",
-        enable_shorting: true, 
+        enable_shorting: true,
+        maxPyramiding: 1,
         params: { take_profit: 0.05, stop_loss: 0.02, trailing_stop: 0.01, long_threshold: 0.5, short_threshold: 0.5 },
         filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 }
     });
@@ -259,6 +260,7 @@ const TradingBotContainer = () => {
         mlThresholdLong: parseFloat(formConfig.params.long_threshold) || 0.8,
         mlThresholdShort: parseFloat(formConfig.params.short_threshold) || 0.9,
         enable_shorting: formConfig.enable_shorting === true,
+        maxPyramiding: Number(formConfig.maxPyramiding),
         comboConfig: { strategyCodes: formConfig.strategies.map(s => s.code), combinationRule: formConfig.hybridMode || "AND", minVotesRequired: formConfig.hybridMode === "AND" ? formConfig.strategies.length : 1 }
     };
     try {
@@ -342,7 +344,7 @@ const TradingBotContainer = () => {
                                 </>
                             ) : (
                                 <div className="max-w-md mx-auto bg-zinc-900 border border-zinc-800 p-12 rounded-[40px] shadow-2xl">
-                                    <h3 className="text-2xl font-black text-white mb-8 uppercase tracking-tighter">Treasury Seed</h3>
+                                    <h3 className="text-2xl font-black text-white mb-8 uppercase tracking-tighter">Initial Paper Balance</h3>
                                     <input type="number" value={paperBalance} onChange={(e) => setPaperBalance(Number(e.target.value))} className="w-full bg-black border border-zinc-800 rounded-2xl p-5 text-2xl font-mono text-center text-emerald-500 mb-8 outline-none shadow-inner" />
                                     <div className="flex gap-4"><button onClick={() => setModeStep('selection')} className="flex-1 py-4 border border-zinc-800 rounded-2xl text-zinc-500 font-black uppercase text-[10px]">Back</button><button onClick={() => { setFormConfig(p=>({...p, tradingMode: 'paper', capitalAllocation: paperBalance})); setIsModeSelected(true); }} className="flex-2 py-4 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px]">Ignite</button></div>
                                 </div>
@@ -381,7 +383,7 @@ const TradingBotContainer = () => {
                                     <div className="flex justify-between items-center"><div className="flex items-center gap-2"><ArrowDownRight size={16} className="text-blue-400" /><h4 className="text-[10px] font-black uppercase tracking-widest text-blue-400">Direction</h4></div>
                                     <select value={formConfig.enable_shorting} onChange={(e)=>setFormConfig({...formConfig, enable_shorting: e.target.value === 'true'})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase">
                                         <option value="false">Spot Only (Long)</option>
-                                        <option value="true">Margin (Long/Short)</option>
+                                        <option value="true">Margin (Both Long & Short)</option>
                                     </select></div>
                                 </div>
 
@@ -405,6 +407,22 @@ const TradingBotContainer = () => {
                                     <div className="grid grid-cols-2 gap-3">
                                         <div><label className={labelClass}>Risk / Trade %</label><input type="number" step="0.1" value={formConfig.riskPercentage} onChange={(e)=>setFormConfig({...formConfig, riskPercentage: parseFloat(e.target.value)})} className={inputClass}/></div>
                                         <div><label className={labelClass}>Max Daily Loss %</label><input type="number" step="0.1" value={formConfig.maxDailyLoss} onChange={(e)=>setFormConfig({...formConfig, maxDailyLoss: parseFloat(e.target.value)})} className={inputClass}/></div>
+                                        <div className="col-span-2">
+                                        <div className="flex justify-between items-center">
+                                            <label className={labelClass}>Max Pyramiding (Reversal Only)</label>
+                                            <Tooltip text="Maximum number of positions allowed to open simultaneously via directional reversals.">
+                                                <Info size={10} className="text-zinc-600"/>
+                                            </Tooltip>
+                                        </div>
+                                        <input 
+                                            type="number" 
+                                            min="1" 
+                                            max="2" 
+                                            value={formConfig.maxPyramiding} 
+                                            onChange={(e) => setFormConfig({...formConfig, maxPyramiding: parseInt(e.target.value)})} 
+                                            className={inputClass}
+                                        />
+                                    </div>
                                         <div className="col-span-2"><label className={labelClass}>Max Drawdown % (Hard Stop)</label><input type="number" step="0.1" value={formConfig.maxDrawdown} onChange={(e)=>setFormConfig({...formConfig, maxDrawdown: parseFloat(e.target.value)})} className={inputClass}/></div>
                                     </div>
                                 </div>
