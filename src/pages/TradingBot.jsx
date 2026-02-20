@@ -382,8 +382,6 @@ const TradingBotContainer = () => {
                     </div>
                 </header>
 
-                {/* 3. LAYER: TRI-PANE OPERATIONAL GRID */}
-                <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8 items-start">
                     
                     {/* 🟢 COLUMN 1: SIDEBAR (Swaps Settings for Intelligence Chart) */}
                     <div className="col-span-12 lg:col-span-3 h-[720px] relative overflow-hidden">
