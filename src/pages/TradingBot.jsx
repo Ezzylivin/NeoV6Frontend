@@ -383,7 +383,7 @@ const TradingBotContainer = () => {
                 </header>
 
                 {/* 3. LAYER: TRI-PANE OPERATIONAL GRID */}
-                <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8">
+                <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8 items-start">
                     
                     {/* 🟢 COLUMN 1: SIDEBAR (Swaps Settings for Intelligence Chart) */}
                     <div className="col-span-12 lg:col-span-3 h-[720px] relative overflow-hidden">
@@ -425,6 +425,8 @@ const TradingBotContainer = () => {
                                 </div>
 
                                 <div className="space-y-4 border-t border-zinc-800/50 pt-8">
+                                    <div className={`transition-all duration-700 h-full ${isBotRunning ? '-translate-x-full opacity-0 pointer-events-none absolute' : 'translate-x-0 opacity-100'}`}>
+                                        <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 h-full overflow-y-auto custom-scrollbar shadow-2xl">
                                     <div className="flex justify-between items-center"><div className="flex items-center gap-2"><AlertTriangle size={16} className="text-rose-500" /><h4 className="text-[10px] font-black uppercase tracking-widest text-rose-500">Risk Protocol</h4></div>
                                     <select value={formConfig.riskManagementMode} onChange={(e)=>setFormConfig({...formConfig, riskManagementMode: e.target.value})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase"><option value="static">Static</option><option value="dynamic">Dynamic</option></select></div>
                                     <div className="grid grid-cols-2 gap-3">
@@ -540,8 +542,10 @@ const TradingBotContainer = () => {
                                 ))}
                             </div>
                         </div>
+                    </div>
                     )}
                 </div>
+             </div>
         </UIModeProvider>
    );
 };
