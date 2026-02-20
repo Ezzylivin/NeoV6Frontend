@@ -543,7 +543,8 @@ const TradingBotContainer = () => {
                     )}
                 </div>
         </UIModeProvider>
-);
+   );
+};
 
 const NeuralConvergenceChart = ({ strategies, signalsMapHistory }) => {
     const chartData = useMemo(() => {
