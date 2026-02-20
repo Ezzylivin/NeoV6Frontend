@@ -332,6 +332,17 @@ const TradingBotContainer = () => {
         <UIModeProvider>
             <div className="min-h-screen bg-zinc-950 text-white font-sans p-6 overflow-x-hidden transition-all duration-700">
                 <Toaster position="top-right" />
+
+                <header className="max-w-[1800px] mx-auto mb-10 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <Activity className="text-emerald-500 w-8 h-8" />
+                        <div>
+                            <h1 className="text-lg font-black uppercase tracking-widest">Sovereign Live</h1>
+                            <p className="text-[9px] text-zinc-500 font-black uppercase">Live Session: {uptime}</p>
+                        </div>
+                    </div>
+                    <ConnectButton />
+                </header>
                 
                 {/* 1. LAYER: OVERLAYS */}
                 {!isModeSelected && !isBotRunning && (
@@ -524,6 +535,41 @@ const TradingBotContainer = () => {
                                         </ResponsiveContainer>
                                     </div>
                                 </div>
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                    <div className={`${isBotRunning ? 'lg:col-span-2' : 'lg:col-span-3'} bg-zinc-900 border border-zinc-800 rounded-[40px] overflow-hidden flex flex-col h-[650px] shadow-2xl relative`}>
+                                        <div className="bg-zinc-800 bg-opacity-20 p-6 border-b border-zinc-800 border-opacity-50 flex items-center justify-between">
+                                            <span className="text-[11px] font-black uppercase tracking-widest">{formConfig.symbol} Live Alpha</span>
+                                            
+                                            {/* TABLE TOGGLE SWITCH */}
+                                            <div className="flex bg-zinc-950 p-1 rounded-xl border border-zinc-800">
+                                                <button onClick={() => setViewMode('active')} className={`px-3 py-1 text-[9px] font-black rounded-lg transition-all ${viewMode === 'active' ? 'bg-zinc-800 text-emerald-400' : 'text-zinc-600'}`}>ACTIVE</button>
+                                                <button onClick={() => setViewMode('history')} className={`px-3 py-1 text-[9px] font-black rounded-lg transition-all ${viewMode === 'history' ? 'bg-zinc-800 text-amber-400' : 'text-zinc-600'}`}>HISTORY</button>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex-1 bg-black bg-opacity-40 overflow-auto">
+                                    {viewMode === 'active' ? (
+                                        <LiveTradingChart symbol={formConfig.symbol} activePositions={socketStatus.positions} />
+                                    ) : (
+                                        <div className="p-6">
+                                            <table className="w-full text-left text-[11px]">
+                                                <thead className="text-zinc-600 border-b border-zinc-800 uppercase font-black">
+                                                    <tr><th className="pb-4">Type</th><th className="pb-4">Price</th><th className="pb-4 text-right">Time</th></tr>
+                                                </thead>
+                                                <tbody>
+                                                    {socketStatus.tradeMarkers.map((t, i) => (
+                                                        <tr key={i} className="border-b border-zinc-800 border-opacity-30">
+                                                            <td className={`py-4 font-black ${t.type === 'short' ? 'text-rose-400' : 'text-emerald-400'}`}>{t.type.toUpperCase()}</td>
+                                                            <td className="py-4 font-mono font-bold">${t.price.toLocaleString()}</td>
+                                                            <td className="py-4 text-right text-zinc-500 font-mono">{formatTime(t.time)}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
                                     <div className="flex items-center gap-2 mb-8"><Zap size={18} className="text-violet-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Logic Confidence</h3></div>
                                     <div className="h-48 w-full">
@@ -561,7 +607,7 @@ const NeuralConvergenceChart = ({ strategies, signalsMapHistory }) => {
                     <AreaChart data={chartData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
                         <XAxis dataKey="time" hide />
-                        <YAxis hide domain={[0, 1]} />
+                        <YAxis hide domain={['auto', 'auto']} />
                         {strategies.map((s, i) => (
                             <Area key={s.code} type="monotone" dataKey={s.code} stroke={i % 2 === 0 ? "#a78bfa" : "#10b981"} fill={i % 2 === 0 ? "#8b5cf6" : "#10b981"} fillOpacity={0.05} strokeWidth={2} stackId="1" />
                         ))}
