@@ -370,13 +370,30 @@ const TradingBotContainer = () => {
 
                 <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8">
                     {!isBotRunning && (
-                        <div className="col-span-12 lg:col-span-3 space-y-6 animate-in slide-in-from-left-10 duration-700">
+                        <div className={`transition-all duration-700 ease-in-out w-full h-full ${
+                            isBotRunning 
+                            ? "-translate-x-full opacity-0 pointer-events-none absolute" 
+                            : "translate-x-0 opacity-100 relative"
+                        }`}>
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-10 shadow-2xl sticky top-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
                                 <div className="space-y-4">
-                                    <div className="flex items-center gap-2"><CandlestickChart size={16} className="text-zinc-400" /><h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Market Feed</h4></div>
+                                    <div className="flex items-center gap-2">
+                                        <CandlestickChart size={16} className="text-zinc-400" />
+                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Market Feed</h4>
+                                    </div>
                                     <div className="grid grid-cols-3 gap-2">
-                                        <div className="col-span-2"><label className={labelClass}>Asset</label><select value={formConfig.symbol} onChange={(e)=>setFormConfig({...formConfig, symbol: e.target.value})} className={inputClass}>{COIN_PAIRS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-                                        <div className="col-span-1"><label className={labelClass}>Period</label><select value={formConfig.timeframe} onChange={(e)=>setFormConfig({...formConfig, timeframe: e.target.value})} className={inputClass}>{TIMEFRAMES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
+                                        <div className="col-span-2">
+                                            <label className={labelClass}>Asset</label>
+                                            <select value={formConfig.symbol} onChange={(e)=>setFormConfig({...formConfig, symbol: e.target.value})} className={inputClass}>
+                                                {COIN_PAIRS.map(c => <option key={c} value={c}>{c}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="col-span-1">
+                                            <label className={labelClass}>Period</label>
+                                            <select value={formConfig.timeframe} onChange={(e)=>setFormConfig({...formConfig, timeframe: e.target.value})} className={inputClass}>
+                                                {TIMEFRAMES.map(t => <option key={t} value={t}>{t}</option>)}
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -462,6 +479,19 @@ const TradingBotContainer = () => {
                             </div>
                         </div>
                     )}
+
+                    <div className={`transition-all duration-1000 delay-200 ease-out w-full h-full ${
+                        isBotRunning 
+                        ? "translate-x-0 opacity-100 relative" 
+                        : "translate-x-full opacity-0 absolute"
+                    }`}>
+                        {/* We call the Intelligence Chart component here */}
+                        <NeuralConvergenceChart 
+                            strategies={formConfig.strategies} 
+                            signalsMapHistory={socketStatus.signalsMapHistory || []} 
+                        />
+                    </div>
+                </div>
 
                     <div className={`${isBotRunning ? 'col-span-12' : 'col-span-12 lg:col-span-9'} space-y-8 transition-all duration-700`}>
                         <div className={`grid grid-cols-1 ${isBotRunning ? 'md:grid-cols-6' : 'md:grid-cols-5'} gap-4`}>
