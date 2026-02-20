@@ -542,7 +542,6 @@ const TradingBotContainer = () => {
                         </div>
                     )}
                 </div>
-            </div>
         </UIModeProvider>
     );
 const MetricCard = ({ label, value, subValue, color = "text-white", icon = null }) => (
