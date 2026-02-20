@@ -326,7 +326,7 @@ const TradingBotContainer = () => {
     const startCap = socketStatus.initialCapital || formConfig.capitalAllocation || 1;
     const profitPct = ((socketStatus.dailyProfit || 0) / startCap) * 100;
     const pnlPct = ((socketStatus.unrealizedPnl || 0) / startCap) * 100;
-
+    
     return (
         <UIModeProvider>
             <div className="min-h-screen bg-zinc-950 text-white font-sans p-6 overflow-x-hidden transition-all duration-700">
@@ -476,15 +476,41 @@ const TradingBotContainer = () => {
                             <MetricCard label="Total Equity" value={`$${Number(activeBalance).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} subValue="Liquid + Locked" /> 
                         </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[720px]">
-                            <div className="lg:col-span-3 bg-zinc-900 border border-zinc-800 rounded-[40px] overflow-hidden flex flex-col relative shadow-2xl">
-                                <div className="bg-zinc-800/20 p-6 border-b border-zinc-800/50 flex items-center justify-between">
-                                    <div className="flex items-center gap-3"><TrendingUp size={18} className="text-emerald-500" /><span className="text-[11px] font-black uppercase tracking-widest">{formConfig.symbol} Live Feed</span></div>
-                                    <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></div><span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Neural Sync Active</span></div>
-                                </div>
-                                <div className="flex-1 bg-[#090b0f] pb-8">
-                                    <LiveTradingChart symbol={formConfig.symbol} timeframe={formConfig.timeframe} isRunning={isBotRunning} activePositions={socketStatus.positions} tradeMarkers={socketStatus.tradeMarkers} candleData={socketStatus.candles || []} strategies={formConfig.strategies} />
-                                </div>
+                        <div className="col-span-12 lg:col-span-2 animate-in slide-in-from-left duration-700">
+                            <CouncilMatrix 
+                                strategies={formConfig.strategies} 
+                                signalsMap={socketStatus.signalsMap || {}} 
+                                hybridMode={formConfig.hybridMode} 
+                            />
+                        </div>
+                    )}
+
+                    {/* 🟢 COLUMN 2: The Main Chart Area */}
+                    <div className={`${isBotRunning ? 'col-span-12 lg:col-span-7' : 'col-span-12 lg:col-span-9'} space-y-8 transition-all duration-700`}>
+                        <div className={`grid grid-cols-1 ${isBotRunning ? 'md:grid-cols-3' : 'md:grid-cols-5'} gap-4`}>
+                            <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
+                                <div className="flex justify-between items-start mb-1"><p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">Engine Status</p>{isBotRunning && <Timer size={12} className="text-emerald-500 animate-pulse" />}</div>
+                                <p className={`text-lg font-mono font-black ${isBotRunning ? 'text-emerald-400' : 'text-zinc-600'}`}>{isBotRunning ? 'OPERATIONAL' : 'STANDBY'}</p>
+                                <p className="text-[9px] font-mono text-zinc-500 mt-1 uppercase tracking-tighter font-black">SESSION: {uptime}</p>
+                            </div>
+                            <MetricCard label="Daily Profit" value={`${socketStatus.dailyProfit >= 0 ? '+' : ''}${(socketStatus.dailyProfit || 0).toFixed(2)}`} subValue={`${profitPct >= 0 ? '+' : ''}${profitPct.toFixed(2)}%`} color={socketStatus.dailyProfit >= 0 ? "text-emerald-400" : "text-rose-500"} icon={<DollarSign size={10}/>} />
+                            <MetricCard label="Floating PnL" value={`${socketStatus.unrealizedPnl >= 0 ? '+' : ''}${(socketStatus.unrealizedPnl || 0).toFixed(2)}`} subValue={`${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`} color={socketStatus.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'} icon={<Activity size={10}/>} />
+                            {!isBotRunning && (
+                                <>
+                                    <MetricCard label="Exposure" value={`${socketStatus.exposure || 0}%`} subValue={socketStatus.positions.length > 0 ? "Active Positions" : "Cash Heavy"} color="text-amber-400" />
+                                    <MetricCard label="Total Equity" value={`$${Number(activeBalance).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} subValue="Liquid + Locked" /> 
+                                </>
+                            )}
+                        </div>
+
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] overflow-hidden flex flex-col relative shadow-2xl h-[720px]">
+                            <div className="bg-zinc-800/20 p-6 border-b border-zinc-800/50 flex items-center justify-between">
+                                <div className="flex items-center gap-3"><TrendingUp size={18} className="text-emerald-500" /><span className="text-[11px] font-black uppercase tracking-widest">{formConfig.symbol} Live Feed</span></div>
+                                <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></div><span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Neural Sync Active</span></div>
+                            </div>
+                            <div className="flex-1 bg-[#090b0f] pb-8">
+                                <LiveTradingChart symbol={formConfig.symbol} timeframe={formConfig.timeframe} isRunning={isBotRunning} activePositions={socketStatus.positions} tradeMarkers={socketStatus.tradeMarkers} candleData={socketStatus.candles || []} strategies={formConfig.strategies} />
+                            </div>
                             </div>
                             <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 rounded-[40px] flex flex-col overflow-hidden shadow-2xl">
                                 <div className="p-5 border-b border-zinc-800 bg-zinc-800/20 flex justify-between items-center">
@@ -649,3 +675,50 @@ function StrategyParamInputs({ strategy, onChange }) {
 }
 
 export default TradingBotContainer;
+
+const CouncilMatrix = ({ strategies, signalsMap, hybridMode }) => {
+    return (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-6 shadow-2xl h-full flex flex-col">
+            <div className="mb-6">
+                <div className="flex items-center gap-2 mb-2">
+                    <Scale className="text-emerald-500 w-3 h-3" />
+                    <h3 className="text-[9px] font-black uppercase tracking-widest text-zinc-100">Council</h3>
+                </div>
+                <div className={`text-center py-1 rounded-lg border text-[8px] font-black tracking-tighter ${hybridMode === 'AND' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>
+                    {hybridMode} ENSEMBLE
+                </div>
+            </div>
+
+            <div className="space-y-3 overflow-y-auto custom-scrollbar pr-1 flex-1">
+                {strategies.map((strat, i) => {
+                    const val = Math.round((signalsMap[strat.code] || 0) * 100);
+                    
+                    const getColor = (v) => {
+                        if (v < 30) return { bar: 'bg-rose-500', text: 'text-rose-500', bg: 'bg-rose-500/5', border: 'border-rose-500/20' };
+                        if (v < 80) return { bar: 'bg-amber-500', text: 'text-amber-500', bg: 'bg-amber-500/5', border: 'border-amber-500/20' };
+                        return { bar: 'bg-emerald-500', text: 'text-emerald-400', bg: 'bg-emerald-500/5', border: 'border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]' };
+                    };
+
+                    const colors = getColor(val);
+
+                    return (
+                        <div key={i} className={`${colors.bg} ${colors.border} border p-4 rounded-2xl transition-all duration-500`}>
+                            <div className="flex justify-between items-center mb-2">
+                                <p className="text-[8px] font-black text-zinc-500 uppercase truncate pr-2">
+                                    {strat.code.replace('_', ' ')}
+                                </p>
+                                <span className={`text-[10px] font-mono font-black ${colors.text}`}>{val}%</span>
+                            </div>
+                            <div className="w-full bg-black/40 h-1 rounded-full overflow-hidden border border-white/5">
+                                <div 
+                                    className={`h-full transition-all duration-1000 ease-out ${colors.bar}`}
+                                    style={{ width: `${val}%` }}
+                                />
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
