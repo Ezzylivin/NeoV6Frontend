@@ -186,7 +186,7 @@ const TradingBotContainer = () => {
         maxTradesPerDay: 20,
         hybridMode: "AND",
         enable_shorting: true,
-        maxPyramiding: 1,
+        maxPyramiding: 5,
         params: { take_profit: 0.05, stop_loss: 0.02, trailing_stop: 0.01, long_threshold: 0.5, short_threshold: 0.5 },
         filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 }
     });
@@ -410,15 +410,15 @@ const TradingBotContainer = () => {
                                         <div><label className={labelClass}>Max Daily Loss %</label><input type="number" step="0.1" value={formConfig.maxDailyLoss} onChange={(e)=>setFormConfig({...formConfig, maxDailyLoss: parseFloat(e.target.value)})} className={inputClass}/></div>
                                         <div className="col-span-2">
                                         <div className="flex justify-between items-center">
-                                            <label className={labelClass}>Max Pyramiding (Reversal Only)</label>
-                                            <Tooltip text="Maximum number of positions allowed to open simultaneously via directional reversals.">
+                                            <label className={labelClass}>Max Pyramiding (Confidence Scaled)</label>
+                                            <Tooltip text="Up to 5 legs. Each leg requires a 10% higher AI confidence than the previous one.">
                                                 <Info size={10} className="text-zinc-600"/>
                                             </Tooltip>
                                         </div>
                                         <input 
                                             type="number" 
                                             min="1" 
-                                            max="2" 
+                                            max="5"  // 🟢 Changed from 2 to 5
                                             value={formConfig.maxPyramiding} 
                                             onChange={(e) => setFormConfig({...formConfig, maxPyramiding: parseInt(e.target.value)})} 
                                             className={inputClass}
