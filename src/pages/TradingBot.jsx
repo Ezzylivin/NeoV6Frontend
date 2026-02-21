@@ -330,10 +330,10 @@ const TradingBotContainer = () => {
 
     return (
         <UIModeProvider>
-            <div className="min-h-screen bg-zinc-950 text-white font-sans p-6 overflow-x-hidden">
+            <div className="min-h-screen bg-zinc-950 text-white font-sans p-6 overflow-x-hidden transition-all duration-700">
                 <Toaster position="top-right" />
 
-                {/* OVERLAYS */}
+                {/* 1. LAYER: OVERLAYS */}
                 {!isModeSelected && !isBotRunning && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-95 backdrop-blur-md">
                         <div className="max-w-4xl w-full p-6 text-center">
@@ -343,41 +343,44 @@ const TradingBotContainer = () => {
                                     <div onClick={() => setIsModeSelected(true)} className="cursor-pointer bg-zinc-900 p-16 rounded-[40px] border border-white border-opacity-5 hover:border-red-500 transition-all shadow-2xl"><h3 className="text-3xl font-black text-red-500">LIVE</h3></div>
                                 </div>
                             ) : (
-                                <div className="max-w-md mx-auto bg-zinc-900 p-12 rounded-[40px] border border-zinc-800 shadow-2xl">
-                                    <h3 className="text-xl font-black mb-6">Initial Balance</h3>
+                                <div className="max-w-md mx-auto bg-zinc-900 border border-zinc-800 p-12 rounded-[40px] shadow-2xl text-center">
+                                    <h3 className="text-xl font-black text-white mb-6 uppercase">Initial Balance</h3>
                                     <input type="number" value={paperBalance} onChange={(e) => setPaperBalance(Number(e.target.value))} className="w-full bg-black border border-zinc-800 p-5 text-emerald-500 mb-8 rounded-2xl text-center text-2xl font-mono outline-none" />
-                                    <button onClick={handleConfirmStart} className="w-full py-4 bg-emerald-500 text-black rounded-2xl font-black uppercase tracking-widest">Ignite Engine</button>
+                                    <button onClick={() => setIsModeSelected(true)} className="w-full py-4 bg-emerald-500 text-black rounded-2xl font-black uppercase tracking-widest">Ignite Engine</button>
                                 </div>
                             )}
                         </div>
                     </div>
                 )}
 
-                {/* HEADER */}
+                {/* 2. LAYER: HEADER */}
                 <header className="max-w-[1800px] mx-auto mb-10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div>
+                        <Activity className="text-emerald-500 w-8 h-8" />
                         <div>
-                            <h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1>
-                            <p className="text-[9px] text-zinc-500 font-black uppercase">Live Session: <span className="text-emerald-500 font-mono">{uptime}</span></p>
+                            <h1 className="text-lg font-black uppercase tracking-widest text-white">Sovereign <span className="text-emerald-500">Live</span></h1>
+                            <p className="text-[9px] text-zinc-500 font-black uppercase">Session Sync: <span className="text-emerald-500 font-mono">{uptime}</span></p>
                         </div>
                     </div>
                     <div className="flex items-center gap-4">
                         {isBotRunning ? (
-                            <button onClick={stopBot} className="px-6 py-3 bg-rose-500 bg-opacity-10 border border-rose-500 border-opacity-20 text-rose-500 rounded-xl font-black text-[10px] hover:bg-rose-500 transition-all"><Power size={12} className="mr-2 inline"/> Halt</button>
+                            <button onClick={stopBot} className="px-6 py-3 bg-rose-500 bg-opacity-10 border border-rose-500 border-opacity-20 text-rose-500 rounded-xl font-black text-[10px] uppercase hover:bg-rose-500 transition-all"><Power size={12} className="mr-2 inline"/> Halt</button>
                         ) : (
-                            <button onClick={resetBot} className="px-6 py-3 bg-zinc-800 bg-opacity-50 border border-zinc-700 text-zinc-400 rounded-xl font-black text-[10px] hover:bg-white hover:text-black transition-all"><RotateCcw size={12} className="mr-2 inline"/> Reset</button>
+                            <button onClick={resetBot} className="px-6 py-3 bg-zinc-800 bg-opacity-50 border border-zinc-700 text-zinc-400 rounded-xl font-black text-[10px] uppercase hover:bg-white hover:text-black transition-all flex items-center gap-2"><RotateCcw size={12} className="mr-2 inline"/> Reset</button>
                         )}
                         <ConnectButton />
                     </div>
                 </header>
 
+                {/* 3. LAYER: MAIN GRID */}
                 <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8 items-start">
                     
-                    {/* SIDEBAR */}
+                    {/* 🟢 COLUMN 1: SIDEBAR */}
                     <div className="col-span-12 lg:col-span-3 h-[780px] relative overflow-hidden">
-                        <div className={`absolute inset-0 transition-all duration-700 ${isBotRunning ? '-translate-x-full opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'}`}>
+                        <div className={`absolute inset-0 transition-all duration-700 ease-in-out ${isBotRunning ? '-translate-x-full opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'}`}>
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-8 shadow-2xl h-full overflow-y-auto custom-scrollbar">
+                                
+                                {/* 🔴 FULL MARKET FEED SECTION RESTORED */}
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-2 text-zinc-400"><CandlestickChart size={16}/><h4 className="text-[10px] font-black uppercase tracking-widest">Market Feed</h4></div>
                                     <div className="grid grid-cols-3 gap-2">
@@ -385,29 +388,82 @@ const TradingBotContainer = () => {
                                         <div className="col-span-1"><label className={labelClass}>Period</label><select value={formConfig.timeframe} onChange={(e)=>setFormConfig({...formConfig, timeframe: e.target.value})} className={inputClass}>{TIMEFRAMES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
                                     </div>
                                 </div>
-                                {/* Strategy Logic inputs here */}
-                                <button onClick={() => startBot({ userId: address, config: formConfig })} className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl">Initiate Protocol</button>
+
+                                {/* 🔴 DIRECTION SECTION */}
+                                <div className="pt-6 border-t border-zinc-800 border-opacity-50">
+                                    <div className="flex justify-between items-center"><div className="flex items-center gap-2 text-blue-400"><ArrowDownRight size={16}/><h4 className="text-[10px] font-black uppercase tracking-widest">Direction</h4></div>
+                                    <select value={formConfig.enable_shorting} onChange={(e)=>setFormConfig({...formConfig, enable_shorting: e.target.value === 'true'})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase">
+                                        <option value="false">Spot Only</option>
+                                        <option value="true">Cross Margin</option>
+                                    </select></div>
+                                </div>
+
+                                {/* 🔴 NEURAL GATE SECTION */}
+                                <div className="pt-6 border-t border-zinc-800 border-opacity-50 space-y-4">
+                                    <div className="flex justify-between items-center"><div className="flex items-center gap-2 text-violet-400"><Cpu size={16}/><h4 className="text-[10px] font-black uppercase tracking-widest">Neural Gate</h4></div>
+                                    <select value={formConfig.mlMode} onChange={(e)=>setFormConfig({...formConfig, mlMode: e.target.value})} className="bg-zinc-800 text-[9px] rounded px-2 py-1 border border-zinc-700 uppercase font-black"><option value="off">Bypass</option><option value="on">Active</option></select></div>
+                                    {formConfig.mlMode === 'on' && (
+                                        <div className="space-y-4">
+                                            <select className={inputClass} value={formConfig.mlModel} onChange={(e)=>setFormConfig({...formConfig, mlModel: e.target.value})}>{MODEL_POOL.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div><label className={labelClass}>L-Gate</label><input type="number" step="0.01" value={formConfig.params.long_threshold} onChange={(e)=>setFormConfig({...formConfig, params:{...formConfig.params, long_threshold: parseFloat(e.target.value)}})} className={inputClass}/></div>
+                                                <div><label className={labelClass}>S-Gate</label><input type="number" step="0.01" value={formConfig.params.short_threshold} onChange={(e)=>setFormConfig({...formConfig, params:{...formConfig.params, short_threshold: parseFloat(e.target.value)}})} className={inputClass}/></div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* 🔴 RISK PROTOCOL SECTION */}
+                                <div className="pt-6 border-t border-zinc-800 border-opacity-50 space-y-4">
+                                    <div className="flex items-center gap-2 text-rose-500"><AlertTriangle size={16}/><h4 className="text-[10px] font-black uppercase tracking-widest">Risk Shield</h4></div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div><label className={labelClass}>Risk %</label><input type="number" step="0.1" value={formConfig.riskPercentage} onChange={(e)=>setFormConfig({...formConfig, riskPercentage: parseFloat(e.target.value)})} className={inputClass}/></div>
+                                        <div><label className={labelClass}>Max Loss %</label><input type="number" step="0.1" value={formConfig.maxDailyLoss} onChange={(e)=>setFormConfig({...formConfig, maxDailyLoss: parseFloat(e.target.value)})} className={inputClass}/></div>
+                                        <div className="col-span-2"><label className={labelClass}>Pyramiding Legs</label><input type="number" value={formConfig.maxPyramiding} onChange={(e)=>setFormConfig({...formConfig, maxPyramiding: parseInt(e.target.value)})} className={inputClass}/></div>
+                                    </div>
+                                </div>
+
+                                {/* 🔴 LOGIC ENSEMBLE SECTION */}
+                                <div className="pt-6 border-t border-zinc-800 border-opacity-50 space-y-4">
+                                    <div className="flex justify-between items-center"><h4 className="text-[10px] text-amber-500 font-black uppercase">Logic Ensemble</h4><select value={formConfig.hybridMode} onChange={(e)=>setFormConfig({...formConfig, hybridMode: e.target.value})} className="bg-zinc-950 border border-zinc-800 text-[9px] px-2 py-1 uppercase font-black"><option value="AND">Strict</option><option value="OR">Loose</option></select></div>
+                                    <div className="space-y-3">
+                                        {formConfig.strategies.map((s, i) => (
+                                            <div key={i} className="p-4 bg-black bg-opacity-40 rounded-xl border border-zinc-800">
+                                                <div className="flex justify-between mb-3">
+                                                    <select value={s.code} onChange={(e) => { const n = [...formConfig.strategies]; n[i] = { code: e.target.value, params: DEFAULT_STRATEGY_PARAMS[e.target.value] }; setFormConfig({...formConfig, strategies: n}); }} className="bg-transparent text-[10px] font-black text-amber-500 uppercase outline-none">{STRAT_POOL.map(opt => <option key={opt.code} value={opt.code}>{opt.name}</option>)}</select>
+                                                    <button onClick={() => setFormConfig(p => ({ ...p, strategies: p.strategies.filter((_, idx) => idx !== i) }))} className="text-zinc-600 hover:text-rose-500"><Trash2 size={12}/></button>
+                                                </div>
+                                                <StrategyParamInputs strategy={s} onChange={(p) => { const n = [...formConfig.strategies]; n[i].params = p; setFormConfig({...formConfig, strategies: n}); }} />
+                                            </div>
+                                        ))}
+                                        <button onClick={() => setFormConfig(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="w-full py-2 border border-dashed border-zinc-800 rounded-lg text-[9px] uppercase font-black text-zinc-600 hover:text-emerald-500 transition-all">+ Add Logic</button>
+                                    </div>
+                                </div>
+
+                                <button onClick={() => startBot({ userId: address, config: formConfig })} className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl">Initiate Engine</button>
                             </div>
                         </div>
-                        <div className={`absolute inset-0 transition-all duration-1000 ${isBotRunning ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'}`}>
+
+                        {/* INTEL PANE (Slides in when running) */}
+                        <div className={`absolute inset-0 transition-all duration-1000 delay-200 ease-out ${isBotRunning ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'}`}>
                             <NeuralConvergenceChart strategies={formConfig.strategies} signalsMapHistory={socketStatus.signalsMapHistory || []} />
                         </div>
                     </div>
 
-                    {/* MAIN AREA */}
+                    {/* 🟢 COLUMN 2: MAIN AREA */}
                     <div className="col-span-12 lg:col-span-9 space-y-8 transition-all duration-700">
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                             <MetricCard label="Engine Status" value={isBotRunning ? 'OPERATIONAL' : 'STANDBY'} color={isBotRunning ? 'text-emerald-400' : 'text-zinc-600'} />
                             <MetricCard label="Pyramid Stage" value={`${socketStatus.positions.length}/5`} legs={socketStatus.positions.length} color="text-emerald-400" />
-                            <MetricCard label="Daily Profit" value={`$${(socketStatus.dailyProfit || 0).toFixed(2)}`} subValue={`${profitPct.toFixed(2)}%`} color={socketStatus.dailyProfit >= 0 ? "text-emerald-400" : "text-rose-500"} />
-                            <MetricCard label="Exposure" value={`${socketStatus.exposure || 0}%`} color="text-amber-400" subValue="Capital utilized" />
-                            <MetricCard label="Total Equity" value={`$${Number(activeBalance).toLocaleString()}`} subValue="Balance" />
+                            <MetricCard label="Daily Profit" value={`$${(socketStatus.dailyProfit || 0).toFixed(2)}`} />
+                            <MetricCard label="Exposure" value={`${socketStatus.exposure || 0}%`} color="text-amber-400" />
+                            <MetricCard label="Total Equity" value={`$${Number(activeBalance).toLocaleString()}`} />
                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                             <div className={`${isBotRunning ? 'lg:col-span-2' : 'lg:col-span-3'} bg-zinc-900 border border-zinc-800 rounded-[40px] overflow-hidden flex flex-col h-[650px] shadow-2xl relative`}>
                                 <div className="bg-zinc-800 bg-opacity-20 p-6 border-b border-zinc-800 border-opacity-50 flex items-center justify-between">
-                                    <span className="text-[11px] font-black uppercase tracking-widest">{formConfig.symbol} Live Alpha</span>
+                                    <span className="text-[11px] font-black uppercase text-zinc-100">{formConfig.symbol} Live Alpha</span>
                                     <div className="flex bg-zinc-950 p-1 rounded-xl border border-zinc-800">
                                         <button onClick={() => setViewMode('active')} className={`px-3 py-1 text-[9px] font-black rounded-lg transition-all ${viewMode === 'active' ? 'bg-zinc-800 text-emerald-400 shadow-lg' : 'text-zinc-600'}`}>ACTIVE</button>
                                         <button onClick={() => setViewMode('history')} className={`px-3 py-1 text-[9px] font-black rounded-lg transition-all ${viewMode === 'history' ? 'bg-zinc-800 text-amber-400 shadow-lg' : 'text-zinc-600'}`}>HISTORY</button>
@@ -415,40 +471,59 @@ const TradingBotContainer = () => {
                                 </div>
                                 <div className="flex-1 bg-black bg-opacity-40 overflow-auto">
                                     {viewMode === 'active' ? (
-                                        <LiveTradingChart symbol={formConfig.symbol} timeframe={formConfig.timeframe} isRunning={isBotRunning} activePositions={socketStatus.positions} tradeMarkers={socketStatus.tradeMarkers} candleData={socketStatus.candles || []} strategies={formConfig.strategies} />
+                                        <LiveTradingChart symbol={formConfig.symbol} activePositions={socketStatus.positions} />
                                     ) : (
-                                        <table className="w-full text-left text-[11px] p-6">
-                                            <thead><tr className="text-zinc-600 border-b border-zinc-800 uppercase font-black"><th className="p-4">Type</th><th className="p-4">Price</th><th className="p-4">Time</th></tr></thead>
-                                            <tbody>{socketStatus.tradeMarkers.map((t, i) => (<tr key={i} className="border-b border-zinc-800 border-opacity-30"><td className={`p-4 font-black ${t.type === 'short' ? 'text-rose-400' : 'text-emerald-400'}`}>{t.type.toUpperCase()}</td><td className="p-4 font-mono font-bold">${t.price.toLocaleString()}</td><td className="p-4 text-zinc-500 font-mono">{formatTime(t.time)}</td></tr>))}</tbody>
-                                        </table>
+                                        <div className="p-6">
+                                            <table className="w-full text-left text-[11px]">
+                                                <thead className="text-zinc-600 border-b border-zinc-800 uppercase font-black"><tr><th className="pb-4">Type</th><th className="pb-4">Price</th><th className="pb-4 text-right">Time</th></tr></thead>
+                                                <tbody>{socketStatus.tradeMarkers.map((t, i) => (<tr key={i} className="border-b border-zinc-800 border-opacity-30"><td className={`py-4 font-black ${t.type === 'short' ? 'text-rose-400' : 'text-emerald-400'}`}>{t.type.toUpperCase()}</td><td className="py-4 font-mono font-bold">${t.price.toLocaleString()}</td><td className="py-4 text-right text-zinc-500 font-mono">{formatTime(t.time)}</td></tr>))}</tbody>
+                                            </table>
+                                        </div>
                                     )}
                                 </div>
                             </div>
+
                             {isBotRunning && (
-                                <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 rounded-[40px] flex flex-col h-[650px] overflow-hidden shadow-2xl">
-                                    <div className="p-5 border-b border-zinc-800 bg-zinc-800 bg-opacity-20 flex justify-between items-center"><h3 className="text-[10px] font-black uppercase">Neural Flow</h3><RefreshCw size={14} className="text-zinc-600 cursor-pointer" onClick={refreshState} /></div>
-                                    <div ref={logContainerRef} className="flex-1 overflow-y-auto p-6 font-mono text-[10px] bg-black bg-opacity-20 custom-scrollbar">
-                                        {socketLogs.map((log, i) => (<div key={i} className={`p-3 rounded-xl border leading-relaxed mb-2 ${getLogStyle(parseLog(log.message || log))}`}><span className="text-[9px] opacity-50 block mb-1 font-bold">{formatTime(log.time)}</span><span>{parseLog(log.message || log)}</span></div>))}
+                                <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 rounded-[40px] flex flex-col h-[650px] overflow-hidden shadow-2xl animate-in slide-in-from-right duration-700">
+                                    <div className="p-5 border-b border-zinc-800 bg-zinc-800 bg-opacity-20 flex justify-between items-center"><div className="flex items-center gap-2 text-violet-400"><Cpu size={16} className="animate-pulse"/><h3 className="text-[10px] font-black uppercase">Neural Flow</h3></div><RefreshCw size={14} className="text-zinc-600 cursor-pointer hover:text-white" onClick={refreshState} /></div>
+                                    <div ref={logContainerRef} className="flex-1 overflow-y-auto p-6 font-mono text-[10px] space-y-3 bg-black bg-opacity-20 custom-scrollbar">
+                                        {socketLogs.map((log, i) => (<div key={i} className={`p-3 rounded-xl border leading-relaxed flex flex-col gap-1 ${getLogStyle(parseLog(log.message || log))}`}><span className="text-[9px] opacity-50 block mb-1 font-bold">{formatTime(log.time)}</span><span className="leading-relaxed">{parseLog(log.message || log)}</span></div>))}
                                     </div>
                                 </div>
                             )}
                         </div>
 
-                        {/* ANALYTICS */}
+                        {/* 📈 PERFORMANCE ANALYTICS SECTION */}
                         {isBotRunning && (
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-bottom-10 duration-1000 pb-20">
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
-                                    <div className="flex items-center gap-2 mb-8"><BarChart size={18} className="text-emerald-500"/><h3 className="text-[11px] font-black uppercase tracking-widest text-emerald-400">Equity History</h3></div>
-                                    <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={socketStatus.equityCurve}><Area type="monotone" dataKey="balance" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={3}/><XAxis dataKey="time" hide/><YAxis hide domain={['auto', 'auto']}/></AreaChart></ResponsiveContainer></div>
+                                    <div className="flex items-center gap-2 mb-8"><BarChart size={18} className="text-emerald-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Equity Path</h3></div>
+                                    <div className="h-48 w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <AreaChart data={socketStatus.equityCurve}>
+                                                <Area type="monotone" dataKey="balance" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={3} />
+                                                <XAxis dataKey="time" hide />
+                                                <YAxis hide domain={['auto', 'auto']} />
+                                            </AreaChart>
+                                        </ResponsiveContainer>
+                                    </div>
                                 </div>
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
-                                    <div className="flex items-center gap-2 mb-8"><Zap size={18} className="text-violet-500"/><h3 className="text-[11px] font-black uppercase tracking-widest text-violet-400">Logic Conviction</h3></div>
-                                    <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={socketStatus.signalsMapHistory}><Area type="step" dataKey="confidence" stroke="#a78bfa" fill="#a78bfa" fillOpacity={0.1} strokeWidth={2}/><XAxis dataKey="time" hide/><YAxis hide domain={[0, 100]}/></AreaChart></ResponsiveContainer></div>
+                                    <div className="flex items-center gap-2 mb-8"><Zap size={18} className="text-violet-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Logic conviction</h3></div>
+                                    <div className="h-48 w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <AreaChart data={socketStatus.signalsMapHistory}>
+                                                <Area type="step" dataKey="confidence" stroke="#a78bfa" fill="#a78bfa" fillOpacity={0.1} strokeWidth={2} />
+                                                <XAxis dataKey="time" hide />
+                                                <YAxis hide domain={[0, 100]} />
+                                            </AreaChart>
+                                        </ResponsiveContainer>
+                                    </div>
                                 </div>
                             </div>
                         )}
-                    </div> {/* Closes Main Area */}
-                </div> {/* Closes Operational Grid */}
+                    </div> {/* Closes Main Area Column */}
+                </div> {/* Closes Grid-12 Parent */}
             </div> {/* Closes Background Wrapper */}
         </UIModeProvider>
     );
