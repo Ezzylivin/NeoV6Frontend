@@ -691,7 +691,7 @@ const NeuralConvergenceChart = ({ strategies, signalsMapHistory }) => {
             </div>
         </div>
     );
-};
+}
 
 const MetricCard = ({ label, value, subValue, color = "text-white", legs = null, icon = null }) => (
     <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl flex flex-col justify-between h-full">
