@@ -546,7 +546,7 @@ const TradingBotContainer = () => {
                                                 <button onClick={() => setViewMode('history')} className={`px-3 py-1 text-[9px] font-black rounded-lg transition-all ${viewMode === 'history' ? 'bg-zinc-800 text-amber-400' : 'text-zinc-600'}`}>HISTORY</button>
                                             </div>
                                         </div>
-
+                                       
                                         <div className="flex-1 bg-black bg-opacity-40 overflow-auto">
                                     {viewMode === 'active' ? (
                                         <LiveTradingChart symbol={formConfig.symbol} activePositions={socketStatus.positions} />
@@ -567,7 +567,6 @@ const TradingBotContainer = () => {
                                                 </tbody>
                                             </table>
                                         </div>
-                                </div>
                                     )}
                                 </div>
                             
