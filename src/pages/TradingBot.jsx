@@ -318,21 +318,23 @@ const TradingBotContainer = () => {
                 <div className="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-[40px] p-12 text-center shadow-2xl">
                     <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-inner"><Wallet className="text-emerald-500 w-8 h-8" /></div>
                     <h2 className="text-2xl font-black text-white mb-3 uppercase tracking-tighter">Terminal Encrypted</h2>
-                    <div className="w-full flex justify-center items-center">
+                    
                     <ConnectButton />
                 </div>
             </div>
         );
-    }
+}
 
     const startCap = socketStatus.initialCapital || formConfig.capitalAllocation || 1;
     const profitPct = ((socketStatus.dailyProfit || 0) / startCap) * 100;
     const pnlPct = ((socketStatus.unrealizedPnl || 0) / startCap) * 100;
 
-     <UIModeProvider>
+     return (
+        <UIModeProvider>
             <div className="min-h-screen bg-zinc-950 text-white font-sans p-6 overflow-x-hidden transition-all duration-700">
                 <Toaster position="top-right" />
                 
+                {/* 1. LAYER: PROTOCOL SELECTION OVERLAY */}
                 {!isModeSelected && !isBotRunning && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md">
                         <div className="max-w-4xl w-full p-6 text-center">
@@ -340,15 +342,24 @@ const TradingBotContainer = () => {
                                 <>
                                     <h1 className="text-4xl font-black text-white mb-10 tracking-tighter uppercase">Protocol Selection</h1>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        <div onClick={() => setModeStep('paper_setup')} className="group cursor-pointer bg-zinc-900 border border-white/5 hover:border-emerald-500/50 p-16 rounded-[40px] transition-all shadow-2xl"><h3 className="text-3xl font-black text-emerald-400 mb-3 uppercase">PAPER</h3><p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">Logic Simulation</p></div>
-                                        <div onClick={() => { if(hasApiKeys) { setFormConfig(p=>({...p, tradingMode: 'live'})); setIsModeSelected(true); } else { toast.error("Connect API Keys First"); } }} className={`p-16 rounded-[40px] border transition-all ${hasApiKeys ? 'cursor-pointer bg-zinc-900 border-white/5 hover:border-red-500 shadow-2xl' : 'bg-zinc-900/50 opacity-20'}`}><h3 className="text-3xl font-black text-red-500 mb-3 uppercase">LIVE</h3><p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">Real Capital Execution</p></div>
+                                        <div onClick={() => setModeStep('paper_setup')} className="group cursor-pointer bg-zinc-900 border border-white/5 hover:border-emerald-500/50 p-16 rounded-[40px] transition-all shadow-2xl">
+                                            <h3 className="text-3xl font-black text-emerald-400 mb-3 uppercase">PAPER</h3>
+                                            <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">Logic Simulation</p>
+                                        </div>
+                                        <div onClick={() => { if(hasApiKeys) { setFormConfig(p=>({...p, tradingMode: 'live'})); setIsModeSelected(true); } else { toast.error("Connect API Keys First"); } }} className={`p-16 rounded-[40px] border transition-all ${hasApiKeys ? 'cursor-pointer bg-zinc-900 border-white/5 hover:border-red-500 shadow-2xl' : 'bg-zinc-900/50 opacity-20'}`}>
+                                            <h3 className="text-3xl font-black text-red-500 mb-3 uppercase">LIVE</h3>
+                                            <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">Real Capital Execution</p>
+                                        </div>
                                     </div>
                                 </>
                             ) : (
                                 <div className="max-w-md mx-auto bg-zinc-900 border border-zinc-800 p-12 rounded-[40px] shadow-2xl">
                                     <h3 className="text-2xl font-black text-white mb-8 uppercase tracking-tighter">Initial Paper Balance</h3>
                                     <input type="number" value={paperBalance} onChange={(e) => setPaperBalance(Number(e.target.value))} className="w-full bg-black border border-zinc-800 rounded-2xl p-5 text-2xl font-mono text-center text-emerald-500 mb-8 outline-none shadow-inner" />
-                                    <div className="flex gap-4"><button onClick={() => setModeStep('selection')} className="flex-1 py-4 border border-zinc-800 rounded-2xl text-zinc-500 font-black uppercase text-[10px]">Back</button><button onClick={() => { setFormConfig(p=>({...p, tradingMode: 'paper', capitalAllocation: paperBalance})); setIsModeSelected(true); }} className="flex-2 py-4 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px]">Ignite</button></div>
+                                    <div className="flex gap-4">
+                                        <button onClick={() => setModeStep('selection')} className="flex-1 py-4 border border-zinc-800 rounded-2xl text-zinc-500 font-black uppercase text-[10px]">Back</button>
+                                        <button onClick={() => { setFormConfig(p=>({...p, tradingMode: 'paper', capitalAllocation: paperBalance})); setIsModeSelected(true); }} className="flex-2 py-4 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px]">Ignite</button>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -357,8 +368,12 @@ const TradingBotContainer = () => {
 
                 {showPreFlight && <PreFlightModal config={formConfig} onConfirm={handleConfirmStart} onCancel={() => setShowPreFlight(false)} isStarting={isStarting} hasApiKeys={hasApiKeys} address={address} />}
 
+                {/* 2. LAYER: DASHBOARD HEADER */}
                 <header className="max-w-[1800px] mx-auto mb-10 flex items-center justify-between transition-all">
-                    <div className="flex items-center gap-3"><div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div><div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v13.12</p></div></div>
+                    <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div>
+                        <div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v13.13</p></div>
+                    </div>
                     <div className="flex items-center gap-4">
                         {isBotRunning ? (
                             <button onClick={handleHalt} className="px-6 py-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-xl font-black text-[10px] uppercase hover:bg-rose-500 hover:text-white transition-all flex items-center gap-2 shadow-lg shadow-rose-500/10"><Power size={12}/> Emergency Halt</button>
@@ -369,12 +384,18 @@ const TradingBotContainer = () => {
                     </div>
                 </header>
 
-                <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8">
-                    {!isBotRunning && (
-                        <div className="col-span-12 lg:col-span-3 space-y-6 animate-in slide-in-from-left-10 duration-700">
-                            <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-10 shadow-2xl sticky top-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
+                    
+                    {/* 🟢 COLUMN 1: SIDEBAR (Swaps Settings for Intelligence Chart) */}
+                    <div className="col-span-12 lg:col-span-3 h-[720px] relative overflow-hidden">
+                        
+                        {/* PANE A: CONFIGURATION (Visible when Stopped) */}
+                        <div className={`absolute inset-0 transition-all duration-700 ease-in-out ${isBotRunning ? '-translate-x-full opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'}`}>
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-10 shadow-2xl h-full overflow-y-auto custom-scrollbar">
                                 <div className="space-y-4">
-                                    <div className="flex items-center gap-2"><CandlestickChart size={16} className="text-zinc-400" /><h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Market Feed</h4></div>
+                                    <div className="flex items-center gap-2">
+                                        <CandlestickChart size={16} className="text-zinc-400" />
+                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Market Feed</h4>
+                                    </div>
                                     <div className="grid grid-cols-3 gap-2">
                                         <div className="col-span-2"><label className={labelClass}>Asset</label><select value={formConfig.symbol} onChange={(e)=>setFormConfig({...formConfig, symbol: e.target.value})} className={inputClass}>{COIN_PAIRS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                                         <div className="col-span-1"><label className={labelClass}>Period</label><select value={formConfig.timeframe} onChange={(e)=>setFormConfig({...formConfig, timeframe: e.target.value})} className={inputClass}>{TIMEFRAMES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
@@ -404,6 +425,8 @@ const TradingBotContainer = () => {
                                 </div>
 
                                 <div className="space-y-4 border-t border-zinc-800/50 pt-8">
+                                    <div className={`transition-all duration-700 h-full ${isBotRunning ? '-translate-x-full opacity-0 pointer-events-none absolute' : 'translate-x-0 opacity-100'}`}>
+                                        <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 h-full overflow-y-auto custom-scrollbar shadow-2xl">
                                     <div className="flex justify-between items-center"><div className="flex items-center gap-2"><AlertTriangle size={16} className="text-rose-500" /><h4 className="text-[10px] font-black uppercase tracking-widest text-rose-500">Risk Protocol</h4></div>
                                     <select value={formConfig.riskManagementMode} onChange={(e)=>setFormConfig({...formConfig, riskManagementMode: e.target.value})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase"><option value="static">Static</option><option value="dynamic">Dynamic</option></select></div>
                                     <div className="grid grid-cols-2 gap-3">
@@ -411,15 +434,15 @@ const TradingBotContainer = () => {
                                         <div><label className={labelClass}>Max Daily Loss %</label><input type="number" step="0.1" value={formConfig.maxDailyLoss} onChange={(e)=>setFormConfig({...formConfig, maxDailyLoss: parseFloat(e.target.value)})} className={inputClass}/></div>
                                         <div className="col-span-2">
                                         <div className="flex justify-between items-center">
-                                            <label className={labelClass}>Max Pyramiding (Reversal Only)</label>
-                                            <Tooltip text="Maximum number of positions allowed to open simultaneously via directional reversals.">
+                                            <label className={labelClass}>Max Pyramiding (Confidence Scaled)</label>
+                                            <Tooltip text="Up to 5 legs. Each leg requires a 10% higher AI confidence than the previous one.">
                                                 <Info size={10} className="text-zinc-600"/>
                                             </Tooltip>
                                         </div>
                                         <input 
                                             type="number" 
                                             min="1" 
-                                            max="2" 
+                                            max="5"  // 🟢 Changed from 2 to 5
                                             value={formConfig.maxPyramiding} 
                                             onChange={(e) => setFormConfig({...formConfig, maxPyramiding: parseInt(e.target.value)})} 
                                             className={inputClass}
@@ -462,156 +485,107 @@ const TradingBotContainer = () => {
                                 <button onClick={() => setShowPreFlight(true)} className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-400 transition-all shadow-xl shadow-emerald-500/20">Initiate Engine</button>
                             </div>
                         </div>
-                    )}
+                    </div>
 
-                    <div className={`${isBotRunning ? 'col-span-12' : 'col-span-12 lg:col-span-9'} space-y-8 transition-all duration-700`}>
-                        <div className={`grid grid-cols-1 ${isBotRunning ? 'md:grid-cols-6' : 'md:grid-cols-5'} gap-4`}>
+                    <div className={`absolute inset-0 transition-all duration-700 ease-in-out ${isBotRunning ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'}`}>
+                            <NeuralConvergenceChart 
+                                strategies={formConfig.strategies} 
+                                signalsMapHistory={socketStatus.signalsMapHistory || []} 
+                            />
+                        </div>
+                    </div>
+
+                    {/* 🟢 COLUMN 2: MAIN CHART & METRICS */}
+                    <div className={`${isBotRunning ? 'col-span-12 lg:col-span-6' : 'col-span-12 lg:col-span-9'} space-y-8 transition-all duration-700`}>
+                        <div className={`grid grid-cols-1 ${isBotRunning ? 'md:grid-cols-3' : 'md:grid-cols-5'} gap-4`}>
                             <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
                                 <div className="flex justify-between items-start mb-1"><p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">Engine Status</p>{isBotRunning && <Timer size={12} className="text-emerald-500 animate-pulse" />}</div>
                                 <p className={`text-lg font-mono font-black ${isBotRunning ? 'text-emerald-400' : 'text-zinc-600'}`}>{isBotRunning ? 'OPERATIONAL' : 'STANDBY'}</p>
-                                <p className="text-[9px] font-mono text-zinc-500 mt-1 uppercase tracking-tighter font-black">SESSION: {uptime}</p>
                             </div>
-                            <MetricCard label="Daily Profit" value={`${socketStatus.dailyProfit >= 0 ? '+' : ''}${(socketStatus.dailyProfit || 0).toFixed(2)}`} subValue={`${profitPct >= 0 ? '+' : ''}${profitPct.toFixed(2)}%`} color={socketStatus.dailyProfit >= 0 ? "text-emerald-400" : "text-rose-500"} icon={<DollarSign size={10}/>} />
-                            <MetricCard label="Floating PnL" value={`${socketStatus.unrealizedPnl >= 0 ? '+' : ''}${(socketStatus.unrealizedPnl || 0).toFixed(2)}`} subValue={`${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`} color={socketStatus.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'} icon={<Activity size={10}/>} />
-                            <MetricCard label="Exposure" value={`${socketStatus.exposure || 0}%`} subValue={socketStatus.positions.length > 0 ? "Active Positions" : "Cash Heavy"} color="text-amber-400" />
-                            <MetricCard label="Total Equity" value={`$${Number(activeBalance).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} subValue="Liquid + Locked" /> 
+                            <MetricCard label="Daily Profit" value={`$${(socketStatus.dailyProfit || 0).toFixed(2)}`} subValue={`${profitPct.toFixed(2)}%`} color={socketStatus.dailyProfit >= 0 ? "text-emerald-400" : "text-rose-500"} icon={<DollarSign size={10}/>} />
+                            <MetricCard label="Floating PnL" value={`$${(socketStatus.unrealizedPnl || 0).toFixed(2)}`} subValue={`${pnlPct.toFixed(2)}%`} color={socketStatus.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'} icon={<Activity size={10}/>} />
+                            {!isBotRunning && (
+                                <>
+                                    <MetricCard label="Exposure" value={`${socketStatus.exposure || 0}%`} subValue="Active" color="text-amber-400" />
+                                    <MetricCard label="Total Equity" value={`$${Number(activeBalance).toLocaleString()}`} subValue="Balance" /> 
+                                </>
+                            )}
                         </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[720px]">
-                            <div className="lg:col-span-3 bg-zinc-900 border border-zinc-800 rounded-[40px] overflow-hidden flex flex-col relative shadow-2xl">
-                                <div className="bg-zinc-800/20 p-6 border-b border-zinc-800/50 flex items-center justify-between">
-                                    <div className="flex items-center gap-3"><TrendingUp size={18} className="text-emerald-500" /><span className="text-[11px] font-black uppercase tracking-widest">{formConfig.symbol} Live Feed</span></div>
-                                    <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></div><span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Neural Sync Active</span></div>
-                                </div>
-                                <div className="flex-1 bg-[#090b0f] pb-8">
-                                    <LiveTradingChart symbol={formConfig.symbol} timeframe={formConfig.timeframe} isRunning={isBotRunning} activePositions={socketStatus.positions} tradeMarkers={socketStatus.tradeMarkers} candleData={socketStatus.candles || []} strategies={formConfig.strategies} />
-                                </div>
-                            </div>
-                            <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 rounded-[40px] flex flex-col overflow-hidden shadow-2xl">
-                                <div className="p-5 border-b border-zinc-800 bg-zinc-800/20 flex justify-between items-center">
-                                    <div className="flex items-center gap-2 text-violet-400"><Cpu size={16} className={isBotRunning ? 'animate-pulse' : ''}/><h3 className="text-[10px] font-black uppercase tracking-widest">Neural Flow</h3></div>
-                                    <div className="flex items-center gap-2">
-                                        <button onClick={handleSyncLogs} className="text-zinc-600 hover:text-emerald-400 transition-all" title="Sync Last 200 Logs"><RefreshCw size={14} /></button>
-                                        <button onClick={handleClearLogs} className="text-zinc-600 hover:text-white transition-all" title="Clear View"><Eraser size={14} /></button>
-                                        {socketConnected ? <Wifi size={14} className="text-emerald-500" /> : <WifiOff size={14} className="text-rose-500 animate-pulse" />}
-                                    </div>
-                                </div>
-                                <div ref={logContainerRef} className="flex-1 overflow-y-auto p-6 font-mono text-[10px] space-y-3 bg-black/20 custom-scrollbar">
-                                    {socketLogs.length === 0 ? (
-                                        <div className="h-full flex items-center justify-center text-zinc-600 italic">Initializing neural link...</div>
-                                    ) : (
-                                        socketLogs.map((log, i) => (
-                                            <div 
-                                                key={i} 
-                                                className={`p-3 rounded-xl border leading-relaxed flex flex-col gap-1 ${getLogStyle(parseLog(log.message || log))}`}
-                                            >
-                                                <span className="text-[9px] opacity-50 font-bold tracking-widest">{formatTime(log.time)}</span>
-                                                <span>{parseLog(log.message || log)}</span>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] overflow-hidden flex flex-col relative shadow-2xl h-[620px]">
+                            <div className="flex-1 bg-[#090b0f]">
+                                <LiveTradingChart 
+                                    symbol={formConfig.symbol} timeframe={formConfig.timeframe} isRunning={isBotRunning} 
+                                    activePositions={socketStatus.positions} tradeMarkers={socketStatus.tradeMarkers} 
+                                    candleData={socketStatus.candles || []} strategies={formConfig.strategies} 
+                                />
                             </div>
                         </div>
-
-                        {isBotRunning && (
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-10 duration-1000">
-                                <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
-                                    <div className="flex items-center gap-2 mb-8"><BarChart size={18} className="text-emerald-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Session Equity</h3></div>
-                                    <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={performanceData}><Area type="monotone" dataKey="balance" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={3} /><XAxis dataKey="time" hide /><YAxis hide domain={[(dataMin) => dataMin - 10, (dataMax) => dataMax + 10]} />       
-                                  <RechartsTooltip contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '12px' }} /></AreaChart></ResponsiveContainer></div>
-                                </div>
-                                <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
-                                    <div className="flex items-center gap-2 mb-8"><Zap size={18} className="text-violet-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Logic Confidence</h3></div>
-                                    <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={performanceData}><Area type="step" dataKey="confidence" stroke="#a78bfa" fill="#a78bfa" fillOpacity={0.1} strokeWidth={2} /><XAxis dataKey="time" hide /><YAxis hide /><RechartsTooltip contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '12px' }} /></AreaChart></ResponsiveContainer></div>
-                                </div>
-                                {/* --- 3rd Column: Operations & History Toggle --- */}
-                                <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl overflow-hidden flex flex-col">
-                                    <div className="flex items-center justify-between mb-8">
-                                        <div className="flex items-center gap-2">
-                                            <Box size={18} className="text-amber-500"/>
-                                            <h3 className="text-[11px] font-black uppercase tracking-widest text-zinc-100">
-                                                {viewMode === 'active' ? 'Live Ops' : 'Session History'}
-                                            </h3>
-                                        </div>
-                                        
-                                        {/* Toggle Switch */}
-                                        <div className="flex bg-zinc-950 p-1 rounded-xl border border-zinc-800">
-                                            <button 
-                                                onClick={() => setViewMode('active')}
-                                                className={`px-3 py-1 text-[9px] font-black rounded-lg transition-all ${viewMode === 'active' ? 'bg-zinc-800 text-emerald-400 shadow-lg' : 'text-zinc-600'}`}
-                                            >
-                                                ACTIVE
-                                            </button>
-                                            <button 
-                                                onClick={() => setViewMode('history')}
-                                                className={`px-3 py-1 text-[9px] font-black rounded-lg transition-all ${viewMode === 'history' ? 'bg-zinc-800 text-amber-400 shadow-lg' : 'text-zinc-600'}`}
-                                            >
-                                                HISTORY
-                                            </button>
-                                        </div>
-                                    </div>
-                                
-                                    <div className="flex-1 overflow-x-auto custom-scrollbar">
-                                        <table className="w-full text-left text-[11px]">
-                                            <thead>
-                                                <tr className="text-zinc-600 uppercase font-black border-b border-zinc-800 pb-4">
-                                                    <th className="pb-4">Type</th>
-                                                    <th className="pb-4">{viewMode === 'active' ? 'Entry' : 'Exit Price'}</th>
-                                                    <th className="pb-4 text-right">{viewMode === 'active' ? 'Size' : 'Result'}</th>
-                                                    <th className="pb-4 text-right">Time</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-zinc-800/50">
-                                                {viewMode === 'active' ? (
-                                                    // 🟢 ACTIVE POSITIONS VIEW
-                                                    socketStatus.positions.length > 0 ? socketStatus.positions.map((pos, idx) => (
-                                                        <tr key={idx} className="group transition-colors hover:bg-zinc-800/20">
-                                                            <td className={`py-5 font-black flex items-center gap-2 ${pos.type === 'short' ? 'text-amber-500' : 'text-emerald-400'}`}>
-                                                                {pos.type === 'short' ? <ArrowDownRight size={14}/> : <ArrowUpRight size={14}/>} 
-                                                                {pos.type.toUpperCase()}
-                                                            </td>
-                                                            <td className="py-5 font-mono font-black text-zinc-200">${pos.entry.toLocaleString()}</td>
-                                                            <td className="py-5 font-mono text-zinc-500 text-right">{pos.size.toFixed(4)}</td>
-                                                            <td className="py-5 text-right">
-                                                                <button onClick={handleManualExit} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 rounded-lg text-rose-500 hover:text-white font-black uppercase text-[9px] transition-all tracking-wider">EXIT</button>
-                                                            </td>
-                                                        </tr>
-                                                    )) : (
-                                                        <tr><td colSpan="4" className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">Scanning for Entries...</td></tr>
-                                                    )
-                                                ) : (
-                                                    // 🟠 SESSION HISTORY VIEW
-                                                    socketStatus.tradeMarkers && socketStatus.tradeMarkers.length > 0 ? socketStatus.tradeMarkers.map((trade, idx) => (
-                                                        <tr key={idx} className="group opacity-80 hover:opacity-100 transition-opacity">
-                                                            <td className={`py-5 font-black flex items-center gap-2 ${trade.type === 'short' || trade.type === 'sell' ? 'text-rose-400' : 'text-emerald-400'}`}>
-                                                                {trade.type.toUpperCase()}
-                                                            </td>
-                                                            <td className="py-5 font-mono font-bold text-zinc-400">${trade.price.toLocaleString()}</td>
-                                                            <td className="py-5 text-right font-black text-zinc-500">
-                                                                COMPLETED
-                                                            </td>
-                                                            <td className="py-5 text-right font-mono text-zinc-600">
-                                                                {new Date(trade.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                            </td>
-                                                        </tr>
-                                                    )) : (
-                                                        <tr><td colSpan="4" className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">No trades recorded yet.</td></tr>
-                                                    )
-                                                )}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
                     </div>
+
+                    {/* 🟢 COLUMN 3: NEURAL LOGS (Only visible when running) */}
+                    {isBotRunning && (
+                        <div className="col-span-12 lg:col-span-3 h-[720px] bg-zinc-900 border border-zinc-800 rounded-[40px] flex flex-col overflow-hidden shadow-2xl animate-in slide-in-from-right duration-700">
+                             <div className="p-5 border-b border-zinc-800 bg-zinc-800/20 flex justify-between items-center">
+                                <div className="flex items-center gap-2 text-violet-400"><Cpu size={16} className="animate-pulse"/><h3 className="text-[10px] font-black uppercase tracking-widest">Neural Flow</h3></div>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={handleSyncLogs} className="text-zinc-600 hover:text-emerald-400 transition-all"><RefreshCw size={14} /></button>
+                                    {socketConnected ? <Wifi size={14} className="text-emerald-500" /> : <WifiOff size={14} className="text-rose-500 animate-pulse" />}
+                                </div>
+                            </div>
+                            <div ref={logContainerRef} className="flex-1 overflow-y-auto p-6 font-mono text-[10px] space-y-3 bg-black/20 custom-scrollbar">
+                                {socketLogs.map((log, i) => (
+                                    <div key={i} className={`p-3 rounded-xl border leading-relaxed flex flex-col gap-1 ${getLogStyle(parseLog(log.message || log))}`}>
+                                        <span className="text-[9px] opacity-50 font-bold tracking-widest">{formatTime(log.time)}</span>
+                                        <span>{parseLog(log.message || log)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
-            </div>
+             </div>
         </UIModeProvider>
-    );
+   );
 };
 
+const NeuralConvergenceChart = ({ strategies, signalsMapHistory }) => {
+    const chartData = useMemo(() => {
+        if (!signalsMapHistory?.length) return [];
+        return signalsMapHistory.slice(-40);
+    }, [signalsMapHistory]);
+
+    return (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 h-full flex flex-col shadow-2xl overflow-hidden">
+            <div className="flex items-center gap-2 mb-8 text-violet-400">
+                <Zap size={16} className="animate-pulse" />
+                <h3 className="text-[10px] font-black uppercase tracking-widest">Neural Logic</h3>
+            </div>
+            <div className="flex-1">
+                <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
+                        <XAxis dataKey="time" hide />
+                        <YAxis hide domain={[0, 1]} />
+                        {strategies.map((s, i) => (
+                            <Area
+                                key={s.code}
+                                type="monotone"
+                                dataKey={s.code}
+                                stroke={i % 2 === 0 ? "#a78bfa" : "#10b981"}
+                                fill={i % 2 === 0 ? "#8b5cf6" : "#10b981"}
+                                fillOpacity={0.1}
+                                strokeWidth={2}
+                                stackId="1"
+                            />
+                        ))}
+                    </AreaChart>
+                </ResponsiveContainer>
+            </div>
+        </div>
+    );
+};
+    
 const MetricCard = ({ label, value, subValue, color = "text-white", icon = null }) => (
     <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden shadow-xl">
         <p className="text-[9px] text-zinc-500 uppercase font-black tracking-[0.15em] mb-2">{label}</p>
@@ -645,55 +619,6 @@ function StrategyParamInputs({ strategy, onChange }) {
             {code === "ema_cloud" && <>{f("Fast", "fast_ema", "1")}{f("Slow", "slow_ema", "1")}</>}
             {code === "pa_breakout" && <>{f("LB", "lookback", "1")}{f("Buf", "buffer", "0.01")}</>}
             {code === "vol_profile" && <>{f("MA", "vol_ma", "1")}{f("T", "threshold", "0.1")}</>}
-        </div>
-    );
-}
-
-export default TradingBotContainer;
-
-// --- SUB-COMPONENTS ---
-
-
-const MetricCard = ({ label, value, subValue, color = "text-white", legs = null, icon = null }) => (
-    <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl flex flex-col justify-between h-full">
-        <div>
-            <div className="flex justify-between items-start mb-2">
-                <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">{label}</p>
-                {icon && <span className="text-zinc-600">{icon}</span>}
-            </div>
-            <p className={`text-lg font-mono font-black ${color}`}>{value}</p>
-            {subValue && <p className="text-[8px] font-black text-zinc-600 mt-1 uppercase tracking-tighter">{subValue}</p>}
-        </div>
-        {legs !== null && (
-            <div className="flex gap-1 mt-4">
-                {[1, 2, 3, 4, 5].map((num) => (
-                    <div key={num} className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${num <= legs ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-zinc-800'}`} />
-                ))}
-            </div>
-        )}
-    </div>
-);            
-
-function StrategyParamInputs({ strategy, onChange }) {
-    const { code, params = {} } = strategy;
-    const f = (l, k, s = "1") => (
-        <div className="flex flex-col">
-            <label className="text-[8px] text-zinc-600 uppercase font-bold ml-1">{l}</label>
-            <input type="number" step={s} value={params[k] ?? ""} onChange={(e) => onChange({...params, [k]: parseFloat(e.target.value)})} className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1 text-[9px] text-amber-500 font-mono outline-none" />
-        </div>
-    );
-    return (
-        <div className="grid grid-cols-2 gap-2">
-            {code === "rsi_threshold" && <>{f("Length", "rsi_length")}{f("Oversold", "oversold")}{f("Overbought", "overbought")}</>}
-            {code === "sma_crossover" && <>{f("Fast", "fast_sma")}{f("Slow", "slow_sma")}</>}
-            {code === "supertrend" && <>{f("ATR", "st_atr")}{f("Factor", "st_factor", "0.1")}</>}
-            {code === "macd_crossover" && <>{f("Fast", "fast")}{f("Slow", "slow")}{f("Signal", "signal")}</>}
-            {code === "atr_breakout" && <>{f("Len", "atr_length")}{f("Mult", "multiplier", "0.1")}</>}
-            {code === "bb_fade" && <>{f("Period", "bb_period")}{f("StdDev", "bb_std", "0.1")}</>}
-            {code === "stoch" && <>{f("K-Per", "k_period")}{f("D-Per", "d_period")}</>}
-            {code === "ema_cloud" && <>{f("Fast", "fast_ema")}{f("Slow", "slow_ema")}</>}
-            {code === "pa_breakout" && <>{f("Lookback", "lookback")}{f("Buffer", "buffer", "0.01")}</>}
-            {code === "vol_profile" && <>{f("MA", "vol_ma")}{f("Ratio", "threshold", "0.1")}</>}
         </div>
     );
 }
