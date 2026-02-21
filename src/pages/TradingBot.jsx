@@ -642,7 +642,7 @@ const TradingBotContainer = () => {
                                     </div>
                                 </div>
                             </div>
-                )}
+                        )}
                     </div>
                 </div>
             </div>
@@ -652,115 +652,6 @@ const TradingBotContainer = () => {
 
 // --- SUB-COMPONENTS ---
 
-return (
-        <UIModeProvider>
-            <div className="min-h-screen bg-zinc-950 text-white font-sans p-6 overflow-x-hidden">
-                <Toaster position="top-right" />
-
-                {/* 1. SELECTION OVERLAYS (Paper/Live Selection) */}
-                {!isModeSelected && !isBotRunning && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-95 backdrop-blur-md">
-                        {/* Overlay Content ... */}
-                    </div>
-                )}
-
-                {/* 2. HEADER (SESSION COUNTER) */}
-                <header className="max-w-[1800px] mx-auto mb-10 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <Activity className="text-emerald-500 w-8 h-8" />
-                        <div>
-                            <h1 className="text-lg font-black uppercase tracking-widest text-white">Sovereign Live</h1>
-                            <p className="text-[9px] text-zinc-500 font-black uppercase">Live Session: <span className="text-emerald-500 font-mono">{uptime}</span></p>
-                        </div>
-                    </div>
-                    <ConnectButton />
-                </header>
-
-                {/* 3. MAIN GRID Parent */}
-                <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8 items-start">
-                    
-                    {/* SIDEBAR: LEFT (3 COLS) */}
-                    <div className="col-span-12 lg:col-span-3 h-[780px] relative overflow-hidden">
-                        <div className={`absolute inset-0 transition-all duration-700 ${isBotRunning ? '-translate-x-full opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'}`}>
-                            <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-8 shadow-2xl h-full overflow-y-auto custom-scrollbar">
-                                {/* FULL MARKET FEED RESTORED */}
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-2 text-zinc-400"><CandlestickChart size={16}/><h4 className="text-[10px] font-black uppercase tracking-widest">Market Feed</h4></div>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        <div className="col-span-2"><label className={labelClass}>Asset</label><select value={formConfig.symbol} onChange={(e)=>setFormConfig({...formConfig, symbol: e.target.value})} className={inputClass}>{COIN_PAIRS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-                                        <div className="col-span-1"><label className={labelClass}>Period</label><select value={formConfig.timeframe} onChange={(e)=>setFormConfig({...formConfig, timeframe: e.target.value})} className={inputClass}>{TIMEFRAMES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
-                                    </div>
-                                </div>
-                                {/* Strategy Logic inputs and Execution Shield... */}
-                                <button onClick={() => startBot({ userId: address, config: formConfig })} className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase tracking-widest shadow-xl">Initiate Protocol</button>
-                            </div>
-                        </div>
-                        <div className={`absolute inset-0 transition-all duration-1000 delay-200 ease-out ${isBotRunning ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'}`}>
-                            <NeuralConvergenceChart strategies={formConfig.strategies} signalsMapHistory={socketStatus.signalsMapHistory || []} />
-                        </div>
-                    </div>
-
-                    {/* MAIN CONTENT AREA (9 COLS) */}
-                    <div className="col-span-12 lg:col-span-9 space-y-8 transition-all duration-700">
-                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                            <MetricCard label="Engine Status" value={isBotRunning ? 'OPERATIONAL' : 'STANDBY'} color={isBotRunning ? 'text-emerald-400' : 'text-zinc-600'} />
-                            <MetricCard label="Pyramid Stage" value={`${socketStatus.positions.length}/5`} legs={socketStatus.positions.length} color="text-emerald-400" />
-                            <MetricCard label="Daily Profit" value={`$${(socketStatus.dailyProfit || 0).toFixed(2)}`} />
-                            <MetricCard label="Exposure" value={`${socketStatus.exposure || 0}%`} color="text-amber-400" />
-                            <MetricCard label="Total Equity" value={`$${Number(activeBalance).toLocaleString()}`} />
-                        </div>
-
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            <div className={`${isBotRunning ? 'lg:col-span-2' : 'lg:col-span-3'} bg-zinc-900 border border-zinc-800 rounded-[40px] overflow-hidden flex flex-col h-[650px] shadow-2xl relative`}>
-                                <div className="bg-zinc-800 bg-opacity-20 p-6 border-b border-zinc-800 border-opacity-50 flex items-center justify-between">
-                                    <span className="text-[11px] font-black uppercase text-zinc-100">{formConfig.symbol} Live Alpha</span>
-                                    <div className="flex bg-zinc-950 p-1 rounded-xl border border-zinc-800">
-                                        <button onClick={() => setViewMode('active')} className={`px-3 py-1 text-[9px] font-black rounded-lg transition-all ${viewMode === 'active' ? 'bg-zinc-800 text-emerald-400 shadow-lg' : 'text-zinc-600'}`}>ACTIVE</button>
-                                        <button onClick={() => setViewMode('history')} className={`px-3 py-1 text-[9px] font-black rounded-lg transition-all ${viewMode === 'history' ? 'bg-zinc-800 text-amber-400 shadow-lg' : 'text-zinc-600'}`}>HISTORY</button>
-                                    </div>
-                                </div>
-                                <div className="flex-1 bg-black bg-opacity-40 overflow-auto">
-                                    {viewMode === 'active' ? (
-                                        <LiveTradingChart symbol={formConfig.symbol} activePositions={socketStatus.positions} />
-                                    ) : (
-                                        <div className="p-6">
-                                            {/* History Table here */}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                            {isBotRunning && (
-                                <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 rounded-[40px] flex flex-col h-[650px] overflow-hidden shadow-2xl">
-                                    <div className="p-5 border-b border-zinc-800 bg-zinc-800 bg-opacity-20 flex justify-between items-center">
-                                        <div className="flex items-center gap-2 text-violet-400"><Cpu size={16} className="animate-pulse"/><h3 className="text-[10px] font-black uppercase">Neural Flow</h3></div>
-                                        <RefreshCw size={14} className="text-zinc-600 cursor-pointer hover:text-white" onClick={refreshState} />
-                                    </div>
-                                    <div ref={logContainerRef} className="flex-1 overflow-y-auto p-6 font-mono text-[10px] space-y-3 bg-black bg-opacity-20 custom-scrollbar">
-                                        {socketLogs.map((log, i) => (<div key={i} className={`p-3 rounded-xl border ${getLogStyle(parseLog(log.message || log))}`}><span>{parseLog(log.message || log)}</span></div>))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* PERFORMANCE ANALYTICS SECTION (Bottom Sibling) */}
-                        {isBotRunning && (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-bottom-10 duration-1000 pb-20">
-                                <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
-                                    <div className="flex items-center gap-2 mb-8"><BarChart size={18} className="text-emerald-500"/><h3 className="text-[11px] font-black uppercase tracking-widest text-emerald-400">Equity Path</h3></div>
-                                    <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={socketStatus.equityCurve}><Area type="monotone" dataKey="balance" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={3}/><XAxis dataKey="time" hide/><YAxis hide domain={['auto', 'auto']}/></AreaChart></ResponsiveContainer></div>
-                                </div>
-                                <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
-                                    <div className="flex items-center gap-2 mb-8"><Zap size={18} className="text-violet-500"/><h3 className="text-[11px] font-black uppercase tracking-widest text-violet-400">Logic Conviction</h3></div>
-                                    <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={socketStatus.signalsMapHistory}><Area type="step" dataKey="confidence" stroke="#a78bfa" fill="#a78bfa" fillOpacity={0.1} strokeWidth={2}/><XAxis dataKey="time" hide/><YAxis hide/></AreaChart></ResponsiveContainer></div>
-                                </div>
-                            </div>
-                        )}
-                    </div> {/* Closes Main Area Column (9 Cols) */}
-                </div> {/* Closes Main Grid Parent (12 Cols) */}
-            </div> {/* Closes Background Wrapper */}
-        </UIModeProvider>
-    );
-};
 const MetricCard = ({ label, value, subValue, color = "text-white" }) => (
     <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
         <p className="text-[9px] text-zinc-500 uppercase font-black mb-2 tracking-widest">{label}</p>
