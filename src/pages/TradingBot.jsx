@@ -673,7 +673,7 @@ const NeuralConvergenceChart = ({ strategies, signalsMapHistory }) => {
                         <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
                         <XAxis dataKey="time" hide />
                         {/* 🟢 FIXED DOMAIN: Set to auto so lines show up regardless of percentage vs decimal */}
-                        <YAxis hide domain={['auto', 'auto']} /> 
+                        <YAxis hide domain={[0, 1]} /> 
                         {strategies.map((s, i) => (
                             <Area
                                 key={s.code}
@@ -691,7 +691,7 @@ const NeuralConvergenceChart = ({ strategies, signalsMapHistory }) => {
             </div>
         </div>
     );
-}
+};
 
 const MetricCard = ({ label, value, subValue, color = "text-white", legs = null, icon = null }) => (
     <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl flex flex-col justify-between h-full">
