@@ -654,7 +654,6 @@ const TradingBotContainer = () => {
 // --- SUB-COMPONENTS ---
 
 const NeuralConvergenceChart = ({ strategies, signalsMapHistory }) => {
-    const chartData = useMemo(() => {
         if (!signalsMapHistory?.length) return [];
         return signalsMapHistory.slice(-40);
     }, [signalsMapHistory]);
