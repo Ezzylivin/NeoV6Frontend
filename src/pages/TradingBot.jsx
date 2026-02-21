@@ -617,7 +617,7 @@ const TradingBotContainer = () => {
                                                         </tr>
                                                     )) : (
                                                         <tr><td colSpan="4" className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">Scanning for Entries...</td></tr>
-                                                    
+                                                    )
                                                 ) : (
                                                     // 🟠 SESSION HISTORY VIEW
                                                     socketStatus.tradeMarkers && socketStatus.tradeMarkers.length > 0 ? socketStatus.tradeMarkers.map((trade, idx) => (
