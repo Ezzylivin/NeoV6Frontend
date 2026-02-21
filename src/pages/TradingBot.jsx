@@ -744,6 +744,6 @@ function StrategyParamInputs({ strategy, onChange }) {
             {code === "vol_profile" && <>{f("MA", "vol_ma")}{f("Ratio", "threshold", "0.1")}</>}
         </div>
     );
-}
+};
 
 export default TradingBotContainer;
