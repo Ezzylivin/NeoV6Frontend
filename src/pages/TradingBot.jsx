@@ -660,6 +660,7 @@ const NeuralConvergenceChart = ({ strategies, signalsMapHistory }) => {
         return signalsMapHistory.slice(-40);
     }, [signalsMapHistory]);
 
+
     return (
         <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 h-full flex flex-col shadow-2xl overflow-hidden">
             <div className="flex items-center gap-2 mb-8 text-violet-400">
@@ -710,17 +711,7 @@ const MetricCard = ({ label, value, subValue, color = "text-white", legs = null,
             </div>
         )}
     </div>
-);
-
-const MetricCard = ({ label, value, subValue, color = "text-white" }) => (
-    <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
-        <p className="text-[9px] text-zinc-500 uppercase font-black mb-2 tracking-widest">{label}</p>
-        <div className="flex flex-col">
-            <p className={`text-lg font-mono font-black ${color}`}>{value}</p>
-            {subValue && <p className="text-[8px] font-black text-zinc-600 mt-1 uppercase tracking-tighter">{subValue}</p>}
-        </div>
-    </div>
-);
+);            
 
 function StrategyParamInputs({ strategy, onChange }) {
     const { code, params = {} } = strategy;
