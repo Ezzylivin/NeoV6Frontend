@@ -492,7 +492,7 @@ const TradingBotContainer = () => {
                             signalsMapHistory={socketStatus.signalsMapHistory || []} 
                         />
                     </div>
-                </div>
+                
 
                     <div className={`${isBotRunning ? 'col-span-12' : 'col-span-12 lg:col-span-9'} space-y-8 transition-all duration-700`}>
                         <div className={`grid grid-cols-1 ${isBotRunning ? 'md:grid-cols-6' : 'md:grid-cols-5'} gap-4`}>
@@ -617,7 +617,7 @@ const TradingBotContainer = () => {
                                                         </tr>
                                                     )) : (
                                                         <tr><td colSpan="4" className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">Scanning for Entries...</td></tr>
-                                                    )
+                                                    
                                                 ) : (
                                                     // 🟠 SESSION HISTORY VIEW
                                                     socketStatus.tradeMarkers && socketStatus.tradeMarkers.length > 0 ? socketStatus.tradeMarkers.map((trade, idx) => (
@@ -642,7 +642,7 @@ const TradingBotContainer = () => {
                                     </div>
                                 </div>
                             </div>
-                        )}
+                )}
                     </div>
                 </div>
             </div>
