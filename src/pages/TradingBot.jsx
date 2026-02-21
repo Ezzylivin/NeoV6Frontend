@@ -567,6 +567,7 @@ const TradingBotContainer = () => {
                                                 </tbody>
                                             </table>
                                         </div>
+                                </div>
                                     )}
                                 </div>
                             
