@@ -654,14 +654,63 @@ const TradingBotContainer = () => {
 // --- SUB-COMPONENTS ---
 
 const NeuralConvergenceChart = ({ strategies, signalsMapHistory }) => {
-    const chartData = useMemo(() => signalsMapHistory?.slice(-40) || [], [signalsMapHistory]);
+    // Corrected useMemo Syntax:
+    const chartData = useMemo(() => {
+        if (!signalsMapHistory?.length) return [];
+        return signalsMapHistory.slice(-40);
+    }, [signalsMapHistory]);
+
     return (
         <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 h-full flex flex-col shadow-2xl overflow-hidden">
-            <div className="flex items-center gap-2 mb-8 text-violet-400"><Zap size={16} className="animate-pulse" /><h3 className="text-[10px] font-black uppercase tracking-widest text-white">Logic Alignment</h3></div>
-            <div className="flex-1"><ResponsiveContainer width="100%" height="100%"><AreaChart data={chartData}><CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false}/><XAxis dataKey="time" hide/><YAxis hide domain={['auto', 'auto']}/>{strategies.map((s, i) => (<Area key={s.code} type="monotone" dataKey={s.code} stroke={i % 2 === 0 ? "#a78bfa" : "#10b981"} fill={i % 2 === 0 ? "#8b5cf6" : "#10b981"} fillOpacity={0.05} strokeWidth={2} stackId="1"/>))}</AreaChart></ResponsiveContainer></div>
+            <div className="flex items-center gap-2 mb-8 text-violet-400">
+                <Zap size={16} className="animate-pulse" />
+                <h3 className="text-[10px] font-black uppercase tracking-widest">Neural Logic</h3>
+            </div>
+            <div className="flex-1">
+                <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
+                        <XAxis dataKey="time" hide />
+                        {/* 🟢 FIXED DOMAIN: Set to auto so lines show up regardless of percentage vs decimal */}
+                        <YAxis hide domain={['auto', 'auto']} /> 
+                        {strategies.map((s, i) => (
+                            <Area
+                                key={s.code}
+                                type="monotone"
+                                dataKey={s.code}
+                                stroke={i % 2 === 0 ? "#a78bfa" : "#10b981"}
+                                fill={i % 2 === 0 ? "#8b5cf6" : "#10b981"}
+                                fillOpacity={0.1}
+                                strokeWidth={2}
+                                stackId="1"
+                            />
+                        ))}
+                    </AreaChart>
+                </ResponsiveContainer>
+            </div>
         </div>
     );
 };
+
+const MetricCard = ({ label, value, subValue, color = "text-white", legs = null, icon = null }) => (
+    <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl flex flex-col justify-between h-full">
+        <div>
+            <div className="flex justify-between items-start mb-2">
+                <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">{label}</p>
+                {icon && <span className="text-zinc-600">{icon}</span>}
+            </div>
+            <p className={`text-lg font-mono font-black ${color}`}>{value}</p>
+            {subValue && <p className="text-[8px] font-black text-zinc-600 mt-1 uppercase tracking-tighter">{subValue}</p>}
+        </div>
+        {legs !== null && (
+            <div className="flex gap-1 mt-4">
+                {[1, 2, 3, 4, 5].map((num) => (
+                    <div key={num} className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${num <= legs ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-zinc-800'}`} />
+                ))}
+            </div>
+        )}
+    </div>
+);
 
 const MetricCard = ({ label, value, subValue, color = "text-white" }) => (
     <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
