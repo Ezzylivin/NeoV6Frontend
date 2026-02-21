@@ -654,37 +654,11 @@ const TradingBotContainer = () => {
 // --- SUB-COMPONENTS ---
 
 const NeuralConvergenceChart = ({ strategies, signalsMapHistory }) => {
-        if (!signalsMapHistory?.length) return [];
-        return signalsMapHistory.slice(-40);
-    }, [signalsMapHistory]);
-
+    const chartData = useMemo(() => signalsMapHistory?.slice(-40) || [], [signalsMapHistory]);
     return (
         <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 h-full flex flex-col shadow-2xl overflow-hidden">
-            <div className="flex items-center gap-2 mb-8 text-violet-400">
-                <Zap size={16} className="animate-pulse" />
-                <h3 className="text-[10px] font-black uppercase tracking-widest">Neural Logic</h3>
-            </div>
-            <div className="flex-1">
-                <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
-                        <XAxis dataKey="time" hide />
-                        <YAxis hide domain={[0, 1]} />
-                        {strategies.map((s, i) => (
-                            <Area
-                                key={s.code}
-                                type="monotone"
-                                dataKey={s.code}
-                                stroke={i % 2 === 0 ? "#a78bfa" : "#10b981"}
-                                fill={i % 2 === 0 ? "#8b5cf6" : "#10b981"}
-                                fillOpacity={0.1}
-                                strokeWidth={2}
-                                stackId="1"
-                            />
-                        ))}
-                    </AreaChart>
-                </ResponsiveContainer>
-            </div>
+            <div className="flex items-center gap-2 mb-8 text-violet-400"><Zap size={16} className="animate-pulse" /><h3 className="text-[10px] font-black uppercase tracking-widest text-white">Logic Alignment</h3></div>
+            <div className="flex-1"><ResponsiveContainer width="100%" height="100%"><AreaChart data={chartData}><CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false}/><XAxis dataKey="time" hide/><YAxis hide domain={['auto', 'auto']}/>{strategies.map((s, i) => (<Area key={s.code} type="monotone" dataKey={s.code} stroke={i % 2 === 0 ? "#a78bfa" : "#10b981"} fill={i % 2 === 0 ? "#8b5cf6" : "#10b981"} fillOpacity={0.05} strokeWidth={2} stackId="1"/>))}</AreaChart></ResponsiveContainer></div>
         </div>
     );
 };
