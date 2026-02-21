@@ -329,8 +329,7 @@ const TradingBotContainer = () => {
     const profitPct = ((socketStatus.dailyProfit || 0) / startCap) * 100;
     const pnlPct = ((socketStatus.unrealizedPnl || 0) / startCap) * 100;
 
-    return (
-        <UIModeProvider>
+     <UIModeProvider>
             <div className="min-h-screen bg-zinc-950 text-white font-sans p-6 overflow-x-hidden transition-all duration-700">
                 <Toaster position="top-right" />
                 
@@ -372,30 +371,13 @@ const TradingBotContainer = () => {
 
                 <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8">
                     {!isBotRunning && (
-                        <div className={`transition-all duration-700 ease-in-out w-full h-full ${
-                            isBotRunning 
-                            ? "-translate-x-full opacity-0 pointer-events-none absolute" 
-                            : "translate-x-0 opacity-100 relative"
-                        }`}>
+                        <div className="col-span-12 lg:col-span-3 space-y-6 animate-in slide-in-from-left-10 duration-700">
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-10 shadow-2xl sticky top-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
                                 <div className="space-y-4">
-                                    <div className="flex items-center gap-2">
-                                        <CandlestickChart size={16} className="text-zinc-400" />
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Market Feed</h4>
-                                    </div>
+                                    <div className="flex items-center gap-2"><CandlestickChart size={16} className="text-zinc-400" /><h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Market Feed</h4></div>
                                     <div className="grid grid-cols-3 gap-2">
-                                        <div className="col-span-2">
-                                            <label className={labelClass}>Asset</label>
-                                            <select value={formConfig.symbol} onChange={(e)=>setFormConfig({...formConfig, symbol: e.target.value})} className={inputClass}>
-                                                {COIN_PAIRS.map(c => <option key={c} value={c}>{c}</option>)}
-                                            </select>
-                                        </div>
-                                        <div className="col-span-1">
-                                            <label className={labelClass}>Period</label>
-                                            <select value={formConfig.timeframe} onChange={(e)=>setFormConfig({...formConfig, timeframe: e.target.value})} className={inputClass}>
-                                                {TIMEFRAMES.map(t => <option key={t} value={t}>{t}</option>)}
-                                            </select>
-                                        </div>
+                                        <div className="col-span-2"><label className={labelClass}>Asset</label><select value={formConfig.symbol} onChange={(e)=>setFormConfig({...formConfig, symbol: e.target.value})} className={inputClass}>{COIN_PAIRS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                                        <div className="col-span-1"><label className={labelClass}>Period</label><select value={formConfig.timeframe} onChange={(e)=>setFormConfig({...formConfig, timeframe: e.target.value})} className={inputClass}>{TIMEFRAMES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
                                     </div>
                                 </div>
 
@@ -429,15 +411,15 @@ const TradingBotContainer = () => {
                                         <div><label className={labelClass}>Max Daily Loss %</label><input type="number" step="0.1" value={formConfig.maxDailyLoss} onChange={(e)=>setFormConfig({...formConfig, maxDailyLoss: parseFloat(e.target.value)})} className={inputClass}/></div>
                                         <div className="col-span-2">
                                         <div className="flex justify-between items-center">
-                                            <label className={labelClass}>Max Pyramiding (Confidence Scaled)</label>
-                                            <Tooltip text="Up to 5 legs. Each leg requires a 10% higher AI confidence than the previous one.">
+                                            <label className={labelClass}>Max Pyramiding (Reversal Only)</label>
+                                            <Tooltip text="Maximum number of positions allowed to open simultaneously via directional reversals.">
                                                 <Info size={10} className="text-zinc-600"/>
                                             </Tooltip>
                                         </div>
                                         <input 
                                             type="number" 
                                             min="1" 
-                                            max="5"  // 🟢 Changed from 2 to 5
+                                            max="2" 
                                             value={formConfig.maxPyramiding} 
                                             onChange={(e) => setFormConfig({...formConfig, maxPyramiding: parseInt(e.target.value)})} 
                                             className={inputClass}
@@ -482,19 +464,6 @@ const TradingBotContainer = () => {
                         </div>
                     )}
 
-                    <div className={`transition-all duration-1000 delay-200 ease-out w-full h-full ${
-                        isBotRunning 
-                        ? "translate-x-0 opacity-100 relative" 
-                        : "translate-x-full opacity-0 absolute"
-                    }`}>
-                        {/* We call the Intelligence Chart component here */}
-                        <NeuralConvergenceChart 
-                            strategies={formConfig.strategies} 
-                            signalsMapHistory={socketStatus.signalsMapHistory || []} 
-                        />
-                    </div>
-                
-
                     <div className={`${isBotRunning ? 'col-span-12' : 'col-span-12 lg:col-span-9'} space-y-8 transition-all duration-700`}>
                         <div className={`grid grid-cols-1 ${isBotRunning ? 'md:grid-cols-6' : 'md:grid-cols-5'} gap-4`}>
                             <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
@@ -505,15 +474,7 @@ const TradingBotContainer = () => {
                             <MetricCard label="Daily Profit" value={`${socketStatus.dailyProfit >= 0 ? '+' : ''}${(socketStatus.dailyProfit || 0).toFixed(2)}`} subValue={`${profitPct >= 0 ? '+' : ''}${profitPct.toFixed(2)}%`} color={socketStatus.dailyProfit >= 0 ? "text-emerald-400" : "text-rose-500"} icon={<DollarSign size={10}/>} />
                             <MetricCard label="Floating PnL" value={`${socketStatus.unrealizedPnl >= 0 ? '+' : ''}${(socketStatus.unrealizedPnl || 0).toFixed(2)}`} subValue={`${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`} color={socketStatus.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'} icon={<Activity size={10}/>} />
                             <MetricCard label="Exposure" value={`${socketStatus.exposure || 0}%`} subValue={socketStatus.positions.length > 0 ? "Active Positions" : "Cash Heavy"} color="text-amber-400" />
-                            <MetricCard label="Total Equity" value={`$${Number(activeBalance).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} subValue="Liquid + Locked" />
-                            <MetricCard 
-                                label="Pyramid Stage" 
-                                value={`${socketStatus.positions.length} / ${formConfig.maxPyramiding}`} 
-                                subValue={socketStatus.positions.length > 0 ? "Scaling Active" : "Waiting for Leg 1"}
-                                legs={socketStatus.positions.length} 
-                                color="text-emerald-400"
-                                icon={<Box size={10}/>}
-                            />
+                            <MetricCard label="Total Equity" value={`$${Number(activeBalance).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} subValue="Liquid + Locked" /> 
                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[720px]">
@@ -557,7 +518,7 @@ const TradingBotContainer = () => {
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-10 duration-1000">
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
                                     <div className="flex items-center gap-2 mb-8"><BarChart size={18} className="text-emerald-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Session Equity</h3></div>
-                                    <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={performanceData}><Area type="monotone" dataKey="balance" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={3} /><XAxis dataKey="time" hide /><YAxis hide domain={[(dataMin) => dataMin - 10,(dataMax) => dataMax + 10]} /> 
+                                    <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={performanceData}><Area type="monotone" dataKey="balance" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={3} /><XAxis dataKey="time" hide /><YAxis hide domain={[(dataMin) => dataMin - 10, (dataMax) => dataMax + 10]} />       
                                   <RechartsTooltip contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '12px' }} /></AreaChart></ResponsiveContainer></div>
                                 </div>
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
@@ -650,6 +611,45 @@ const TradingBotContainer = () => {
         </UIModeProvider>
     );
 };
+
+const MetricCard = ({ label, value, subValue, color = "text-white", icon = null }) => (
+    <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden shadow-xl">
+        <p className="text-[9px] text-zinc-500 uppercase font-black tracking-[0.15em] mb-2">{label}</p>
+        <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5">{icon && <span className={color}>{icon}</span>}<p className={`text-lg font-mono font-black tracking-tighter ${color}`}>{value}</p></div>
+            {subValue && <p className="text-[9px] font-black text-zinc-600 uppercase tracking-wide">{subValue}</p>}
+        </div>
+    </div>
+);
+
+function StrategyParamInputs({ strategy, onChange }) {
+    const { code, params = {} } = strategy;
+    const f = (l, k, s = "1", desc) => (
+        <div className="flex flex-col">
+            <div className="flex justify-between items-center mb-1">
+                <label className="text-[8px] text-zinc-600 uppercase font-bold ml-1">{l}</label>
+                {desc && <Tooltip text={desc}><Info size={8} className="text-zinc-700" /></Tooltip>}
+            </div>
+            <input type="number" step={s} value={params[k] ?? ""} onChange={(e) => onChange({...params, [k]: parseFloat(e.target.value)})} className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1 text-[9px] text-amber-500 outline-none font-mono" />
+        </div>
+    );
+    return (
+        <div className="grid grid-cols-2 gap-2">
+            {code === "rsi_threshold" && <>{f("Length", "rsi_length", "1")}{f("Oversold", "oversold", "1")}{f("Overbought", "overbought", "1")}</>}
+            {code === "sma_crossover" && <>{f("Fast", "fast_sma", "1")}{f("Slow", "slow_sma", "1")}</>}
+            {code === "supertrend" && <>{f("Period", "st_atr", "1")}{f("Mult", "st_factor", "0.1")}</>}
+            {code === "macd_crossover" && <>{f("Fast", "fast", "1")}{f("Slow", "slow", "1")}</>}
+            {code === "atr_breakout" && <>{f("Len", "atr_length", "1")}{f("Mult", "multiplier", "0.1")}</>}
+            {code === "bb_fade" && <>{f("Per", "bb_period", "1")}{f("Std", "bb_std", "0.1")}</>}
+            {code === "stoch" && <>{f("K-P", "k_period", "1")}{f("D-P", "d_period", "1")}</>}
+            {code === "ema_cloud" && <>{f("Fast", "fast_ema", "1")}{f("Slow", "slow_ema", "1")}</>}
+            {code === "pa_breakout" && <>{f("LB", "lookback", "1")}{f("Buf", "buffer", "0.01")}</>}
+            {code === "vol_profile" && <>{f("MA", "vol_ma", "1")}{f("T", "threshold", "0.1")}</>}
+        </div>
+    );
+}
+
+export default TradingBotContainer;
 
 // --- SUB-COMPONENTS ---
 
