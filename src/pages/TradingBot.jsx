@@ -1,5 +1,5 @@
 // File: src/pages/TradingBot.jsx
-// 🚀 FIX: v13.13 - Final Integration (Halt, Sync, Clear, Risk)
+// 🚀 FIX: v13.11 - Added "Sync Stream" Button
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
@@ -12,7 +12,7 @@ import { UIModeProvider } from "../context/UIModeContext";
 import { LiveTradingChart } from "../components/LiveTradingChart.jsx"; 
 import { 
     Plus, Trash2, Shield, Globe, Cpu, Filter, TrendingUp, 
-    Activity, Scale, Power, RefreshCw, Wallet, Wifi, WifiOff,
+    Activity, Scale, Power, RefreshCw, Wallet, Wifi, WifiOff, // 🟢 Added RefreshCw
     ArrowUpRight, Clock, Box, Timer, DollarSign, Info, BarChart, Settings2, Zap, ArrowDownRight,
     CandlestickChart, AlertTriangle, RotateCcw, Eraser
 } from "lucide-react"; 
@@ -22,7 +22,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsToolti
 import "./TradingBot.css";
 import "../styles/Themes.css";
 
-// 🟢 CONFIGURATION
+// ... (Configuration Constants & Helper Functions remain EXACTLY the same) ...
 const RAW_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 const BASE_URL = RAW_URL.replace(/\/$/, "").replace(/\/api$/, "");
 const API_BASE = `${BASE_URL}/api`;
@@ -64,7 +64,7 @@ const getLogStyle = (msg) => {
     return 'text-zinc-500 bg-zinc-900 border-zinc-800'; 
 };
 
-// ... (STRAT_POOL, MODEL_POOL, DEFAULT_STRATEGY_PARAMS remain same) ...
+// ... (STRAT_POOL, MODEL_POOL, DEFAULT_STRATEGY_PARAMS, Components remain same) ...
 const STRAT_POOL = [
     { name: "RSI Threshold", code: "rsi_threshold" },
     { name: "SMA Crossover", code: "sma_crossover" },
@@ -153,6 +153,7 @@ const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, a
 };
 
 const TradingBotContainer = () => {
+    // 🟢 DESTRUCTURE refreshState
     const { startBot, stopBot, resetBot, refreshState, restoredConfig, botStatus: hookBotStatus, logs: hookLogs } = useBot(); 
     const { isConnected, address } = useAccount();
     
@@ -160,9 +161,8 @@ const TradingBotContainer = () => {
     const [hasApiKeys, setHasApiKeys] = useState(false);
     const [showPreFlight, setShowPreFlight] = useState(false);
     const [isStarting, setIsStarting] = useState(false);
-    const [paperBalance, setPaperBalance] = useState(10000);
+    const [paperBalance, setPaperBalance] = useState(initialConfig?.capitalAllocation || 0);
     const [modeStep, setModeStep] = useState('selection');
-    const [viewMode, setViewMode] = useState('active');
     
     const socketRef = useRef(null);
     const [isHaltLocked, setIsHaltLocked] = useState(false);
@@ -185,8 +185,7 @@ const TradingBotContainer = () => {
         maxDrawdown: 10, 
         maxTradesPerDay: 20,
         hybridMode: "AND",
-        enable_shorting: true,
-        maxPyramiding: 5,
+        enable_shorting: true, 
         params: { take_profit: 0.05, stop_loss: 0.02, trailing_stop: 0.01, long_threshold: 0.5, short_threshold: 0.5 },
         filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 }
     });
@@ -200,9 +199,14 @@ const TradingBotContainer = () => {
     }, [hookBotStatus, hookLogs, restoredConfig]);
 
     const activeBalance = useMemo(() => {
-        if (isBotRunning) return socketStatus.currentBalance || socketStatus.initialCapital || formConfig.capitalAllocation;
-        return formConfig.capitalAllocation;
-    }, [isBotRunning, socketStatus.currentBalance, socketStatus.initialCapital, formConfig.capitalAllocation]);
+    // 1. If the bot is running, check if the engine has a real, active balance
+    if (isBotRunning) {
+        // We only use socketStatus if it's not 0 or null
+        return socketStatus.currentBalance || socketStatus.initialCapital || formConfig.capitalAllocation;
+    }
+    // 2. If not running, ALWAYS show the user's input
+    return formConfig.capitalAllocation;
+}, [isBotRunning, socketStatus.currentBalance, socketStatus.initialCapital, formConfig.capitalAllocation]);
 
     useEffect(() => {
         if (isConnected) {
@@ -253,15 +257,30 @@ const TradingBotContainer = () => {
     setIsHaltLocked(false);
     setSocketStatus(prev => ({ ...prev, equityCurve: [], tradeMarkers: [], positions: [], candles: [] }));
     setSocketLogs([]);
+
+       const targetCapital = Number(formConfig.capitalAllocation) || Number(paperBalance) || 1000;
+
+       setSocketStatus({ 
+        status: 'initializing', 
+        currentBalance: targetCapital, // Force UI to show $300 right now
+        equityCurve: [], 
+        tradeMarkers: [], 
+        positions: [], 
+        candles: [],
+        unrealizedPnl: 0,
+        dailyProfit: 0
+    });
+
+    setSocketLogs([]);
+       
     const finalConfig = {
         ...formConfig,
-        capitalAllocation: Number(formConfig.capitalAllocation) || Number(paperBalance) || 1000,
-        mlMode: formConfig.mlMode || "off", 
+        capitalAllocation: targetCapital,
+        mlMode: formConfig.mlMode || "on", 
         mlModel: formConfig.mlModel || "stacking", 
         mlThresholdLong: parseFloat(formConfig.params.long_threshold) || 0.8,
         mlThresholdShort: parseFloat(formConfig.params.short_threshold) || 0.9,
         enable_shorting: formConfig.enable_shorting === true,
-        maxPyramiding: Number(formConfig.maxPyramiding),
         comboConfig: { strategyCodes: formConfig.strategies.map(s => s.code), combinationRule: formConfig.hybridMode || "AND", minVotesRequired: formConfig.hybridMode === "AND" ? formConfig.strategies.length : 1 }
     };
     try {
@@ -274,14 +293,38 @@ const TradingBotContainer = () => {
     } catch (e) { toast.error(`Engine Failure: ${e.response?.data?.detail || e.message}`); } finally { setIsStarting(false); }
 };
 
-    const handleHalt = async () => {
-        setIsHaltLocked(true);
-        try {
-            await stopBot();
-            toast.success("Safe Abort: Terminal Memory Purged");
-            setTimeout(() => setIsHaltLocked(false), 5000); 
-        } catch (e) { toast.error("Halt Command Failed"); setIsHaltLocked(false); }
-    };
+ const handleHalt = async () => {
+    setIsHaltLocked(true); 
+    
+    try {
+        await stopBot();
+        
+        setSocketStatus({ 
+            status: 'stopped', 
+            // 🟢 FIX: Reference formConfig.capitalAllocation instead of targetCapital
+            currentBalance: Number(formConfig.capitalAllocation), 
+            unrealizedPnl: 0, 
+            positions: [], 
+            equityCurve: [], 
+            tradeMarkers: [],
+            startedAt: null 
+        });
+        
+        setSocketLogs([]); 
+        localStorage.removeItem("neo_active_bot_id");
+        toast.success("🚨 SYSTEM PURGED: Engine Stopped & Session Reset");
+
+        setTimeout(() => {
+            setIsHaltLocked(false);
+            refreshState(); 
+        }, 3000);
+
+    } catch (e) {
+        console.error("Halt Error:", e); // This will now show up since we fixed the filters!
+        toast.error("Halt Command Failed");
+        setIsHaltLocked(false);
+    }
+};
 
     const handleManualExit = async () => {
         if (!socketStatus.positions.length) return;
@@ -308,7 +351,7 @@ const TradingBotContainer = () => {
     // 🟢 HANDLE SYNC LOGS
     const handleSyncLogs = async () => {
         await refreshState();
-        toast.success("Neural Stream Synced");
+        toast.success("Neural Stream Synced (Last 200 Thoughts)");
     };
 
     if (!isConnected) {
@@ -345,7 +388,7 @@ const TradingBotContainer = () => {
                                 </>
                             ) : (
                                 <div className="max-w-md mx-auto bg-zinc-900 border border-zinc-800 p-12 rounded-[40px] shadow-2xl">
-                                    <h3 className="text-2xl font-black text-white mb-8 uppercase tracking-tighter">Initial Paper Balance</h3>
+                                    <h3 className="text-2xl font-black text-white mb-8 uppercase tracking-tighter">Treasury Seed</h3>
                                     <input type="number" value={paperBalance} onChange={(e) => setPaperBalance(Number(e.target.value))} className="w-full bg-black border border-zinc-800 rounded-2xl p-5 text-2xl font-mono text-center text-emerald-500 mb-8 outline-none shadow-inner" />
                                     <div className="flex gap-4"><button onClick={() => setModeStep('selection')} className="flex-1 py-4 border border-zinc-800 rounded-2xl text-zinc-500 font-black uppercase text-[10px]">Back</button><button onClick={() => { setFormConfig(p=>({...p, tradingMode: 'paper', capitalAllocation: paperBalance})); setIsModeSelected(true); }} className="flex-2 py-4 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px]">Ignite</button></div>
                                 </div>
@@ -357,7 +400,7 @@ const TradingBotContainer = () => {
                 {showPreFlight && <PreFlightModal config={formConfig} onConfirm={handleConfirmStart} onCancel={() => setShowPreFlight(false)} isStarting={isStarting} hasApiKeys={hasApiKeys} address={address} />}
 
                 <header className="max-w-[1800px] mx-auto mb-10 flex items-center justify-between transition-all">
-                    <div className="flex items-center gap-3"><div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div><div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v13.12</p></div></div>
+                    <div className="flex items-center gap-3"><div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div><div><h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1><p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v13.11</p></div></div>
                     <div className="flex items-center gap-4">
                         {isBotRunning ? (
                             <button onClick={handleHalt} className="px-6 py-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-xl font-black text-[10px] uppercase hover:bg-rose-500 hover:text-white transition-all flex items-center gap-2 shadow-lg shadow-rose-500/10"><Power size={12}/> Emergency Halt</button>
@@ -384,7 +427,7 @@ const TradingBotContainer = () => {
                                     <div className="flex justify-between items-center"><div className="flex items-center gap-2"><ArrowDownRight size={16} className="text-blue-400" /><h4 className="text-[10px] font-black uppercase tracking-widest text-blue-400">Direction</h4></div>
                                     <select value={formConfig.enable_shorting} onChange={(e)=>setFormConfig({...formConfig, enable_shorting: e.target.value === 'true'})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase">
                                         <option value="false">Spot Only (Long)</option>
-                                        <option value="true">Margin (Both Long & Short)</option>
+                                        <option value="true">Margin (Long/Short)</option>
                                     </select></div>
                                 </div>
 
@@ -402,28 +445,13 @@ const TradingBotContainer = () => {
                                     )}
                                 </div>
 
+                                {/* 🟢 RISK PROTOCOL SECTION */}
                                 <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                     <div className="flex justify-between items-center"><div className="flex items-center gap-2"><AlertTriangle size={16} className="text-rose-500" /><h4 className="text-[10px] font-black uppercase tracking-widest text-rose-500">Risk Protocol</h4></div>
                                     <select value={formConfig.riskManagementMode} onChange={(e)=>setFormConfig({...formConfig, riskManagementMode: e.target.value})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase"><option value="static">Static</option><option value="dynamic">Dynamic</option></select></div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div><label className={labelClass}>Risk / Trade %</label><input type="number" step="0.1" value={formConfig.riskPercentage} onChange={(e)=>setFormConfig({...formConfig, riskPercentage: parseFloat(e.target.value)})} className={inputClass}/></div>
                                         <div><label className={labelClass}>Max Daily Loss %</label><input type="number" step="0.1" value={formConfig.maxDailyLoss} onChange={(e)=>setFormConfig({...formConfig, maxDailyLoss: parseFloat(e.target.value)})} className={inputClass}/></div>
-                                        <div className="col-span-2">
-                                        <div className="flex justify-between items-center">
-                                            <label className={labelClass}>Max Pyramiding (Confidence Scaled)</label>
-                                            <Tooltip text="Up to 5 legs. Each leg requires a 10% higher AI confidence than the previous one.">
-                                                <Info size={10} className="text-zinc-600"/>
-                                            </Tooltip>
-                                        </div>
-                                        <input 
-                                            type="number" 
-                                            min="1" 
-                                            max="5"  // 🟢 Changed from 2 to 5
-                                            value={formConfig.maxPyramiding} 
-                                            onChange={(e) => setFormConfig({...formConfig, maxPyramiding: parseInt(e.target.value)})} 
-                                            className={inputClass}
-                                        />
-                                    </div>
                                         <div className="col-span-2"><label className={labelClass}>Max Drawdown % (Hard Stop)</label><input type="number" step="0.1" value={formConfig.maxDrawdown} onChange={(e)=>setFormConfig({...formConfig, maxDrawdown: parseFloat(e.target.value)})} className={inputClass}/></div>
                                     </div>
                                 </div>
@@ -465,6 +493,7 @@ const TradingBotContainer = () => {
 
                     <div className={`${isBotRunning ? 'col-span-12' : 'col-span-12 lg:col-span-9'} space-y-8 transition-all duration-700`}>
                         <div className={`grid grid-cols-1 ${isBotRunning ? 'md:grid-cols-6' : 'md:grid-cols-5'} gap-4`}>
+                            {/* ... (Metrics remain same) ... */}
                             <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
                                 <div className="flex justify-between items-start mb-1"><p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">Engine Status</p>{isBotRunning && <Timer size={12} className="text-emerald-500 animate-pulse" />}</div>
                                 <p className={`text-lg font-mono font-black ${isBotRunning ? 'text-emerald-400' : 'text-zinc-600'}`}>{isBotRunning ? 'OPERATIONAL' : 'STANDBY'}</p>
@@ -487,10 +516,15 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
                             <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 rounded-[40px] flex flex-col overflow-hidden shadow-2xl">
+                                {/* 🟢 UPDATED: NEURAL FLOW HEADER WITH SYNC BUTTON */}
                                 <div className="p-5 border-b border-zinc-800 bg-zinc-800/20 flex justify-between items-center">
                                     <div className="flex items-center gap-2 text-violet-400"><Cpu size={16} className={isBotRunning ? 'animate-pulse' : ''}/><h3 className="text-[10px] font-black uppercase tracking-widest">Neural Flow</h3></div>
                                     <div className="flex items-center gap-2">
-                                        <button onClick={handleSyncLogs} className="text-zinc-600 hover:text-emerald-400 transition-all" title="Sync Last 200 Logs"><RefreshCw size={14} /></button>
+                                        {/* 🟢 SYNC BUTTON */}
+                                        <button onClick={handleSyncLogs} className="text-zinc-600 hover:text-emerald-400 transition-all" title="Sync Last 200 Logs">
+                                            <RefreshCw size={14} />
+                                        </button>
+                                        
                                         <button onClick={handleClearLogs} className="text-zinc-600 hover:text-white transition-all" title="Clear View"><Eraser size={14} /></button>
                                         {socketConnected ? <Wifi size={14} className="text-emerald-500" /> : <WifiOff size={14} className="text-rose-500 animate-pulse" />}
                                     </div>
@@ -513,95 +547,35 @@ const TradingBotContainer = () => {
                             </div>
                         </div>
 
+                        {/* ... (Bottom Chart sections remain same) ... */}
                         {isBotRunning && (
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-10 duration-1000">
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
                                     <div className="flex items-center gap-2 mb-8"><BarChart size={18} className="text-emerald-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Session Equity</h3></div>
-                                    <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={performanceData}><Area type="monotone" dataKey="balance" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={3} /><XAxis dataKey="time" hide /><YAxis hide domain={[(dataMin) => dataMin - 10, 
-    (dataMax) => dataMax + 10]} /><RechartsTooltip contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '12px' }} /></AreaChart></ResponsiveContainer></div>
+                                    <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={performanceData}><Area type="monotone" dataKey="balance" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={3} /><XAxis dataKey="time" hide /><YAxis hide domain={['auto', 'auto']} /><RechartsTooltip contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '12px' }} /></AreaChart></ResponsiveContainer></div>
                                 </div>
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
                                     <div className="flex items-center gap-2 mb-8"><Zap size={18} className="text-violet-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Logic Confidence</h3></div>
                                     <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={performanceData}><Area type="step" dataKey="confidence" stroke="#a78bfa" fill="#a78bfa" fillOpacity={0.1} strokeWidth={2} /><XAxis dataKey="time" hide /><YAxis hide /><RechartsTooltip contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '12px' }} /></AreaChart></ResponsiveContainer></div>
                                 </div>
-                                {/* --- 3rd Column: Operations & History Toggle --- */}
-<div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl overflow-hidden flex flex-col">
-    <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-2">
-            <Box size={18} className="text-amber-500"/>
-            <h3 className="text-[11px] font-black uppercase tracking-widest text-zinc-100">
-                {viewMode === 'active' ? 'Live Ops' : 'Session History'}
-            </h3>
-        </div>
-        
-        {/* Toggle Switch */}
-        <div className="flex bg-zinc-950 p-1 rounded-xl border border-zinc-800">
-            <button 
-                onClick={() => setViewMode('active')}
-                className={`px-3 py-1 text-[9px] font-black rounded-lg transition-all ${viewMode === 'active' ? 'bg-zinc-800 text-emerald-400 shadow-lg' : 'text-zinc-600'}`}
-            >
-                ACTIVE
-            </button>
-            <button 
-                onClick={() => setViewMode('history')}
-                className={`px-3 py-1 text-[9px] font-black rounded-lg transition-all ${viewMode === 'history' ? 'bg-zinc-800 text-amber-400 shadow-lg' : 'text-zinc-600'}`}
-            >
-                HISTORY
-            </button>
-        </div>
-    </div>
-
-    <div className="flex-1 overflow-x-auto custom-scrollbar">
-        <table className="w-full text-left text-[11px]">
-            <thead>
-                <tr className="text-zinc-600 uppercase font-black border-b border-zinc-800 pb-4">
-                    <th className="pb-4">Type</th>
-                    <th className="pb-4">{viewMode === 'active' ? 'Entry' : 'Exit Price'}</th>
-                    <th className="pb-4 text-right">{viewMode === 'active' ? 'Size' : 'Result'}</th>
-                    <th className="pb-4 text-right">Time</th>
-                </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-800/50">
-                {viewMode === 'active' ? (
-                    // 🟢 ACTIVE POSITIONS VIEW
-                    socketStatus.positions.length > 0 ? socketStatus.positions.map((pos, idx) => (
-                        <tr key={idx} className="group transition-colors hover:bg-zinc-800/20">
-                            <td className={`py-5 font-black flex items-center gap-2 ${pos.type === 'short' ? 'text-amber-500' : 'text-emerald-400'}`}>
-                                {pos.type === 'short' ? <ArrowDownRight size={14}/> : <ArrowUpRight size={14}/>} 
-                                {pos.type.toUpperCase()}
-                            </td>
-                            <td className="py-5 font-mono font-black text-zinc-200">${pos.entry.toLocaleString()}</td>
-                            <td className="py-5 font-mono text-zinc-500 text-right">{pos.size.toFixed(4)}</td>
-                            <td className="py-5 text-right">
-                                <button onClick={handleManualExit} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 rounded-lg text-rose-500 hover:text-white font-black uppercase text-[9px] transition-all tracking-wider">EXIT</button>
-                            </td>
-                        </tr>
-                    )) : (
-                        <tr><td colSpan="4" className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">Scanning for Entries...</td></tr>
-                    )
-                ) : (
-                    // 🟠 SESSION HISTORY VIEW
-                    socketStatus.tradeMarkers && socketStatus.tradeMarkers.length > 0 ? socketStatus.tradeMarkers.map((trade, idx) => (
-                        <tr key={idx} className="group opacity-80 hover:opacity-100 transition-opacity">
-                            <td className={`py-5 font-black flex items-center gap-2 ${trade.type === 'short' || trade.type === 'sell' ? 'text-rose-400' : 'text-emerald-400'}`}>
-                                {trade.type.toUpperCase()}
-                            </td>
-                            <td className="py-5 font-mono font-bold text-zinc-400">${trade.price.toLocaleString()}</td>
-                            <td className="py-5 text-right font-black text-zinc-500">
-                                COMPLETED
-                            </td>
-                            <td className="py-5 text-right font-mono text-zinc-600">
-                                {new Date(trade.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </td>
-                        </tr>
-                    )) : (
-                        <tr><td colSpan="4" className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">No trades recorded yet.</td></tr>
-                    )
-                )}
-            </tbody>
-        </table>
-    </div>
-</div>
+                                <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl overflow-hidden flex flex-col">
+                                    <div className="flex items-center gap-2 mb-8"><Box size={18} className="text-amber-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Live Operations</h3></div>
+                                    <div className="flex-1 overflow-x-auto custom-scrollbar">
+                                        <table className="w-full text-left text-[11px]">
+                                            <thead><tr className="text-zinc-600 uppercase font-black border-b border-zinc-800 pb-4"><th className="pb-4">Type</th><th className="pb-4">Entry</th><th className="pb-4 text-right">Size</th><th className="pb-4 text-right">Action</th></tr></thead>
+                                            <tbody className="divide-y divide-zinc-800/50">
+                                                {socketStatus.positions.length > 0 ? socketStatus.positions.map((pos, idx) => (
+                                                    <tr key={idx} className="group">
+                                                        <td className={`py-5 font-black flex items-center gap-2 ${pos.type === 'short' ? 'text-amber-500' : 'text-emerald-400'}`}>{pos.type === 'short' ? <ArrowDownRight size={14}/> : <ArrowUpRight size={14}/>} {pos.type.toUpperCase()}</td>
+                                                        <td className="py-5 font-mono font-black text-zinc-200">${pos.entry.toLocaleString()}</td>
+                                                        <td className="py-5 font-mono text-zinc-500 text-right">{pos.size.toFixed(4)}</td>
+                                                        <td className="py-5 text-right"><button onClick={handleManualExit} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 rounded-lg text-rose-500 hover:text-white font-black uppercase text-[9px] transition-all tracking-wider">EXIT</button></td>
+                                                    </tr>
+                                                )) : (<tr><td colSpan="4" className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">Waiting for Signal...</td></tr>)}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -611,41 +585,42 @@ const TradingBotContainer = () => {
     );
 };
 
+// ... (MetricCard & StrategyParamInputs remain same) ...
 const MetricCard = ({ label, value, subValue, color = "text-white", icon = null }) => (
-    <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden shadow-xl">
-        <p className="text-[9px] text-zinc-500 uppercase font-black tracking-[0.15em] mb-2">{label}</p>
-        <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-1.5">{icon && <span className={color}>{icon}</span>}<p className={`text-lg font-mono font-black tracking-tighter ${color}`}>{value}</p></div>
-            {subValue && <p className="text-[9px] font-black text-zinc-600 uppercase tracking-wide">{subValue}</p>}
-        </div>
-    </div>
+    <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden shadow-xl">
+        <p className="text-[9px] text-zinc-500 uppercase font-black tracking-[0.15em] mb-2">{label}</p>
+        <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5">{icon && <span className={color}>{icon}</span>}<p className={`text-lg font-mono font-black tracking-tighter ${color}`}>{value}</p></div>
+            {subValue && <p className="text-[9px] font-black text-zinc-600 uppercase tracking-wide">{subValue}</p>}
+        </div>
+    </div>
 );
 
 function StrategyParamInputs({ strategy, onChange }) {
-    const { code, params = {} } = strategy;
-    const f = (l, k, s = "1", desc) => (
-        <div className="flex flex-col">
-            <div className="flex justify-between items-center mb-1">
-                <label className="text-[8px] text-zinc-600 uppercase font-bold ml-1">{l}</label>
-                {desc && <Tooltip text={desc}><Info size={8} className="text-zinc-700" /></Tooltip>}
-            </div>
-            <input type="number" step={s} value={params[k] ?? ""} onChange={(e) => onChange({...params, [k]: parseFloat(e.target.value)})} className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1 text-[9px] text-amber-500 outline-none font-mono" />
-        </div>
-    );
-    return (
-        <div className="grid grid-cols-2 gap-2">
-            {code === "rsi_threshold" && <>{f("Length", "rsi_length", "1")}{f("Oversold", "oversold", "1")}{f("Overbought", "overbought", "1")}</>}
-            {code === "sma_crossover" && <>{f("Fast", "fast_sma", "1")}{f("Slow", "slow_sma", "1")}</>}
-            {code === "supertrend" && <>{f("Period", "st_atr", "1")}{f("Mult", "st_factor", "0.1")}</>}
-            {code === "macd_crossover" && <>{f("Fast", "fast", "1")}{f("Slow", "slow", "1")}</>}
-            {code === "atr_breakout" && <>{f("Len", "atr_length", "1")}{f("Mult", "multiplier", "0.1")}</>}
-            {code === "bb_fade" && <>{f("Per", "bb_period", "1")}{f("Std", "bb_std", "0.1")}</>}
-            {code === "stoch" && <>{f("K-P", "k_period", "1")}{f("D-P", "d_period", "1")}</>}
-            {code === "ema_cloud" && <>{f("Fast", "fast_ema", "1")}{f("Slow", "slow_ema", "1")}</>}
-            {code === "pa_breakout" && <>{f("LB", "lookback", "1")}{f("Buf", "buffer", "0.01")}</>}
-            {code === "vol_profile" && <>{f("MA", "vol_ma", "1")}{f("T", "threshold", "0.1")}</>}
-        </div>
-    );
+    const { code, params = {} } = strategy;
+    const f = (l, k, s = "1", desc) => (
+        <div className="flex flex-col">
+            <div className="flex justify-between items-center mb-1">
+                <label className="text-[8px] text-zinc-600 uppercase font-bold ml-1">{l}</label>
+                {desc && <Tooltip text={desc}><Info size={8} className="text-zinc-700" /></Tooltip>}
+            </div>
+            <input type="number" step={s} value={params[k] ?? ""} onChange={(e) => onChange({...params, [k]: parseFloat(e.target.value)})} className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1 text-[9px] text-amber-500 outline-none font-mono" />
+        </div>
+    );
+    return (
+        <div className="grid grid-cols-2 gap-2">
+            {code === "rsi_threshold" && <>{f("Length", "rsi_length", "1")}{f("Oversold", "oversold", "1")}{f("Overbought", "overbought", "1")}</>}
+            {code === "sma_crossover" && <>{f("Fast", "fast_sma", "1")}{f("Slow", "slow_sma", "1")}</>}
+            {code === "supertrend" && <>{f("Period", "st_atr", "1")}{f("Mult", "st_factor", "0.1")}</>}
+            {code === "macd_crossover" && <>{f("Fast", "fast", "1")}{f("Slow", "slow", "1")}</>}
+            {code === "atr_breakout" && <>{f("Len", "atr_length", "1")}{f("Mult", "multiplier", "0.1")}</>}
+            {code === "bb_fade" && <>{f("Per", "bb_period", "1")}{f("Std", "bb_std", "0.1")}</>}
+            {code === "stoch" && <>{f("K-P", "k_period", "1")}{f("D-P", "d_period", "1")}</>}
+            {code === "ema_cloud" && <>{f("Fast", "fast_ema", "1")}{f("Slow", "slow_ema", "1")}</>}
+            {code === "pa_breakout" && <>{f("LB", "lookback", "1")}{f("Buf", "buffer", "0.01")}</>}
+            {code === "vol_profile" && <>{f("MA", "vol_ma", "1")}{f("T", "threshold", "0.1")}</>}
+        </div>
+    );
 }
 
 export default TradingBotContainer;
