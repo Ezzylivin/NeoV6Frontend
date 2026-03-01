@@ -22,6 +22,15 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsToolti
 import "./TradingBot.css";
 import "../styles/Themes.css";
 
+const initialConfig = {
+    capitalAllocation: 1000,
+    symbol: "BTC-USD",
+    timeframe: "1h",
+    tradingMode: "paper",
+    mlMode: "off",
+    hybridMode: "AND"
+};
+
 // ... (Configuration Constants & Helper Functions remain EXACTLY the same) ...
 const RAW_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 const BASE_URL = RAW_URL.replace(/\/$/, "").replace(/\/api$/, "");
