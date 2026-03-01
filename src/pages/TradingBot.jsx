@@ -495,9 +495,46 @@ const TradingBotContainer = () => {
                                     </div>
                                 </div>
 
-                                <button onClick={() => setShowPreFlight(true)} className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-400 transition-all shadow-xl shadow-emerald-500/20">Initiate Engine</button>
+                               <button onClick={() => setShowPreFlight(true)} className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-400 transition-all shadow-xl">
+                                    Initiate Protocol
+                                </button>
                             </div>
-                        </div>
+                        ) : (
+                            /* PANE B: INTELLIGENCE SIDEBAR (Only if bot IS running) */
+                            <div className="h-full flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-700">
+                                {/* 1. The Real-time Convergence Chart */}
+                                <div className="flex-1 min-h-[400px]">
+                                    <NeuralConvergenceChart 
+                                        strategies={formConfig.strategies} 
+                                        signalsMapHistory={socketStatus.signalsMapHistory || []} 
+                                    />
+                                </div>
+                    
+                                {/* 🚀 2. THE NEW STATS SUMMARY ADDED HERE */}
+                                <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 shadow-2xl">
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-4">Neural Performance</h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <p className="text-[8px] uppercase font-bold text-zinc-600 mb-1">Win Rate</p>
+                                            <p className="text-xl font-mono font-black text-emerald-500">
+                                                {socketStatus.winRate || 0}%
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[8px] uppercase font-bold text-zinc-600 mb-1">Profit Factor</p>
+                                            <p className="text-xl font-mono font-black text-violet-400">
+                                                {socketStatus.profitFactor || '1.0'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="mt-4 pt-4 border-t border-zinc-800">
+                                        <div className="flex justify-between items-center text-[9px] font-black uppercase">
+                                            <span className="text-zinc-500">Council Consensus</span>
+                                            <span className="text-emerald-500">{Math.round(socketStatus.currentConfidence || 0)}% Strong</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                     )}
 
                     <div className={`${isBotRunning ? 'col-span-12' : 'col-span-12 lg:col-span-9'} space-y-8 transition-all duration-700`}>
