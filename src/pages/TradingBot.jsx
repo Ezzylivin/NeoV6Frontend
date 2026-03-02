@@ -263,43 +263,55 @@ useEffect(() => {
     if (isHaltLocked) return; 
 
     setSocketStatus(prev => {
-        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        
-        // 🟢 FIX 1: Normalize Strategy Keys
-        const rawSignals = data.signalsMap || {};
-        const normalizedSignals = {};
-        Object.keys(rawSignals).forEach(key => {
-            const normalizedKey = key.toLowerCase().trim().replace(/\s+/g, '_');
-            normalizedSignals[normalizedKey] = rawSignals[key];
-        });
-
-        // 🟢 FIX 2: Bridge 'activePositions' to 'positions' for the table
-        const currentActivePositions = data.activePositions || data.positions || [];
-
-        // 🟢 FIX 3: Ensure 'confidence' is mapped for the Logic Confidence chart
-        const updatedEquityCurve = [
-            ...(prev.equityCurve || []), 
-            {
-                time: timeStr,
-                balance: data.currentBalance || prev.currentBalance || 0,
-                // Maps backend 'currentConfidence' to 'confidence' key used by chart
-                confidence: data.currentConfidence ?? prev.currentConfidence ?? 0
-            }
-        ].slice(-300);
-
-        const updatedSignalsHistory = [
-            ...(prev.signalsMapHistory || []), 
-            { time: timeStr, ...normalizedSignals }
-        ].slice(-300);
-
-        return { 
-            ...prev, 
-            ...data, 
-            positions: currentActivePositions, // Ensures table finds the array
-            signalsMapHistory: updatedSignalsHistory,
-            equityCurve: updatedEquityCurve
-        };
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    
+    // 🟢 1. NORMALIZE & CLEAN DATA
+    const rawSignals = data.signalsMap || {};
+    const normalizedSignals = {};
+    
+    Object.keys(rawSignals).forEach(key => {
+        // Bridges "EMA CLOUD" -> "ema_cloud"
+        const normalizedKey = key.toLowerCase().trim().replace(/\s+/g, '_');
+        // Ensure it's a number (recharts can't plot strings like "100%")
+        const val = parseFloat(rawSignals[key]);
+        if (!isNaN(val)) {
+            normalizedSignals[normalizedKey] = val;
+        }
     });
+
+    // 🟢 2. PERSISTENCE BRIDGE (The Missing Link)
+    // If current packet is empty, carry over last known scores to prevent chart gaps
+    if (Object.keys(normalizedSignals).length === 0 && prev.signalsMapHistory?.length > 0) {
+        const lastEntry = prev.signalsMapHistory[prev.signalsMapHistory.length - 1];
+        Object.keys(lastEntry).forEach(k => { 
+            if (k !== 'time') normalizedSignals[k] = lastEntry[k]; 
+        });
+    }
+
+    // 🟢 3. UPDATE HISTORIES (300-point buffer)
+    const updatedSignalsHistory = [
+        ...(prev.signalsMapHistory || []), 
+        { time: timeStr, ...normalizedSignals }
+    ].slice(-300);
+
+    const updatedEquityCurve = [
+        ...(prev.equityCurve || []), 
+        {
+            time: timeStr,
+            balance: data.currentBalance || prev.currentBalance || 0,
+            confidence: data.currentConfidence ?? prev.currentConfidence ?? 0
+        }
+    ].slice(-300);
+
+    // 🟢 4. RETURN MERGED STATE
+    return { 
+        ...prev, 
+        ...data, 
+        positions: data.activePositions || data.positions || [], // Live Operations Table Fix
+        signalsMapHistory: updatedSignalsHistory,
+        equityCurve: updatedEquityCurve
+    };
+});
 });
     // 🟢 Neural Flow Log Processor
     socketRef.current.on("bot_log", (newLog) => {
@@ -760,7 +772,7 @@ const NeuralConvergenceChart = ({ strategies, signalsMapHistory }) => {
                                 fillOpacity={0.1} 
                                 strokeWidth={2} 
                                 connectNulls={true} 
-                                isAnimationActive={false} 
+                                isAnimationActive={true} 
                             />
                         ))}
                     </AreaChart>
