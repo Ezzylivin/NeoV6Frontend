@@ -778,38 +778,64 @@ useEffect(() => {
 
 const NeuralConvergenceChart = ({ strategies, signalsMapHistory }) => {
     return (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 h-full flex flex-col shadow-2xl overflow-hidden">
-            <div className="flex items-center gap-2 mb-8 text-violet-400">
-                <Zap size={16} className="animate-pulse" />
-                <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-100">Neural Logic</h3>
-            </div>
-            <div className="flex-1">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 shadow-2xl h-full flex flex-col">
+            <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-6 flex items-center gap-2">
+                <Cpu size={12} className="text-violet-400" /> Neural Strategy Logic
+            </h4>
+            <div className="flex-1 w-full min-h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={signalsMapHistory}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
-                        <XAxis dataKey="time" hide />
-                        {/* 🟢 FIX: Scale to whole numbers (0-100) and remove domain locking */}
-                        <YAxis hide domain={['auto', 'auto']} /> 
+                        <defs>
+                            {/* Create unique gradients for each strategy line */}
+                            {strategies.map((s, i) => (
+                                <linearGradient key={`grad-${s.code}`} id={`color-${s.code}`} x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={i % 2 === 0 ? "#a78bfa" : "#10b981"} stopOpacity={0.1}/>
+                                    <stop offset="95%" stopColor={i % 2 === 0 ? "#a78bfa" : "#10b981"} stopOpacity={0}/>
+                                </linearGradient>
+                            ))}
+                        </defs>
+                        
+                        {/* 🟢 TOOLTIP RESTORED: Shows specific strategy scores on hover */}
+                        <RechartsTooltip 
+                            contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px' }}
+                            itemStyle={{ padding: '2px 0' }}
+                            labelStyle={{ color: '#52525b', marginBottom: '4px', fontWeight: '800' }}
+                        />
+
+                        {/* 🟢 DYNAMIC STRATEGY MAPPING: Only draws what you selected */}
                         {strategies.map((s, i) => (
                             <Area 
                                 key={s.code} 
                                 type="monotone" 
                                 dataKey={s.code} 
+                                name={s.code.replace('_', ' ').toUpperCase()}
                                 stroke={i % 2 === 0 ? "#a78bfa" : "#10b981"} 
-                                fill={i % 2 === 0 ? "#8b5cf6" : "#10b981"} 
-                                fillOpacity={0.1} 
+                                fill={`url(#color-${s.code})`}
+                                fillOpacity={0.05} // 🟢 Lowered to fix the "Solid Blue" issue
                                 strokeWidth={2} 
-                                connectNulls={true} 
-                                isAnimationActive={true} 
+                                connectNulls={true}
+                                isAnimationActive={false} 
                             />
                         ))}
+                        
+                        <XAxis dataKey="time" hide />
+                        <YAxis domain={[0, 1.1]} hide /> {/* Buffers 1.0 so lines don't touch the very top */}
                     </AreaChart>
                 </ResponsiveContainer>
+            </div>
+            
+            {/* 🟢 LEGEND: Shows what each color represents */}
+            <div className="mt-4 flex flex-wrap gap-3">
+                {strategies.map((s, i) => (
+                    <div key={i} className="flex items-center gap-1.5">
+                        <div className={`w-1.5 h-1.5 rounded-full ${i % 2 === 0 ? 'bg-violet-400' : 'bg-emerald-400'}`}></div>
+                        <span className="text-[8px] font-black uppercase text-zinc-500 tracking-tighter">{s.code.replace('_', ' ')}</span>
+                    </div>
+                ))}
             </div>
         </div>
     );
 };
-
 
 // ... (MetricCard & StrategyParamInputs remain same) ...
 const MetricCard = ({ label, value, subValue, color = "text-white", icon = null }) => (
