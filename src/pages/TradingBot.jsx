@@ -776,42 +776,55 @@ useEffect(() => {
 };
 
 
-const NeuralConvergenceChart = ({ strategies, signalsMapHistory }) => {
+const STRAT_COLORS = {
+    rsi_threshold: "#3b82f6", // Blue
+    sma_crossover: "#ef4444", // Red
+    supertrend: "#10b981",    // Emerald
+    macd_crossover: "#f59e0b", // Amber
+    atr_breakout: "#8b5cf6",  // Violet
+    bb_fade: "#ec4899",       // Pink
+    stoch: "#06b6d4",         // Cyan
+    ema_cloud: "#f97316",     // Orange
+    pa_breakout: "#14b8a6",   // Teal
+    vol_profile: "#a855f7"    // Purple
+};
+
+const NeuralConvergenceChart = ({ signalsMapHistory }) => {
     return (
         <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 shadow-2xl h-full flex flex-col">
             <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-6 flex items-center gap-2">
                 <Cpu size={12} className="text-violet-400" /> Neural Strategy Logic
             </h4>
+            
             <div className="flex-1 w-full min-h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={signalsMapHistory}>
                         <defs>
-                            {/* Create unique gradients for each strategy line */}
-                            {strategies.map((s, i) => (
-                                <linearGradient key={`grad-${s.code}`} id={`color-${s.code}`} x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={i % 2 === 0 ? "#a78bfa" : "#10b981"} stopOpacity={0.1}/>
-                                    <stop offset="95%" stopColor={i % 2 === 0 ? "#a78bfa" : "#10b981"} stopOpacity={0}/>
+                            {/* 🟢 Generate gradients for EVERY strategy in the pool */}
+                            {Object.keys(STRAT_COLORS).map((key) => (
+                                <linearGradient key={`grad-${key}`} id={`color-${key}`} x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={STRAT_COLORS[key]} stopOpacity={0.1}/>
+                                    <stop offset="95%" stopColor={STRAT_COLORS[key]} stopOpacity={0}/>
                                 </linearGradient>
                             ))}
                         </defs>
                         
-                        {/* 🟢 TOOLTIP RESTORED: Shows specific strategy scores on hover */}
                         <RechartsTooltip 
                             contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px' }}
-                            itemStyle={{ padding: '2px 0' }}
+                            itemStyle={{ padding: '0px' }}
                             labelStyle={{ color: '#52525b', marginBottom: '4px', fontWeight: '800' }}
                         />
 
-                        {/* 🟢 DYNAMIC STRATEGY MAPPING: Only draws what you selected */}
-                        {strategies.map((s, i) => (
+                        {/* 🟢 ALWAYS RENDER ALL STRATEGIES: Maps through the global color list */}
+                        {Object.keys(STRAT_COLORS).map((key) => (
                             <Area 
-                                key={s.code} 
+                                key={key} 
                                 type="monotone" 
-                                dataKey={s.code} 
-                                name={s.code.replace('_', ' ').toUpperCase()}
-                                stroke={i % 2 === 0 ? "#a78bfa" : "#10b981"} 
-                                fill={`url(#color-${s.code})`}
-                                fillOpacity={0.05} // 🟢 Lowered to fix the "Solid Blue" issue
+                                dataKey={key} 
+                                name={key.replace('_', ' ').toUpperCase()}
+                                stroke={STRAT_COLORS[key]} 
+                                fill={`url(#color-${key})`}
+                                fillOpacity={0.03} 
                                 strokeWidth={2} 
                                 connectNulls={true}
                                 isAnimationActive={false} 
@@ -819,23 +832,25 @@ const NeuralConvergenceChart = ({ strategies, signalsMapHistory }) => {
                         ))}
                         
                         <XAxis dataKey="time" hide />
-                        <YAxis domain={[0, 1.1]} hide /> {/* Buffers 1.0 so lines don't touch the very top */}
+                        <YAxis domain={[0, 1.1]} hide />
                     </AreaChart>
                 </ResponsiveContainer>
             </div>
             
-            {/* 🟢 LEGEND: Shows what each color represents */}
-            <div className="mt-4 flex flex-wrap gap-3">
-                {strategies.map((s, i) => (
-                    <div key={i} className="flex items-center gap-1.5">
-                        <div className={`w-1.5 h-1.5 rounded-full ${i % 2 === 0 ? 'bg-violet-400' : 'bg-emerald-400'}`}></div>
-                        <span className="text-[8px] font-black uppercase text-zinc-500 tracking-tighter">{s.code.replace('_', ' ')}</span>
+            {/* 🟢 FULL LEGEND: Always visible */}
+            <div className="mt-4 grid grid-cols-2 gap-y-2 gap-x-4 border-t border-zinc-800 pt-4">
+                {Object.keys(STRAT_COLORS).map((key) => (
+                    <div key={key} className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: STRAT_COLORS[key] }}></div>
+                        <span className="text-[8px] font-black uppercase text-zinc-500 tracking-tighter">
+                            {key.replace('_', ' ')}
+                        </span>
                     </div>
                 ))}
             </div>
         </div>
     );
-};
+};;
 
 // ... (MetricCard & StrategyParamInputs remain same) ...
 const MetricCard = ({ label, value, subValue, color = "text-white", icon = null }) => (
