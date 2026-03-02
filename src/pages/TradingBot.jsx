@@ -528,7 +528,9 @@ const TradingBotContainer = () => {
                                     Initiate Engine
                                 </button>
                             </div>
+                        </div>
                     )}
+                </div>
 
                     <div className={`${isBotRunning ? 'col-span-12' : 'col-span-12 lg:col-span-9'} space-y-8 transition-all duration-700`}>
                         <div className={`grid grid-cols-1 ${isBotRunning ? 'md:grid-cols-6' : 'md:grid-cols-5'} gap-4`}>
