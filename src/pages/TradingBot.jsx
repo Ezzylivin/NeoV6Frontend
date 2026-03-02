@@ -813,6 +813,7 @@ const NeuralConvergenceChart = ({ signalsMapHistory }) => {
                             contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px' }}
                             itemStyle={{ padding: '0px' }}
                             labelStyle={{ color: '#52525b', marginBottom: '4px', fontWeight: '800' }}
+                            formatter={(value) => [`${(value * 100).toFixed(0)}%`, "Score"]}
                         />
 
                         {/* 🟢 ALWAYS RENDER ALL STRATEGIES: Maps through the global color list */}
@@ -832,7 +833,14 @@ const NeuralConvergenceChart = ({ signalsMapHistory }) => {
                         ))}
                         
                         <XAxis dataKey="time" hide />
-                        <YAxis domain={[0, 1.1]} hide />
+                        <YAxis 
+                            domain={[0.1, 1.0]} 
+                            tick={{ fill: '#3f3f46', fontSize: 8 }}
+                            tickFormatter={(val) => `${val * 100}%`}
+                            width={35}
+                            axisLine={false}
+                            tickLine={false}
+                        />
                     </AreaChart>
                 </ResponsiveContainer>
             </div>
