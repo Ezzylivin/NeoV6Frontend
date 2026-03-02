@@ -260,55 +260,47 @@ useEffect(() => {
 
     // 🟢 Main Data Processing Engine
     socketRef.current.on("bot_status_update", (data) => {
-        if (isHaltLocked) return; 
+    if (isHaltLocked) return; 
 
-        setSocketStatus(prev => {
-            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            
-            // --- STEP 1: KEY NORMALIZATION ---
-            // Converts backend "BB FADE" or "STOCH" to frontend "bb_fade" or "stoch"
-            const rawSignals = data.signalsMap || {};
-            const normalizedSignals = {};
-            
-            if (Object.keys(rawSignals).length > 0) {
-                Object.keys(rawSignals).forEach(key => {
-                    const normalizedKey = key.toLowerCase().trim().replace(/\s+/g, '_');
-                    normalizedSignals[normalizedKey] = rawSignals[key];
-                });
-            } else if (prev.signalsMapHistory?.length > 0) {
-                // PERSISTENCE: If packet is empty, carry over last known data to prevent chart "dips"
-                const lastEntry = prev.signalsMapHistory[prev.signalsMapHistory.length - 1];
-                Object.keys(lastEntry).forEach(k => { 
-                    if (k !== 'time') normalizedSignals[k] = lastEntry[k]; 
-                });
-            }
-
-            // --- STEP 2: BUILD HISTORICAL ARRAYS ---
-            // Accumulate last 300 points for visible 1H trends
-            const updatedSignalsHistory = [
-                ...(prev.signalsMapHistory || []), 
-                { time: timeStr, ...normalizedSignals }
-            ].slice(-300);
-
-            const updatedEquityCurve = [
-                ...(prev.equityCurve || []), 
-                {
-                    time: timeStr,
-                    balance: data.currentBalance || prev.currentBalance || formConfig.capitalAllocation,
-                    confidence: data.currentConfidence !== undefined ? data.currentConfidence : (prev.currentConfidence || 0)
-                }
-            ].slice(-300);
-
-            // --- STEP 3: MERGE & RETURN ---
-            return { 
-                ...prev, 
-                ...data, // Spreads balance, uptime, winRate, etc.
-                signalsMapHistory: updatedSignalsHistory,
-                equityCurve: updatedEquityCurve
-            };
+    setSocketStatus(prev => {
+        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        
+        // 🟢 FIX 1: Normalize Strategy Keys
+        const rawSignals = data.signalsMap || {};
+        const normalizedSignals = {};
+        Object.keys(rawSignals).forEach(key => {
+            const normalizedKey = key.toLowerCase().trim().replace(/\s+/g, '_');
+            normalizedSignals[normalizedKey] = rawSignals[key];
         });
-    });
 
+        // 🟢 FIX 2: Bridge 'activePositions' to 'positions' for the table
+        const currentActivePositions = data.activePositions || data.positions || [];
+
+        // 🟢 FIX 3: Ensure 'confidence' is mapped for the Logic Confidence chart
+        const updatedEquityCurve = [
+            ...(prev.equityCurve || []), 
+            {
+                time: timeStr,
+                balance: data.currentBalance || prev.currentBalance || 0,
+                // Maps backend 'currentConfidence' to 'confidence' key used by chart
+                confidence: data.currentConfidence ?? prev.currentConfidence ?? 0
+            }
+        ].slice(-300);
+
+        const updatedSignalsHistory = [
+            ...(prev.signalsMapHistory || []), 
+            { time: timeStr, ...normalizedSignals }
+        ].slice(-300);
+
+        return { 
+            ...prev, 
+            ...data, 
+            positions: currentActivePositions, // Ensures table finds the array
+            signalsMapHistory: updatedSignalsHistory,
+            equityCurve: updatedEquityCurve
+        };
+    });
+});
     // 🟢 Neural Flow Log Processor
     socketRef.current.on("bot_log", (newLog) => {
         setSocketLogs(prev => [newLog, ...prev].slice(0, 100));
