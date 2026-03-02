@@ -468,7 +468,7 @@ const TradingBotContainer = () => {
                     <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg"><Activity className="text-black w-7 h-7" /></div>
                     <div>
                         <h1 className="text-lg font-black uppercase tracking-widest">Sovereign <span className="text-emerald-500">Live</span></h1>
-                        <p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v13.11</p>
+                        <p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Terminal v13.12</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-4">
@@ -486,7 +486,7 @@ const TradingBotContainer = () => {
                 /* 🚀 OPERATIONAL MODE */
                 <div className="max-w-[1800px] mx-auto space-y-8 animate-in fade-in duration-1000">
                     
-                    {/* FULL WIDTH TOP METRICS */}
+                    {/* TOP ROW: FULL WIDTH METRICS (Clears vertical space below) */}
                     <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                         <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
                             <div className="flex justify-between items-start mb-1"><p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">Engine Status</p><Timer size={12} className="text-emerald-500 animate-pulse" /></div>
@@ -500,7 +500,7 @@ const TradingBotContainer = () => {
                         <MetricCard label="Council Consensus" value={`${Math.round(socketStatus.currentConfidence || 0)}%`} color="text-violet-400" icon={<Zap size={10}/>} />
                     </div>
 
-                    {/* ALIGNED OPERATION ROW: Sidebar + Live Chart */}
+                    {/* MIDDLE ROW: SIDEBAR ALIGNED WITH CHART (3/9 SPLIT) */}
                     <div className="grid grid-cols-12 gap-8 items-start">
                         <div className="col-span-12 lg:col-span-3 h-[720px] flex flex-col gap-4">
                             <div className="flex-1 min-h-[400px]">
@@ -547,7 +547,7 @@ const TradingBotContainer = () => {
                         </div>
                     </div>
 
-                    {/* 🚀 3. FULL WIDTH BOTTOM ROW: Expanded across entire page */}
+                    {/* 🚀 BOTTOM ROW: EDGE-TO-EDGE EXPANSION (Outside grid-cols-12) */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-10 duration-1000">
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
                             <div className="flex items-center gap-2 mb-8"><BarChart size={18} className="text-emerald-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Session Equity</h3></div>
@@ -555,27 +555,25 @@ const TradingBotContainer = () => {
                                 <ResponsiveContainer width="100%" height="100%">
                                     <AreaChart data={socketStatus.equityCurve}>
                                         <Area type="monotone" dataKey="balance" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={3} isAnimationActive={false} />
-                                        <XAxis dataKey="time" hide />
-                                        <YAxis hide domain={['auto', 'auto']} />
+                                        <XAxis dataKey="time" hide /><YAxis hide domain={['auto', 'auto']} />
                                     </AreaChart>
                                 </ResponsiveContainer>
                             </div>
                         </div>
-                        
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
                             <div className="flex items-center gap-2 mb-8"><Zap size={18} className="text-violet-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Logic Confidence</h3></div>
                             <div className="h-48 w-full">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <AreaChart data={socketStatus.equityCurve}>
                                         <Area type="step" dataKey="confidence" stroke="#a78bfa" fill="#a78bfa" fillOpacity={0.1} strokeWidth={2} isAnimationActive={false} />
-                                        <XAxis dataKey="time" hide />
-                                        <YAxis hide domain={[0, 100]} />
+                                        <XAxis dataKey="time" hide /><YAxis hide domain={[0, 100]} />
                                     </AreaChart>
                                 </ResponsiveContainer>
                             </div>
+                        </div>
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl overflow-hidden flex flex-col">
                             <div className="flex items-center justify-between mb-8">
-                                <div className="flex items-center gap-2"><Box size={18} className="text-amber-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Live Operations</h3></div>
+                                <div className="flex items-center gap-2 text-amber-500"><Box size={18}/><h3 className="text-[11px] font-black uppercase tracking-widest">Live Operations</h3></div>
                                 <button className="text-[9px] font-black text-zinc-500 uppercase border border-zinc-800 px-3 py-1 rounded-lg hover:text-white transition-all">Audit History</button>
                             </div>
                             <div className="flex-1 overflow-x-auto custom-scrollbar">
@@ -597,26 +595,26 @@ const TradingBotContainer = () => {
                     </div>
                 </div>
             ) : (
-                /* ⚙️ STANDBY MODE: (Sidebar + Dashboard Row) */
+                /* ⚙️ STANDBY MODE: SIDE-BY-SIDE CONFIGURATION */
                 <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8 items-start animate-in fade-in duration-700">
                     <div className="col-span-12 lg:col-span-3 h-[780px] relative">
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-10 shadow-2xl h-full overflow-y-auto custom-scrollbar">
                             <div className="space-y-4">
-                                <div className="flex items-center gap-2 text-zinc-400"><CandlestickChart size={16} /><h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Market Feed</h4></div>
+                                <div className="flex items-center gap-2 text-zinc-400"><CandlestickChart size={16} /><h4 className="text-[10px] font-black uppercase tracking-widest">Market Feed</h4></div>
                                 <div className="grid grid-cols-3 gap-2">
                                     <div className="col-span-2"><label className={labelClass}>Asset</label><select value={formConfig.symbol} onChange={(e)=>setFormConfig({...formConfig, symbol: e.target.value})} className={inputClass}>{COIN_PAIRS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                                     <div className="col-span-1"><label className={labelClass}>Period</label><select value={formConfig.timeframe} onChange={(e)=>setFormConfig({...formConfig, timeframe: e.target.value})} className={inputClass}>{TIMEFRAMES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
                                 </div>
                             </div>
                             <div className="space-y-4 border-t border-zinc-800/50 pt-8">
-                                <div className="flex justify-between items-center"><div className="flex items-center gap-2"><ArrowDownRight size={16} className="text-blue-400" /><h4 className="text-[10px] font-black uppercase tracking-widest text-blue-400">Direction</h4></div>
+                                <div className="flex justify-between items-center"><div className="flex items-center gap-2 text-blue-400"><ArrowDownRight size={16}/><h4 className="text-[10px] font-black uppercase tracking-widest">Direction</h4></div>
                                 <select value={formConfig.enable_shorting} onChange={(e)=>setFormConfig({...formConfig, enable_shorting: e.target.value === 'true'})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase">
                                     <option value="false">Spot Only (Long)</option>
                                     <option value="true">Margin (Long/Short)</option>
                                 </select></div>
                             </div>
                             <div className="space-y-4 border-t border-zinc-800/50 pt-8">
-                                <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Cpu size={16} className="text-violet-400" /><h4 className="text-[10px] font-black uppercase tracking-widest text-violet-400">Neural Gate</h4></div>
+                                <div className="flex justify-between items-center"><div className="flex items-center gap-2 text-violet-400"><Cpu size={16}/><h4 className="text-[10px] font-black uppercase tracking-widest">Neural Gate</h4></div>
                                 <select value={formConfig.mlMode} onChange={(e)=>setFormConfig({...formConfig, mlMode: e.target.value})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase"><option value="off">Bypass</option><option value="on">Active</option></select></div>
                                 {formConfig.mlMode === 'on' && (
                                     <div className="space-y-4 animate-in slide-in-from-top-2">
@@ -629,13 +627,13 @@ const TradingBotContainer = () => {
                                 )}
                             </div>
                             <div className="space-y-4 border-t border-zinc-800/50 pt-8">
-                                <div className="flex justify-between items-center"><div className="flex items-center gap-2"><AlertTriangle size={16} className="text-rose-500" /><h4 className="text-[10px] font-black uppercase tracking-widest text-rose-500">Risk Protocol</h4></div>
+                                <div className="flex justify-between items-center"><div className="flex items-center gap-2 text-rose-500"><AlertTriangle size={16}/><h4 className="text-[10px] font-black uppercase tracking-widest">Risk Protocol</h4></div>
                                 <select value={formConfig.riskManagementMode} onChange={(e)=>setFormConfig({...formConfig, riskManagementMode: e.target.value})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase"><option value="static">Static</option><option value="dynamic">Dynamic</option></select></div>
                                 <div className="grid grid-cols-2 gap-3">
-                                    <div><label className={labelClass}>Risk / Trade %</label><input type="number" step="0.1" value={formConfig.riskPercentage} onChange={(e)=>setFormConfig({...formConfig, riskPercentage: parseFloat(e.target.value)})} className={inputClass}/></div>
+                                    <div><label className={labelClass}>Risk/Trade %</label><input type="number" step="0.1" value={formConfig.riskPercentage} onChange={(e)=>setFormConfig({...formConfig, riskPercentage: parseFloat(e.target.value)})} className={inputClass}/></div>
                                     <div><label className={labelClass}>Max Daily Loss %</label><input type="number" step="0.1" value={formConfig.maxDailyLoss} onChange={(e)=>setFormConfig({...formConfig, maxDailyLoss: parseFloat(e.target.value)})} className={inputClass}/></div>
                                     <div className="col-span-1"><label className={labelClass}>Hard Stop %</label><input type="number" step="0.1" value={formConfig.maxDrawdown} onChange={(e)=>setFormConfig({...formConfig, maxDrawdown: parseFloat(e.target.value)})} className={inputClass}/></div>
-                                    <div><label className={labelClass}>Max Pyramiding</label><input type="number" value={formConfig.maxPyramiding || 1} onChange={(e)=>setFormConfig({...formConfig, maxPyramiding: parseInt(e.target.value)})} className={inputClass}/></div>
+                                    <div><label className={labelClass}>Max Pyramiding</label><input type="number" value={formConfig.maxPyramiding} onChange={(e)=>setFormConfig({...formConfig, maxPyramiding: parseInt(e.target.value)})} className={inputClass}/></div>
                                 </div>
                             </div>
                             <div className="space-y-4 border-t border-zinc-800/50 pt-8">
@@ -656,7 +654,7 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
                             <div className="space-y-4 border-t border-zinc-800/50 pt-8">
-                                <div className="flex items-center gap-2"><Shield size={16} className="text-amber-500"/><h4 className="text-[10px] font-black uppercase tracking-widest text-amber-500">Execution Shield</h4></div>
+                                <div className="flex items-center gap-2 text-amber-500"><Shield size={16}/><h4 className="text-[10px] font-black uppercase tracking-widest">Execution Shield</h4></div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div><label className={labelClass}>TP %</label><input type="number" step="0.001" value={formConfig.params.take_profit} onChange={(e)=>setFormConfig({...formConfig, params:{...formConfig.params, take_profit: parseFloat(e.target.value)}})} className={inputClass}/></div>
                                     <div><label className={labelClass}>SL %</label><input type="number" step="0.001" value={formConfig.params.stop_loss} onChange={(e)=>setFormConfig({...formConfig, params:{...formConfig.params, stop_loss: parseFloat(e.target.value)}})} className={inputClass}/></div>
@@ -666,13 +664,13 @@ const TradingBotContainer = () => {
                                     </div>
                                 </div>
                             </div>
-                            <button onClick={() => setShowPreFlight(true)} className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-400 transition-all shadow-xl shadow-emerald-500/20">Initiate Engine</button>
+                            <button onClick={() => setShowPreFlight(true)} className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-400 transition-all shadow-xl">Initiate Engine</button>
                         </div>
                     </div>
                     <div className="col-span-12 lg:col-span-9 space-y-8">
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                             <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
-                                <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest mb-1">Engine Status</p>
+                                <p className="text-[9px] text-zinc-500 uppercase font-black mb-1">Engine Status</p>
                                 <p className="text-lg font-mono font-black text-zinc-600">STANDBY</p>
                                 <p className="text-[9px] font-mono text-zinc-500 mt-1 uppercase font-black">SESSION: 00:00:00</p>
                             </div>
@@ -686,8 +684,7 @@ const TradingBotContainer = () => {
                 </div>
             )}
         </div>
-    </div>
-</UIModeProvider>
+    </UIModeProvider>
 );
 };
 
