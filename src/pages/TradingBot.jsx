@@ -237,62 +237,91 @@ const TradingBotContainer = () => {
         return () => clearInterval(interval);
     }, [isBotRunning, socketStatus.startedAt]);
 
-    useEffect(() => {
-        if (!address) return;
-        socketRef.current = io(SOCKET_URL, { query: { userId: address }, transports: ['websocket'] });
-        socketRef.current.on("connect", () => setSocketConnected(true));
-        socketRef.current.on("disconnect", () => setSocketConnected(false));
-        socketRef.current.on("bot_status_update", (data) => {
-            if (isHaltLocked) return; 
-        
-            setSocketStatus(prev => {
-                const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                
-                // 🟢 DYNAMIC KEY MAPPING
-                const rawSignals = data.signalsMap || {};
-                const normalizedSignals = {};
-        
+    // File: src/pages/TradingBot.jsx -> Inside TradingBotContainer component
+
+useEffect(() => {
+    if (!address) return;
+
+    // 🟢 Initialize Neural Link
+    socketRef.current = io(SOCKET_URL, { 
+        query: { userId: address }, 
+        transports: ['websocket'] 
+    });
+
+    socketRef.current.on("connect", () => {
+        setSocketConnected(true);
+        console.log("Neural Link Established");
+    });
+
+    socketRef.current.on("disconnect", () => {
+        setSocketConnected(false);
+        console.log("Neural Link Severed");
+    });
+
+    // 🟢 Main Data Processing Engine
+    socketRef.current.on("bot_status_update", (data) => {
+        if (isHaltLocked) return; 
+
+        setSocketStatus(prev => {
+            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            
+            // --- STEP 1: KEY NORMALIZATION ---
+            // Converts backend "BB FADE" or "STOCH" to frontend "bb_fade" or "stoch"
+            const rawSignals = data.signalsMap || {};
+            const normalizedSignals = {};
+            
+            if (Object.keys(rawSignals).length > 0) {
                 Object.keys(rawSignals).forEach(key => {
-                    // Converts "BB FADE" -> "bb_fade" or "STOCH" -> "stoch"
                     const normalizedKey = key.toLowerCase().trim().replace(/\s+/g, '_');
                     normalizedSignals[normalizedKey] = rawSignals[key];
                 });
-        
-                // 🟢 DEBUGGING: Check your console to see exactly what keys are arriving
-                console.log("Raw Keys:", Object.keys(rawSignals));
-                console.log("Mapped Keys:", Object.keys(normalizedSignals));
-        
-                const updatedSignalsHistory = [
-                    ...(prev.signalsMapHistory || []), 
-                    { time: timeStr, ...normalizedSignals }
-                ].slice(-50);
-        
-                const updatedEquityCurve = [
-                    ...(prev.equityCurve || []), 
-                    {
-                        time: timeStr,
-                        balance: data.currentBalance || prev.currentBalance || formConfig.capitalAllocation,
-                        confidence: data.currentConfidence || 0
-                    }
-                ].slice(-50);
-        
-                return { 
-                    ...prev, 
-                    ...data, 
-                    signalsMapHistory: updatedSignalsHistory,
-                    equityCurve: updatedEquityCurve
-                };
-            });
+            } else if (prev.signalsMapHistory?.length > 0) {
+                // PERSISTENCE: If packet is empty, carry over last known data to prevent chart "dips"
+                const lastEntry = prev.signalsMapHistory[prev.signalsMapHistory.length - 1];
+                Object.keys(lastEntry).forEach(k => { 
+                    if (k !== 'time') normalizedSignals[k] = lastEntry[k]; 
+                });
+            }
+
+            // --- STEP 2: BUILD HISTORICAL ARRAYS ---
+            // Accumulate last 300 points for visible 1H trends
+            const updatedSignalsHistory = [
+                ...(prev.signalsMapHistory || []), 
+                { time: timeStr, ...normalizedSignals }
+            ].slice(-300);
+
+            const updatedEquityCurve = [
+                ...(prev.equityCurve || []), 
+                {
+                    time: timeStr,
+                    balance: data.currentBalance || prev.currentBalance || formConfig.capitalAllocation,
+                    confidence: data.currentConfidence !== undefined ? data.currentConfidence : (prev.currentConfidence || 0)
+                }
+            ].slice(-300);
+
+            // --- STEP 3: MERGE & RETURN ---
+            return { 
+                ...prev, 
+                ...data, // Spreads balance, uptime, winRate, etc.
+                signalsMapHistory: updatedSignalsHistory,
+                equityCurve: updatedEquityCurve
+            };
         });
-        socketRef.current.on("bot_log", (newLog) => {
-            const logObj = typeof newLog === 'string' ? { message: newLog, time: new Date().toISOString() } : newLog;
-            setSocketLogs(prev => {
-                if (prev.some(l => parseLog(l.message || l) === parseLog(logObj.message || logObj))) return prev;
-                return [logObj, ...prev].slice(0, 100);
-            });
-        });
-        return () => { if (socketRef.current) socketRef.current.disconnect(); };
-    }, [address, isHaltLocked]);
+    });
+
+    // 🟢 Neural Flow Log Processor
+    socketRef.current.on("bot_log", (newLog) => {
+        setSocketLogs(prev => [newLog, ...prev].slice(0, 100));
+    });
+
+    // 🟢 Cleanup on Component Unmount
+    return () => {
+        if (socketRef.current) {
+            socketRef.current.disconnect();
+            console.log("Socket Disconnected");
+        }
+    };
+}, [address, isHaltLocked, formConfig.capitalAllocation]);
 
     const performanceData = useMemo(() => {
         if (!socketStatus.equityCurve?.length) return [{ time: 'Start', balance: formConfig.capitalAllocation }];
