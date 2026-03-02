@@ -481,12 +481,12 @@ const TradingBotContainer = () => {
                 </div>
             </header>
 
-            {/* 🟢 DYNAMIC GRID ENGINE */}
+            {/* 🚀 DYNAMIC GRID ENGINE */}
             {isBotRunning ? (
-                /* 🚀 OPERATIONAL MODE */
+                /* 🟢 OPERATIONAL MODE: Metrics Row move to top to align Sidebar and Chart */
                 <div className="max-w-[1800px] mx-auto space-y-8 animate-in fade-in duration-1000">
                     
-                    {/* TOP ROW: FULL WIDTH METRICS (Clears vertical space below) */}
+                    {/* METRICS ROW (FULL WIDTH) */}
                     <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                         <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
                             <div className="flex justify-between items-start mb-1"><p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">Engine Status</p><Timer size={12} className="text-emerald-500 animate-pulse" /></div>
@@ -500,8 +500,8 @@ const TradingBotContainer = () => {
                         <MetricCard label="Council Consensus" value={`${Math.round(socketStatus.currentConfidence || 0)}%`} color="text-violet-400" icon={<Zap size={10}/>} />
                     </div>
 
-                    {/* MIDDLE ROW: SIDEBAR ALIGNED WITH CHART (3/9 SPLIT) */}
                     <div className="grid grid-cols-12 gap-8 items-start">
+                        {/* COLUMN 1: INTELLIGENCE SIDEBAR */}
                         <div className="col-span-12 lg:col-span-3 h-[720px] flex flex-col gap-4">
                             <div className="flex-1 min-h-[400px]">
                                 <NeuralConvergenceChart strategies={formConfig.strategies} signalsMapHistory={socketStatus.signalsMapHistory || []} />
@@ -515,6 +515,7 @@ const TradingBotContainer = () => {
                             </div>
                         </div>
 
+                        {/* COLUMN 2: CHARTS & TERMINAL FLOW */}
                         <div className="col-span-12 lg:col-span-9">
                             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[720px]">
                                 <div className="lg:col-span-3 bg-zinc-900 border border-zinc-800 rounded-[40px] overflow-hidden flex flex-col relative shadow-2xl">
@@ -547,7 +548,7 @@ const TradingBotContainer = () => {
                         </div>
                     </div>
 
-                    {/* 🚀 BOTTOM ROW: EDGE-TO-EDGE EXPANSION (Outside grid-cols-12) */}
+                    {/* 🚀 EDGE-TO-EDGE BOTTOM ROW: Expanded across entire page width */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-10 duration-1000">
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
                             <div className="flex items-center gap-2 mb-8"><BarChart size={18} className="text-emerald-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Session Equity</h3></div>
@@ -573,16 +574,16 @@ const TradingBotContainer = () => {
                         </div>
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl overflow-hidden flex flex-col">
                             <div className="flex items-center justify-between mb-8">
-                                <div className="flex items-center gap-2 text-amber-500"><Box size={18}/><h3 className="text-[11px] font-black uppercase tracking-widest">Live Operations</h3></div>
+                                <div className="flex items-center gap-2 text-amber-400"><Box size={18}/><h3 className="text-[11px] font-black uppercase tracking-widest">Live Operations</h3></div>
                                 <button className="text-[9px] font-black text-zinc-500 uppercase border border-zinc-800 px-3 py-1 rounded-lg hover:text-white transition-all">Audit History</button>
                             </div>
                             <div className="flex-1 overflow-x-auto custom-scrollbar">
                                 <table className="w-full text-left text-[11px]">
-                                    <thead><tr className="text-zinc-600 uppercase font-black border-b border-zinc-800 pb-4"><th className="pb-4">Type</th><th className="pb-4">Entry</th><th className="pb-4 text-right">Size</th><th className="pb-4 text-right">Action</th></tr></thead>
+                                    <thead><tr className="text-zinc-600 uppercase font-black border-b border-zinc-800 pb-4"><th className="pb-4">Type</th><th className="pb-4">Entry</th><th className="pb-4 text-right">Size</th><th className="pb-4 text-right pr-2">Action</th></tr></thead>
                                     <tbody className="divide-y divide-zinc-800/50">
                                         {socketStatus.positions.length > 0 ? socketStatus.positions.map((pos, idx) => (
                                             <tr key={idx} className="group">
-                                                <td className={`py-5 font-black flex items-center gap-2 ${pos.type === 'short' ? 'text-amber-500' : 'text-emerald-400'}`}>{pos.type === 'short' ? <ArrowDownRight size={14}/> : <ArrowUpRight size={14}/>} {pos.type.toUpperCase()}</td>
+                                                <td className={`py-5 font-black flex items-center gap-2 ${pos.type === 'short' ? 'text-amber-500' : 'text-emerald-400'}`}>{pos.type.toUpperCase()}</td>
                                                 <td className="py-5 font-mono font-black text-zinc-200">${pos.entry.toLocaleString()}</td>
                                                 <td className="py-5 font-mono text-zinc-500 text-right">{pos.size.toFixed(4)}</td>
                                                 <td className="py-5 text-right"><button onClick={handleManualExit} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 rounded-lg text-rose-500 hover:text-white font-black uppercase text-[9px] transition-all tracking-wider">EXIT</button></td>
@@ -595,17 +596,21 @@ const TradingBotContainer = () => {
                     </div>
                 </div>
             ) : (
-                /* ⚙️ STANDBY MODE: SIDE-BY-SIDE CONFIGURATION */
+                /* ⚙️ STANDBY MODE: 3/9 CONFIGURATION VIEW */
                 <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8 items-start animate-in fade-in duration-700">
                     <div className="col-span-12 lg:col-span-3 h-[780px] relative">
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-10 shadow-2xl h-full overflow-y-auto custom-scrollbar">
+                            
+                            {/* 🟢 MARKET FEED */}
                             <div className="space-y-4">
-                                <div className="flex items-center gap-2 text-zinc-400"><CandlestickChart size={16} /><h4 className="text-[10px] font-black uppercase tracking-widest">Market Feed</h4></div>
+                                <div className="flex items-center gap-2 text-zinc-400"><CandlestickChart size={16} /><h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Market Feed</h4></div>
                                 <div className="grid grid-cols-3 gap-2">
                                     <div className="col-span-2"><label className={labelClass}>Asset</label><select value={formConfig.symbol} onChange={(e)=>setFormConfig({...formConfig, symbol: e.target.value})} className={inputClass}>{COIN_PAIRS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                                     <div className="col-span-1"><label className={labelClass}>Period</label><select value={formConfig.timeframe} onChange={(e)=>setFormConfig({...formConfig, timeframe: e.target.value})} className={inputClass}>{TIMEFRAMES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
                                 </div>
                             </div>
+
+                            {/* 🟢 DIRECTION */}
                             <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                 <div className="flex justify-between items-center"><div className="flex items-center gap-2 text-blue-400"><ArrowDownRight size={16}/><h4 className="text-[10px] font-black uppercase tracking-widest">Direction</h4></div>
                                 <select value={formConfig.enable_shorting} onChange={(e)=>setFormConfig({...formConfig, enable_shorting: e.target.value === 'true'})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase">
@@ -613,6 +618,8 @@ const TradingBotContainer = () => {
                                     <option value="true">Margin (Long/Short)</option>
                                 </select></div>
                             </div>
+
+                            {/* 🟢 NEURAL GATE */}
                             <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                 <div className="flex justify-between items-center"><div className="flex items-center gap-2 text-violet-400"><Cpu size={16}/><h4 className="text-[10px] font-black uppercase tracking-widest">Neural Gate</h4></div>
                                 <select value={formConfig.mlMode} onChange={(e)=>setFormConfig({...formConfig, mlMode: e.target.value})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase"><option value="off">Bypass</option><option value="on">Active</option></select></div>
@@ -626,6 +633,8 @@ const TradingBotContainer = () => {
                                     </div>
                                 )}
                             </div>
+
+                            {/* 🟢 RISK PROTOCOL WITH MAX PYRAMIDING RESTORED */}
                             <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                 <div className="flex justify-between items-center"><div className="flex items-center gap-2 text-rose-500"><AlertTriangle size={16}/><h4 className="text-[10px] font-black uppercase tracking-widest">Risk Protocol</h4></div>
                                 <select value={formConfig.riskManagementMode} onChange={(e)=>setFormConfig({...formConfig, riskManagementMode: e.target.value})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase"><option value="static">Static</option><option value="dynamic">Dynamic</option></select></div>
@@ -633,11 +642,12 @@ const TradingBotContainer = () => {
                                     <div><label className={labelClass}>Risk/Trade %</label><input type="number" step="0.1" value={formConfig.riskPercentage} onChange={(e)=>setFormConfig({...formConfig, riskPercentage: parseFloat(e.target.value)})} className={inputClass}/></div>
                                     <div><label className={labelClass}>Max Daily Loss %</label><input type="number" step="0.1" value={formConfig.maxDailyLoss} onChange={(e)=>setFormConfig({...formConfig, maxDailyLoss: parseFloat(e.target.value)})} className={inputClass}/></div>
                                     <div className="col-span-1"><label className={labelClass}>Hard Stop %</label><input type="number" step="0.1" value={formConfig.maxDrawdown} onChange={(e)=>setFormConfig({...formConfig, maxDrawdown: parseFloat(e.target.value)})} className={inputClass}/></div>
-                                    <div><label className={labelClass}>Max Pyramiding</label><input type="number" value={formConfig.maxPyramiding} onChange={(e)=>setFormConfig({...formConfig, maxPyramiding: parseInt(e.target.value)})} className={inputClass}/></div>
+                                    <div><label className={labelClass}>Max Pyramiding</label><input type="number" value={formConfig.maxPyramiding || 1} onChange={(e)=>setFormConfig({...formConfig, maxPyramiding: parseInt(e.target.value)})} className={inputClass}/></div>
                                 </div>
                             </div>
+
                             <div className="space-y-4 border-t border-zinc-800/50 pt-8">
-                                <div className="flex justify-between items-center"><h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Logic Ensemble</h4><select value={formConfig.hybridMode} onChange={(e) => setFormConfig({...formConfig, hybridMode: e.target.value})} className="bg-zinc-950 border border-zinc-700 text-[9px] rounded px-2 py-1 text-emerald-500 font-bold uppercase"><option value="AND">Strict</option><option value="OR">Loose</option></select></div>
+                                <div className="flex justify-between items-center"><h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Ensemble</h4><select value={formConfig.hybridMode} onChange={(e) => setFormConfig({...formConfig, hybridMode: e.target.value})} className="bg-zinc-950 border border-zinc-700 text-[9px] rounded px-2 py-1 text-emerald-500 font-bold uppercase"><option value="AND">Strict</option><option value="OR">Loose</option></select></div>
                                 <div className="space-y-3">
                                     {formConfig.strategies.map((s, i) => (
                                         <div key={i} className="p-4 bg-zinc-800/30 rounded-2xl border border-zinc-800 shadow-inner">
@@ -654,7 +664,7 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
                             <div className="space-y-4 border-t border-zinc-800/50 pt-8">
-                                <div className="flex items-center gap-2 text-amber-500"><Shield size={16}/><h4 className="text-[10px] font-black uppercase tracking-widest">Execution Shield</h4></div>
+                                <div className="flex items-center gap-2 text-amber-500"><Shield size={16}/><h4 className="text-[10px] font-black uppercase tracking-widest">Shield</h4></div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div><label className={labelClass}>TP %</label><input type="number" step="0.001" value={formConfig.params.take_profit} onChange={(e)=>setFormConfig({...formConfig, params:{...formConfig.params, take_profit: parseFloat(e.target.value)}})} className={inputClass}/></div>
                                     <div><label className={labelClass}>SL %</label><input type="number" step="0.001" value={formConfig.params.stop_loss} onChange={(e)=>setFormConfig({...formConfig, params:{...formConfig.params, stop_loss: parseFloat(e.target.value)}})} className={inputClass}/></div>
@@ -667,6 +677,7 @@ const TradingBotContainer = () => {
                             <button onClick={() => setShowPreFlight(true)} className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-400 transition-all shadow-xl">Initiate Engine</button>
                         </div>
                     </div>
+
                     <div className="col-span-12 lg:col-span-9 space-y-8">
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                             <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
@@ -674,10 +685,10 @@ const TradingBotContainer = () => {
                                 <p className="text-lg font-mono font-black text-zinc-600">STANDBY</p>
                                 <p className="text-[9px] font-mono text-zinc-500 mt-1 uppercase font-black">SESSION: 00:00:00</p>
                             </div>
-                            <MetricCard label="Daily Profit" value="$0.00" subValue="+0.00%" color="text-zinc-600" />
-                            <MetricCard label="Floating PnL" value="+0.00" subValue="+0.00%" color="text-zinc-600" />
-                            <MetricCard label="Exposure" value="0%" subValue="CASH HEAVY" color="text-zinc-600" />
-                            <MetricCard label="Total Equity" value={`$${formConfig.capitalAllocation}`} subValue="Liquid + Locked" /> 
+                            <MetricCard label="Daily Profit" value="$0.00" color="text-zinc-600" />
+                            <MetricCard label="Floating PnL" value="+0.00" color="text-zinc-600" />
+                            <MetricCard label="Exposure" value="0%" color="text-zinc-600" />
+                            <MetricCard label="Total Equity" value={`$${formConfig.capitalAllocation}`} /> 
                         </div>
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] h-[600px] overflow-hidden flex items-center justify-center text-zinc-700 italic border-dashed">Initialize market link...</div>
                     </div>
