@@ -428,7 +428,6 @@ const TradingBotContainer = () => {
                         
                         {/* 🚀 THE SWITCH: If running, show Intelligence. If stopped, show Config. */}
                         {isBotRunning ? (
-                            /* PANE B: INTELLIGENCE SIDEBAR (Visible when Running) */
                             <div className="h-full flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-700">
                                 <div className="flex-1 min-h-[400px]">
                                     <NeuralConvergenceChart 
