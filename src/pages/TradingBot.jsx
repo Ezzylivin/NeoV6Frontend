@@ -686,7 +686,8 @@ const TradingBotContainer = () => {
                 </div>
             )}
         </div>
-    </UIModeProvider>
+    </div>
+</UIModeProvider>
 );
 };
 
