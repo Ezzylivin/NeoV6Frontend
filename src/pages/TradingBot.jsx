@@ -610,15 +610,30 @@ useEffect(() => {
                                 <table className="w-full text-left text-[11px]">
                                     <thead><tr className="text-zinc-600 uppercase font-black border-b border-zinc-800 pb-4"><th className="pb-4">Type</th><th className="pb-4">Entry</th><th className="pb-4 text-right">Size</th><th className="pb-4 text-right pr-2">Action</th></tr></thead>
                                     <tbody className="divide-y divide-zinc-800/50">
-                                        {socketStatus.positions.length > 0 ? socketStatus.positions.map((pos, idx) => (
-                                            <tr key={idx} className="group">
-                                                <td className={`py-5 font-black flex items-center gap-2 ${pos.type === 'short' ? 'text-amber-500' : 'text-emerald-400'}`}>{pos.type.toUpperCase()}</td>
-                                                <td className="py-5 font-mono font-black text-zinc-200">${pos.entry.toLocaleString()}</td>
-                                                <td className="py-5 font-mono text-zinc-500 text-right">{pos.size.toFixed(4)}</td>
-                                                <td className="py-5 text-right"><button onClick={handleManualExit} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 rounded-lg text-rose-500 hover:text-white font-black uppercase text-[9px] transition-all tracking-wider">EXIT</button></td>
-                                            </tr>
-                                        )) : (<tr><td colSpan="4" className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">Waiting for Signal...</td></tr>)}
-                                    </tbody>
+                                    {/* 🟢 FIX: Check both 'positions' and 'activePositions' from the socket update */}
+                                    {(socketStatus.positions?.length > 0 || socketStatus.activePositions?.length > 0) ? 
+                                      (socketStatus.positions || socketStatus.activePositions).map((pos, idx) => (
+                                        <tr key={idx} className="group">
+                                            <td className={`py-5 font-black flex items-center gap-2 ${pos.type === 'short' ? 'text-amber-500' : 'text-emerald-400'}`}>
+                                                {pos.type === 'short' ? <ArrowDownRight size={14}/> : <ArrowUpRight size={14}/>} 
+                                                {pos.type.toUpperCase()}
+                                            </td>
+                                            <td className="py-5 font-mono font-black text-zinc-200">
+                                                ${Number(pos.entry).toLocaleString()}
+                                            </td>
+                                            <td className="py-5 font-mono text-zinc-500 text-right">
+                                                {Number(pos.size).toFixed(4)}
+                                            </td>
+                                            <td className="py-5 text-right">
+                                                <button onClick={handleManualExit} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 rounded-lg text-rose-500 hover:text-white font-black uppercase text-[9px] transition-all tracking-wider">
+                                                    EXIT
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    )) : (
+                                        <tr><td colSpan="4" className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">Waiting for Signal...</td></tr>
+                                    )}
+                                </tbody>
                                 </table>
                             </div>
                         </div>
