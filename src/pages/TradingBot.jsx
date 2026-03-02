@@ -244,7 +244,33 @@ const TradingBotContainer = () => {
         socketRef.current.on("disconnect", () => setSocketConnected(false));
         socketRef.current.on("bot_status_update", (data) => {
             if (isHaltLocked) return; 
-            setSocketStatus(prev => ({ ...prev, ...data, positions: data.activePositions || data.positions || prev.positions, tradeMarkers: data.tradeMarkers || prev.tradeMarkers, startedAt: data.startedAt || prev.startedAt, initialCapital: data.initialCapital || prev.initialCapital }));
+        
+            setSocketStatus(prev => {
+                // 1. Accumulate Signals for the Neural Chart
+                // We take the new signalsMap and append it to our history array
+                const newSignals = data.signalsMap || {};
+                const updatedSignalsHistory = [
+                    ...(prev.signalsMapHistory || []), 
+                    { 
+                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), 
+                        ...newSignals 
+                    }
+                ].slice(-40); // Keep only the last 40 updates to ensure sidebar performance
+        
+                // 2. Return the integrated state
+                return { 
+                    ...prev, 
+                    ...data, 
+                    // Map specific fields ensuring we don't lose data if a packet is partial
+                    positions: data.activePositions || data.positions || prev.positions, 
+                    tradeMarkers: data.tradeMarkers || prev.tradeMarkers, 
+                    startedAt: data.startedAt || prev.startedAt, 
+                    initialCapital: data.initialCapital || prev.initialCapital,
+                    // 🟢 CRITICAL: Update the history arrays for the charts
+                    signalsMapHistory: updatedSignalsHistory,
+                    equityCurve: data.equityCurve || prev.equityCurve || []
+                };
+            });
         });
         socketRef.current.on("bot_log", (newLog) => {
             const logObj = typeof newLog === 'string' ? { message: newLog, time: new Date().toISOString() } : newLog;
@@ -636,24 +662,28 @@ const NeuralConvergenceChart = ({ strategies, signalsMapHistory }) => {
         <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 h-full flex flex-col shadow-2xl overflow-hidden">
             <div className="flex items-center gap-2 mb-8 text-violet-400">
                 <Zap size={16} className="animate-pulse" />
-                <h3 className="text-[10px] font-black uppercase tracking-widest">Neural Logic</h3>
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-100">Neural Logic</h3>
             </div>
             <div className="flex-1">
                 <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
                         <XAxis dataKey="time" hide />
-                        <YAxis hide domain={[0, 1]} />
+                        {/* 🟢 FIXED: Changed domain to 'auto' so it handles both 0.76 and 76 correctly */}
+                        <YAxis hide domain={['auto', 'auto']} /> 
+                        
                         {strategies.map((s, i) => (
                             <Area
                                 key={s.code}
                                 type="monotone"
-                                dataKey={s.code}
+                                dataKey={s.code} // 🟢 CRITICAL: This must match the keys in your data object
                                 stroke={i % 2 === 0 ? "#a78bfa" : "#10b981"}
                                 fill={i % 2 === 0 ? "#8b5cf6" : "#10b981"}
                                 fillOpacity={0.1}
                                 strokeWidth={2}
                                 stackId="1"
+                                connectNulls={true} // 🟢 Bridges gaps if data is missing
+                                isAnimationActive={false} // 🟢 Essential for smooth real-time updates
                             />
                         ))}
                     </AreaChart>
