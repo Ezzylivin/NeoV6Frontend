@@ -244,7 +244,45 @@ const TradingBotContainer = () => {
         socketRef.current.on("disconnect", () => setSocketConnected(false));
         socketRef.current.on("bot_status_update", (data) => {
             if (isHaltLocked) return; 
-            setSocketStatus(prev => ({ ...prev, ...data, positions: data.activePositions || data.positions || prev.positions, tradeMarkers: data.tradeMarkers || prev.tradeMarkers, startedAt: data.startedAt || prev.startedAt, initialCapital: data.initialCapital || prev.initialCapital }));
+        
+            setSocketStatus(prev => {
+                const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                
+                // 🟢 DYNAMIC KEY MAPPING
+                const rawSignals = data.signalsMap || {};
+                const normalizedSignals = {};
+        
+                Object.keys(rawSignals).forEach(key => {
+                    // Converts "BB FADE" -> "bb_fade" or "STOCH" -> "stoch"
+                    const normalizedKey = key.toLowerCase().trim().replace(/\s+/g, '_');
+                    normalizedSignals[normalizedKey] = rawSignals[key];
+                });
+        
+                // 🟢 DEBUGGING: Check your console to see exactly what keys are arriving
+                console.log("Raw Keys:", Object.keys(rawSignals));
+                console.log("Mapped Keys:", Object.keys(normalizedSignals));
+        
+                const updatedSignalsHistory = [
+                    ...(prev.signalsMapHistory || []), 
+                    { time: timeStr, ...normalizedSignals }
+                ].slice(-50);
+        
+                const updatedEquityCurve = [
+                    ...(prev.equityCurve || []), 
+                    {
+                        time: timeStr,
+                        balance: data.currentBalance || prev.currentBalance || formConfig.capitalAllocation,
+                        confidence: data.currentConfidence || 0
+                    }
+                ].slice(-50);
+        
+                return { 
+                    ...prev, 
+                    ...data, 
+                    signalsMapHistory: updatedSignalsHistory,
+                    equityCurve: updatedEquityCurve
+                };
+            });
         });
         socketRef.current.on("bot_log", (newLog) => {
             const logObj = typeof newLog === 'string' ? { message: newLog, time: new Date().toISOString() } : newLog;
@@ -513,12 +551,28 @@ const TradingBotContainer = () => {
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-10 duration-1000">
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
                             <div className="flex items-center gap-2 mb-8"><BarChart size={18} className="text-emerald-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Session Equity</h3></div>
-                            <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={performanceData}><Area type="monotone" dataKey="balance" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={3} /><XAxis dataKey="time" hide /><YAxis hide domain={['auto', 'auto']} /><RechartsTooltip contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '12px' }} /></AreaChart></ResponsiveContainer></div>
+                            <div className="h-48 w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={socketStatus.equityCurve}>
+                                        <Area type="monotone" dataKey="balance" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={3} isAnimationActive={false} />
+                                        <XAxis dataKey="time" hide />
+                                        <YAxis hide domain={['auto', 'auto']} />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
                         </div>
+                        
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
                             <div className="flex items-center gap-2 mb-8"><Zap size={18} className="text-violet-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Logic Confidence</h3></div>
-                            <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={performanceData}><Area type="step" dataKey="confidence" stroke="#a78bfa" fill="#a78bfa" fillOpacity={0.1} strokeWidth={2} /><XAxis dataKey="time" hide /><YAxis hide /><RechartsTooltip contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '12px' }} /></AreaChart></ResponsiveContainer></div>
-                        </div>
+                            <div className="h-48 w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={socketStatus.equityCurve}>
+                                        <Area type="step" dataKey="confidence" stroke="#a78bfa" fill="#a78bfa" fillOpacity={0.1} strokeWidth={2} isAnimationActive={false} />
+                                        <XAxis dataKey="time" hide />
+                                        <YAxis hide domain={[0, 100]} />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl overflow-hidden flex flex-col">
                             <div className="flex items-center justify-between mb-8">
                                 <div className="flex items-center gap-2"><Box size={18} className="text-amber-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Live Operations</h3></div>
@@ -638,33 +692,30 @@ const TradingBotContainer = () => {
 
 
 const NeuralConvergenceChart = ({ strategies, signalsMapHistory }) => {
-    const chartData = useMemo(() => {
-        if (!signalsMapHistory?.length) return [];
-        return signalsMapHistory.slice(-40);
-    }, [signalsMapHistory]);
-
     return (
         <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 h-full flex flex-col shadow-2xl overflow-hidden">
             <div className="flex items-center gap-2 mb-8 text-violet-400">
                 <Zap size={16} className="animate-pulse" />
-                <h3 className="text-[10px] font-black uppercase tracking-widest">Neural Logic</h3>
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-100">Neural Logic</h3>
             </div>
             <div className="flex-1">
                 <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData}>
+                    <AreaChart data={signalsMapHistory}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
                         <XAxis dataKey="time" hide />
-                        <YAxis hide domain={[0, 1]} />
+                        {/* 🟢 FIX: Scale to whole numbers (0-100) and remove domain locking */}
+                        <YAxis hide domain={['auto', 'auto']} /> 
                         {strategies.map((s, i) => (
-                            <Area
-                                key={s.code}
-                                type="monotone"
-                                dataKey={s.code}
-                                stroke={i % 2 === 0 ? "#a78bfa" : "#10b981"}
-                                fill={i % 2 === 0 ? "#8b5cf6" : "#10b981"}
-                                fillOpacity={0.1}
-                                strokeWidth={2}
-                                stackId="1"
+                            <Area 
+                                key={s.code} 
+                                type="monotone" 
+                                dataKey={s.code} 
+                                stroke={i % 2 === 0 ? "#a78bfa" : "#10b981"} 
+                                fill={i % 2 === 0 ? "#8b5cf6" : "#10b981"} 
+                                fillOpacity={0.1} 
+                                strokeWidth={2} 
+                                connectNulls={true} 
+                                isAnimationActive={false} 
                             />
                         ))}
                     </AreaChart>
