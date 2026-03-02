@@ -420,9 +420,39 @@ const TradingBotContainer = () => {
                     </div>
                 </header>
 
-                <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8">
-                    {!isBotRunning && (
-                        <div className="col-span-12 lg:col-span-3 space-y-6 animate-in slide-in-from-left-10 duration-700">
+                {/* 🟢 LAYER 3: OPERATIONAL GRID */}
+                <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8 items-start">
+                    
+                    {/* COLUMN 1: THE DYNAMIC SIDEBAR (3 COLS) */}
+                    <div className="col-span-12 lg:col-span-3 h-[780px] relative">
+                        
+                        {/* 🚀 THE SWITCH: If running, show Intelligence. If stopped, show Config. */}
+                        {isBotRunning ? (
+                            /* PANE B: INTELLIGENCE SIDEBAR (Visible when Running) */
+                            <div className="h-full flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-700">
+                                <div className="flex-1 min-h-[400px]">
+                                    <NeuralConvergenceChart 
+                                        strategies={formConfig.strategies} 
+                                        signalsMapHistory={socketStatus.signalsMapHistory || []} 
+                                    />
+                                </div>
+                
+                                {/* 📊 WIN/LOSS PERFORMANCE SUMMARY */}
+                                <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 shadow-2xl">
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-4">Neural Performance</h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <p className="text-[8px] uppercase font-bold text-zinc-600 mb-1">Win Rate</p>
+                                            <p className="text-xl font-mono font-black text-emerald-500">{socketStatus.winRate || 0}%</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[8px] uppercase font-bold text-zinc-600 mb-1">Profit Factor</p>
+                                            <p className="text-xl font-mono font-black text-violet-400">{socketStatus.profitFactor || '1.0'}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-10 shadow-2xl sticky top-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-2"><CandlestickChart size={16} className="text-zinc-400" /><h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Market Feed</h4></div>
@@ -495,46 +525,11 @@ const TradingBotContainer = () => {
                                     </div>
                                 </div>
 
-                               <button onClick={() => setShowPreFlight(true)} className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-400 transition-all shadow-xl">
-                                  Initiate Protocol
-                              </button>
-                          </div>
-                      ) : (
-                          /* PANE B: INTELLIGENCE SIDEBAR (Only if bot IS running) */
-                          <div className="h-full flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-700">
-                              {/* 1. The Real-time Convergence Chart */}
-                              <div className="flex-1 min-h-[400px]">
-                                  <NeuralConvergenceChart 
-                                      strategies={formConfig.strategies} 
-                                      signalsMapHistory={socketStatus.signalsMapHistory || []} 
-                                  />
-                              </div>
-                    
-                              {/* 🚀 2. THE NEW STATS SUMMARY ADDED HERE */}
-                              <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 shadow-2xl">
-                                  <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-4">Neural Performance</h4>
-                                  <div className="grid grid-cols-2 gap-4">
-                                      <div>
-                                          <p className="text-[8px] uppercase font-bold text-zinc-600 mb-1">Win Rate</p>
-                                          <p className="text-xl font-mono font-black text-emerald-500">
-                                              {socketStatus.winRate || 0}%
-                                          </p>
-                                      </div>
-                                      <div>
-                                          <p className="text-[8px] uppercase font-bold text-zinc-600 mb-1">Profit Factor</p>
-                                          <p className="text-xl font-mono font-black text-violet-400">
-                                              {socketStatus.profitFactor || '1.0'}
-                                          </p>
-                                      </div>
-                                  </div>
-                                  <div className="mt-4 pt-4 border-t border-zinc-800">
-                                      <div className="flex justify-between items-center text-[9px] font-black uppercase">
-                                          <span className="text-zinc-500">Council Consensus</span>
-                                          <span className="text-emerald-500">{Math.round(socketStatus.currentConfidence || 0)}% Strong</span>
-                                      </div>
-                                  </div>
-                              </div>
-                          </div>
+                                <button onClick={() => setShowPreFlight(true)} className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-400 transition-all shadow-xl shadow-emerald-500/20">
+                                    Initiate Engine
+                                </button>
+                            </div>
+                        </div>
                     )}
 
                     <div className={`${isBotRunning ? 'col-span-12' : 'col-span-12 lg:col-span-9'} space-y-8 transition-all duration-700`}>
@@ -593,38 +588,37 @@ const TradingBotContainer = () => {
                             </div>
                         </div>
 
-                            {/* ... (Bottom Chart sections remain same) ... */}
-                            {isBotRunning && (
-                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-10 duration-1000">
-                                    <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
-                                        <div className="flex items-center gap-2 mb-8"><BarChart size={18} className="text-emerald-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Session Equity</h3></div>
-                                        <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={performanceData}><Area type="monotone" dataKey="balance" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={3} /><XAxis dataKey="time" hide /><YAxis hide domain={['auto', 'auto']} /><RechartsTooltip contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '12px' }} /></AreaChart></ResponsiveContainer></div>
-                                    </div>
-                                    <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
-                                        <div className="flex items-center gap-2 mb-8"><Zap size={18} className="text-violet-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Logic Confidence</h3></div>
-                                        <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={performanceData}><Area type="step" dataKey="confidence" stroke="#a78bfa" fill="#a78bfa" fillOpacity={0.1} strokeWidth={2} /><XAxis dataKey="time" hide /><YAxis hide /><RechartsTooltip contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '12px' }} /></AreaChart></ResponsiveContainer></div>
-                                    </div>
-                                    <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl overflow-hidden flex flex-col">
-                                        <div className="flex items-center gap-2 mb-8"><Box size={18} className="text-amber-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Live Operations</h3></div>
-                                        <div className="flex-1 overflow-x-auto custom-scrollbar">
-                                            <table className="w-full text-left text-[11px]">
-                                                <thead><tr className="text-zinc-600 uppercase font-black border-b border-zinc-800 pb-4"><th className="pb-4">Type</th><th className="pb-4">Entry</th><th className="pb-4 text-right">Size</th><th className="pb-4 text-right">Action</th></tr></thead>
-                                                <tbody className="divide-y divide-zinc-800/50">
-                                                    {socketStatus.positions.length > 0 ? socketStatus.positions.map((pos, idx) => (
-                                                        <tr key={idx} className="group">
-                                                            <td className={`py-5 font-black flex items-center gap-2 ${pos.type === 'short' ? 'text-amber-500' : 'text-emerald-400'}`}>{pos.type === 'short' ? <ArrowDownRight size={14}/> : <ArrowUpRight size={14}/>} {pos.type.toUpperCase()}</td>
-                                                            <td className="py-5 font-mono font-black text-zinc-200">${pos.entry.toLocaleString()}</td>
-                                                            <td className="py-5 font-mono text-zinc-500 text-right">{pos.size.toFixed(4)}</td>
-                                                            <td className="py-5 text-right"><button onClick={handleManualExit} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 rounded-lg text-rose-500 hover:text-white font-black uppercase text-[9px] transition-all tracking-wider">EXIT</button></td>
-                                                        </tr>
-                                                    )) : (<tr><td colSpan="4" className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">Waiting for Signal...</td></tr>)}
-                                                </tbody>
-                                            </table>
-                                        </div>
+                        {/* ... (Bottom Chart sections remain same) ... */}
+                        {isBotRunning && (
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-10 duration-1000">
+                                <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
+                                    <div className="flex items-center gap-2 mb-8"><BarChart size={18} className="text-emerald-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Session Equity</h3></div>
+                                    <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={performanceData}><Area type="monotone" dataKey="balance" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={3} /><XAxis dataKey="time" hide /><YAxis hide domain={['auto', 'auto']} /><RechartsTooltip contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '12px' }} /></AreaChart></ResponsiveContainer></div>
+                                </div>
+                                <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
+                                    <div className="flex items-center gap-2 mb-8"><Zap size={18} className="text-violet-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Logic Confidence</h3></div>
+                                    <div className="h-48 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={performanceData}><Area type="step" dataKey="confidence" stroke="#a78bfa" fill="#a78bfa" fillOpacity={0.1} strokeWidth={2} /><XAxis dataKey="time" hide /><YAxis hide /><RechartsTooltip contentStyle={{ backgroundColor: '#000', border: 'none', borderRadius: '12px' }} /></AreaChart></ResponsiveContainer></div>
+                                </div>
+                                <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl overflow-hidden flex flex-col">
+                                    <div className="flex items-center gap-2 mb-8"><Box size={18} className="text-amber-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Live Operations</h3></div>
+                                    <div className="flex-1 overflow-x-auto custom-scrollbar">
+                                        <table className="w-full text-left text-[11px]">
+                                            <thead><tr className="text-zinc-600 uppercase font-black border-b border-zinc-800 pb-4"><th className="pb-4">Type</th><th className="pb-4">Entry</th><th className="pb-4 text-right">Size</th><th className="pb-4 text-right">Action</th></tr></thead>
+                                            <tbody className="divide-y divide-zinc-800/50">
+                                                {socketStatus.positions.length > 0 ? socketStatus.positions.map((pos, idx) => (
+                                                    <tr key={idx} className="group">
+                                                        <td className={`py-5 font-black flex items-center gap-2 ${pos.type === 'short' ? 'text-amber-500' : 'text-emerald-400'}`}>{pos.type === 'short' ? <ArrowDownRight size={14}/> : <ArrowUpRight size={14}/>} {pos.type.toUpperCase()}</td>
+                                                        <td className="py-5 font-mono font-black text-zinc-200">${pos.entry.toLocaleString()}</td>
+                                                        <td className="py-5 font-mono text-zinc-500 text-right">{pos.size.toFixed(4)}</td>
+                                                        <td className="py-5 text-right"><button onClick={handleManualExit} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 rounded-lg text-rose-500 hover:text-white font-black uppercase text-[9px] transition-all tracking-wider">EXIT</button></td>
+                                                    </tr>
+                                                )) : (<tr><td colSpan="4" className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">Waiting for Signal...</td></tr>)}
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
-                             )}
-                        </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
