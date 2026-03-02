@@ -528,7 +528,6 @@ const TradingBotContainer = () => {
                                     Initiate Engine
                                 </button>
                             </div>
-                        </div>
                     )}
                 </div>
 
