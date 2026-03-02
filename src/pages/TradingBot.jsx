@@ -583,28 +583,56 @@ useEffect(() => {
 
                     {/* 🚀 EDGE-TO-EDGE BOTTOM ROW: Expanded across entire page width */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-10 duration-1000">
+                        {/* 1. SESSION EQUITY CHART */}
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
                             <div className="flex items-center gap-2 mb-8"><BarChart size={18} className="text-emerald-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Session Equity</h3></div>
                             <div className="h-48 w-full">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <AreaChart data={socketStatus.equityCurve}>
-                                        <Area type="monotone" dataKey="balance" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={3} isAnimationActive={false} />
-                                        <XAxis dataKey="time" hide /><YAxis hide domain={['auto', 'auto']} />
+                                        <defs>
+                                            <linearGradient id="colorEquity" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                                                <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                            </linearGradient>
+                                        </defs>
+                                        {/* 🟢 TOOLTIP RESTORED */}
+                                        <RechartsTooltip 
+                                            contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px' }}
+                                            itemStyle={{ color: '#10b981' }}
+                                        />
+                                        <Area type="monotone" dataKey="balance" stroke="#10b981" fill="url(#colorEquity)" strokeWidth={3} isAnimationActive={false} />
+                                        <XAxis dataKey="time" hide />
+                                        <YAxis hide domain={['auto', 'auto']} /> {/* 🟢 DYNAMIC SCALE for visibility */}
                                     </AreaChart>
                                 </ResponsiveContainer>
                             </div>
                         </div>
+                        
+                        {/* 2. LOGIC CONFIDENCE CHART */}
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
                             <div className="flex items-center gap-2 mb-8"><Zap size={18} className="text-violet-500"/><h3 className="text-[11px] font-black uppercase tracking-widest">Logic Confidence</h3></div>
                             <div className="h-48 w-full">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <AreaChart data={socketStatus.equityCurve}>
-                                        <Area type="step" dataKey="confidence" stroke="#a78bfa" fill="#a78bfa" fillOpacity={0.1} strokeWidth={2} isAnimationActive={false} />
-                                        <XAxis dataKey="time" hide /><YAxis hide domain={[0, 100]} />
+                                        <defs>
+                                            <linearGradient id="colorConf" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#a78bfa" stopOpacity={0.3}/>
+                                                <stop offset="95%" stopColor="#a78bfa" stopOpacity={0}/>
+                                            </linearGradient>
+                                        </defs>
+                                        {/* 🟢 TOOLTIP RESTORED */}
+                                        <RechartsTooltip 
+                                            contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px' }}
+                                            itemStyle={{ color: '#a78bfa' }}
+                                        />
+                                        <Area type="step" dataKey="confidence" stroke="#a78bfa" fill="url(#colorConf)" strokeWidth={2} isAnimationActive={false} />
+                                        <XAxis dataKey="time" hide />
+                                        <YAxis hide domain={[80, 100]} /> {/* 🟢 ZOOMED SCALE: Shows movements between 80-100% clearly */}
                                     </AreaChart>
                                 </ResponsiveContainer>
                             </div>
                         </div>
+                        
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl overflow-hidden flex flex-col">
                             <div className="flex items-center justify-between mb-8">
                                 <div className="flex items-center gap-2 text-amber-400"><Box size={18}/><h3 className="text-[11px] font-black uppercase tracking-widest">Live Operations</h3></div>
