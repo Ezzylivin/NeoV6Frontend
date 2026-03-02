@@ -421,7 +421,7 @@ const TradingBotContainer = () => {
                 </header>
 
                 {/* 🟢 LAYER 3: OPERATIONAL GRID */}
-                <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8 items-start">
+                <div className="max-w-[1800px] mx-auto space-y-8">
                     
                     {/* COLUMN 1: THE DYNAMIC SIDEBAR (3 COLS) */}
                     <div className="col-span-12 lg:col-span-3 h-[780px] relative">
@@ -452,7 +452,7 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
                         ) : (
-                            <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-10 shadow-2xl sticky top-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-10 shadow-2xl overflow-y-auto custom-scrollbar">
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-2"><CandlestickChart size={16} className="text-zinc-400" /><h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Market Feed</h4></div>
                                     <div className="grid grid-cols-3 gap-2">
