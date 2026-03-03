@@ -408,13 +408,35 @@ useEffect(() => {
 };
 
     const handleManualExit = async () => {
-        if (!socketStatus.positions.length) return;
-        try {
-            const token = localStorage.getItem("token");
-            await axios.post(`${API_BASE}/bot/close_position`, { userId: address, symbol: formConfig.symbol }, { headers: { Authorization: `Bearer ${token}` } });
-            toast.success("Position Forced Closed");
-        } catch (e) { toast.error("Exit Failed: " + (e.response?.data?.detail || e.message)); }
-    };
+    // 1. Safety Gate: Don't trigger if no positions exist
+    if (!socketStatus.positions?.length) {
+        toast.error("No active positions to exit.");
+        return;
+    }
+
+    try {
+        const token = localStorage.getItem("token");
+        
+        // 🟢 FIX: Use a verified absolute path to bypass variable drift
+        // Replace with your actual Render URL if API_BASE is unreliable
+        const targetUrl = `${API_BASE}/bot/close_position`.replace(/([^:]\/)\/+/g, "$1"); 
+
+        await axios.post(targetUrl, 
+            { 
+                userId: address, 
+                symbol: formConfig.symbol 
+            }, 
+            { 
+                headers: { Authorization: `Bearer ${token}` } 
+            }
+        );
+
+        toast.success("Manual Exit Protocol Executed");
+    } catch (e) { 
+        console.error("Exit Error Details:", e.response?.data);
+        toast.error(`Exit Failed: ${e.response?.data?.detail || "Network Error"}`); 
+    }
+};
 
     const handleReset = async () => {
         if(!confirm("⚠️ FACTORY RESET: This will wipe all trade history, logs, and equity curves for this bot. Are you sure?")) return;
