@@ -93,14 +93,23 @@ export const LiveTradingChart = ({
     entryLinesRef.current = [];
 
     // C. Create interactive Markers for each Leg's Entry Point
-    const legMarkers = activePositions.map((pos, idx) => ({
-        time: Math.floor(new Date(pos.time).getTime() / 1000), // Match candle time format
+    const legMarkers = activePositions.map((pos, idx) => {
+    const entryTime = new Date(pos.time).getTime() / 1000;
+    
+    // 🟢 SNAP LOGIC: Ensures the dot stays on the chart even if 
+    // the trade happened in the middle of a candle period.
+    const timeframeInSeconds = 3600; // Adjust based on your current TF (e.g., 1h = 3600)
+    const snappedTime = Math.floor(entryTime / timeframeInSeconds) * timeframeInSeconds;
+
+    return {
+        time: snappedTime, 
         position: pos.type === 'long' ? 'belowBar' : 'aboveBar',
         color: pos.type === 'long' ? '#10b981' : '#f59e0b',
-        shape: 'circle',
-        text: `L${idx + 1} ENTRY: $${pos.entry}`, // This creates the tooltip effect
-        size: 2
-    }));
+        shape: 'arrow up',
+        text: `L${idx + 1} ENTRY: $${Number(pos.entry).toLocaleString()}`, 
+        size: 0.5 // 🟢 As requested previously, 1 is better for "small circles"
+    };
+});
 
     // Combine with historical trade markers if any
     seriesRef.current.candle.setMarkers([...legMarkers, ...tradeMarkers]);
@@ -111,7 +120,7 @@ export const LiveTradingChart = ({
         const entryLine = seriesRef.current.candle.createPriceLine({
             price: pos.entry,
             color: 'rgba(113, 113, 122, 0.4)', // Faded zinc for entry (markers handle the focus)
-            lineWidth: 1,
+            lineWidth: 0.5,
             lineStyle: 2, 
             axisLabelVisible: true,
             title: `L${idx + 1} IN`,
@@ -121,7 +130,7 @@ export const LiveTradingChart = ({
         const tpLine = seriesRef.current.candle.createPriceLine({
             price: pos.tp,
             color: '#a78bfa',
-            lineWidth: 1,
+            lineWidth: 0.5,
             lineStyle: 3, 
             axisLabelVisible: true,
             title: `L${idx + 1} TP`,
@@ -131,7 +140,7 @@ export const LiveTradingChart = ({
         const tslLine = seriesRef.current.candle.createPriceLine({
             price: pos.tsl,
             color: '#ef4444', 
-            lineWidth: 2, // Thicker for visibility
+            lineWidth: 1, // Thicker for visibility
             lineStyle: 0, // Solid line for "Final Floor"
             axisLabelVisible: true,
             title: `L${idx + 1} TSL`,
