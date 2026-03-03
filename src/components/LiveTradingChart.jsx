@@ -2,16 +2,15 @@
 import React, { useEffect, useRef } from 'react';
 import { createChart, ColorType, CrosshairMode } from 'lightweight-charts';
 
-// Matches the colors used in your Legend and Neural Logic chart
 const STRAT_COLORS = {
-    rsi_threshold: "#3b82f6", // Blue
-    sma_crossover: "#ef4444", // Red
-    supertrend: "#10b981",    // Emerald
-    macd_crossover: "#f59e0b", // Amber
-    atr_breakout: "#8b5cf6",  // Violet
-    bb_fade: "#ec4899",       // Pink
-    stoch: "#06b6d4",         // Cyan
-    pa_breakout: "#14b8a6",   // Teal
+    rsi_threshold: "#3b82f6", 
+    sma_crossover: "#ef4444", 
+    supertrend: "#10b981",    
+    macd_crossover: "#f59e0b", 
+    atr_breakout: "#8b5cf6",  
+    bb_fade: "#ec4899",       
+    stoch: "#06b6d4",         
+    pa_breakout: "#14b8a6",   
 };
 
 export const LiveTradingChart = ({ 
@@ -24,15 +23,13 @@ export const LiveTradingChart = ({
 }) => {
     const chartContainerRef = useRef();
     const chartRef = useRef(null);
-    const entryLinesRef = useRef([]); // Tracks horizontal lines to prevent duplicates
+    const entryLinesRef = useRef([]); 
     
-    // 🟢 Expanded Series References for all 10 Strategies
     const seriesRef = useRef({ 
         candle: null, 
-        strategies: {} // Will hold lineSeries for each strat
+        strategies: {} 
     });
 
-    // 1. Initialize Chart
     useEffect(() => {
         if (!chartContainerRef.current) return;
         if (chartRef.current) chartRef.current.remove();
@@ -61,21 +58,18 @@ export const LiveTradingChart = ({
         };
     }, []);
 
-    // 2. Dynamic Strategy Layer Sync (Highs/Lows)
     useEffect(() => {
         if (!chartRef.current) return;
 
         strategies.forEach(strat => {
             const code = strat.code;
             if (!seriesRef.current.strategies[code]) {
-                // High Line (Entry Target)
                 seriesRef.current.strategies[`${code}_high`] = chartRef.current.addLineSeries({
                     color: STRAT_COLORS[code] || '#71717a',
                     lineWidth: 1,
-                    lineStyle: 3, // Dotted
+                    lineStyle: 3, 
                     title: `${code.toUpperCase()} HI`
                 });
-                // Low Line (Exit Floor)
                 seriesRef.current.strategies[`${code}_low`] = chartRef.current.addLineSeries({
                     color: STRAT_COLORS[code] || '#71717a',
                     lineWidth: 1,
@@ -86,16 +80,13 @@ export const LiveTradingChart = ({
         });
     }, [strategies]);
 
-    // 3. Main Data & Marker Sync
     useEffect(() => {
         if (!seriesRef.current.candle || !candleData.length) return;
 
-        // A. Update Candles
         seriesRef.current.candle.setData(candleData.map(c => ({
             time: c.time, open: c.open, high: c.high, low: c.low, close: c.close
         })));
 
-        // B. Update Strategy High/Low Lines
         strategies.forEach(strat => {
             const code = strat.code;
             const highSeries = seriesRef.current.strategies[`${code}_high`];
@@ -117,34 +108,44 @@ export const LiveTradingChart = ({
             }
         });
 
-        // C. Draw Pyramid Entry/Exit Horizontal Lines
-        // Clear previous lines
+        // 🟢 C. Draw Pyramid ENTRY, TP, and TSL Lines
         entryLinesRef.current.forEach(line => seriesRef.current.candle.removePriceLine(line));
         entryLinesRef.current = [];
 
         activePositions.forEach((pos, idx) => {
+            // 1. Entry Line (Dashed Green)
             const entryLine = seriesRef.current.candle.createPriceLine({
                 price: pos.entry,
                 color: pos.type === 'long' ? '#10b981' : '#f59e0b',
                 lineWidth: 2,
-                lineStyle: 2, // Dashed
+                lineStyle: 2, 
                 axisLabelVisible: true,
                 title: `L${idx + 1} ENTRY`,
             });
             
+            // 2. Take Profit Line (Dotted Violet)
             const tpLine = seriesRef.current.candle.createPriceLine({
                 price: pos.tp,
                 color: '#a78bfa',
                 lineWidth: 1,
-                lineStyle: 3, // Dotted
+                lineStyle: 3, 
                 axisLabelVisible: true,
                 title: `L${idx + 1} TP`,
             });
 
-            entryLinesRef.current.push(entryLine, tpLine);
+            // 🛡️ 3. Trailing Stop Line (Solid Crimson)
+            const tslLine = seriesRef.current.candle.createPriceLine({
+                price: pos.tsl,
+                color: '#ef4444', 
+                lineWidth: 1,
+                lineStyle: 0, // Solid line for "Final Floor"
+                axisLabelVisible: true,
+                title: `L${idx + 1} TSL`,
+            });
+
+            entryLinesRef.current.push(entryLine, tpLine, tslLine);
         });
 
-        // D. Sync Historical Trade Markers (Arrows)
         if (tradeMarkers.length > 0) {
             const markers = tradeMarkers.map(t => ({
                 time: t.time,
