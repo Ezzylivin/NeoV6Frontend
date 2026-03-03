@@ -87,6 +87,20 @@ const STRAT_POOL = [
     { name: "Volume Profile", code: "vol_profile" }
 ];
 
+
+const STRAT_DESCRIPTIONS = {
+    rsi_threshold: "Measures overbought/oversold momentum levels.",
+    sma_crossover: "Detects trend shifts using moving average convergence.",
+    macd_crossover: "Identifies momentum changes via moving average gaps.",
+    supertrend: "Follows volatility-adjusted price direction.",
+    bb_fade: "Scalps mean-reversion entries at Bollinger Band walls.",
+    atr_breakout: "Identifies breakouts beyond standard volatility ranges.",
+    pa_breakout: "Tracks price movement beyond recent high/low levels.",
+    vol_profile: "Detects institutional interest via volume spikes.",
+    stoch: "Analyzes closing price speed relative to price range.",
+    ema_cloud: "Visualizes trend strength using fast/slow EMA separation."
+};
+
 const MODEL_POOL = [
     { id: "xgboost", name: "XGBoost (Gradient Boost)" },
     { id: "random_forest", name: "Random Forest (Ensemble)" },
@@ -899,11 +913,37 @@ const NeuralConvergenceChart = ({ signalsMapHistory }) => {
                         </defs>
                         
                         <RechartsTooltip 
-                            contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px' }}
-                            itemStyle={{ padding: '0px' }}
-                            labelStyle={{ color: '#52525b', marginBottom: '4px', fontWeight: '800' }}
-                            formatter={(value) => [`${(value * 100).toFixed(0)}%`, "Score"]}
-                        />
+                            <Tooltip
+                                shared={false} // 🟢 Only show the tooltip for the specific line being hovered
+                                trigger="hover"
+                                contentStyle={{ 
+                                    backgroundColor: '#09090b', 
+                                    border: '1px solid #27272a', 
+                                    borderRadius: '8px', 
+                                    fontSize: '11px',
+                                    color: '#fafafa'
+                                }}
+                                itemStyle={{ padding: '2px 0' }}
+                                formatter={(value, name) => {
+                                    // 1. Normalize the name to match our key (e.g., "EMA Cloud" -> "ema_cloud")
+                                    const key = name.toLowerCase().replace(/\s+/g, '_');
+                                    
+                                    // 2. Fetch the specific description or fallback
+                                    const description = STRAT_DESCRIPTIONS[key] || "Active Neural Signal Layer";
+                                    
+                                    // 3. Get the confidence percentage
+                                    const confidence = (value * 100).toFixed(0);
+                                    
+                                    return [
+                                        <span key="val" style={{ color: '#10b981', fontWeight: 'bold' }}>
+                                            {confidence}% | {description}
+                                        </span>,
+                                        <span key="name" style={{ color: '#94a3b8' }}>
+                                            {formConfig.symbol} {name}
+                                        </span>
+                                    ];
+                                }}
+                            />
 
                         {/* 🟢 ALWAYS RENDER ALL STRATEGIES: Maps through the global color list */}
                         {Object.keys(STRAT_COLORS).map((key) => (
