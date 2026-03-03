@@ -768,7 +768,7 @@ useEffect(() => {
                                             type="number" 
                                             min="1" 
                                             max="5" 
-                                            value={config.maxPyramiding || 1}
+                                            value={formConfig.maxPyramiding || 1}
                                             onChange={(e) => setConfig({
                                                 ...config, 
                                                 maxPyramiding: Math.min(5, Math.max(1, parseInt(e.target.value) || 1))
