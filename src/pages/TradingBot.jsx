@@ -574,7 +574,10 @@ useEffect(() => {
                         {/* COLUMN 1: INTELLIGENCE SIDEBAR */}
                         <div className="col-span-12 lg:col-span-3 h-[720px] flex flex-col gap-4">
                             <div className="flex-1 min-h-[400px]">
-                                <NeuralConvergenceChart strategies={formConfig.strategies} signalsMapHistory={socketStatus.signalsMapHistory || []} />
+                                <NeuralConvergenceChart 
+                                    formConfig={formConfig} 
+                                    signalsMapHistory={socketStatus.signalsMapHistory || []} 
+                                />
                             </div>
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 shadow-2xl">
                                 <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-4">Neural Performance</h4>
