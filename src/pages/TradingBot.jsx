@@ -569,11 +569,52 @@ useEffect(() => {
                                         </div>
                                     </div>
                                     <div ref={logContainerRef} className="flex-1 overflow-y-auto p-6 font-mono text-[10px] space-y-3 bg-black/20 custom-scrollbar">
-                                        {socketLogs.map((log, i) => (
-                                            <div key={i} className={`p-3 rounded-xl border leading-relaxed flex flex-col gap-1 ${getLogStyle(parseLog(log.message || log))}`}>
-                                                <span className="text-[9px] opacity-50 font-bold">{formatTime(log.time)}</span>
-                                                <span>{parseLog(log.message || log)}</span>
-                                            </div>
+                                        {socketLogs.map((log, i) => {
+                                            // 🟢 NEW: Detect if this is a "Rich Log" from the backend
+                                            if (log.type === "RICH_LOG" || log.targets) {
+                                                return (
+                                                    <div key={i} className="mb-2 p-3 bg-zinc-950/50 rounded-xl border border-zinc-800 flex flex-col gap-2">
+                                                        <div className="flex justify-between items-center border-b border-zinc-800/50 pb-2">
+                                                            <span className="text-zinc-500 font-black uppercase text-[8px] tracking-widest">
+                                                                🎯 Targets ({log.rule})
+                                                            </span>
+                                                            <span className="text-[8px] opacity-40 font-bold">{formatTime(log.time)}</span>
+                                                        </div>
+                                                        
+                                                        <div className="flex flex-col gap-1.5 leading-relaxed">
+                                                            <div className="flex justify-between items-center text-white">
+                                                                <span className="text-zinc-500 uppercase font-black text-[8px]">Market Cur</span>
+                                                                <span className="font-bold">${log.cur}</span>
+                                                            </div>
+                                    
+                                                            {/* Map through each strategy target */}
+                                                            {log.targets.map(t => (
+                                                                <div key={t.code} className="flex items-center justify-between">
+                                                                    {/* 🎨 Color matches Neural Logic Legend */}
+                                                                    <span style={{ color: STRAT_COLORS[t.code] || '#71717a' }} className="font-black uppercase text-[9px]">
+                                                                        {t.name}
+                                                                    </span>
+                                                                    <div className="flex gap-2 font-bold">
+                                                                        <span className="text-zinc-400 font-mono">${t.target}</span>
+                                                                        {/* 📈 Green for UP, Red for DOWN */}
+                                                                        <span className={t.trend === 'UP' ? 'text-emerald-500' : 'text-rose-500'}>
+                                                                            ({t.diff > 0 ? '+' : ''}${t.diff})
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+                                    
+                                            // ⚪ Standard Fallback for text logs
+                                            const parsedMessage = parseLog(log.message || log);
+                                            return (
+                                                <div key={i} className={`p-3 rounded-xl border leading-relaxed flex flex-col gap-1 ${getLogStyle(parsedMessage)}`}>
+                                                    <span className="text-[9px] opacity-50 font-bold">{formatTime(log.time)}</span>
+                                                    <span className="font-bold tracking-tight">{parsedMessage}</span>
+                                                </div>
                                         ))}
                                     </div>
                                 </div>
