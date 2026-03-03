@@ -357,7 +357,8 @@ useEffect(() => {
         ...formConfig,
         capitalAllocation: targetCapital,
         mlMode: formConfig.mlMode || "on", 
-        mlModel: formConfig.mlModel || "stacking", 
+        mlModel: formConfig.mlModel || "stacking",
+        maxPyramiding: currentConfig.maxPyramiding || 1,
         mlThresholdLong: parseFloat(formConfig.params.long_threshold) || 0.8,
         mlThresholdShort: parseFloat(formConfig.params.short_threshold) || 0.9,
         enable_shorting: formConfig.enable_shorting === true,
@@ -759,7 +760,25 @@ useEffect(() => {
                                     <div><label className={labelClass}>Risk/Trade %</label><input type="number" step="0.1" value={formConfig.riskPercentage} onChange={(e)=>setFormConfig({...formConfig, riskPercentage: parseFloat(e.target.value)})} className={inputClass}/></div>
                                     <div><label className={labelClass}>Max Daily Loss %</label><input type="number" step="0.1" value={formConfig.maxDailyLoss} onChange={(e)=>setFormConfig({...formConfig, maxDailyLoss: parseFloat(e.target.value)})} className={inputClass}/></div>
                                     <div className="col-span-1"><label className={labelClass}>Hard Stop %</label><input type="number" step="0.1" value={formConfig.maxDrawdown} onChange={(e)=>setFormConfig({...formConfig, maxDrawdown: parseFloat(e.target.value)})} className={inputClass}/></div>
-                                    <div><label className={labelClass}>Max Pyramiding</label><input type="number" value={formConfig.maxPyramiding || 1} onChange={(e)=>setFormConfig({...formConfig, maxPyramiding: parseInt(e.target.value)})} className={inputClass}/></div>
+                                    <div className="flex flex-col gap-2 p-4 bg-zinc-900/50 rounded-2xl border border-zinc-800">
+                                        <label className="text-xs font-black uppercase tracking-widest text-zinc-500">
+                                            🛡️ Max Pyramiding
+                                        </label>
+                                        <input 
+                                            type="number" 
+                                            min="1" 
+                                            max="5" 
+                                            value={config.maxPyramiding || 1}
+                                            onChange={(e) => setConfig({
+                                                ...config, 
+                                                maxPyramiding: Math.min(5, Math.max(1, parseInt(e.target.value) || 1))
+                                            })}
+                                            className="bg-black border border-zinc-700 text-emerald-500 font-mono p-2 rounded-lg focus:outline-none focus:border-emerald-500"
+                                        />
+                                        <p className="text-[10px] text-zinc-500 italic">
+                                            *Limits bot to 1-5 concurrent legs based on conviction climb.
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
 
