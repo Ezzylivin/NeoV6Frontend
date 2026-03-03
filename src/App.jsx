@@ -13,7 +13,7 @@ import DashboardLayout from "./layouts/DashboardLayout.jsx";
 import AuthPage from "./pages/AuthPage.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Backtests from "./pages/Backtests.jsx";
-import Strategies from "./pages/Strategies.jsx";
+import HelpCenter from "./pages/HelpCenter";
 import TradingBot from "./pages/TradingBot.jsx";
 import Settings from "./pages/Settings.jsx";
 import NotFound from "./pages/NotFound.jsx";
