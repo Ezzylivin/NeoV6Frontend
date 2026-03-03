@@ -1,0 +1,130 @@
+.help-container {
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.help-header {
+    margin-bottom: 3rem;
+}
+
+.search-wrapper {
+    position: relative;
+    max-width: 600px;
+    margin-top: 1.5rem;
+}
+
+.search-icon {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #52525b;
+}
+
+.help-search {
+    width: 100%;
+    background: #09090b;
+    border: 1px solid #27272a;
+    border-radius: 1rem;
+    padding: 1rem 1rem 1rem 3rem;
+    color: white;
+    font-size: 0.875rem;
+    outline: none;
+    transition: all 0.3s ease;
+}
+
+.help-search:focus {
+    border-color: #10b981;
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+}
+
+.help-grid {
+    display: grid;
+    grid-template-columns: 1fr 350px;
+    gap: 3rem;
+}
+
+.section-title {
+    display: flex;
+    items-center: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.section-title h2 {
+    text-transform: uppercase;
+    font-weight: 900;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    color: #71717a;
+}
+
+.strategy-glossary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+.glossary-card {
+    background: #18181b;
+    border: 1px solid #27272a;
+    border-radius: 1.5rem;
+    padding: 1.5rem;
+    transition: transform 0.2s ease;
+}
+
+.glossary-card:hover {
+    border-color: #3f3f46;
+}
+
+.faq-item {
+    background: #09090b;
+    border: 1px solid #27272a;
+    border-radius: 1rem;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+}
+
+.faq-question {
+    width: 100%;
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #e4e4e7;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-align: left;
+}
+
+.faq-answer {
+    padding: 0 1rem 1rem 1rem;
+    color: #a1a1aa;
+    font-size: 0.7rem;
+    line-height: 1.6;
+}
+
+.support-cta {
+    margin-top: 3rem;
+    background: linear-gradient(to bottom right, #10b98110, transparent);
+    border: 1px solid #10b98120;
+    padding: 1.5rem;
+    border-radius: 1.5rem;
+    text-align: center;
+}
+
+.cta-button {
+    width: 100%;
+    background: #10b981;
+    color: black;
+    font-weight: 900;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    padding: 0.75rem;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
