@@ -1,61 +1,58 @@
 // File: src/components/LiveTradingChart.jsx
-// 🚀 UPGRADE: v13.1 - Full Margin Support (Long/Short/Cover Markers)
-
 import React, { useEffect, useRef } from 'react';
 import { createChart, ColorType, CrosshairMode } from 'lightweight-charts';
+
+// Matches the colors used in your Legend and Neural Logic chart
+const STRAT_COLORS = {
+    rsi_threshold: "#3b82f6", // Blue
+    sma_crossover: "#ef4444", // Red
+    supertrend: "#10b981",    // Emerald
+    macd_crossover: "#f59e0b", // Amber
+    atr_breakout: "#8b5cf6",  // Violet
+    bb_fade: "#ec4899",       // Pink
+    stoch: "#06b6d4",         // Cyan
+    pa_breakout: "#14b8a6",   // Teal
+};
 
 export const LiveTradingChart = ({ 
     symbol, 
     timeframe, 
-    isRunning, 
-    activePositions, 
+    activePositions = [], 
     tradeMarkers = [], 
     candleData = [], 
     strategies = [] 
 }) => {
     const chartContainerRef = useRef();
     const chartRef = useRef(null);
+    const entryLinesRef = useRef([]); // Tracks horizontal lines to prevent duplicates
     
-    // 🟢 Series References
+    // 🟢 Expanded Series References for all 10 Strategies
     const seriesRef = useRef({ 
         candle: null, 
-        bbLower: null, 
-        bbUpper: null, 
-        emaFast: null, 
-        emaSlow: null,
-        entryLine: null // Placeholder for active position line
+        strategies: {} // Will hold lineSeries for each strat
     });
 
     // 1. Initialize Chart
     useEffect(() => {
         if (!chartContainerRef.current) return;
-
-        if (chartRef.current) {
-            chartRef.current.remove();
-        }
+        if (chartRef.current) chartRef.current.remove();
 
         const chart = createChart(chartContainerRef.current, {
             layout: { background: { type: ColorType.Solid, color: '#09090b' }, textColor: '#d4d4d8' },
-            grid: { vertLines: { color: '#27272a' }, horzLines: { color: '#27272a' } },
+            grid: { vertLines: { color: '#1e1e22' }, horzLines: { color: '#1e1e22' } },
             width: chartContainerRef.current.clientWidth,
-            height: 400,
+            height: 450,
             timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#3f3f46' },
             crosshair: { mode: CrosshairMode.Normal },
         });
 
-        const candleSeries = chart.addCandlestickSeries({ 
+        seriesRef.current.candle = chart.addCandlestickSeries({ 
             upColor: '#10b981', downColor: '#ef4444', 
             borderVisible: false, wickUpColor: '#10b981', wickDownColor: '#ef4444' 
         });
-        
-        seriesRef.current.candle = candleSeries;
-        chartRef.current = chart;
 
-        const handleResize = () => {
-            if (chartContainerRef.current) {
-                chart.applyOptions({ width: chartContainerRef.current.clientWidth });
-            }
-        };
+        chartRef.current = chart;
+        const handleResize = () => chart.applyOptions({ width: chartContainerRef.current.clientWidth });
         window.addEventListener('resize', handleResize);
 
         return () => {
@@ -64,132 +61,102 @@ export const LiveTradingChart = ({
         };
     }, []);
 
-    // 2. Dynamic Strategy Overlays (BB, EMA)
+    // 2. Dynamic Strategy Layer Sync (Highs/Lows)
     useEffect(() => {
         if (!chartRef.current) return;
 
-        // Bollinger Bands
-        const hasBB = strategies.some(s => s.code === 'bb_fade');
-        if (hasBB) {
-            if (!seriesRef.current.bbLower) {
-                seriesRef.current.bbLower = chartRef.current.addLineSeries({ color: 'rgba(59, 130, 246, 0.5)', lineWidth: 1, title: 'BB Floor' });
-                seriesRef.current.bbUpper = chartRef.current.addLineSeries({ color: 'rgba(59, 130, 246, 0.5)', lineWidth: 1, title: 'BB Ceiling' });
+        strategies.forEach(strat => {
+            const code = strat.code;
+            if (!seriesRef.current.strategies[code]) {
+                // High Line (Entry Target)
+                seriesRef.current.strategies[`${code}_high`] = chartRef.current.addLineSeries({
+                    color: STRAT_COLORS[code] || '#71717a',
+                    lineWidth: 1,
+                    lineStyle: 3, // Dotted
+                    title: `${code.toUpperCase()} HI`
+                });
+                // Low Line (Exit Floor)
+                seriesRef.current.strategies[`${code}_low`] = chartRef.current.addLineSeries({
+                    color: STRAT_COLORS[code] || '#71717a',
+                    lineWidth: 1,
+                    lineStyle: 3,
+                    title: `${code.toUpperCase()} LO`
+                });
             }
-        } else {
-            if (seriesRef.current.bbLower) {
-                chartRef.current.removeSeries(seriesRef.current.bbLower);
-                chartRef.current.removeSeries(seriesRef.current.bbUpper);
-                seriesRef.current.bbLower = null;
-                seriesRef.current.bbUpper = null;
-            }
-        }
-
-        // EMA Cloud
-        const hasEMA = strategies.some(s => s.code === 'ema_cloud');
-        if (hasEMA) {
-            if (!seriesRef.current.emaFast) {
-                seriesRef.current.emaFast = chartRef.current.addLineSeries({ color: '#10b981', lineWidth: 1, title: 'EMA Fast' });
-                seriesRef.current.emaSlow = chartRef.current.addLineSeries({ color: '#f43f5e', lineWidth: 1, title: 'EMA Slow' });
-            }
-        } else {
-            if (seriesRef.current.emaFast) {
-                chartRef.current.removeSeries(seriesRef.current.emaFast);
-                chartRef.current.removeSeries(seriesRef.current.emaSlow);
-                seriesRef.current.emaFast = null;
-                seriesRef.current.emaSlow = null;
-            }
-        }
+        });
     }, [strategies]);
 
-    // 3. 🟢 Neural Data Sync Loop
+    // 3. Main Data & Marker Sync
     useEffect(() => {
         if (!seriesRef.current.candle || !candleData.length) return;
 
         // A. Update Candles
-        const formattedCandles = candleData.map(c => ({
+        seriesRef.current.candle.setData(candleData.map(c => ({
             time: c.time, open: c.open, high: c.high, low: c.low, close: c.close
-        }));
-        seriesRef.current.candle.setData(formattedCandles);
+        })));
 
-        // B. Update Strategy Lines
-        if (seriesRef.current.bbLower) {
-            const lower = candleData.map(c => c.bb_lower ? { time: c.time, value: c.bb_lower } : null).filter(Boolean);
-            const upper = candleData.map(c => c.bb_upper ? { time: c.time, value: c.bb_upper } : null).filter(Boolean);
-            seriesRef.current.bbLower.setData(lower);
-            seriesRef.current.bbUpper.setData(upper);
-        }
+        // B. Update Strategy High/Low Lines
+        strategies.forEach(strat => {
+            const code = strat.code;
+            const highSeries = seriesRef.current.strategies[`${code}_high`];
+            const lowSeries = seriesRef.current.strategies[`${code}_low`];
 
-        if (seriesRef.current.emaFast) {
-            const fast = candleData.map(c => c.ema_fast ? { time: c.time, value: c.ema_fast } : null).filter(Boolean);
-            const slow = candleData.map(c => c.ema_slow ? { time: c.time, value: c.ema_slow } : null).filter(Boolean);
-            seriesRef.current.emaFast.setData(fast);
-            seriesRef.current.emaSlow.setData(slow);
-        }
+            if (highSeries && lowSeries) {
+                const highData = candleData.map(c => ({ 
+                    time: c.time, 
+                    value: c[`${code}_high`] || c.pa_high || c.bb_upper || c.atr_upper 
+                })).filter(d => d.value);
+                
+                const lowData = candleData.map(c => ({ 
+                    time: c.time, 
+                    value: c[`${code}_low`] || c.pa_low || c.bb_lower || c.atr_lower 
+                })).filter(d => d.value);
 
-        // C. 🟢 UPDATE TRADE MARKERS (Margin Aware)
-        if (tradeMarkers && tradeMarkers.length > 0) {
-            const markers = tradeMarkers.map(t => {
-                let color = '#ef4444'; // Default Red
-                let shape = 'arrowDown';
-                let position = 'aboveBar';
-                let text = 'EXIT';
+                highSeries.setData(highData);
+                lowSeries.setData(lowData);
+            }
+        });
 
-                // 1. Long Entry
-                if (t.type === 'buy' || t.type === 'long') {
-                    color = '#10b981'; // Green
-                    shape = 'arrowUp';
-                    position = 'belowBar';
-                    text = 'LONG';
-                } 
-                // 2. Short Entry (New)
-                else if (t.type === 'short') {
-                    color = '#f59e0b'; // Amber/Orange for Caution
-                    shape = 'arrowDown';
-                    position = 'aboveBar';
-                    text = 'SHORT';
-                } 
-                // 3. Short Cover (New)
-                else if (t.type === 'cover') {
-                    color = '#3b82f6'; // Blue for Closing Short
-                    shape = 'arrowUp';
-                    position = 'belowBar';
-                    text = 'COVER';
-                }
-                // 4. Long Exit (Sell)
-                else if (t.type === 'sell') {
-                    color = '#ef4444'; // Red
-                    text = 'SELL';
-                }
+        // C. Draw Pyramid Entry/Exit Horizontal Lines
+        // Clear previous lines
+        entryLinesRef.current.forEach(line => seriesRef.current.candle.removePriceLine(line));
+        entryLinesRef.current = [];
 
-                return {
-                    time: t.time,
-                    position,
-                    color,
-                    shape,
-                    text,
-                };
-            });
-            seriesRef.current.candle.setMarkers(markers);
-        }
-
-        // D. 🟢 OPTIONAL: Active Position Price Line
-        // If we have an active position, draw a horizontal line at entry price
-        if (activePositions && activePositions.length > 0) {
-            const pos = activePositions[0];
-            const priceLine = {
+        activePositions.forEach((pos, idx) => {
+            const entryLine = seriesRef.current.candle.createPriceLine({
                 price: pos.entry,
-                color: pos.type === 'short' ? '#f59e0b' : '#10b981',
+                color: pos.type === 'long' ? '#10b981' : '#f59e0b',
                 lineWidth: 2,
                 lineStyle: 2, // Dashed
                 axisLabelVisible: true,
-                title: `${pos.type.toUpperCase()} ENTRY`,
-            };
-            // Lightweight charts allows createPriceLine on the series
-            // We clear old ones first (simplified here by removing logic, but ideal for a real app)
-             // seriesRef.current.candle.createPriceLine(priceLine); 
+                title: `L${idx + 1} ENTRY`,
+            });
+            
+            const tpLine = seriesRef.current.candle.createPriceLine({
+                price: pos.tp,
+                color: '#a78bfa',
+                lineWidth: 1,
+                lineStyle: 3, // Dotted
+                axisLabelVisible: true,
+                title: `L${idx + 1} TP`,
+            });
+
+            entryLinesRef.current.push(entryLine, tpLine);
+        });
+
+        // D. Sync Historical Trade Markers (Arrows)
+        if (tradeMarkers.length > 0) {
+            const markers = tradeMarkers.map(t => ({
+                time: t.time,
+                position: t.type.includes('buy') || t.type.includes('long') ? 'belowBar' : 'aboveBar',
+                color: t.type.includes('buy') || t.type.includes('long') ? '#10b981' : '#ef4444',
+                shape: t.type.includes('buy') || t.type.includes('long') ? 'arrowUp' : 'arrowDown',
+                text: t.type.toUpperCase(),
+            }));
+            seriesRef.current.candle.setMarkers(markers);
         }
 
-    }, [candleData, tradeMarkers, activePositions]);
+    }, [candleData, tradeMarkers, activePositions, strategies]);
 
-    return <div ref={chartContainerRef} className="w-full h-full" />;
+    return <div ref={chartContainerRef} className="w-full h-full border border-zinc-800 rounded-3xl overflow-hidden" />;
 };
