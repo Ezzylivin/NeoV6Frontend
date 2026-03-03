@@ -938,7 +938,7 @@ const NeuralConvergenceChart = ({ signalsMapHistory }) => {
                                             {confidence}% | {description}
                                         </span>,
                                         <span key="name" style={{ color: '#94a3b8' }}>
-                                            {formConfig.symbol} {name}
+                                            {symbol} {name}
                                         </span>
                                     ];
                                 }}
