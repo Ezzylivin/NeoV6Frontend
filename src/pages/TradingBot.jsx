@@ -918,13 +918,21 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
                         <RechartsTooltip 
                             shared={false} 
                             trigger="hover"
-                            contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '8px' }}
-                            formatter={(value, name) => {
-                                // 🟢 'name' is what you pass in the <Area name="..." /> prop.
-                                // We need to normalize it back to snake_case to match STRAT_DESCRIPTIONS.
+                            coordinate={{ x: 0, y: 0 }} 
+                            contentStyle={{ 
+                                backgroundColor: '#09090b', 
+                                border: '1px solid #27272a', 
+                                borderRadius: '8px',
+                                pointerEvents: 'none'
+                            }}
+                            formatter={(value, name, props) => {
+                                // 🟢 PREVENT CLUSTERING: 
+                                // If shared={false} still shows a list, we only return data for the 
+                                // SPECIFIC payload being hovered.
+                                if (!props?.payload) return null;
+                        
                                 const key = name.toLowerCase().replace(/\s+/g, '_');
-                                
-                                const description = STRAT_DESCRIPTIONS[key] || "Active Neural Signal Layer";
+                                const description = STRAT_DESCRIPTIONS[key] || "Neural Signal Layer";
                                 const symbol = formConfig?.symbol || "Asset";
                                 const confidence = (value * 100).toFixed(0);
                         
