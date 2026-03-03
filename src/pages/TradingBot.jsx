@@ -913,49 +913,39 @@ const NeuralConvergenceChart = ({ signalsMapHistory }) => {
                         </defs>
                         
                         <RechartsTooltip 
-                                shared={false} // 🟢 Only show the tooltip for the specific line being hovered
-                                trigger="hover"
-                                contentStyle={{ 
-                                    backgroundColor: '#09090b', 
-                                    border: '1px solid #27272a', 
-                                    borderRadius: '8px', 
-                                    fontSize: '11px',
-                                    color: '#fafafa'
-                                }}
-                                itemStyle={{ padding: '2px 0' }}
-                                formatter={(value, name) => {
-                                    // 1. Normalize the name to match our key (e.g., "EMA Cloud" -> "ema_cloud")
-                                    const key = name.toLowerCase().replace(/\s+/g, '_');
-                                    
-                                    // 2. Fetch the specific description or fallback
-                                    const description = STRAT_DESCRIPTIONS[key] || "Active Neural Signal Layer";
-                                    
-                                    // 3. Get the confidence percentage
-                                    const confidence = (value * 100).toFixed(0);
-                                    
-                                    return [
-                                        <span key="val" style={{ color: '#10b981', fontWeight: 'bold' }}>
-                                            {confidence}% | {description}
-                                        </span>,
-                                        <span key="name" style={{ color: '#94a3b8' }}>
-                                            {symbol} {name}
-                                        </span>
-                                    ];
-                                }}
-                            />
+                            shared={false} 
+                            trigger="hover"
+                            contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '8px' }}
+                            formatter={(value, name) => {
+                                // 🟢 1. Normalize the strategy name to match the STRAT_DESCRIPTIONS keys
+                                const key = name.toLowerCase().replace(/\s+/g, '_');
+                                
+                                // 🟢 2. Fetch the specific strategy description
+                                const description = STRAT_DESCRIPTIONS[key] || "Active Neural Signal Layer";
+                                
+                                // 🟢 3. Safety Check: Get the symbol from formConfig or fallback to 'Asset'
+                                const assetSymbol = formConfig?.symbol || "Asset";
 
-                        {/* 🟢 ALWAYS RENDER ALL STRATEGIES: Maps through the global color list */}
+                                return [
+                                    <span key="val" style={{ color: '#10b981', fontWeight: 'bold' }}>
+                                        {(value * 100).toFixed(0)}% | {description}
+                                    </span>,
+                                    <span key="name" style={{ color: '#94a3b8' }}>
+                                        {assetSymbol} | {name}
+                                    </span>
+                                ];
+                            }}
+                        />
+
                         {Object.keys(STRAT_COLORS).map((key) => (
                             <Area 
                                 key={key} 
                                 type="monotone" 
                                 dataKey={key} 
-                                name={key.replace('_', ' ').toUpperCase()}
+                                name={key.replace('_', ' ').toUpperCase()} // 🟢 This provides the 'name' to the formatter
                                 stroke={STRAT_COLORS[key]} 
                                 fill={`url(#color-${key})`}
-                                fillOpacity={0.03} 
                                 strokeWidth={2} 
-                                connectNulls={true}
                                 isAnimationActive={false} 
                             />
                         ))}
