@@ -81,83 +81,66 @@ export const LiveTradingChart = ({
     }, [strategies]);
 
     useEffect(() => {
-        if (!seriesRef.current.candle || !candleData.length) return;
+    if (!seriesRef.current.candle || !candleData.length) return;
 
-        seriesRef.current.candle.setData(candleData.map(c => ({
-            time: c.time, open: c.open, high: c.high, low: c.low, close: c.close
-        })));
+    // A. Update Candles
+    seriesRef.current.candle.setData(candleData.map(c => ({
+        time: c.time, open: c.open, high: c.high, low: c.low, close: c.close
+    })));
 
-        strategies.forEach(strat => {
-            const code = strat.code;
-            const highSeries = seriesRef.current.strategies[`${code}_high`];
-            const lowSeries = seriesRef.current.strategies[`${code}_low`];
+    // B. Clear previous horizontal lines (Entry, TP, TSL)
+    entryLinesRef.current.forEach(line => seriesRef.current.candle.removePriceLine(line));
+    entryLinesRef.current = [];
 
-            if (highSeries && lowSeries) {
-                const highData = candleData.map(c => ({ 
-                    time: c.time, 
-                    value: c[`${code}_high`] || c.pa_high || c.bb_upper || c.atr_upper 
-                })).filter(d => d.value);
-                
-                const lowData = candleData.map(c => ({ 
-                    time: c.time, 
-                    value: c[`${code}_low`] || c.pa_low || c.bb_lower || c.atr_lower 
-                })).filter(d => d.value);
+    // C. Create interactive Markers for each Leg's Entry Point
+    const legMarkers = activePositions.map((pos, idx) => ({
+        time: Math.floor(new Date(pos.time).getTime() / 1000), // Match candle time format
+        position: pos.type === 'long' ? 'belowBar' : 'aboveBar',
+        color: pos.type === 'long' ? '#10b981' : '#f59e0b',
+        shape: 'circle',
+        text: `L${idx + 1} ENTRY: $${pos.entry}`, // This creates the tooltip effect
+        size: 2
+    }));
 
-                highSeries.setData(highData);
-                lowSeries.setData(lowData);
-            }
+    // Combine with historical trade markers if any
+    seriesRef.current.candle.setMarkers([...legMarkers, ...tradeMarkers]);
+
+    // D. Draw Dynamic Horizontal Lines
+    activePositions.forEach((pos, idx) => {
+        // 1. DASHED ENTRY LINE
+        const entryLine = seriesRef.current.candle.createPriceLine({
+            price: pos.entry,
+            color: 'rgba(113, 113, 122, 0.4)', // Faded zinc for entry (markers handle the focus)
+            lineWidth: 1,
+            lineStyle: 2, 
+            axisLabelVisible: true,
+            title: `L${idx + 1} IN`,
+        });
+        
+        // 2. FIXED TP POINT (Dotted Violet)
+        const tpLine = seriesRef.current.candle.createPriceLine({
+            price: pos.tp,
+            color: '#a78bfa',
+            lineWidth: 1,
+            lineStyle: 3, 
+            axisLabelVisible: true,
+            title: `L${idx + 1} TP`,
         });
 
-        // 🟢 C. Draw Pyramid ENTRY, TP, and TSL Lines
-        entryLinesRef.current.forEach(line => seriesRef.current.candle.removePriceLine(line));
-        entryLinesRef.current = [];
-
-        activePositions.forEach((pos, idx) => {
-            // 1. Entry Line (Dashed Green)
-            const entryLine = seriesRef.current.candle.createPriceLine({
-                price: pos.entry,
-                color: pos.type === 'long' ? '#10b981' : '#f59e0b',
-                lineWidth: 2,
-                lineStyle: 2, 
-                axisLabelVisible: true,
-                title: `L${idx + 1} ENTRY`,
-            });
-            
-            // 2. Take Profit Line (Dotted Violet)
-            const tpLine = seriesRef.current.candle.createPriceLine({
-                price: pos.tp,
-                color: '#a78bfa',
-                lineWidth: 1,
-                lineStyle: 3, 
-                axisLabelVisible: true,
-                title: `L${idx + 1} TP`,
-            });
-
-            // 🛡️ 3. Trailing Stop Line (Solid Crimson)
-            const tslLine = seriesRef.current.candle.createPriceLine({
-                price: pos.tsl,
-                color: '#ef4444', 
-                lineWidth: 1,
-                lineStyle: 0, // Solid line for "Final Floor"
-                axisLabelVisible: true,
-                title: `L${idx + 1} TSL`,
-            });
-
-            entryLinesRef.current.push(entryLine, tpLine, tslLine);
+        // 3. MOVING TSL LINE (Solid Crimson)
+        const tslLine = seriesRef.current.candle.createPriceLine({
+            price: pos.tsl,
+            color: '#ef4444', 
+            lineWidth: 2, // Thicker for visibility
+            lineStyle: 0, // Solid line for "Final Floor"
+            axisLabelVisible: true,
+            title: `L${idx + 1} TSL`,
         });
 
-        if (tradeMarkers.length > 0) {
-            const markers = tradeMarkers.map(t => ({
-                time: t.time,
-                position: t.type.includes('buy') || t.type.includes('long') ? 'belowBar' : 'aboveBar',
-                color: t.type.includes('buy') || t.type.includes('long') ? '#10b981' : '#ef4444',
-                shape: t.type.includes('buy') || t.type.includes('long') ? 'arrowUp' : 'arrowDown',
-                text: t.type.toUpperCase(),
-            }));
-            seriesRef.current.candle.setMarkers(markers);
-        }
+        entryLinesRef.current.push(entryLine, tpLine, tslLine);
+    });
 
-    }, [candleData, tradeMarkers, activePositions, strategies]);
+}, [candleData, activePositions, tradeMarkers]);
 
     return <div ref={chartContainerRef} className="w-full h-full border border-zinc-800 rounded-3xl overflow-hidden" />;
 };
