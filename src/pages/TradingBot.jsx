@@ -774,7 +774,7 @@ useEffect(() => {
                                             const val = parseInt(e.target.value);
                                             
                                             // 2. Use the functional updater (prev) to ensure we don't lose other settings
-                                            formConfig(prev => ({
+                                            setFormConfig(prev => ({
                                                 ...prev, 
                                                 // 3. Clamp the value between 1 and 5
                                                 maxPyramiding: isNaN(val) ? 1 : Math.min(5, Math.max(1, val))
