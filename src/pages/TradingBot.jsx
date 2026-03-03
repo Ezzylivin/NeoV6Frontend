@@ -946,7 +946,8 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
                                 name={key.replace('_', ' ').toUpperCase()} // 🟢 This provides the 'name' to the formatter
                                 stroke={STRAT_COLORS[key]} 
                                 fill={`url(#color-${key})`}
-                                strokeWidth={2} 
+                                strokeWidth={2}
+                                activeDot={{ r: 4, strokeWidth: 0 }}
                                 isAnimationActive={false} 
                             />
                         ))}
