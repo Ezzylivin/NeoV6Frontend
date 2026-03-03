@@ -43,14 +43,14 @@ export default function NavBar() {
           <NavLink to="/dashboard/backtests" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>
             Backtests
           </NavLink>
-          <NavLink to="/dashboard/strategies" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>
-             Strategies
-          </NavLink>
           <NavLink to="/dashboard/tradingbot" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>
             Trading Bot
           </NavLink>
           <NavLink to="/dashboard/settings" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>
             Settings
+          </NavLink>
+          <NavLink to="/dashboard/help" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>
+            Help
           </NavLink>
         </nav>
       </div>
