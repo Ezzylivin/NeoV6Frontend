@@ -895,7 +895,7 @@ const STRAT_COLORS = {
     vol_profile: "#a855f7"    // Purple
 };
 
-const NeuralConvergenceChart = ({ signalsMapHistory }) => {
+const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
     return (
         <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 shadow-2xl h-full flex flex-col">
             <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-6 flex items-center gap-2">
@@ -927,14 +927,14 @@ const NeuralConvergenceChart = ({ signalsMapHistory }) => {
                                 const description = STRAT_DESCRIPTIONS[key] || "Active Neural Signal Layer";
                                 
                                 // 🟢 3. Safety Check: Get the symbol from formConfig or fallback to 'Asset'
-                                const assetSymbol = formConfig?.symbol || "Asset";
+                                const symbol = formConfig?.symbol || "Asset";
 
                                 return [
                                     <span key="val" style={{ color: '#10b981', fontWeight: 'bold' }}>
                                         {(value * 100).toFixed(0)}% | {description}
                                     </span>,
                                     <span key="name" style={{ color: '#94a3b8' }}>
-                                        {assetSymbol} | {name}
+                                        {symbol} | {name}
                                     </span>
                                 ];
                             }}
