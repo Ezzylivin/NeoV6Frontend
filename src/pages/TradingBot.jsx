@@ -913,7 +913,6 @@ const NeuralConvergenceChart = ({ signalsMapHistory }) => {
                         </defs>
                         
                         <RechartsTooltip 
-                            <Tooltip
                                 shared={false} // 🟢 Only show the tooltip for the specific line being hovered
                                 trigger="hover"
                                 contentStyle={{ 
