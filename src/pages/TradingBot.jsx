@@ -358,7 +358,7 @@ useEffect(() => {
         capitalAllocation: targetCapital,
         mlMode: formConfig.mlMode || "on", 
         mlModel: formConfig.mlModel || "stacking",
-        maxPyramiding: currentConfig.maxPyramiding || 1,
+        maxPyramiding: formConfig.maxPyramiding || 1,
         mlThresholdLong: parseFloat(formConfig.params.long_threshold) || 0.8,
         mlThresholdShort: parseFloat(formConfig.params.short_threshold) || 0.9,
         enable_shorting: formConfig.enable_shorting === true,
