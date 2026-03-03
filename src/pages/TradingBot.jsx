@@ -920,26 +920,24 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
                             trigger="hover"
                             contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '8px' }}
                             formatter={(value, name) => {
-                                // 🟢 1. Normalize the strategy name to match the STRAT_DESCRIPTIONS keys
+                                // 🟢 'name' is what you pass in the <Area name="..." /> prop.
+                                // We need to normalize it back to snake_case to match STRAT_DESCRIPTIONS.
                                 const key = name.toLowerCase().replace(/\s+/g, '_');
                                 
-                                // 🟢 2. Fetch the specific strategy description
                                 const description = STRAT_DESCRIPTIONS[key] || "Active Neural Signal Layer";
-                                
-                                // 🟢 3. Safety Check: Get the symbol from formConfig or fallback to 'Asset'
                                 const symbol = formConfig?.symbol || "Asset";
-
+                                const confidence = (value * 100).toFixed(0);
+                        
                                 return [
                                     <span key="val" style={{ color: '#10b981', fontWeight: 'bold' }}>
-                                        {(value * 100).toFixed(0)}% | {description}
+                                        {confidence}% | {description}
                                     </span>,
                                     <span key="name" style={{ color: '#94a3b8' }}>
-                                        {symbol} | {name}
+                                        {symbol} | {name.toUpperCase()}
                                     </span>
                                 ];
                             }}
                         />
-
                         {Object.keys(STRAT_COLORS).map((key) => (
                             <Area 
                                 key={key} 
