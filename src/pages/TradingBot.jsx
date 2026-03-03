@@ -769,10 +769,17 @@ useEffect(() => {
                                             min="1" 
                                             max="5" 
                                             value={formConfig.maxPyramiding || 1}
-                                            onChange={(e) => setConfig({
-                                                ...config, 
-                                                maxPyramiding: Math.min(5, Math.max(1, parseInt(e.target.value) || 1))
-                                            })}
+                                            onChange={(e) => {
+                                            // 1. Get the raw value
+                                            const val = parseInt(e.target.value);
+                                            
+                                            // 2. Use the functional updater (prev) to ensure we don't lose other settings
+                                            setConfig(prev => ({
+                                                ...prev, 
+                                                // 3. Clamp the value between 1 and 5
+                                                maxPyramiding: isNaN(val) ? 1 : Math.min(5, Math.max(1, val))
+                                            }));
+                                        }}
                                             className="bg-black border border-zinc-700 text-emerald-500 font-mono p-2 rounded-lg focus:outline-none focus:border-emerald-500"
                                         />
                                         <p className="text-[10px] text-zinc-500 italic">
