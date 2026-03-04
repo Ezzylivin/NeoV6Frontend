@@ -125,7 +125,7 @@ export const useBot = () => {
         try {
             const token = localStorage.getItem("token");
             // Note: If /close_position fails, try /close-position (kebab-case)
-            const response = await axios.post(`${BASE_URL}/bot/close_position`, 
+            const response = await axios.post(`${BASE_URL}/bot/close-position`, 
                 { userId, symbol }, 
                 { headers: { Authorization: `Bearer ${token}` } }
             );
