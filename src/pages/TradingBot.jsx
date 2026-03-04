@@ -721,7 +721,7 @@ useEffect(() => {
                             <div className="flex items-center justify-between mb-8">
                                 <div className="flex items-center gap-2 text-amber-400"><Box size={18}/><h3 className="text-[11px] font-black uppercase tracking-widest">Live Operations</h3></div>
                                 <button 
-                                    onClick={() => setActiveOpsTab("audit")}
+                                    onClick={() => setActiveOpsTab("Audit History")}
                                     className={`text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer z-50 pointer-events-auto ${activeOpsTab === 'audit' ? 'text-emerald-500' : 'text-zinc-500 hover:text-zinc-300'}`}
                                 >
                             </div>
