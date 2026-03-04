@@ -316,7 +316,7 @@ const TradingBotContainer = () => {
             if (isHaltLocked) return; 
 
             console.log("📊 Neural Data Pulse:", {
-                receivedProfit: data.dailyProfit || data.daily_profit;
+                receivedProfit: data.dailyProfit || data.daily_profit,
                 receivedBalance: data.currentBalance,
                 rawPacket: data
             });
