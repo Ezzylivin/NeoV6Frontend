@@ -669,7 +669,7 @@ const TradingBotContainer = () => {
                                         />
                                         <Area type="monotone" dataKey="balance" stroke="#10b981" fill="url(#colorEquity)" strokeWidth={3} isAnimationActive={false} />
                                         <XAxis dataKey="time" hide />
-                                        <YAxis hide domain={['auto', 'auto']} /> {/* 🟢 DYNAMIC SCALE for visibility */}
+                                        domain={['dataMin - 50', 'dataMax + 50']}
                                     </AreaChart>
                                 </ResponsiveContainer>
                             </div>
