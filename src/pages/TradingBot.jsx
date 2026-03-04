@@ -424,12 +424,12 @@ useEffect(() => {
             console.log("Socket Disconnected");
         }
     };
-}, [address, isHaltLocked, formConfig.capitalAllocation]);
+}, [address, isHaltLocked, formConfig]);
 
     const performanceData = useMemo(() => {
-        if (!socketStatus.equityCurve?.length) return [{ time: 'Start', balance: formConfig.capitalAllocation }];
+        if (!socketStatus.equityCurve?.length) return [{ time: 'Start', balance: formConfig }];
         return socketStatus.equityCurve.map(p => ({ time: new Date(p.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), balance: p.balance, confidence: (Math.random() * 20) + 80 }));
-    }, [socketStatus.equityCurve, formConfig.capitalAllocation]);
+    }, [socketStatus.equityCurve, formConfig]);
 
    const handleConfirmStart = async () => {
     setIsStarting(true);
