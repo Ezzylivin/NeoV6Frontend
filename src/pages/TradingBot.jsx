@@ -301,8 +301,24 @@ const TradingBotContainer = () => {
         // 🟢 THE CORRECT PLACE FOR THE STATUS UPDATE LISTENER
         socket.on("bot_status_update", (data) => {
             if (isHaltLocked) return; 
+        
             setSocketStatus(prev => {
                 const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                
+                // 1. Normalize Signal Data
+                const rawSignals = data.signalsMap || {};
+                const normalizedSignals = {};
+                Object.keys(rawSignals).forEach(key => {
+                    const normalizedKey = key.toLowerCase().trim().replace(/\s+/g, '_');
+                    const val = parseFloat(rawSignals[key]);
+                    if (!isNaN(val)) normalizedSignals[normalizedKey] = val;
+                });
+        
+                // 2. Fix the ReferenceError: Define the variable BEFORE using it
+                const updatedSignalsHistory = [
+                    ...(prev.signalsMapHistory || []), 
+                    { time: timeStr, ...normalizedSignals }
+                ].slice(-300);
                 
                 // (Normalization logic for TSL/SMA lines goes here)
                 return { 
