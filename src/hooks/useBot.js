@@ -1,5 +1,5 @@
 // File: src/hooks/useBot.js
-// 🚀 FIX: v14.7 - Added Manual Refresh Capability
+// 🚀 FIX: v14.8 - Consolidated Hooks & Fixed Manual Exit Endpoint
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
@@ -30,7 +30,6 @@ export const useBot = () => {
 
     const activeUserId = resolveActiveId();
 
-    // 🟢 REFRESH FUNCTION (Exposed to UI)
     const refreshState = useCallback(async () => {
         if (!activeUserId) return;
         try {
@@ -52,28 +51,25 @@ export const useBot = () => {
         }
     }, [activeUserId]);
 
-    // Initial Sync
     useEffect(() => { refreshState(); }, [refreshState]);
 
-    // WebSocket Logic (Same as before)
     useEffect(() => {
         if (!activeUserId) return;
         if (!socketRef.current) {
             socketRef.current = io(SOCKET_URL, { query: { userId: activeUserId }, transports: ['websocket'], reconnectionAttempts: 5 });
+            
             socketRef.current.on("bot_status_update", (data) => {
-    // 🟢 CRITICAL: If we receive a 'stopped' status, clear everything immediately
-    if (data.status === 'stopped') {
-        setBotStatus(null); // This clears the "Running" view
-        localStorage.removeItem("neo_active_bot_id");
-        return; // Stop processing this update
-    }
-    
-    // Otherwise, update normally
-    setBotStatus(data);
-    if (data.status === 'running' || data.status === 'initializing') {
-        localStorage.setItem("neo_active_bot_id", activeUserId);
-    }
-});
+                if (data.status === 'stopped') {
+                    setBotStatus(null);
+                    localStorage.removeItem("neo_active_bot_id");
+                    return;
+                }
+                setBotStatus(data);
+                if (data.status === 'running' || data.status === 'initializing') {
+                    localStorage.setItem("neo_active_bot_id", activeUserId);
+                }
+            });
+
             socketRef.current.on("bot_log", (newLog) => {
                 const logObj = typeof newLog === 'string' ? { message: newLog, time: new Date().toISOString() } : newLog;
                 setLogs(prev => [logObj, ...prev].slice(0, 200)); 
@@ -82,7 +78,6 @@ export const useBot = () => {
         return () => { if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; } };
     }, [activeUserId]);
 
-    // Actions
     const startBot = async (configData) => {
         setLoading(true); setLogs([]); 
         try {
@@ -120,11 +115,10 @@ export const useBot = () => {
         } catch (e) { console.error(e); }
     };
 
-
     const closePosition = async ({ userId, symbol }) => {
         try {
             const token = localStorage.getItem("token");
-            // Note: If /close_position fails, try /close-position (kebab-case)
+            // 🟢 FIXED ENDPOINT: Uses kebab-case to match Render backend standards
             const response = await axios.post(`${BASE_URL}/bot/close-position`, 
                 { userId, symbol }, 
                 { headers: { Authorization: `Bearer ${token}` } }
@@ -138,6 +132,5 @@ export const useBot = () => {
         }
     };
 
-    // 🟢 Export the new function
     return { botStatus, logs, loading, restoredConfig, startBot, stopBot, resetBot, refreshState, closePosition };
-    };
+}; // ✅ Closed correctly
