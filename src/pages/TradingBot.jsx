@@ -270,6 +270,8 @@ const TradingBotContainer = () => {
         api.get(`/bot/status?userId=${address}`, {
             headers: { 
                 Authorization: `Bearer ${token}`
+            } 
+            }) 
             .then(res => {
                 console.log("✅ Initial Status Received:", res.data);
                 setSocketStatus(res.data);
@@ -280,7 +282,7 @@ const TradingBotContainer = () => {
                 if (err.response?.status === 401) {
                     toast.error("Session expired. Please reconnect your wallet.");
                 }
-            });
+            })
 
     // ---------------------------------------------------------
     // --- BLOCK 2: NEURAL LINK (SOCKET) ---
