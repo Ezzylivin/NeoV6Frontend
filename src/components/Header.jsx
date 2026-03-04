@@ -32,9 +32,9 @@ const Header = () => {
           <Link to="/dashboard" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
             Dashboard
           </Link>
-          <NavLink to="/dashboard/help" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>
+          <Link to="/dashboard/help" className={({ isActive }) => `${baseClass} ${isActive ? activeClass : ""}`}>
             Help
-          </NavLink>
+          </Link>
           <Link to="/dashboard/backtests" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
             Backtests
           </Link>
