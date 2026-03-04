@@ -15,7 +15,12 @@ import {
     Activity, Scale, Power, RefreshCw, Wallet, Wifi, WifiOff, // 🟢 Added RefreshCw
     ArrowUpRight, Clock, Box, Timer, DollarSign, Info, BarChart, Settings2, Zap, ArrowDownRight,
     CandlestickChart, AlertTriangle, RotateCcw, Eraser
-} from "lucide-react"; 
+} from "lucide-react";
+import { 
+    Box, Book, ArrowDownRight, ArrowUpRight, // ✅ Ensure Book is here
+    HelpCircle, Zap, ShieldAlert, Cpu, 
+    ChevronDown, ChevronUp, Search, ExternalLink 
+} from "lucide-react";
 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 
