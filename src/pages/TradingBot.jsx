@@ -723,7 +723,9 @@ useEffect(() => {
                                 <button 
                                     onClick={() => setActiveOpsTab("Audit History")}
                                     className={`text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer z-50 pointer-events-auto ${activeOpsTab === 'audit' ? 'text-emerald-500' : 'text-zinc-500 hover:text-zinc-300'}`}
-                                >
+                                    >
+                                        Audit History
+                                    </button>
                             </div>
                             <div className="flex-1 overflow-x-auto custom-scrollbar">
                                 <table className="w-full text-left text-[11px]">
