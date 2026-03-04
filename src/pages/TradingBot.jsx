@@ -264,13 +264,23 @@ const TradingBotContainer = () => {
     // ---------------------------------------------------------
     useEffect(() => {
         if (!address) return;
-        api.get(`/bot/status?userId=${address}`)
+        const token = localStorage.getItem("token");
+
+        // 🟢 2. Pass the token in the Authorization header
+        api.get(`/bot/status?userId=${address}`, {
+            headers: { 
+                Authorization: `Bearer ${token}`
             .then(res => {
                 console.log("✅ Initial Status Received:", res.data);
                 setSocketStatus(res.data);
             })
-            .catch(err => console.error("❌ Initial Fetch Failed:", err));
-    }, [address]);
+            .catch(err => {
+                console.error("❌ Initial Fetch Failed:", err);
+                // Handle specific auth failures
+                if (err.response?.status === 401) {
+                    toast.error("Session expired. Please reconnect your wallet.");
+                }
+            });
 
     // ---------------------------------------------------------
     // --- BLOCK 2: NEURAL LINK (SOCKET) ---
