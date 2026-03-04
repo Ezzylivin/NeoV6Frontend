@@ -73,6 +73,7 @@ const getLogStyle = (msg) => {
     return 'text-zinc-500 bg-zinc-900 border-zinc-800'; 
 };
 
+
 // ... (STRAT_POOL, MODEL_POOL, DEFAULT_STRATEGY_PARAMS, Components remain same) ...
 const STRAT_POOL = [
     { name: "RSI Threshold", code: "rsi_threshold" },
@@ -122,6 +123,8 @@ const DEFAULT_STRATEGY_PARAMS = {
     pa_breakout: { lookback: 20, buffer: 0.01 },
     vol_profile: { vol_ma: 20, threshold: 1.5 }
 };
+
+const [activeOpsTab, setActiveOpsTab] = useState("live")
 
 const Tooltip = ({ text, children }) => {
     const [visible, setVisible] = useState(false);
@@ -717,7 +720,10 @@ useEffect(() => {
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl overflow-hidden flex flex-col">
                             <div className="flex items-center justify-between mb-8">
                                 <div className="flex items-center gap-2 text-amber-400"><Box size={18}/><h3 className="text-[11px] font-black uppercase tracking-widest">Live Operations</h3></div>
-                                <button className="text-[9px] font-black text-zinc-500 uppercase border border-zinc-800 px-3 py-1 rounded-lg hover:text-white transition-all">Audit History</button>
+                                <button 
+                                    onClick={() => setActiveOpsTab("audit")}
+                                    className={`text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer z-50 pointer-events-auto ${activeOpsTab === 'audit' ? 'text-emerald-500' : 'text-zinc-500 hover:text-zinc-300'}`}
+                                >
                             </div>
                             <div className="flex-1 overflow-x-auto custom-scrollbar">
                                 <table className="w-full text-left text-[11px]">
