@@ -218,6 +218,8 @@ const TradingBotContainer = () => {
 
     const [activeOpsTab, setActiveOpsTab] = useState("live")
 
+    const api = axios.create({ baseURL: API_BASE });
+
     const isBotRunning = socketStatus.status === 'running' && !isHaltLocked;
 
     useEffect(() => {
