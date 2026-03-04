@@ -768,7 +768,7 @@ const TradingBotContainer = () => {
                             {/* CONTENT SECTION: Switches based on activeOpsTab */}
                             <div className="flex-1 overflow-x-auto custom-scrollbar">
                                 {activeOpsTab === "live" ? (
-                                    {/* --- VIEW 1: LIVE POSITIONS --- */}
+    
                                     <table className="w-full text-left text-[11px]">
                                         <thead>
                                             <tr className="text-zinc-600 uppercase font-black border-b border-zinc-800 pb-4">
