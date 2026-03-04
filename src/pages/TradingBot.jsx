@@ -418,21 +418,22 @@ const TradingBotContainer = () => {
    const handleConfirmStart = async () => {
     setIsStarting(true);
     setIsHaltLocked(false);
-    setSocketStatus(prev => ({ ...prev, equityCurve: [], tradeMarkers: [], positions: [], candles: [] }));
-    setSocketLogs([]);
+    
+    // 1. Establish the "Anchor" - Prefer the form input, fallback to paperBalance selection
+    const anchorCapital = Number(formConfig.capitalAllocation) || Number(paperBalance) || 1000;
 
-       const targetCapital = Number(formConfig.capitalAllocation) || Number(paperBalance) || 1000;
-
-       setSocketStatus({ 
+    // 2. Wipe previous session data but LOCK in the new baseline
+    setSocketStatus({ 
         status: 'initializing', 
-        currentBalance: targetCapital, // Force UI to show $300 right now
+        currentBalance: anchorCapital, 
+        initialCapital: anchorCapital, // ✅ This is the permanent denominator for profit calculations
         equityCurve: [], 
         tradeMarkers: [], 
-        initialCapital: targetCapital,
         positions: [], 
         candles: [],
         unrealizedPnl: 0,
-        dailyProfit: 0
+        dailyProfit: 0,
+        tradeHistory: [] // Clear the ledger for the new session
     });
 
     setSocketLogs([]);
