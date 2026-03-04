@@ -111,7 +111,7 @@ export const LiveTradingChart = ({
                 color: pos.type === 'long' ? '#10b981' : '#f59e0b',
                 shape: pos.type === 'long' ? 'arrowUp' : 'arrowDown', // arrow is more visible than triangle
                 text: `L${idx + 1} ENTRY`, 
-                size: 2 // 🟢 Increased for visibility
+                size: 1 // 🟢 Increased for visibility
             };
         }).filter(m => m !== null);
 
