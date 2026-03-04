@@ -261,28 +261,11 @@ const TradingBotContainer = () => {
         setSocketConnected(false);
         console.log("Neural Link Severed");
     });
+        
 
-
-    // File: src/pages/TradingBot.jsx -> Inside TradingBotContainer component
-
-    // --- BLOCK 1: THE INITIAL DATA GRAB ---
-    // Ensures TSL/SMA lines appear immediately without waiting for a socket pulse
-    useEffect(() => {
-        if (!address) return;
-    
-        console.log("🛠️ Fetching Initial Bot Status for:", address);
-    
-        api.get(`/bot/status?userId=${address}`)
-            .then(res => {
-                console.log("✅ Initial Status Received:", res.data);
-                setSocketStatus(res.data); // This populates your charts/tables instantly
-            })
-            .catch(err => console.error("❌ Initial Fetch Failed:", err));
-    }, [address]); // Only runs when wallet connects or changes
-    
-    
+    // ---------------------------------------------------------
     // --- BLOCK 2: THE NEURAL LINK (SOCKET) ---
-    // Handles live updates for moving TSL lines and blinking signals
+    // ---------------------------------------------------------
     useEffect(() => {
         if (!address) return;
     
@@ -295,9 +278,67 @@ const TradingBotContainer = () => {
         }
     
         const socket = socketRef.current;
-        if (!socket) return;
+        if (!socket) return; // Safety Exit
     
-        // 2. Connection Listeners
+        // 🟢 Neural Flow Log Processor
+        socket.on("bot_log", (newLog) => {
+            setSocketLogs(prev => [newLog, ...prev].slice(0, 100));
+        });
+    
+        // 🟢 Main Data Processing Engine
+        socket.on("bot_status_update", (data) => {
+            if (isHaltLocked) return; 
+    
+            setSocketStatus(prev => {
+                const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                
+                // 🟢 1. NORMALIZE & CLEAN DATA
+                const rawSignals = data.signalsMap || {};
+                const normalizedSignals = {};
+                
+                Object.keys(rawSignals).forEach(key => {
+                    const normalizedKey = key.toLowerCase().trim().replace(/\s+/g, '_');
+                    const val = parseFloat(rawSignals[key]);
+                    if (!isNaN(val)) {
+                        normalizedSignals[normalizedKey] = val;
+                    }
+                });
+    
+                // 🟢 2. PERSISTENCE BRIDGE
+                if (Object.keys(normalizedSignals).length === 0 && prev.signalsMapHistory?.length > 0) {
+                    const lastEntry = prev.signalsMapHistory[prev.signalsMapHistory.length - 1];
+                    Object.keys(lastEntry).forEach(k => { 
+                        if (k !== 'time') normalizedSignals[k] = lastEntry[k]; 
+                    });
+                }
+    
+                // 🟢 3. UPDATE HISTORIES
+                const updatedSignalsHistory = [
+                    ...(prev.signalsMapHistory || []), 
+                    { time: timeStr, ...normalizedSignals }
+                ].slice(-300);
+    
+                const updatedEquityCurve = [
+                    ...(prev.equityCurve || []), 
+                    {
+                        time: timeStr,
+                        balance: data.currentBalance || prev.currentBalance || 0,
+                        confidence: data.currentConfidence ?? prev.currentConfidence ?? 0
+                    }
+                ].slice(-300);
+    
+                // 🟢 4. RETURN MERGED STATE
+                return { 
+                    ...prev, 
+                    ...data, 
+                    positions: data.activePositions || data.positions || [], 
+                    signalsMapHistory: updatedSignalsHistory,
+                    equityCurve: updatedEquityCurve
+                };
+            });
+        });
+    
+        // 🟢 Connection Diagnostics
         socket.on("connect", () => {
             setSocketConnected(true);
             console.log("Neural Link Established");
@@ -308,123 +349,14 @@ const TradingBotContainer = () => {
             console.log("Neural Link Severed");
         });
     
-        // 3. Live Data Processor (Updates TSL/SMA/Equity)
-        socket.on("bot_status_update", (data) => {
-            if (isHaltLocked) return; 
-    
-            setSocketStatus(prev => {
-                const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                
-                // Normalize incoming signal data for charts
-                const rawSignals = data.signalsMap || {};
-                const normalizedSignals = {};
-                Object.keys(rawSignals).forEach(key => {
-                    const normalizedKey = key.toLowerCase().trim().replace(/\s+/g, '_');
-                    const val = parseFloat(rawSignals[key]);
-                    if (!isNaN(val)) normalizedSignals[normalizedKey] = val;
-                });
-    
-                // Maintain signal history (300 points)
-                const updatedSignalsHistory = [
-                    ...(prev.signalsMapHistory || []), 
-                    { time: timeStr, ...normalizedSignals }
-                ].slice(-300);
-    
-                return { 
-                    ...prev, 
-                    ...data, 
-                    // Ensure positions mapping matches what LiveTradingChart expects
-                    activePositions: data.activePositions || data.positions || [], 
-                    signalsMapHistory: updatedSignalsHistory,
-                    equityCurve: data.equityCurve || prev.equityCurve || []
-                };
-            });
-        });
-    
-        // 4. Neural Flow Log Processor
-        socket.on("bot_log", (newLog) => {
-            setSocketLogs(prev => [newLog, ...prev].slice(0, 100));
-        });
-    
-        // 5. Cleanup: Stop listeners when leaving the page
+        // 🟢 Cleanup: Correctly closing the useEffect
         return () => {
+            socket.off("bot_log");
+            socket.off("bot_status_update");
             socket.off("connect");
             socket.off("disconnect");
-            socket.off("bot_status_update");
-            socket.off("bot_log");
-            // We don't disconnect the socket here to keep the link active during navigation
         };
-    }, [address, isHaltLocked]); // Watch for wallet changes or Global Halt
-        
-
-    // 🟢 Main Data Processing Engine
-    socketRef.current.on("bot_status_update", (data) => {
-    if (isHaltLocked) return; 
-
-    setSocketStatus(prev => {
-    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    
-    // 🟢 1. NORMALIZE & CLEAN DATA
-    const rawSignals = data.signalsMap || {};
-    const normalizedSignals = {};
-    
-    Object.keys(rawSignals).forEach(key => {
-        // Bridges "EMA CLOUD" -> "ema_cloud"
-        const normalizedKey = key.toLowerCase().trim().replace(/\s+/g, '_');
-        // Ensure it's a number (recharts can't plot strings like "100%")
-        const val = parseFloat(rawSignals[key]);
-        if (!isNaN(val)) {
-            normalizedSignals[normalizedKey] = val;
-        }
-    });
-
-    // 🟢 2. PERSISTENCE BRIDGE (The Missing Link)
-    // If current packet is empty, carry over last known scores to prevent chart gaps
-    if (Object.keys(normalizedSignals).length === 0 && prev.signalsMapHistory?.length > 0) {
-        const lastEntry = prev.signalsMapHistory[prev.signalsMapHistory.length - 1];
-        Object.keys(lastEntry).forEach(k => { 
-            if (k !== 'time') normalizedSignals[k] = lastEntry[k]; 
-        });
-    }
-
-    // 🟢 3. UPDATE HISTORIES (300-point buffer)
-    const updatedSignalsHistory = [
-        ...(prev.signalsMapHistory || []), 
-        { time: timeStr, ...normalizedSignals }
-    ].slice(-300);
-
-    const updatedEquityCurve = [
-        ...(prev.equityCurve || []), 
-        {
-            time: timeStr,
-            balance: data.currentBalance || prev.currentBalance || 0,
-            confidence: data.currentConfidence ?? prev.currentConfidence ?? 0
-        }
-    ].slice(-300);
-
-    // 🟢 4. RETURN MERGED STATE
-    return { 
-        ...prev, 
-        ...data, 
-        positions: data.activePositions || data.positions || [], // Live Operations Table Fix
-        signalsMapHistory: updatedSignalsHistory,
-        equityCurve: updatedEquityCurve
-    };
-});
-});
-    // 🟢 Neural Flow Log Processor
-    socketRef.current.on("bot_log", (newLog) => {
-        setSocketLogs(prev => [newLog, ...prev].slice(0, 100));
-    });
-
-    // 🟢 Cleanup on Component Unmount
-    return () => {
-        if (socketRef.current) {
-            socketRef.current.disconnect();
-            console.log("Socket Disconnected");
-        }
-    };
-}, [address, isHaltLocked, formConfig]);
+    }, [address, isHaltLocked, formConfig]); // ✅ Final dependency array
 
     const performanceData = useMemo(() => {
         if (!socketStatus.equityCurve?.length) return [{ time: 'Start', balance: formConfig }];
