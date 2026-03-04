@@ -319,6 +319,15 @@ const TradingBotContainer = () => {
                     ...(prev.signalsMapHistory || []), 
                     { time: timeStr, ...normalizedSignals }
                 ].slice(-300);
+
+                const updatedEquityCurve = [
+                    ...(prev.equityCurve || []), 
+                    {
+                        time: timeStr,
+                        balance: data.currentBalance || prev.currentBalance || 0,
+                        confidence: data.currentConfidence ?? prev.currentConfidence ?? 0
+                    }
+                ].slice(-300);
                 
                 // (Normalization logic for TSL/SMA lines goes here)
                 return { 
