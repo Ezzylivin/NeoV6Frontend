@@ -140,3 +140,4 @@ export const useBot = () => {
 
     // 🟢 Export the new function
     return { botStatus, logs, loading, restoredConfig, startBot, stopBot, resetBot, refreshState, closePosition };
+    };
