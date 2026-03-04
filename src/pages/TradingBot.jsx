@@ -316,12 +316,18 @@ const TradingBotContainer = () => {
             if (isHaltLocked) return; 
 
             console.log("📊 Neural Data Pulse:", {
-                receivedProfit: data.dailyProfit,
+                receivedProfit: data.dailyProfit || data.daily_profit;
                 receivedBalance: data.currentBalance,
                 rawPacket: data
             });
         
             setSocketStatus(prev => {
+
+                const currentBalance = data.currentBalance || prev.currentBalance || 0;
+                const seed = prev.initialCapital || data.initialCapital || formConfig.capitalAllocation;
+                const calculatedProfit = rawProfit !== undefined ? rawProfit : (currentBalance - seed);
+
+                
                 const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                 
                 // 1. Normalize Signal Data
@@ -347,12 +353,17 @@ const TradingBotContainer = () => {
                         confidence: data.currentConfidence ?? prev.currentConfidence ?? 0
                     }
                 ].slice(-300);
+
+                console.log("📈 Profit Logic:", { backend: rawProfit, calculated: calculatedProfit });
+                
                 
                 // (Normalization logic for TSL/SMA lines goes here)
                 return { 
                     ...prev, 
-                    ...data, 
-                    positions: data.activePositions || data.positions || [], 
+                    ...data,  
+                    dailyProfit: calculatedProfit, // ✅ Guaranteed number for the UI
+                    initialCapital: seed,
+                    positions: data.activePositions || data.positions || [],
                     candles: data.candles || prev.candles || [],
                     tradeHistory: data.tradeHistory || prev.tradeHistory || [],
                     tradeMarkers: data.tradeMarkers || prev.tradeMarkers || [],
