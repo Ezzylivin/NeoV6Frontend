@@ -120,6 +120,23 @@ export const useBot = () => {
         } catch (e) { console.error(e); }
     };
 
-    // 🟢 Export refreshState here
-    return { botStatus, logs, loading, restoredConfig, startBot, stopBot, resetBot, refreshState };
-};
+
+    const closePosition = async ({ userId, symbol }) => {
+        try {
+            const token = localStorage.getItem("token");
+            // Note: If /close_position fails, try /close-position (kebab-case)
+            const response = await axios.post(`${BASE_URL}/bot/close_position`, 
+                { userId, symbol }, 
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            toast.success("Manual Exit Protocol Executed");
+            return response.data;
+        } catch (error) {
+            console.error("Exit Error:", error.response?.data);
+            toast.error(error.response?.data?.detail || "Failed to close position");
+            throw error;
+        }
+    };
+
+    // 🟢 Export the new function
+    return { botStatus, logs, loading, restoredConfig, startBot, stopBot, resetBot, refreshState, closePosition };
