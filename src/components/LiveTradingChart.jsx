@@ -105,7 +105,7 @@ export const LiveTradingChart = ({
         time: snappedTime, 
         position: pos.type === 'long' ? 'belowBar' : 'aboveBar',
         color: pos.type === 'long' ? '#10b981' : '#f59e0b',
-        shape: 'arrow up',
+        shape: 'triangle',
         text: `L${idx + 1} ENTRY: $${Number(pos.entry).toLocaleString()}`, 
         size: 0.5 // 🟢 As requested previously, 1 is better for "small circles"
     };
@@ -120,7 +120,7 @@ export const LiveTradingChart = ({
         const entryLine = seriesRef.current.candle.createPriceLine({
             price: pos.entry,
             color: 'rgba(113, 113, 122, 0.4)', // Faded zinc for entry (markers handle the focus)
-            lineWidth: 0.5,
+            lineWidth: 1,
             lineStyle: 2, 
             axisLabelVisible: true,
             title: `L${idx + 1} IN`,
@@ -141,7 +141,7 @@ export const LiveTradingChart = ({
             price: pos.tsl,
             color: '#ef4444', 
             lineWidth: 1, // Thicker for visibility
-            lineStyle: 0, // Solid line for "Final Floor"
+            lineStyle: 2, // Solid line for "Final Floor"
             axisLabelVisible: true,
             title: `L${idx + 1} TSL`,
         });
