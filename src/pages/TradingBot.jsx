@@ -323,9 +323,12 @@ const TradingBotContainer = () => {
         
             setSocketStatus(prev => {
 
+                const rawProfit = data.dailyProfit || data.daily_profit;
                 const currentBalance = data.currentBalance || prev.currentBalance || 0;
                 const seed = prev.initialCapital || data.initialCapital || formConfig.capitalAllocation;
                 const calculatedProfit = rawProfit !== undefined ? rawProfit : (currentBalance - seed);
+
+                console.log("📈 Profit Logic:", { backend: rawProfit, calculated: calculatedProfit });
 
                 
                 const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -354,7 +357,6 @@ const TradingBotContainer = () => {
                     }
                 ].slice(-300);
 
-                console.log("📈 Profit Logic:", { backend: rawProfit, calculated: calculatedProfit });
                 
                 
                 // (Normalization logic for TSL/SMA lines goes here)
