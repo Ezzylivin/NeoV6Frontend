@@ -328,9 +328,31 @@ const TradingBotContainer = () => {
     
 
     const performanceData = useMemo(() => {
-        if (!socketStatus.equityCurve?.length) return [{ time: 'Start', balance: formConfig }];
-        return socketStatus.equityCurve.map(p => ({ time: new Date(p.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), balance: p.balance, confidence: (Math.random() * 20) + 80 }));
-    }, [socketStatus.equityCurve, formConfig]);
+    // 1. Establish the "Seed" value as a number
+    const initialSeed = Number(formConfig.capitalAllocation) || 0;
+    
+    // 2. Create the first point so the chart always starts at the user's capital
+    const seedPoint = { 
+        time: 'Start', 
+        balance: initialSeed, 
+        confidence: 100 
+    };
+
+    // 3. If no history exists, return just the seed point
+    if (!socketStatus.equityCurve?.length) {
+        return [seedPoint];
+    }
+    
+    // 4. Map existing history and append it to the seed point
+    const history = socketStatus.equityCurve.map(p => ({ 
+        time: new Date(p.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
+        balance: p.balance, 
+        // Maintain your randomized confidence logic or use real data if available
+        confidence: p.confidence || (Math.random() * 20) + 80 
+    }));
+
+    return [seedPoint, ...history];
+}, [socketStatus.equityCurve, formConfig.capitalAllocation]); // ✅ Watching specific value
 
    const handleConfirmStart = async () => {
     setIsStarting(true);
@@ -671,7 +693,12 @@ const TradingBotContainer = () => {
                                         <XAxis dataKey="time" hide />
                                         <YAxis 
                                             hide 
-                                            domain={['dataMin - 50', 'dataMax + 50']} // ✅ Adds "padding" to stop the stretching
+                                            // Anchor the bottom to your starting capital
+                                            // We add a tiny bit of padding (0.95) so the line isn't touching the absolute bottom
+                                            domain={[
+                                                formConfig.capitalAllocation * 0.95, 
+                                                'auto'
+                                            ]} 
                                         />
                                     </AreaChart>
                                 </ResponsiveContainer>
