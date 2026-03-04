@@ -696,7 +696,7 @@ const TradingBotContainer = () => {
                                             // Anchor the bottom to your starting capital
                                             // We add a tiny bit of padding (0.95) so the line isn't touching the absolute bottom
                                             domain={[
-                                                formConfig.capitalAllocation * 0.95, 
+                                                formConfig.capitalAllocation * 0.5, 
                                                 'auto'
                                             ]} 
                                         />
