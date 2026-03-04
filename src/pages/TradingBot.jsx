@@ -424,7 +424,7 @@ const TradingBotContainer = () => {
             console.log("Socket Disconnected");
         }
     };
-}, [address, isHaltLocked, formConfig];
+}, [address, isHaltLocked, formConfig]);
 
     const performanceData = useMemo(() => {
         if (!socketStatus.equityCurve?.length) return [{ time: 'Start', balance: formConfig }];
