@@ -124,8 +124,6 @@ const DEFAULT_STRATEGY_PARAMS = {
     vol_profile: { vol_ma: 20, threshold: 1.5 }
 };
 
-const [activeOpsTab, setActiveOpsTab] = useState("live")
-
 const Tooltip = ({ text, children }) => {
     const [visible, setVisible] = useState(false);
     return (
@@ -215,6 +213,8 @@ const TradingBotContainer = () => {
         params: { take_profit: 0.05, stop_loss: 0.02, trailing_stop: 0.01, long_threshold: 0.5, short_threshold: 0.5 },
         filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 }
     });
+
+    const [activeOpsTab, setActiveOpsTab] = useState("live")
 
     const isBotRunning = socketStatus.status === 'running' && !isHaltLocked;
 
