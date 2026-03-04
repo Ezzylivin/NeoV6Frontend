@@ -45,7 +45,7 @@ function App() {
             >
               <Route index element={<Dashboard />} />
               <Route path="backtests" element={<Backtests />} />
-              <Route path="/help" element={<HelpCenter />} />
+              <Route path="help" element={<HelpCenter />} />
               <Route path="tradingbot" element={<TradingBot />} />
               <Route path="settings" element={<Settings />} />
             </Route>
