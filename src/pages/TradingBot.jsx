@@ -309,7 +309,11 @@ const TradingBotContainer = () => {
                     ...prev, 
                     ...data, 
                     positions: data.activePositions || data.positions || [], 
-                    candles: data.candles || prev.candles || []
+                    candles: data.candles || prev.candles || [],
+                    tradeHistory: data.tradeHistory || prev.tradeHistory || [],
+                    tradeMarkers: data.tradeMarkers || prev.tradeMarkers || [],
+                    signalsMapHistory: updatedSignalsHistory,
+                    equityCurve: updatedEquityCurve
                 };
             });
         });
@@ -805,21 +809,50 @@ const TradingBotContainer = () => {
                                         </tbody>
                                     </table>
                                 ) : (
-                                    /* --- VIEW 2: AUDIT HISTORY --- */
-                                    <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in zoom-in-95 duration-500">
-                                        <div className="p-4 bg-emerald-500/5 rounded-full mb-4 border border-emerald-500/10">
-                                            <Book className="text-emerald-500/40" size={32} />
-                                        </div>
-                                        <h4 className="text-zinc-400 text-[10px] font-black uppercase tracking-widest">Trade Ledger Empty</h4>
-                                        <p className="text-zinc-600 text-[9px] mt-2 max-w-[220px] leading-relaxed font-bold uppercase">
-                                            Historical logs are being synced with the Render backend...
-                                        </p>
-                                        <button className="mt-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-[8px] font-black uppercase rounded-lg border border-zinc-700 transition-all">
-                                            Refresh Local Cache
-                                        </button>
+                                    {/* --- VIEW 2: AUDIT HISTORY (NOW LIVE) --- */}
+                                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
+                                        {(socketStatus.tradeHistory?.length > 0 || socketStatus.tradeMarkers?.length > 0) ? (
+                                            <div className="space-y-3">
+                                                {(socketStatus.tradeHistory || socketStatus.tradeMarkers).map((trade, idx) => (
+                                                    <div key={idx} className="p-4 bg-black/20 rounded-2xl border border-zinc-800/50 flex flex-col gap-2 hover:border-emerald-500/30 transition-all">
+                                                        <div className="flex justify-between items-center">
+                                                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${trade.type === 'long' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                                                                {trade.type} Closed
+                                                            </span>
+                                                            <span className="text-[8px] text-zinc-600 font-bold font-mono">
+                                                                {new Date(trade.time * 1000).toLocaleDateString()}
+                                                            </span>
+                                                        </div>
+                                                        
+                                                        <div className="grid grid-cols-2 gap-4 mt-1">
+                                                            <div>
+                                                                <p className="text-[8px] text-zinc-500 uppercase font-black">Entry/Exit</p>
+                                                                <p className="text-[10px] font-mono font-bold text-zinc-300">
+                                                                    ${Number(trade.entry).toLocaleString()} → ${Number(trade.exit || trade.price).toLocaleString()}
+                                                                </p>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <p className="text-[8px] text-zinc-500 uppercase font-black">Realized PnL</p>
+                                                                <p className={`text-[11px] font-black font-mono ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
+                                                                    {trade.pnl >= 0 ? '+' : ''}${Number(trade.pnl).toFixed(2)}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in zoom-in-95 duration-500">
+                                                <div className="p-4 bg-emerald-500/5 rounded-full mb-4 border border-emerald-500/10">
+                                                    <Book className="text-emerald-500/40" size={32} />
+                                                </div>
+                                                <h4 className="text-zinc-400 text-[10px] font-black uppercase tracking-widest">Trade Ledger Empty</h4>
+                                                <p className="text-zinc-600 text-[9px] mt-2 max-w-[220px] leading-relaxed font-bold uppercase">
+                                                    No closed trades detected in this session.
+                                                </p>
+                                            </div>
+                                        )}
                                     </div>
-                                )}
-                            </div>
                         </div>
                     </div>
                 </div>
