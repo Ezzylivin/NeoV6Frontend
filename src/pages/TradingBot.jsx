@@ -201,6 +201,39 @@ const TradingBotContainer = () => {
     const [uptime, setUptime] = useState("00:00:00");
     const logContainerRef = useRef(null);
 
+     // File: src/pages/TradingBot.jsx -> Inside TradingBotContainer component
+
+    useEffect(() => {
+        if (!address) return;
+    
+        // 🟢 Initialize Neural Link
+        socketRef.current = io(SOCKET_URL, { 
+            query: { userId: address }, 
+            transports: ['websocket'] 
+        });
+    
+        socketRef.current.on("connect", () => {
+            setSocketConnected(true);
+            console.log("Neural Link Established");
+        });
+    
+        
+        useEffect(() => {
+        // 1. Log the ID to see if it even exists
+        console.log("🛠️ Current UserID for fetch:", address);
+    
+        if (address) {
+            // 2. This is the call you AREN'T seeing in the network tab
+            api.get(`/bot/status?userId=${address}`)
+                .then(res => {
+                    console.log("✅ Status Received:", res.data);
+                    setSocketStatus(res.data);
+                })
+                .catch(err => console.error("❌ Status Fetch Failed:", err));
+        }
+    }, [address]); // Runs whenever the wallet address changes
+
+
     const [formConfig, setFormConfig] = useState({
         symbol: "BTC-USD", timeframe: "1h", capitalAllocation: 1000,
         tradingMode: "paper", strategies: [{ code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }],
@@ -256,38 +289,7 @@ const TradingBotContainer = () => {
         return () => clearInterval(interval);
     }, [isBotRunning, socketStatus.startedAt]);
 
-    // File: src/pages/TradingBot.jsx -> Inside TradingBotContainer component
-
-useEffect(() => {
-    if (!address) return;
-
-    // 🟢 Initialize Neural Link
-    socketRef.current = io(SOCKET_URL, { 
-        query: { userId: address }, 
-        transports: ['websocket'] 
-    });
-
-    socketRef.current.on("connect", () => {
-        setSocketConnected(true);
-        console.log("Neural Link Established");
-    });
-
     
-    useEffect(() => {
-    // 1. Log the ID to see if it even exists
-    console.log("🛠️ Current UserID for fetch:", address);
-
-    if (address) {
-        // 2. This is the call you AREN'T seeing in the network tab
-        api.get(`/bot/status?userId=${address}`)
-            .then(res => {
-                console.log("✅ Status Received:", res.data);
-                setSocketStatus(res.data);
-            })
-            .catch(err => console.error("❌ Status Fetch Failed:", err));
-    }
-}, [address]); // Runs whenever the wallet address changes
-
     socketRef.current.on("disconnect", () => {
         setSocketConnected(false);
         console.log("Neural Link Severed");
