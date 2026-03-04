@@ -282,7 +282,8 @@ const TradingBotContainer = () => {
                 if (err.response?.status === 401) {
                     toast.error("Session expired. Please reconnect your wallet.");
                 }
-            })
+            });
+        }, [address]);
 
     // ---------------------------------------------------------
     // --- BLOCK 2: NEURAL LINK (SOCKET) ---
