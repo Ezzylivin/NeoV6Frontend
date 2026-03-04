@@ -8,7 +8,6 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import toast, { Toaster } from "react-hot-toast";
 import { io } from "socket.io-client"; 
 import { useBot } from "../hooks/useBot";
-import { formConfig } from "../config/strategyConfig";
 import { UIModeProvider } from "../context/UIModeContext";
 import { LiveTradingChart } from "../components/LiveTradingChart.jsx"; 
 import { 
@@ -363,7 +362,7 @@ const TradingBotContainer = () => {
             console.log("Socket Disconnected");
         }
     };
-}, [address, isHaltLocked, formConfig.capitalAllocation]);
+}, [address, isHaltLocked]);
 
     const performanceData = useMemo(() => {
         if (!socketStatus.equityCurve?.length) return [{ time: 'Start', balance: formConfig.capitalAllocation }];
