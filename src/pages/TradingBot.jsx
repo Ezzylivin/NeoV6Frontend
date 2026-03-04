@@ -8,6 +8,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import toast, { Toaster } from "react-hot-toast";
 import { io } from "socket.io-client"; 
 import { useBot } from "../hooks/useBot";
+import { formConfig } from "../config/strategyConfig";
 import { UIModeProvider } from "../context/UIModeContext";
 import { LiveTradingChart } from "../components/LiveTradingChart.jsx"; 
 import { 
