@@ -314,6 +314,12 @@ const TradingBotContainer = () => {
         // 🟢 THE CORRECT PLACE FOR THE STATUS UPDATE LISTENER
         socket.on("bot_status_update", (data) => {
             if (isHaltLocked) return; 
+
+            console.log("📊 Neural Data Pulse:", {
+                receivedProfit: data.dailyProfit,
+                receivedBalance: data.currentBalance,
+                rawPacket: data
+            });
         
             setSocketStatus(prev => {
                 const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -409,6 +415,7 @@ const TradingBotContainer = () => {
         currentBalance: targetCapital, // Force UI to show $300 right now
         equityCurve: [], 
         tradeMarkers: [], 
+        initialCapital: targetCapital,
         positions: [], 
         candles: [],
         unrealizedPnl: 0,
