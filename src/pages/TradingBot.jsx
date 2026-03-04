@@ -809,7 +809,7 @@ const TradingBotContainer = () => {
                                         </tbody>
                                     </table>
                                 ) : (
-                                    {/* --- VIEW 2: AUDIT HISTORY (NOW LIVE) --- */}
+                                    
                                     <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
                                         {(socketStatus.tradeHistory?.length > 0 || socketStatus.tradeMarkers?.length > 0) ? (
                                             <div className="space-y-3">
