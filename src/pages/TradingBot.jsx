@@ -718,96 +718,96 @@ useEffect(() => {
                         </div>
                         
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl overflow-hidden flex flex-col min-h-[450px]">
-                        {/* HEADER SECTION: Controls the view toggle */}
-                        <div className="flex items-center justify-between mb-8">
-                            <div className="flex items-center gap-4">
-                                {/* LIVE TAB BUTTON */}
-                                <button 
-                                    onClick={() => setActiveOpsTab("live")}
-                                    className={`flex items-center gap-2 transition-all cursor-pointer ${activeOpsTab === 'live' ? 'text-amber-400' : 'text-zinc-600 hover:text-zinc-400'}`}
-                                >
-                                    <Box size={18}/>
-                                    <h3 className="text-[11px] font-black uppercase tracking-widest">Live Operations</h3>
-                                </button>
-                    
-                                <span className="text-zinc-800 font-bold">/</span>
-                    
-                                {/* AUDIT TAB BUTTON: Note the lowercase "audit" to match the state check */}
-                                <button 
-                                    onClick={() => setActiveOpsTab("audit")}
-                                    className={`text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer z-50 pointer-events-auto ${activeOpsTab === 'audit' ? 'text-emerald-500' : 'text-zinc-500 hover:text-zinc-300'}`}
-                                >
-                                    Audit History
-                                </button>
-                            </div>
-                    
-                            {/* Neural Pulse Indicator */}
-                            <div className="flex items-center gap-2">
-                                <div className={`w-1.5 h-1.5 rounded-full ${activeOpsTab === 'live' ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-700'}`}></div>
-                                <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Neural Link</span>
-                            </div>
-                        </div>
-                    
-                        {/* CONTENT SECTION: Switches based on activeOpsTab */}
-                        <div className="flex-1 overflow-x-auto custom-scrollbar">
-                            {activeOpsTab === "live" ? (
-                                /* --- VIEW 1: LIVE POSITIONS --- */
-                                <table className="w-full text-left text-[11px]">
-                                    <thead>
-                                        <tr className="text-zinc-600 uppercase font-black border-b border-zinc-800 pb-4">
-                                            <th className="pb-4">Type</th>
-                                            <th className="pb-4">Entry</th>
-                                            <th className="pb-4 text-right">Size</th>
-                                            <th className="pb-4 text-right pr-2">Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-zinc-800/50">
-                                        {(socketStatus.positions?.length > 0 || socketStatus.activePositions?.length > 0) ? (
-                                            (socketStatus.positions || socketStatus.activePositions).map((pos, idx) => (
-                                                <tr key={idx} className="group hover:bg-white/[0.01] transition-colors">
-                                                    <td className={`py-5 font-black flex items-center gap-2 ${pos.type === 'short' ? 'text-amber-500' : 'text-emerald-400'}`}>
-                                                        {pos.type === 'short' ? <ArrowDownRight size={14}/> : <ArrowUpRight size={14}/>} 
-                                                        {pos.type.toUpperCase()}
-                                                    </td>
-                                                    <td className="py-5 font-mono font-black text-zinc-200">
-                                                        ${Number(pos.entry).toLocaleString()}
-                                                    </td>
-                                                    <td className="py-5 font-mono text-zinc-500 text-right">
-                                                        {Number(pos.size).toFixed(4)}
-                                                    </td>
-                                                    <td className="py-5 text-right">
-                                                        <button onClick={handleManualExit} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 rounded-lg text-rose-500 hover:text-white font-black uppercase text-[9px] transition-all tracking-wider">
-                                                            EXIT
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))
-                                        ) : (
-                                            <tr>
-                                                <td colSpan="4" className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">
-                                                    Waiting for Signal...
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </table>
-                            ) : (
-                                /* --- VIEW 2: AUDIT HISTORY --- */
-                                <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in zoom-in-95 duration-500">
-                                    <div className="p-4 bg-emerald-500/5 rounded-full mb-4 border border-emerald-500/10">
-                                        <Book className="text-emerald-500/40" size={32} />
-                                    </div>
-                                    <h4 className="text-zinc-400 text-[10px] font-black uppercase tracking-widest">Trade Ledger Empty</h4>
-                                    <p className="text-zinc-600 text-[9px] mt-2 max-w-[220px] leading-relaxed font-bold uppercase">
-                                        Historical logs are being synced with the Render backend...
-                                    </p>
-                                    <button className="mt-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-[8px] font-black uppercase rounded-lg border border-zinc-700 transition-all">
-                                        Refresh Local Cache
+                            {/* HEADER SECTION: Controls the view toggle */}
+                            <div className="flex items-center justify-between mb-8">
+                                <div className="flex items-center gap-4">
+                                    {/* LIVE TAB BUTTON */}
+                                    <button 
+                                        onClick={() => setActiveOpsTab("live")}
+                                        className={`flex items-center gap-2 transition-all cursor-pointer ${activeOpsTab === 'live' ? 'text-amber-400' : 'text-zinc-600 hover:text-zinc-400'}`}
+                                    >
+                                        <Box size={18}/>
+                                        <h3 className="text-[11px] font-black uppercase tracking-widest">Live Operations</h3>
+                                    </button>
+                        
+                                    <span className="text-zinc-800 font-bold">/</span>
+                        
+                                    {/* AUDIT TAB BUTTON: Note the lowercase "audit" to match the state check */}
+                                    <button 
+                                        onClick={() => setActiveOpsTab("audit")}
+                                        className={`text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer z-50 pointer-events-auto ${activeOpsTab === 'audit' ? 'text-emerald-500' : 'text-zinc-500 hover:text-zinc-300'}`}
+                                    >
+                                        Audit History
                                     </button>
                                 </div>
-                            )}
+                        
+                                {/* Neural Pulse Indicator */}
+                                <div className="flex items-center gap-2">
+                                    <div className={`w-1.5 h-1.5 rounded-full ${activeOpsTab === 'live' ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-700'}`}></div>
+                                    <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Neural Link</span>
+                                </div>
+                            </div>
+                        
+                            {/* CONTENT SECTION: Switches based on activeOpsTab */}
+                            <div className="flex-1 overflow-x-auto custom-scrollbar">
+                                {activeOpsTab === "live" ? (
+                                    /* --- VIEW 1: LIVE POSITIONS --- */
+                                    <table className="w-full text-left text-[11px]">
+                                        <thead>
+                                            <tr className="text-zinc-600 uppercase font-black border-b border-zinc-800 pb-4">
+                                                <th className="pb-4">Type</th>
+                                                <th className="pb-4">Entry</th>
+                                                <th className="pb-4 text-right">Size</th>
+                                                <th className="pb-4 text-right pr-2">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-zinc-800/50">
+                                            {(socketStatus.positions?.length > 0 || socketStatus.activePositions?.length > 0) ? (
+                                                (socketStatus.positions || socketStatus.activePositions).map((pos, idx) => (
+                                                    <tr key={idx} className="group hover:bg-white/[0.01] transition-colors">
+                                                        <td className={`py-5 font-black flex items-center gap-2 ${pos.type === 'short' ? 'text-amber-500' : 'text-emerald-400'}`}>
+                                                            {pos.type === 'short' ? <ArrowDownRight size={14}/> : <ArrowUpRight size={14}/>} 
+                                                            {pos.type.toUpperCase()}
+                                                        </td>
+                                                        <td className="py-5 font-mono font-black text-zinc-200">
+                                                            ${Number(pos.entry).toLocaleString()}
+                                                        </td>
+                                                        <td className="py-5 font-mono text-zinc-500 text-right">
+                                                            {Number(pos.size).toFixed(4)}
+                                                        </td>
+                                                        <td className="py-5 text-right">
+                                                            <button onClick={handleManualExit} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 rounded-lg text-rose-500 hover:text-white font-black uppercase text-[9px] transition-all tracking-wider">
+                                                                EXIT
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan="4" className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">
+                                                        Waiting for Signal...
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                ) : (
+                                    /* --- VIEW 2: AUDIT HISTORY --- */
+                                    <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in zoom-in-95 duration-500">
+                                        <div className="p-4 bg-emerald-500/5 rounded-full mb-4 border border-emerald-500/10">
+                                            <Book className="text-emerald-500/40" size={32} />
+                                        </div>
+                                        <h4 className="text-zinc-400 text-[10px] font-black uppercase tracking-widest">Trade Ledger Empty</h4>
+                                        <p className="text-zinc-600 text-[9px] mt-2 max-w-[220px] leading-relaxed font-bold uppercase">
+                                            Historical logs are being synced with the Render backend...
+                                        </p>
+                                        <button className="mt-6 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-[8px] font-black uppercase rounded-lg border border-zinc-700 transition-all">
+                                            Refresh Local Cache
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    </div>
                         </div>
                     </div>
                 </div>
