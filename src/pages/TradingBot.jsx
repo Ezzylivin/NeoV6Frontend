@@ -325,7 +325,7 @@ const TradingBotContainer = () => {
 
                 const rawProfit = data.dailyProfit || data.daily_profit;
                 const currentBalance = data.currentBalance || prev.currentBalance || 0;
-                const seed = prev.initialCapital || data.initialCapital || formConfig.capitalAllocation;
+                const seed = prev.initialCapital || data.initialCapital || currentBalance || formConfig.capitalAllocation;
                 const calculatedProfit = rawProfit !== undefined ? rawProfit : (currentBalance - seed);
 
                 console.log("📈 Profit Logic:", { backend: rawProfit, calculated: calculatedProfit });
