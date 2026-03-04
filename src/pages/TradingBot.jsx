@@ -266,95 +266,95 @@ const TradingBotContainer = () => {
     // File: src/pages/TradingBot.jsx -> Inside TradingBotContainer component
 
     // --- BLOCK 1: THE INITIAL DATA GRAB ---
-// Ensures TSL/SMA lines appear immediately without waiting for a socket pulse
-useEffect(() => {
-    if (!address) return;
-
-    console.log("🛠️ Fetching Initial Bot Status for:", address);
-
-    api.get(`/bot/status?userId=${address}`)
-        .then(res => {
-            console.log("✅ Initial Status Received:", res.data);
-            setSocketStatus(res.data); // This populates your charts/tables instantly
-        })
-        .catch(err => console.error("❌ Initial Fetch Failed:", err));
-}, [address]); // Only runs when wallet connects or changes
-
-
-// --- BLOCK 2: THE NEURAL LINK (SOCKET) ---
-// Handles live updates for moving TSL lines and blinking signals
-useEffect(() => {
-    if (!address) return;
-
-    // 1. Initialize Socket only if it doesn't exist
-    if (!socketRef.current) {
-        socketRef.current = io(SOCKET_URL, { 
-            query: { userId: address },
-            transports: ['websocket']
-        });
-    }
-
-    const socket = socketRef.current;
-    if (!socket) return;
-
-    // 2. Connection Listeners
-    socket.on("connect", () => {
-        setSocketConnected(true);
-        console.log("Neural Link Established");
-    });
-
-    socket.on("disconnect", () => {
-        setSocketConnected(false);
-        console.log("Neural Link Severed");
-    });
-
-    // 3. Live Data Processor (Updates TSL/SMA/Equity)
-    socket.on("bot_status_update", (data) => {
-        if (isHaltLocked) return; 
-
-        setSocketStatus(prev => {
-            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            
-            // Normalize incoming signal data for charts
-            const rawSignals = data.signalsMap || {};
-            const normalizedSignals = {};
-            Object.keys(rawSignals).forEach(key => {
-                const normalizedKey = key.toLowerCase().trim().replace(/\s+/g, '_');
-                const val = parseFloat(rawSignals[key]);
-                if (!isNaN(val)) normalizedSignals[normalizedKey] = val;
+    // Ensures TSL/SMA lines appear immediately without waiting for a socket pulse
+    useEffect(() => {
+        if (!address) return;
+    
+        console.log("🛠️ Fetching Initial Bot Status for:", address);
+    
+        api.get(`/bot/status?userId=${address}`)
+            .then(res => {
+                console.log("✅ Initial Status Received:", res.data);
+                setSocketStatus(res.data); // This populates your charts/tables instantly
+            })
+            .catch(err => console.error("❌ Initial Fetch Failed:", err));
+    }, [address]); // Only runs when wallet connects or changes
+    
+    
+    // --- BLOCK 2: THE NEURAL LINK (SOCKET) ---
+    // Handles live updates for moving TSL lines and blinking signals
+    useEffect(() => {
+        if (!address) return;
+    
+        // 1. Initialize Socket only if it doesn't exist
+        if (!socketRef.current) {
+            socketRef.current = io(SOCKET_URL, { 
+                query: { userId: address },
+                transports: ['websocket']
             });
-
-            // Maintain signal history (300 points)
-            const updatedSignalsHistory = [
-                ...(prev.signalsMapHistory || []), 
-                { time: timeStr, ...normalizedSignals }
-            ].slice(-300);
-
-            return { 
-                ...prev, 
-                ...data, 
-                // Ensure positions mapping matches what LiveTradingChart expects
-                activePositions: data.activePositions || data.positions || [], 
-                signalsMapHistory: updatedSignalsHistory,
-                equityCurve: data.equityCurve || prev.equityCurve || []
-            };
+        }
+    
+        const socket = socketRef.current;
+        if (!socket) return;
+    
+        // 2. Connection Listeners
+        socket.on("connect", () => {
+            setSocketConnected(true);
+            console.log("Neural Link Established");
         });
-    });
-
-    // 4. Neural Flow Log Processor
-    socket.on("bot_log", (newLog) => {
-        setSocketLogs(prev => [newLog, ...prev].slice(0, 100));
-    });
-
-    // 5. Cleanup: Stop listeners when leaving the page
-    return () => {
-        socket.off("connect");
-        socket.off("disconnect");
-        socket.off("bot_status_update");
-        socket.off("bot_log");
-        // We don't disconnect the socket here to keep the link active during navigation
-    };
-}, [address, isHaltLocked]); // Watch for wallet changes or Global Halt
+    
+        socket.on("disconnect", () => {
+            setSocketConnected(false);
+            console.log("Neural Link Severed");
+        });
+    
+        // 3. Live Data Processor (Updates TSL/SMA/Equity)
+        socket.on("bot_status_update", (data) => {
+            if (isHaltLocked) return; 
+    
+            setSocketStatus(prev => {
+                const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                
+                // Normalize incoming signal data for charts
+                const rawSignals = data.signalsMap || {};
+                const normalizedSignals = {};
+                Object.keys(rawSignals).forEach(key => {
+                    const normalizedKey = key.toLowerCase().trim().replace(/\s+/g, '_');
+                    const val = parseFloat(rawSignals[key]);
+                    if (!isNaN(val)) normalizedSignals[normalizedKey] = val;
+                });
+    
+                // Maintain signal history (300 points)
+                const updatedSignalsHistory = [
+                    ...(prev.signalsMapHistory || []), 
+                    { time: timeStr, ...normalizedSignals }
+                ].slice(-300);
+    
+                return { 
+                    ...prev, 
+                    ...data, 
+                    // Ensure positions mapping matches what LiveTradingChart expects
+                    activePositions: data.activePositions || data.positions || [], 
+                    signalsMapHistory: updatedSignalsHistory,
+                    equityCurve: data.equityCurve || prev.equityCurve || []
+                };
+            });
+        });
+    
+        // 4. Neural Flow Log Processor
+        socket.on("bot_log", (newLog) => {
+            setSocketLogs(prev => [newLog, ...prev].slice(0, 100));
+        });
+    
+        // 5. Cleanup: Stop listeners when leaving the page
+        return () => {
+            socket.off("connect");
+            socket.off("disconnect");
+            socket.off("bot_status_update");
+            socket.off("bot_log");
+            // We don't disconnect the socket here to keep the link active during navigation
+        };
+    }, [address, isHaltLocked]); // Watch for wallet changes or Global Halt
         
 
     // 🟢 Main Data Processing Engine
