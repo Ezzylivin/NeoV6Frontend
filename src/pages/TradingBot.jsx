@@ -329,7 +329,7 @@ const TradingBotContainer = () => {
                 const rawProfit = data.dailyProfit || data.daily_profit;
                 const currentBalance = data.currentBalance || prev.currentBalance || 0;
                 
-                // ANCHOR: Lock the initial capital so profit stays relative to the start
+                // target: Lock the initial capital so profit stays relative to the start
                 const seed = prev.initialCapital || data.initialCapital || currentBalance || formConfig.capitalAllocation;
         
                 // ROUNDING: Prevent scientific notation (e.g., 0.09000000341)
@@ -433,14 +433,14 @@ const TradingBotContainer = () => {
     setIsStarting(true);
     setIsHaltLocked(false);
     
-    // 1. Establish the "Anchor" - Prefer the form input, fallback to paperBalance selection
-    const anchorCapital = Number(formConfig.capitalAllocation) || Number(paperBalance) || 1000;
+    // 1. Establish the "target" - Prefer the form input, fallback to paperBalance selection
+    const targetCapital = Number(formConfig.capitalAllocation) || Number(paperBalance) || 1000;
 
     // 2. Wipe previous session data but LOCK in the new baseline
     setSocketStatus({ 
         status: 'initializing', 
-        currentBalance: anchorCapital, 
-        initialCapital: anchorCapital, // ✅ This is the permanent denominator for profit calculations
+        currentBalance: targetCapital, 
+        initialCapital: targetCapital, // ✅ This is the permanent denominator for profit calculations
         equityCurve: [], 
         tradeMarkers: [], 
         positions: [], 
@@ -764,7 +764,7 @@ const TradingBotContainer = () => {
                                         <XAxis dataKey="time" hide />
                                         <YAxis 
                                             hide 
-                                            // Anchor the bottom to your starting capital
+                                            // target the bottom to your starting capital
                                             // We add a tiny bit of padding (0.95) so the line isn't touching the absolute bottom
                                             domain={[
                                                 formConfig.capitalAllocation * 0.98, 
