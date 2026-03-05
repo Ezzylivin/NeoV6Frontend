@@ -1300,7 +1300,6 @@ const TradingBotContainer = () => {
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] h-[600px] overflow-hidden flex items-center justify-center text-zinc-700 italic border-dashed">
                             Initialize market link...
                         </div>
-                    </div>
                 </div> // 🟢 This closes the grid (max-w-[1800px])
             )} {/* 🟢 THIS NOW CORRECTLY CLOSES THE TERNARY LOGIC */}
         </div>
