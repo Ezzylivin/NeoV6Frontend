@@ -1204,7 +1204,7 @@ const TradingBotContainer = () => {
                                     <RotateCcw size={10} className="text-zinc-500 group-hover:text-amber-500 group-hover:rotate-[-45deg] transition-all" />
                                     <span className="text-[8px] font-black text-zinc-500 group-hover:text-zinc-300 uppercase tracking-tighter">Reset</span>
                                 </button>
-                                </div>
+                            </div>
                             
                                 <div className="grid grid-cols-2 gap-3">
                                     {/* Row 1: TP / SL */}
@@ -1274,13 +1274,17 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
                             
-                            {/* Engine Ignition remains at the bottom of the sidebar */}
-                            <button onClick={() => setShowPreFlight(true)} className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-400 transition-all shadow-xl mt-6">
+                            {/* 🟢 ENGINE INITIATION BUTTON (Ensure this is OUTSIDE the Shield grid but INSIDE the sidebar div) */}
+                            <button 
+                                onClick={() => setShowPreFlight(true)} 
+                                className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-400 transition-all shadow-xl mt-6"
+                            >
                                 Initiate Engine
                             </button>
-                        </div>
-                    </div>    
-
+                        </div> 
+                    </div>
+                
+                    {/* 🟢 LINE 1284: This should now be clear of errors */}
                     <div className="col-span-12 lg:col-span-9 space-y-8">
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                             <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
