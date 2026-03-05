@@ -1322,6 +1322,9 @@ const STRAT_COLORS = {
 };
 
 const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
+    // 🟢 1. Extract active strategy codes to ensure we only draw what is active
+    const activeStratCodes = formConfig.strategies.map(s => s.code);
+
     return (
         <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 shadow-2xl h-full flex flex-col">
             <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-6 flex items-center gap-2">
@@ -1332,80 +1335,62 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
                 <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={signalsMapHistory}>
                         <defs>
-                            {/* 🟢 Generate gradients for EVERY strategy in the pool */}
-                            {Object.keys(STRAT_COLORS).map((key) => (
+                            {activeStratCodes.map((key) => (
                                 <linearGradient key={`grad-${key}`} id={`color-${key}`} x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={STRAT_COLORS[key]} stopOpacity={0.1}/>
+                                    <stop offset="5%" stopColor={STRAT_COLORS[key]} stopOpacity={0.3}/>
                                     <stop offset="95%" stopColor={STRAT_COLORS[key]} stopOpacity={0}/>
                                 </linearGradient>
                             ))}
                         </defs>
                         
+                        {/* 🟢 2. Fix Tooltips: Disable 'shared' to stop the clustering effect */}
                         <RechartsTooltip 
                             shared={false} 
-                            trigger="hover"
-                            coordinate={{ x: 0, y: 0 }} 
                             contentStyle={{ 
                                 backgroundColor: '#09090b', 
                                 border: '1px solid #27272a', 
                                 borderRadius: '8px',
-                                pointerEvents: 'none'
+                                fontSize: '10px'
                             }}
-                            formatter={(value, name, props) => {
-                                // 🟢 PREVENT CLUSTERING: 
-                                // If shared={false} still shows a list, we only return data for the 
-                                // SPECIFIC payload being hovered.
-                                if (!props?.payload) return null;
-                        
-                                const key = name.toLowerCase().replace(/\s+/g, '_');
-                                const description = STRAT_DESCRIPTIONS[key] || "Neural Signal Layer";
-                                const symbol = formConfig?.symbol || "Asset";
-                                const confidence = (value * 100).toFixed(0);
-                        
-                                return [
-                                    <span key="val" style={{ color: '#10b981', fontWeight: 'bold' }}>
-                                        {confidence}% | {description}
-                                    </span>,
-                                    <span key="name" style={{ color: '#94a3b8' }}>
-                                        {symbol} | {name.toUpperCase()}
-                                    </span>
-                                ];
-                            }}
+                            formatter={(value, name) => [
+                                `${(value * 100).toFixed(0)}%`, 
+                                name.toUpperCase()
+                            ]}
                         />
-                        {Object.keys(STRAT_COLORS).map((key) => (
+
+                        {/* 🟢 3. Dynamic Line Rendering */}
+                        {activeStratCodes.map((key) => (
                             <Area 
                                 key={key} 
                                 type="monotone" 
-                                dataKey={key} 
-                                name={key.replace('_', ' ').toUpperCase()} // 🟢 This provides the 'name' to the formatter
-                                stroke={STRAT_COLORS[key]} 
+                                dataKey={key} // This MUST match the key inside your signalsMapHistory objects
+                                name={key.replace('_', ' ')}
+                                stroke={STRAT_COLORS[key] || '#52525b'} 
                                 fill={`url(#color-${key})`}
                                 strokeWidth={2}
-                                activeDot={{ r: 4, strokeWidth: 0 }}
+                                dot={false}
+                                activeDot={{ r: 4 }}
                                 isAnimationActive={false} 
+                                connectNulls={true} // Prevents line breaks if data is missing for one tick
                             />
                         ))}
                         
                         <XAxis dataKey="time" hide />
                         <YAxis 
-                            domain={[0.1, 1.0]} 
-                            tick={{ fill: '#3f3f46', fontSize: 8 }}
-                            tickFormatter={(val) => `${val * 100}%`}
-                            width={35}
-                            axisLine={false}
-                            tickLine={false}
+                            domain={[0, 1]} 
+                            hide 
                         />
                     </AreaChart>
                 </ResponsiveContainer>
             </div>
             
-            {/* 🟢 FULL LEGEND: Always visible */}
-            <div className="mt-4 grid grid-cols-2 gap-y-2 gap-x-4 border-t border-zinc-800 pt-4">
-                {Object.keys(STRAT_COLORS).map((key) => (
-                    <div key={key} className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: STRAT_COLORS[key] }}></div>
+            {/* 🟢 4. Dynamic Legend */}
+            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-zinc-800 pt-4">
+                {formConfig.strategies.map((s) => (
+                    <div key={s.code} className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STRAT_COLORS[s.code] }}></div>
                         <span className="text-[8px] font-black uppercase text-zinc-500 tracking-tighter">
-                            {key.replace('_', ' ')}
+                            {s.code.replace('_', ' ')}
                         </span>
                     </div>
                 ))}
