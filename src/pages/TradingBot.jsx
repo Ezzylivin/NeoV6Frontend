@@ -985,7 +985,7 @@ const TradingBotContainer = () => {
                     </div>
                 </div>
             ) : (
-                /* ⚙️ STANDBY MODE: 3/9 CONFIGURATION VIEW */
+                {/* ⚙️ STANDBY MODE: 3/9 CONFIGURATION VIEW */}
                 <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8 items-start animate-in fade-in duration-700">
                     <div className="col-span-12 lg:col-span-3 h-[780px] relative">
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-10 shadow-2xl h-full overflow-y-auto custom-scrollbar">
@@ -1300,6 +1300,7 @@ const TradingBotContainer = () => {
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] h-[600px] overflow-hidden flex items-center justify-center text-zinc-700 italic border-dashed">
                             Initialize market link...
                         </div>
+                    </div>
                 </div> // 🟢 This closes the grid (max-w-[1800px])
             )} {/* 🟢 THIS NOW CORRECTLY CLOSES THE TERNARY LOGIC */}
         </div>
@@ -1412,7 +1413,7 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
             </div>
         </div>
     );
-};;
+};
 
 // ... (MetricCard & StrategyParamInputs remain same) ...
 const MetricCard = ({ label, value, subValue, color = "text-white", icon = null }) => (
