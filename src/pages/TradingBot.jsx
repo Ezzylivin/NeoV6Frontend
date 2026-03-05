@@ -211,25 +211,33 @@ const TradingBotContainer = () => {
     const logContainerRef = useRef(null);
 
     const [formConfig, setFormConfig] = useState({
-        symbol: "BTC-USD", timeframe: "1h", capitalAllocation: 1000,
-        tradingMode: "paper", strategies: [{ code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }],
-        mlMode: "off", mlModel: "xgboost", mlThreshold: 0.5,
-        riskManagementMode: "static", 
-        riskPercentage: 1, 
-        maxDailyLoss: 5, 
-        maxDrawdown: 10, 
-        maxTradesPerDay: 20,
-        hybridMode: "AND",
-        enable_shorting: true, 
-        params: { take_profit: 0.05, stop_loss: 0.02, trailing_stop: 0.01, long_threshold: 0.5, short_threshold: 0.5 },
-        filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 },
-        leverage: 1,              
-        slippageTolerance: 0.5,   
-        maxTradesPerDay: 20,      
-        minVotesRequired: 1,      
+        symbol: "BTC-USD",
+        timeframe: "1h",
+        capitalAllocation: 1000,
+        tradingMode: "paper",
+        strategies: [{ code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }],
+        mlMode: "off",
         mlModel: "xgboost",
-        mlThreshold: 0.5
-        });
+        mlThreshold: 0.5,
+        riskManagementMode: "static",
+        riskPercentage: 1,
+        maxDailyLoss: 5,
+        maxDrawdown: 10,
+        maxTradesPerDay: 20, // 🆕 Added
+        hybridMode: "AND",
+        minVotesRequired: 1,  // 🆕 Added
+        enable_shorting: true,
+        leverage: 1,          // 🆕 Added
+        slippageTolerance: 0.5, // 🆕 Added
+        params: { 
+            take_profit: 0.05, 
+            stop_loss: 0.02, 
+            trailing_stop: 0.01, 
+            long_threshold: 0.5, 
+            short_threshold: 0.5 
+        },
+        filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 }
+    });
 
     const [activeOpsTab, setActiveOpsTab] = useState("live")
 
@@ -443,10 +451,8 @@ const TradingBotContainer = () => {
     setIsStarting(true);
     setIsHaltLocked(false);
     
-    // 1. Establish the "Anchor" capital
     const targetCapital = Number(formConfig.capitalAllocation) || Number(paperBalance) || 1000;
 
-    // 2. Reset UI State for the new session
     setSocketStatus({ 
         status: 'initializing', 
         currentBalance: targetCapital, 
@@ -462,26 +468,23 @@ const TradingBotContainer = () => {
 
     setSocketLogs([]);
        
-    // 3. Construct the REAL payload without hardcoded "fakes"
     const finalConfig = {
         ...formConfig,
         capitalAllocation: targetCapital,
-        // Using the exact values from formConfig state
+        // 🟢 REAL VALUES ONLY: No hardcoded defaults
         mlMode: formConfig.mlMode, 
         mlModel: formConfig.mlModel,
+        mlThreshold: parseFloat(formConfig.mlThreshold),
         maxPyramiding: formConfig.maxPyramiding,
-        
-        // Ensure numbers are properly parsed from state
-        mlThresholdLong: parseFloat(formConfig.params.long_threshold),
-        mlThresholdShort: parseFloat(formConfig.params.short_threshold),
-        
+        maxTradesPerDay: parseInt(formConfig.maxTradesPerDay),
+        leverage: parseFloat(formConfig.leverage),
+        slippageTolerance: parseFloat(formConfig.slippageTolerance),
         enable_shorting: !!formConfig.enable_shorting,
-
+        
         comboConfig: { 
             strategyCodes: formConfig.strategies.map(s => s.code), 
             combinationRule: formConfig.hybridMode, 
-            // Now pulling from state instead of auto-calculating
-            minVotesRequired: formConfig.minVotesRequired 
+            minVotesRequired: parseInt(formConfig.minVotesRequired) 
         }
     };
 
@@ -530,6 +533,25 @@ const TradingBotContainer = () => {
         toast.error("Halt Command Failed");
         setIsHaltLocked(false);
     }
+};
+
+    const handleResetRiskSettings = () => {
+    setFormConfig(prev => ({
+        ...prev,
+        // Return these specific fields to their 'Safe Zone' defaults
+        riskPercentage: 1,
+        maxDailyLoss: 5,
+        maxDrawdown: 10,
+        maxTradesPerDay: 20,
+        slippageTolerance: 0.5,
+        params: {
+            ...prev.params,
+            take_profit: 0.05,
+            stop_loss: 0.02,
+            trailing_stop: 0.01
+        }
+    }));
+    toast.success("Risk Protocol: Reverted to Factory Defaults");
 };
 
 
@@ -977,13 +999,48 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
 
-                            {/* 🟢 DIRECTION */}
+                            {/* 🟢 DIRECTION & LEVERAGE */}
                             <div className="space-y-4 border-t border-zinc-800/50 pt-8">
-                                <div className="flex justify-between items-center"><div className="flex items-center gap-2 text-blue-400"><ArrowDownRight size={16}/><h4 className="text-[10px] font-black uppercase tracking-widest">Direction</h4></div>
-                                <select value={formConfig.enable_shorting} onChange={(e)=>setFormConfig({...formConfig, enable_shorting: e.target.value === 'true'})} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase">
-                                    <option value="false">Spot Only (Long)</option>
-                                    <option value="true">Margin (Long/Short)</option>
-                                </select></div>
+                                <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-2 text-blue-400">
+                                        <ArrowDownRight size={16}/>
+                                        <h4 className="text-[10px] font-black uppercase tracking-widest">Direction</h4>
+                                    </div>
+                                    <select 
+                                        value={formConfig.enable_shorting} 
+                                        onChange={(e) => setFormConfig({...formConfig, enable_shorting: e.target.value === 'true'})} 
+                                        className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase"
+                                    >
+                                        <option value="false">Spot Only (Long)</option>
+                                        <option value="true">Margin (Long/Short)</option>
+                                    </select>
+                                </div>
+                            
+                                {/* 🆕 Dynamic Leverage Slider */}
+                                {formConfig.enable_shorting && (
+                                    <div className="mt-4 p-4 bg-zinc-950/50 border border-zinc-800 rounded-2xl animate-in fade-in slide-in-from-top-1 duration-300">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <label className={labelClass}>Leverage Multiplier</label>
+                                            <span className="text-[11px] font-mono font-black text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                                                {formConfig.leverage}x
+                                            </span>
+                                        </div>
+                                        <input 
+                                            type="range" 
+                                            min="1" 
+                                            max="20" 
+                                            step="1"
+                                            value={formConfig.leverage}
+                                            onChange={(e) => setFormConfig({...formConfig, leverage: parseInt(e.target.value)})}
+                                            className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-emerald-500 hover:accent-emerald-400 transition-all"
+                                        />
+                                        <div className="flex justify-between mt-2 px-1">
+                                            <span className="text-[8px] text-zinc-700 font-bold">1X</span>
+                                            <span className="text-[8px] text-zinc-700 font-bold">10X</span>
+                                            <span className="text-[8px] text-zinc-700 font-bold">20X</span>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* 🟢 NEURAL GATE */}
@@ -1038,37 +1095,187 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
 
+                            {/* 🟢 ENSEMBLE & VOTING LOGIC */}
                             <div className="space-y-4 border-t border-zinc-800/50 pt-8">
-                                <div className="flex justify-between items-center"><h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Ensemble</h4><select value={formConfig.hybridMode} onChange={(e) => setFormConfig({...formConfig, hybridMode: e.target.value})} className="bg-zinc-950 border border-zinc-700 text-[9px] rounded px-2 py-1 text-emerald-500 font-bold uppercase"><option value="AND">Strict</option><option value="OR">Loose</option></select></div>
+                                <div className="flex justify-between items-center">
+                                    <h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Ensemble</h4>
+                                    <select 
+                                        value={formConfig.hybridMode} 
+                                        onChange={(e) => {
+                                            const newMode = e.target.value;
+                                            setFormConfig({
+                                                ...formConfig, 
+                                                hybridMode: newMode,
+                                                // Auto-set votes to max if switched to AND
+                                                minVotesRequired: newMode === "AND" ? formConfig.strategies.length : formConfig.minVotesRequired
+                                            });
+                                        }} 
+                                        className="bg-zinc-950 border border-zinc-700 text-[9px] rounded px-2 py-1 text-emerald-500 font-bold uppercase outline-none"
+                                    >
+                                        <option value="AND">Strict (AND)</option>
+                                        <option value="OR">Loose (OR)</option>
+                                    </select>
+                                </div>
+                            
+                                {/* 🆕 Dynamic Consensus Vote Input */}
+                                {formConfig.hybridMode === "OR" && (
+                                    <div className="p-4 bg-violet-500/5 border border-violet-500/10 rounded-2xl animate-in fade-in slide-in-from-top-1 duration-300">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <label className={labelClass}>Min Consensus Votes</label>
+                                            <span className="text-[10px] font-mono font-black text-violet-400">
+                                                {formConfig.minVotesRequired} / {formConfig.strategies.length}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <input 
+                                                type="range" 
+                                                min="1" 
+                                                max={formConfig.strategies.length} 
+                                                step="1"
+                                                value={formConfig.minVotesRequired}
+                                                onChange={(e) => setFormConfig({...formConfig, minVotesRequired: parseInt(e.target.value)})}
+                                                className="flex-1 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-violet-500"
+                                            />
+                                        </div>
+                                        <p className="text-[8px] text-zinc-600 mt-2 italic uppercase font-bold tracking-tighter">
+                                            *Requires {formConfig.minVotesRequired} modules to agree before execution.
+                                        </p>
+                                    </div>
+                                )}
+                            
                                 <div className="space-y-3">
                                     {formConfig.strategies.map((s, i) => (
                                         <div key={i} className="p-4 bg-zinc-800/30 rounded-2xl border border-zinc-800 shadow-inner">
                                             <div className="flex justify-between mb-3">
-                                                <select value={s.code} onChange={(e) => { const n = [...formConfig.strategies]; n[i] = { code: e.target.value, params: DEFAULT_STRATEGY_PARAMS[e.target.value] }; setFormConfig({...formConfig, strategies: n}); }} className="bg-transparent text-[10px] font-black text-amber-500 uppercase outline-none">
+                                                <select 
+                                                    value={s.code} 
+                                                    onChange={(e) => { 
+                                                        const n = [...formConfig.strategies]; 
+                                                        n[i] = { code: e.target.value, params: DEFAULT_STRATEGY_PARAMS[e.target.value] }; 
+                                                        setFormConfig({...formConfig, strategies: n}); 
+                                                    }} 
+                                                    className="bg-transparent text-[10px] font-black text-amber-500 uppercase outline-none"
+                                                >
                                                     {STRAT_POOL.map(opt => <option key={opt.code} value={opt.code}>{opt.name}</option>)}
                                                 </select>
-                                                <button type="button" onClick={() => setFormConfig(p => ({ ...p, strategies: p.strategies.filter((_, idx) => idx !== i) }))} className="text-zinc-600 hover:text-rose-500"><Trash2 size={12}/></button>
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => {
+                                                        const filtered = formConfig.strategies.filter((_, idx) => idx !== i);
+                                                        setFormConfig(p => ({ 
+                                                            ...p, 
+                                                            strategies: filtered,
+                                                            // Ensure minVotes doesn't exceed new length
+                                                            minVotesRequired: Math.min(p.minVotesRequired, filtered.length)
+                                                        }));
+                                                    }} 
+                                                    className="text-zinc-600 hover:text-rose-500 transition-colors"
+                                                >
+                                                    <Trash2 size={12}/>
+                                                </button>
                                             </div>
                                             <StrategyParamInputs strategy={s} onChange={(p) => { const n = [...formConfig.strategies]; n[i].params = p; setFormConfig({...formConfig, strategies: n}); }} />
                                         </div>
                                     ))}
-                                    <button type="button" onClick={() => setFormConfig(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="w-full py-3 border border-dashed border-zinc-800 rounded-xl text-zinc-600 hover:text-emerald-500 transition-all flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-tighter"><Plus size={12}/> Add Signal Module</button>
+                                    
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setFormConfig(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} 
+                                        className="w-full py-3 border border-dashed border-zinc-800 rounded-xl text-zinc-600 hover:text-emerald-500 transition-all flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-tighter"
+                                    >
+                                        <Plus size={12}/> Add Signal Module
+                                    </button>
                                 </div>
                             </div>
+                            
+                            {/* 🟢 SHIELD (RISK & PROTECTION) */}
                             <div className="space-y-4 border-t border-zinc-800/50 pt-8">
-                                <div className="flex items-center gap-2 text-amber-500"><Shield size={16}/><h4 className="text-[10px] font-black uppercase tracking-widest">Shield</h4></div>
+                                <div className="flex items-center gap-2 text-amber-500">
+                                    <Shield size={16}/>
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest">Shield</h4>
+                                </div>
+
+                                {/* 🆕 Reset Button */}
+                                <button 
+                                    onClick={handleResetRiskSettings}
+                                    className="group flex items-center gap-1.5 px-2 py-1 bg-zinc-800/50 hover:bg-zinc-800 rounded-lg border border-zinc-700/50 transition-all"
+                                    title="Reset Risk Defaults"
+                                >
+                                    <RotateCcw size={10} className="text-zinc-500 group-hover:text-amber-500 group-hover:rotate-[-45deg] transition-all" />
+                                    <span className="text-[8px] font-black text-zinc-500 group-hover:text-zinc-300 uppercase tracking-tighter">Reset</span>
+                                </button>
+                                </div>
+                            
                                 <div className="grid grid-cols-2 gap-3">
-                                    <div><label className={labelClass}>TP %</label><input type="number" step="0.001" value={formConfig.params.take_profit} onChange={(e)=>setFormConfig({...formConfig, params:{...formConfig.params, take_profit: parseFloat(e.target.value)}})} className={inputClass}/></div>
-                                    <div><label className={labelClass}>SL %</label><input type="number" step="0.001" value={formConfig.params.stop_loss} onChange={(e)=>setFormConfig({...formConfig, params:{...formConfig.params, stop_loss: parseFloat(e.target.value)}})} className={inputClass}/></div>
+                                    {/* Row 1: TP / SL */}
+                                    <div>
+                                        <label className={labelClass}>TP %</label>
+                                        <input 
+                                            type="number" step="0.001" 
+                                            value={formConfig.params.take_profit} 
+                                            onChange={(e) => setFormConfig({...formConfig, params:{...formConfig.params, take_profit: parseFloat(e.target.value)}})} 
+                                            className={inputClass}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={labelClass}>SL %</label>
+                                        <input 
+                                            type="number" step="0.001" 
+                                            value={formConfig.params.stop_loss} 
+                                            onChange={(e) => setSocketStatus(prev => ({...prev, ...data, dailyProfit: calculatedProfit, initialCapital: seed, tradeHistory: (data.tradeHistory && data.tradeHistory.length > 0) ? data.tradeHistory : (prev.tradeHistory || []), positions: data.activePositions || data.positions || [], candles: (data.candles && data.candles.length > 0) ? data.candles : (prev.candles || []), tradeMarkers: (data.tradeMarkers && data.tradeMarkers.length > 0) ? data.tradeMarkers : (prev.tradeMarkers || []), signalsMapHistory: updatedSignalsHistory, equityCurve: updatedEquityCurve }))})} 
+                                            className={inputClass}
+                                        />
+                                    </div>
+                            
+                                    {/* Row 2: Trailing Stop (Full Width) */}
                                     <div className="col-span-2">
-                                        <div className="flex justify-between items-center"><label className={labelClass}>Trailing Stop %</label><Tooltip text="Adjusts stop level dynamically as price moves in favor."><Info size={10} className="text-zinc-600"/></Tooltip></div>
-                                        <input type="number" step="0.001" value={formConfig.params.trailing_stop} onChange={(e)=>setFormConfig({...formConfig, params:{...formConfig.params, trailing_stop: parseFloat(e.target.value)}})} className={inputClass}/>
+                                        <div className="flex justify-between items-center">
+                                            <label className={labelClass}>Trailing Stop %</label>
+                                            <Tooltip text="Adjusts stop level dynamically as price moves in favor.">
+                                                <Info size={10} className="text-zinc-600"/>
+                                            </Tooltip>
+                                        </div>
+                                        <input 
+                                            type="number" step="0.001" 
+                                            value={formConfig.params.trailing_stop} 
+                                            onChange={(e) => setFormConfig({...formConfig, params:{...formConfig.params, trailing_stop: parseFloat(e.target.value)}})} 
+                                            className={inputClass}
+                                        />
+                                    </div>
+                            
+                                    {/* 🆕 Row 3: Slippage & Trade Frequency */}
+                                    <div>
+                                        <div className="flex justify-between items-center">
+                                            <label className={labelClass}>Slippage Tol. %</label>
+                                            <Tooltip text="Maximum price difference allowed between signal and execution.">
+                                                <Info size={10} className="text-zinc-600"/>
+                                            </Tooltip>
+                                        </div>
+                                        <input 
+                                            type="number" step="0.1" 
+                                            value={formConfig.slippageTolerance}
+                                            onChange={(e) => setFormConfig({...formConfig, slippageTolerance: parseFloat(e.target.value)})}
+                                            className={inputClass}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={labelClass}>Max Daily Trades</label>
+                                        <input 
+                                            type="number" 
+                                            value={formConfig.maxTradesPerDay}
+                                            onChange={(e) => setFormConfig({...formConfig, maxTradesPerDay: parseInt(e.target.value)})}
+                                            className={inputClass}
+                                        />
                                     </div>
                                 </div>
                             </div>
-                            <button onClick={() => setShowPreFlight(true)} className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-400 transition-all shadow-xl">Initiate Engine</button>
+                            
+                            {/* Engine Ignition remains at the bottom of the sidebar */}
+                            <button onClick={() => setShowPreFlight(true)} className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-400 transition-all shadow-xl mt-6">
+                                Initiate Engine
+                            </button>
                         </div>
-                    </div>
+                    </div>    
 
                     <div className="col-span-12 lg:col-span-9 space-y-8">
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
