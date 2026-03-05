@@ -328,6 +328,8 @@ const TradingBotContainer = () => {
                 // --- 1. DATA PREP & CLEANING ---
                 const rawProfit = data.dailyProfit || data.daily_profit;
                 const currentBalance = data.currentBalance || prev.currentBalance || 0;
+                const rawPositions = data.activePositions || data.positions || [];
+                const filteredPositions = rawPositions.filter(pos => !exitingSymbols.includes(pos.symbol));
                 
                 // target: Lock the initial capital so profit stays relative to the start
                 const seed = prev.initialCapital || data.initialCapital || currentBalance || formConfig.capitalAllocation;
@@ -372,7 +374,7 @@ const TradingBotContainer = () => {
                     initialCapital: seed,
                     
                     // POSITIONS: Fallback for different backend naming conventions
-                    positions: data.activePositions || data.positions || [],
+                    positions: filteredPositions,
                     
                     // CANDLES: If new packet is empty (delta update), keep existing chart data
                     candles: (data.candles && data.candles.length > 0) ? data.candles : (prev.candles || []),
@@ -508,31 +510,38 @@ const TradingBotContainer = () => {
     }
 };
 
+
+    const [exitingSymbols, setExitingSymbols] = useState([]);
+    
     const handleManualExit = async () => {
     if (!socketStatus.positions?.length) return;
+    
+    const symbolToExit = formConfig.symbol;
 
     try {
-        // 🟢 1. OPTIMISTIC CLEAR: Clear the table immediately in the browser
+        // 🟢 1. LOCK THE SYMBOL: Add to exiting list
+        setExitingSymbols(prev => [...prev, symbolToExit]);
+
+        // 🟢 2. OPTIMISTIC UI: Clear the table immediately
         setSocketStatus(prev => ({
             ...prev,
             positions: [],
             activePositions: []
         }));
 
-        // 🟢 2. AUTO-SWITCH TAB: Move the user to the Audit view
         setActiveOpsTab("audit"); 
 
-        // 3. Trigger actual backend execution
-        await closePosition({ userId: address, symbol: formConfig.symbol });
+        await closePosition({ userId: address, symbol: symbolToExit });
+        toast.success("Manual Exit Executed: Syncing Ledger...");
 
-        toast.success("Manual Exit Executed: Syncing History...");
-
-        // 🟢 4. DELAYED SYNC: Give the DB 2 seconds to save the trade before refreshing
+        
         setTimeout(async () => {
             await refreshState();
-        }, 2000);
+            setExitingSymbols(prev => prev.filter(s => s !== symbolToExit));
+        }, 5000);
         
     } catch (e) { 
+        setExitingSymbols(prev => prev.filter(s => s !== symbolToExit));
         console.error("Manual Exit UI Error:", e);
     }
 };
