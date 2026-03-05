@@ -502,7 +502,7 @@ const TradingBotContainer = () => {
     try {
         // 🟢 THE ABSOLUTE FIX: Use the hook function
         // It already handles the token and the /bot/close-position URL
-        await closeActivePosition({ 
+        await closePosition({ 
             userId: address, 
             symbol: formConfig.symbol 
         });
