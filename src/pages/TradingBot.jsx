@@ -978,7 +978,6 @@ const TradingBotContainer = () => {
                                             </div>
                                         )}
                                     </div>
-                                </div>
                                 )}
                             </div>
                         </div>
