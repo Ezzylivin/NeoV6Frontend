@@ -493,33 +493,27 @@ const TradingBotContainer = () => {
 };
 
     const handleManualExit = async () => {
-    // 1. Safety Gate: Don't trigger if no positions exist
+    // 1. Safety Gate
     if (!socketStatus.positions?.length) {
         toast.error("No active positions to exit.");
         return;
     }
 
     try {
-        const token = localStorage.getItem("token");
+        // 🟢 THE ABSOLUTE FIX: Use the hook function
+        // It already handles the token and the /bot/close-position URL
+        await closeActivePosition({ 
+            userId: address, 
+            symbol: formConfig.symbol 
+        });
+
+        // 🟢 Force a state refresh so the position disappears from the UI immediately
+        await refreshState();
         
-        // 🟢 FIX: Use a verified absolute path to bypass variable drift
-        // Replace with your actual Render URL if API_BASE is unreliable
-        const targetUrl = `${API_BASE}/bot/close_position`.replace(/([^:]\/)\/+/g, "$1"); 
-
-        await axios.post(targetUrl, 
-            { 
-                userId: address, 
-                symbol: formConfig.symbol 
-            }, 
-            { 
-                headers: { Authorization: `Bearer ${token}` } 
-            }
-        );
-
-        toast.success("Manual Exit Protocol Executed");
     } catch (e) { 
-        console.error("Exit Error Details:", e.response?.data);
-        toast.error(`Exit Failed: ${e.response?.data?.detail || "Network Error"}`); 
+        // Error handling is already managed inside useBot.js, 
+        // but we can log a final failure here if needed.
+        console.error("Manual Exit Failed:", e);
     }
 };
 
