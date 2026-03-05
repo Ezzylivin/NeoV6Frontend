@@ -1176,7 +1176,7 @@ const TradingBotContainer = () => {
                                             </div>
                                             <StrategyParamInputs strategy={s} onChange={(p) => { const n = [...formConfig.strategies]; n[i].params = p; setFormConfig({...formConfig, strategies: n}); }} />
                                         </div>
-                                    }
+                                    )}
                                     
                                     <button 
                                         type="button" 
