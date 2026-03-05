@@ -1206,16 +1206,16 @@ const TradingBotContainer = () => {
                                 </button>
                             </div>
                             
-                                <div className="grid grid-cols-2 gap-3">
-                                    {/* Row 1: TP / SL */}
-                                    <div>
-                                        <label className={labelClass}>TP %</label>
-                                        <input 
-                                            type="number" step="0.001" 
-                                            value={formConfig.params.take_profit} 
-                                            onChange={(e) => setFormConfig({...formConfig, params:{...formConfig.params, take_profit: parseFloat(e.target.value)}})} 
-                                            className={inputClass}
-                                        />
+                            <div className="grid grid-cols-2 gap-3">
+                                {/* Row 1: TP / SL */}
+                                <div>
+                                    <label className={labelClass}>TP %</label>
+                                    <input 
+                                        type="number" step="0.001" 
+                                        value={formConfig.params.take_profit} 
+                                        onChange={(e) => setFormConfig({...formConfig, params:{...formConfig.params, take_profit: parseFloat(e.target.value)}})} 
+                                        className={inputClass}
+                                    />
                                     </div>
                                     <div>
                                         <label className={labelClass}>SL %</label>
