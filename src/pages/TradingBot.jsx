@@ -323,26 +323,24 @@ const TradingBotContainer = () => {
         // 🟢 THE CORRECT PLACE FOR THE STATUS UPDATE LISTENER
         socket.on("bot_status_update", (data) => {
             if (isHaltLocked) return; 
-
-            console.log("📊 Neural Data Pulse:", {
-                receivedProfit: data.dailyProfit || data.daily_profit,
-                receivedBalance: data.currentBalance,
-                rawPacket: data
-            });
         
             setSocketStatus(prev => {
-
+                // --- 1. DATA PREP & CLEANING ---
                 const rawProfit = data.dailyProfit || data.daily_profit;
                 const currentBalance = data.currentBalance || prev.currentBalance || 0;
-                const seed = prev.initialCapital || data.initialCapital || currentBalance || formConfig.capitalAllocation;
-                const calculatedProfit = rawProfit !== undefined ? rawProfit : (currentBalance - seed);
-
-                console.log("📈 Profit Logic:", { backend: rawProfit, calculated: calculatedProfit });
-
                 
+                // ANCHOR: Lock the initial capital so profit stays relative to the start
+                const seed = prev.initialCapital || data.initialCapital || currentBalance || formConfig.capitalAllocation;
+        
+                // ROUNDING: Prevent scientific notation (e.g., 0.09000000341)
+                const delta = (currentBalance - seed);
+                const calculatedProfit = rawProfit !== undefined 
+                    ? Number(rawProfit.toFixed(2)) 
+                    : Number(delta.toFixed(2));
+        
                 const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                 
-                // 1. Normalize Signal Data
+                // --- 2. SIGNAL NORMALIZATION ---
                 const rawSignals = data.signalsMap || {};
                 const normalizedSignals = {};
                 Object.keys(rawSignals).forEach(key => {
@@ -351,33 +349,40 @@ const TradingBotContainer = () => {
                     if (!isNaN(val)) normalizedSignals[normalizedKey] = val;
                 });
         
-                // 2. Fix the ReferenceError: Define the variable BEFORE using it
+                // --- 3. ROLLING HISTORIES ---
                 const updatedSignalsHistory = [
                     ...(prev.signalsMapHistory || []), 
                     { time: timeStr, ...normalizedSignals }
                 ].slice(-300);
-
+        
                 const updatedEquityCurve = [
                     ...(prev.equityCurve || []), 
                     {
                         time: timeStr,
-                        balance: data.currentBalance || prev.currentBalance || 0,
+                        balance: currentBalance,
                         confidence: data.currentConfidence ?? prev.currentConfidence ?? 0
                     }
                 ].slice(-300);
-
-                
-                
-                // (Normalization logic for TSL/SMA lines goes here)
+        
+                // --- 4. FINAL STATE RETURN (With full Persistence) ---
                 return { 
                     ...prev, 
-                    ...data,  
-                    dailyProfit: calculatedProfit, // ✅ Guaranteed number for the UI
+                    ...data, 
+                    dailyProfit: calculatedProfit, 
                     initialCapital: seed,
+                    
+                    // POSITIONS: Fallback for different backend naming conventions
                     positions: data.activePositions || data.positions || [],
-                    candles: data.candles || prev.candles || [],
-                    tradeHistory: data.tradeHistory || prev.tradeHistory || [],
-                    tradeMarkers: data.tradeMarkers || prev.tradeMarkers || [],
+                    
+                    // CANDLES: If new packet is empty (delta update), keep existing chart data
+                    candles: (data.candles && data.candles.length > 0) ? data.candles : (prev.candles || []),
+                    
+                    // TRADE HISTORY: Crucial for Audit Tab persistence
+                    tradeHistory: (data.tradeHistory && data.tradeHistory.length > 0) ? data.tradeHistory : (prev.tradeHistory || []),
+                    
+                    // TRADE MARKERS: Keep the buy/sell icons on the chart visible
+                    tradeMarkers: (data.tradeMarkers && data.tradeMarkers.length > 0) ? data.tradeMarkers : (prev.tradeMarkers || []),
+                    
                     signalsMapHistory: updatedSignalsHistory,
                     equityCurve: updatedEquityCurve
                 };
