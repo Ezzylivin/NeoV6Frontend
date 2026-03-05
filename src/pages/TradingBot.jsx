@@ -180,7 +180,16 @@ const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, a
 
 const TradingBotContainer = () => {
     // 🟢 DESTRUCTURE refreshState
-    const { startBot, stopBot, resetBot, refreshState, restoredConfig, botStatus: hookBotStatus, logs: hookLogs } = useBot(); 
+    const { 
+    startBot, 
+    stopBot, 
+    resetBot, 
+    closePosition, // 🟢 ADD THIS HERE
+    refreshState, 
+    restoredConfig, 
+    botStatus: hookBotStatus, 
+    logs: hookLogs 
+} = useBot(); 
     const { isConnected, address } = useAccount();
     
     const [isModeSelected, setIsModeSelected] = useState(false);
