@@ -691,7 +691,7 @@ const TradingBotContainer = () => {
 
             {/* 🚀 DYNAMIC GRID ENGINE */}
             {isBotRunning ? (
-                /* 🟢 OPERATIONAL MODE: Metrics Row move to top to align Sidebar and Chart */
+                {/* 🟢 OPERATIONAL MODE: Metrics Row move to top to align Sidebar and Chart */}
                 <div className="max-w-[1800px] mx-auto space-y-8 animate-in fade-in duration-1000">
                     
                     {/* METRICS ROW (FULL WIDTH) */}
