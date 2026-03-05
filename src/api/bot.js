@@ -45,3 +45,8 @@ export const resetBot = async (config) => {
     const res = await api.post('/bot/reset', config);
     return res.data;
 };
+
+export const closePosition = async (data = {}) => {
+    const res = await api.post('/bot/close-position', data);
+    return res.data;
+};
