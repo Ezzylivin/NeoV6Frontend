@@ -1284,7 +1284,7 @@ const TradingBotContainer = () => {
                         </div> 
                     </div>
                 
-                    {/* 🟢 LINE 1284: This should now be clear of errors */}
+                    
                     <div className="col-span-12 lg:col-span-9 space-y-8">
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                             <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
