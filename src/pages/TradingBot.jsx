@@ -691,9 +691,8 @@ const TradingBotContainer = () => {
 
             {/* 🚀 DYNAMIC GRID ENGINE */}
             {isBotRunning ? (
-                {/* 🟢 OPERATIONAL MODE: Metrics Row move to top to align Sidebar and Chart */}
                 <div className="max-w-[1800px] mx-auto space-y-8 animate-in fade-in duration-1000">
-                    
+                    {/* 🟢 OPERATIONAL MODE: Metrics Row move to top to align Sidebar and Chart */}
                     {/* METRICS ROW (FULL WIDTH) */}
                     <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                         <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
@@ -986,8 +985,8 @@ const TradingBotContainer = () => {
                     </div>
                 </div>
             ) : (
-                {/* ⚙️ STANDBY MODE: 3/9 CONFIGURATION VIEW */}
                 <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8 items-start animate-in fade-in duration-700">
+                    {/* ⚙️ STANDBY MODE: 3/9 CONFIGURATION VIEW */}
                     <div className="col-span-12 lg:col-span-3 h-[780px] relative">
                         <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-10 shadow-2xl h-full overflow-y-auto custom-scrollbar">
                             
