@@ -222,8 +222,14 @@ const TradingBotContainer = () => {
         hybridMode: "AND",
         enable_shorting: true, 
         params: { take_profit: 0.05, stop_loss: 0.02, trailing_stop: 0.01, long_threshold: 0.5, short_threshold: 0.5 },
-        filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 }
-    });
+        filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 },
+        leverage: 1,              
+        slippageTolerance: 0.5,   
+        maxTradesPerDay: 20,      
+        minVotesRequired: 1,      
+        mlModel: "xgboost",
+        mlThreshold: 0.5
+        });
 
     const [activeOpsTab, setActiveOpsTab] = useState("live")
 
@@ -437,44 +443,60 @@ const TradingBotContainer = () => {
     setIsStarting(true);
     setIsHaltLocked(false);
     
-    // 1. Establish the "target" - Prefer the form input, fallback to paperBalance selection
+    // 1. Establish the "Anchor" capital
     const targetCapital = Number(formConfig.capitalAllocation) || Number(paperBalance) || 1000;
 
-    // 2. Wipe previous session data but LOCK in the new baseline
+    // 2. Reset UI State for the new session
     setSocketStatus({ 
         status: 'initializing', 
         currentBalance: targetCapital, 
-        initialCapital: targetCapital, // ✅ This is the permanent denominator for profit calculations
+        initialCapital: targetCapital, 
         equityCurve: [], 
         tradeMarkers: [], 
         positions: [], 
         candles: [],
         unrealizedPnl: 0,
         dailyProfit: 0,
-        tradeHistory: [] // Clear the ledger for the new session
+        tradeHistory: [] 
     });
 
     setSocketLogs([]);
        
+    // 3. Construct the REAL payload without hardcoded "fakes"
     const finalConfig = {
         ...formConfig,
         capitalAllocation: targetCapital,
-        mlMode: formConfig.mlMode || "on", 
-        mlModel: formConfig.mlModel || "stacking",
-        maxPyramiding: formConfig.maxPyramiding || 1,
-        mlThresholdLong: parseFloat(formConfig.params.long_threshold) || 0.8,
-        mlThresholdShort: parseFloat(formConfig.params.short_threshold) || 0.9,
-        enable_shorting: formConfig.enable_shorting === true,
-        comboConfig: { strategyCodes: formConfig.strategies.map(s => s.code), combinationRule: formConfig.hybridMode || "AND", minVotesRequired: formConfig.hybridMode === "AND" ? formConfig.strategies.length : 1 }
+        // Using the exact values from formConfig state
+        mlMode: formConfig.mlMode, 
+        mlModel: formConfig.mlModel,
+        maxPyramiding: formConfig.maxPyramiding,
+        
+        // Ensure numbers are properly parsed from state
+        mlThresholdLong: parseFloat(formConfig.params.long_threshold),
+        mlThresholdShort: parseFloat(formConfig.params.short_threshold),
+        
+        enable_shorting: !!formConfig.enable_shorting,
+
+        comboConfig: { 
+            strategyCodes: formConfig.strategies.map(s => s.code), 
+            combinationRule: formConfig.hybridMode, 
+            // Now pulling from state instead of auto-calculating
+            minVotesRequired: formConfig.minVotesRequired 
+        }
     };
+
     try {
         const response = await startBot({ userId: address, config: finalConfig });
-        if (response && response.status === 'running') {
+        if (response && (response.status === 'running' || response.status === 'initializing')) {
             toast.success(`Protocol Ignited: ${finalConfig.symbol}`);
             setShowPreFlight(false);
             logContainerRef.current?.scrollIntoView({ behavior: 'smooth' });
-        } else { console.warn("Invalid start response", response); }
-    } catch (e) { toast.error(`Engine Failure: ${e.response?.data?.detail || e.message}`); } finally { setIsStarting(false); }
+        }
+    } catch (e) { 
+        toast.error(`Engine Failure: ${e.response?.data?.detail || e.message}`); 
+    } finally { 
+        setIsStarting(false); 
+    }
 };
 
  const handleHalt = async () => {
