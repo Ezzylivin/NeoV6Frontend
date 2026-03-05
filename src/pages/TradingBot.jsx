@@ -1271,7 +1271,7 @@ const TradingBotContainer = () => {
                                         />
                                     </div>
                                 </div>
-                            </div>
+                            
                             
                             {/* 🟢 ENGINE INITIATION BUTTON */}
                             <button 
