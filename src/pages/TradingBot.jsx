@@ -1220,9 +1220,13 @@ const TradingBotContainer = () => {
                                     <div>
                                         <label className={labelClass}>SL %</label>
                                         <input 
-                                            type="number" step="0.001" 
+                                            type="number" 
+                                            step="0.001" 
                                             value={formConfig.params.stop_loss} 
-                                            onChange={(e) => setSocketStatus(prev => ({...prev, ...data, dailyProfit: calculatedProfit, initialCapital: seed, tradeHistory: (data.tradeHistory && data.tradeHistory.length > 0) ? data.tradeHistory : (prev.tradeHistory || []), positions: data.activePositions || data.positions || [], candles: (data.candles && data.candles.length > 0) ? data.candles : (prev.candles || []), tradeMarkers: (data.tradeMarkers && data.tradeMarkers.length > 0) ? data.tradeMarkers : (prev.tradeMarkers || []), signalsMapHistory: updatedSignalsHistory, equityCurve: updatedEquityCurve }))})} 
+                                            onChange={(e) => setFormConfig({
+                                                ...formConfig, 
+                                                params: { ...formConfig.params, stop_loss: parseFloat(e.target.value) }
+                                            })} 
                                             className={inputClass}
                                         />
                                     </div>
