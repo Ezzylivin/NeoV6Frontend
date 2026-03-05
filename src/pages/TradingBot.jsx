@@ -1274,7 +1274,7 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
                             
-                            {/* 🟢 ENGINE INITIATION BUTTON (Ensure this is OUTSIDE the Shield grid but INSIDE the sidebar div) */}
+                            {/* 🟢 ENGINE INITIATION BUTTON */}
                             <button 
                                 onClick={() => setShowPreFlight(true)} 
                                 className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-400 transition-all shadow-xl mt-6"
@@ -1283,7 +1283,8 @@ const TradingBotContainer = () => {
                             </button>
                         </div> 
                     </div>
-                
+
+                    {/* 🟢 MAIN CONTENT AREA (lg:col-span-9) */}
                     <div className="col-span-12 lg:col-span-9 space-y-8">
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                             <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
@@ -1296,14 +1297,15 @@ const TradingBotContainer = () => {
                             <MetricCard label="Exposure" value="0%" color="text-zinc-600" />
                             <MetricCard label="Total Equity" value={`$${formConfig.capitalAllocation}`} /> 
                         </div>
-                        <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] h-[600px] overflow-hidden flex items-center justify-center text-zinc-700 italic border-dashed">Initialize market link...</div>
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] h-[600px] overflow-hidden flex items-center justify-center text-zinc-700 italic border-dashed">
+                            Initialize market link...
+                        </div>
                     </div>
-                </div>
-            </div>
-            )}
+                </div> // 🟢 This closes the grid (max-w-[1800px])
+            )} {/* 🟢 THIS NOW CORRECTLY CLOSES THE TERNARY LOGIC */}
         </div>
     </UIModeProvider>
-);
+    );
 };
 
 
