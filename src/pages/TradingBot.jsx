@@ -378,7 +378,9 @@ const TradingBotContainer = () => {
                     candles: (data.candles && data.candles.length > 0) ? data.candles : (prev.candles || []),
                     
                     // TRADE HISTORY: Crucial for Audit Tab persistence
-                    tradeHistory: (data.tradeHistory && data.tradeHistory.length > 0) ? data.tradeHistory : (prev.tradeHistory || []),
+                    tradeHistory: (data.tradeHistory && data.tradeHistory.length > 0) 
+                        ? data.tradeHistory 
+                        : (prev.tradeHistory || []),
                     
                     // TRADE MARKERS: Keep the buy/sell icons on the chart visible
                     tradeMarkers: (data.tradeMarkers && data.tradeMarkers.length > 0) ? data.tradeMarkers : (prev.tradeMarkers || []),
@@ -507,27 +509,31 @@ const TradingBotContainer = () => {
 };
 
     const handleManualExit = async () => {
-    // 1. Safety Gate
-    if (!socketStatus.positions?.length) {
-        toast.error("No active positions to exit.");
-        return;
-    }
+    if (!socketStatus.positions?.length) return;
 
     try {
-        // 🟢 THE ABSOLUTE FIX: Use the hook function
-        // It already handles the token and the /bot/close-position URL
-        await closePosition({ 
-            userId: address, 
-            symbol: formConfig.symbol 
-        });
+        // 🟢 1. OPTIMISTIC CLEAR: Clear the table immediately in the browser
+        setSocketStatus(prev => ({
+            ...prev,
+            positions: [],
+            activePositions: []
+        }));
 
-        // 🟢 Force a state refresh so the position disappears from the UI immediately
-        await refreshState();
+        // 🟢 2. AUTO-SWITCH TAB: Move the user to the Audit view
+        setActiveOpsTab("audit"); 
+
+        // 3. Trigger actual backend execution
+        await closePosition({ userId: address, symbol: formConfig.symbol });
+
+        toast.success("Manual Exit Executed: Syncing History...");
+
+        // 🟢 4. DELAYED SYNC: Give the DB 2 seconds to save the trade before refreshing
+        setTimeout(async () => {
+            await refreshState();
+        }, 2000);
         
     } catch (e) { 
-        // Error handling is already managed inside useBot.js, 
-        // but we can log a final failure here if needed.
-        console.error("Manual Exit Failed:", e);
+        console.error("Manual Exit UI Error:", e);
     }
 };
 
