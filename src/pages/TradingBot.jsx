@@ -1333,7 +1333,7 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
             
             <div className="flex-1 w-full min-h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={signalsMapHistory}>
+                    <AreaChart data={signalsMapHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                         <defs>
                             {activeStratCodes.map((key) => (
                                 <linearGradient key={`grad-${key}`} id={`color-${key}`} x1="0" y1="0" x2="0" y2="1">
@@ -1344,16 +1344,19 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
                         </defs>
                         
                         {/* 🟢 2. Fix Tooltips: Disable 'shared' to stop the clustering effect */}
+                        {/* pointerEvents: 'none' ensures the tooltip doesn't flicker or block mouse movement */}
                         <RechartsTooltip 
                             shared={false} 
+                            trigger="hover"
                             contentStyle={{ 
                                 backgroundColor: '#09090b', 
                                 border: '1px solid #27272a', 
-                                borderRadius: '8px',
-                                fontSize: '10px'
+                                borderRadius: '12px',
+                                fontSize: '10px',
+                                pointerEvents: 'none' 
                             }}
                             formatter={(value, name) => [
-                                `${(value * 100).toFixed(0)}%`, 
+                                `${(Number(value) * 100).toFixed(0)}%`, 
                                 name.toUpperCase()
                             ]}
                         />
@@ -1363,23 +1366,20 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
                             <Area 
                                 key={key} 
                                 type="monotone" 
-                                dataKey={key} // This MUST match the key inside your signalsMapHistory objects
+                                dataKey={key} // 🚩 This MUST match the keys in your socket data objects
                                 name={key.replace('_', ' ')}
                                 stroke={STRAT_COLORS[key] || '#52525b'} 
                                 fill={`url(#color-${key})`}
                                 strokeWidth={2}
                                 dot={false}
-                                activeDot={{ r: 4 }}
+                                activeDot={{ r: 4, strokeWidth: 0 }}
                                 isAnimationActive={false} 
-                                connectNulls={true} // Prevents line breaks if data is missing for one tick
+                                connectNulls={true} 
                             />
                         ))}
                         
                         <XAxis dataKey="time" hide />
-                        <YAxis 
-                            domain={[0, 1]} 
-                            hide 
-                        />
+                        <YAxis domain={[0, 1]} hide />
                     </AreaChart>
                 </ResponsiveContainer>
             </div>
