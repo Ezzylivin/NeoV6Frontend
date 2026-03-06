@@ -309,59 +309,44 @@ export default function Backtests() {
         setStatusMsg("Complete");
     };
 
-const handleRun = async (e) => {
-    e.preventDefault();
-    // ... setup code ...
+    const handleRun = async (e) => {
+        e.preventDefault();
+        setBacktestResults(null);
+        setProgress(5);
+        setStatusMsg("Initiating Handshake...");
+        setIsSimulating(true);
 
-    const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
-    let payload = { ...data, userId: dynamicUserId };
+        const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
+        let payload = { ...data, userId: dynamicUserId };
 
-    if (activeTab === 'single') {
-        const { strategies, combinationRule, ...rest } = payload;
-        payload = rest;
-    } else {
-        // 🟢 THE FIX: Explicitly separate Global vs Module params
-        const { code, params, ...rest } = payload;
-
-        // We MUST strip out rsi_length, overbought, etc. from this object
-        // so Python doesn't think the "Global" engine is trying to be an RSI strategy.
-        const ensembleGlobalParams = {
-            model_type: params.model_type || "stacking",
-            take_profit: parseFloat(params.take_profit),
-            stop_loss: parseFloat(params.stop_loss),
-            trailing_stop: parseFloat(params.trailing_stop),
-            long_threshold: parseFloat(params.long_threshold || 0.5),
-            short_threshold: parseFloat(params.short_threshold || 0.5),
-            risk_percentage: parseFloat(data.risk_percentage || 1.0)
-        };
-
-        payload = { 
-            ...rest, 
-            code: 'hybrid_ensemble', 
-            params: ensembleGlobalParams, // Cleaned global data
-            strategies: data.strategies    // Module-specific data is safe here
-        };
-    }
-
-    try {
-        const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
-        const res = await runner(payload);
-
-        if (res && (res.metrics || res.candleData || res.combinedResult)) {
-            processResults(res);
-        } else if (res?.jobId) {
-            setCurrentJobId(res.jobId);
-            setStatusMsg("Job Queued...");
+        if (activeTab === 'single') {
+            const { strategies, combinationRule, ...rest } = payload;
+            payload = rest;
         } else {
-            setIsSimulating(false);
-            setStatusMsg("Connection Failed");
+            const { code, ...rest } = payload;
+            payload = { ...rest, code: 'hybrid_ensemble' };
         }
-    } catch (err) {
-        console.error("Run failed:", err);
-        setIsSimulating(false);
-        setStatusMsg("Error: " + err.message);
-    }
-};
+
+        try {
+            const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
+            const res = await runner(payload);
+
+            if (res && (res.metrics || res.candleData || res.combinedResult)) {
+                processResults(res);
+            } else if (res?.jobId) {
+                setCurrentJobId(res.jobId);
+                setStatusMsg("Job Queued...");
+            } else {
+                console.error("❌ No valid results or Job ID found");
+                setIsSimulating(false);
+                setStatusMsg("Connection Failed");
+            }
+        } catch (err) {
+            console.error("Run failed:", err);
+            setIsSimulating(false);
+            setStatusMsg("Error: " + err.message);
+        }
+    };
 
     const handleAtomicCodeChange = (code) => {
         setData(p => ({ ...p, code, params: { ...p.params, ...DEFAULT_STRATEGY_PARAMS[code] } }));
