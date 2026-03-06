@@ -310,43 +310,66 @@ export default function Backtests() {
     };
 
     const handleRun = async (e) => {
-        e.preventDefault();
-        setBacktestResults(null);
-        setProgress(5);
-        setStatusMsg("Initiating Handshake...");
-        setIsSimulating(true);
+    e.preventDefault();
+    setBacktestResults(null);
+    setProgress(5);
+    setStatusMsg("Initiating Handshake...");
+    setIsSimulating(true);
 
-        const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
-        let payload = { ...data, userId: dynamicUserId };
+    const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
+    
+    // 1. Start with a copy of your state data
+    let payload = { ...data, userId: dynamicUserId };
 
-        if (activeTab === 'single') {
-            const { strategies, combinationRule, ...rest } = payload;
-            payload = rest;
+    if (activeTab === 'single') {
+        // --- 🟢 SINGLE MODE CLEANUP ---
+        // Remove ensemble fields that the single-strategy API doesn't want
+        const { strategies, combinationRule, ...rest } = payload;
+        payload = rest;
+    } else {
+        // --- 🟢 COMBO MODE CLEANUP ---
+        // Step A: Extract global fields and exclude 'code'
+        const { code, params, ...rest } = payload;
+
+        // Step B: Create a clean Global Params object
+        // This removes the RSI-specific settings from the top level
+        const globalParams = {
+            model_type: params.model_type,
+            take_profit: params.take_profit,
+            stop_loss: params.stop_loss,
+            trailing_stop: params.trailing_stop,
+            long_threshold: params.long_threshold || 0.5,
+            short_threshold: params.short_threshold || 0.5
+        };
+
+        // Step C: Build the clean Ensemble payload
+        payload = { 
+            ...rest, 
+            code: 'hybrid_ensemble', 
+            params: globalParams, // Includes only global risk/ML data
+            strategies: data.strategies // Strategy-specific params stay here
+        };
+    }
+
+    try {
+        const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
+        const res = await runner(payload);
+
+        if (res && (res.metrics || res.candleData || res.combinedResult)) {
+            processResults(res);
+        } else if (res?.jobId) {
+            setCurrentJobId(res.jobId);
+            setStatusMsg("Job Queued...");
         } else {
-            const { code, ...rest } = payload;
-            payload = { ...rest, code: 'hybrid_ensemble' };
-        }
-
-        try {
-            const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
-            const res = await runner(payload);
-
-            if (res && (res.metrics || res.candleData || res.combinedResult)) {
-                processResults(res);
-            } else if (res?.jobId) {
-                setCurrentJobId(res.jobId);
-                setStatusMsg("Job Queued...");
-            } else {
-                console.error("❌ No valid results or Job ID found");
-                setIsSimulating(false);
-                setStatusMsg("Connection Failed");
-            }
-        } catch (err) {
-            console.error("Run failed:", err);
             setIsSimulating(false);
-            setStatusMsg("Error: " + err.message);
+            setStatusMsg("Connection Failed");
         }
-    };
+    } catch (err) {
+        console.error("Run failed:", err);
+        setIsSimulating(false);
+        setStatusMsg("Error: " + err.message);
+    }
+};
 
     const handleAtomicCodeChange = (code) => {
         setData(p => ({ ...p, code, params: { ...p.params, ...DEFAULT_STRATEGY_PARAMS[code] } }));
