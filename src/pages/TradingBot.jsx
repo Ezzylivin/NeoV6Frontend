@@ -354,8 +354,7 @@ const TradingBotContainer = () => {
                     ? Number(rawProfit.toFixed(2)) 
                     : Number(delta.toFixed(2));
         
-                const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                
+        
                 // --- 2. SIGNAL NORMALIZATION ---
                 const rawSignals = data.signalsMap || {};
                 const normalizedSignals = {};
@@ -368,13 +367,13 @@ const TradingBotContainer = () => {
                 // --- 3. ROLLING HISTORIES ---
                 const updatedSignalsHistory = [
                     ...(prev.signalsMapHistory || []), 
-                    { time: timeStr, ...normalizedSignals }
+                    { time: new Date().toLocaleTimeString(), ...normalizedSignals }
                 ].slice(-300);
         
                 const updatedEquityCurve = [
                     ...(prev.equityCurve || []), 
                     {
-                        time: timeStr,
+                        time: new Date().toLocaleTimeString(),
                         balance: currentBalance,
                         confidence: data.currentConfidence ?? prev.currentConfidence ?? 0
                     }
@@ -1379,7 +1378,7 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
                         ))}
                         
                         <XAxis dataKey="time" hide />
-                        <YAxis domain={[0, 1]} hide />
+                        <YAxis domain={[0, 100]} hide />
                     </AreaChart>
                 </ResponsiveContainer>
             </div>
