@@ -309,45 +309,37 @@ export default function Backtests() {
         setStatusMsg("Complete");
     };
 
-    const handleRun = async (e) => {
+const handleRun = async (e) => {
     e.preventDefault();
-    setBacktestResults(null);
-    setProgress(5);
-    setStatusMsg("Initiating Handshake...");
-    setIsSimulating(true);
+    // ... setup code ...
 
     const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
-    
-    // 1. Start with a copy of your state data
     let payload = { ...data, userId: dynamicUserId };
 
     if (activeTab === 'single') {
-        // --- 🟢 SINGLE MODE CLEANUP ---
-        // Remove ensemble fields that the single-strategy API doesn't want
         const { strategies, combinationRule, ...rest } = payload;
         payload = rest;
     } else {
-        // --- 🟢 COMBO MODE CLEANUP ---
-        // Step A: Extract global fields and exclude 'code'
+        // 🟢 THE FIX: Explicitly separate Global vs Module params
         const { code, params, ...rest } = payload;
 
-        // Step B: Create a clean Global Params object
-        // This removes the RSI-specific settings from the top level
-        const globalParams = {
-            model_type: params.model_type,
-            take_profit: params.take_profit,
-            stop_loss: params.stop_loss,
-            trailing_stop: params.trailing_stop,
-            long_threshold: params.long_threshold || 0.5,
-            short_threshold: params.short_threshold || 0.5
+        // We MUST strip out rsi_length, overbought, etc. from this object
+        // so Python doesn't think the "Global" engine is trying to be an RSI strategy.
+        const ensembleGlobalParams = {
+            model_type: params.model_type || "stacking",
+            take_profit: parseFloat(params.take_profit),
+            stop_loss: parseFloat(params.stop_loss),
+            trailing_stop: parseFloat(params.trailing_stop),
+            long_threshold: parseFloat(params.long_threshold || 0.5),
+            short_threshold: parseFloat(params.short_threshold || 0.5),
+            risk_percentage: parseFloat(data.risk_percentage || 1.0)
         };
 
-        // Step C: Build the clean Ensemble payload
         payload = { 
             ...rest, 
             code: 'hybrid_ensemble', 
-            params: globalParams, // Includes only global risk/ML data
-            strategies: data.strategies // Strategy-specific params stay here
+            params: ensembleGlobalParams, // Cleaned global data
+            strategies: data.strategies    // Module-specific data is safe here
         };
     }
 
