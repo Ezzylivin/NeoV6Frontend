@@ -311,46 +311,39 @@ export default function Backtests() {
 
     const handleRun = async (e) => {
     e.preventDefault();
-    // ... (Your existing status/loading state code)
 
-    const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
-    
-    // 1. Define what "Global" params look like for an Ensemble
-    // This removes the "rsi_length", "oversold", etc. that are causing the crash
-    const globalEnsembleParams = {
-        model_type: data.params.model_type || "stacking",
-        take_profit: parseFloat(data.params.take_profit),
-        stop_loss: parseFloat(data.params.stop_loss),
-        trailing_stop: parseFloat(data.params.trailing_stop),
-        long_threshold: parseFloat(data.params.long_threshold || 0.5),
-        short_threshold: parseFloat(data.params.short_threshold || 0.5)
+    // 🟢 1. Create a "Sanitized" Params Object
+    // Only include Global settings that apply to EVERY backtest
+    const globalParams = {
+        model_type: data.params.model_type,
+        take_profit: data.params.take_profit,
+        stop_loss: data.params.stop_loss,
+        trailing_stop: data.params.trailing_stop,
     };
 
-    let finalPayload;
-
-    if (activeTab === 'single') {
-        // --- SINGLE MODE ---
-        const { strategies, combinationRule, ...rest } = data;
-        finalPayload = { ...rest, userId: dynamicUserId };
-    } else {
-        // --- COMBO MODE (Ensemble) ---
-        // 🟢 THE FIX: Reconstruct the payload to be "Clean"
-        finalPayload = {
-            symbol: data.symbol,
-            timeframe: data.timeframe,
-            startDate: data.startDate,
-            endDate: data.endDate,
-            initialBalance: Number(data.initialBalance), // Ensure Number
-            risk_percentage: Number(data.risk_percentage), // Ensure Number
-            mlMode: data.mlMode,
-            combinationRule: data.combinationRule,
-            advanced_filters: data.advanced_filters,
-            userId: dynamicUserId,
-            code: "hybrid_ensemble", // Use the generic ensemble code
-            params: globalEnsembleParams, // 🟢 Use the CLEANED global params
-            strategies: data.strategies // Keep specific strategy params here
-        };
-    }
+    // 🟢 2. Build the payload from scratch (No more ...data leaks!)
+    const sanitizedPayload = {
+        symbol: data.symbol,
+        timeframe: data.timeframe,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        initialBalance: Number(data.initialBalance),
+        risk_percentage: Number(data.risk_percentage),
+        mlMode: data.mlMode,
+        combinationRule: data.combinationRule,
+        userId: JSON.parse(localStorage.getItem('user'))?._id,
+        code: activeTab === 'combo' ? 'hybrid_ensemble' : data.code,
+        
+        // 🚩 The Key Fix: Use the clean globalParams, not the messy data.params
+        params: globalParams, 
+        
+        // 🚩 Only send the strategies the user actually picked
+        strategies: data.strategies.map(s => ({
+            code: s.code,
+            params: s.params
+        })),
+        advanced_filters: data.advanced_filters
+    };
 
         try {
             const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
