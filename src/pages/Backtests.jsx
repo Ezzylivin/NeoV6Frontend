@@ -174,6 +174,10 @@ export default function Backtests() {
         const initialBalance = results.initialBalance || 1000;
         const finalBalance = results.metrics?.final_balance || results.metrics?.finalBalance || initialBalance;
 
+        const netProfit = finalBalance - initialBalance;
+        const totalTrades = (wins + losses) || metrics.total_trades || metrics.totalTrades || 0;
+        const avgTrade = totalTrades > 0 ? netProfit / totalTrades : 0;
+        
         let totalTrades = metrics.total_trades || metrics.totalTrades || 0;
         let netProfit = metrics.net_profit || metrics.netProfit || 0;
 
@@ -258,6 +262,8 @@ export default function Backtests() {
             max_drawdown: maxDrawdown * 100,
             final_balance: finalBalance,
             net_profit: netProfit,
+            net_profit: netProfit,
+            avg_trade: avgTrade,
             total_wins: wins,
             total_losses: losses,
             total_trades: totalTrades,
