@@ -210,7 +210,6 @@ export default function Backtests() {
         const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 100 : 0;
         const avgWin = wins > 0 ? grossProfit / wins : 0;
         const avgLoss = losses > 0 ? grossLoss / losses : 0;
-        const netProfit = finalBalance - initialBalance;
         const avgTrade = totalTrades > 0 ? netProfit / totalTrades : 0;
 
         let peak = -Infinity;
