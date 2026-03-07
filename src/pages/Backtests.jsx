@@ -729,6 +729,7 @@ export default function Backtests() {
                                     </ResponsiveContainer>
                                 </div>
                             </div>
+                        </div>
                     </div>
                 ) : (
                         <div className="h-[80vh] flex flex-col items-center justify-center border-2 border-dashed border-zinc-800 rounded-[48px] bg-zinc-900/10">
