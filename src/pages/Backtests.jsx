@@ -10,6 +10,7 @@ import {
     Activity, Percent, DollarSign, AlertTriangle,
     Zap, Scale, Award, TrendingDown, LayoutGrid, Info
 } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as ChartTooltip } from 'recharts';
 
 const VITE_API = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
 const API_BASE = VITE_API.endsWith('/api') ? VITE_API : `${VITE_API}/api`;
@@ -175,6 +176,9 @@ export default function Backtests() {
         const finalBalance = results.metrics?.final_balance || results.metrics?.finalBalance || initialBalance;
 
         const netProfit = finalBalance - initialBalance;
+
+        const vetoes = results.vetoed_signals || [];
+        const candles = results.candleData || [];
     
 
         let wins = 0;
@@ -185,6 +189,36 @@ export default function Backtests() {
         let largestLoss = 0;
         let previousBalance = initialBalance;
         let tradeReturns = [];
+
+        let aiSaves = 0; // Blocked trades that would have lost money
+        let aiMisses = 0; // Blocked trades that would have won money
+
+        vetoes.forEach(veto => {
+        // 1. Find the candle where the veto occurred
+        const startIndex = candles.findIndex(c => c.time === veto.time || c.date === veto.time);
+        if (startIndex === -1 || startIndex === candles.length - 1) return;
+
+        const entryPrice = veto.price;
+        // Determine targets based on signal direction
+        const isLong = veto.signal === "Long";
+        const tpPrice = isLong ? entryPrice * (1 + results.params.take_profit) : entryPrice * (1 - results.params.take_profit);
+        const slPrice = isLong ? entryPrice * (1 - results.params.stop_loss) : entryPrice * (1 + results.params.stop_loss);
+
+        // 2. Look forward in the data to see what hit first
+        for (let j = startIndex + 1; j < candles.length; j++) {
+            const nextCandle = candles[j];
+            
+            if (isLong) {
+                if (nextCandle.high >= tpPrice) { aiMisses++; break; }
+                if (nextCandle.low <= slPrice) { aiSaves++; break; }
+            } else {
+                if (nextCandle.low <= tpPrice) { aiMisses++; break; }
+                if (nextCandle.high >= slPrice) { aiSaves++; break; }
+            }
+        }
+    });
+
+    const aiAccuracy = (aiSaves + aiMisses) > 0 ? (aiSaves / (aiSaves + aiMisses)) * 100 : 0;
 
         trades.forEach(t => {
         if (t.balance && t.balance !== previousBalance) {
@@ -267,7 +301,10 @@ export default function Backtests() {
             sharpe_ratio: sharpe,
             volatility: volatility * 100,
             cagr: cagr,
-            sqn: sqn
+            sqn: sqn,
+            ai_accuracy: aiAccuracy,
+            ai_saves: aiSaves,
+            ai_misses: aiMisses
         };
     };
 
@@ -485,17 +522,214 @@ export default function Backtests() {
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-5 duration-700">
                             <MetricsPanel metrics={backtestResults.metrics} />
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] overflow-hidden shadow-2xl">
-                                <div className="flex bg-zinc-800/50 p-2 border-b border-zinc-800">
-                                    <button onClick={() => setView('execution')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'execution' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Execution</button>
-                                    <button onClick={() => setView('performance')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'performance' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Performance</button>
-                                    <button onClick={() => setView('replay')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'replay' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Replay</button>
-                                </div>
-                                <div className="h-[600px] p-8">
-                                    {renderActiveView()}
-                                </div>
+                            <div className="flex bg-zinc-800/50 p-2 border-b border-zinc-800">
+                                <button onClick={() => setView('execution')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'execution' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Execution</button>
+                                <button onClick={() => setView('performance')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'performance' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Performance</button>
+                                <button onClick={() => setView('replay')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'replay' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Replay</button>
+                            </div>
+                            <div className="h-[600px] p-8">
+                                {renderActiveView()}
                             </div>
                         </div>
-                    ) : (
+            
+                        {/* 🟢 NEW: Integrated Trade Ledger with Color Coding */}
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] overflow-hidden shadow-2xl">
+                            <div className="p-6 border-b border-zinc-800 flex justify-between items-center">
+                                <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-2">
+                                    <Activity size={12} className="text-amber-500" /> Trade Ledger
+                                </h3>
+                            </div>
+                            <div className="overflow-x-auto max-h-[400px] custom-scrollbar">
+                                <table className="w-full text-left text-[10px]">
+                                    <thead className="bg-zinc-800/50 sticky top-0 z-10">
+                                        <tr>
+                                            <th className="px-4 py-3 font-bold uppercase text-zinc-500">Time</th>
+                                            <th className="px-4 py-3 font-bold uppercase text-zinc-500">Action/Reason</th>
+                                            <th className="px-4 py-3 font-bold uppercase text-zinc-500">Execution Price</th>
+                                            <th className="px-4 py-3 font-bold uppercase text-zinc-500">PnL %</th>
+                                            <th className="px-4 py-3 font-bold uppercase text-zinc-500">Balance</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-zinc-800">
+                                        {backtestResults.trades.map((trade, index) => (
+                                            <tr key={index} className="hover:bg-zinc-800/30 transition-colors group">
+                                                <td className="px-4 py-3 text-zinc-400 font-mono">{trade.time}</td>
+                                                
+                                                {/* 🟢 YOUR COLOR CODING LOGIC INTEGRATED HERE */}
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-tighter ${
+                                                            trade.reason === "Take Profit" 
+                                                                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" 
+                                                            : trade.reason === "Trailing Stop" 
+                                                                ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                                                            : trade.type === "buy" || trade.type === "sell"
+                                                                ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                                                            : "bg-zinc-800 text-zinc-400"
+                                                        }`}>
+                                                            {trade.reason || trade.type}
+                                                        </span>
+                                                    </div>
+                                                </td>
+            
+                                                <td className="px-4 py-3 font-mono text-zinc-200">${trade.price.toLocaleString()}</td>
+                                                <td className={`px-4 py-3 font-mono font-bold ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                    {trade.pnl ? `${trade.pnl > 0 ? '+' : ''}${trade.pnl}%` : '—'}
+                                                </td>
+                                                <td className="px-4 py-3 font-mono text-zinc-500">
+                                                    {trade.balance ? `$${trade.balance.toLocaleString()}` : '—'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] overflow-hidden shadow-2xl mt-6">
+                            <div className="p-6 border-b border-zinc-800 flex justify-between items-center">
+                                <h3 className="text-[10px] font-black uppercase tracking-widest text-rose-400 flex items-center gap-2">
+                                    <Shield size={12} className="text-rose-500" /> Neural Veto List
+                                </h3>
+                                <span className="text-[9px] bg-rose-500/10 text-rose-500 px-2 py-0.5 rounded-full font-bold border border-rose-500/20">
+                                    {backtestResults.vetoed_signals?.length || 0} Attacks Deflected
+                                </span>
+                            </div>
+                            <div className="overflow-x-auto max-h-[300px] custom-scrollbar opacity-70 hover:opacity-100 transition-opacity">
+                                <table className="w-full text-left text-[10px]">
+                                   <thead className="bg-zinc-800/50 sticky top-0 z-10">
+                                        <tr>
+                                            <th className="px-4 py-3 font-bold uppercase text-zinc-500">Time</th>
+                                            <th className="px-4 py-3 font-bold uppercase text-zinc-500">Attempted Signal</th>
+                                            <th className="px-4 py-3 font-bold uppercase text-zinc-500">AI Confidence</th>
+                                            <th className="px-4 py-3 font-bold uppercase text-zinc-500">Gate Threshold</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-zinc-800">
+                                        {backtestResults.vetoed_signals && backtestResults.vetoed_signals.length > 0 ? (
+                                            backtestResults.vetoed_signals.map((veto, index) => (
+                                                <tr key={index} className="hover:bg-rose-500/5 transition-colors group">
+                                                    {/* 🕒 Timestamp of the blocked signal */}
+                                                    <td className="px-4 py-3 text-zinc-500 font-mono">{veto.time}</td>
+                                                    
+                                                    {/* 🚦 Signal Type (Long/Short) */}
+                                                    <td className="px-4 py-3">
+                                                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-tighter ${
+                                                            veto.signal === "Long" 
+                                                                ? "bg-emerald-500/10 text-emerald-500/50 border border-emerald-500/10" 
+                                                                : "bg-rose-500/10 text-rose-500/50 border border-rose-500/10"
+                                                        }`}>
+                                                            {veto.signal}
+                                                        </span>
+                                                    </td>
+                                    
+                                                    {/* 🧠 AI Score - Highlighted in Rose because it failed to meet the limit */}
+                                                    <td className="px-4 py-3 font-mono text-rose-400/80 font-bold">
+                                                        {(veto.conf_score * 100).toFixed(2)}%
+                                                    </td>
+                                    
+                                                    {/* 🚪 The Required Limit */}
+                                                    <td className="px-4 py-3 font-mono text-zinc-600">
+                                                        {(veto.limit * 100).toFixed(0)}%
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        ) : (
+                                            <tr>
+                                                <td colSpan="4" className="px-4 py-10 text-center">
+                                                    <div className="flex flex-col items-center gap-2 opacity-30">
+                                                        <Shield size={24} className="text-zinc-500" />
+                                                        <p className="text-[10px] uppercase font-black tracking-widest text-zinc-500">No signals were vetoed</p>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+    
+                            {/* Chart 1: Veto Composition */}
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] overflow-hidden shadow-2xl p-6">
+                                <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-6 flex items-center gap-2">
+                                    <LayoutGrid size={12} className="text-violet-500" /> AI Vetoes (L/S)
+                                </h3>
+                                <div className="h-[200px] w-full">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={[
+                                                    { name: 'Longs Blocked', value: backtestResults.vetoed_signals?.filter(v => v.signal === 'Long').length || 0 },
+                                                    { name: 'Shorts Blocked', value: backtestResults.vetoed_signals?.filter(v => v.signal === 'Short').length || 0 }
+                                                ]}
+                                                innerRadius={50}
+                                                outerRadius={70}
+                                                paddingAngle={5}
+                                                dataKey="value"
+                                            >
+                                                <Cell fill="#10b981" fillOpacity={0.6} />
+                                                <Cell fill="#f43f5e" fillOpacity={0.6} />
+                                            </Pie>
+                                            <ChartTooltip contentStyle={{ backgroundColor: '#18181b', border: 'none', fontSize: '10px' }} />
+                                            <Legend wrapperStyle={{ fontSize: '9px', textTransform: 'uppercase' }} />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                        
+                            {/* Chart 2: Win / Loss Distribution */}
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] overflow-hidden shadow-2xl p-6">
+                                <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-6 flex items-center gap-2">
+                                    <TrendingUp size={12} className="text-emerald-500" /> Win / Loss Ratio
+                                </h3>
+                                <div className="h-[200px] w-full">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={[
+                                                    { name: 'Wins', value: backtestResults.metrics?.total_wins || 0 },
+                                                    { name: 'Losses', value: backtestResults.metrics?.total_losses || 0 }
+                                                ]}
+                                                innerRadius={50}
+                                                outerRadius={70}
+                                                paddingAngle={5}
+                                                dataKey="value"
+                                            >
+                                                <Cell fill="#10b981" />
+                                                <Cell fill="#f43f5e" />
+                                            </Pie>
+                                            <ChartTooltip contentStyle={{ backgroundColor: '#18181b', border: 'none', fontSize: '10px' }} />
+                                            <Legend wrapperStyle={{ fontSize: '9px', textTransform: 'uppercase' }} />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                        
+                            {/* Chart 3: Execution Sides (Long vs Short) */}
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] overflow-hidden shadow-2xl p-6">
+                                <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-6 flex items-center gap-2">
+                                    <Activity size={12} className="text-cyan-500" /> Actual Execution
+                                </h3>
+                                <div className="h-[200px] w-full">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={[
+                                                { name: 'Longs', count: backtestResults.trades?.filter(t => t.side === 'long' || t.type === 'buy').length || 0 },
+                                                { name: 'Shorts', count: backtestResults.trades?.filter(t => t.side === 'short' || t.type === 'sell').length || 0 }
+                                            ]}
+                                        >
+                                            <XAxis dataKey="name" stroke="#52525b" fontSize={10} axisLine={false} tickLine={false} />
+                                            <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                                                <Cell fill="#06b6d4" />
+                                                <Cell fill="#8b5cf6" />
+                                            </Bar>
+                                            <ChartTooltip cursor={{fill: 'transparent'}} contentStyle={{ backgroundColor: '#18181b', border: 'none', fontSize: '10px' }} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                    </div>
+                ) : (
                         <div className="h-[80vh] flex flex-col items-center justify-center border-2 border-dashed border-zinc-800 rounded-[48px] bg-zinc-900/10">
                             {isSimulating ? <ProgressIndicator progress={progress} statusMsg={statusMsg} /> : <div className="opacity-20 text-center"><BarChart3 size={64} className="mx-auto mb-4" /><p className="text-xs uppercase tracking-widest font-black">Awaiting Parameters</p></div>}
                         </div>
@@ -600,6 +834,16 @@ function MetricsPanel({ metrics }) {
                         subValue="System Quality"
                         tooltip="System Quality Number (SQN) measures the relationship between your trading edge and the consistency of that edge. It is calculated by taking the square root of the number of trades and multiplying it by the average profit divided by the standard deviation of profit/loss."
                     />
+                    
+                    <MetricCard
+                        label="AI Save Accuracy"
+                        icon={Shield}
+                        value={`${(metrics.ai_accuracy || 0).toFixed(1)}%`}
+                        color={metrics.ai_accuracy > 70 ? "text-emerald-400" : metrics.ai_accuracy > 50 ? "text-amber-400" : "text-rose-400"}
+                        subValue={`Saved: ${metrics.ai_saves} | Missed: ${metrics.ai_misses}`}
+                        tooltip="The percentage of vetoed trades that would have resulted in a loss. A high score means the AI is successfully filtering out bad signals."
+                    />
+                    
                     <div className="flex items-center justify-center opacity-30">
                         <span className="text-[9px] font-black uppercase text-zinc-700 tracking-widest">Sovereign Quant</span>
                     </div>
