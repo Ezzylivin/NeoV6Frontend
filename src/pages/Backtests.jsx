@@ -169,9 +169,13 @@ export default function Backtests() {
 
     const calculateAdvancedMetrics = (results) => {
         const trades = results.trades || [];
+        const metrics = results.metrics || {};
         const curve = results.equityCurve || [];
         const initialBalance = results.initialBalance || 1000;
-        const finalBalance = results.metrics?.final_balance || initialBalance;
+        const finalBalance = results.metrics?.final_balance || results.metrics?.finalBalance || initialBalance;
+
+        let totalTrades = metrics.total_trades || metrics.totalTrades || 0;
+        let netProfit = metrics.net_profit || metrics.netProfit || 0;
 
         let wins = 0;
         let losses = 0;
@@ -183,8 +187,10 @@ export default function Backtests() {
         let tradeReturns = [];
 
         trades.forEach(t => {
-            if (t.balance && t.balance !== previousBalance) {
-                const pnl = t.balance - previousBalance;
+            if (t.type === 'exit' || t.type.includes('close') || t.type.includes('flip')) {
+            const pnl = t.pnl_amount || (t.balance - (t.entry_balance || initialBalance)) || 0;
+            
+            if (pnl !== 0) {
                 tradeReturns.push(pnl);
                 if (pnl > 0) {
                     wins++;
@@ -193,11 +199,11 @@ export default function Backtests() {
                 } else {
                     losses++;
                     grossLoss += Math.abs(pnl);
-                    if (pnl < largestLoss) largestLoss = pnl;
+                    if (pnl < Math.abs(largestLoss)) largestLoss = Math.abs(pnl);
                 }
-                previousBalance = t.balance;
             }
-        });
+        }
+    });
 
         const totalTrades = wins + losses;
         const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
@@ -251,9 +257,11 @@ export default function Backtests() {
             win_rate: winRate,
             profit_factor: profitFactor,
             max_drawdown: maxDrawdown * 100,
+            final_balance: finalBalance,
             net_profit: netProfit,
             total_wins: wins,
             total_losses: losses,
+            total_trades: totalTrades,
             avg_trade: avgTrade,
             avg_win: avgWin,
             avg_loss: avgLoss,
@@ -311,61 +319,80 @@ export default function Backtests() {
 
     const handleRun = async (e) => {
     e.preventDefault();
+    setBacktestResults(null); // 🟢 ADD THIS LINE to trigger the loading screen
+    setProgress(0);
+    setIsSimulating(true);
+    setStatusMsg("Initiating Handshake...");
 
-    // 🟢 1. Create a "Sanitized" Params Object
-    // Only include Global settings that apply to EVERY backtest
-    const globalParams = {
-        model_type: data.params.model_type,
-        take_profit: data.params.take_profit,
-        stop_loss: data.params.stop_loss,
-        trailing_stop: data.params.trailing_stop,
-    };
+    const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
 
-    // 🟢 2. Build the payload from scratch (No more ...data leaks!)
-    const sanitizedPayload = {
-        symbol: data.symbol,
-        timeframe: data.timeframe,
-        startDate: data.startDate,
-        endDate: data.endDate,
-        initialBalance: Number(data.initialBalance),
-        risk_percentage: Number(data.risk_percentage),
-        mlMode: data.mlMode,
-        combinationRule: data.combinationRule,
-        userId: JSON.parse(localStorage.getItem('user'))?._id,
-        code: activeTab === 'combo' ? 'hybrid_ensemble' : data.code,
-        
-        // 🚩 The Key Fix: Use the clean globalParams, not the messy data.params
-        params: globalParams, 
-        
-        // 🚩 Only send the strategies the user actually picked
-        strategies: data.strategies.map(s => ({
-            code: s.code,
-            params: s.params
-        })),
-        advanced_filters: data.advanced_filters
-    };
+    let finalPayload;
 
-        try {
-            const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
-            const res = await runner(sanitizedPayload);
-
-            if (res && (res.metrics || res.candleData || res.combinedResult)) {
-                processResults(res);
-            } else if (res?.jobId) {
-                setCurrentJobId(res.jobId);
-                setStatusMsg("Job Queued...");
-            } else {
-                console.error("❌ No valid results or Job ID found");
-                setIsSimulating(false);
-                setStatusMsg("Connection Failed");
+    if (activeTab === 'single') {
+        // 🟢 Mode 1: Single Strategy
+        // We ONLY send the basic params and the specific 'code'
+        finalPayload = {
+            symbol: data.symbol,
+            timeframe: data.timeframe,
+            startDate: data.startDate,
+            endDate: data.endDate,
+            initialBalance: Number(data.initialBalance),
+            risk_percentage: parseFloat(data.risk_percentage),
+            userId: dynamicUserId,
+            code: data.code, // e.g., "rsi_threshold"
+            params: {
+                model_type: data.params.model_type,
+                take_profit: parseFloat(data.params.take_profit),
+                stop_loss: parseFloat(data.params.stop_loss),
+                trailing_stop: parseFloat(data.params.trailing_stop),
+                ...DEFAULT_STRATEGY_PARAMS[data.code] // Only params for THIS code
             }
-        } catch (err) {
-            console.error("Run failed:", err);
-            setIsSimulating(false);
-            setStatusMsg("Error: " + err.message);
-        }
-    };
+        };
+    } else {
+        // 🟢 Mode 2: Combo Strategy (Ensemble)
+        finalPayload = {
+            symbol: data.symbol,
+            timeframe: data.timeframe,
+            startDate: data.startDate,
+            endDate: data.endDate,
+            initialBalance: Number(data.initialBalance),
+            risk_percentage: parseFloat(data.risk_percentage),
+            userId: dynamicUserId,
+            combinationRule: data.combinationRule,
+            code: 'hybrid_ensemble', // Use generic code for combo
+            params: {
+                model_type: data.params.model_type,
+                take_profit: parseFloat(data.params.take_profit),
+                stop_loss: parseFloat(data.params.stop_loss),
+                trailing_stop: parseFloat(data.params.trailing_stop)
+            },
+            strategies: data.strategies // Only send the strategy list here
+        };
+    }
 
+    try {
+        // Choose the correct runner based on tab
+        const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
+        const res = await runner(finalPayload);
+
+        const normalizedMetrics = {
+            ...res.metrics,
+            total_trades: res.metrics.total_trades || res.metrics.totalTrades || 0,
+            final_balance: res.metrics.final_balance || res.metrics.finalBalance || res.initialBalance,
+            net_profit: res.metrics.net_profit || res.metrics.netProfit || 0
+        };
+        
+        if (res && (res.metrics || res.candleData)) {
+            processResults(res);
+        }
+    } catch (err) {
+        console.error("Run failed:", err);
+        setStatusMsg("Error: " + err.message);
+        setIsSimulating(false);
+    }
+};
+
+    
     const handleAtomicCodeChange = (code) => {
         setData(p => ({ ...p, code, params: { ...p.params, ...DEFAULT_STRATEGY_PARAMS[code] } }));
     };
