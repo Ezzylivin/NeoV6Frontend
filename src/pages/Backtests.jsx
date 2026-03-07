@@ -310,22 +310,47 @@ export default function Backtests() {
     };
 
     const handleRun = async (e) => {
-        e.preventDefault();
-        setBacktestResults(null);
-        setProgress(5);
-        setStatusMsg("Initiating Handshake...");
-        setIsSimulating(true);
+    e.preventDefault();
+    // ... (Your existing status/loading state code)
 
-        const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
-        let payload = { ...data, userId: dynamicUserId };
+    const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
+    
+    // 1. Define what "Global" params look like for an Ensemble
+    // This removes the "rsi_length", "oversold", etc. that are causing the crash
+    const globalEnsembleParams = {
+        model_type: data.params.model_type || "stacking",
+        take_profit: parseFloat(data.params.take_profit),
+        stop_loss: parseFloat(data.params.stop_loss),
+        trailing_stop: parseFloat(data.params.trailing_stop),
+        long_threshold: parseFloat(data.params.long_threshold || 0.5),
+        short_threshold: parseFloat(data.params.short_threshold || 0.5)
+    };
 
-        if (activeTab === 'single') {
-            const { strategies, combinationRule, ...rest } = payload;
-            payload = rest;
-        } else {
-            const { code, ...rest } = payload;
-            payload = { ...rest, code: 'hybrid_ensemble' };
-        }
+    let finalPayload;
+
+    if (activeTab === 'single') {
+        // --- SINGLE MODE ---
+        const { strategies, combinationRule, ...rest } = data;
+        finalPayload = { ...rest, userId: dynamicUserId };
+    } else {
+        // --- COMBO MODE (Ensemble) ---
+        // 🟢 THE FIX: Reconstruct the payload to be "Clean"
+        finalPayload = {
+            symbol: data.symbol,
+            timeframe: data.timeframe,
+            startDate: data.startDate,
+            endDate: data.endDate,
+            initialBalance: Number(data.initialBalance), // Ensure Number
+            risk_percentage: Number(data.risk_percentage), // Ensure Number
+            mlMode: data.mlMode,
+            combinationRule: data.combinationRule,
+            advanced_filters: data.advanced_filters,
+            userId: dynamicUserId,
+            code: "hybrid_ensemble", // Use the generic ensemble code
+            params: globalEnsembleParams, // 🟢 Use the CLEANED global params
+            strategies: data.strategies // Keep specific strategy params here
+        };
+    }
 
         try {
             const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
