@@ -205,7 +205,7 @@ export default function Backtests() {
         }
     });
 
-        const totalTrades = wins + losses;
+        
         const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
         const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 100 : 0;
         const avgWin = wins > 0 ? grossProfit / wins : 0;
