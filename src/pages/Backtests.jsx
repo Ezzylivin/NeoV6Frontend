@@ -347,7 +347,7 @@ export default function Backtests() {
 
         try {
             const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
-            const res = await runner(payload);
+            const res = await runner(sanitizedPayload);
 
             if (res && (res.metrics || res.candleData || res.combinedResult)) {
                 processResults(res);
