@@ -178,8 +178,6 @@ export default function Backtests() {
         const totalTrades = (wins + losses) || metrics.total_trades || metrics.totalTrades || 0;
         const avgTrade = totalTrades > 0 ? netProfit / totalTrades : 0;
         
-        let totalTrades = metrics.total_trades || metrics.totalTrades || 0;
-        let netProfit = metrics.net_profit || metrics.netProfit || 0;
 
         let wins = 0;
         let losses = 0;
@@ -191,25 +189,26 @@ export default function Backtests() {
         let tradeReturns = [];
 
         trades.forEach(t => {
-            if (t.type === 'exit' || t.type.includes('close') || t.type.includes('flip')) {
-            const pnl = t.pnl_amount || (t.balance - (t.entry_balance || initialBalance)) || 0;
-            
-            if (pnl !== 0) {
-                tradeReturns.push(pnl);
-                if (pnl > 0) {
-                    wins++;
-                    grossProfit += pnl;
-                    if (pnl > largestWin) largestWin = pnl;
-                } else {
-                    losses++;
-                    grossLoss += Math.abs(pnl);
-                    if (pnl < Math.abs(largestLoss)) largestLoss = Math.abs(pnl);
-                }
+        if (t.balance && t.balance !== previousBalance) {
+            const pnl = t.balance - previousBalance;
+            tradeReturns.push(pnl);
+            if (pnl > 0) {
+                wins++;
+                grossProfit += pnl;
+                if (pnl > largestWin) largestWin = pnl;
+            } else {
+                losses++;
+                grossLoss += Math.abs(pnl);
+                if (pnl < largestLoss) largestLoss = pnl;
             }
+            previousBalance = t.balance;
         }
     });
 
-        
+        const calculatedTotalTrades = wins + losses;
+        // Use the higher count between backend and frontend calculation for safety
+        totalTrades = calculatedTotalTrades > 0 ? calculatedTotalTrades : totalTrades;
+            
         const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
         const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 100 : 0;
         const avgWin = wins > 0 ? grossProfit / wins : 0;
@@ -262,8 +261,6 @@ export default function Backtests() {
             max_drawdown: maxDrawdown * 100,
             final_balance: finalBalance,
             net_profit: netProfit,
-            net_profit: netProfit,
-            avg_trade: avgTrade,
             total_wins: wins,
             total_losses: losses,
             total_trades: totalTrades,
