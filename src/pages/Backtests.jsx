@@ -10,7 +10,8 @@ import {
     Activity, Percent, DollarSign, AlertTriangle,
     Zap, Scale, Award, TrendingDown, LayoutGrid, Info
 } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as ChartTooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as ChartTooltip, BarChart, Bar, XAxis } from 'recharts';
+
 
 const VITE_API = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
 const API_BASE = VITE_API.endsWith('/api') ? VITE_API : `${VITE_API}/api`;
