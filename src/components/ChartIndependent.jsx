@@ -1,4 +1,91 @@
-useEffect(() => {
+import React, { useEffect, useRef, useState, useMemo } from "react";
+import { createChart, CrosshairMode, ColorType, LineStyle } from "lightweight-charts";
+
+export function ChartIndependent({ results, symbol = "SOL-USD" }) {
+    const chartContainerRef = useRef(null);
+    const chartRef = useRef(null);
+    const tradeLineSeriesRef = useRef(null);
+    
+    // 🟢 State for the Floating Legend
+    const [legend, setLegend] = useState({ 
+        open: "--", high: "--", low: "--", close: "--", 
+        timeStr: "--" 
+    });
+
+    const formatTime = (t) => {
+        const date = new Date(t);
+        return Math.floor(date.getTime() / 1000);
+    };
+
+    // 1. Prepare Candle Data
+    const candles = useMemo(() => {
+        const raw = results?.candleData || [];
+        if (raw.length === 0) return [];
+        
+        const uniqueCandles = new Map();
+        raw.forEach(c => {
+            const time = formatTime(c.time || c.timestamp);
+            if (!isNaN(time)) {
+                uniqueCandles.set(time, {
+                    time: time,
+                    open: parseFloat(c.open),
+                    high: parseFloat(c.high),
+                    low: parseFloat(c.low),
+                    close: parseFloat(c.close),
+                });
+            }
+        });
+        const sorted = Array.from(uniqueCandles.values()).sort((a, b) => a.time - b.time);
+        
+        if (sorted.length > 0) {
+            console.log("📊 Chart Range:", 
+                new Date(sorted[0].time * 1000).toLocaleDateString(), 
+                "->", 
+                new Date(sorted[sorted.length-1].time * 1000).toLocaleDateString()
+            );
+        }
+        
+        return sorted;
+    }, [results]);
+
+    // 2. Process Trades & Markers
+    const { markers, tradeLookup } = useMemo(() => {
+        const trades = results?.trades || [];
+        if (trades.length === 0) return { markers: [], tradeLookup: {} };
+
+        const formattedTrades = trades.map(t => ({
+            ...t,
+            time: formatTime(t.entry_time || t.time),
+            price: parseFloat(t.price)
+        })).sort((a,b) => a.time - b.time);
+
+        const lookup = {}; 
+        let lastEntry = null;
+
+        formattedTrades.forEach(t => {
+            lookup[t.time] = t;
+            if (t.type === 'buy' || t.type === 'sell' || t.type === 'long' || t.type === 'short') {
+                lastEntry = t;
+            } else if ((t.type.includes('close') || t.type.includes('flip')) && lastEntry) {
+                lastEntry.exitMatch = t;
+                t.entryMatch = lastEntry;
+                lookup[lastEntry.time] = lastEntry;
+                lookup[t.time] = t;
+                lastEntry = null;
+            }
+        });
+
+        const markersList = formattedTrades.map(t => {
+            if (t.type === "buy" || t.type === "long") return { time: t.time, position: "belowBar", color: "#10b981", shape: "arrowUp", text: "L" };
+            if (t.type === "sell" || t.type === "short") return { time: t.time, position: "aboveBar", color: "#ef4444", shape: "arrowDown", text: "S" };
+            if (t.type.includes("close")) return { time: t.time, position: "aboveBar", color: "#fbbf24", shape: "circle", text: "X" };
+            return null;
+        }).filter(Boolean);
+
+        return { markers: markersList, tradeLookup: lookup };
+    }, [results]);
+
+    useEffect(() => {
     // 1. Guard: Don't run if no container or no data
     if (!chartContainerRef.current || !candles || candles.length === 0) return;
 
@@ -139,3 +226,32 @@ useEffect(() => {
         }
     };
 }, [candles, markers, tradeLookup]);
+
+    return (
+        <div className="w-full h-full relative group">
+            {/* Legend Overlay */}
+            <div className="absolute top-4 left-4 z-50 pointer-events-none select-none">
+                <div className="bg-zinc-950/90 backdrop-blur-md p-3 rounded-xl border border-zinc-800 shadow-2xl mb-2">
+                    <div className="flex gap-4 items-center mb-1">
+                        <span className="font-black text-amber-500 text-xs tracking-wider">{symbol}</span>
+                        <span className="text-[10px] text-zinc-500 font-mono">{legend.timeStr}</span>
+                    </div>
+                    <div className="flex gap-4 text-[10px] font-mono text-zinc-300">
+                        <div>O: <span className={legend.open > legend.close ? 'text-rose-400' : 'text-emerald-400'}>{Number(legend.open).toFixed(2)}</span></div>
+                        <div>H: <span className="text-zinc-400">{Number(legend.high).toFixed(2)}</span></div>
+                        <div>L: <span className="text-zinc-400">{Number(legend.low).toFixed(2)}</span></div>
+                        <div>C: <span className={legend.open > legend.close ? 'text-rose-400' : 'text-emerald-400'}>{Number(legend.close).toFixed(2)}</span></div>
+                    </div>
+                </div>
+
+                <div className="flex gap-3 bg-zinc-950/80 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-zinc-800/50 w-fit">
+                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500"></div><span className="text-[9px] text-zinc-400 font-bold">L = LONG</span></div>
+                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-rose-500"></div><span className="text-[9px] text-zinc-400 font-bold">S = SHORT</span></div>
+                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-400"></div><span className="text-[9px] text-zinc-400 font-bold">X = EXIT</span></div>
+                </div>
+            </div>
+
+            <div ref={chartContainerRef} className="w-full h-full" />
+        </div>
+    );
+}
