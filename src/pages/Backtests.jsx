@@ -175,9 +175,7 @@ export default function Backtests() {
         const finalBalance = results.metrics?.final_balance || results.metrics?.finalBalance || initialBalance;
 
         const netProfit = finalBalance - initialBalance;
-        const totalTrades = (wins + losses) || metrics.total_trades || metrics.totalTrades || 0;
-        const avgTrade = totalTrades > 0 ? netProfit / totalTrades : 0;
-        
+    
 
         let wins = 0;
         let losses = 0;
@@ -205,12 +203,10 @@ export default function Backtests() {
         }
     });
 
-        const calculatedTotalTrades = wins + losses;
-        // Use the higher count between backend and frontend calculation for safety
-        totalTrades = calculatedTotalTrades > 0 ? calculatedTotalTrades : totalTrades;
-            
+        const totalTrades = (wins + losses) || metrics.total_trades || metrics.totalTrades || 0;
         const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
-        const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 100 : 0;
+        const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : (grossProfit > 0 ? 100 : 0);
+        const avgTrade = totalTrades > 0 ? netProfit / totalTrades : 0;
         const avgWin = wins > 0 ? grossProfit / wins : 0;
         const avgLoss = losses > 0 ? grossLoss / losses : 0;
 
