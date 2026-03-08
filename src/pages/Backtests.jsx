@@ -84,23 +84,38 @@ export default function Backtests() {
     const [currentJobId, setCurrentJobId] = useState(null);
     const [availableModels, setAvailableModels] = useState(DEFAULT_MODELS);
 
-   const [data, setData] = useState({
+  const [data, setData] = useState({
+    // Market Identity
     symbol: "BTC-USD",
     timeframe: "1h",
     startDate: "2025-02-19",
     endDate: "2026-01-18",
     initialBalance: 250,
     risk_percentage: 1.0,
+
+    // AI Neural Gate Settings (The missing link!)
     mlMode: "on",
-    mlModel: "stacking", // 🎯 Moved out of params for easier access
-    mlThresholdLong: 0.8, // 🎯 Default for Long Gate
-    mlThresholdShort: 0.8, // 🎯 Default for Short Gate
+    mlModel: "stacking", 
+    mlThresholdLong: 0.8, 
+    mlThresholdShort: 0.8, 
+
+    // Ensemble Logic
     combinationRule: "OR",
     code: "rsi_threshold",
     strategies: [
         { code: "stoch", params: { ...DEFAULT_STRATEGY_PARAMS.stoch } }, 
         { code: "bb_fade", params: { ...DEFAULT_STRATEGY_PARAMS.bb_fade, bb_std: 2.568 } }
     ],
+
+    // Sanity Filters (Prevents the 'trend_filter' crash)
+    advanced_filters: { 
+        trend_filter: "none", 
+        vol_min: 0, 
+        atr_filter: 0, 
+        trade_window: "all" 
+    },
+
+    // Global Strategy Parameters
     params: {
         model_type: "stacking",
         take_profit: 0.13,
@@ -109,6 +124,8 @@ export default function Backtests() {
         ...DEFAULT_STRATEGY_PARAMS.rsi_threshold
     }
 });
+
+    
     useEffect(() => {
         const fetchModels = async () => {
             try {
@@ -366,7 +383,6 @@ export default function Backtests() {
     const handleRun = async (e) => {
         e.preventDefault();
         
-        // 1. Reset UI State
         setProgress(0);
         setIsSimulating(true);
         setStatusMsg("Initiating Handshake...");
@@ -374,7 +390,6 @@ export default function Backtests() {
         const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
         let finalPayload;
 
-        // 2. Construct the Payload
         if (activeTab === 'single') {
             finalPayload = {
                 symbol: data.symbol,
@@ -385,16 +400,17 @@ export default function Backtests() {
                 risk_percentage: parseFloat(data.risk_percentage),
                 userId: dynamicUserId,
                 code: data.code,
-                mlThresholdLong: parseFloat(data.mlThresholdLong || 0.8),
-                mlThresholdShort: parseFloat(data.mlThresholdShort || 0.8),
-                mlModel: data.mlModel || "stacking",
+                mlThresholdLong: parseFloat(data.mlThresholdLong),
+                mlThresholdShort: parseFloat(data.mlThresholdShort),
+                mlModel: data.mlModel,
                 params: {
                     model_type: data.params.model_type,
                     take_profit: parseFloat(data.params.take_profit),
                     stop_loss: parseFloat(data.params.stop_loss),
                     trailing_stop: parseFloat(data.params.trailing_stop),
                     ...DEFAULT_STRATEGY_PARAMS[data.code]
-                }
+                },
+                advanced_filters: data.advanced_filters // 🎯 Ensure these are sent
             };
         } else {
             finalPayload = {
@@ -407,36 +423,28 @@ export default function Backtests() {
                 userId: dynamicUserId,
                 combinationRule: data.combinationRule,
                 code: 'hybrid_ensemble',
-                mlThresholdLong: parseFloat(data.mlThresholdLong || 0.8),
-                mlThresholdShort: parseFloat(data.mlThresholdShort || 0.8),
-                mlModel: data.mlModel || "stacking",
+                mlThresholdLong: parseFloat(data.mlThresholdLong),
+                mlThresholdShort: parseFloat(data.mlThresholdShort),
+                mlModel: data.mlModel,
                 params: {
                     model_type: data.params.model_type,
                     take_profit: parseFloat(data.params.take_profit),
                     stop_loss: parseFloat(data.params.stop_loss),
                     trailing_stop: parseFloat(data.params.trailing_stop)
                 },
-                strategies: data.strategies
+                strategies: data.strategies,
+                advanced_filters: data.advanced_filters // 🎯 Ensure these are sent
             };
         }
 
-        // 3. Execute the Request
         try {
             console.log("🚀 Dispatching Logic:", finalPayload);
             const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
             const res = await runner(finalPayload);
             
             if (res && res.status === "success") {
-                // Ensure metrics are normalized for the UI
-                res.metrics = {
-                    ...res.metrics,
-                    total_trades: res.metrics?.total_trades || res.metrics?.totalTrades || 0,
-                    final_balance: res.metrics?.final_balance || res.metrics?.finalBalance || res.initialBalance,
-                    net_profit: res.metrics?.net_profit || res.metrics?.netProfit || 0
-                };
                 processResults(res);
             } else {
-                console.error("Backtest Error:", res?.error);
                 setStatusMsg("Failed: " + (res?.error || "Unknown Error"));
                 setIsSimulating(false);
             }
@@ -445,7 +453,7 @@ export default function Backtests() {
             setStatusMsg("Connection Error");
             setIsSimulating(false);
         }
-    }; // 🎯 Only ONE closing brace here.
+    }; // 🎯 ONLY ONE CLOSING BRACE HERE. DELETE ANY CODE IMMEDIATELY FOLLOWING THIS BRACE.
     
     const handleAtomicCodeChange = (code) => {
         setData(p => ({ ...p, code, params: { ...p.params, ...DEFAULT_STRATEGY_PARAMS[code] } }));
