@@ -370,48 +370,54 @@ export default function Backtests() {
 
     let finalPayload;
 
-    if (activeTab === 'single') {
-        // 🟢 Mode 1: Single Strategy
-        // We ONLY send the basic params and the specific 'code'
-        finalPayload = {
-            symbol: data.symbol,
-            timeframe: data.timeframe,
-            startDate: data.startDate,
-            endDate: data.endDate,
-            initialBalance: Number(data.initialBalance),
-            risk_percentage: parseFloat(data.risk_percentage),
-            userId: dynamicUserId,
-            code: data.code, // e.g., "rsi_threshold"
-            params: {
-                model_type: data.params.model_type,
-                take_profit: parseFloat(data.params.take_profit),
-                stop_loss: parseFloat(data.params.stop_loss),
-                trailing_stop: parseFloat(data.params.trailing_stop),
-                ...DEFAULT_STRATEGY_PARAMS[data.code] // Only params for THIS code
-            }
-        };
-    } else {
-        // 🟢 Mode 2: Combo Strategy (Ensemble)
-        finalPayload = {
-            symbol: data.symbol,
-            timeframe: data.timeframe,
-            startDate: data.startDate,
-            endDate: data.endDate,
-            initialBalance: Number(data.initialBalance),
-            risk_percentage: parseFloat(data.risk_percentage),
-            userId: dynamicUserId,
-            combinationRule: data.combinationRule,
-            code: 'hybrid_ensemble', // Use generic code for combo
-            params: {
-                model_type: data.params.model_type,
-                take_profit: parseFloat(data.params.take_profit),
-                stop_loss: parseFloat(data.params.stop_loss),
-                trailing_stop: parseFloat(data.params.trailing_stop)
-            },
-            strategies: data.strategies // Only send the strategy list here
-        };
-    }
-
+if (activeTab === 'single') {
+    // 🟢 Mode 1: Single Strategy
+    finalPayload = {
+        symbol: data.symbol,
+        timeframe: data.timeframe,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        initialBalance: Number(data.initialBalance),
+        risk_percentage: parseFloat(data.risk_percentage),
+        userId: dynamicUserId,
+        code: data.code,
+        // 🎯 ADD THESE:
+        mlThresholdLong: parseFloat(data.mlThresholdLong || 0.8),
+        mlThresholdShort: parseFloat(data.mlThresholdShort || 0.8),
+        mlModel: data.mlModel || "stacking",
+        params: {
+            model_type: data.params.model_type,
+            take_profit: parseFloat(data.params.take_profit),
+            stop_loss: parseFloat(data.params.stop_loss),
+            trailing_stop: parseFloat(data.params.trailing_stop),
+            ...DEFAULT_STRATEGY_PARAMS[data.code]
+        }
+    };
+} else {
+    // 🟢 Mode 2: Combo Strategy (Ensemble)
+    finalPayload = {
+        symbol: data.symbol,
+        timeframe: data.timeframe,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        initialBalance: Number(data.initialBalance),
+        risk_percentage: parseFloat(data.risk_percentage),
+        userId: dynamicUserId,
+        combinationRule: data.combinationRule,
+        code: 'hybrid_ensemble',
+        // 🎯 ADD THESE:
+        mlThresholdLong: parseFloat(data.mlThresholdLong || 0.8),
+        mlThresholdShort: parseFloat(data.mlThresholdShort || 0.8),
+        mlModel: data.mlModel || "stacking",
+        params: {
+            model_type: data.params.model_type,
+            take_profit: parseFloat(data.params.take_profit),
+            stop_loss: parseFloat(data.params.stop_loss),
+            trailing_stop: parseFloat(data.params.trailing_stop)
+        },
+        strategies: data.strategies
+    };
+}
     try {
         // Choose the correct runner based on tab
         const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
