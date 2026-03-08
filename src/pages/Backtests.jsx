@@ -312,6 +312,10 @@ export default function Backtests() {
     const processResults = (responseData) => {
         if (!responseData) return;
 
+        const rawVetoes = responseData.vetoed_signals || 
+                      responseData.combinedResult?.vetoed_signals || 
+                      [];
+
         let rawCandles = [];
         let source = "none";
 
@@ -337,6 +341,8 @@ export default function Backtests() {
 
         const enhancedMetrics = calculateAdvancedMetrics({
             ...responseData,
+            equityCurve: formattedCurve,
+            vetoed_signals: rawVetoes, // 🎯 Ensure this is passed into the calculator
             equityCurve: formattedCurve
         });
 
@@ -344,6 +350,7 @@ export default function Backtests() {
             ...responseData,
             metrics: enhancedMetrics,
             equityCurve: formattedCurve,
+            vetoed_signals: rawVetoes,
             candleData: rawCandles
         });
 
