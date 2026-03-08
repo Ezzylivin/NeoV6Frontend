@@ -361,7 +361,17 @@ export default function Backtests() {
 
     const handleRun = async (e) => {
     e.preventDefault();
-    setBacktestResults(null); // 🟢 ADD THIS LINE to trigger the loading screen
+    const response = await axios.post('/api/backtest/combo', payload);
+    const result = response.data;
+    
+    if (result.status === "success" && result.metrics) {
+        setBacktestResult(result);
+        // 🎯 ADD OPTIONAL CHAINING HERE TO PREVENT CRASH
+        console.log("Trades count:", result.metrics?.total_trades || 0); 
+    } else {
+        console.error("Backtest Logic Error:", result.error);
+        alert("Backtest failed on server: " + result.error);
+    }
     setProgress(0);
     setIsSimulating(true);
     setStatusMsg("Initiating Handshake...");
