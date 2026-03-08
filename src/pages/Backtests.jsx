@@ -556,6 +556,7 @@ export default function Backtests() {
                                             <th className="px-4 py-3 font-bold uppercase text-zinc-500">Execution Price</th>
                                             <th className="px-4 py-3 font-bold uppercase text-zinc-500">PnL %</th>
                                             <th className="px-4 py-3 font-bold uppercase text-zinc-500">Balance</th>
+                                            <th className="px-4 py-3 font-bold uppercase text-zinc-500">AI Confidence</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-zinc-800">
@@ -586,6 +587,26 @@ export default function Backtests() {
                                                 </td>
                                                 <td className="px-4 py-3 font-mono text-zinc-500">
                                                     {trade.balance ? `$${trade.balance.toLocaleString()}` : '—'}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {trade.ai_score ? (
+                                                        <div className="flex flex-col gap-1 w-20">
+                                                            <div className="flex justify-between text-[8px] font-black uppercase tracking-tighter">
+                                                                <span className="text-zinc-500">Score</span>
+                                                                <span className={trade.ai_score > trade.gate_limit ? "text-emerald-400" : "text-amber-400"}>
+                                                                    {(trade.ai_score * 100).toFixed(0)}%
+                                                                </span>
+                                                            </div>
+                                                            <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+                                                                <div 
+                                                                    className="h-full bg-violet-500 transition-all" 
+                                                                    style={{ width: `${trade.ai_score * 100}%` }} 
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-zinc-700">—</span>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))}
