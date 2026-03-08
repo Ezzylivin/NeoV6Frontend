@@ -84,27 +84,31 @@ export default function Backtests() {
     const [currentJobId, setCurrentJobId] = useState(null);
     const [availableModels, setAvailableModels] = useState(DEFAULT_MODELS);
 
-    const [data, setData] = useState({
-        symbol: "BTC-USD",
-        timeframe: "1h",
-        startDate: "2025-02-19",
-        endDate: "2026-01-18",
-        initialBalance: 250,
-        risk_percentage: 1.0,
-        mlMode: "on",
-        combinationRule: "AND",
-        code: "rsi_threshold",
-        strategies: [{ code: "stoch", params: { ...DEFAULT_STRATEGY_PARAMS.stoch } }, { code: "bb_fade", params: { ...DEFAULT_STRATEGY_PARAMS.bb_fade, bb_std: 2.568 } }],
-        advanced_filters: { trend_filter: "none", vol_min: 0, atr_filter: 0, trade_window: "all" },
-        params: {
-            model_type: "stacking",
-            take_profit: 0.13,
-            stop_loss: 0.086,
-            trailing_stop: 0.086,
-            ...DEFAULT_STRATEGY_PARAMS.rsi_threshold
-        }
-    });
-
+   const [data, setData] = useState({
+    symbol: "BTC-USD",
+    timeframe: "1h",
+    startDate: "2025-02-19",
+    endDate: "2026-01-18",
+    initialBalance: 250,
+    risk_percentage: 1.0,
+    mlMode: "on",
+    mlModel: "stacking", // 🎯 Moved out of params for easier access
+    mlThresholdLong: 0.8, // 🎯 Default for Long Gate
+    mlThresholdShort: 0.8, // 🎯 Default for Short Gate
+    combinationRule: "OR",
+    code: "rsi_threshold",
+    strategies: [
+        { code: "stoch", params: { ...DEFAULT_STRATEGY_PARAMS.stoch } }, 
+        { code: "bb_fade", params: { ...DEFAULT_STRATEGY_PARAMS.bb_fade, bb_std: 2.568 } }
+    ],
+    params: {
+        model_type: "stacking",
+        take_profit: 0.13,
+        stop_loss: 0.086,
+        trailing_stop: 0.086,
+        ...DEFAULT_STRATEGY_PARAMS.rsi_threshold
+    }
+});
     useEffect(() => {
         const fetchModels = async () => {
             try {
@@ -361,73 +365,82 @@ export default function Backtests() {
 
     const handleRun = async (e) => {
     e.preventDefault();
-    const response = await axios.post('/api/backtest/combo', payload);
-    const result = response.data;
     
-    if (result.status === "success" && result.metrics) {
-        setBacktestResult(result);
-        // 🎯 ADD OPTIONAL CHAINING HERE TO PREVENT CRASH
-        console.log("Trades count:", result.metrics?.total_trades || 0); 
-    } else {
-        console.error("Backtest Logic Error:", result.error);
-        alert("Backtest failed on server: " + result.error);
-    }
+    // 1. Reset UI State
     setProgress(0);
     setIsSimulating(true);
     setStatusMsg("Initiating Handshake...");
 
     const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
-
     let finalPayload;
 
-if (activeTab === 'single') {
-    // 🟢 Mode 1: Single Strategy
-    finalPayload = {
-        symbol: data.symbol,
-        timeframe: data.timeframe,
-        startDate: data.startDate,
-        endDate: data.endDate,
-        initialBalance: Number(data.initialBalance),
-        risk_percentage: parseFloat(data.risk_percentage),
-        userId: dynamicUserId,
-        code: data.code,
-        // 🎯 ADD THESE:
-        mlThresholdLong: parseFloat(data.mlThresholdLong || 0.8),
-        mlThresholdShort: parseFloat(data.mlThresholdShort || 0.8),
-        mlModel: data.mlModel || "stacking",
-        params: {
-            model_type: data.params.model_type,
-            take_profit: parseFloat(data.params.take_profit),
-            stop_loss: parseFloat(data.params.stop_loss),
-            trailing_stop: parseFloat(data.params.trailing_stop),
-            ...DEFAULT_STRATEGY_PARAMS[data.code]
+    // 2. Construct the Payload (Mapping UI state to Backend keys)
+    if (activeTab === 'single') {
+        finalPayload = {
+            symbol: data.symbol,
+            timeframe: data.timeframe,
+            startDate: data.startDate,
+            endDate: data.endDate,
+            initialBalance: Number(data.initialBalance),
+            risk_percentage: parseFloat(data.risk_percentage),
+            userId: dynamicUserId,
+            code: data.code,
+            // 🎯 SYNCING KEYS FOR THE BACKEND
+            mlThresholdLong: parseFloat(data.mlThresholdLong),
+            mlThresholdShort: parseFloat(data.mlThresholdShort),
+            mlModel: data.mlModel || "stacking",
+            params: {
+                model_type: data.params.model_type,
+                take_profit: parseFloat(data.params.take_profit),
+                stop_loss: parseFloat(data.params.stop_loss),
+                trailing_stop: parseFloat(data.params.trailing_stop),
+                ...DEFAULT_STRATEGY_PARAMS[data.code]
+            }
+        };
+    } else {
+        finalPayload = {
+            symbol: data.symbol,
+            timeframe: data.timeframe,
+            startDate: data.startDate,
+            endDate: data.endDate,
+            initialBalance: Number(data.initialBalance),
+            risk_percentage: parseFloat(data.risk_percentage),
+            userId: dynamicUserId,
+            combinationRule: data.combinationRule,
+            code: 'hybrid_ensemble',
+            // 🎯 SYNCING KEYS FOR THE BACKEND
+            mlThresholdLong: parseFloat(data.mlThresholdLong),
+            mlThresholdShort: parseFloat(data.mlThresholdShort),
+            mlModel: data.mlModel || "stacking",
+            params: {
+                model_type: data.params.model_type,
+                take_profit: parseFloat(data.params.take_profit),
+                stop_loss: parseFloat(data.params.stop_loss),
+                trailing_stop: parseFloat(data.params.trailing_stop)
+            },
+            strategies: data.strategies
+        };
+    }
+
+    // 3. Execute the Request
+    try {
+        console.log("🚀 Dispatching Logic:", finalPayload);
+        const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
+        const res = await runner(finalPayload);
+        
+        if (res && res.status === "success") {
+            processResults(res);
+        } else {
+            console.error("Backtest Error:", res?.error);
+            setStatusMsg("Failed: " + (res?.error || "Unknown Error"));
+            setIsSimulating(false);
         }
-    };
-} else {
-    // 🟢 Mode 2: Combo Strategy (Ensemble)
-    finalPayload = {
-        symbol: data.symbol,
-        timeframe: data.timeframe,
-        startDate: data.startDate,
-        endDate: data.endDate,
-        initialBalance: Number(data.initialBalance),
-        risk_percentage: parseFloat(data.risk_percentage),
-        userId: dynamicUserId,
-        combinationRule: data.combinationRule,
-        code: 'hybrid_ensemble',
-        // 🎯 ADD THESE:
-        mlThresholdLong: parseFloat(data.mlThresholdLong || 0.8),
-        mlThresholdShort: parseFloat(data.mlThresholdShort || 0.8),
-        mlModel: data.mlModel || "stacking",
-        params: {
-            model_type: data.params.model_type,
-            take_profit: parseFloat(data.params.take_profit),
-            stop_loss: parseFloat(data.params.stop_loss),
-            trailing_stop: parseFloat(data.params.trailing_stop)
-        },
-        strategies: data.strategies
-    };
-}
+    } catch (err) {
+        console.error("Network Run failed:", err);
+        setStatusMsg("Connection Error");
+        setIsSimulating(false);
+    }
+};
     try {
         // Choose the correct runner based on tab
         const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
@@ -484,7 +497,13 @@ if (activeTab === 'single') {
                 <div className="col-span-12 lg:col-span-3">
                     <div className="bg-zinc-900/40 border border-zinc-800 rounded-3xl p-6 sticky top-6 max-h-[90vh] overflow-y-auto custom-scrollbar">
                         <form onSubmit={handleRun} className="space-y-8">
-                            <AIConfig mlMode={data.mlMode} setMlMode={(m) => setData({ ...data, mlMode: m })} params={data.params} availableModels={availableModels} onParamChange={(k, v) => setData(p => ({ ...p, params: { ...p.params, [k]: v } }))} />
+                            <AIConfig 
+                                mlMode={data.mlMode} 
+                                setMlMode={(m) => setData({ ...data, mlMode: m })} 
+                                data={data} 
+                                setData={setData} 
+                                availableModels={availableModels} 
+                            />
                             <div className="space-y-4 border-t border-zinc-800 pt-6">
                                 <div className="flex justify-between items-center">
                                     <h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest flex items-center gap-1">Logic Ensemble <Tooltip text="Combine multiple strategies to create a hybrid model."><Info size={10} className="text-zinc-500" /></Tooltip></h4>
@@ -786,35 +805,66 @@ if (activeTab === 'single') {
     );
 }
 
-function AIConfig({ mlMode, setMlMode, params, onParamChange, availableModels = [] }) {
+function AIConfig({ mlMode, setMlMode, data, setData, availableModels = [] }) {
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2"><Cpu size={14} className="text-violet-400" /><h4 className="text-[10px] text-violet-400 font-black uppercase tracking-widest flex items-center gap-1">Neural Gate <Tooltip text="Use machine learning models to filter trade signals."><Info size={10} className="text-zinc-500" /></Tooltip></h4></div>
-                <select value={mlMode} onChange={(e) => setMlMode(e.target.value)} className="bg-zinc-800 text-[9px] rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-violet-500/50"><option value="off">BYPASS</option><option value="on">ACTIVE</option></select>
+                <div className="flex items-center gap-2">
+                    <Cpu size={14} className="text-violet-400" />
+                    <h4 className="text-[10px] text-violet-400 font-black uppercase tracking-widest flex items-center gap-1">
+                        Neural Gate 
+                        <Tooltip text="Use machine learning models to filter trade signals.">
+                            <Info size={10} className="text-zinc-500" />
+                        </Tooltip>
+                    </h4>
+                </div>
+                <select 
+                    value={mlMode} 
+                    onChange={(e) => setMlMode(e.target.value)} 
+                    className="bg-zinc-800 text-[9px] rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-violet-500/50"
+                >
+                    <option value="off">BYPASS</option>
+                    <option value="on">ACTIVE</option>
+                </select>
             </div>
+
             {mlMode === "on" && (
                 <div className="grid grid-cols-2 gap-3">
                     <div className="col-span-2">
-                        <div className="flex items-center justify-between mb-1">
-                            <label className="text-[10px] text-zinc-500 uppercase font-bold ml-1">Architecture</label>
-                            <Tooltip text="Select the machine learning model architecture."><Info size={10} className="text-zinc-600" /></Tooltip>
-                        </div>
-                        <select value={params.model_type} onChange={(e) => onParamChange('model_type', e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none">{availableModels.map(model => (<option key={model.id} value={model.id}>{model.name}</option>))}</select>
+                        <label className="text-[10px] text-zinc-500 uppercase font-bold ml-1">Architecture</label>
+                        <select 
+                            value={data.mlModel} 
+                            onChange={(e) => setData({...data, mlModel: e.target.value})} 
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none"
+                        >
+                            {availableModels.map(model => (
+                                <option key={model.id} value={model.id}>{model.name}</option>
+                            ))}
+                        </select>
                     </div>
+                    
+                    {/* 🎯 PLACED HERE: Long Gate */}
                     <div>
-                        <div className="flex items-center justify-between mb-1">
-                            <label className="text-[10px] text-zinc-500 uppercase font-bold ml-1">Long Gate</label>
-                            <Tooltip text="Threshold for long signal confidence (0-1)."><Info size={10} className="text-zinc-600" /></Tooltip>
-                        </div>
-                        <input type="number" step="0.01" value={params.long_threshold} onChange={(e) => onParamChange('long_threshold', parseFloat(e.target.value))} className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none" />
+                        <label className="text-[10px] text-zinc-500 uppercase font-bold ml-1">Long Gate</label>
+                        <input 
+                            type="number" 
+                            step="0.01" 
+                            value={data.mlThresholdLong} 
+                            onChange={(e) => setData({...data, mlThresholdLong: parseFloat(e.target.value)})} 
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none" 
+                        />
                     </div>
+
+                    {/* 🎯 PLACED HERE: Short Gate */}
                     <div>
-                        <div className="flex items-center justify-between mb-1">
-                            <label className="text-[10px] text-zinc-500 uppercase font-bold ml-1">Short Gate</label>
-                            <Tooltip text="Threshold for short signal confidence (0-1)."><Info size={10} className="text-zinc-600" /></Tooltip>
-                        </div>
-                        <input type="number" step="0.01" value={params.short_threshold} onChange={(e) => onParamChange('short_threshold', parseFloat(e.target.value))} className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none" />
+                        <label className="text-[10px] text-zinc-500 uppercase font-bold ml-1">Short Gate</label>
+                        <input 
+                            type="number" 
+                            step="0.01" 
+                            value={data.mlThresholdShort} 
+                            onChange={(e) => setData({...data, mlThresholdShort: parseFloat(e.target.value)})} 
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-violet-500 transition-all text-xs outline-none" 
+                        />
                     </div>
                 </div>
             )}
