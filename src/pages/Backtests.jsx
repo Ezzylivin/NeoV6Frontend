@@ -364,105 +364,88 @@ export default function Backtests() {
     };
 
     const handleRun = async (e) => {
-    e.preventDefault();
-    
-    // 1. Reset UI State
-    setProgress(0);
-    setIsSimulating(true);
-    setStatusMsg("Initiating Handshake...");
-
-    const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
-    let finalPayload;
-
-    // 2. Construct the Payload (Mapping UI state to Backend keys)
-    if (activeTab === 'single') {
-        finalPayload = {
-            symbol: data.symbol,
-            timeframe: data.timeframe,
-            startDate: data.startDate,
-            endDate: data.endDate,
-            initialBalance: Number(data.initialBalance),
-            risk_percentage: parseFloat(data.risk_percentage),
-            userId: dynamicUserId,
-            code: data.code,
-            // 🎯 SYNCING KEYS FOR THE BACKEND
-            mlThresholdLong: parseFloat(data.mlThresholdLong),
-            mlThresholdShort: parseFloat(data.mlThresholdShort),
-            mlModel: data.mlModel || "stacking",
-            params: {
-                model_type: data.params.model_type,
-                take_profit: parseFloat(data.params.take_profit),
-                stop_loss: parseFloat(data.params.stop_loss),
-                trailing_stop: parseFloat(data.params.trailing_stop),
-                ...DEFAULT_STRATEGY_PARAMS[data.code]
-            }
-        };
-    } else {
-        finalPayload = {
-            symbol: data.symbol,
-            timeframe: data.timeframe,
-            startDate: data.startDate,
-            endDate: data.endDate,
-            initialBalance: Number(data.initialBalance),
-            risk_percentage: parseFloat(data.risk_percentage),
-            userId: dynamicUserId,
-            combinationRule: data.combinationRule,
-            code: 'hybrid_ensemble',
-            // 🎯 SYNCING KEYS FOR THE BACKEND
-            mlThresholdLong: parseFloat(data.mlThresholdLong),
-            mlThresholdShort: parseFloat(data.mlThresholdShort),
-            mlModel: data.mlModel || "stacking",
-            params: {
-                model_type: data.params.model_type,
-                take_profit: parseFloat(data.params.take_profit),
-                stop_loss: parseFloat(data.params.stop_loss),
-                trailing_stop: parseFloat(data.params.trailing_stop)
-            },
-            strategies: data.strategies
-        };
-    }
-
-    // 3. Execute the Request
-    try {
-        console.log("🚀 Dispatching Logic:", finalPayload);
-        const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
-        const res = await runner(finalPayload);
+        e.preventDefault();
         
-        if (res && res.status === "success") {
-            processResults(res);
+        // 1. Reset UI State
+        setProgress(0);
+        setIsSimulating(true);
+        setStatusMsg("Initiating Handshake...");
+
+        const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
+        let finalPayload;
+
+        // 2. Construct the Payload
+        if (activeTab === 'single') {
+            finalPayload = {
+                symbol: data.symbol,
+                timeframe: data.timeframe,
+                startDate: data.startDate,
+                endDate: data.endDate,
+                initialBalance: Number(data.initialBalance),
+                risk_percentage: parseFloat(data.risk_percentage),
+                userId: dynamicUserId,
+                code: data.code,
+                mlThresholdLong: parseFloat(data.mlThresholdLong || 0.8),
+                mlThresholdShort: parseFloat(data.mlThresholdShort || 0.8),
+                mlModel: data.mlModel || "stacking",
+                params: {
+                    model_type: data.params.model_type,
+                    take_profit: parseFloat(data.params.take_profit),
+                    stop_loss: parseFloat(data.params.stop_loss),
+                    trailing_stop: parseFloat(data.params.trailing_stop),
+                    ...DEFAULT_STRATEGY_PARAMS[data.code]
+                }
+            };
         } else {
-            console.error("Backtest Error:", res?.error);
-            setStatusMsg("Failed: " + (res?.error || "Unknown Error"));
+            finalPayload = {
+                symbol: data.symbol,
+                timeframe: data.timeframe,
+                startDate: data.startDate,
+                endDate: data.endDate,
+                initialBalance: Number(data.initialBalance),
+                risk_percentage: parseFloat(data.risk_percentage),
+                userId: dynamicUserId,
+                combinationRule: data.combinationRule,
+                code: 'hybrid_ensemble',
+                mlThresholdLong: parseFloat(data.mlThresholdLong || 0.8),
+                mlThresholdShort: parseFloat(data.mlThresholdShort || 0.8),
+                mlModel: data.mlModel || "stacking",
+                params: {
+                    model_type: data.params.model_type,
+                    take_profit: parseFloat(data.params.take_profit),
+                    stop_loss: parseFloat(data.params.stop_loss),
+                    trailing_stop: parseFloat(data.params.trailing_stop)
+                },
+                strategies: data.strategies
+            };
+        }
+
+        // 3. Execute the Request
+        try {
+            console.log("🚀 Dispatching Logic:", finalPayload);
+            const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
+            const res = await runner(finalPayload);
+            
+            if (res && res.status === "success") {
+                // Ensure metrics are normalized for the UI
+                res.metrics = {
+                    ...res.metrics,
+                    total_trades: res.metrics?.total_trades || res.metrics?.totalTrades || 0,
+                    final_balance: res.metrics?.final_balance || res.metrics?.finalBalance || res.initialBalance,
+                    net_profit: res.metrics?.net_profit || res.metrics?.netProfit || 0
+                };
+                processResults(res);
+            } else {
+                console.error("Backtest Error:", res?.error);
+                setStatusMsg("Failed: " + (res?.error || "Unknown Error"));
+                setIsSimulating(false);
+            }
+        } catch (err) {
+            console.error("Network Run failed:", err);
+            setStatusMsg("Connection Error");
             setIsSimulating(false);
         }
-    } catch (err) {
-        console.error("Network Run failed:", err);
-        setStatusMsg("Connection Error");
-        setIsSimulating(false);
-    }
-};
-    try {
-        // Choose the correct runner based on tab
-        const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
-        const res = await runner(finalPayload);
-
-        const normalizedMetrics = {
-            ...res.metrics,
-            total_trades: res.metrics.total_trades || res.metrics.totalTrades || 0,
-            final_balance: res.metrics.final_balance || res.metrics.finalBalance || res.initialBalance,
-            net_profit: res.metrics.net_profit || res.metrics.netProfit || 0
-        };
-        
-        if (res && (res.metrics || res.candleData)) {
-            processResults(res);
-        }
-    } catch (err) {
-        console.error("Run failed:", err);
-        setStatusMsg("Error: " + err.message);
-        setIsSimulating(false);
-    }
-};
-
+    }; // 🎯 Only ONE closing brace here.
     
     const handleAtomicCodeChange = (code) => {
         setData(p => ({ ...p, code, params: { ...p.params, ...DEFAULT_STRATEGY_PARAMS[code] } }));
