@@ -139,56 +139,7 @@ export default function Backtests() {
         fetchModels();
     }, []);
 
-    useEffect(() => {
-        let poller;
-        if (isSimulating && currentJobId) {
-            poller = setInterval(async () => {
-                try {
-                    const token = localStorage.getItem('token');
-                    const res = await axios.get(`${API_BASE}/backtest/status`, {
-                        params: { jobId: currentJobId },
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-
-                    if (res.data) {
-                        let serverStage = res.data.stage || res.data.status || "processing";
-                        let simulatedProgress = 0;
-
-                        switch (serverStage.toLowerCase()) {
-                            case 'queued': simulatedProgress = 5; setStatusMsg("Queued in Cloud..."); break;
-                            case 'initializing': simulatedProgress = 10; setStatusMsg("Warming Up GPU..."); break;
-                            case 'downloading': simulatedProgress = 30; setStatusMsg("Fetching Market Data..."); break;
-                            case 'processing': simulatedProgress = 50; setStatusMsg("Crunching Numbers..."); break;
-                            case 'training': simulatedProgress = 70; setStatusMsg("Training Neural Network..."); break;
-                            case 'executing': simulatedProgress = 85; setStatusMsg("Running Strategy Logic..."); break;
-                            case 'finalizing': simulatedProgress = 95; setStatusMsg("Compiling Results..."); break;
-                            case 'completed': simulatedProgress = 100; setStatusMsg("Finalizing..."); break;
-                            default: simulatedProgress = progress + 1;
-                        }
-
-                        if (simulatedProgress > progress) {
-                            setProgress(simulatedProgress);
-                        }
-
-                        if (res.data.status === "COMPLETED") {
-                            clearInterval(poller);
-                            setStatusMsg("Downloading Report...");
-                            const finalRes = await axios.get(`${API_BASE}/backtest/results/${currentJobId}`, {
-                                headers: { 'Authorization': `Bearer ${token}` }
-                            });
-                            processResults(finalRes.data);
-                        } else if (res.data.status === "FAILED") {
-                            clearInterval(poller);
-                            setIsSimulating(false);
-                            setStatusMsg("Backtest Failed.");
-                            alert("Backtest failed on server. Please check params.");
-                        }
-                    }
-                } catch (e) { console.error("Poller Error:", e); }
-            }, 1000);
-        }
-        return () => clearInterval(poller);
-    }, [isSimulating, currentJobId, progress]);
+    
 
     const calculateAdvancedMetrics = (results) => {
         const trades = results.trades || [];
@@ -381,79 +332,79 @@ export default function Backtests() {
     };
 
     const handleRun = async (e) => {
-        e.preventDefault();
-        
-        setProgress(0);
-        setIsSimulating(true);
-        setStatusMsg("Initiating Handshake...");
+    e.preventDefault();
+    
+    // 1. Reset UI States
+    setProgress(0);
+    setIsSimulating(true);
+    setStatusMsg("Connecting to AI Council...");
+    setBacktestResults(null); // Clear previous results
 
-        const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
-        let finalPayload;
+    const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
+    const isCombo = activeTab === 'combo';
+    
+    // 2. Prepare Payload
+    const finalPayload = isCombo ? {
+        ...data,
+        userId: dynamicUserId,
+        code: 'hybrid_ensemble'
+    } : {
+        ...data,
+        userId: dynamicUserId,
+        params: { ...data.params, ...DEFAULT_STRATEGY_PARAMS[data.code] }
+    };
 
-        if (activeTab === 'single') {
-            finalPayload = {
-                symbol: data.symbol,
-                timeframe: data.timeframe,
-                startDate: data.startDate,
-                endDate: data.endDate,
-                initialBalance: Number(data.initialBalance),
-                risk_percentage: parseFloat(data.risk_percentage),
-                userId: dynamicUserId,
-                code: data.code,
-                mlThresholdLong: parseFloat(data.mlThresholdLong),
-                mlThresholdShort: parseFloat(data.mlThresholdShort),
-                mlModel: data.mlModel,
-                params: {
-                    model_type: data.params.model_type,
-                    take_profit: parseFloat(data.params.take_profit),
-                    stop_loss: parseFloat(data.params.stop_loss),
-                    trailing_stop: parseFloat(data.params.trailing_stop),
-                    ...DEFAULT_STRATEGY_PARAMS[data.code]
-                },
-                advanced_filters: data.advanced_filters // 🎯 Ensure these are sent
-            };
-        } else {
-            finalPayload = {
-                symbol: data.symbol,
-                timeframe: data.timeframe,
-                startDate: data.startDate,
-                endDate: data.endDate,
-                initialBalance: Number(data.initialBalance),
-                risk_percentage: parseFloat(data.risk_percentage),
-                userId: dynamicUserId,
-                combinationRule: data.combinationRule,
-                code: 'hybrid_ensemble',
-                mlThresholdLong: parseFloat(data.mlThresholdLong),
-                mlThresholdShort: parseFloat(data.mlThresholdShort),
-                mlModel: data.mlModel,
-                params: {
-                    model_type: data.params.model_type,
-                    take_profit: parseFloat(data.params.take_profit),
-                    stop_loss: parseFloat(data.params.stop_loss),
-                    trailing_stop: parseFloat(data.params.trailing_stop)
-                },
-                strategies: data.strategies,
-                advanced_filters: data.advanced_filters // 🎯 Ensure these are sent
-            };
-        }
+    try {
+        // 3. Initiate Stream (Standard Fetch)
+        const endpoint = isCombo ? `${API_BASE}/backtest/combo` : `${API_BASE}/backtest/run`;
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify(finalPayload)
+        });
 
-        try {
-            console.log("🚀 Dispatching Logic:", finalPayload);
-            const runner = activeTab === 'combo' ? runComboBacktest : runNewBacktest;
-            const res = await runner(finalPayload);
-            
-            if (res && res.status === "success") {
-                processResults(res);
-            } else {
-                setStatusMsg("Failed: " + (res?.error || "Unknown Error"));
-                setIsSimulating(false);
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        // 4. Process the Stream
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n').filter(line => line.trim());
+
+            for (const line of lines) {
+                try {
+                    const update = JSON.parse(line);
+
+                    if (update.status === "progress") {
+                        // 🎯 HOOK: Updates your existing progress bar & status message
+                        setProgress(update.percentage);
+                        setStatusMsg(update.message);
+                    } 
+                    else if (update.status === "complete") {
+                        // 🏁 FINISHED: Pass data to your existing processResults function
+                        processResults(update.result);
+                        return; // Exit loop
+                    } 
+                    else if (update.status === "error") {
+                        throw new Error(update.message);
+                    }
+                } catch (jsonErr) {
+                    console.warn("Partial JSON chunk received", jsonErr);
+                }
             }
-        } catch (err) {
-            console.error("Network Run failed:", err);
-            setStatusMsg("Connection Error");
-            setIsSimulating(false);
         }
-    }; // 🎯 ONLY ONE CLOSING BRACE HERE. DELETE ANY CODE IMMEDIATELY FOLLOWING THIS BRACE.
+    } catch (err) {
+        console.error("Streaming failed:", err);
+        setStatusMsg("Connection Error: " + err.message);
+        setIsSimulating(false);
+    }
+};
     
     const handleAtomicCodeChange = (code) => {
         setData(p => ({ ...p, code, params: { ...p.params, ...DEFAULT_STRATEGY_PARAMS[code] } }));
