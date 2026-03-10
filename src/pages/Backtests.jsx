@@ -282,55 +282,58 @@ export default function Backtests() {
     };
 
     const processResults = (responseData) => {
-        if (!responseData) return;
+    if (!responseData) return;
 
-        const rawVetoes = responseData.vetoed_signals || 
-                      responseData.combinedResult?.vetoed_signals || 
+    // 1. DATA EXTRACTION: Handle nested results from the Streamer
+    // This looks for the result in both the new 'stream' format and old 'direct' format
+    const payload = responseData.result || responseData;
+
+    // 2. VETO ALIGNMENT: Find vetoes regardless of nesting
+    const rawVetoes = payload.vetoed_signals || 
+                      payload.combinedResult?.vetoed_signals || 
                       [];
 
-        let rawCandles = [];
-        let source = "none";
+    // 3. CANDLE ALIGNMENT: Support every possible naming variant
+    let rawCandles = payload.candleData || 
+                     payload.candle_data || 
+                     payload.metrics?.candle_data || 
+                     [];
 
-        if (responseData.candleData && Array.isArray(responseData.candleData)) {
-            rawCandles = responseData.candleData;
-            source = "root";
-        } else if (responseData.combinedResult && Array.isArray(responseData.combinedResult.candleData)) {
-            rawCandles = responseData.combinedResult.candleData;
-            source = "combinedResult";
-        } else if (responseData.metrics && Array.isArray(responseData.metrics.candle_data)) {
-            rawCandles = responseData.metrics.candle_data;
-            source = "metrics.candle_data";
-        } else if (responseData.candle_data && Array.isArray(responseData.candle_data)) {
-            rawCandles = responseData.candle_data;
-            source = "root_snake";
-        }
+    // 4. EQUITY CURVE ALIGNMENT
+    const rawCurve = payload.equityCurve || payload.combinedResult?.equityCurve || [];
+    
+    // Sort and format for the Charting Engine
+    const formattedCurve = rawCurve.map(pt => ({
+        time: Math.floor(new Date(pt.time).getTime() / 1000),
+        value: pt.balance
+    })).sort((a, b) => a.time - b.time);
 
-        const rawCurve = responseData.equityCurve || responseData.combinedResult?.equityCurve || [];
-        const formattedCurve = rawCurve.map(pt => ({
-            time: Math.floor(new Date(pt.time).getTime() / 1000),
-            value: pt.balance
-        })).sort((a, b) => a.time - b.time);
+    // 5. METRICS RECONCILIATION
+    // This ensures that calculateAdvancedMetrics always gets the keys it needs
+    const enhancedMetrics = calculateAdvancedMetrics({
+        ...payload,
+        equityCurve: formattedCurve,
+        vetoed_signals: rawVetoes,
+        candleData: rawCandles,
+        startDate: data.startDate, // Fallback to current UI state if missing
+        endDate: data.endDate
+    });
 
-        const enhancedMetrics = calculateAdvancedMetrics({
-            ...responseData,
-            equityCurve: formattedCurve,
-            vetoed_signals: rawVetoes, // 🎯 Ensure this is passed into the calculator
-            equityCurve: formattedCurve
-        });
+    // 🎯 THE FINAL COMMIT: This is what the UI components actually see
+    setBacktestResults({
+        ...payload,
+        metrics: enhancedMetrics,
+        equityCurve: formattedCurve,
+        vetoed_signals: rawVetoes,
+        candleData: rawCandles
+    });
 
-        setBacktestResults({
-            ...responseData,
-            metrics: enhancedMetrics,
-            equityCurve: formattedCurve,
-            vetoed_signals: rawVetoes,
-            candleData: rawCandles
-        });
+    setIsSimulating(false);
+    setProgress(100);
+    setStatusMsg("Analysis Complete");
+};
 
-        setIsSimulating(false);
-        setProgress(100);
-        setStatusMsg("Complete");
-    };
-
+    
     const handleRun = async (e) => {
     e.preventDefault();
     
