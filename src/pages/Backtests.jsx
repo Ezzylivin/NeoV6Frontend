@@ -239,61 +239,88 @@ export default function Backtests() {
         setIsSimulating(false);
     }
 };
+    
     const handleRun = async (e) => {
         e.preventDefault();
+        console.log("🚀 STARTING BACKTEST: Initiating Stream...");
         setProgress(0);
         setIsSimulating(true);
         setStatusMsg("Initiating Handshake...");
         setBacktestResults(null);
 
         const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
+        const isCombo = activeTab === 'combo';
+        
         const finalPayload = {
             ...data,
             userId: dynamicUserId,
-            code: activeTab === 'combo' ? 'hybrid_ensemble' : data.code,
+            code: isCombo ? 'hybrid_ensemble' : data.code,
             params: activeTab === 'single' ? { ...data.params, ...DEFAULT_STRATEGY_PARAMS[data.code] } : data.params
         };
 
         try {
-            const endpoint = activeTab === 'combo' ? `${API_BASE}/backtest/combo` : `${API_BASE}/backtest/run`;
+            const endpoint = isCombo ? `${API_BASE}/backtest/combo` : `${API_BASE}/backtest/run`;
+            console.log(`📡 Calling Endpoint: ${endpoint}`);
+
             const response = await fetch(endpoint, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'Authorization': `Bearer ${localStorage.getItem('token')}` 
+                },
                 body: JSON.stringify(finalPayload)
             });
+
+            if (!response.ok) throw new Error(`HTTP Error! Status: ${response.status}`);
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
 
+            console.log("📥 Stream Reader Active. Waiting for chunks...");
+
             while (true) {
                 const { value, done } = await reader.read();
-                if (done) { setIsSimulating(false); break; }
+                if (done) {
+                    console.log("🛑 Stream physically closed by server.");
+                    setIsSimulating(false);
+                    break;
+                }
 
                 const chunk = decoder.decode(value);
+                // Backend might send multiple JSON objects in one chunk separated by newlines
                 const lines = chunk.split('\n').filter(line => line.trim());
 
                 for (const line of lines) {
                     try {
                         const update = JSON.parse(line);
+                        console.log("📦 Received Update:", update.status);
+
                         if (update.status === "progress") {
                             setProgress(update.percentage);
                             setStatusMsg(update.message);
-                        } else if (update.status === "success") {
-                            processResults(update.result);
+                        } 
+                        // 🚩 THE BIG FIX: Checking for BOTH "success" and "complete"
+                        else if (update.status === "success" || update.status === "complete") {
+                            console.log("🏁 FINISH LINE HIT! Data Payload:", update.result || update);
+                            processResults(update.result || update);
+                            setIsSimulating(false);
+                            return; // Stop the function here
+                        } 
+                        else if (update.status === "error" || update.status === "failed") {
+                            console.error("❌ Backend reported error:", update.message);
+                            setStatusMsg(update.message);
                             setIsSimulating(false);
                             return;
-                        } else if (update.status === "error") {
-                            throw new Error(update.message);
                         }
-                    } catch (jsonErr) { /* Partial chunk */ }
+                    } catch (jsonErr) {
+                        console.warn("⚠️ Chunk was not valid JSON (likely partial). Waiting for next chunk...");
+                    }
                 }
             }
         } catch (err) {
-            console.error(err);
-            setStatusMsg("Link Failure");
+            console.error("🔥 CRITICAL CONNECTION ERROR:", err);
+            setStatusMsg("Link Failure: " + err.message);
             setIsSimulating(false);
-        } finally {
-            setTimeout(() => { setIsSimulating(prev => prev ? false : prev); }, 2000);
         }
     };
 
