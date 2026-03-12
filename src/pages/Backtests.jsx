@@ -188,34 +188,57 @@ export default function Backtests() {
     };
 
     const processResults = (responseData) => {
-        if (!responseData) return;
+    try {
+        console.log("🚀 STARTING DATA NORMALIZATION...");
+        if (!responseData) throw new Error("No response data received");
+
         const base = responseData.result || responseData;
+        
+        // 1. Flatten Combo vs Single
         const payload = base.combinedResult ? { ...base.combinedResult, ...base } : base;
+        console.log("📦 FLATTENED PAYLOAD:", payload);
 
-        const formattedCurve = (payload.equityCurve || []).map(pt => ({
-            time: Math.floor(new Date(pt.time).getTime() / 1000),
-            value: pt.balance
+        // 2. Resolve Candle Data (Support both naming conventions)
+        const finalCandles = payload.candleData || payload.candle_data || payload.candles || [];
+        console.log(`📊 CANDLES FOUND: ${finalCandles.length}`);
+
+        // 3. Resolve Equity Curve
+        const rawCurve = payload.equityCurve || payload.equity_curve || [];
+        const formattedCurve = rawCurve.map(pt => ({
+            time: Math.floor(new Date(pt.time || pt.timestamp).getTime() / 1000),
+            value: Number(pt.balance || pt.value)
         })).sort((a, b) => a.time - b.time);
+        console.log(`📈 EQUITY POINTS: ${formattedCurve.length}`);
 
+        // 4. Calculate Advanced Metrics (with the NaN Shield)
         const enhancedMetrics = calculateAdvancedMetrics({
             ...payload,
             equityCurve: formattedCurve,
+            candleData: finalCandles,
             startDate: data.startDate,
-            endDate: data.endDate,
-            initialBalance: data.initialBalance
+            endDate: data.endDate
         });
 
+        // 5. THE COMMIT
         setBacktestResults({
             ...payload,
             metrics: enhancedMetrics,
             equityCurve: formattedCurve,
-            candleData: payload.candleData || []
+            candleData: finalCandles,
+            trades: payload.trades || []
         });
+
+        console.log("✅ UI STATE UPDATED. DASHBOARD SHOULD RENDER.");
         setIsSimulating(false);
         setProgress(100);
         setStatusMsg("Analysis Complete");
-    };
 
+    } catch (err) {
+        console.error("❌ CRITICAL PROCESSOR ERROR:", err);
+        setStatusMsg("Data Processing Error: " + err.message);
+        setIsSimulating(false);
+    }
+};
     const handleRun = async (e) => {
         e.preventDefault();
         setProgress(0);
