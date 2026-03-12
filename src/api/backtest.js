@@ -1,10 +1,7 @@
 // File: src/api/backtest.js
-//
-// 🚀 UPGRADED:
-// - The 'handleError' function now specifically looks for the 'class_indices'
-//   error and replaces it with your user-friendly message.
+// 🚀 UPGRADED: Added real-time Stream support and robust data normalization
 
-import api from "./apiClient.js"; // Your main configured Axios client
+import api from "./apiClient.js";
 
 /**
  * A consistent error handler for all API calls.
@@ -15,54 +12,100 @@ const handleError = (error, functionName) => {
         console.error('Error Response Data:', error.response.data);
     }
     
-    // Get the raw message from the backend
-    let message = error.response?.data?.message || error.message || "An unknown error occurred.";
+    let message = error.response?.data?.detail || error.response?.data?.message || error.message || "An unknown error occurred.";
 
-    // 🚀 START OF UPGRADE
-    // Check if this is the specific Python error we're looking for
+    // 🛡️ Error Masking: Convert cryptic Python errors into user-friendly instructions
     if (typeof message === 'string' && message.includes('class_indices')) {
-        // 🚀 Replace the cryptic error with the user-friendly one
         message = "Symbol and Timeframe Mismatch: The selected model does not match the backtest timeframe. Please choose a matching model.";
     }
-    // 🚀 END OF UPGRADE
 
     throw new Error(message);
 };
 
-/**
- * Normalizes the API response for backtest options.
- */
+// --- Normalizers ---
 const normalizeOptions = (raw) => ({
     strategies: raw?.strategies || [],
     symbols: raw?.symbols || [],
     timeframes: raw?.timeframes || [],
-    models: raw?.models || [], // This is populated by fetchModels, not fetchOptions
+    models: raw?.models || [],
 });
 
-/**
- * Normalizes the API response for a list of past backtests.
- */
 const normalizePastBacktests = (raw) => ({
     backtests: raw?.backtests || [],
     total: raw?.total || 0,
 });
 
+// --- 🚀 NEW: THE STREAM HANDLER ---
+/**
+ * Handles the low-level fetch stream for real-time progress updates.
+ * This is the "glue" that powers your progress bar.
+ */
+export async function runStreamedBacktest(type, payload, onUpdate) {
+    const endpoint = type === 'combo' ? "/backtest/combo" : "/backtest/run";
+    const token = localStorage.getItem('token');
+    const baseURL = api.defaults.baseURL;
+
+    try {
+        const response = await fetch(`${baseURL}${endpoint}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.detail || "Server Error");
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let finalResult = null;
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n').filter(line => line.trim());
+
+            for (const line of lines) {
+                try {
+                    const update = JSON.parse(line);
+                    if (update.status === "progress") {
+                        if (onUpdate) onUpdate(update);
+                    } else if (update.status === "complete") {
+                        finalResult = update.result;
+                    } else if (update.status === "error") {
+                        throw new Error(update.message);
+                    }
+                } catch (e) {
+                    // Silently catch partial JSON chunks
+                }
+            }
+        }
+        return finalResult;
+    } catch (error) {
+        handleError(error, "runStreamedBacktest");
+    }
+}
 
 // --- Main API Functions ---
 
 export async function fetchOptions() {
     try {
         const res = await api.get("/backtest/options");
-        return normalizeOptions(res.data); // { strategies: [...], symbols: [...], timeframes: [...] }
+        return normalizeOptions(res.data);
     } catch (error) {
         handleError(error, "fetchOptions");
     }
 }
 
-// 🚀 ADDED: This function was missing, causing the TypeError
 export async function fetchModels() {
     try {
-        const response = await api.get("/ml/models"); // Calls Node.js backend
+        const response = await api.get("/ml/models");
         return response.data || [];
     } catch (error) {
         handleError(error, "fetchModels");
@@ -72,14 +115,14 @@ export async function fetchModels() {
 export async function fetchAll(page = 1) {
     try {
         const res = await api.get(`/backtest?page=${page}`);
-        return normalizePastBacktests(res.data); // { backtests: [...], total: N }
+        return normalizePastBacktests(res.data);
     } catch (error) {
         handleError(error, "fetchAll");
     }
 }
 
 export async function fetchById(id) {
-    if (!id) throw new Error("An ID is required to fetch a backtest.");
+    if (!id) throw new Error("An ID is required.");
     try {
         const res = await api.get(`/backtest/${id}`);
         return res.data;
@@ -89,7 +132,7 @@ export async function fetchById(id) {
 }
 
 export async function deleteById(id) {
-    if (!id) throw new Error("An ID is required to delete a backtest.");
+    if (!id) throw new Error("An ID is required.");
     try {
         const res = await api.delete(`/backtest/${id}`);
         return res.data;
@@ -99,9 +142,8 @@ export async function deleteById(id) {
 }
 
 export async function runBacktest(payload) {
-    if (!payload) throw new Error("Backtest payload is required.");
+    // Fallback if component doesn't use the streamer
     try {
-        // 🚀 FIXED: Endpoint corrected
         const res = await api.post("/backtest/run", payload);
         return res.data;
     } catch (error) {
@@ -110,9 +152,8 @@ export async function runBacktest(payload) {
 }
 
 export async function runComboBacktest(payload) {
-    if (!payload) throw new Error("Combo payload is required.");
+    // Fallback if component doesn't use the streamer
     try {
-        // 🚀 FIXED: Endpoint corrected
         const res = await api.post("/backtest/combo", payload);
         return res.data;
     } catch (error) {
@@ -120,19 +161,8 @@ export async function runComboBacktest(payload) {
     }
 }
 
-export async function previewStrategy(payload) {
-    if (!payload) throw new Error("Preview payload is required.");
-    try {
-        const res = await api.post("/backtest/preview", payload);
-        return res.data;
-    } catch (error) {
-        handleError(error, "previewStrategy");
-    }
-}
-
 export async function fetchWinners() {
     try {
-        // We use the same endpoint as the bot
         const res = await api.get("/bot/winners"); 
         return res.data || [];
     } catch (error) {
