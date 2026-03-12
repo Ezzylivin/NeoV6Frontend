@@ -81,8 +81,8 @@ export default function Backtests() {
     const [data, setData] = useState({
         symbol: "BTC-USD",
         timeframe: "1h",
-        startDate: "2025-02-19",
-        endDate: "2026-01-18",
+        startDate: "2026-01-01",
+        endDate: "2026-03-01",
         initialBalance: 1000,
         risk_percentage: 100,
         mlMode: "on",
@@ -123,35 +123,28 @@ export default function Backtests() {
         fetchModels();
     }, []);
 
-    // --- 🛡️ THE NaN SHIELD & ADVANCED MATH ---
     const calculateAdvancedMetrics = (results) => {
         const trades = results.trades || [];
         const curve = results.equityCurve || [];
         const initialBalance = Number(results.initialBalance) || 1000;
-        
-        // 🚀 Fix: Handle the nested metrics object from the API
         const rawMetrics = results.metrics || {};
         const finalBalance = Number(rawMetrics.finalBalance || rawMetrics.final_balance || initialBalance);
         const netProfit = finalBalance - initialBalance;
-
         const vetoes = results.vetoed_signals || [];
         const candles = results.candleData || [];
 
         let wins = 0, losses = 0, grossProfit = 0, grossLoss = 0;
         let largestWin = 0, largestLoss = 0, previousBalance = initialBalance;
-        let tradeReturns = [];
         let aiSaves = 0, aiMisses = 0;
 
-        // AI Accuracy Math
         vetoes.forEach(veto => {
             const startIndex = candles.findIndex(c => c.time === veto.time || c.date === veto.time);
             if (startIndex === -1 || startIndex === candles.length - 1) return;
-            const entryPrice = veto.price;
             const isLong = veto.signal === "Long";
             const tp = results.params?.take_profit || 0.1;
             const sl = results.params?.stop_loss || 0.05;
-            const tpPrice = isLong ? entryPrice * (1 + tp) : entryPrice * (1 - tp);
-            const slPrice = isLong ? entryPrice * (1 - sl) : entryPrice * (1 + sl);
+            const tpPrice = isLong ? veto.price * (1 + tp) : veto.price * (1 - tp);
+            const slPrice = isLong ? veto.price * (1 - sl) : veto.price * (1 + sl);
 
             for (let j = startIndex + 1; j < candles.length; j++) {
                 const nextCandle = candles[j];
@@ -165,33 +158,22 @@ export default function Backtests() {
             }
         });
 
-        // Trade Performance Math
         trades.forEach(t => {
             const currentBal = Number(t.balance);
             if (currentBal && currentBal !== previousBalance) {
                 const pnl = currentBal - previousBalance;
-                tradeReturns.push(pnl);
-                if (pnl > 0) {
-                    wins++; grossProfit += pnl;
-                    if (pnl > largestWin) largestWin = pnl;
-                } else {
-                    losses++; grossLoss += Math.abs(pnl);
-                    if (pnl < largestLoss) largestLoss = pnl;
-                }
+                if (pnl > 0) { wins++; grossProfit += pnl; if (pnl > largestWin) largestWin = pnl; }
+                else { losses++; grossLoss += Math.abs(pnl); if (pnl < largestLoss) largestLoss = pnl; }
                 previousBalance = currentBal;
             }
         });
 
         const totalTradesCalculated = (wins + losses) || Number(rawMetrics.totalTrades) || 0;
-        const winRate = totalTradesCalculated > 0 ? (wins / totalTradesCalculated) * 100 : 0;
-        const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : (grossProfit > 0 ? 100 : 0);
-        const roi = ((finalBalance - initialBalance) / initialBalance) * 100;
-
         return {
             ...rawMetrics,
-            win_rate: winRate,
-            roi: roi,
-            profit_factor: profitFactor,
+            win_rate: totalTradesCalculated > 0 ? (wins / totalTradesCalculated) * 100 : 0,
+            roi: ((finalBalance - initialBalance) / initialBalance) * 100,
+            profit_factor: grossLoss > 0 ? grossProfit / grossLoss : (grossProfit > 0 ? 100 : 0),
             final_balance: finalBalance,
             net_profit: netProfit,
             total_wins: wins,
@@ -205,22 +187,16 @@ export default function Backtests() {
         };
     };
 
-    // --- 🚀 THE UNIVERSAL NORMALIZER ---
     const processResults = (responseData) => {
         if (!responseData) return;
-
-        // Detect if it's a combo test result
         const base = responseData.result || responseData;
         const payload = base.combinedResult ? { ...base.combinedResult, ...base } : base;
 
-        // Sync-Lock Equity Curve for charting
-        const rawCurve = payload.equityCurve || [];
-        const formattedCurve = rawCurve.map(pt => ({
+        const formattedCurve = (payload.equityCurve || []).map(pt => ({
             time: Math.floor(new Date(pt.time).getTime() / 1000),
             value: pt.balance
         })).sort((a, b) => a.time - b.time);
 
-        // Normalize Metrics
         const enhancedMetrics = calculateAdvancedMetrics({
             ...payload,
             equityCurve: formattedCurve,
@@ -229,47 +205,37 @@ export default function Backtests() {
             initialBalance: data.initialBalance
         });
 
-        // Final State Commitment
         setBacktestResults({
             ...payload,
             metrics: enhancedMetrics,
             equityCurve: formattedCurve,
             candleData: payload.candleData || []
         });
-
         setIsSimulating(false);
         setProgress(100);
-        setStatusMsg("Simulation Finished Successfully");
+        setStatusMsg("Analysis Complete");
     };
 
     const handleRun = async (e) => {
         e.preventDefault();
         setProgress(0);
         setIsSimulating(true);
-        setStatusMsg("Connecting to Sovereign Backend...");
+        setStatusMsg("Initiating Handshake...");
         setBacktestResults(null);
 
         const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
-        const isCombo = activeTab === 'combo';
-        
-        const finalPayload = isCombo ? {
+        const finalPayload = {
             ...data,
             userId: dynamicUserId,
-            code: 'hybrid_ensemble'
-        } : {
-            ...data,
-            userId: dynamicUserId,
-            params: { ...data.params, ...DEFAULT_STRATEGY_PARAMS[data.code] }
+            code: activeTab === 'combo' ? 'hybrid_ensemble' : data.code,
+            params: activeTab === 'single' ? { ...data.params, ...DEFAULT_STRATEGY_PARAMS[data.code] } : data.params
         };
 
         try {
-            const endpoint = isCombo ? `${API_BASE}/backtest/combo` : `${API_BASE}/backtest/run`;
+            const endpoint = activeTab === 'combo' ? `${API_BASE}/backtest/combo` : `${API_BASE}/backtest/run`;
             const response = await fetch(endpoint, {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
                 body: JSON.stringify(finalPayload)
             });
 
@@ -278,10 +244,7 @@ export default function Backtests() {
 
             while (true) {
                 const { value, done } = await reader.read();
-                if (done) {
-                    setIsSimulating(false); // 🚩 FORCE UI RELEASE
-                    break;
-                }
+                if (done) { setIsSimulating(false); break; }
 
                 const chunk = decoder.decode(value);
                 const lines = chunk.split('\n').filter(line => line.trim());
@@ -299,21 +262,17 @@ export default function Backtests() {
                         } else if (update.status === "error") {
                             throw new Error(update.message);
                         }
-                    } catch (jsonErr) {
-                        // Suppress partial chunk errors
-                    }
+                    } catch (jsonErr) { /* Partial chunk */ }
                 }
             }
         } catch (err) {
             console.error(err);
             setStatusMsg("Link Failure");
-            setIsSimulating(false); // 🚩 ERROR RELEASE
+            setIsSimulating(false);
         } finally {
-            // 🛡️ THE FINAL SAFETY: Just in case something weird happens
-            setTimeout(() => {
-                if (isSimulating) setIsSimulating(false);
-            }, 2000); 
-        };
+            setTimeout(() => { setIsSimulating(prev => prev ? false : prev); }, 2000);
+        }
+    };
 
     const renderActiveView = () => {
         if (!backtestResults) return null;
@@ -347,53 +306,37 @@ export default function Backtests() {
             </header>
 
             <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8">
-                {/* 🎯 LEFT SIDEBAR: CONFIGURATION */}
                 <div className="col-span-12 lg:col-span-3">
                     <div className="bg-zinc-900/40 border border-zinc-800 rounded-[32px] p-6 sticky top-6 max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl backdrop-blur-md">
                         <form onSubmit={handleRun} className="space-y-8">
-                            <AIConfig 
-                                mlMode={data.mlMode} 
-                                setMlMode={(m) => setData({ ...data, mlMode: m })} 
-                                data={data} 
-                                setData={setData} 
-                                availableModels={availableModels} 
-                            />
-                            
+                            <AIConfig mlMode={data.mlMode} setMlMode={(m) => setData({ ...data, mlMode: m })} data={data} setData={setData} availableModels={availableModels} />
                             <div className="space-y-4 border-t border-zinc-800/50 pt-6">
-                                <h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest flex items-center gap-1">
-                                    Logic Ensemble
-                                </h4>
+                                <h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Logic Ensemble</h4>
                                 {activeTab === 'single' ? (
                                     <div className="space-y-3">
                                         <select value={data.code} onChange={(e) => setData({...data, code: e.target.value, params: {...data.params, ...DEFAULT_STRATEGY_PARAMS[e.target.value]}})} className={inputClass}>
                                             {STRAT_POOL.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
                                         </select>
-                                        <StrategyParamInputs strategy={{ code: data.code, params: data.params }} onChange={(p) => setData(p_old => ({ ...p_old, params: { ...p_old.params, ...p } }))} />
+                                        <StrategyParamInputs strategy={{ code: data.code, params: data.params }} onChange={(p) => setData(prev => ({ ...prev, params: { ...prev.params, ...p } }))} />
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
                                         {data.strategies.map((s, i) => (
-                                            <div key={i} className="p-4 bg-zinc-800/30 rounded-2xl border border-zinc-700/50 relative group">
+                                            <div key={i} className="p-4 bg-zinc-800/30 rounded-2xl border border-zinc-700/50 relative">
                                                 <div className="flex justify-between items-center mb-3">
                                                     <select value={s.code} onChange={(e) => { const n = [...data.strategies]; n[i] = { code: e.target.value, params: DEFAULT_STRATEGY_PARAMS[e.target.value] }; setData({ ...data, strategies: n }); }} className="bg-transparent text-[10px] font-black text-amber-500 outline-none">
                                                         {STRAT_POOL.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
                                                     </select>
-                                                    <button type="button" onClick={() => setData(p => ({ ...p, strategies: p.strategies.filter((_, idx) => idx !== i) }))} className="text-zinc-500 hover:text-rose-500 transition-colors">
-                                                        <Trash2 size={12} />
-                                                    </button>
+                                                    <button type="button" onClick={() => setData(p => ({ ...p, strategies: p.strategies.filter((_, idx) => idx !== i) }))} className="text-zinc-500 hover:text-rose-500"><Trash2 size={12} /></button>
                                                 </div>
                                                 <StrategyParamInputs strategy={s} onChange={(p) => { const n = [...data.strategies]; n[i].params = p; setData({ ...data, strategies: n }); }} />
                                             </div>
                                         ))}
-                                        <button type="button" onClick={() => setData(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="w-full py-3 border-2 border-dashed border-zinc-800 rounded-2xl text-zinc-500 text-[9px] font-black uppercase hover:border-emerald-500/50 hover:text-emerald-500 transition-all">
-                                            + Add Logic Layer
-                                        </button>
+                                        <button type="button" onClick={() => setData(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="w-full py-3 border-2 border-dashed border-zinc-800 rounded-2xl text-zinc-500 text-[9px] font-black uppercase hover:border-emerald-500">+ Add Logic Layer</button>
                                     </div>
                                 )}
                             </div>
-
                             <AdvancedFilters filters={data.advanced_filters} onChange={(k, v) => setData(p => ({ ...p, advanced_filters: { ...p.advanced_filters, [k]: v } }))} />
-
                             <div className="space-y-4 border-t border-zinc-800/50 pt-6">
                                 <h4 className="text-[10px] text-amber-500 font-black uppercase tracking-widest flex items-center gap-2"><Shield size={12}/> Execution Shield</h4>
                                 <div className="grid grid-cols-2 gap-3">
@@ -401,45 +344,33 @@ export default function Backtests() {
                                     <div><label className={labelClass}>SL %</label><input type="number" step="0.001" value={data.params.stop_loss} onChange={(e) => setData(p => ({ ...p, params: { ...p.params, stop_loss: parseFloat(e.target.value) } }))} className={inputClass} /></div>
                                 </div>
                             </div>
-
                             <div className="space-y-4 border-t border-zinc-800/50 pt-6">
                                 <h4 className="text-[10px] text-cyan-400 font-black uppercase tracking-widest flex items-center gap-2"><Globe size={12}/> Market Scope</h4>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="col-span-2"><select value={data.symbol} onChange={(e) => setData({ ...data, symbol: e.target.value })} className={inputClass}><option value="SOL-USD">SOL-USD</option><option value="BTC-USD">BTC-USD</option></select></div>
                                     <div><label className={labelClass}>Start</label><input type="date" value={data.startDate} onChange={(e) => setData({ ...data, startDate: e.target.value })} className={inputClass} /></div>
                                     <div><label className={labelClass}>End</label><input type="date" value={data.endDate} onChange={(e) => setData({ ...data, endDate: e.target.value })} className={inputClass} /></div>
-                                    <div><label className={labelClass}>Cash</label><input type="number" value={data.initialBalance} onChange={(e) => setData({ ...data, initialBalance: parseFloat(e.target.value) })} className={inputClass} /></div>
-                                    <div><label className={labelClass}>Risk %</label><input type="number" step="0.1" value={data.risk_percentage} onChange={(e) => setData({ ...data, risk_percentage: parseFloat(e.target.value) })} className={inputClass} /></div>
                                 </div>
                             </div>
-
-                            <button type="submit" disabled={isSimulating} className={`w-full py-4 bg-amber-500 text-zinc-950 font-black uppercase text-xs rounded-2xl hover:bg-amber-400 shadow-xl shadow-amber-500/10 transition-all active:scale-95 ${isSimulating ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                {isSimulating ? "Initiating Handshake..." : "Initiate Simulation"}
-                            </button>
+                            <button type="submit" disabled={isSimulating} className="w-full py-4 bg-amber-500 text-zinc-950 font-black uppercase text-xs rounded-2xl hover:bg-amber-400 shadow-xl">{isSimulating ? "Crunching..." : "Initiate Simulation"}</button>
                         </form>
                     </div>
                 </div>
 
-                {/* 📊 RIGHT PANEL: DASHBOARD RESULTS */}
                 <div className="col-span-12 lg:col-span-9 space-y-6">
                     {backtestResults ? (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-5 duration-1000">
                             <MetricsPanel metrics={backtestResults.metrics} />
-                            
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] overflow-hidden shadow-2xl">
                                 <div className="flex bg-zinc-800/50 p-2 border-b border-zinc-800">
                                     {['execution', 'performance', 'replay'].map(v => (
                                         <button key={v} onClick={() => setView(v)} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${view === v ? 'bg-zinc-700 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}>{v}</button>
                                     ))}
                                 </div>
-                                <div className="h-[600px] p-4">
-                                    {renderActiveView()}
-                                </div>
+                                <div className="h-[600px] p-4">{renderActiveView()}</div>
                             </div>
-
                             <TradeLedger trades={backtestResults.trades} />
                             <VetoList vetoes={backtestResults.vetoed_signals} />
-
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <VetoComposition vetoes={backtestResults.vetoed_signals} />
                                 <WinLossChart metrics={backtestResults.metrics} />
@@ -448,14 +379,7 @@ export default function Backtests() {
                         </div>
                     ) : (
                         <div className="h-[80vh] flex flex-col items-center justify-center border-2 border-dashed border-zinc-800 rounded-[48px] bg-zinc-900/10 backdrop-blur-sm">
-                            {isSimulating ? (
-                                <ProgressIndicator progress={progress} statusMsg={statusMsg} />
-                            ) : (
-                                <div className="opacity-10 text-center select-none">
-                                    <BarChart3 size={120} className="mx-auto mb-6" />
-                                    <p className="text-xl uppercase tracking-[0.3em] font-black">Awaiting Parameters</p>
-                                </div>
-                            )}
+                            {isSimulating ? <ProgressIndicator progress={progress} statusMsg={statusMsg} /> : <div className="opacity-10 text-center"><BarChart3 size={120} className="mx-auto mb-6" /><p className="text-xl uppercase tracking-[0.3em] font-black">Awaiting Parameters</p></div>}
                         </div>
                     )}
                 </div>
@@ -464,7 +388,7 @@ export default function Backtests() {
     );
 }
 
-// 🟢 INTERNAL DASHBOARD COMPONENTS
+// --- SUB-COMPONENTS ---
 
 function MetricsPanel({ metrics = {} }) {
     const MetricCard = ({ label, value, subValue, icon: Icon, color = "text-white", tooltip }) => (
@@ -600,10 +524,7 @@ function ProgressIndicator({ progress, statusMsg }) {
     return (
         <div className="w-80 space-y-6 text-center">
             <div className="relative h-2 w-full bg-zinc-900 rounded-full overflow-hidden border border-zinc-800 p-[1px]">
-                <div 
-                    className="h-full bg-gradient-to-r from-amber-600 to-amber-400 transition-all duration-700 ease-out shadow-[0_0_15px_rgba(245,158,11,0.3)]" 
-                    style={{ width: `${progress}%` }} 
-                />
+                <div className="h-full bg-gradient-to-r from-amber-600 to-amber-400 transition-all duration-700 ease-out shadow-[0_0_15px_rgba(245,158,11,0.3)]" style={{ width: `${progress}%` }} />
             </div>
             <div>
                 <p className="text-[10px] text-zinc-400 uppercase tracking-[0.4em] font-black animate-pulse mb-2">{statusMsg}</p>
@@ -613,7 +534,6 @@ function ProgressIndicator({ progress, statusMsg }) {
     );
 }
 
-// --- SUB-UI LOGIC HELPERS ---
 function AIConfig({ mlMode, setMlMode, data, setData, availableModels }) {
     return (
         <div className="space-y-4">
@@ -679,7 +599,6 @@ function AdvancedFilters({ filters, onChange }) {
     );
 }
 
-// Stats Charts
 function VetoComposition({ vetoes = [] }) {
     const data = [
         { name: 'Blocked Longs', value: vetoes.filter(v => v.signal === 'Long').length },
