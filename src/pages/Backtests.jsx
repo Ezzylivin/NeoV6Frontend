@@ -280,17 +280,25 @@ export default function Backtests() {
 
             while (true) {
                 const { value, done } = await reader.read();
+                
                 if (done) {
-                    console.log("🛑 Stream physically closed by server.");
+                    console.log("🛑 Stream finished.");
                     setIsSimulating(false);
                     break;
                 }
 
-                const chunk = decoder.decode(value);
-                // Backend might send multiple JSON objects in one chunk separated by newlines
-                const lines = chunk.split('\n').filter(line => line.trim());
+                // Add the new chunk to our existing buffer
+                buffer += decoder.decode(value, { stream: true });
+
+                // Try to split by newline (if your backend sends newlines between status objects)
+                let lines = buffer.split('\n');
+                
+                // Keep the last partial line in the buffer
+                buffer = lines.pop(); 
 
                 for (const line of lines) {
+                    if (!line.trim()) continue;
+                    
                     try {
                         const update = JSON.parse(line);
                         console.log("📦 Received Update:", update.status);
@@ -299,30 +307,33 @@ export default function Backtests() {
                             setProgress(update.percentage);
                             setStatusMsg(update.message);
                         } 
-                        // 🚩 THE BIG FIX: Checking for BOTH "success" and "complete"
                         else if (update.status === "success" || update.status === "complete") {
-                            console.log("🏁 FINISH LINE HIT! Data Payload:", update.result || update);
+                            console.log("🏁 SUCCESS: Processing results...");
                             processResults(update.result || update);
                             setIsSimulating(false);
-                            return; // Stop the function here
-                        } 
-                        else if (update.status === "error" || update.status === "failed") {
-                            console.error("❌ Backend reported error:", update.message);
-                            setStatusMsg(update.message);
+                            return; 
+                        }
+                    } catch (e) {
+                        // If a line isn't valid JSON yet, put it back in the buffer for next time
+                        buffer = line + buffer; 
+                    }
+                }
+
+                // 🧠 EDGE CASE: If the backend doesn't use newlines and sends one giant object
+                // We try to parse the whole buffer if it looks like it's finished
+                if (buffer.trim().endsWith('}')) {
+                    try {
+                        const finalCheck = JSON.parse(buffer);
+                        if (finalCheck.status === "success" || finalCheck.status === "complete") {
+                            processResults(finalCheck.result || finalCheck);
                             setIsSimulating(false);
                             return;
                         }
-                    } catch (jsonErr) {
-                        console.warn("⚠️ Chunk was not valid JSON (likely partial). Waiting for next chunk...");
+                    } catch (e) {
+                        // Still not a complete object, keep waiting
                     }
                 }
             }
-        } catch (err) {
-            console.error("🔥 CRITICAL CONNECTION ERROR:", err);
-            setStatusMsg("Link Failure: " + err.message);
-            setIsSimulating(false);
-        }
-    };
 
     const renderActiveView = () => {
         if (!backtestResults) return null;
