@@ -140,6 +140,7 @@ export default function Backtests() {
         vetoes.forEach(veto => {
             const startIndex = candles.findIndex(c => c.time === veto.time || c.date === veto.time);
             if (startIndex === -1 || startIndex === candles.length - 1) return;
+            const entryPrice = veto.price;
             const isLong = veto.signal === "Long";
             const tp = results.params?.take_profit || 0.1;
             const sl = results.params?.stop_loss || 0.05;
@@ -188,152 +189,104 @@ export default function Backtests() {
     };
 
     const processResults = (responseData) => {
-    try {
-        console.log("🚀 STARTING DATA NORMALIZATION...");
-        if (!responseData) throw new Error("No response data received");
+        try {
+            if (!responseData) return;
+            const base = responseData.result || responseData;
+            const payload = base.combinedResult ? { ...base.combinedResult, ...base } : base;
 
-        const base = responseData.result || responseData;
-        
-        // 1. Flatten Combo vs Single
-        const payload = base.combinedResult ? { ...base.combinedResult, ...base } : base;
-        console.log("📦 FLATTENED PAYLOAD:", payload);
+            const formattedCurve = (payload.equityCurve || []).map(pt => ({
+                time: Math.floor(new Date(pt.time || pt.timestamp).getTime() / 1000),
+                value: Number(pt.balance || pt.value)
+            })).sort((a, b) => a.time - b.time);
 
-        // 2. Resolve Candle Data (Support both naming conventions)
-        const finalCandles = payload.candleData || payload.candle_data || payload.candles || [];
-        console.log(`📊 CANDLES FOUND: ${finalCandles.length}`);
+            const enhancedMetrics = calculateAdvancedMetrics({
+                ...payload,
+                equityCurve: formattedCurve,
+                startDate: data.startDate,
+                endDate: data.endDate,
+                initialBalance: data.initialBalance
+            });
 
-        // 3. Resolve Equity Curve
-        const rawCurve = payload.equityCurve || payload.equity_curve || [];
-        const formattedCurve = rawCurve.map(pt => ({
-            time: Math.floor(new Date(pt.time || pt.timestamp).getTime() / 1000),
-            value: Number(pt.balance || pt.value)
-        })).sort((a, b) => a.time - b.time);
-        console.log(`📈 EQUITY POINTS: ${formattedCurve.length}`);
+            setBacktestResults({
+                ...payload,
+                metrics: enhancedMetrics,
+                equityCurve: formattedCurve,
+                candleData: payload.candleData || payload.candle_data || [],
+                trades: payload.trades || []
+            });
+            setIsSimulating(false);
+            setProgress(100);
+            setStatusMsg("Analysis Complete");
+        } catch (err) {
+            console.error("Processor Error:", err);
+            setIsSimulating(false);
+        }
+    };
 
-        // 4. Calculate Advanced Metrics (with the NaN Shield)
-        const enhancedMetrics = calculateAdvancedMetrics({
-            ...payload,
-            equityCurve: formattedCurve,
-            candleData: finalCandles,
-            startDate: data.startDate,
-            endDate: data.endDate
-        });
-
-        // 5. THE COMMIT
-        setBacktestResults({
-            ...payload,
-            metrics: enhancedMetrics,
-            equityCurve: formattedCurve,
-            candleData: finalCandles,
-            trades: payload.trades || []
-        });
-
-        console.log("✅ UI STATE UPDATED. DASHBOARD SHOULD RENDER.");
-        setIsSimulating(false);
-        setProgress(100);
-        setStatusMsg("Analysis Complete");
-
-    } catch (err) {
-        console.error("❌ CRITICAL PROCESSOR ERROR:", err);
-        setStatusMsg("Data Processing Error: " + err.message);
-        setIsSimulating(false);
-    }
-};
-    
     const handleRun = async (e) => {
         e.preventDefault();
-        console.log("🚀 STARTING BACKTEST: Initiating Stream...");
+        console.log("🚀 Initiating Stream...");
         setProgress(0);
         setIsSimulating(true);
         setStatusMsg("Initiating Handshake...");
         setBacktestResults(null);
 
         const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
-        const isCombo = activeTab === 'combo';
-        
         const finalPayload = {
             ...data,
             userId: dynamicUserId,
-            code: isCombo ? 'hybrid_ensemble' : data.code,
+            code: activeTab === 'combo' ? 'hybrid_ensemble' : data.code,
             params: activeTab === 'single' ? { ...data.params, ...DEFAULT_STRATEGY_PARAMS[data.code] } : data.params
         };
 
         try {
-            const endpoint = isCombo ? `${API_BASE}/backtest/combo` : `${API_BASE}/backtest/run`;
-            console.log(`📡 Calling Endpoint: ${endpoint}`);
-
+            const endpoint = activeTab === 'combo' ? `${API_BASE}/backtest/combo` : `${API_BASE}/backtest/run`;
             const response = await fetch(endpoint, {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json', 
-                    'Authorization': `Bearer ${localStorage.getItem('token')}` 
-                },
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
                 body: JSON.stringify(finalPayload)
             });
 
-            if (!response.ok) throw new Error(`HTTP Error! Status: ${response.status}`);
+            if (!response.ok) throw new Error("Server Connection Failed");
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
-
-            console.log("📥 Stream Reader Active. Waiting for chunks...");
+            let buffer = "";
 
             while (true) {
                 const { value, done } = await reader.read();
-                
-                if (done) {
-                    console.log("🛑 Stream finished.");
-                    setIsSimulating(false);
-                    break;
-                }
+                if (done) break;
 
-                // Add the new chunk to our existing buffer
                 buffer += decoder.decode(value, { stream: true });
-
-                // Try to split by newline (if your backend sends newlines between status objects)
                 let lines = buffer.split('\n');
-                
-                // Keep the last partial line in the buffer
-                buffer = lines.pop(); 
+                buffer = lines.pop();
 
                 for (const line of lines) {
                     if (!line.trim()) continue;
-                    
                     try {
                         const update = JSON.parse(line);
-                        console.log("📦 Received Update:", update.status);
-
                         if (update.status === "progress") {
                             setProgress(update.percentage);
                             setStatusMsg(update.message);
-                        } 
-                        else if (update.status === "success" || update.status === "complete") {
-                            console.log("🏁 SUCCESS: Processing results...");
+                        } else if (update.status === "success" || update.status === "complete") {
                             processResults(update.result || update);
-                            setIsSimulating(false);
-                            return; 
-                        }
-                    } catch (e) {
-                        // If a line isn't valid JSON yet, put it back in the buffer for next time
-                        buffer = line + buffer; 
-                    }
-                }
-
-                // 🧠 EDGE CASE: If the backend doesn't use newlines and sends one giant object
-                // We try to parse the whole buffer if it looks like it's finished
-                if (buffer.trim().endsWith('}')) {
-                    try {
-                        const finalCheck = JSON.parse(buffer);
-                        if (finalCheck.status === "success" || finalCheck.status === "complete") {
-                            processResults(finalCheck.result || finalCheck);
                             setIsSimulating(false);
                             return;
                         }
                     } catch (e) {
-                        // Still not a complete object, keep waiting
+                        buffer = line + buffer;
                     }
                 }
             }
+        } catch (err) {
+            console.error(err);
+            setStatusMsg("Link Failure");
+            setIsSimulating(false);
+        } finally {
+            // Safety release
+            setTimeout(() => { setIsSimulating(false); }, 1000);
+        }
+    };
 
     const renderActiveView = () => {
         if (!backtestResults) return null;
