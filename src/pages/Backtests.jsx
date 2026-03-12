@@ -143,7 +143,7 @@ export default function Backtests() {
 
     const calculateAdvancedMetrics = (results) => {
         const trades = results.trades || [];
-        const metrics = results.metrics || {};
+        const metrics = response.data.combinedResult?.metrics || response.data.metrics;
         const curve = results.equityCurve || [];
         const initialBalance = results.initialBalance || 1000;
         const finalBalance = results.metrics?.final_balance || results.metrics?.finalBalance || initialBalance;
