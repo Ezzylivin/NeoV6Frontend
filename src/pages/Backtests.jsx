@@ -243,51 +243,72 @@ export default function Backtests() {
             const endpoint = activeTab === 'combo' ? `${API_BASE}/backtest/combo` : `${API_BASE}/backtest/run`;
             const response = await fetch(endpoint, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'Authorization': `Bearer ${localStorage.getItem('token')}` 
+                },
                 body: JSON.stringify(finalPayload)
             });
 
-            if (!response.ok) throw new Error("Server Connection Failed");
+            if (!response.ok) throw new Error(`Server Error: ${response.status}`);
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
-            let buffer = "";
+            let buffer = ""; // 🛡️ Buffer to store partial JSON strings
 
             while (true) {
                 const { value, done } = await reader.read();
                 if (done) break;
 
+                // 1. Accumulate the stream chunk into the buffer
                 buffer += decoder.decode(value, { stream: true });
-                let lines = buffer.split('\n');
+
+                // 2. Split by the newline character we added in Python
+                const lines = buffer.split('\n');
+
+                // 3. The last element might be an incomplete JSON string, 
+                // so we put it back into the buffer for the next chunk.
                 buffer = lines.pop();
 
                 for (const line of lines) {
                     if (!line.trim()) continue;
+
                     try {
                         const update = JSON.parse(line);
+                        
+                        // 📈 Real-time Progress Updates
                         if (update.status === "progress") {
                             setProgress(update.percentage);
                             setStatusMsg(update.message);
-                        } else if (update.status === "success" || update.status === "complete") {
-                            processResults(update.result || update);
+                        } 
+                        
+                        // 🏁 The Final Result Handshake
+                        else if (update.status === "success") {
+                            console.log("✅ Final Data Received via Stream:", update.result);
+                            
+                            // We pass 'update.result' because the backend wrapped it
+                            processResults(update.result); 
+                            
                             setIsSimulating(false);
-                            return;
+                            setProgress(100);
+                            return; // Exit function
+                        }
+                        
+                        else if (update.status === "error") {
+                            throw new Error(update.message);
                         }
                     } catch (e) {
+                        console.warn("Buffer still incomplete, waiting for more data...");
+                        // If parsing fails, we add this line back to the buffer start
                         buffer = line + buffer;
                     }
                 }
             }
         } catch (err) {
-            console.error(err);
-            setStatusMsg("Link Failure");
+            console.error("🔥 Stream Failure:", err);
+            setStatusMsg("Link Failure: " + err.message);
             setIsSimulating(false);
-        } finally {
-            // Safety release
-            setTimeout(() => { setIsSimulating(false); }, 1000);
         }
-    };
-
     const renderActiveView = () => {
         if (!backtestResults) return null;
         if (view === 'execution') return <ChartIndependent results={backtestResults} symbol={data.symbol} />;
