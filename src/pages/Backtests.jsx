@@ -278,7 +278,10 @@ export default function Backtests() {
 
             while (true) {
                 const { value, done } = await reader.read();
-                if (done) break;
+                if (done) {
+                    setIsSimulating(false); // 🚩 FORCE UI RELEASE
+                    break;
+                }
 
                 const chunk = decoder.decode(value);
                 const lines = chunk.split('\n').filter(line => line.trim());
@@ -289,8 +292,9 @@ export default function Backtests() {
                         if (update.status === "progress") {
                             setProgress(update.percentage);
                             setStatusMsg(update.message);
-                        } else if (update.status === "complete") {
+                        } else if (update.status === "success") {
                             processResults(update.result);
+                            setIsSimulating(false);
                             return;
                         } else if (update.status === "error") {
                             throw new Error(update.message);
@@ -301,11 +305,15 @@ export default function Backtests() {
                 }
             }
         } catch (err) {
-            console.error("Simulation Loop Error:", err);
-            setStatusMsg("Link Failure: " + err.message);
-            setIsSimulating(false);
-        }
-    };
+            console.error(err);
+            setStatusMsg("Link Failure");
+            setIsSimulating(false); // 🚩 ERROR RELEASE
+        } finally {
+            // 🛡️ THE FINAL SAFETY: Just in case something weird happens
+            setTimeout(() => {
+                if (isSimulating) setIsSimulating(false);
+            }, 2000); 
+        };
 
     const renderActiveView = () => {
         if (!backtestResults) return null;
