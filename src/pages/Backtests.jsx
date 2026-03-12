@@ -135,8 +135,10 @@ export default function Backtests() {
 
         let wins = 0, losses = 0, grossProfit = 0, grossLoss = 0;
         let largestWin = 0, largestLoss = 0, previousBalance = initialBalance;
+        let tradeReturns = [];
         let aiSaves = 0, aiMisses = 0;
 
+        // Neural Veto Validation (Forward-Looking Analysis)
         vetoes.forEach(veto => {
             const startIndex = candles.findIndex(c => c.time === veto.time || c.date === veto.time);
             if (startIndex === -1 || startIndex === candles.length - 1) return;
@@ -144,8 +146,8 @@ export default function Backtests() {
             const isLong = veto.signal === "Long";
             const tp = results.params?.take_profit || 0.1;
             const sl = results.params?.stop_loss || 0.05;
-            const tpPrice = isLong ? veto.price * (1 + tp) : veto.price * (1 - tp);
-            const slPrice = isLong ? veto.price * (1 - sl) : veto.price * (1 + sl);
+            const tpPrice = isLong ? entryPrice * (1 + tp) : entryPrice * (1 - tp);
+            const slPrice = isLong ? entryPrice * (1 - sl) : entryPrice * (1 + sl);
 
             for (let j = startIndex + 1; j < candles.length; j++) {
                 const nextCandle = candles[j];
@@ -163,13 +165,46 @@ export default function Backtests() {
             const currentBal = Number(t.balance);
             if (currentBal && currentBal !== previousBalance) {
                 const pnl = currentBal - previousBalance;
-                if (pnl > 0) { wins++; grossProfit += pnl; if (pnl > largestWin) largestWin = pnl; }
-                else { losses++; grossLoss += Math.abs(pnl); if (pnl < largestLoss) largestLoss = pnl; }
+                tradeReturns.push(pnl);
+                if (pnl > 0) { 
+                    wins++; 
+                    grossProfit += pnl; 
+                    if (pnl > largestWin) largestWin = pnl; 
+                } else { 
+                    losses++; 
+                    grossLoss += Math.abs(pnl); 
+                    if (pnl < largestLoss) largestLoss = pnl; 
+                }
                 previousBalance = currentBal;
             }
         });
 
+        // Risk & Consistency Math (Sharpe, SQN)
+        let returns = [];
+        for (let i = 1; i < curve.length; i++) {
+            const prev = curve[i-1].value;
+            const curr = curve[i].value;
+            if (prev > 0) returns.push((curr - prev) / prev);
+        }
+
+        let volatility = 0, sharpe = 0;
+        if (returns.length > 0) {
+            const meanReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+            const variance = returns.reduce((a, b) => a + Math.pow(b - meanReturn, 2), 0) / returns.length;
+            volatility = Math.sqrt(variance);
+            sharpe = volatility > 0 ? (meanReturn / volatility) * Math.sqrt(365 * 24) : 0;
+        }
+
+        let sqn = 0;
+        if (tradeReturns.length > 0) {
+            const avgR = tradeReturns.reduce((a, b) => a + b, 0) / tradeReturns.length;
+            const varR = tradeReturns.reduce((a, b) => a + Math.pow(b - avgR, 2), 0) / tradeReturns.length;
+            const stdDevR = Math.sqrt(varR);
+            sqn = stdDevR > 0 ? (avgR / stdDevR) * Math.sqrt(tradeReturns.length) : 0;
+        }
+
         const totalTradesCalculated = (wins + losses) || Number(rawMetrics.totalTrades) || 0;
+        
         return {
             ...rawMetrics,
             win_rate: totalTradesCalculated > 0 ? (wins / totalTradesCalculated) * 100 : 0,
@@ -182,6 +217,9 @@ export default function Backtests() {
             total_trades: totalTradesCalculated,
             largest_win: largestWin,
             largest_loss: largestLoss,
+            sharpe_ratio: sharpe,
+            volatility: volatility * 100,
+            sqn: sqn,
             ai_accuracy: (aiSaves + aiMisses) > 0 ? (aiSaves / (aiSaves + aiMisses)) * 100 : 0,
             ai_saves: aiSaves,
             ai_misses: aiMisses
@@ -225,33 +263,29 @@ export default function Backtests() {
 
     const handleRun = async (e) => {
         e.preventDefault();
-        console.log("🚀 STARTING BACKTEST: Initiating Stream...");
+        console.log("🚀 Initiating Stream...");
         setProgress(0);
         setIsSimulating(true);
         setStatusMsg("Initiating Handshake...");
         setBacktestResults(null);
 
         const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
-        const isCombo = activeTab === 'combo';
         const finalPayload = {
             ...data,
             userId: dynamicUserId,
-            code: isCombo ? 'hybrid_ensemble' : data.code,
+            code: activeTab === 'combo' ? 'hybrid_ensemble' : data.code,
             params: activeTab === 'single' ? { ...data.params, ...DEFAULT_STRATEGY_PARAMS[data.code] } : data.params
         };
 
         try {
-            const endpoint = isCombo ? `${API_BASE}/backtest/combo` : `${API_BASE}/backtest/run`;
+            const endpoint = activeTab === 'combo' ? `${API_BASE}/backtest/combo` : `${API_BASE}/backtest/run`;
             const response = await fetch(endpoint, {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json', 
-                    'Authorization': `Bearer ${localStorage.getItem('token')}` 
-                },
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
                 body: JSON.stringify(finalPayload)
             });
 
-            if (!response.ok) throw new Error(`HTTP Error! Status: ${response.status}`);
+            if (!response.ok) throw new Error("Server Connection Failed");
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
@@ -259,13 +293,10 @@ export default function Backtests() {
 
             while (true) {
                 const { value, done } = await reader.read();
-                if (done) {
-                    setIsSimulating(false);
-                    break;
-                }
+                if (done) break;
 
                 buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
+                let lines = buffer.split('\n');
                 buffer = lines.pop();
 
                 for (const line of lines) {
@@ -279,25 +310,21 @@ export default function Backtests() {
                             processResults(update.result || update);
                             setIsSimulating(false);
                             return;
-                        } else if (update.status === "error") {
-                            throw new Error(update.message);
                         }
-                    } catch (jsonErr) {
+                    } catch (e) {
                         buffer = line + buffer;
                     }
                 }
             }
         } catch (err) {
-            console.error("🔥 Stream Failure:", err);
-            setStatusMsg("Link Failure: " + err.message);
+            console.error(err);
+            setStatusMsg("Link Failure");
             setIsSimulating(false);
         } finally {
-            // Safety exit to prevent UI hanging
             setTimeout(() => { setIsSimulating(false); }, 1500);
         }
     };
 
-    
     const renderActiveView = () => {
         if (!backtestResults) return null;
         if (view === 'execution') return <ChartIndependent results={backtestResults} symbol={data.symbol} />;
@@ -306,7 +333,7 @@ export default function Backtests() {
     };
 
     return (
-        <div className="min-h-screen bg-zinc-950 text-white font-sans p-6 overflow-x-hidden">
+        <div className="min-h-screen bg-zinc-950 text-white font-sans p-6 overflow-x-hidden text-sm">
             <header className="max-w-[1800px] mx-auto mb-8 flex flex-col md:flex-row md:items-center gap-6 justify-between">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
@@ -334,8 +361,14 @@ export default function Backtests() {
                     <div className="bg-zinc-900/40 border border-zinc-800 rounded-[32px] p-6 sticky top-6 max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl backdrop-blur-md">
                         <form onSubmit={handleRun} className="space-y-8">
                             <AIConfig mlMode={data.mlMode} setMlMode={(m) => setData({ ...data, mlMode: m })} data={data} setData={setData} availableModels={availableModels} />
+                            
                             <div className="space-y-4 border-t border-zinc-800/50 pt-6">
-                                <h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Logic Ensemble</h4>
+                                <div className="flex justify-between items-center">
+                                    <h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Logic Ensemble</h4>
+                                    {activeTab === 'combo' && (
+                                        <button type="button" onClick={() => setData(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="p-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-md"><Plus size={14} /></button>
+                                    )}
+                                </div>
                                 {activeTab === 'single' ? (
                                     <div className="space-y-3">
                                         <select value={data.code} onChange={(e) => setData({...data, code: e.target.value, params: {...data.params, ...DEFAULT_STRATEGY_PARAMS[e.target.value]}})} className={inputClass}>
@@ -356,11 +389,12 @@ export default function Backtests() {
                                                 <StrategyParamInputs strategy={s} onChange={(p) => { const n = [...data.strategies]; n[i].params = p; setData({ ...data, strategies: n }); }} />
                                             </div>
                                         ))}
-                                        <button type="button" onClick={() => setData(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="w-full py-3 border-2 border-dashed border-zinc-800 rounded-2xl text-zinc-500 text-[9px] font-black uppercase hover:border-emerald-500">+ Add Logic Layer</button>
                                     </div>
                                 )}
                             </div>
+
                             <AdvancedFilters filters={data.advanced_filters} onChange={(k, v) => setData(p => ({ ...p, advanced_filters: { ...p.advanced_filters, [k]: v } }))} />
+                            
                             <div className="space-y-4 border-t border-zinc-800/50 pt-6">
                                 <h4 className="text-[10px] text-amber-500 font-black uppercase tracking-widest flex items-center gap-2"><Shield size={12}/> Execution Shield</h4>
                                 <div className="grid grid-cols-2 gap-3">
@@ -368,15 +402,18 @@ export default function Backtests() {
                                     <div><label className={labelClass}>SL %</label><input type="number" step="0.001" value={data.params.stop_loss} onChange={(e) => setData(p => ({ ...p, params: { ...p.params, stop_loss: parseFloat(e.target.value) } }))} className={inputClass} /></div>
                                 </div>
                             </div>
+
                             <div className="space-y-4 border-t border-zinc-800/50 pt-6">
                                 <h4 className="text-[10px] text-cyan-400 font-black uppercase tracking-widest flex items-center gap-2"><Globe size={12}/> Market Scope</h4>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="col-span-2"><select value={data.symbol} onChange={(e) => setData({ ...data, symbol: e.target.value })} className={inputClass}><option value="SOL-USD">SOL-USD</option><option value="BTC-USD">BTC-USD</option></select></div>
                                     <div><label className={labelClass}>Start</label><input type="date" value={data.startDate} onChange={(e) => setData({ ...data, startDate: e.target.value })} className={inputClass} /></div>
                                     <div><label className={labelClass}>End</label><input type="date" value={data.endDate} onChange={(e) => setData({ ...data, endDate: e.target.value })} className={inputClass} /></div>
+                                    <div><label className={labelClass}>Cash</label><input type="number" value={data.initialBalance} onChange={(e) => setData({ ...data, initialBalance: parseFloat(e.target.value) })} className={inputClass} /></div>
+                                    <div><label className={labelClass}>Risk %</label><input type="number" step="0.1" value={data.risk_percentage} onChange={(e) => setData({ ...data, risk_percentage: parseFloat(e.target.value) })} className={inputClass} /></div>
                                 </div>
                             </div>
-                            <button type="submit" disabled={isSimulating} className="w-full py-4 bg-amber-500 text-zinc-950 font-black uppercase text-xs rounded-2xl hover:bg-amber-400 shadow-xl">{isSimulating ? "Crunching..." : "Initiate Simulation"}</button>
+                            <button type="submit" disabled={isSimulating} className="w-full py-4 bg-amber-500 text-zinc-950 font-black uppercase text-xs rounded-2xl hover:bg-amber-400 shadow-xl transition-all">{isSimulating ? "Crunching..." : "Initiate Simulation"}</button>
                         </form>
                     </div>
                 </div>
@@ -412,7 +449,7 @@ export default function Backtests() {
     );
 }
 
-// --- SUB-COMPONENTS ---
+// --- RE-INTEGRATED ADVANCED COMPONENTS ---
 
 function MetricsPanel({ metrics = {} }) {
     const MetricCard = ({ label, value, subValue, icon: Icon, color = "text-white", tooltip }) => (
@@ -443,10 +480,10 @@ function MetricsPanel({ metrics = {} }) {
             <div className="bg-zinc-900/40 p-5 rounded-[40px] border border-zinc-800/50">
                 <h5 className="text-[10px] text-violet-400 font-black uppercase tracking-[0.2em] mb-4 flex items-center gap-2 border-b border-zinc-800 pb-3"><Activity size={14} /> Neural Shield Analytics</h5>
                 <div className="grid grid-cols-2 gap-4">
-                    <MetricCard label="AI Shield Accuracy" value={`${(metrics.ai_accuracy || 0).toFixed(1)}%`} subValue={`Saved: ${metrics.ai_saves} | Missed: ${metrics.ai_misses}`} color="text-violet-400" />
-                    <MetricCard label="Total Trades" value={metrics.total_trades || 0} />
-                    <MetricCard label="Avg Win" value={`$${(metrics.avg_win || 0).toFixed(2)}`} color="text-emerald-500" />
-                    <MetricCard label="Avg Loss" value={`$${(metrics.avg_loss || 0).toFixed(2)}`} color="text-rose-500" />
+                    <MetricCard label="AI Shield Accuracy" value={`${(metrics.ai_accuracy || 0).toFixed(1)}%`} subValue={`Saved: ${metrics.ai_saves} | Missed: ${metrics.ai_misses}`} color="text-violet-400" tooltip="Percentage of trades that the AI blocked that would have been losses." />
+                    <MetricCard label="Sharpe Ratio" value={(metrics.sharpe_ratio || 0).toFixed(2)} tooltip="Risk-adjusted return ratio." />
+                    <MetricCard label="SQN Score" value={(metrics.sqn || 0).toFixed(2)} tooltip="System Quality Number - Measures system consistency." />
+                    <MetricCard label="Max Drawdown" value={`-${(metrics.max_drawdown || 0).toFixed(2)}%`} color="text-rose-500" />
                 </div>
             </div>
         </div>
@@ -478,7 +515,7 @@ function TradeLedger({ trades = [] }) {
                                 <td className="px-6 py-4 text-zinc-500 font-mono">{trade.time}</td>
                                 <td className="px-6 py-4">
                                     <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${
-                                        trade.reason?.includes("Profit") ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+                                        trade.reason?.includes("Take Profit") ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
                                         trade.reason?.includes("Stop") ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
                                         "bg-blue-500/10 text-blue-400 border-blue-500/20"
                                     }`}>
@@ -494,7 +531,7 @@ function TradeLedger({ trades = [] }) {
                                     {trade.ai_score ? (
                                         <div className="flex items-center gap-2">
                                             <div className="h-1 flex-1 bg-zinc-800 rounded-full overflow-hidden min-w-[60px]">
-                                                <div className="h-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.5)]" style={{ width: `${trade.ai_score * 100}%` }} />
+                                                <div className="h-full bg-violet-500" style={{ width: `${trade.ai_score * 100}%` }} />
                                             </div>
                                             <span className="text-[8px] font-black text-violet-400">{(trade.ai_score * 100).toFixed(0)}%</span>
                                         </div>
@@ -516,12 +553,12 @@ function VetoList({ vetoes = [] }) {
                 <h3 className="text-[10px] font-black uppercase tracking-widest text-rose-400 flex items-center gap-2"><Shield size={12} className="text-rose-500" /> Neural Veto List</h3>
                 <span className="text-[9px] bg-rose-500/20 text-rose-400 px-3 py-1 rounded-full font-black border border-rose-500/30">{vetoes.length} Attacks Deflected</span>
             </div>
-            <div className="overflow-x-auto max-h-[300px] custom-scrollbar">
+            <div className="overflow-x-auto max-h-[300px] custom-scrollbar opacity-70 hover:opacity-100 transition-opacity">
                 <table className="w-full text-left text-[10px]">
                     <thead className="bg-zinc-900 sticky top-0 z-10">
                         <tr>
                             <th className="px-6 py-4 font-black uppercase text-zinc-500 tracking-tighter">Time</th>
-                            <th className="px-6 py-4 font-black uppercase text-zinc-500 tracking-tighter">Attempted Side</th>
+                            <th className="px-6 py-4 font-black uppercase text-zinc-500 tracking-tighter">Attempted Signal</th>
                             <th className="px-6 py-4 font-black uppercase text-zinc-500 tracking-tighter text-right">AI Score</th>
                             <th className="px-6 py-4 font-black uppercase text-zinc-500 tracking-tighter text-right">Gate Limit</th>
                         </tr>
@@ -539,20 +576,6 @@ function VetoList({ vetoes = [] }) {
                         ))}
                     </tbody>
                 </table>
-            </div>
-        </div>
-    );
-}
-
-function ProgressIndicator({ progress, statusMsg }) {
-    return (
-        <div className="w-80 space-y-6 text-center">
-            <div className="relative h-2 w-full bg-zinc-900 rounded-full overflow-hidden border border-zinc-800 p-[1px]">
-                <div className="h-full bg-gradient-to-r from-amber-600 to-amber-400 transition-all duration-700 ease-out shadow-[0_0_15px_rgba(245,158,11,0.3)]" style={{ width: `${progress}%` }} />
-            </div>
-            <div>
-                <p className="text-[10px] text-zinc-400 uppercase tracking-[0.4em] font-black animate-pulse mb-2">{statusMsg}</p>
-                <p className="text-3xl font-mono font-black text-zinc-700">{progress}%</p>
             </div>
         </div>
     );
@@ -589,9 +612,12 @@ function AIConfig({ mlMode, setMlMode, data, setData, availableModels }) {
 
 function StrategyParamInputs({ strategy, onChange }) {
     const { code, params = {} } = strategy;
-    const f = (l, k, s = "1") => (
+    const f = (l, k, s = "1", tip) => (
         <div className="flex flex-col">
-            <label className={labelClass}>{l}</label>
+            <div className="flex items-center justify-between mb-1">
+                <label className={labelClass}>{l}</label>
+                {tip && <Tooltip text={tip}><Info size={10} className="text-zinc-600" /></Tooltip>}
+            </div>
             <input type="number" step={s} value={params[k] === undefined || isNaN(params[k]) ? "" : params[k]} 
                    onChange={(e) => onChange({...params, [k]: parseFloat(e.target.value) || 0})} 
                    className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1.5 text-[10px] text-amber-500 outline-none font-mono" />
@@ -599,13 +625,14 @@ function StrategyParamInputs({ strategy, onChange }) {
     );
     return (
         <div className="grid grid-cols-2 gap-3 mt-2">
-            {code === "rsi_threshold" && <>{f("RSI Length", "rsi_length")}{f("Oversold", "oversold")}{f("Overbought", "overbought")}</>}
+            {code === "rsi_threshold" && <>{f("RSI Length", "rsi_length", "1", "Sessions for RSI calculation.")}{f("Oversold", "oversold", "1", "Threshold suggesting an undervalued asset.")}{f("Overbought", "overbought", "1", "Threshold suggesting an overvalued asset.")}</>}
             {code === "sma_crossover" && <>{f("Fast EMA", "fast_sma")}{f("Slow EMA", "slow_sma")}</>}
             {code === "stoch" && <>{f("K-Period", "k_period")}{f("D-Period", "d_period")}{f("Slowing", "slowing")}</>}
             {code === "bb_fade" && <>{f("Period", "bb_period")}{f("Std Dev", "bb_std", "0.1")}</>}
             {code === "macd_crossover" && <>{f("Fast", "fast")}{f("Slow", "slow")}{f("Signal", "signal")}</>}
             {code === "atr_breakout" && <>{f("ATR Len", "atr_length")}{f("Mult", "multiplier", "0.1")}</>}
             {code === "supertrend" && <>{f("ATR", "st_atr")}{f("Factor", "st_factor", "0.1")}</>}
+            {code === "pa_breakout" && <>{f("Lookback", "lookback")}{f("Buffer", "buffer", "0.001")}</>}
         </div>
     );
 }
@@ -623,6 +650,21 @@ function AdvancedFilters({ filters, onChange }) {
     );
 }
 
+function ProgressIndicator({ progress, statusMsg }) {
+    return (
+        <div className="w-80 space-y-6 text-center">
+            <div className="relative h-2 w-full bg-zinc-900 rounded-full overflow-hidden border border-zinc-800 p-[1px]">
+                <div className="h-full bg-gradient-to-r from-amber-600 to-amber-400 transition-all duration-700 shadow-[0_0_15px_rgba(245,158,11,0.3)]" style={{ width: `${progress}%` }} />
+            </div>
+            <div>
+                <p className="text-[10px] text-zinc-400 uppercase tracking-[0.4em] font-black animate-pulse mb-2">{statusMsg}</p>
+                <p className="text-3xl font-mono font-black text-zinc-700">{progress}%</p>
+            </div>
+        </div>
+    );
+}
+
+// Stats Charts
 function VetoComposition({ vetoes = [] }) {
     const data = [
         { name: 'Blocked Longs', value: vetoes.filter(v => v.signal === 'Long').length },
@@ -652,8 +694,8 @@ function WinLossChart({ metrics = {} }) {
 
 function ExecutionSides({ trades = [] }) {
     const data = [
-        { name: 'Long', count: trades.filter(t => t.type === 'buy').length },
-        { name: 'Short', count: trades.filter(t => t.type === 'sell').length }
+        { name: 'Long', count: trades.filter(t => t.side === 'long' || t.type === 'buy').length },
+        { name: 'Short', count: trades.filter(t => t.side === 'short' || t.type === 'sell').length }
     ];
     return (
         <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 shadow-2xl">
