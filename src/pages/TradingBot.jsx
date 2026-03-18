@@ -476,13 +476,20 @@ const TradingBotContainer = () => {
         // 🔴 SECURE KEYS: Only attach them if the user specifically chose LIVE
         // For now, this assumes your backend returns the keys or they are stored in localStorage
         // Ideally, these would come from a secure context or a text input modal
-        api_keys: formConfig.tradingMode === 'live' ? {
-            // Note: Replace these with however you are storing the user's Coinbase keys
-            // If they are saved in your DB, your backend might already have them.
-            apiKey: localStorage.getItem("coinbase_key") || "", 
-            secret: localStorage.getItem("coinbase_secret") || "" 
-        } : {},
-
+        api_keys: formConfig.tradingMode === 'live' ? (
+            formConfig.enable_shorting ? {
+                // 🐙 KRAKEN MARGIN KEYS
+                krakenKey: localStorage.getItem("kraken_key") || "",
+                krakenSecret: localStorage.getItem("kraken_secret") || "",
+                // We pass them as the primary keys too, just to be bulletproof
+                apiKey: localStorage.getItem("kraken_key") || "", 
+                secret: localStorage.getItem("kraken_secret") || ""
+            } : {
+                // 🔵 COINBASE SPOT KEYS
+                apiKey: localStorage.getItem("coinbase_key") || "", 
+                secret: localStorage.getItem("coinbase_secret") || "" 
+            }
+        ) : {},
         // 🟢 REAL VALUES ONLY: No hardcoded defaults
         mlMode: formConfig.mlMode, 
         mlModel: formConfig.mlModel,
@@ -1040,11 +1047,37 @@ const TradingBotContainer = () => {
                                     </div>
                                     <select 
                                         value={formConfig.enable_shorting} 
-                                        onChange={(e) => setFormConfig({...formConfig, enable_shorting: e.target.value === 'true'})} 
-                                        className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase"
+                                        onChange={(e) => {
+                                            const isMargin = e.target.value === 'true';
+                                            
+                                            if (isMargin) {
+                                                // 1. The Warning
+                                                if (!window.confirm("⚠️ WARNING: Margin trading involves high risk. This protocol will route to Kraken Pro to execute short positions. Proceed?")) {
+                                                    return; // User canceled, keep it on Spot
+                                                }
+                                                
+                                                // 2. The Key Check & Collection
+                                                const krakenKey = localStorage.getItem("kraken_key");
+                                                if (!krakenKey) {
+                                                    const key = prompt("Enter your Kraken API Key:");
+                                                    const secret = prompt("Enter your Kraken API Secret:");
+                                                    if (key && secret) {
+                                                        localStorage.setItem("kraken_key", key);
+                                                        localStorage.setItem("kraken_secret", secret);
+                                                        toast.success("Kraken Margin Protocol Authorized.");
+                                                    } else {
+                                                        toast.error("Action Aborted: Kraken API keys are required for Shorting.");
+                                                        return; // Abort toggle
+                                                    }
+                                                }
+                                            }
+                                            // 3. Update State if all checks pass
+                                            setFormConfig({...formConfig, enable_shorting: isMargin});
+                                        }} 
+                                        className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase outline-none"
                                     >
-                                        <option value="false">Spot Only (Long)</option>
-                                        <option value="true">Margin (Long/Short)</option>
+                                        <option value="false">Spot Only (Coinbase)</option>
+                                        <option value="true">Margin Long/Short (Kraken)</option>
                                     </select>
                                 </div>
                             
