@@ -470,6 +470,19 @@ const TradingBotContainer = () => {
     const finalConfig = {
         ...formConfig,
         capitalAllocation: targetCapital,
+        // 🔴 THE SAFETY ROUTER: Ensure the mode is explicitly declared
+        trading_mode: formConfig.tradingMode, // Will be "paper" or "live"
+        
+        // 🔴 SECURE KEYS: Only attach them if the user specifically chose LIVE
+        // For now, this assumes your backend returns the keys or they are stored in localStorage
+        // Ideally, these would come from a secure context or a text input modal
+        api_keys: formConfig.tradingMode === 'live' ? {
+            // Note: Replace these with however you are storing the user's Coinbase keys
+            // If they are saved in your DB, your backend might already have them.
+            apiKey: localStorage.getItem("coinbase_key") || "", 
+            secret: localStorage.getItem("coinbase_secret") || "" 
+        } : {},
+
         // 🟢 REAL VALUES ONLY: No hardcoded defaults
         mlMode: formConfig.mlMode, 
         mlModel: formConfig.mlModel,
@@ -486,7 +499,6 @@ const TradingBotContainer = () => {
             minVotesRequired: parseInt(formConfig.minVotesRequired) 
         }
     };
-
     try {
         const response = await startBot({ userId: address, config: finalConfig });
         if (response && (response.status === 'running' || response.status === 'initializing')) {
@@ -645,8 +657,30 @@ const TradingBotContainer = () => {
                                         <h3 className="text-3xl font-black text-emerald-400 mb-3 uppercase">PAPER</h3>
                                         <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">Logic Simulation</p>
                                     </div>
-                                    <div onClick={() => { if(hasApiKeys) { setFormConfig(p=>({...p, tradingMode: 'live'})); setIsModeSelected(true); } else { toast.error("Connect API Keys First"); } }} 
-                                         className={`p-16 rounded-[40px] border transition-all ${hasApiKeys ? 'cursor-pointer bg-zinc-900 border-white/5 hover:border-red-500 shadow-2xl' : 'bg-zinc-900/50 opacity-20'}`}>
+                                    <div onClick={() => { 
+                                        if (hasApiKeys) { 
+                                            // Keys exist in DB, proceed normally
+                                            setFormConfig(p => ({...p, tradingMode: 'live'})); 
+                                            setIsModeSelected(true); 
+                                        } else { 
+                                            // Quick secure prompt if keys are missing from DB
+                                            const key = prompt("Enter Coinbase API Key:");
+                                            const secret = prompt("Enter Coinbase API Secret:");
+                                            
+                                            if (key && secret) {
+                                                // Store temporarily (or ideally send to backend securely)
+                                                localStorage.setItem("coinbase_key", key);
+                                                localStorage.setItem("coinbase_secret", secret);
+                                                setHasApiKeys(true);
+                                                setFormConfig(p => ({...p, tradingMode: 'live'}));
+                                                setIsModeSelected(true);
+                                                toast.success("Keys accepted for this session.");
+                                            } else {
+                                                toast.error("API Keys are required for Live Execution."); 
+                                            }
+                                        } 
+                                    }} 
+                                    className={`p-16 rounded-[40px] border transition-all cursor-pointer bg-zinc-900 border-white/5 hover:border-red-500 shadow-2xl`}>
                                         <h3 className="text-3xl font-black text-red-500 mb-3 uppercase">LIVE</h3>
                                         <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">Real Capital Execution</p>
                                     </div>
