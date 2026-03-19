@@ -104,7 +104,6 @@ export default function Backtests() {
         params: {
             model_type: "stacking",
             take_profit: 0.1,
-            stop_loss: 0.05,
             trailing_stop: 0.05,
             ...DEFAULT_STRATEGY_PARAMS.rsi_threshold
         }
@@ -144,10 +143,14 @@ export default function Backtests() {
             if (startIndex === -1 || startIndex === candles.length - 1) return;
             const entryPrice = veto.price;
             const isLong = veto.signal === "Long";
+            
             const tp = results.params?.take_profit || 0.1;
-            const sl = results.params?.stop_loss || 0.05;
+            // 🟢 Safely route the math to use the trailing stop value instead of static SL
+            const tsl = results.params?.trailing_stop || 0.02; 
+            
             const tpPrice = isLong ? entryPrice * (1 + tp) : entryPrice * (1 - tp);
-            const slPrice = isLong ? entryPrice * (1 - sl) : entryPrice * (1 + sl);
+            // Treat the initial TSL distance as the worst-case stop-out line for validation
+            const slPrice = isLong ? entryPrice * (1 - tsl) : entryPrice * (1 + tsl); 
 
             for (let j = startIndex + 1; j < candles.length; j++) {
                 const nextCandle = candles[j];
@@ -396,10 +399,36 @@ export default function Backtests() {
                             <AdvancedFilters filters={data.advanced_filters} onChange={(k, v) => setData(p => ({ ...p, advanced_filters: { ...p.advanced_filters, [k]: v } }))} />
                             
                             <div className="space-y-4 border-t border-zinc-800/50 pt-6">
-                                <h4 className="text-[10px] text-amber-500 font-black uppercase tracking-widest flex items-center gap-2"><Shield size={12}/> Execution Shield</h4>
+                                <div className="flex items-center gap-2 text-amber-500">
+                                    <Shield size={14}/>
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest">Execution Shield</h4>
+                                </div>
                                 <div className="grid grid-cols-2 gap-3">
-                                    <div><label className={labelClass}>TP %</label><input type="number" step="0.001" value={data.params.take_profit} onChange={(e) => setData(p => ({ ...p, params: { ...p.params, take_profit: parseFloat(e.target.value) } }))} className={inputClass} /></div>
-                                    <div><label className={labelClass}>SL %</label><input type="number" step="0.001" value={data.params.stop_loss} onChange={(e) => setData(p => ({ ...p, params: { ...p.params, stop_loss: parseFloat(e.target.value) } }))} className={inputClass} /></div>
+                                    <div>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <label className={labelClass} style={{marginBottom: 0}}>Take Profit %</label>
+                                        </div>
+                                        <input 
+                                            type="number" step="0.001" 
+                                            value={data.params.take_profit} 
+                                            onChange={(e) => setData(p => ({ ...p, params: { ...p.params, take_profit: parseFloat(e.target.value) } }))} 
+                                            className={inputClass} 
+                                        />
+                                    </div>
+                                    <div>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <label className={labelClass} style={{marginBottom: 0}}>TSL % (Trailing)</label>
+                                            <Tooltip text="Dynamic stop-loss that trails the peak price to lock in profits.">
+                                                <Info size={10} className="text-zinc-600"/>
+                                            </Tooltip>
+                                        </div>
+                                        <input 
+                                            type="number" step="0.001" 
+                                            value={data.params.trailing_stop} 
+                                            onChange={(e) => setData(p => ({ ...p, params: { ...p.params, trailing_stop: parseFloat(e.target.value) } }))} 
+                                            className={inputClass} 
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
