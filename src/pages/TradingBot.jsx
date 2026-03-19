@@ -230,8 +230,7 @@ const TradingBotContainer = () => {
         leverage: 1,          // 🆕 Added
         slippageTolerance: 0.5, // 🆕 Added
         params: { 
-            take_profit: 0.05, 
-            stop_loss: 0.02, 
+            take_profit: 0.05,  
             trailing_stop: 0.01, 
             long_threshold: 0.5, 
             short_threshold: 0.5 
@@ -565,7 +564,6 @@ const TradingBotContainer = () => {
         params: {
             ...prev.params,
             take_profit: 0.05,
-            stop_loss: 0.02,
             trailing_stop: 0.01
         }
     }));
@@ -1282,19 +1280,7 @@ const TradingBotContainer = () => {
                                         className={inputClass}
                                     />
                                     </div>
-                                    <div>
-                                        <label className={labelClass}>SL %</label>
-                                        <input 
-                                            type="number" 
-                                            step="0.001" 
-                                            value={formConfig.params.stop_loss} 
-                                            onChange={(e) => setFormConfig({
-                                                ...formConfig, 
-                                                params: { ...formConfig.params, stop_loss: parseFloat(e.target.value) }
-                                            })} 
-                                            className={inputClass}
-                                        />
-                                    </div>
+                            
                             
                                     {/* Row 2: Trailing Stop (Full Width) */}
                                     <div className="col-span-2">
