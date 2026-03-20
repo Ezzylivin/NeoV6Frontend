@@ -5,6 +5,7 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
     const chartContainerRef = useRef(null);
     const chartRef = useRef(null);
     const tradeLineSeriesRef = useRef(null);
+    const lastDrawnTradeRef = useRef(null);
     
     // 🟢 State for the Floating Legend
     const [legend, setLegend] = useState({ 
@@ -167,32 +168,46 @@ export function ChartIndependent({ results, symbol = "SOL-USD" }) {
             if (data) updateLegend(data);
 
             const trade = tradeLookup[param.time];
+            
             if (trade) {
-                let points = [];
-                if (trade.exitMatch) {
-                    points = [
-                        { time: trade.time, value: trade.price },
-                        { time: trade.exitMatch.time, value: trade.exitMatch.price }
-                    ];
-                } else if (trade.entryMatch) {
-                    points = [
-                        { time: trade.entryMatch.time, value: trade.entryMatch.price },
-                        { time: trade.time, value: trade.price }
-                    ];
-                }
-                
-                if (points.length === 2) {
-                    points.sort((a,b) => a.time - b.time);
-                    tradeLineSeries.setData(points);
-                } else {
-                    tradeLineSeries.setData([]);
+                // 🚀 THE FIX: Only recalculate and draw if hovering over a NEW trade
+                if (lastDrawnTradeRef.current !== trade.time) {
+                    let points = [];
+                    if (trade.exitMatch) {
+                        points = [
+                            { time: trade.time, value: trade.price },
+                            { time: trade.exitMatch.time, value: trade.exitMatch.price }
+                        ];
+                    } else if (trade.entryMatch) {
+                        points = [
+                            { time: trade.entryMatch.time, value: trade.entryMatch.price },
+                            { time: trade.time, value: trade.price }
+                        ];
+                    }
+                    
+                    if (points.length === 2) {
+                        points.sort((a,b) => a.time - b.time);
+                        tradeLineSeries.setData(points);
+                    } else {
+                        tradeLineSeries.setData([]);
+                    }
+                    // Lock the gate
+                    lastDrawnTradeRef.current = trade.time; 
                 }
             } else {
-                tradeLineSeries.setData([]);
+                // 🚀 THE FIX: Only clear the line if it isn't ALREADY empty
+                if (lastDrawnTradeRef.current !== null) {
+                    tradeLineSeries.setData([]);
+                    lastDrawnTradeRef.current = null; // Lock the gate
+                }
             }
         } else {
             if (lastCandle) updateLegend(lastCandle);
-            tradeLineSeries.setData([]);
+            // 🚀 Clear gracefully if mouse leaves chart
+            if (lastDrawnTradeRef.current !== null) {
+                tradeLineSeries.setData([]);
+                lastDrawnTradeRef.current = null;
+            }
         }
     });
 
