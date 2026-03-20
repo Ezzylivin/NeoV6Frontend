@@ -6,17 +6,20 @@ import { useAuth } from '../context/AuthContext';
 import WalletBalance from '../components/WalletBalance';
 import axios from 'axios';
 
-// 🚀 CONFIG: Centralized Exchange Data (Easy to add more)
+// 🚀 CONFIG: Centralized Exchange Data 
+// Currently synced with Python Neo-Engine v25 (Coinbase Spot & Kraken Margin)
 const AVAILABLE_EXCHANGES = [
-  { id: 'coinbase', name: 'Coinbase', guide: "https://help.coinbase.com/en/exchange/managing-my-account/how-to-create-an-api-key" },
-  { id: 'binanceus', name: 'Binance.US', guide: "https://support.binance.us/hc/en-us/articles/360050181954-How-to-Create-an-API-Key" },
-  { id: 'kraken', name: 'Kraken', guide: "https://support.kraken.com/hc/en-us/articles/360000919966-How-to-generate-an-API-key-pair-" },
-  { id: 'gemini', name: 'Gemini', guide: "https://support.gemini.com/hc/en-us/articles/360031080192-How-do-I-create-an-API-key" },
-  { id: 'cryptocom', name: 'Crypto.com', guide: "https://help.crypto.com/en/articles/3511424-api-keys" },
-  { id: 'robinhood', name: 'Robinhood', guide: "https://robinhood.com/us/en/support/articles/robinhood-crypto-api/" },
-  { id: 'kucoin', name: 'KuCoin', guide: "https://www.kucoin.com/support/360015102174" },
-  { id: 'okx', name: 'OKX', guide: "https://www.okx.com/learn/how-to-create-an-api-key" },
-  { id: 'bybit', name: 'Bybit', guide: "https://learn.bybit.com/bybit-guide/how-to-create-an-api-key/" },
+  { id: 'coinbase', name: 'Coinbase Advanced', guide: "https://portal.cdp.coinbase.com/projects/api-keys" },
+  { id: 'kraken', name: 'Kraken Pro', guide: "https://support.kraken.com/hc/en-us/articles/360000919966-How-to-generate-an-API-key-pair-" },
+  
+  // 🔒 US-Friendly Exchanges (Backend Routing coming soon)
+  // { id: 'gemini', name: 'Gemini ActiveTrader', guide: "https://support.gemini.com/hc/en-us/articles/360031080192-How-do-I-create-an-API-key" },
+  // { id: 'binanceus', name: 'Binance.US', guide: "https://support.binance.us/hc/en-us/articles/360050181954-How-to-Create-an-API-Key" },
+  
+  // 🚫 OFFSHORE / NON-US (Do not enable for US citizens)
+  // { id: 'bybit', name: 'Bybit (Non-US)', guide: "https://learn.bybit.com/bybit-guide/how-to-create-an-api-key/" },
+  // { id: 'kucoin', name: 'KuCoin (Non-US)', guide: "https://www.kucoin.com/support/360015102174" },
+  // { id: 'okx', name: 'OKX (Non-US)', guide: "https://www.okx.com/learn/how-to-create-an-api-key" },
 ];
 
 export default function Settings() {
