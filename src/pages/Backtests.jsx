@@ -234,10 +234,39 @@ export default function Backtests() {
     };
 
     const processResults = (responseData) => {
-        try {
-            if (!responseData) return;
-            const base = responseData.result || responseData;
-            const payload = base.combinedResult ? { ...base.combinedResult, ...base } : base;
+    try {
+        if (!responseData) return;
+
+        // 🚀 1. UNPACK: Find the actual data "meat"
+        // Some endpoints wrap data in .result, others send it raw.
+        const base = responseData.result || responseData;
+
+        // 🚀 2. FLATTEN: Handle "Combo" vs "Atomic" payload differences
+        // This ensures metrics, trades, and candles are always at the top level
+        const payload = base.combinedResult 
+            ? { ...base.combinedResult, ...base } 
+            : base;
+
+        // 🚀 3. NORMALIZATION: The "D" Fix
+        // Ensure metrics exist and handle camelCase/snake_case for Max Drawdown
+        if (payload.metrics) {
+            payload.metrics.maxDrawdown = payload.metrics.maxDrawdown || payload.metrics.max_drawdown || 0;
+            payload.metrics.aiShieldAccuracy = payload.metrics.aiShieldAccuracy || payload.metrics.ai_shield_accuracy || 0;
+        }
+
+        console.log("💎 Final UI Payload:", payload);
+
+        // 🚀 4. UPDATE STATE: This is what clears "Awaiting Parameters"
+        setBacktestResults(payload);
+        
+        // Optional: Force the view to 'execution' so the chart shows up immediately
+        if (typeof setView === 'function') setView('execution');
+
+    } catch (err) {
+        console.error("❌ processResults failed:", err);
+        setStatusMsg("Data Processing Error");
+    }
+};
 
             const formattedCurve = (payload.equityCurve || []).map(pt => ({
                 time: Math.floor(new Date(pt.time || pt.timestamp).getTime() / 1000),
@@ -268,70 +297,93 @@ export default function Backtests() {
         }
     };
 
-    const handleRun = async (e) => {
-        e.preventDefault();
-        console.log("🚀 Initiating Stream...");
-        setProgress(0);
-        setIsSimulating(true);
-        setStatusMsg("Initiating Handshake...");
-        setBacktestResults(null);
+   const handleRun = async (e) => {
+    e.preventDefault();
+    console.log("🚀 Initiating Backtest...");
+    setProgress(0);
+    setIsSimulating(true);
+    setStatusMsg("Initiating Handshake...");
+    setBacktestResults(null);
 
-        const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
-        const finalPayload = {
-            ...data,
-            userId: dynamicUserId,
-            code: activeTab === 'combo' ? 'hybrid_ensemble' : data.code,
-            params: activeTab === 'single' ? { ...data.params, ...DEFAULT_STRATEGY_PARAMS[data.code] } : data.params
-        };
-
-        try {
-            const endpoint = activeTab === 'combo' ? `${API_BASE}/backtest/combo` : `${API_BASE}/backtest/run`;
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                body: JSON.stringify(finalPayload)
-            });
-
-            if (!response.ok) throw new Error("Server Connection Failed");
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = "";
-
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-                let lines = buffer.split('\n');
-                buffer = lines.pop();
-
-                for (const line of lines) {
-                    if (!line.trim()) continue;
-                    try {
-                        const update = JSON.parse(line);
-                        if (update.status === "progress") {
-                            setProgress(update.percentage);
-                            setStatusMsg(update.message);
-                        } else if (update.status === "success" || update.status === "complete") {
-                            processResults(update.result || update);
-                            setIsSimulating(false);
-                            return;
-                        }
-                    } catch (e) {
-                        buffer = line + buffer;
-                    }
-                }
-            }
-        } catch (err) {
-            console.error(err);
-            setStatusMsg("Link Failure");
-            setIsSimulating(false);
-        } finally {
-            setTimeout(() => { setIsSimulating(false); }, 1500);
-        }
+    const dynamicUserId = JSON.parse(localStorage.getItem('user'))?._id;
+    const finalPayload = {
+        ...data,
+        userId: dynamicUserId,
+        code: activeTab === 'combo' ? 'hybrid_ensemble' : data.code,
+        params: activeTab === 'single' ? { ...data.params, ...DEFAULT_STRATEGY_PARAMS[data.code] } : data.params
     };
 
+    try {
+        const isCombo = activeTab === 'combo';
+        const endpoint = isCombo ? `${API_BASE}/backtest/combo` : `${API_BASE}/backtest/run`;
+        
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json', 
+                'Authorization': `Bearer ${localStorage.getItem('token')}` 
+            },
+            body: JSON.stringify(finalPayload)
+        });
+
+        if (!response.ok) throw new Error("Server Connection Failed");
+
+        // 🚀 THE FIX: Separate Logic for Atomic (JSON) vs Combo (Stream)
+        if (!isCombo) {
+            // --- ATOMIC RUN: Handle as standard JSON ---
+            const result = await response.json();
+            console.log("✅ Atomic Result Received:", result);
+            processResults(result); // This populates the UI
+            setIsSimulating(false);
+            return;
+        }
+
+        // --- COMBO RUN: Handle as Stream ---
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) {
+                // Final safety check: if there's leftover data in the buffer, parse it
+                if (buffer.trim()) {
+                    try {
+                        const finalUpdate = JSON.parse(buffer);
+                        processResults(finalUpdate.result || finalUpdate);
+                    } catch (e) { console.error("Final buffer parse failed"); }
+                }
+                break;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+            let lines = buffer.split('\n');
+            buffer = lines.pop();
+
+            for (const line of lines) {
+                if (!line.trim()) continue;
+                try {
+                    const update = JSON.parse(line);
+                    if (update.status === "progress") {
+                        setProgress(update.percentage);
+                        setStatusMsg(update.message);
+                    } else if (update.status === "success" || update.status === "complete") {
+                        processResults(update.result || update);
+                        setIsSimulating(false);
+                        return;
+                    }
+                } catch (e) {
+                    console.error("Stream line parse error");
+                }
+            }
+        }
+    } catch (err) {
+        console.error("❌ Run Error:", err);
+        setStatusMsg("Link Failure");
+    } finally {
+        setIsSimulating(false);
+    }
+};
     const renderActiveView = () => {
         if (!backtestResults) return null;
         if (view === 'execution') return <ChartIndependent results={backtestResults} symbol={data.symbol} />;
