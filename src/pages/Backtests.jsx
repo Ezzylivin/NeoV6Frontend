@@ -47,8 +47,8 @@ const DEFAULT_STRATEGY_PARAMS = {
 
 const DEFAULT_MODELS = [
     { id: "xgboost", name: "XGBoost (Gradient Boosting)" },
-    { id: "random_forest", name: "Random Forest (Bagging)" },
-    { id: "transformer", name: "Transformer (Attention)" },
+    { id: "randomforest", name: "Random Forest (Bagging)" },   // Was "random_forest"
+    { id: "transformer", name: "LSTM (Attention)" },
     { id: "stacking", name: "Stacking Ensemble (Hybrid)" }
 ];
 
@@ -84,11 +84,11 @@ export default function Backtests() {
         startDate: "2026-01-01",
         endDate: "2026-03-01",
         initialBalance: 1000,
-        risk_percentage: 100,
+        risk_percentage: 1,
         mlMode: "on",
         mlModel: "stacking", 
-        mlThresholdLong: 0.9, 
-        mlThresholdShort: 0.9, 
+        mlThresholdLong: 0.55, 
+        mlThresholdShort: 0.55, 
         combinationRule: "OR",
         code: "rsi_threshold",
         strategies: [
@@ -110,17 +110,21 @@ export default function Backtests() {
     });
 
     useEffect(() => {
-        const fetchModels = async () => {
-            try {
-                const token = localStorage.getItem('token');
-                const res = await axios.get(`${API_BASE}/ml/models`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (res.data && Array.isArray(res.data)) setAvailableModels(res.data);
-            } catch (e) { console.warn("Using default models."); }
-        };
-        fetchModels();
-    }, []);
+    const fetchModels = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            // 🔧 FIX: Was /ml/models — backend defines /ml/available-models
+            const res = await axios.get(`${API_BASE}/ml/available-models`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.data?.models && Array.isArray(res.data.models)) {
+                // Backend returns { status: "success", models: [...] }
+                setAvailableModels(res.data.models.length > 0 ? res.data.models : DEFAULT_MODELS);
+            }
+        } catch (e) { console.warn("Using default models."); }
+    };
+    fetchModels();
+}, []);
 
     const calculateAdvancedMetrics = (results) => {
         const trades = results.trades || [];
@@ -223,9 +227,9 @@ export default function Backtests() {
             sharpe_ratio: sharpe,
             volatility: volatility * 100,
             sqn: sqn,
-            ai_accuracy: (aiSaves + aiMisses) > 0 ? (aiSaves / (aiSaves + aiMisses)) * 100 : 0,
-            ai_saves: aiSaves,
-            ai_misses: aiMisses
+            ai_accuracy: rawMetrics.aiShieldAccuracy || ((aiSaves + aiMisses) > 0 ? (aiSaves / (aiSaves + aiMisses)) * 100 : 0),
+            ai_saves: rawMetrics.saved || aiSaves,
+            ai_misses: rawMetrics.missed || aiMisses
         };
     };
 
@@ -435,7 +439,16 @@ export default function Backtests() {
                             <div className="space-y-4 border-t border-zinc-800/50 pt-6">
                                 <h4 className="text-[10px] text-cyan-400 font-black uppercase tracking-widest flex items-center gap-2"><Globe size={12}/> Market Scope</h4>
                                 <div className="grid grid-cols-2 gap-3">
-                                    <div className="col-span-2"><select value={data.symbol} onChange={(e) => setData({ ...data, symbol: e.target.value })} className={inputClass}><option value="SOL-USD">SOL-USD</option><option value="BTC-USD">BTC-USD</option></select></div>
+                                    <div className="col-span-2"><select value={data.symbol} onChange={(e) => setData({ ...data, symbol: e.target.value })} className={inputClass}>
+                                            <option value="BTC-USD">BTC-USD</option>
+                                            <option value="ETH-USD">ETH-USD</option>
+                                            <option value="SOL-USD">SOL-USD</option>
+                                            <option value="DOGE-USD">DOGE-USD</option>
+                                            <option value="ADA-USD">ADA-USD</option>
+                                            <option value="XRP-USD">XRP-USD</option>
+                                            <option value="SUI-USD">SUI-USD</option>
+                                            <option value="PEPE-USD">PEPE-USD</option>
+                                        </select></div>
                                     <div><label className={labelClass}>Start</label><input type="date" value={data.startDate} onChange={(e) => setData({ ...data, startDate: e.target.value })} className={inputClass} /></div>
                                     <div><label className={labelClass}>End</label><input type="date" value={data.endDate} onChange={(e) => setData({ ...data, endDate: e.target.value })} className={inputClass} /></div>
                                     <div><label className={labelClass}>Cash</label><input type="number" value={data.initialBalance} onChange={(e) => setData({ ...data, initialBalance: parseFloat(e.target.value) })} className={inputClass} /></div>
