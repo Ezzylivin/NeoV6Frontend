@@ -1,35 +1,24 @@
 // File: src/components/LiveTradingChart.jsx
+
 import React, { useEffect, useRef } from 'react';
 import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
 
-const STRAT_COLORS = {
-    rsi_threshold: "#3b82f6", 
-    sma_crossover: "#ef4444", 
-    supertrend: "#10b981",    
-    macd_crossover: "#f59e0b", 
-    atr_breakout: "#8b5cf6",  
-    bb_fade: "#ec4899",       
-    stoch: "#06b6d4",         
-    pa_breakout: "#14b8a6",   
-};
-
-export const LiveTradingChart = ({ 
-    symbol, 
-    timeframe, 
-    activePositions = [], 
-    tradeMarkers = [], 
-    candleData = [], 
-    strategies = [] 
+export const LiveTradingChart = ({
+    symbol,
+    timeframe,
+    activePositions = [],
+    tradeMarkers = [],
+    candleData = [],
 }) => {
     const chartContainerRef = useRef();
     const chartRef = useRef(null);
-    const entryLinesRef = useRef([]); 
-    
-    const seriesRef = useRef({ 
-        candle: null, 
-        strategies: {} 
-    });
+    const seriesRef = useRef(null);
+    const entryLinesRef = useRef([]);
+    const lastCandleCountRef = useRef(0);
 
+    // ============================================================
+    // 1. CREATE CHART ONCE
+    // ============================================================
     useEffect(() => {
         if (!chartContainerRef.current) return;
         if (chartRef.current) chartRef.current.remove();
@@ -43,120 +32,128 @@ export const LiveTradingChart = ({
             crosshair: { mode: CrosshairMode.Normal },
         });
 
-        seriesRef.current.candle = chart.addCandlestickSeries({ 
-            upColor: '#10b981', downColor: '#ef4444', 
-            borderVisible: false, wickUpColor: '#10b981', wickDownColor: '#ef4444' 
+        seriesRef.current = chart.addCandlestickSeries({
+            upColor: '#10b981', downColor: '#ef4444',
+            borderVisible: false, wickUpColor: '#10b981', wickDownColor: '#ef4444'
         });
 
         chartRef.current = chart;
-        const handleResize = () => chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+
+        const handleResize = () => {
+            if (chartRef.current && chartContainerRef.current) {
+                chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+            }
+        };
         window.addEventListener('resize', handleResize);
 
         return () => {
             window.removeEventListener('resize', handleResize);
-            chart.remove();
+            if (chartRef.current) {
+                chartRef.current.remove();
+                chartRef.current = null;
+            }
         };
     }, []);
 
-    // 🟢 Update Strategies Series
+    // ============================================================
+    // 🔧 FIX T4-13: Use update() for streaming, setData() for init
+    // ============================================================
+    // OLD: setData() on every update — full redraw every 10 seconds
+    // NEW: setData() only on initial load or major changes,
+    //      update() for the latest candle (streaming)
     useEffect(() => {
-        if (!chartRef.current) return;
-        strategies.forEach(strat => {
-            const code = strat.code;
-            if (!seriesRef.current.strategies[`${code}_high`]) {
-                seriesRef.current.strategies[`${code}_high`] = chartRef.current.addLineSeries({
-                    color: STRAT_COLORS[code] || '#71717a',
-                    lineWidth: 1,
-                    lineStyle: LineStyle.Dotted, 
-                    title: `${code.toUpperCase()} HI`
-                });
-                seriesRef.current.strategies[`${code}_low`] = chartRef.current.addLineSeries({
-                    color: STRAT_COLORS[code] || '#71717a',
-                    lineWidth: 1,
-                    lineStyle: LineStyle.Dotted,
-                    title: `${code.toUpperCase()} LO`
-                });
-            }
+        if (!seriesRef.current || !candleData.length) return;
+
+        const formatted = candleData.map(c => ({
+            time: c.time,
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close
+        }));
+
+        if (lastCandleCountRef.current === 0 || Math.abs(formatted.length - lastCandleCountRef.current) > 5) {
+            // Initial load or major data change — full setData
+            seriesRef.current.setData(formatted);
+            lastCandleCountRef.current = formatted.length;
+        } else {
+            // Streaming update — only update the last candle
+            const lastCandle = formatted[formatted.length - 1];
+            if (lastCandle) seriesRef.current.update(lastCandle);
+        }
+    }, [candleData]);
+
+    // ============================================================
+    // 3. UPDATE MARKERS & PRICE LINES
+    // ============================================================
+    useEffect(() => {
+        if (!seriesRef.current || !candleData.length) return;
+
+        // Clean up old price lines
+        entryLinesRef.current.forEach(line => {
+            try { seriesRef.current.removePriceLine(line); } catch (e) {}
         });
-    }, [strategies]);
-
-    // 🔵 Update Data & Markers & Price Lines
-    useEffect(() => {
-        if (!seriesRef.current.candle || !candleData.length) return;
-
-        // 1. Update Candles
-        seriesRef.current.candle.setData(candleData.map(c => ({
-            time: c.time, open: c.open, high: c.high, low: c.low, close: c.close
-        })));
-
-        // 2. Clean up old lines
-        entryLinesRef.current.forEach(line => seriesRef.current.candle.removePriceLine(line));
         entryLinesRef.current = [];
 
-        // 3. Process Markers with Logic Protection
+        // Build markers from active positions
+        const availableTimes = candleData.map(c => c.time);
         const legMarkers = activePositions.map((pos, idx) => {
             if (!pos.time || isNaN(parseFloat(pos.entry))) return null;
-
             const entryTime = new Date(pos.time).getTime() / 1000;
-            
-            // 🟢 IMPROVED SNAP LOGIC: Markers MUST match an existing candle time to be visible
-            const availableTimes = candleData.map(c => c.time);
-            const snappedTime = availableTimes.reduce((prev, curr) => 
+            const snappedTime = availableTimes.reduce((prev, curr) =>
                 Math.abs(curr - entryTime) < Math.abs(prev - entryTime) ? curr : prev
             );
-
             return {
-                time: snappedTime, 
+                time: snappedTime,
                 position: pos.type === 'long' ? 'belowBar' : 'aboveBar',
                 color: pos.type === 'long' ? '#10b981' : '#f59e0b',
-                shape: pos.type === 'long' ? 'arrowUp' : 'arrowDown', // arrow is more visible than triangle
-                text: `L${idx + 1} ENTRY`, 
-                size: 1 // 🟢 Increased for visibility
+                shape: pos.type === 'long' ? 'arrowUp' : 'arrowDown',
+                text: `L${idx + 1} ENTRY`,
+                size: 1
             };
-        }).filter(m => m !== null);
+        }).filter(Boolean);
 
-        seriesRef.current.candle.setMarkers([...legMarkers, ...tradeMarkers]);
+        seriesRef.current.setMarkers([...legMarkers, ...tradeMarkers]);
 
-        // 4. Draw Horizontal Price Lines
+        // Draw horizontal price lines for each position
         activePositions.forEach((pos, idx) => {
             const entryPrice = parseFloat(pos.entry);
             const tpPrice = parseFloat(pos.tp);
             const tslPrice = parseFloat(pos.tsl);
 
             if (!isNaN(entryPrice)) {
-                entryLinesRef.current.push(seriesRef.current.candle.createPriceLine({
-                    price: entryPrice,
-                    color: 'rgba(113, 113, 122, 0.6)',
-                    lineWidth: 1,
-                    lineStyle: LineStyle.Dashed,
-                    title: `L${idx + 1} IN`,
+                entryLinesRef.current.push(seriesRef.current.createPriceLine({
+                    price: entryPrice, color: 'rgba(113, 113, 122, 0.6)',
+                    lineWidth: 1, lineStyle: LineStyle.Dashed, title: `L${idx + 1} IN`,
                 }));
             }
-
             if (!isNaN(tpPrice)) {
-                entryLinesRef.current.push(seriesRef.current.candle.createPriceLine({
-                    price: tpPrice,
-                    color: '#a78bfa',
-                    lineWidth: 1,
-                    lineStyle: LineStyle.Dotted,
-                    title: `L${idx + 1} TP`,
+                entryLinesRef.current.push(seriesRef.current.createPriceLine({
+                    price: tpPrice, color: '#a78bfa',
+                    lineWidth: 1, lineStyle: LineStyle.Dotted, title: `L${idx + 1} TP`,
                 }));
             }
-
             if (!isNaN(tslPrice)) {
-                // 🟢 TSL Fix: Solid Crimson Line
-                entryLinesRef.current.push(seriesRef.current.candle.createPriceLine({
-                    price: tslPrice,
-                    color: '#ef4444', 
-                    lineWidth: 2, 
-                    lineStyle: LineStyle.Solid,
-                    axisLabelVisible: true,
-                    title: `L${idx + 1} TSL`,
+                entryLinesRef.current.push(seriesRef.current.createPriceLine({
+                    price: tslPrice, color: '#ef4444',
+                    lineWidth: 2, lineStyle: LineStyle.Solid,
+                    axisLabelVisible: true, title: `L${idx + 1} TSL`,
                 }));
             }
         });
 
-    }, [candleData, activePositions, tradeMarkers]);
+    }, [activePositions, tradeMarkers, candleData]);
+
+    // ============================================================
+    // 🔧 FIX T4-14: Removed ghost strategy overlay series
+    // ============================================================
+    // OLD: Created _high/_low line series per strategy but never
+    //      called setData() on them — empty invisible series.
+    // REMOVED: The strategies useEffect and seriesRef.strategies.
+    // If you want indicator overlays, the data needs to come from
+    // the backend in the candle packet (which it partially does
+    // via keys like bb_upper, ema_fast etc). That would be a
+    // separate feature to build properly.
 
     return <div ref={chartContainerRef} className="w-full h-full border border-zinc-800 rounded-3xl overflow-hidden" />;
 };
