@@ -288,7 +288,7 @@ export default function Backtests() {
             setIsSimulating(false);
             setProgress(100);
             setStatusMsg("Analysis Complete");
-        } catch (err) {
+        
             console.error("Processor Error:", err);
             setIsSimulating(false);
         }
