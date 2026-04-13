@@ -328,14 +328,14 @@ export default function Backtests() {
 
         if (!response.ok) throw new Error("Server Connection Failed");
 
-        // 🚀 THE FIX: Separate Logic for Atomic (JSON) vs Combo (Stream)
+        // --- ATOMIC RUN: Handle as standard JSON ---
         if (!isCombo) {
-            // --- ATOMIC RUN: Handle as standard JSON ---
             const result = await response.json();
-            console.log("✅ Atomic Result Received:", result);
-            processResults(result); // This populates the UI
+            processResults(result);
+            setProgress(100);
+            setStatusMsg("Analysis Complete");
             setIsSimulating(false);
-            return;
+            return; // Exit early for Atomic
         }
 
         // --- COMBO RUN: Handle as Stream ---
@@ -346,12 +346,11 @@ export default function Backtests() {
         while (true) {
             const { value, done } = await reader.read();
             if (done) {
-                // Final safety check: if there's leftover data in the buffer, parse it
                 if (buffer.trim()) {
                     try {
                         const finalUpdate = JSON.parse(buffer);
                         processResults(finalUpdate.result || finalUpdate);
-                    } catch (e) { console.error("Final buffer parse failed"); }
+                    } catch (e) { /* silent fail on final buffer */ }
                 }
                 break;
             }
@@ -369,18 +368,19 @@ export default function Backtests() {
                         setStatusMsg(update.message);
                     } else if (update.status === "success" || update.status === "complete") {
                         processResults(update.result || update);
+                        setProgress(100);
+                        setStatusMsg("Analysis Complete");
                         setIsSimulating(false);
                         return;
                     }
                 } catch (e) {
-                    console.error("Stream line parse error");
+                    console.error("Stream line parse error", e);
                 }
             }
         }
     } catch (err) {
         console.error("❌ Run Error:", err);
         setStatusMsg("Link Failure");
-    } finally {
         setIsSimulating(false);
     }
 };
