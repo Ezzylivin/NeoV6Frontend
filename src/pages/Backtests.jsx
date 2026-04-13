@@ -233,22 +233,19 @@ export default function Backtests() {
         };
     };
 
-    const processResults = (responseData) => {
+   const processResults = (responseData) => {
     try {
         if (!responseData) return;
 
-        // 🚀 1. UNPACK: Find the actual data "meat"
-        // Some endpoints wrap data in .result, others send it raw.
+        // 1. UNPACK: Get the core data
         const base = responseData.result || responseData;
 
-        // 🚀 2. FLATTEN: Handle "Combo" vs "Atomic" payload differences
-        // This ensures metrics, trades, and candles are always at the top level
+        // 2. FLATTEN: Combine nested results if they exist (common in Combo runs)
         const payload = base.combinedResult 
             ? { ...base.combinedResult, ...base } 
             : base;
 
-        // 🚀 3. NORMALIZATION: The "D" Fix
-        // Ensure metrics exist and handle camelCase/snake_case for Max Drawdown
+        // 3. NORMALIZE: Ensure metrics keys match UI expectations (D vs d)
         if (payload.metrics) {
             payload.metrics.maxDrawdown = payload.metrics.maxDrawdown || payload.metrics.max_drawdown || 0;
             payload.metrics.aiShieldAccuracy = payload.metrics.aiShieldAccuracy || payload.metrics.ai_shield_accuracy || 0;
@@ -256,14 +253,14 @@ export default function Backtests() {
 
         console.log("💎 Final UI Payload:", payload);
 
-        // 🚀 4. UPDATE STATE: This is what clears "Awaiting Parameters"
+        // 4. UPDATE STATE: Triggers the chart to render
         setBacktestResults(payload);
         
-        // Optional: Force the view to 'execution' so the chart shows up immediately
+        // Ensure we jump to the chart tab
         if (typeof setView === 'function') setView('execution');
 
     } catch (err) {
-        console.error("❌ processResults failed:", err);
+        console.error("❌ processResults Error:", err);
         setStatusMsg("Data Processing Error");
     }
 };
@@ -297,9 +294,11 @@ export default function Backtests() {
         }
     };
 
-   const handleRun = async (e) => {
+  const handleRun = async (e) => {
     e.preventDefault();
     console.log("🚀 Initiating Backtest...");
+    
+    // Reset UI State
     setProgress(0);
     setIsSimulating(true);
     setStatusMsg("Initiating Handshake...");
@@ -328,41 +327,44 @@ export default function Backtests() {
 
         if (!response.ok) throw new Error("Server Connection Failed");
 
-        // --- ATOMIC RUN: Handle as standard JSON ---
+        // --- OPTION A: ATOMIC RUN (Standard JSON) ---
         if (!isCombo) {
             const result = await response.json();
             processResults(result);
             setProgress(100);
             setStatusMsg("Analysis Complete");
             setIsSimulating(false);
-            return; // Exit early for Atomic
+            return; // Exit here for Atomic runs
         }
 
-        // --- COMBO RUN: Handle as Stream ---
+        // --- OPTION B: COMBO RUN (Live Stream) ---
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
 
         while (true) {
             const { value, done } = await reader.read();
+            
             if (done) {
+                // Parse any remaining data in the buffer
                 if (buffer.trim()) {
                     try {
                         const finalUpdate = JSON.parse(buffer);
                         processResults(finalUpdate.result || finalUpdate);
-                    } catch (e) { /* silent fail on final buffer */ }
+                    } catch (e) { /* ignore buffer residue */ }
                 }
                 break;
             }
 
             buffer += decoder.decode(value, { stream: true });
             let lines = buffer.split('\n');
-            buffer = lines.pop();
+            buffer = lines.pop(); // Keep partial line for next chunk
 
             for (const line of lines) {
                 if (!line.trim()) continue;
                 try {
                     const update = JSON.parse(line);
+                    
                     if (update.status === "progress") {
                         setProgress(update.percentage);
                         setStatusMsg(update.message);
@@ -371,19 +373,23 @@ export default function Backtests() {
                         setProgress(100);
                         setStatusMsg("Analysis Complete");
                         setIsSimulating(false);
-                        return;
+                        return; // Successfully finished
                     }
                 } catch (e) {
-                    console.error("Stream line parse error", e);
+                    console.warn("Stream line parse error - likely partial JSON");
                 }
-            }
-        }
+            } // End of For Loop
+        } // End of While Loop
+
     } catch (err) {
         console.error("❌ Run Error:", err);
         setStatusMsg("Link Failure");
+    } finally {
         setIsSimulating(false);
     }
-};
+}; // End of handleRun
+
+
     const renderActiveView = () => {
         if (!backtestResults) return null;
         if (view === 'execution') return <ChartIndependent results={backtestResults} symbol={data.symbol} />;
