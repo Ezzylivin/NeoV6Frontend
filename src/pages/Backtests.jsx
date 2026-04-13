@@ -233,66 +233,10 @@ export default function Backtests() {
         };
     };
 
-   const processResults = (responseData) => {
-    try {
-        if (!responseData) return;
-
-        // 1. UNPACK: Get the core data
-        const base = responseData.result || responseData;
-
-        // 2. FLATTEN: Combine nested results if they exist (common in Combo runs)
-        const payload = base.combinedResult 
-            ? { ...base.combinedResult, ...base } 
-            : base;
-
-        // 3. NORMALIZE: Ensure metrics keys match UI expectations (D vs d)
-        if (payload.metrics) {
-            payload.metrics.maxDrawdown = payload.metrics.maxDrawdown || payload.metrics.max_drawdown || 0;
-            payload.metrics.aiShieldAccuracy = payload.metrics.aiShieldAccuracy || payload.metrics.ai_shield_accuracy || 0;
-        }
-
-        console.log("💎 Final UI Payload:", payload);
-
-        // 4. UPDATE STATE: Triggers the chart to render
-        setBacktestResults(payload);
-        
-        // Ensure we jump to the chart tab
-        if (typeof setView === 'function') setView('execution');
-
-    } catch (err) {
-        console.error("❌ processResults Error:", err);
-        setStatusMsg("Data Processing Error");
-    }
+   const processResults = (data) => {
+    setBacktestResults(data); // This is the trigger for the UI
+    setView('execution');     // Automatically jump to the chart view
 };
-
-            const formattedCurve = (payload.equityCurve || []).map(pt => ({
-                time: Math.floor(new Date(pt.time || pt.timestamp).getTime() / 1000),
-                value: Number(pt.balance || pt.value)
-            })).sort((a, b) => a.time - b.time);
-
-            const enhancedMetrics = calculateAdvancedMetrics({
-                ...payload,
-                equityCurve: formattedCurve,
-                startDate: data.startDate,
-                endDate: data.endDate,
-                initialBalance: data.initialBalance
-            });
-
-            setBacktestResults({
-                ...payload,
-                metrics: enhancedMetrics,
-                equityCurve: formattedCurve,
-                candleData: payload.candleData || payload.candle_data || [],
-                trades: payload.trades || []
-            });
-            setIsSimulating(false);
-            setProgress(100);
-            setStatusMsg("Analysis Complete");
-        
-            console.error("Processor Error:", err);
-            setIsSimulating(false);
-        }
-    };
 
   const handleRun = async (e) => {
     e.preventDefault();
