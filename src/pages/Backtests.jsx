@@ -515,19 +515,21 @@ function MetricsPanel({ metrics = {} }) {
             <div className="bg-zinc-900/40 p-5 rounded-[40px] border border-zinc-800/50">
                 <h5 className="text-[10px] text-emerald-400 font-black uppercase tracking-[0.2em] mb-4 flex items-center gap-2 border-b border-zinc-800 pb-3"><DollarSign size={14} /> Financial Performance</h5>
                 <div className="grid grid-cols-2 gap-4">
-                    <MetricCard label="Net Profit" value={`$${(metrics.net_profit || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}`} color={metrics.net_profit >= 0 ? "text-emerald-400" : "text-rose-400"} subValue={`Final: $${(metrics.final_balance || 0).toLocaleString()}`} />
+                    {/* 🚀 FIX: Mapped to camelCase variables from Python */}
+                    <MetricCard label="Net Profit" value={`$${(metrics.netProfit || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}`} color={metrics.netProfit >= 0 ? "text-emerald-400" : "text-rose-400"} subValue={`Final: $${(metrics.finalBalance || 0).toLocaleString()}`} />
                     <MetricCard label="ROI" value={`${(metrics.roi || 0).toFixed(2)}%`} color={metrics.roi >= 0 ? "text-emerald-400" : "text-rose-400"} />
-                    <MetricCard label="Win Rate" value={`${(metrics.win_rate || 0).toFixed(1)}%`} subValue={`W: ${metrics.total_wins} | L: ${metrics.total_losses}`} />
-                    <MetricCard label="Profit Factor" value={(metrics.profit_factor || 0).toFixed(2)} color={metrics.profit_factor > 1.5 ? "text-emerald-400" : "text-amber-500"} />
+                    <MetricCard label="Win Rate" value={`${(metrics.winRate || 0).toFixed(1)}%`} subValue={`W: ${metrics.wins || 0} | L: ${metrics.losses || 0}`} />
+                    <MetricCard label="Profit Factor" value={(metrics.profitFactor || 0).toFixed(2)} color={metrics.profitFactor > 1.5 ? "text-emerald-400" : "text-amber-500"} />
                 </div>
             </div>
             <div className="bg-zinc-900/40 p-5 rounded-[40px] border border-zinc-800/50">
                 <h5 className="text-[10px] text-violet-400 font-black uppercase tracking-[0.2em] mb-4 flex items-center gap-2 border-b border-zinc-800 pb-3"><Activity size={14} /> Neural Shield Analytics</h5>
                 <div className="grid grid-cols-2 gap-4">
-                    <MetricCard label="AI Shield Accuracy" value={`${(metrics.ai_accuracy || 0).toFixed(1)}%`} subValue={`Saved: ${metrics.ai_saves} | Missed: ${metrics.ai_misses}`} color="text-violet-400" tooltip="Percentage of trades that the AI blocked that would have been losses." />
+                    {/* 🚀 FIX: Mapped aiShieldAccuracy, saved, and missed */}
+                    <MetricCard label="AI Shield Accuracy" value={`${(metrics.aiShieldAccuracy || 0).toFixed(1)}%`} subValue={`Saved: ${metrics.saved || 0} | Missed: ${metrics.missed || 0}`} color="text-violet-400" tooltip="Percentage of trades that the AI blocked that would have been losses." />
                     <MetricCard label="Sharpe Ratio" value={(metrics.sharpe_ratio || 0).toFixed(2)} tooltip="Risk-adjusted return ratio." />
                     <MetricCard label="SQN Score" value={(metrics.sqn || 0).toFixed(2)} tooltip="System Quality Number - Measures system consistency." />
-                    <MetricCard label="Max Drawdown" value={`-${(metrics.max_drawdown || 0).toFixed(2)}%`} color="text-rose-500" />
+                    <MetricCard label="Max Drawdown" value={`-${(metrics.maxDrawdown || metrics.max_drawdown || 0).toFixed(2)}%`} color="text-rose-500" />
                 </div>
             </div>
         </div>
