@@ -824,22 +824,26 @@ const TradingBotContainer = () => {
                 ) : (
                     /* STANDBY MODE - CONFIG VIEW */
                     <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8 items-start animate-in fade-in duration-700">
-                        <div className="col-span-12 lg:col-span-3 h-[780px] relative">
-                            <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-10 shadow-2xl h-full overflow-y-auto custom-scrollbar">
+                        {/* THE MASTER CONFIGURATION SIDEBAR */}
+                        <div className="col-span-12 lg:col-span-3 h-[850px] relative">
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-8 shadow-2xl h-full overflow-y-auto custom-scrollbar">
 
-                                {/* MARKET FEED */}
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-2 text-zinc-400"><CandlestickChart size={16} /><h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Market Feed</h4></div>
+                                {/* 1. TREASURY & ROUTING */}
+                                <div className="space-y-5">
+                                    <div className="flex items-center gap-2 text-emerald-400 mb-2"><Wallet size={16} /><h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Treasury & Routing</h4></div>
+                                    
                                     <div className="grid grid-cols-3 gap-2">
                                         <div className="col-span-2"><label className={labelClass}>Asset</label><select value={formConfig.symbol} onChange={(e) => setFormConfig({ ...formConfig, symbol: e.target.value })} className={inputClass}>{COIN_PAIRS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                                         <div className="col-span-1"><label className={labelClass}>Period</label><select value={formConfig.timeframe} onChange={(e) => setFormConfig({ ...formConfig, timeframe: e.target.value })} className={inputClass}>{TIMEFRAMES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
                                     </div>
-                                </div>
+                                    
+                                    <div className="p-4 bg-zinc-950/50 border border-zinc-800 rounded-2xl">
+                                         <label className={labelClass}>Deployed Capital (USD)</label>
+                                         <input type="number" value={formConfig.capitalAllocation} onChange={(e) => setFormConfig({ ...formConfig, capitalAllocation: parseFloat(e.target.value) })} className="w-full bg-black border border-zinc-700 p-2 rounded-lg font-mono text-emerald-500 focus:outline-none focus:border-emerald-500 text-lg" />
+                                    </div>
 
-                                {/* DIRECTION & LEVERAGE */}
-                                <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                     <div className="flex justify-between items-center">
-                                        <div className="flex items-center gap-2 text-blue-400"><ArrowDownRight size={16} /><h4 className="text-[10px] font-black uppercase tracking-widest">Direction</h4></div>
+                                        <div className="flex items-center gap-2 text-zinc-400"><ArrowDownRight size={14} /><span className="text-[10px] font-black uppercase tracking-widest">Routing</span></div>
                                         <select value={formConfig.enable_shorting} onChange={(e) => {
                                             const isMargin = e.target.value === 'true';
                                             if (isMargin) {
@@ -853,60 +857,85 @@ const TradingBotContainer = () => {
                                                 }
                                             }
                                             setFormConfig({ ...formConfig, enable_shorting: isMargin });
-                                        }} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase outline-none">
-                                            <option value="false">Spot Only (Coinbase)</option>
-                                            <option value="true">Margin Long/Short (Kraken)</option>
+                                        }} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase outline-none text-zinc-300">
+                                            <option value="false">Spot (Coinbase)</option>
+                                            <option value="true">Margin (Kraken)</option>
                                         </select>
                                     </div>
+                                    
                                     {formConfig.enable_shorting && (
-                                        <div className="mt-4 p-4 bg-zinc-950/50 border border-zinc-800 rounded-2xl animate-in fade-in slide-in-from-top-1 duration-300">
-                                            <div className="flex justify-between items-center mb-3"><label className={labelClass}>Leverage Multiplier</label><span className="text-[11px] font-mono font-black text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">{formConfig.leverage}x</span></div>
-                                            <input type="range" min="1" max="20" step="1" value={formConfig.leverage} onChange={(e) => setFormConfig({ ...formConfig, leverage: parseInt(e.target.value) })} className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-emerald-500" />
+                                        <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl animate-in fade-in duration-300">
+                                            <div className="flex justify-between items-center mb-3"><label className="text-[9px] font-black uppercase text-amber-500/80 tracking-widest">Leverage Multiplier</label><span className="text-[11px] font-mono font-black text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">{formConfig.leverage}x</span></div>
+                                            <input type="range" min="1" max="20" step="1" value={formConfig.leverage} onChange={(e) => setFormConfig({ ...formConfig, leverage: parseInt(e.target.value) })} className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500" />
                                         </div>
                                     )}
                                 </div>
 
-                                {/* 🔧 FIX T1-1d: NEURAL GATE — uses correct field names */}
-                                <div className="space-y-4 border-t border-zinc-800/50 pt-8">
-                                    <div className="flex justify-between items-center">
-                                        <div className="flex items-center gap-2 text-violet-400"><Cpu size={16} /><h4 className="text-[10px] font-black uppercase tracking-widest">Neural Gate</h4></div>
-                                        <select value={formConfig.mlMode} onChange={(e) => setFormConfig({ ...formConfig, mlMode: e.target.value })} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase"><option value="off">Bypass</option><option value="on">Active</option></select>
+                                {/* 2. NEURAL COMPUTE */}
+                                <div className="space-y-5 border-t border-zinc-800/50 pt-8">
+                                    <div className="flex items-center gap-2 text-violet-400 mb-2"><Cpu size={16} /><h4 className="text-[10px] font-black uppercase tracking-widest text-violet-400">Neural Compute</h4></div>
+                                    
+                                    <div className="flex flex-col gap-1">
+                                        <label className={labelClass}>Primary Brain</label>
+                                        <select className={inputClass} value={formConfig.mlModel} onChange={(e) => setFormConfig({ ...formConfig, mlModel: e.target.value })}>{MODEL_POOL.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select>
                                     </div>
-                                    {formConfig.mlMode === 'on' && (
-                                        <div className="space-y-4 animate-in slide-in-from-top-2">
-                                            <div><label className={labelClass}>Architecture</label><select className={inputClass} value={formConfig.mlModel} onChange={(e) => setFormConfig({ ...formConfig, mlModel: e.target.value })}>{MODEL_POOL.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                {/* 🔧 FIX: Was params.long_threshold — backend reads mlThresholdLong */}
-                                                <div><label className={labelClass}>Long Gate</label><input type="number" step="0.01" value={formConfig.mlThresholdLong} onChange={(e) => setFormConfig({ ...formConfig, mlThresholdLong: parseFloat(e.target.value) })} className={inputClass} /></div>
-                                                <div><label className={labelClass}>Short Gate</label><input type="number" step="0.01" value={formConfig.mlThresholdShort} onChange={(e) => setFormConfig({ ...formConfig, mlThresholdShort: parseFloat(e.target.value) })} className={inputClass} /></div>
-                                            </div>
-                                        </div>
-                                    )}
+
+                                    <div className="grid grid-cols-2 gap-3 p-4 bg-violet-500/5 border border-violet-500/20 rounded-2xl">
+                                        <div><label className="text-[9px] font-black uppercase text-violet-400/80 tracking-widest">Long Veto Limit</label><input type="number" step="0.01" value={formConfig.mlThresholdLong} onChange={(e) => setFormConfig({ ...formConfig, mlThresholdLong: parseFloat(e.target.value) })} className="mt-1 w-full bg-black border border-violet-500/30 rounded-lg px-2 py-1 text-violet-400 focus:border-violet-400 outline-none font-mono text-[10px]" /></div>
+                                        <div><label className="text-[9px] font-black uppercase text-violet-400/80 tracking-widest">Short Veto Limit</label><input type="number" step="0.01" value={formConfig.mlThresholdShort} onChange={(e) => setFormConfig({ ...formConfig, mlThresholdShort: parseFloat(e.target.value) })} className="mt-1 w-full bg-black border border-violet-500/30 rounded-lg px-2 py-1 text-violet-400 focus:border-violet-400 outline-none font-mono text-[10px]" /></div>
+                                    </div>
                                 </div>
 
-                                {/* RISK PROTOCOL */}
-                                <div className="space-y-4 border-t border-zinc-800/50 pt-8">
-                                    <div className="flex justify-between items-center"><div className="flex items-center gap-2 text-rose-500"><AlertTriangle size={16} /><h4 className="text-[10px] font-black uppercase tracking-widest">Risk Protocol</h4></div></div>
+                                {/* 3. MACRO RISK PROTOCOL */}
+                                <div className="space-y-5 border-t border-zinc-800/50 pt-8">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2 text-rose-500"><AlertTriangle size={16} /><h4 className="text-[10px] font-black uppercase tracking-widest text-rose-500">Risk Protocol</h4></div>
+                                        <button onClick={handleResetRiskSettings} className="group flex items-center gap-1 px-2 py-1 bg-zinc-800/50 hover:bg-zinc-800 rounded border border-zinc-700/50 transition-all"><RotateCcw size={8} className="text-zinc-500 group-hover:text-rose-400" /><span className="text-[8px] font-black text-zinc-500 group-hover:text-zinc-300 uppercase tracking-tighter">Reset</span></button>
+                                    </div>
+                                    
                                     <div className="grid grid-cols-2 gap-3">
-                                        <div><label className={labelClass}>Risk/Trade %</label><input type="number" step="0.1" value={formConfig.riskPercentage} onChange={(e) => setFormConfig({ ...formConfig, riskPercentage: parseFloat(e.target.value) })} className={inputClass} /></div>
-                                        <div className="flex flex-col gap-2 p-4 bg-zinc-900/50 rounded-2xl border border-zinc-800">
-                                            <label className="text-xs font-black uppercase tracking-widest text-zinc-500">Max Pyramiding</label>
-                                            <input type="number" min="1" max="5" value={formConfig?.maxPyramiding || 1} onChange={(e) => { const val = parseInt(e.target.value); setFormConfig(prev => ({ ...prev, maxPyramiding: isNaN(val) ? 1 : Math.min(5, Math.max(1, val)) })); }} className="bg-black border border-zinc-700 text-emerald-500 font-mono p-2 rounded-lg focus:outline-none focus:border-emerald-500" />
+                                        <div className="p-3 bg-zinc-950/50 rounded-xl border border-zinc-800">
+                                            <label className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">Max Risk / Trade %</label>
+                                            <input type="number" step="0.1" value={formConfig.riskPercentage} onChange={(e) => setFormConfig({ ...formConfig, riskPercentage: parseFloat(e.target.value) })} className="mt-1 w-full bg-transparent border-b border-zinc-700 text-rose-400 font-mono text-[11px] outline-none pb-1 focus:border-rose-400" />
+                                        </div>
+                                        <div className="p-3 bg-zinc-950/50 rounded-xl border border-zinc-800">
+                                            <label className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">Max Pyramiding</label>
+                                            <input type="number" min="1" max="5" value={formConfig.maxPyramiding} onChange={(e) => { const val = parseInt(e.target.value); setFormConfig(p => ({ ...p, maxPyramiding: isNaN(val) ? 1 : Math.min(5, Math.max(1, val)) })); }} className="mt-1 w-full bg-transparent border-b border-zinc-700 text-rose-400 font-mono text-[11px] outline-none pb-1 focus:border-rose-400" />
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="p-3 bg-zinc-950/50 rounded-xl border border-zinc-800">
+                                            <label className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">Daily Circuit Breaker %</label>
+                                            <input type="number" step="1" value={formConfig.maxDailyLoss} onChange={(e) => setFormConfig({ ...formConfig, maxDailyLoss: parseFloat(e.target.value) })} className="mt-1 w-full bg-transparent border-b border-zinc-700 text-rose-400 font-mono text-[11px] outline-none pb-1 focus:border-rose-400" />
+                                        </div>
+                                        <div className="p-3 bg-zinc-950/50 rounded-xl border border-zinc-800">
+                                            <label className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">Max Trades / Day</label>
+                                            <input type="number" step="1" value={formConfig.maxTradesPerDay} onChange={(e) => setFormConfig({ ...formConfig, maxTradesPerDay: parseInt(e.target.value) })} className="mt-1 w-full bg-transparent border-b border-zinc-700 text-rose-400 font-mono text-[11px] outline-none pb-1 focus:border-rose-400" />
+                                        </div>
+                                    </div>
+
+                                    {/* 🚀 THE DYNAMIC ATR SHIELD SECTION */}
+                                    <div className="p-4 bg-zinc-950/50 border border-zinc-800 rounded-2xl">
+                                        <div className="flex items-center gap-2 mb-3"><Shield size={12} className="text-zinc-400"/><h4 className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Dynamic ATR Shield</h4></div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div><label className="text-[8px] font-black uppercase text-zinc-600 tracking-widest">Take Profit Multiplier</label><input type="number" step="0.5" value={formConfig.params.atr_tp_mult || 3.0} onChange={(e) => setFormConfig({ ...formConfig, params: { ...formConfig.params, atr_tp_mult: parseFloat(e.target.value) } })} className="mt-1 w-full bg-black border border-zinc-800 rounded px-2 py-1 text-zinc-300 outline-none font-mono text-[10px]" /></div>
+                                            <div><label className="text-[8px] font-black uppercase text-zinc-600 tracking-widest">Stop Loss Multiplier</label><input type="number" step="0.5" value={formConfig.params.atr_sl_mult || 1.5} onChange={(e) => setFormConfig({ ...formConfig, params: { ...formConfig.params, atr_sl_mult: parseFloat(e.target.value) } })} className="mt-1 w-full bg-black border border-zinc-800 rounded px-2 py-1 text-zinc-300 outline-none font-mono text-[10px]" /></div>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* ENSEMBLE */}
+                                {/* 4. THE ENSEMBLE */}
                                 <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                     <div className="flex justify-between items-center">
-                                        <h4 className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Ensemble</h4>
-                                        <select value={formConfig.hybridMode} onChange={(e) => { const newMode = e.target.value; setFormConfig({ ...formConfig, hybridMode: newMode, minVotesRequired: newMode === "AND" ? formConfig.strategies.length : formConfig.minVotesRequired }); }} className="bg-zinc-950 border border-zinc-700 text-[9px] rounded px-2 py-1 text-emerald-500 font-bold uppercase outline-none">
+                                        <h4 className="text-[10px] text-zinc-400 font-black uppercase tracking-widest">Technical Ensemble</h4>
+                                        <select value={formConfig.hybridMode} onChange={(e) => { const newMode = e.target.value; setFormConfig({ ...formConfig, hybridMode: newMode, minVotesRequired: newMode === "AND" ? formConfig.strategies.length : formConfig.minVotesRequired }); }} className="bg-black border border-zinc-800 text-[9px] rounded px-2 py-1 text-zinc-300 font-bold uppercase outline-none">
                                             <option value="AND">Strict (AND)</option><option value="OR">Loose (OR)</option>
                                         </select>
                                     </div>
                                     <div className="space-y-3">
                                         {formConfig.strategies.map((s, i) => (
-                                            <div key={i} className="p-4 bg-zinc-800/30 rounded-2xl border border-zinc-800 shadow-inner">
+                                            <div key={i} className="p-4 bg-zinc-950/80 rounded-2xl border border-zinc-800 shadow-inner">
                                                 <div className="flex justify-between mb-3">
                                                     <select value={s.code} onChange={(e) => { const n = [...formConfig.strategies]; n[i] = { code: e.target.value, params: DEFAULT_STRATEGY_PARAMS[e.target.value] }; setFormConfig({ ...formConfig, strategies: n }); }} className="bg-transparent text-[10px] font-black text-amber-500 uppercase outline-none">{STRAT_POOL.map(opt => <option key={opt.code} value={opt.code}>{opt.name}</option>)}</select>
                                                     <button type="button" onClick={() => { const filtered = formConfig.strategies.filter((_, idx) => idx !== i); setFormConfig(p => ({ ...p, strategies: filtered, minVotesRequired: Math.min(p.minVotesRequired, filtered.length) })); }} className="text-zinc-600 hover:text-rose-500 transition-colors"><Trash2 size={12} /></button>
@@ -914,23 +943,11 @@ const TradingBotContainer = () => {
                                                 <StrategyParamInputs strategy={s} onChange={(p) => { const n = [...formConfig.strategies]; n[i].params = p; setFormConfig({ ...formConfig, strategies: n }); }} />
                                             </div>
                                         ))}
-                                        <button type="button" onClick={() => setFormConfig(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="w-full py-3 border border-dashed border-zinc-800 rounded-xl text-zinc-600 hover:text-emerald-500 transition-all flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-tighter"><Plus size={12} /> Add Signal Module</button>
+                                        <button type="button" onClick={() => setFormConfig(p => ({ ...p, strategies: [...p.strategies, { code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="w-full py-4 border border-dashed border-zinc-800 rounded-xl text-zinc-600 hover:text-emerald-500 hover:border-emerald-500/50 transition-all flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-widest"><Plus size={12} /> Add Signal Module</button>
                                     </div>
                                 </div>
 
-                                {/* SHIELD */}
-                                <div className="space-y-4 border-t border-zinc-800/50 pt-8">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2 text-amber-500"><Shield size={16} /><h4 className="text-[10px] font-black uppercase tracking-widest">Shield</h4></div>
-                                        <button onClick={handleResetRiskSettings} className="group flex items-center gap-1.5 px-2 py-1 bg-zinc-800/50 hover:bg-zinc-800 rounded-lg border border-zinc-700/50 transition-all"><RotateCcw size={10} className="text-zinc-500 group-hover:text-amber-500 transition-all" /><span className="text-[8px] font-black text-zinc-500 group-hover:text-zinc-300 uppercase tracking-tighter">Reset</span></button>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div><label className={labelClass}>TP %</label><input type="number" step="0.001" value={formConfig.params.take_profit} onChange={(e) => setFormConfig({ ...formConfig, params: { ...formConfig.params, take_profit: parseFloat(e.target.value) } })} className={inputClass} /></div>
-                                        <div><label className={labelClass}>TSL %</label><input type="number" step="0.001" value={formConfig.params.trailing_stop} onChange={(e) => setFormConfig({ ...formConfig, params: { ...formConfig.params, trailing_stop: parseFloat(e.target.value) } })} className={inputClass} /></div>
-                                    </div>
-                                </div>
-
-                                <button onClick={() => setShowPreFlight(true)} className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-400 transition-all shadow-xl mt-6">Initiate Engine</button>
+                                <button onClick={() => setShowPreFlight(true)} className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[12px] tracking-widest hover:bg-emerald-400 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-emerald-500/20 mt-8">Initiate Engine</button>
                             </div>
                         </div>
 
