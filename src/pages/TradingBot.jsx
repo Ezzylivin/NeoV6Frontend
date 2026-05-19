@@ -381,8 +381,9 @@ const TradingBotContainer = () => {
                     initialCapital: seed,
                     positions: filteredPositions,
                     candles: (data.candles && data.candles.length > 0) ? data.candles : (prev.candles || []),
-                    tradeHistory: (data.tradeHistory && data.tradeHistory.length > 0) ? data.tradeHistory : (prev.tradeHistory || []),
-                    tradeMarkers: (data.tradeMarkers && data.tradeMarkers.length > 0) ? data.tradeMarkers : (prev.tradeMarkers || []),
+                    // 🚀 FIX: Allow Python's snake_case data to pass the gatekeeper!
+                    tradeHistory: (data.tradeHistory && data.tradeHistory.length > 0) ? data.tradeHistory : (data.trade_history && data.trade_history.length > 0 ? data.trade_history : (prev.tradeHistory || [])),
+                    tradeMarkers: (data.tradeMarkers && data.tradeMarkers.length > 0) ? data.tradeMarkers : (data.trade_markers && data.trade_markers.length > 0 ? data.trade_markers : (prev.tradeMarkers || [])),
                     signalsMapHistory: updatedSignalsHistory,
                     equityCurve: updatedEquityCurve
                 };
