@@ -822,7 +822,9 @@ const TradingBotContainer = () => {
                         </div>
                     </div>
                 ) : (
-                    /* STANDBY MODE - CONFIG VIEW */
+                    
+        
+                   /* STANDBY MODE - CONFIG VIEW */
                     <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8 items-start animate-in fade-in duration-700">
                         {/* THE MASTER CONFIGURATION SIDEBAR */}
                         <div className="col-span-12 lg:col-span-3 h-[850px] relative">
@@ -950,7 +952,7 @@ const TradingBotContainer = () => {
                                 <button onClick={() => setShowPreFlight(true)} className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[12px] tracking-widest hover:bg-emerald-400 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-emerald-500/20 mt-8">Initiate Engine</button>
                             </div>
                         </div>
-
+                        
                         <div className="col-span-12 lg:col-span-9 space-y-8">
                             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                                 <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl"><p className="text-[9px] text-zinc-500 uppercase font-black mb-1">Engine Status</p><p className="text-lg font-mono font-black text-zinc-600">STANDBY</p><p className="text-[9px] font-mono text-zinc-500 mt-1 uppercase font-black">SESSION: 00:00:00</p></div>
