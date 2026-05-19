@@ -510,25 +510,30 @@ const TradingBotContainer = () => {
         toast.success("Risk Protocol: Reverted to Factory Defaults");
     };
 
-    const handleManualExit = async () => {
+   const handleManualExit = async (targetSymbol) => {
         if (!socketStatus.positions?.length) return;
-        const symbolToExit = formConfig.symbol;
+        
+        // 🚀 FIX: Ensure we grab the actual string symbol, not a mouse click event
+        const symbolToExit = typeof targetSymbol === 'string' ? targetSymbol : formConfig.symbol;
+        
         try {
             setExitingSymbols(prev => [...prev, symbolToExit]);
-            setSocketStatus(prev => ({ ...prev, positions: [], activePositions: [] }));
             setActiveOpsTab("audit");
+            
             await closePosition({ userId: address, symbol: symbolToExit });
-            toast.success("Manual Exit Executed: Syncing Ledger...");
+            toast.success(`Manual Exit Executed: ${symbolToExit}`);
+            
             setTimeout(async () => {
                 await refreshState();
                 setExitingSymbols(prev => prev.filter(s => s !== symbolToExit));
-            }, 5000);
+            }, 3000);
         } catch (e) {
             setExitingSymbols(prev => prev.filter(s => s !== symbolToExit));
             console.error("Manual Exit UI Error:", e);
+            toast.error("Exit Command Failed");
         }
     };
-
+    
     const handleReset = async () => {
         if (!confirm("FACTORY RESET: This will wipe all trade history, logs, and equity curves. Are you sure?")) return;
         await resetBot();
@@ -785,7 +790,7 @@ const TradingBotContainer = () => {
                                                             <td className={`py-5 font-black flex items-center gap-2 ${pos.type === 'short' ? 'text-amber-500' : 'text-emerald-400'}`}>{pos.type === 'short' ? <ArrowDownRight size={14} /> : <ArrowUpRight size={14} />} {pos.type.toUpperCase()}</td>
                                                             <td className="py-5 font-mono font-black text-zinc-200">${Number(pos.entry).toLocaleString()}</td>
                                                             <td className="py-5 font-mono text-zinc-500 text-right">{Number(pos.size).toFixed(4)}</td>
-                                                            <td className="py-5 text-right"><button onClick={handleManualExit} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 rounded-lg text-rose-500 hover:text-white font-black uppercase text-[9px] transition-all tracking-wider">EXIT</button></td>
+                                                            <td className="py-5 text-right"><button onClick={() => handleManualExit(pos.symbol)} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 rounded-lg text-rose-500 hover:text-white font-black uppercase text-[9px] transition-all tracking-wider">EXIT</button></td>
                                                         </tr>
                                                     ))
                                                 ) : (<tr><td colSpan="4" className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">Waiting for Signal...</td></tr>)}
@@ -795,18 +800,29 @@ const TradingBotContainer = () => {
                                         <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
                                             {(socketStatus.tradeHistory?.length > 0 || socketStatus.tradeMarkers?.length > 0) ? (
                                                 <div className="space-y-3">
-                                                    {(socketStatus.tradeHistory || socketStatus.tradeMarkers).map((trade, idx) => (
-                                                        <div key={idx} className="p-4 bg-black/20 rounded-2xl border border-zinc-800/50 flex flex-col gap-2 hover:border-emerald-500/30 transition-all">
-                                                            <div className="flex justify-between items-center">
-                                                                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${trade.type === 'long' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>{trade.type} Closed</span>
-                                                                <span className="text-[8px] text-zinc-600 font-bold font-mono">{new Date(trade.time * 1000).toLocaleDateString()}</span>
-                                                            </div>
-                                                            <div className="grid grid-cols-2 gap-4 mt-1">
-                                                                <div><p className="text-[8px] text-zinc-500 uppercase font-black">Entry/Exit</p><p className="text-[10px] font-mono font-bold text-zinc-300">${Number(trade.entry).toLocaleString()} → ${Number(trade.exit || trade.price).toLocaleString()}</p></div>
-                                                                <div className="text-right"><p className="text-[8px] text-zinc-500 uppercase font-black">Realized PnL</p><p className={`text-[11px] font-black font-mono ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>{trade.pnl >= 0 ? '+' : ''}${Number(trade.pnl).toFixed(2)}</p></div>
-                                                            </div>
+                                                    {(socketStatus.tradeHistory || socketStatus.trade_history || socketStatus.tradeMarkers || []).map((trade, idx) => {
+                                                // 🚀 FIX: Catch both Python snake_case and Node camelCase keys
+                                                const side = trade.type || trade.side || 'trade';
+                                                const entryPrice = trade.entry || trade.entryPrice || trade.entry_price || 0;
+                                                const exitPrice = trade.exit || trade.exitPrice || trade.exit_price || trade.price || 0;
+                                                const pnl = trade.pnl || trade.realized_pnl || trade.realizedPnL || 0;
+                                                
+                                                // Format timestamps correctly whether it's a UNIX int or ISO string
+                                                const timeObj = trade.time ? new Date(trade.time * (trade.time > 1e10 ? 1 : 1000)) : (trade.exitTime ? new Date(trade.exitTime) : new Date());
+
+                                                return (
+                                                    <div key={idx} className="p-4 bg-black/20 rounded-2xl border border-zinc-800/50 flex flex-col gap-2 hover:border-emerald-500/30 transition-all">
+                                                        <div className="flex justify-between items-center">
+                                                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${side === 'long' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>{side} Closed</span>
+                                                            <span className="text-[8px] text-zinc-600 font-bold font-mono">{timeObj.toLocaleDateString()} {timeObj.toLocaleTimeString()}</span>
                                                         </div>
-                                                    ))}
+                                                        <div className="grid grid-cols-2 gap-4 mt-1">
+                                                            <div><p className="text-[8px] text-zinc-500 uppercase font-black">Entry/Exit</p><p className="text-[10px] font-mono font-bold text-zinc-300">${Number(entryPrice).toLocaleString()} → ${Number(exitPrice).toLocaleString()}</p></div>
+                                                            <div className="text-right"><p className="text-[8px] text-zinc-500 uppercase font-black">Realized PnL</p><p className={`text-[11px] font-black font-mono ${pnl >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>{pnl >= 0 ? '+' : ''}${Number(pnl).toFixed(2)}</p></div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
                                                 </div>
                                             ) : (
                                                 <div className="flex flex-col items-center justify-center py-20 text-center">
