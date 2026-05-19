@@ -232,8 +232,8 @@ const TradingBotContainer = () => {
         slippageTolerance: 0.5,
         maxPyramiding: 1,
         params: {
-            take_profit: 0.05,
-            trailing_stop: 0.01,
+            atr_tp_mult: 3.0,
+            atr_sl_mult: 1.5,
         },
         filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 }
     });
