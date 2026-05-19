@@ -131,10 +131,18 @@ export const useBot = () => {
     const closePosition = async ({ userId, symbol }) => {
         try {
             const token = localStorage.getItem("token");
-            const response = await axios.post(`${BASE_URL}/bot/close_position`,
-                { userId, symbol },
+            
+            // 🚀 FIX 1: Added /api to the URL path
+            // 🚀 FIX 2: Send both userId (for Node) and user_id (for Python)
+            const response = await axios.post(`${BASE_URL}/api/bot/close_position`,
+                { 
+                    userId: userId, 
+                    user_id: userId, 
+                    symbol: symbol 
+                },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
+            
             toast.success("Manual Exit Protocol Executed");
             return response.data;
         } catch (error) {
