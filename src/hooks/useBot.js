@@ -134,7 +134,7 @@ export const useBot = () => {
             
             // 🚀 FIX 1: Added /api to the URL path
             // 🚀 FIX 2: Send both userId (for Node) and user_id (for Python)
-            const response = await axios.post(`${BASE_URL}/api/bot/close_position`,
+            const response = await axios.post(`${BASE_URL}/api/bot/close-position`,
                 { 
                     userId: userId, 
                     user_id: userId, 
