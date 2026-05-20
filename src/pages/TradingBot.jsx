@@ -799,7 +799,7 @@ const TradingBotContainer = () => {
                                         </table>
                                     ) : (
                                         <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
-                                            {(socketStatus.tradeHistory?.length > 0 || socketStatus.tradeMarkers?.length > 0) ? (
+                                            {(socketStatus.tradeHistory?.length > 0 || socketStatus.trade_history?.length > 0 || socketStatus.tradeMarkers?.length > 0) ? (
                                                 <div className="space-y-3">
                                                     {(socketStatus.tradeHistory || socketStatus.trade_history || socketStatus.tradeMarkers || []).map((trade, idx) => {
                                                 // 🚀 FIX: Catch both Python snake_case and Node camelCase keys
