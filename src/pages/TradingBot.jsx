@@ -892,17 +892,27 @@ const TradingBotContainer = () => {
 
                                 {/* 2. NEURAL COMPUTE */}
                                 <div className="space-y-5 border-t border-zinc-800/50 pt-8">
-                                    <div className="flex items-center gap-2 text-violet-400 mb-2"><Cpu size={16} /><h4 className="text-[10px] font-black uppercase tracking-widest text-violet-400">Neural Compute</h4></div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-2 text-violet-400"><Cpu size={16} /><h4 className="text-[10px] font-black uppercase tracking-widest text-violet-400">Neural Compute</h4></div>
+                                        <select value={formConfig.mlMode} onChange={(e) => setFormConfig({ ...formConfig, mlMode: e.target.value })} className="bg-zinc-950 text-[9px] text-violet-400 rounded px-2 py-1 border border-violet-500/30 font-black uppercase outline-none cursor-pointer">
+                                            <option value="off">Bypass</option>
+                                            <option value="on">Active</option>
+                                        </select>
+                                    </div>
                                     
-                                    <div className="flex flex-col gap-1">
-                                        <label className={labelClass}>Primary Brain</label>
-                                        <select className={inputClass} value={formConfig.mlModel} onChange={(e) => setFormConfig({ ...formConfig, mlModel: e.target.value })}>{MODEL_POOL.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select>
-                                    </div>
+                                    {formConfig.mlMode === 'on' && (
+                                        <div className="space-y-5 animate-in slide-in-from-top-2">
+                                            <div className="flex flex-col gap-1">
+                                                <label className={labelClass}>Primary Brain</label>
+                                                <select className={inputClass} value={formConfig.mlModel} onChange={(e) => setFormConfig({ ...formConfig, mlModel: e.target.value })}>{MODEL_POOL.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select>
+                                            </div>
 
-                                    <div className="grid grid-cols-2 gap-3 p-4 bg-violet-500/5 border border-violet-500/20 rounded-2xl">
-                                        <div><label className="text-[9px] font-black uppercase text-violet-400/80 tracking-widest">Long Veto Limit</label><input type="number" step="0.01" value={formConfig.mlThresholdLong} onChange={(e) => setFormConfig({ ...formConfig, mlThresholdLong: parseFloat(e.target.value) })} className="mt-1 w-full bg-black border border-violet-500/30 rounded-lg px-2 py-1 text-violet-400 focus:border-violet-400 outline-none font-mono text-[10px]" /></div>
-                                        <div><label className="text-[9px] font-black uppercase text-violet-400/80 tracking-widest">Short Veto Limit</label><input type="number" step="0.01" value={formConfig.mlThresholdShort} onChange={(e) => setFormConfig({ ...formConfig, mlThresholdShort: parseFloat(e.target.value) })} className="mt-1 w-full bg-black border border-violet-500/30 rounded-lg px-2 py-1 text-violet-400 focus:border-violet-400 outline-none font-mono text-[10px]" /></div>
-                                    </div>
+                                            <div className="grid grid-cols-2 gap-3 p-4 bg-violet-500/5 border border-violet-500/20 rounded-2xl">
+                                                <div><label className="text-[9px] font-black uppercase text-violet-400/80 tracking-widest">Long Veto Limit</label><input type="number" step="0.01" value={formConfig.mlThresholdLong} onChange={(e) => setFormConfig({ ...formConfig, mlThresholdLong: parseFloat(e.target.value) })} className="mt-1 w-full bg-black border border-violet-500/30 rounded-lg px-2 py-1 text-violet-400 focus:border-violet-400 outline-none font-mono text-[10px]" /></div>
+                                                <div><label className="text-[9px] font-black uppercase text-violet-400/80 tracking-widest">Short Veto Limit</label><input type="number" step="0.01" value={formConfig.mlThresholdShort} onChange={(e) => setFormConfig({ ...formConfig, mlThresholdShort: parseFloat(e.target.value) })} className="mt-1 w-full bg-black border border-violet-500/30 rounded-lg px-2 py-1 text-violet-400 focus:border-violet-400 outline-none font-mono text-[10px]" /></div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* 3. MACRO RISK PROTOCOL */}
