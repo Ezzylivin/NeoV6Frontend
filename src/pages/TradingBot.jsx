@@ -802,39 +802,54 @@ const TradingBotContainer = () => {
                                         </table>
                                     ) : (
                                         <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
-                                            {(socketStatus.tradeHistory?.length > 0 || socketStatus.trade_history?.length > 0 || socketStatus.tradeMarkers?.length > 0) ? (
-                                                <div className="space-y-3">
-                                                    {(socketStatus.tradeHistory || socketStatus.trade_history || socketStatus.tradeMarkers || []).map((trade, idx) => {
-                                                // 🚀 FIX: Catch both Python snake_case and Node camelCase keys
-                                                const side = trade.type || trade.side || 'trade';
-                                                const entryPrice = trade.entry || trade.entryPrice || trade.entry_price || 0;
-                                                const exitPrice = trade.exit || trade.exitPrice || trade.exit_price || trade.price || 0;
-                                                const pnl = trade.pnl || trade.realized_pnl || trade.realizedPnL || 0;
-                                                
-                                                // Format timestamps correctly whether it's a UNIX int or ISO string
-                                                const timeObj = trade.time ? new Date(trade.time * (trade.time > 1e10 ? 1 : 1000)) : (trade.exitTime ? new Date(trade.exitTime) : new Date());
-
-                                                return (
+                                          {(() => {
+                                            // 🚀 RESOLUTION: Extract the first array that contains actual populated data entries
+                                            const activeTrades = socketStatus.tradeHistory?.length > 0 
+                                              ? socketStatus.tradeHistory 
+                                              : socketStatus.trade_history?.length > 0 
+                                                ? socketStatus.trade_history 
+                                                : socketStatus.tradeMarkers?.length > 0 
+                                                  ? socketStatus.tradeMarkers 
+                                                  : [];
+                                        
+                                            return activeTrades.length > 0 ? (
+                                              <div className="space-y-3">
+                                                {activeTrades.map((trade, idx) => {
+                                                  // Catch both Python snake_case and Node camelCase keys safely
+                                                  const side = trade.type || trade.side || 'trade';
+                                                  const entryPrice = trade.entry || trade.entryPrice || trade.entry_price || 0;
+                                                  const exitPrice = trade.exit || trade.exitPrice || trade.exit_price || trade.price || 0;
+                                                  const pnl = trade.pnl || trade.realized_pnl || trade.realizedPnL || 0;
+                                                  
+                                                  // Format timestamps correctly whether it's a UNIX int or ISO string
+                                                  const timeObj = trade.time 
+                                                    ? new Date(trade.time * (trade.time > 1e10 ? 1 : 1000)) 
+                                                    : trade.exitTime 
+                                                      ? new Date(trade.exitTime) 
+                                                      : new Date();
+                                        
+                                                  return (
                                                     <div key={idx} className="p-4 bg-black/20 rounded-2xl border border-zinc-800/50 flex flex-col gap-2 hover:border-emerald-500/30 transition-all">
-                                                        <div className="flex justify-between items-center">
-                                                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${side === 'long' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>{side} Closed</span>
-                                                            <span className="text-[8px] text-zinc-600 font-bold font-mono">{timeObj.toLocaleDateString()} {timeObj.toLocaleTimeString()}</span>
-                                                        </div>
-                                                        <div className="grid grid-cols-2 gap-4 mt-1">
-                                                            <div><p className="text-[8px] text-zinc-500 uppercase font-black">Entry/Exit</p><p className="text-[10px] font-mono font-bold text-zinc-300">${Number(entryPrice).toLocaleString()} → ${Number(exitPrice).toLocaleString()}</p></div>
-                                                            <div className="text-right"><p className="text-[8px] text-zinc-500 uppercase font-black">Realized PnL</p><p className={`text-[11px] font-black font-mono ${pnl >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>{pnl >= 0 ? '+' : ''}${Number(pnl).toFixed(2)}</p></div>
-                                                        </div>
+                                                      <div className="flex justify-between items-center">
+                                                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${side === 'long' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>{side} Closed</span>
+                                                        <span className="text-[8px] text-zinc-600 font-bold font-mono">{timeObj.toLocaleDateString()} {timeObj.toLocaleTimeString()}</span>
+                                                      </div>
+                                                      <div className="grid grid-cols-2 gap-4 mt-1">
+                                                        <div><p className="text-[8px] text-zinc-500 uppercase font-black">Entry/Exit</p><p className="text-[10px] font-mono font-bold text-zinc-300">${Number(entryPrice).toLocaleString()} → ${Number(exitPrice).toLocaleString()}</p></div>
+                                                        <div className="text-right"><p className="text-[8px] text-zinc-500 uppercase font-black">Realized PnL</p><p className={`text-[11px] font-black font-mono ${pnl >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>{pnl >= 0 ? '+' : ''}${Number(pnl).toFixed(2)}</p></div>
+                                                      </div>
                                                     </div>
-                                                );
-                                            })}
-                                                </div>
+                                                  );
+                                                })}
+                                              </div>
                                             ) : (
-                                                <div className="flex flex-col items-center justify-center py-20 text-center">
-                                                    <div className="p-4 bg-emerald-500/5 rounded-full mb-4 border border-emerald-500/10"><Book className="text-emerald-500/40" size={32} /></div>
-                                                    <h4 className="text-zinc-400 text-[10px] font-black uppercase tracking-widest">Trade Ledger Empty</h4>
-                                                    <p className="text-zinc-600 text-[9px] mt-2 max-w-[220px] leading-relaxed font-bold uppercase">No closed trades detected in this session.</p>
-                                                </div>
-                                            )}
+                                              <div className="flex flex-col items-center justify-center py-20 text-center">
+                                                <div className="p-4 bg-emerald-500/5 rounded-full mb-4 border border-emerald-500/10"><Book className="text-emerald-500/40" size={32} /></div>
+                                                <h4 className="text-zinc-400 text-[10px] font-black uppercase tracking-widest">Trade Ledger Empty</h4>
+                                                <p className="text-zinc-600 text-[9px] mt-2 max-w-[220px] leading-relaxed font-bold uppercase">No closed trades detected in this session.</p>
+                                              </div>
+                                            );
+                                          })()}
                                         </div>
                                     )}
                                 </div>
