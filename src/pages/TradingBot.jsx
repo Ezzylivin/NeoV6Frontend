@@ -15,7 +15,7 @@ import {
     ArrowUpRight, Clock, Box, Timer, DollarSign, Info, BarChart, Settings2, Zap, ArrowDownRight,
     CandlestickChart, AlertTriangle, RotateCcw, Eraser, Book,
     HelpCircle, ShieldAlert,
-    ChevronDown, ChevronUp, Search, ExternalLink
+    ChevronDown, ChevronUp, Search, ExternalLink, Sliders
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import "./TradingBot.css";
@@ -910,74 +910,73 @@ const TradingBotContainer = () => {
                                                 <select className={inputClass} value={formConfig.mlModel} onChange={(e) => setFormConfig({ ...formConfig, mlModel: e.target.value })}>{MODEL_POOL.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select>
                                             </div>
 
-
-                                    {/* 3. ADAPTIVE REGIME FILTERING */}
-                                    <div className="space-y-5 border-t border-zinc-800/50 pt-8">
-                                        <div className="flex items-center gap-2 text-emerald-400 mb-2">
-                                            <Sliders size={16} />
-                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Regime Gatekeepers</h4>
-                                        </div>
-                                    
-                                        <div className="space-y-4 bg-zinc-950/40 p-4 border border-zinc-900 rounded-2xl">
-                                            {/* ADX Trend Filter Strength */}
-                                            <div className="flex flex-col gap-1">
-                                                <div className="flex justify-between items-center">
-                                                    <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Minimum ADX Trend</label>
-                                                    <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minAdx}</span>
-                                                </div>
-                                                <input 
-                                                    type="range" 
-                                                    min="10" 
-                                                    max="50" 
-                                                    step="1"
-                                                    value={formConfig.minAdx} 
-                                                    onChange={(e) => setFormConfig({ ...formConfig, minAdx: parseInt(e.target.value) })}
-                                                    className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer"
-                                                />
-                                            </div>
-                                    
-                                            {/* Volume Average Ratio Threshold */}
-                                            <div className="flex flex-col gap-1">
-                                                <div className="flex justify-between items-center">
-                                                    <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Min Vol Confirmation</label>
-                                                    <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minVolRatio}x</span>
-                                                </div>
-                                                <input 
-                                                    type="range" 
-                                                    min="0.5" 
-                                                    max="2.5" 
-                                                    step="0.1"
-                                                    value={formConfig.minVolRatio} 
-                                                    onChange={(e) => setFormConfig({ ...formConfig, minVolRatio: parseFloat(e.target.value) })}
-                                                    className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer"
-                                                />
-                                            </div>
-                                    
-                                            {/* Minimum Ensemble Weighted Strength */}
-                                            <div className="flex flex-col gap-1">
-                                                <div className="flex justify-between items-center">
-                                                    <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Min Ensemble Weight</label>
-                                                    <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minWeightedSignal}</span>
-                                                </div>
-                                                <input 
-                                                    type="range" 
-                                                    min="0.1" 
-                                                    max="1.5" 
-                                                    step="0.05"
-                                                    value={formConfig.minWeightedSignal} 
-                                                    onChange={(e) => setFormConfig({ ...formConfig, minWeightedSignal: parseFloat(e.target.value) })}
-                                                    className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-
                                             <div className="grid grid-cols-2 gap-3 p-4 bg-violet-500/5 border border-violet-500/20 rounded-2xl">
                                                 <div><label className="text-[9px] font-black uppercase text-violet-400/80 tracking-widest">Long Veto Limit</label><input type="number" step="0.01" value={formConfig.mlThresholdLong} onChange={(e) => setFormConfig({ ...formConfig, mlThresholdLong: parseFloat(e.target.value) })} className="mt-1 w-full bg-black border border-violet-500/30 rounded-lg px-2 py-1 text-violet-400 focus:border-violet-400 outline-none font-mono text-[10px]" /></div>
                                                 <div><label className="text-[9px] font-black uppercase text-violet-400/80 tracking-widest">Short Veto Limit</label><input type="number" step="0.01" value={formConfig.mlThresholdShort} onChange={(e) => setFormConfig({ ...formConfig, mlThresholdShort: parseFloat(e.target.value) })} className="mt-1 w-full bg-black border border-violet-500/30 rounded-lg px-2 py-1 text-violet-400 focus:border-violet-400 outline-none font-mono text-[10px]" /></div>
                                             </div>
                                         </div>
                                     )}
+                                </div>
+
+                                {/* 3. ADAPTIVE REGIME FILTERING */}
+                                <div className="space-y-5 border-t border-zinc-800/50 pt-8">
+                                    <div className="flex items-center gap-2 text-emerald-400 mb-2">
+                                        <Sliders size={16} />
+                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Regime Gatekeepers</h4>
+                                    </div>
+                                    
+                                    <div className="space-y-4 bg-zinc-950/40 p-4 border border-zinc-900 rounded-2xl">
+                                        {/* ADX Trend Filter Strength */}
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex justify-between items-center">
+                                                <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Minimum ADX Trend</label>
+                                                <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minAdx}</span>
+                                            </div>
+                                            <input 
+                                                type="range" 
+                                                min="10" 
+                                                max="50" 
+                                                step="1"
+                                                value={formConfig.minAdx} 
+                                                onChange={(e) => setFormConfig({ ...formConfig, minAdx: parseInt(e.target.value) })}
+                                                className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer"
+                                            />
+                                        </div>
+
+                                        {/* Volume Average Ratio Threshold */}
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex justify-between items-center">
+                                                <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Min Vol Confirmation</label>
+                                                <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minVolRatio}x</span>
+                                            </div>
+                                            <input 
+                                                type="range" 
+                                                min="0.5" 
+                                                max="2.5" 
+                                                step="0.1"
+                                                value={formConfig.minVolRatio} 
+                                                onChange={(e) => setFormConfig({ ...formConfig, minVolRatio: parseFloat(e.target.value) })}
+                                                className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer"
+                                            />
+                                        </div>
+
+                                        {/* Minimum Ensemble Weighted Strength */}
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex justify-between items-center">
+                                                <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Min Ensemble Weight</label>
+                                                <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minWeightedSignal}</span>
+                                            </div>
+                                            <input 
+                                                type="range" 
+                                                min="0.1" 
+                                                max="1.5" 
+                                                step="0.05"
+                                                value={formConfig.minWeightedSignal} 
+                                                onChange={(e) => setFormConfig({ ...formConfig, minWeightedSignal: parseFloat(e.target.value) })}
+                                                className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer"
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
 
                                 {/* 3. MACRO RISK PROTOCOL */}
