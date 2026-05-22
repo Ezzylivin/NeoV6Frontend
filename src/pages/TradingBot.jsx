@@ -828,26 +828,55 @@ const TradingBotContainer = () => {
                                                       ? new Date(trade.exitTime) 
                                                       : new Date();
                                         
-                                                  return (
-                                                    <div key={idx} className="p-4 bg-black/20 rounded-2xl border border-zinc-800/50 flex flex-col gap-2 hover:border-emerald-500/30 transition-all">
-                                                      <div className="flex justify-between items-center">
-                                                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${side === 'long' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>{side} Closed</span>
-                                                        <span className="text-[8px] text-zinc-600 font-bold font-mono">{timeObj.toLocaleDateString()} {timeObj.toLocaleTimeString()}</span>
+                                                return (
+                                                  <div key={idx} className="p-4 bg-black/20 rounded-2xl border border-zinc-800/50 flex flex-col gap-2 hover:border-emerald-500/30 transition-all">
+                                                    <div className="flex justify-between items-center">
+                                                      {/* 🚀 UX FIX: Explicitly differentiate partial profit taking from total closures */}
+                                                      {trade.type === "partial_exit" ? (
+                                                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/20 tracking-wider">
+                                                          ⚖ Partial Scale-Out (50%)
+                                                        </span>
+                                                      ) : (
+                                                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${side === 'long' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                                                          {side === 'long' ? '🚀 Long' : '🏹 Short'} Fully Closed
+                                                        </span>
+                                                      )}
+                                                      <span className="text-[8px] text-zinc-600 font-bold font-mono">{timeObj.toLocaleDateString()} {timeObj.toLocaleTimeString()}</span>
+                                                    </div>
+                                                    
+                                                    <div className="grid grid-cols-2 gap-4 mt-1">
+                                                      {/* 🚀 UX FIX: Dynamically shift metrics labels depending on exit scale types */}
+                                                      <div>
+                                                        <p className="text-[8px] text-zinc-500 uppercase font-black">
+                                                          {trade.type === "partial_exit" ? "Execution Price" : "Entry/Exit"}
+                                                        </p>
+                                                        <p className="text-[10px] font-mono font-bold text-zinc-300">
+                                                          {trade.type === "partial_exit" 
+                                                            ? `$${Number(exitPrice).toLocaleString()}` 
+                                                            : `$${Number(entryPrice).toLocaleString()} → $${Number(exitPrice).toLocaleString()}`
+                                                          }
+                                                        </p>
                                                       </div>
-                                                      <div className="grid grid-cols-2 gap-4 mt-1">
-                                                        <div><p className="text-[8px] text-zinc-500 uppercase font-black">Entry/Exit</p><p className="text-[10px] font-mono font-bold text-zinc-300">${Number(entryPrice).toLocaleString()} → ${Number(exitPrice).toLocaleString()}</p></div>
-                                                        <div className="text-right"><p className="text-[8px] text-zinc-500 uppercase font-black">Realized PnL</p><p className={`text-[11px] font-black font-mono ${pnl >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>{pnl >= 0 ? '+' : ''}${Number(pnl).toFixed(2)}</p></div>
+                                                      
+                                                      <div className="text-right">
+                                                        <p className="text-[8px] text-zinc-500 uppercase font-black">
+                                                          {trade.type === "partial_exit" ? "Locked Profit" : "Realized PnL"}
+                                                        </p>
+                                                        <p className={`text-[11px] font-black font-mono ${pnl >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
+                                                          {pnl >= 0 ? '+' : ''}${Number(pnl).toFixed(2)}
+                                                        </p>
                                                       </div>
                                                     </div>
-                                                  );
+                                                  </div>
+                                                );
                                                 })}
-                                              </div>
-                                            ) : (
-                                              <div className="flex flex-col items-center justify-center py-20 text-center">
-                                                <div className="p-4 bg-emerald-500/5 rounded-full mb-4 border border-emerald-500/10"><Book className="text-emerald-500/40" size={32} /></div>
-                                                <h4 className="text-zinc-400 text-[10px] font-black uppercase tracking-widest">Trade Ledger Empty</h4>
-                                                <p className="text-zinc-600 text-[9px] mt-2 max-w-[220px] leading-relaxed font-bold uppercase">No closed trades detected in this session.</p>
-                                              </div>
+                                                </div>
+                                                ) : (
+                                                <div className="flex flex-col items-center justify-center py-20 text-center">
+                                                  <div className="p-4 bg-emerald-500/5 rounded-full mb-4 border border-emerald-500/10"><Book className="text-emerald-500/40" size={32} /></div>
+                                                  <h4 className="text-zinc-400 text-[10px] font-black uppercase tracking-widest">Trade Ledger Empty</h4>
+                                                  <p className="text-zinc-600 text-[9px] mt-2 max-w-[220px] leading-relaxed font-bold uppercase">No closed trades detected in this session.</p>
+                                                </div>
                                             );
                                           })()}
                                         </div>
