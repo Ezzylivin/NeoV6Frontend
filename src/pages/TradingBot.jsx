@@ -415,6 +415,42 @@ const TradingBotContainer = () => {
         return [seedPoint, ...history];
     }, [socketStatus.equityCurve, formConfig.capitalAllocation]);
 
+    // 🚀 UX FIX: Dynamically compute win rates and profit factors directly from your active ledger data streams
+    const calculatedStats = useMemo(() => {
+        const trades = socketStatus.tradeHistory?.length > 0 
+            ? socketStatus.tradeHistory 
+            : socketStatus.trade_history?.length > 0 
+                ? socketStatus.trade_history 
+                : socketStatus.tradeMarkers?.length > 0 
+                    ? socketStatus.tradeMarkers 
+                    : [];
+        
+        // Filter down specifically to finalized closed trade cycles (including partial trimmings)
+        const settledTrades = trades.filter(t => t.type === 'exit' || t.type === 'partial_exit' || t.reason);
+        
+        if (settledTrades.length === 0) {
+            return { winRate: 0, profitFactor: "1.0" };
+        }
+        
+        const winningTrades = settledTrades.filter(t => (parseFloat(t.pnl) || 0) > 0);
+        const winRate = Math.round((winningTrades.length / settledTrades.length) * 100);
+        
+        let grossProfits = 0;
+        let grossLosses = 0;
+        
+        settledTrades.forEach(t => {
+            const pnl = parseFloat(t.pnl) || 0;
+            if (pnl > 0) grossProfits += pnl;
+            else grossLosses += Math.abs(pnl);
+        });
+        
+        const profitFactor = grossLosses === 0 
+            ? (grossProfits > 0 ? "99.9" : "1.0") 
+            : (grossProfits / grossLosses).toFixed(1);
+            
+        return { winRate, profitFactor };
+    }, [socketStatus.tradeHistory, socketStatus.trade_history, socketStatus.tradeMarkers]);
+
     // ============================================================
     // 🔧 FIX T1-1c: Config mapping in handleConfirmStart
     // ============================================================
@@ -666,8 +702,14 @@ const TradingBotContainer = () => {
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 shadow-2xl">
                                     <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-4">Neural Performance</h4>
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div><p className="text-[8px] uppercase font-bold text-zinc-600 mb-1">Win Rate</p><p className="text-xl font-mono font-black text-emerald-500">{socketStatus.winRate || 0}%</p></div>
-                                        <div><p className="text-[8px] uppercase font-bold text-zinc-600 mb-1">Profit Factor</p><p className="text-xl font-mono font-black text-violet-400">{socketStatus.profitFactor || '1.0'}</p></div>
+                                        <div>
+                                            <p className="text-[8px] uppercase font-bold text-zinc-600 mb-1">Win Rate</p>
+                                            <p className="text-xl font-mono font-black text-emerald-500">{calculatedStats.winRate}%</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[8px] uppercase font-bold text-zinc-600 mb-1">Profit Factor</p>
+                                            <p className="text-xl font-mono font-black text-violet-400">{calculatedStats.profitFactor}</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
