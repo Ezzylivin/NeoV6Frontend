@@ -1180,42 +1180,28 @@ const TradingBotContainer = () => {
 };
 
 
-const STRAT_COLORS = {
-    rsi_threshold: "#3b82f6", sma_crossover: "#ef4444", supertrend: "#10b981",
-    macd_crossover: "#f59e0b", atr_breakout: "#8b5cf6", bb_fade: "#ec4899",
-    stoch: "#06b6d4", ema_cloud: "#f97316", pa_breakout: "#14b8a6", vol_profile: "#a855f7"
-};
-
 const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
-    // 👤 1. Track strategies chosen by the user in the setup form
-    const userStratCodes = useMemo(() => {
-        return formConfig?.strategies?.map(s => s.code) || [];
-    }, [formConfig]);
-
-    // 🤖 2. Dynamically pull active strategies streaming from backend telemetry
+    // 🌟 FIX: Extract active strategy lines dynamically from live historical stream keys instead of the static form
     const activeStratCodes = useMemo(() => {
         if (!signalsMapHistory || signalsMapHistory.length === 0) return [];
         const keys = new Set();
         signalsMapHistory.forEach(item => {
             Object.keys(item).forEach(key => {
-                if (key !== 'time') keys.add(key);
+                if (key !== 'time' && key !== 'timestamp') keys.add(key);
             });
         });
         return Array.from(keys);
     }, [signalsMapHistory]);
 
-    // 🧠 3. Detect if the AI has dynamically overridden the initial selections
-    const isAiOverriding = useMemo(() => {
-        if (userStratCodes.length !== activeStratCodes.length) return true;
-        return !userStratCodes.every(code => activeStratCodes.includes(code));
-    }, [userStratCodes, activeStratCodes]);
+    // Track user selections separately for the baseline reference leg
+    const userStratCodes = formConfig?.strategies?.map(s => s.code) || [];
+    const isAiOverriding = userStratCodes.length !== activeStratCodes.length || !userStratCodes.every(c => activeStratCodes.includes(c));
 
     return (
         <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 shadow-2xl h-full flex flex-col">
             <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-6 flex items-center gap-2">
                 <Cpu size={12} className="text-violet-400" /> Neural Strategy Logic
             </h4>
-            
             <div className="flex-1 w-full min-h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={signalsMapHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -1253,55 +1239,40 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
                     </AreaChart>
                 </ResponsiveContainer>
             </div>
-
-            {/* 📊 TWIN TELEMETRY FOOTER (User Setup Selections vs. Active Engine Execution) */}
+            
+            {/* 📊 UPDATED TWIN FOOTER: Clearly maps the User selection against running AI configurations */}
             <div className="mt-4 grid grid-cols-2 gap-4 border-t border-zinc-800 pt-4">
-                
-                {/* Left Side: Original User Form Baseline Parameters */}
-                <div className="flex flex-col gap-2 border-r border-zinc-800 pr-2">
-                    <span className="text-[7.5px] font-black tracking-widest text-zinc-600 uppercase mb-1 block">
-                        👤 User Setup Baseline
-                    </span>
-                    <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+                <div className="flex flex-col gap-1.5 border-r border-zinc-800 pr-2">
+                    <span className="text-[7px] font-black tracking-widest text-zinc-600 uppercase">👤 User Setup</span>
+                    <div className="flex flex-wrap gap-2">
                         {userStratCodes.map((code) => (
-                            <div key={`user-${code}`} className="flex items-center gap-1.5 opacity-40">
+                            <div key={`user-${code}`} className="flex items-center gap-1 opacity-40">
                                 <div className="w-1 h-1 rounded-full bg-zinc-500"></div>
-                                <span className="text-[8px] font-bold uppercase text-zinc-400 font-mono tracking-tight">
-                                    {code.replace('_', ' ')}
-                                </span>
+                                <span className="text-[8px] font-bold uppercase text-zinc-400 font-mono tracking-tight">{code.replace('_', ' ')}</span>
                             </div>
                         ))}
                     </div>
                 </div>
-
-                {/* Right Side: Active Production Infrastructure badging matrix */}
-                <div className="flex flex-col gap-2 pl-2">
-                    <span className="text-[7.5px] font-black tracking-widest uppercase mb-1 flex items-center gap-1">
-                        {isAiOverriding ? (
-                            <span className="text-violet-400 animate-pulse font-black">🤖 AI Regime Engaged</span>
-                        ) : (
-                            <span className="text-emerald-400 font-black">⚙️ Manual Pipeline Active</span>
-                        )}
+                <div className="flex flex-col gap-1.5 pl-2">
+                    <span className="text-[7px] font-black tracking-widest uppercase">
+                        {isAiOverriding ? <span className="text-violet-400 animate-pulse">🤖 AI Active Regime</span> : <span className="text-emerald-400">⚙️ Manual Engine</span>}
                     </span>
-                    <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+                    <div className="flex flex-wrap gap-2">
                         {activeStratCodes.map((code) => (
-                            <div key={`active-${code}`} className="flex items-center gap-1.5">
+                            <div key={`active-${code}`} className="flex items-center gap-1">
                                 <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STRAT_COLORS[code] || '#52525b' }}></div>
-                                <span className="text-[8px] font-black uppercase text-zinc-200 font-mono tracking-tight">
-                                    {code.replace('_', ' ')}
-                                </span>
+                                <span className="text-[8px] font-black uppercase text-zinc-200 font-mono tracking-tight">{code.replace('_', ' ')}</span>
                             </div>
                         ))}
                     </div>
                 </div>
-
             </div>
         </div>
     );
 };
 
 // ==========================================
-// 🎚️ METRIC CARD MODULE CONTAINER
+// 🎚️ UNTOUCHED METRIC CARD COMPONENT
 // ==========================================
 const MetricCard = ({ label, value, subValue, color = "text-white", icon = null }) => (
     <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden shadow-xl">
@@ -1314,7 +1285,7 @@ const MetricCard = ({ label, value, subValue, color = "text-white", icon = null 
 );
 
 // ==========================================
-// 🛠️ STRATEGY PARAMETER CONTROL LAYER
+// 🛠️ UNTOUCHED STRATEGY PARAM INPUTS COMPONENT
 // ==========================================
 function StrategyParamInputs({ strategy, onChange }) {
     const { code, params = {} } = strategy;
@@ -1339,5 +1310,4 @@ function StrategyParamInputs({ strategy, onChange }) {
         </div>
     );
 }
-
 export default TradingBotContainer;
