@@ -714,6 +714,43 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
 
+                            {/* 🔮 CORE AI INTELLIGENCE STATUS HUD CARD */}
+                            <div className="col-span-12 bg-zinc-900/40 border border-zinc-800 rounded-3xl p-5 mb-4 backdrop-blur-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                <div className="flex items-center gap-4">
+                                    <div className="relative flex h-3 w-3 items-center justify-center">
+                                        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                                            socketStatus.aiRegimeDesc?.includes('Trend') || socketStatus.aiRegimeDesc?.includes('Volatility')
+                                                ? 'bg-emerald-400' 
+                                                : 'bg-violet-400'
+                                        }`}></span>
+                                        <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                                            socketStatus.aiRegimeDesc?.includes('Trend') || socketStatus.aiRegimeDesc?.includes('Volatility')
+                                                ? 'bg-emerald-500' 
+                                                : 'bg-violet-500'
+                                        }`}></span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[8px] font-black uppercase text-zinc-500 tracking-widest block">Forecasted Market Regime</span>
+                                        <h2 className="text-sm font-mono font-black text-zinc-100 tracking-wide mt-0.5">
+                                            {socketStatus.aiRegimeTitle || "Analyzing Market Structures..."} 
+                                            <span className="text-xs font-normal text-zinc-500 ml-2">
+                                                ({socketStatus.aiRegimeDesc || "Calibrating Sensors"})
+                                            </span>
+                                        </h2>
+                                    </div>
+                                </div>
+                            
+                                <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-2xl px-5 py-3 min-w-[280px] md:max-w-md">
+                                    <div className="flex items-center gap-1.5 mb-1">
+                                        <span className="text-[7px] font-black uppercase text-violet-400 tracking-wider">AI Strategy Configuration</span>
+                                        <span className="text-[6px] font-mono bg-violet-500/10 border border-violet-500/20 text-violet-300 px-1 rounded uppercase">Active</span>
+                                    </div>
+                                    <p className="text-[11px] font-mono font-medium text-zinc-300 tracking-tight leading-relaxed">
+                                        {socketStatus.aiDeployedGear || "Scanning setup to allocate optimal indicator array..."}
+                                    </p>
+                                </div>
+                            </div>
+
                             {/* CHART & TERMINAL */}
                             <div className="col-span-12 lg:col-span-9">
                                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[720px]">
