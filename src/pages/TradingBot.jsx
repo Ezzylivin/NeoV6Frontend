@@ -1339,6 +1339,5 @@ function StrategyParamInputs({ strategy, onChange }) {
         </div>
     );
 }
-}
 
 export default TradingBotContainer;
