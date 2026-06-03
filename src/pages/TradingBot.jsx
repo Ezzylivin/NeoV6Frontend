@@ -704,11 +704,15 @@ const TradingBotContainer = () => {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <p className="text-[8px] uppercase font-bold text-zinc-600 mb-1">Win Rate</p>
-                                            <p className="text-xl font-mono font-black text-emerald-500">{calculatedStats.winRate}%</p>
+                                            <p className="text-xl font-mono font-black tracking-tighter text-emerald-400">
+                                                {botData?.winRate !== undefined ? `${botData.winRate}%` : "0%"}
+                                            </p>
                                         </div>
                                         <div>
                                             <p className="text-[8px] uppercase font-bold text-zinc-600 mb-1">Profit Factor</p>
-                                            <p className="text-xl font-mono font-black text-violet-400">{calculatedStats.profitFactor}</p>
+                                            <p className="text-xl font-mono font-black tracking-tighter text-violet-400">
+                                                {botData?.profitFactor !== undefined ? Number(botData.profitFactor).toFixed(2) : "1.00"}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
