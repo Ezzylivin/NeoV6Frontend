@@ -1181,6 +1181,20 @@ const TradingBotContainer = () => {
 
 
 const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
+
+    const STRAT_COLORS = {
+        rsi_threshold: "#3b82f6", 
+        sma_crossover: "#ef4444", 
+        supertrend: "#10b981",
+        macd_crossover: "#f59e0b", 
+        atr_breakout: "#8b5cf6", 
+        bb_fade: "#ec4899",
+        stoch: "#06b6d4", 
+        ema_cloud: "#f97316", 
+        pa_breakout: "#14b8a6", 
+        vol_profile: "#a855f7"
+    };
+    
     // 🌟 FIX: Extract active strategy lines dynamically from live historical stream keys instead of the static form
     const activeStratCodes = useMemo(() => {
         if (!signalsMapHistory || signalsMapHistory.length === 0) return [];
