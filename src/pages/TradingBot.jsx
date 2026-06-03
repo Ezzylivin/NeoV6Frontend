@@ -1187,29 +1187,122 @@ const STRAT_COLORS = {
 };
 
 const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
-    const activeStratCodes = formConfig.strategies.map(s => s.code);
+    // 👤 1. Track strategies chosen by the user in the setup form
+    const userStratCodes = useMemo(() => {
+        return formConfig?.strategies?.map(s => s.code) || [];
+    }, [formConfig]);
+
+    // 🤖 2. Dynamically pull active strategies streaming from backend telemetry
+    const activeStratCodes = useMemo(() => {
+        if (!signalsMapHistory || signalsMapHistory.length === 0) return [];
+        const keys = new Set();
+        signalsMapHistory.forEach(item => {
+            Object.keys(item).forEach(key => {
+                if (key !== 'time') keys.add(key);
+            });
+        });
+        return Array.from(keys);
+    }, [signalsMapHistory]);
+
+    // 🧠 3. Detect if the AI has dynamically overridden the initial selections
+    const isAiOverriding = useMemo(() => {
+        if (userStratCodes.length !== activeStratCodes.length) return true;
+        return !userStratCodes.every(code => activeStratCodes.includes(code));
+    }, [userStratCodes, activeStratCodes]);
+
     return (
         <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 shadow-2xl h-full flex flex-col">
-            <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-6 flex items-center gap-2"><Cpu size={12} className="text-violet-400" /> Neural Strategy Logic</h4>
+            <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-6 flex items-center gap-2">
+                <Cpu size={12} className="text-violet-400" /> Neural Strategy Logic
+            </h4>
+            
             <div className="flex-1 w-full min-h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={signalsMapHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                        <defs>{activeStratCodes.map((key) => (<linearGradient key={`grad-${key}`} id={`color-${key}`} x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={STRAT_COLORS[key]} stopOpacity={0.3} /><stop offset="95%" stopColor={STRAT_COLORS[key]} stopOpacity={0} /></linearGradient>))}</defs>
-                        <RechartsTooltip shared={false} trigger="hover" contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px', pointerEvents: 'none' }} formatter={(value, name) => [`${Number(value).toFixed(0)}%`, name.toUpperCase()]} />
-                        {activeStratCodes.map((key) => (<Area key={key} type="monotone" dataKey={key} name={key.replace('_', ' ')} stroke={STRAT_COLORS[key] || '#52525b'} fill={`url(#color-${key})`} strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} isAnimationActive={false} connectNulls={true} />))}
+                        <defs>
+                            {activeStratCodes.map((key) => (
+                                <linearGradient key={`grad-${key}`} id={`color-${key}`} x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={STRAT_COLORS[key] || '#52525b'} stopOpacity={0.3} />
+                                    <stop offset="95%" stopColor={STRAT_COLORS[key] || '#52525b'} stopOpacity={0} />
+                                </linearGradient>
+                            ))}
+                        </defs>
+                        <RechartsTooltip 
+                            shared={false} 
+                            trigger="hover" 
+                            contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px', pointerEvents: 'none' }} 
+                            formatter={(value, name) => [`${Number(value).toFixed(0)}%`, name.toUpperCase()]} 
+                        />
+                        {activeStratCodes.map((key) => (
+                            <Area 
+                                key={key} 
+                                type="monotone" 
+                                dataKey={key} 
+                                name={key.replace('_', ' ')} 
+                                stroke={STRAT_COLORS[key] || '#52525b'} 
+                                fill={`url(#color-${key})`} 
+                                strokeWidth={2} 
+                                dot={false} 
+                                activeDot={{ r: 4, strokeWidth: 0 }} 
+                                isAnimationActive={false} 
+                                connectNulls={true} 
+                            />
+                        ))}
                         <XAxis dataKey="time" hide />
-                        {/* 🔧 FIX T2-7: Values are now 0-100 (scaled in socket handler) */}
                         <YAxis domain={[0, 100]} hide />
                     </AreaChart>
                 </ResponsiveContainer>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-zinc-800 pt-4">
-                {formConfig.strategies.map((s) => (<div key={s.code} className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STRAT_COLORS[s.code] }}></div><span className="text-[8px] font-black uppercase text-zinc-500 tracking-tighter">{s.code.replace('_', ' ')}</span></div>))}
+
+            {/* 📊 TWIN TELEMETRY FOOTER (User Setup Selections vs. Active Engine Execution) */}
+            <div className="mt-4 grid grid-cols-2 gap-4 border-t border-zinc-800 pt-4">
+                
+                {/* Left Side: Original User Form Baseline Parameters */}
+                <div className="flex flex-col gap-2 border-r border-zinc-800 pr-2">
+                    <span className="text-[7.5px] font-black tracking-widest text-zinc-600 uppercase mb-1 block">
+                        👤 User Setup Baseline
+                    </span>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+                        {userStratCodes.map((code) => (
+                            <div key={`user-${code}`} className="flex items-center gap-1.5 opacity-40">
+                                <div className="w-1 h-1 rounded-full bg-zinc-500"></div>
+                                <span className="text-[8px] font-bold uppercase text-zinc-400 font-mono tracking-tight">
+                                    {code.replace('_', ' ')}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Right Side: Active Production Infrastructure badging matrix */}
+                <div className="flex flex-col gap-2 pl-2">
+                    <span className="text-[7.5px] font-black tracking-widest uppercase mb-1 flex items-center gap-1">
+                        {isAiOverriding ? (
+                            <span className="text-violet-400 animate-pulse font-black">🤖 AI Regime Engaged</span>
+                        ) : (
+                            <span className="text-emerald-400 font-black">⚙️ Manual Pipeline Active</span>
+                        )}
+                    </span>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+                        {activeStratCodes.map((code) => (
+                            <div key={`active-${code}`} className="flex items-center gap-1.5">
+                                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STRAT_COLORS[code] || '#52525b' }}></div>
+                                <span className="text-[8px] font-black uppercase text-zinc-200 font-mono tracking-tight">
+                                    {code.replace('_', ' ')}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
             </div>
         </div>
     );
 };
 
+// ==========================================
+// 🎚️ METRIC CARD MODULE CONTAINER
+// ==========================================
 const MetricCard = ({ label, value, subValue, color = "text-white", icon = null }) => (
     <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden shadow-xl">
         <p className="text-[9px] text-zinc-500 uppercase font-black tracking-[0.15em] mb-2">{label}</p>
@@ -1220,6 +1313,9 @@ const MetricCard = ({ label, value, subValue, color = "text-white", icon = null 
     </div>
 );
 
+// ==========================================
+// 🛠️ STRATEGY PARAMETER CONTROL LAYER
+// ==========================================
 function StrategyParamInputs({ strategy, onChange }) {
     const { code, params = {} } = strategy;
     const f = (l, k, s = "1", desc) => (
@@ -1242,6 +1338,7 @@ function StrategyParamInputs({ strategy, onChange }) {
             {code === "vol_profile" && <>{f("MA", "vol_ma")}{f("T", "threshold", "0.1")}</>}
         </div>
     );
+}
 }
 
 export default TradingBotContainer;
