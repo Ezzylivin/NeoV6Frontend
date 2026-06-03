@@ -714,46 +714,48 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
 
-                            {/* 🔮 CORE AI INTELLIGENCE STATUS HUD CARD */}
-                            <div className="col-span-12 bg-zinc-900/40 border border-zinc-800 rounded-3xl p-5 mb-4 backdrop-blur-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                                <div className="flex items-center gap-4">
-                                    <div className="relative flex h-3 w-3 items-center justify-center">
-                                        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                                            socketStatus.aiRegimeDesc?.includes('Trend') || socketStatus.aiRegimeDesc?.includes('Volatility')
-                                                ? 'bg-emerald-400' 
-                                                : 'bg-violet-400'
-                                        }`}></span>
-                                        <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-                                            socketStatus.aiRegimeDesc?.includes('Trend') || socketStatus.aiRegimeDesc?.includes('Volatility')
-                                                ? 'bg-emerald-500' 
-                                                : 'bg-violet-500'
-                                        }`}></span>
+                            {/* CHART & TERMINAL WORKSPACE CONTAINER */}
+                            <div className="col-span-12 lg:col-span-9 flex flex-col gap-4">
+                                
+                                {/* 🚀 REALIGNED LOCATION: NOW NESTED DIRECTLY UNDER THE METRICS ROW */}
+                                <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-3xl p-4 backdrop-blur-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xl">
+                                    <div className="flex items-center gap-4">
+                                        <div className="relative flex h-3 w-3 items-center justify-center">
+                                            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                                                socketStatus.aiRegimeDesc?.includes('Trend') || socketStatus.aiRegimeDesc?.includes('Volatility')
+                                                    ? 'bg-emerald-400' 
+                                                    : 'bg-violet-400'
+                                            }`}></span>
+                                            <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                                                socketStatus.aiRegimeDesc?.includes('Trend') || socketStatus.aiRegimeDesc?.includes('Volatility')
+                                                    ? 'bg-emerald-500' 
+                                                    : 'bg-violet-500'
+                                            }`}></span>
+                                        </div>
+                                        <div>
+                                            <span className="text-[8px] font-black uppercase text-zinc-500 tracking-widest block">Forecasted Market Regime</span>
+                                            <h2 className="text-xs font-mono font-black text-zinc-100 tracking-wide mt-0.5">
+                                                {socketStatus.aiRegimeTitle || "Analyzing Market Structures..."} 
+                                                <span className="text-[10px] font-normal text-zinc-500 ml-2">
+                                                    ({socketStatus.aiRegimeDesc || "Calibrating Sensors"})
+                                                </span>
+                                            </h2>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <span className="text-[8px] font-black uppercase text-zinc-500 tracking-widest block">Forecasted Market Regime</span>
-                                        <h2 className="text-sm font-mono font-black text-zinc-100 tracking-wide mt-0.5">
-                                            {socketStatus.aiRegimeTitle || "Analyzing Market Structures..."} 
-                                            <span className="text-xs font-normal text-zinc-500 ml-2">
-                                                ({socketStatus.aiRegimeDesc || "Calibrating Sensors"})
-                                            </span>
-                                        </h2>
+                                
+                                    <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl px-4 py-2 min-w-[280px] md:max-w-md">
+                                        <div className="flex items-center gap-1.5 mb-0.5">
+                                            <span className="text-[7px] font-black uppercase text-violet-400 tracking-wider">AI Strategy Configuration</span>
+                                            <span className="text-[6px] font-mono bg-violet-500/10 border border-violet-500/20 text-violet-300 px-1 rounded uppercase">Active</span>
+                                        </div>
+                                        <p className="text-[10px] font-mono font-medium text-zinc-300 tracking-tight leading-relaxed">
+                                            {socketStatus.aiDeployedGear || "Scanning setup to allocate optimal indicator array..."}
+                                        </p>
                                     </div>
                                 </div>
-                            
-                                <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-2xl px-5 py-3 min-w-[280px] md:max-w-md">
-                                    <div className="flex items-center gap-1.5 mb-1">
-                                        <span className="text-[7px] font-black uppercase text-violet-400 tracking-wider">AI Strategy Configuration</span>
-                                        <span className="text-[6px] font-mono bg-violet-500/10 border border-violet-500/20 text-violet-300 px-1 rounded uppercase">Active</span>
-                                    </div>
-                                    <p className="text-[11px] font-mono font-medium text-zinc-300 tracking-tight leading-relaxed">
-                                        {socketStatus.aiDeployedGear || "Scanning setup to allocate optimal indicator array..."}
-                                    </p>
-                                </div>
-                            </div>
 
-                            {/* CHART & TERMINAL */}
-                            <div className="col-span-12 lg:col-span-9">
-                                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[720px]">
+                                {/* INNER GRIDS FOR LIVE PLOTS & TERMINAL FLOW LOGS */}
+                                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[660px]">
                                     <div className="lg:col-span-3 bg-zinc-900 border border-zinc-800 rounded-[40px] overflow-hidden flex flex-col relative shadow-2xl">
                                         <div className="bg-zinc-800/20 p-6 border-b border-zinc-800/50 flex items-center justify-between">
                                             <div className="flex items-center gap-3"><TrendingUp size={18} className="text-emerald-500" /><span className="text-[11px] font-black uppercase tracking-widest">{formConfig.symbol} Live Feed</span></div>
@@ -830,7 +832,7 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
 
-                            {/* 🔧 FIX T2-6: CONFIDENCE CHART */}
+                            {/* CONFIDENCE CHART */}
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
                                 <div className="flex items-center gap-2 mb-8"><Zap size={18} className="text-violet-500" /><h3 className="text-[11px] font-black uppercase tracking-widest">Logic Confidence</h3></div>
                                 <div className="h-48 w-full">
@@ -840,7 +842,6 @@ const TradingBotContainer = () => {
                                             <RechartsTooltip contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px' }} itemStyle={{ color: '#a78bfa' }} />
                                             <Area type="step" dataKey="confidence" stroke="#a78bfa" fill="url(#colorConf)" strokeWidth={2} isAnimationActive={false} />
                                             <XAxis dataKey="time" hide />
-                                            {/* 🔧 FIX: Was [80,100]. Models score 45-85%. Auto-scale instead. */}
                                             <YAxis hide domain={[0, 100]} />
                                         </AreaChart>
                                     </ResponsiveContainer>
@@ -882,7 +883,6 @@ const TradingBotContainer = () => {
                                     ) : (
                                         <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
                                           {(() => {
-                                            // 🚀 RESOLUTION: Extract the first array that contains actual populated data entries
                                             const activeTrades = socketStatus.tradeHistory?.length > 0 
                                               ? socketStatus.tradeHistory 
                                               : socketStatus.trade_history?.length > 0 
@@ -890,27 +890,24 @@ const TradingBotContainer = () => {
                                                 : socketStatus.tradeMarkers?.length > 0 
                                                   ? socketStatus.tradeMarkers 
                                                   : [];
-                                        
+                                                
                                             return activeTrades.length > 0 ? (
                                               <div className="space-y-3">
                                                 {activeTrades.map((trade, idx) => {
-                                                  // Catch both Python snake_case and Node camelCase keys safely
                                                   const side = trade.type || trade.side || 'trade';
                                                   const entryPrice = trade.entry || trade.entryPrice || trade.entry_price || 0;
                                                   const exitPrice = trade.exit || trade.exitPrice || trade.exit_price || trade.price || 0;
                                                   const pnl = trade.pnl || trade.realized_pnl || trade.realizedPnL || 0;
                                                   
-                                                  // Format timestamps correctly whether it's a UNIX int or ISO string
                                                   const timeObj = trade.time 
                                                     ? new Date(trade.time * (trade.time > 1e10 ? 1 : 1000)) 
                                                     : trade.exitTime 
                                                       ? new Date(trade.exitTime) 
                                                       : new Date();
-                                        
+                                                
                                                 return (
                                                   <div key={idx} className="p-4 bg-black/20 rounded-2xl border border-zinc-800/50 flex flex-col gap-2 hover:border-emerald-500/30 transition-all">
                                                     <div className="flex justify-between items-center">
-                                                      {/* 🚀 UX FIX: Explicitly differentiate partial profit taking from total closures */}
                                                       {trade.type === "partial_exit" ? (
                                                         <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/20 tracking-wider">
                                                           ⚖ Partial Scale-Out (50%)
@@ -924,7 +921,6 @@ const TradingBotContainer = () => {
                                                     </div>
                                                     
                                                     <div className="grid grid-cols-2 gap-4 mt-1">
-                                                      {/* 🚀 UX FIX: Dynamically shift metrics labels depending on exit scale types */}
                                                       <div>
                                                         <p className="text-[8px] text-zinc-500 uppercase font-black">
                                                           {trade.type === "partial_exit" ? "Execution Price" : "Entry/Exit"}
@@ -949,13 +945,13 @@ const TradingBotContainer = () => {
                                                   </div>
                                                 );
                                                 })}
-                                                </div>
-                                                ) : (
-                                                <div className="flex flex-col items-center justify-center py-20 text-center">
-                                                  <div className="p-4 bg-emerald-500/5 rounded-full mb-4 border border-emerald-500/10"><Book className="text-emerald-500/40" size={32} /></div>
-                                                  <h4 className="text-zinc-400 text-[10px] font-black uppercase tracking-widest">Trade Ledger Empty</h4>
-                                                  <p className="text-zinc-600 text-[9px] mt-2 max-w-[220px] leading-relaxed font-bold uppercase">No closed trades detected in this session.</p>
-                                                </div>
+                                              </div>
+                                            ) : (
+                                              <div className="flex flex-col items-center justify-center py-20 text-center">
+                                                <div className="p-4 bg-emerald-500/5 rounded-full mb-4 border border-emerald-500/10"><Book className="text-emerald-500/40" size={32} /></div>
+                                                <h4 className="text-zinc-400 text-[10px] font-black uppercase tracking-widest">Trade Ledger Empty</h4>
+                                                <p className="text-zinc-600 text-[9px] mt-2 max-w-[220px] leading-relaxed font-bold uppercase">No closed trades detected in this session.</p>
+                                              </div>
                                             );
                                           })()}
                                         </div>
@@ -966,8 +962,7 @@ const TradingBotContainer = () => {
                     </div>
                 ) : (
                     
-        
-                   /* STANDBY MODE - CONFIG VIEW */
+                    /* STANDBY MODE - CONFIG VIEW */
                     <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8 items-start animate-in fade-in duration-700">
                         {/* THE MASTER CONFIGURATION SIDEBAR */}
                         <div className="col-span-12 lg:col-span-3 h-[850px] relative">
@@ -1131,7 +1126,7 @@ const TradingBotContainer = () => {
                                         </div>
                                     </div>
 
-                                    {/* 🚀 THE DYNAMIC ATR SHIELD SECTION */}
+                                    {/* THE DYNAMIC ATR SHIELD SECTION */}
                                     <div className="p-4 bg-zinc-950/50 border border-zinc-800 rounded-2xl">
                                         <div className="flex items-center gap-2 mb-3"><Shield size={12} className="text-zinc-400"/><h4 className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Dynamic ATR Shield</h4></div>
                                         <div className="grid grid-cols-2 gap-4">
