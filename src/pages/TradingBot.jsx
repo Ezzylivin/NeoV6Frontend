@@ -10,7 +10,7 @@
 //   [P8] minVotesRequired >= 1 after strategy removal
 //   [P9] Initial status fetch with retry + visible error state
 //   [P10] Halt button shows pending state during async stop
-//   [UPGRADE] High-Fidelity Dynamic Session Equity Performance Chart Matrix
+//   [FIX] Resolved profitPct and pnlPct ReferenceErrors in metric layout
 
 import React, { useState, useEffect, useRef, useMemo, Component } from "react";
 import axios from "axios";
@@ -39,14 +39,14 @@ const BASE_URL = RAW_URL.replace(/\/$/, "").replace(/\/api$/, "");
 const API_BASE = `${BASE_URL}/api`;
 const SOCKET_URL = BASE_URL;
 
-// ─── [P3] AXIOS INSTANCE ──────────────────────────────────────────────────────
+// ─── [P3] AXIOS INSTANCE — outside component, created once ────────────────────
 const api = axios.create({ baseURL: API_BASE });
 
 // ─── STYLE CONSTANTS ───────────────────────────────────────────────────────────
 const inputClass = "w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-emerald-500 transition-all text-[11px] outline-none font-mono";
 const labelClass = "text-[9px] text-zinc-500 uppercase font-black mb-1 block ml-1 tracking-tighter";
 
-// ─── [P2] STRAT_COLORS ────────────────────────────────────────────────────────
+// ─── [P2] STRAT_COLORS — hoisted to module scope ─────────────────────────────
 const STRAT_COLORS = {
     rsi_threshold: "#3b82f6",
     sma_crossover: "#ef4444",
@@ -540,9 +540,7 @@ const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) =
                             <span className="text-[7px] text-emerald-500 font-black uppercase">Take Profit</span>
                             <span className="font-mono text-[7px] text-emerald-500 font-black">{Math.round(tpPct)}%</span>
                         </div>
-                        <div className="h-1 bg-emerald-500/10 rounded-full overflow-hidden">
-                            <div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${tpPct}%` }} />
-                        </div>
+                        <div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${tpPct}%` }} />
                     </div>
                     <div className="p-2 bg-rose-500/5 border border-rose-500/10 rounded-xl">
                         <div className="flex justify-between mb-1">
@@ -659,6 +657,7 @@ const TradeTimelineCard = ({ trade }) => {
     );
 };
 
+// ─── NEURAL CONVERGENCE CHART ─────────────────────────────────────────────────
 const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
     const activeStratCodes = useMemo(() => {
         if (!signalsMapHistory || signalsMapHistory.length === 0) return [];
@@ -682,7 +681,7 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
                             {activeStratCodes.map(key => (
                                 <linearGradient key={`grad-${key}`} id={`color-${key}`} x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="5%"  stopColor={STRAT_COLORS[key] || '#52525b'} stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor={STRAT_COLORS[key] || '#52525b'} stopOpacity={0} />
+                                    <stop offset="95%" strokeColor={STRAT_COLORS[key] || '#52525b'} stopOpacity={0} />
                                 </linearGradient>
                             ))}
                         </defs>
@@ -801,7 +800,6 @@ const TradingBotContainer = () => {
         return formConfig.strategies.map(s => s.code) || [];
     }, [socketStatus.signalsMapHistory, formConfig.strategies]);
 
-    // ── UPGRADE: CALCULATE DYNAMIC EQUITY CHANGES MATRIX ─────────────────────
     const sessionDelta = useMemo(() => {
         const current = socketStatus.currentBalance || formConfig.capitalAllocation;
         const starting = socketStatus.initialCapital || formConfig.capitalAllocation;
@@ -810,7 +808,6 @@ const TradingBotContainer = () => {
         return { change, percentage, isProfit: change >= 0 };
     }, [socketStatus.currentBalance, socketStatus.initialCapital, formConfig.capitalAllocation]);
 
-    // ── UPGRADE: COMPILE HIGH-FIDELITY BOUNDARY ENVELOPE DOMAIN ──────────────
     const equityEnvelopeDomain = useMemo(() => {
         if (!socketStatus.equityCurve || socketStatus.equityCurve.length < 2) {
             const base = formConfig.capitalAllocation;
@@ -1087,7 +1084,7 @@ const TradingBotContainer = () => {
 
     const handleResetRiskSettings = () => {
         setFormConfig(prev => ({ ...prev, riskPercentage: 1, maxDailyLoss: 5, maxDrawdown: 10, maxTradesPerDay: 20, slippageTolerance: 0.5, params: { ...prev.params, take_profit: 0.05, trailing_stop: 0.01 } }));
-        toast.toast.success("Risk Protocol: Reverted to Factory Defaults");
+        toast.success("Risk Protocol: Reverted to Factory Defaults");
     };
 
     const handleClearLogs = () => { setSocketLogs([]); toast.success("Terminal View Cleared"); };
@@ -1130,6 +1127,14 @@ const TradingBotContainer = () => {
             }
         });
     };
+
+    const startCap   = socketStatus.initialCapital || formConfig.capitalAllocation || 1;
+    const profitPct = ((socketStatus.dailyProfit  || 0) / startCap) * 100;
+    const pnlPct    = ((socketStatus.unrealizedPnl || 0) / startCap) * 100;
+
+    const currentPrice = socketStatus.currentPrice
+        || (socketStatus.candles?.length > 0 ? socketStatus.candles[socketStatus.candles.length - 1]?.close : 0)
+        || 0;
 
     if (!isConnected) {
         return (
@@ -1388,9 +1393,8 @@ const TradingBotContainer = () => {
                             </div>
                         </div>
 
-                        {/* ── UPGRADED HIGH-FIDELITY PERFORMANCE CHARTS WORKSPACE ── */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-10 duration-1000">
-                            {/* UPGRADED SESSION EQUITY MATRIX CARD */}
+                            {/* NEW HIGH-PERFORMANCE INTUITION GRAPH FOR SESSION EQUITY */}
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl flex flex-col justify-between">
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex items-center gap-2">
@@ -1636,26 +1640,32 @@ const TradingBotContainer = () => {
                                 </div>
 
                                 <div className="space-y-5 border-t border-zinc-800/50 pt-8">
-                                    <div className="flex flex-col gap-1">
-                                        <div className="flex justify-between items-center">
-                                            <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Minimum ADX Trend</label>
-                                            <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minAdx}</span>
-                                        </div>
-                                        <input type="range" min="10" max="50" step="1" value={formConfig.minAdx} onChange={(e) => setFormConfig({ ...formConfig, minAdx: parseInt(e.target.value) })} className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer" />
+                                    <div className="flex items-center gap-2 text-emerald-400 mb-2">
+                                        <Sliders size={16} />
+                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Regime Gatekeepers</h4>
                                     </div>
-                                    <div className="flex flex-col gap-1">
-                                        <div className="flex justify-between items-center">
-                                            <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Min Vol Confirmation</label>
-                                            <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minVolRatio}x</span>
+                                    <div className="space-y-4 bg-zinc-950/40 p-4 border border-zinc-900 rounded-2xl">
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex justify-between items-center">
+                                                <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Minimum ADX Trend</label>
+                                                <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minAdx}</span>
+                                            </div>
+                                            <input type="range" min="10" max="50" step="1" value={formConfig.minAdx} onChange={(e) => setFormConfig({ ...formConfig, minAdx: parseInt(e.target.value) })} className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer" />
                                         </div>
-                                        <input type="range" min="0.5" max="2.5" step="0.1" value={formConfig.minVolRatio} onChange={(e) => setFormConfig({ ...formConfig, minVolRatio: parseFloat(e.target.value) })} className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer" />
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                        <div className="flex justify-between items-center">
-                                            <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Min Ensemble Weight</label>
-                                            <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minWeightedSignal}</span>
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex justify-between items-center">
+                                                <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Min Vol Confirmation</label>
+                                                <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minVolRatio}x</span>
+                                            </div>
+                                            <input type="range" min="0.5" max="2.5" step="0.1" value={formConfig.minVolRatio} onChange={(e) => setFormConfig({ ...formConfig, minVolRatio: parseFloat(e.target.value) })} className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer" />
                                         </div>
-                                        <input type="range" min="0.1" max="1.5" step="0.05" value={formConfig.minWeightedSignal} onChange={(e) => setFormConfig({ ...formConfig, minWeightedSignal: parseFloat(e.target.value) })} className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer" />
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex justify-between items-center">
+                                                <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Min Ensemble Weight</label>
+                                                <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minWeightedSignal}</span>
+                                            </div>
+                                            <input type="range" min="0.1" max="1.5" step="0.05" value={formConfig.minWeightedSignal} onChange={(e) => setFormConfig({ ...formConfig, minWeightedSignal: parseFloat(e.target.value) })} className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer" />
+                                        </div>
                                     </div>
                                 </div>
 
