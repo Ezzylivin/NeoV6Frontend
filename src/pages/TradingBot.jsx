@@ -1177,7 +1177,7 @@ const TradingBotContainer = () => {
                                                         <div key={i} className="mb-2 p-3 bg-zinc-950/50 rounded-xl border border-zinc-800 flex flex-col gap-2">
                                                             <div className="flex justify-between items-center border-b border-zinc-800/50 pb-2">
                                                                 <span className="text-zinc-500 font-black uppercase text-[8px] tracking-widest">Targets ({log.rule})</span>
-                                                                <span className-[8px] opacity-40 font-bold">{formatTime(log.time)}</span>
+                                                                <span className="[8px] opacity-40 font-bold">{formatTime(log.time)}</span>
                                                             </div>
                                                             <div className="flex flex-col gap-1.5 leading-relaxed">
                                                                 <div className="flex justify-between items-center text-white">
