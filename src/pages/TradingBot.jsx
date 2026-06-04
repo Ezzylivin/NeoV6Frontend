@@ -10,7 +10,7 @@
 //   [P8] minVotesRequired >= 1 after strategy removal
 //   [P9] Initial status fetch with retry + visible error state
 //   [P10] Halt button shows pending state during async stop
-//   [FIX] Elevated profitPct and pnlPct to top-level useMemo to prevent lifecycle ReferenceErrors
+//   [FIX] Restored missing makeStrategyId function definition to helper scope
 
 import React, { useState, useEffect, useRef, useMemo, Component } from "react";
 import axios from "axios";
@@ -109,6 +109,10 @@ const formatTime = (isoString) => {
     return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 };
 
+// [P7] Stable ID generator for strategies - Restored Definition
+const makeStrategyId = () => `strat_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+// ─── LOG CATEGORISATION — drives icon + color in Neural Flow ─────────────────
 const getLogMeta = (msg) => {
     const t = msg.toUpperCase();
     if (t.includes('TRADE') || t.includes('PARTIAL') || t.includes('SCALE-OUT') ||
@@ -128,7 +132,7 @@ const getLogMeta = (msg) => {
     return { Icon: Activity, textColor: 'text-zinc-500', wrapClass: 'bg-zinc-900 border-zinc-800' };
 };
 
-// ─── ERROR BOUNDARY ───────────────────────────────────────────────────────
+// ─── [P6] ERROR BOUNDARY ───────────────────────────────────────────────────────
 class ErrorBoundary extends Component {
     constructor(props) {
         super(props);
@@ -773,7 +777,7 @@ const TradingBotContainer = () => {
 
     const isBotRunning = socketStatus.status === 'running' && !isHaltLocked;
 
-    // ── [P11] COMPUTED VALUES UNIFICATION BLOCK ──────────────────────────────
+    // ── COMPUTED MATRIX VALUES UNIFICATION ──────────────────────────────────
     const currentActiveStrategyCodes = useMemo(() => {
         if (socketStatus.signalsMapHistory?.length > 0) {
             const keys = new Set();
@@ -1132,8 +1136,6 @@ const TradingBotContainer = () => {
         });
     };
 
-    const currentPrice = socketStatus.currentPrice || (socketStatus.candles?.length > 0 ? socketStatus.candles[socketStatus.candles.length - 1]?.close : 0) || 0;
-
     return (
         <UIModeProvider>
             <div className="min-h-screen bg-zinc-950 text-white font-sans p-6 overflow-x-hidden transition-all duration-700">
@@ -1427,7 +1429,7 @@ const TradingBotContainer = () => {
                             </div>
 
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl flex flex-col justify-between">
-                                <div className="flex items-start justify-between mb-4">
+                                <div className="flex start justify-between mb-4">
                                     <div className="flex items-center gap-2">
                                         <Zap size={18} className={confidenceStance.color} />
                                         <div>
