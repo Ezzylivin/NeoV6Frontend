@@ -134,6 +134,27 @@ const getLogStyle = (msg) => {
 // [P7] Stable ID generator for strategies
 const makeStrategyId = () => `strat_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
+// ─── LOG CATEGORISATION — drives icon + color in Neural Flow ─────────────────
+// Uses only already-imported Lucide icons (TrendingUp, ArrowUpRight, ShieldAlert, Zap, Globe, Activity)
+const getLogMeta = (msg) => {
+    const t = msg.toUpperCase();
+    if (t.includes('TRADE') || t.includes('PARTIAL') || t.includes('SCALE-OUT') ||
+        t.includes('OPENED') || t.includes('ENTERING') || t.includes('TRIMMED'))
+        return { Icon: TrendingUp,  textColor: 'text-amber-400',  wrapClass: 'bg-amber-500/10 border-amber-500/20'  };
+    if (t.includes('PASSED') || t.includes('LONG GATE') || t.includes('STALKING LONG') ||
+        t.includes('BULLISH') || t.includes('UPTREND') || t.includes('EXPANSION'))
+        return { Icon: ArrowUpRight, textColor: 'text-emerald-400', wrapClass: 'bg-emerald-500/10 border-emerald-500/20' };
+    if (t.includes('VETOED') || t.includes('SHORT GATE') || t.includes('STALKING SHORT') ||
+        t.includes('BEARISH') || t.includes('DOWNTREND') || t.includes('CONTRACTION'))
+        return { Icon: ShieldAlert,  textColor: 'text-rose-400',   wrapClass: 'bg-rose-500/10 border-rose-500/20'   };
+    if (t.includes('SIGNAL') || t.includes('RSI') || t.includes('MACD') ||
+        t.includes('EMA') || t.includes('ATR') || t.includes('GATE'))
+        return { Icon: Zap,          textColor: 'text-violet-400', wrapClass: 'bg-violet-500/10 border-violet-500/20' };
+    if (t.includes('REGIME') || t.includes('MINDSET') || t.includes('ADX') || t.includes('VOLATIL'))
+        return { Icon: Globe,        textColor: 'text-blue-400',   wrapClass: 'bg-blue-500/10 border-blue-500/20'   };
+    return { Icon: Activity, textColor: 'text-zinc-500', wrapClass: 'bg-zinc-900 border-zinc-800' };
+};
+
 // ─── [P6] ERROR BOUNDARY ───────────────────────────────────────────────────────
 class ErrorBoundary extends Component {
     constructor(props) {
@@ -442,6 +463,369 @@ const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, a
                     </button>
                 </div>
             </div>
+        </div>
+    );
+};
+
+// ─── UPGRADE ①: CONFIDENCE RING CARD ─────────────────────────────────────────
+// Replaces the "Council Consensus" MetricCard with an animated SVG ring gauge.
+// Color shifts red → amber → violet → emerald based on reading.
+const ConfidenceRingCard = ({ confidence }) => {
+    const c = Math.min(100, Math.max(0, confidence || 0));
+    const r = 28, circ = 2 * Math.PI * r;
+    const dash = (c / 100) * circ;
+    const color     = c < 35 ? '#ef4444' : c < 52 ? '#f59e0b' : c < 72 ? '#a78bfa' : '#10b981';
+    const colorClass = c < 35 ? 'text-rose-500' : c < 52 ? 'text-amber-400' : c < 72 ? 'text-violet-400' : 'text-emerald-400';
+    const label      = c < 35 ? 'BEARISH' : c < 52 ? 'NEUTRAL' : c < 72 ? 'BULLISH' : 'STRONG';
+    return (
+        <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-3xl relative overflow-hidden shadow-xl flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+                <p className="text-[9px] text-zinc-500 uppercase font-black tracking-[0.15em] mb-1 truncate">Council Consensus</p>
+                <p className={`text-lg font-mono font-black tracking-tighter ${colorClass}`}>{Math.round(c)}%</p>
+                <p className={`text-[9px] font-black uppercase tracking-wide ${colorClass} opacity-60`}>{label}</p>
+            </div>
+            <div className="relative flex-shrink-0" style={{ width: 64, height: 64 }}>
+                <svg width="64" height="64" style={{ transform: 'rotate(-90deg)' }}>
+                    <circle cx="32" cy="32" r={r} fill="none" stroke="#27272a" strokeWidth="6" />
+                    <circle
+                        cx="32" cy="32" r={r} fill="none"
+                        stroke={color} strokeWidth="6" strokeLinecap="round"
+                        strokeDasharray={`${dash} ${circ - dash}`}
+                        style={{ transition: 'stroke-dasharray 0.8s ease, stroke 0.8s ease' }}
+                    />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <Zap size={14} style={{ color }} />
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ─── UPGRADE ③: SIGNAL BARS PANEL ────────────────────────────────────────────
+// Shows per-strategy live signal strength as animated bars + ensemble consensus.
+// Reads from signalsMapHistory (same data as NeuralConvergenceChart).
+const SignalBarsPanel = ({ signalsMapHistory, formConfig }) => {
+    const latestSignals = useMemo(() => {
+        if (!signalsMapHistory?.length) return {};
+        return signalsMapHistory[signalsMapHistory.length - 1] || {};
+    }, [signalsMapHistory]);
+
+    const activeCodes = useMemo(() => {
+        if (!signalsMapHistory?.length)
+            return (formConfig?.strategies?.map(s => s.code) || []).slice(0, 5);
+        const keys = new Set();
+        signalsMapHistory.slice(-50).forEach(item => {
+            Object.keys(item).forEach(k => { if (k !== 'time' && k !== 'timestamp') keys.add(k); });
+        });
+        return Array.from(keys).slice(0, 5);
+    }, [signalsMapHistory, formConfig]);
+
+    const consensus = activeCodes.length > 0
+        ? activeCodes.reduce((sum, code) => sum + (latestSignals[code] || 0), 0) / activeCodes.length
+        : 0;
+    const consColor = consensus > 60 ? '#10b981' : consensus > 40 ? '#f59e0b' : '#ef4444';
+    const consClass = consensus > 60 ? 'text-emerald-400' : consensus > 40 ? 'text-amber-400' : 'text-rose-500';
+
+    return (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-5 shadow-2xl">
+            <div className="flex items-center justify-between mb-3">
+                <h4 className="text-[9px] font-black uppercase tracking-widest text-zinc-500 flex items-center gap-2">
+                    <Activity size={10} className="text-amber-400" /> Signal Bars
+                </h4>
+                <span className={`font-mono text-[10px] font-black ${consClass}`}>
+                    {Math.round(consensus)}% consensus
+                </span>
+            </div>
+            {/* Consensus bar */}
+            <div className="mb-3 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{ width: `${consensus}%`, background: consColor }}
+                />
+            </div>
+            {/* Per-strategy bars */}
+            <div className="space-y-2">
+                {activeCodes.map(code => {
+                    const val   = latestSignals[code] || 0;
+                    const color = STRAT_COLORS[code] || '#52525b';
+                    const name  = STRAT_POOL.find(s => s.code === code)?.name?.split(' ')[0] || code;
+                    return (
+                        <div key={code} className="flex items-center gap-2">
+                            <span className="text-[8px] font-black uppercase text-zinc-600 w-[68px] truncate shrink-0">{name}</span>
+                            <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full transition-all duration-700" style={{ width: `${val}%`, background: color, opacity: 0.85 }} />
+                            </div>
+                            <div className="flex items-center gap-1 w-[38px] justify-end shrink-0">
+                                <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: val > 50 ? '#10b981' : '#ef4444' }} />
+                                <span className="font-mono text-[9px] font-black" style={{ color }}>{Math.round(val)}%</span>
+                            </div>
+                        </div>
+                    );
+                })}
+                {activeCodes.length === 0 && (
+                    <p className="text-[9px] text-zinc-600 italic text-center py-1">Awaiting signal data...</p>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// ─── UPGRADE ①: POSITION CARD ─────────────────────────────────────────────────
+// Replaces bare <tr> rows in Live Operations.
+// Shows live floating PnL, TP/SL progress bars, and price track when backend
+// provides pos.tp / pos.sl. Falls back gracefully if that data is absent.
+const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) => {
+    const symbol   = pos.symbol || defaultSymbol || '';
+    const cp       = currentPrice || 0;
+    const isLong   = pos.type !== 'short';
+    const priceDiff = cp > 0 ? (isLong ? cp - pos.entry : pos.entry - cp) : 0;
+    const pnl      = priceDiff * Number(pos.size);
+    const pnlColor = pnl >= 0 ? 'text-emerald-400' : 'text-rose-500';
+    const borderColor = pnl >= 0 ? 'rgba(16,185,129,0.18)' : 'rgba(239,68,68,0.18)';
+
+    const hasTpSl = pos.tp > 0 && pos.sl > 0;
+    const tpPct = hasTpSl ? Math.min(100, Math.max(0,
+        isLong ? ((cp - pos.entry) / (pos.tp - pos.entry)) * 100
+               : ((pos.entry - cp) / (pos.entry - pos.tp)) * 100
+    )) : 0;
+    const slPct = hasTpSl ? Math.min(100, Math.max(0,
+        isLong ? ((pos.entry - cp) / (pos.entry - pos.sl)) * 100
+               : ((cp - pos.entry) / (pos.sl - pos.entry)) * 100
+    )) : 0;
+
+    const trackPct = hasTpSl ? (() => {
+        const lo = Math.min(pos.sl, pos.entry, pos.tp);
+        const hi = Math.max(pos.sl, pos.entry, pos.tp);
+        return Math.min(96, Math.max(4, ((cp - lo) / (hi - lo || 1)) * 100));
+    })() : 50;
+
+    return (
+        <div className="p-4 rounded-2xl border transition-all" style={{ background: pnl >= 0 ? 'rgba(16,185,129,0.03)' : 'rgba(239,68,68,0.03)', borderColor }}>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                    <div className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase border flex items-center gap-1 ${
+                        isLong ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                               : 'bg-amber-500/10 border-amber-500/20 text-amber-400'}`}>
+                        {isLong ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+                        {pos.type.toUpperCase()}
+                    </div>
+                    <span className="text-[10px] font-black text-zinc-400 font-mono">{symbol}</span>
+                </div>
+                <div className="text-right">
+                    <div className="text-[8px] text-zinc-600 uppercase font-black mb-0.5">Mark Price</div>
+                    <div className="font-mono font-black text-[12px] text-zinc-200">
+                        {cp > 0 ? `$${cp.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                    </div>
+                </div>
+            </div>
+
+            {/* Price track */}
+            {hasTpSl && (
+                <div className="mb-3 px-1">
+                    <div className="flex justify-between text-[7px] text-zinc-600 font-bold uppercase mb-1.5">
+                        <span>SL ${Number(pos.sl).toLocaleString()}</span>
+                        <span>Entry ${Number(pos.entry).toLocaleString()}</span>
+                        <span>TP ${Number(pos.tp).toLocaleString()}</span>
+                    </div>
+                    <div className="h-1 bg-zinc-800 rounded-full relative">
+                        <div
+                            className="absolute w-3 h-3 rounded-full border-2 border-zinc-900 transition-all duration-700 top-1/2 -translate-y-1/2 -translate-x-1/2"
+                            style={{ left: `${trackPct}%`, background: pnl >= 0 ? '#10b981' : '#ef4444' }}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* TP / SL progress bars */}
+            {hasTpSl && (
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                    <div className="p-2 bg-emerald-500/5 border border-emerald-500/10 rounded-xl">
+                        <div className="flex justify-between mb-1">
+                            <span className="text-[7px] text-emerald-500 font-black uppercase">Take Profit</span>
+                            <span className="font-mono text-[7px] text-emerald-500 font-black">{Math.round(tpPct)}%</span>
+                        </div>
+                        <div className="h-1 bg-emerald-500/10 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${tpPct}%` }} />
+                        </div>
+                    </div>
+                    <div className="p-2 bg-rose-500/5 border border-rose-500/10 rounded-xl">
+                        <div className="flex justify-between mb-1">
+                            <span className="text-[7px] text-rose-500 font-black uppercase">Stop Loss</span>
+                            <span className="font-mono text-[7px] text-rose-500 font-black">{Math.round(slPct)}%</span>
+                        </div>
+                        <div className="h-1 bg-rose-500/10 rounded-full overflow-hidden">
+                            <div className="h-full bg-rose-500 rounded-full transition-all duration-700" style={{ width: `${slPct}%` }} />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Footer: entry/size + floating PnL + exit button */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <div className="text-[7px] text-zinc-600 font-black uppercase mb-0.5">Entry · Size</div>
+                    <div className="font-mono text-[10px] font-black text-zinc-400">
+                        ${Number(pos.entry).toLocaleString()} <span className="text-zinc-600">· {Number(pos.size).toFixed(4)}</span>
+                    </div>
+                </div>
+                <div className="text-center">
+                    <div className="text-[7px] text-zinc-600 font-black uppercase mb-0.5">Floating PnL</div>
+                    <div className={`font-mono font-black text-[14px] ${pnlColor}`}>
+                        {cp > 0 ? `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}` : '—'}
+                    </div>
+                </div>
+                <button
+                    onClick={() => onExit(symbol)}
+                    disabled={isExiting}
+                    className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 rounded-lg text-rose-500 hover:text-white font-black uppercase text-[9px] transition-all tracking-wider disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                    {isExiting ? '...' : 'EXIT'}
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// ─── UPGRADE ⑤: TRADE TIMELINE CARD ──────────────────────────────────────────
+// Replaces flat audit history cards with a visual price journey (SL→Entry→Exit→TP).
+// Gracefully degrades: shows the SVG track when entry+exit are available,
+// falls back to text-only when price data is missing.
+const TradeTimelineCard = ({ trade }) => {
+    const side       = trade.type || trade.side || 'trade';
+    const entryPrice = Number(trade.entry || trade.entryPrice || trade.entry_price || 0);
+    const exitPrice  = Number(trade.exit  || trade.exitPrice  || trade.exit_price || trade.price || 0);
+    const partialP   = Number(trade.partialExit || trade.partial_exit || 0);
+    const pnl        = parseFloat(trade.pnl || trade.realized_pnl || trade.realizedPnL || 0);
+    const sl         = Number(trade.sl  || trade.stop_loss    || 0);
+    const tp         = Number(trade.tp  || trade.take_profit  || 0);
+    const isWin      = pnl >= 0;
+    const isLong     = side === 'long';
+
+    const timeObj = trade.time
+        ? new Date(trade.time * (trade.time > 1e10 ? 1 : 1000))
+        : trade.exitTime ? new Date(trade.exitTime) : new Date();
+
+    const hasPriceTrack = entryPrice > 0 && exitPrice > 0;
+
+    // Build price range for the SVG track
+    const pts = [entryPrice, exitPrice, sl, tp, partialP].filter(p => p > 0);
+    const lo  = Math.min(...pts) * 0.9997;
+    const hi  = Math.max(...pts) * 1.0003;
+    const rng = hi - lo || 1;
+    const SVG_W = 268, PAD = 12, TW = SVG_W - PAD * 2;
+    const x = (p) => PAD + Math.min(94, Math.max(6, ((p - lo) / rng) * 100)) / 100 * TW;
+
+    const winColor = isWin ? '#10b981' : '#ef4444';
+
+    return (
+        <div className={`p-4 rounded-2xl border relative overflow-hidden transition-all ${
+            isWin ? 'bg-black/20 border-emerald-500/20 hover:border-emerald-500/40'
+                  : 'bg-black/20 border-rose-500/20  hover:border-rose-500/40'
+        }`}>
+            {/* Left accent strip */}
+            <div className="absolute left-0 top-0 bottom-0 w-0.5" style={{ background: winColor }} />
+
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3 pl-2">
+                <div className="flex items-center gap-2">
+                    {trade.type === "partial_exit" ? (
+                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/20 tracking-wider">
+                            ⚖ Partial 50%
+                        </span>
+                    ) : (
+                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
+                            isLong ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+                        }`}>
+                            {isLong ? '▲ Long' : '▼ Short'}
+                        </span>
+                    )}
+                    <span className="text-[8px] text-zinc-600 font-mono font-bold">
+                        {timeObj.toLocaleDateString()} {timeObj.toLocaleTimeString()}
+                    </span>
+                </div>
+                <span className="font-mono font-black text-[13px]" style={{ color: winColor }}>
+                    {pnl >= 0 ? '+' : ''}${Math.abs(pnl).toFixed(2)}
+                </span>
+            </div>
+
+            {/* SVG Price Track */}
+            {hasPriceTrack && (
+                <div className="pl-2 mb-1">
+                    <svg
+                        viewBox={`0 0 ${SVG_W} 44`} width="100%" height="44"
+                        style={{ overflow: 'visible' }}
+                        aria-label={`Price journey: ${side} from $${entryPrice} to $${exitPrice}`}
+                        role="img"
+                    >
+                        {/* Track line */}
+                        <line x1={PAD} y1="22" x2={SVG_W - PAD} y2="22" stroke="#27272a" strokeWidth="1.5" />
+
+                        {/* SL marker */}
+                        {sl > 0 && <>
+                            <circle cx={x(sl)} cy="22" r="4" fill="#18181b" stroke="#ef4444" strokeWidth="1.5" />
+                            <text x={x(sl)} y="36" textAnchor="middle" fill="#ef4444" fontSize="7" fontWeight="700" fontFamily="monospace">SL</text>
+                        </>}
+
+                        {/* Entry marker */}
+                        <circle cx={x(entryPrice)} cy="22" r="5" fill="#3b82f6" stroke="#09090b" strokeWidth="2" />
+                        <text x={x(entryPrice)} y="11" textAnchor="middle" fill="#3b82f6" fontSize="7" fontWeight="700" fontFamily="monospace">ENTRY</text>
+
+                        {/* Partial exit marker */}
+                        {partialP > 0 && <>
+                            <circle cx={x(partialP)} cy="22" r="4" fill="#f59e0b" stroke="#09090b" strokeWidth="2" />
+                            <text x={x(partialP)} y="36" textAnchor="middle" fill="#f59e0b" fontSize="7" fontWeight="700" fontFamily="monospace">½ EXIT</text>
+                        </>}
+
+                        {/* Exit marker (square = closed) */}
+                        <rect x={x(exitPrice) - 5} y="17" width="10" height="10" fill={winColor} stroke="#09090b" strokeWidth="2" rx="2" />
+                        <text x={x(exitPrice)} y="11" textAnchor="middle" fill={winColor} fontSize="7" fontWeight="700" fontFamily="monospace">EXIT</text>
+
+                        {/* TP marker */}
+                        {tp > 0 && <>
+                            <circle cx={x(tp)} cy="22" r="3.5" fill="#18181b" stroke="rgba(16,185,129,0.35)" strokeWidth="1.5" />
+                            <text x={x(tp)} y="36" textAnchor="middle" fill="rgba(16,185,129,0.35)" fontSize="7" fontWeight="700" fontFamily="monospace">TP</text>
+                        </>}
+                    </svg>
+
+                    <div className="flex justify-between mt-0.5">
+                        <span className="text-[8px] text-zinc-600 font-mono font-bold">
+                            ${Number(entryPrice).toLocaleString()}
+                        </span>
+                        {partialP > 0 && (
+                            <span className="text-[8px] text-amber-500 font-mono font-bold">
+                                +${(Number(trade.pPnl || trade.partial_pnl || 0)).toFixed(2)} locked
+                            </span>
+                        )}
+                        <span className="font-mono font-bold text-[8px]" style={{ color: winColor }}>
+                            ${Number(exitPrice).toLocaleString()}
+                        </span>
+                    </div>
+                </div>
+            )}
+
+            {/* Fallback: no price data */}
+            {!hasPriceTrack && (
+                <div className="pl-2 grid grid-cols-2 gap-3">
+                    <div>
+                        <p className="text-[8px] text-zinc-500 uppercase font-black">
+                            {trade.type === "partial_exit" ? "Execution Price" : "Entry / Exit"}
+                        </p>
+                        <p className="text-[10px] font-mono font-bold text-zinc-300">
+                            {trade.type === "partial_exit"
+                                ? `$${Number(exitPrice).toLocaleString()}`
+                                : `$${Number(entryPrice).toLocaleString()} → $${Number(exitPrice).toLocaleString()}`}
+                        </p>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-[8px] text-zinc-500 uppercase font-black">Realized PnL</p>
+                        <p className={`text-[11px] font-black font-mono ${isWin ? 'text-emerald-400' : 'text-rose-500'}`}>
+                            {pnl >= 0 ? '+' : ''}${Math.abs(pnl).toFixed(2)}
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -990,6 +1374,12 @@ const TradingBotContainer = () => {
     const profitPct = ((socketStatus.dailyProfit  || 0) / startCap) * 100;
     const pnlPct    = ((socketStatus.unrealizedPnl || 0) / startCap) * 100;
 
+    // Upgrade ①: live mark price for PositionCard — prefer explicit field,
+    // fall back to last candle close, then zero (card renders "—" gracefully)
+    const currentPrice = socketStatus.currentPrice
+        || (socketStatus.candles?.length > 0 ? socketStatus.candles[socketStatus.candles.length - 1]?.close : 0)
+        || 0;
+
     // ── Disconnected gate ─────────────────────────────────────────────────────
     if (!isConnected) {
         return (
@@ -1151,13 +1541,14 @@ const TradingBotContainer = () => {
                             <MetricCard label="Floating PnL"    value={`${socketStatus.unrealizedPnl >= 0 ? '+' : ''}${(socketStatus.unrealizedPnl || 0).toFixed(2)}`} subValue={`${pnlPct.toFixed(2)}%`}    color={socketStatus.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'} icon={<Activity size={10} />} />
                             <MetricCard label="Exposure"        value={`${socketStatus.exposure || 0}%`} subValue="Active Positions" color="text-amber-400" />
                             <MetricCard label="Total Equity"    value={`$${Number(activeBalance).toLocaleString()}`} subValue="Liquid + Locked" />
-                            <MetricCard label="Council Consensus" value={`${Math.round(socketStatus.currentConfidence || 0)}%`} color="text-violet-400" icon={<Zap size={10} />} />
+                            {/* Upgrade ②: animated ring gauge instead of plain MetricCard */}
+                            <ConfidenceRingCard confidence={socketStatus.currentConfidence || 0} />
                         </div>
 
                         <div className="grid grid-cols-12 gap-8 items-start">
                             {/* INTELLIGENCE SIDEBAR */}
-                            <div className="col-span-12 lg:col-span-3 h-[720px] flex flex-col gap-4">
-                                <div className="flex-1 min-h-[400px]">
+                            <div className="col-span-12 lg:col-span-3 h-[840px] flex flex-col gap-4">
+                                <div className="flex-1 min-h-[240px]">
                                     <ErrorBoundary>
                                         <NeuralConvergenceChart
                                             formConfig={formConfig}
@@ -1165,6 +1556,11 @@ const TradingBotContainer = () => {
                                         />
                                     </ErrorBoundary>
                                 </div>
+                                {/* Upgrade ③: signal bars panel */}
+                                <SignalBarsPanel
+                                    signalsMapHistory={socketStatus.signalsMapHistory || []}
+                                    formConfig={formConfig}
+                                />
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 shadow-2xl">
                                     <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-4">Neural Performance</h4>
                                     <div className="grid grid-cols-2 gap-4">
@@ -1242,14 +1638,31 @@ const TradingBotContainer = () => {
                                     </div>
 
                                     <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 rounded-[40px] flex flex-col overflow-hidden shadow-2xl">
-                                        <div className="p-5 border-b border-zinc-800 bg-zinc-800/20 flex justify-between items-center text-violet-400">
-                                            <div className="flex items-center gap-2">
-                                                <Cpu size={16} className="animate-pulse" />
-                                                <h3 className="text-[10px] font-black uppercase tracking-widest">Neural Flow</h3>
+                                        <div className="p-5 border-b border-zinc-800 bg-zinc-800/20 flex flex-col gap-2.5">
+                                            <div className="flex justify-between items-center text-violet-400">
+                                                <div className="flex items-center gap-2">
+                                                    <Cpu size={16} className="animate-pulse" />
+                                                    <h3 className="text-[10px] font-black uppercase tracking-widest">Neural Flow</h3>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <button onClick={handleSyncLogs}  className="text-zinc-600 hover:text-emerald-400 transition-all"><RefreshCw size={14} /></button>
+                                                    <button onClick={handleClearLogs} className="text-zinc-600 hover:text-white transition-all"><Eraser size={14} /></button>
+                                                </div>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <button onClick={handleSyncLogs}  className="text-zinc-600 hover:text-emerald-400 transition-all"><RefreshCw size={14} /></button>
-                                                <button onClick={handleClearLogs} className="text-zinc-600 hover:text-white transition-all"><Eraser size={14} /></button>
+                                            {/* Upgrade ④: category legend */}
+                                            <div className="flex items-center gap-3 flex-wrap">
+                                                {[
+                                                    { label: 'Pass',   color: 'text-emerald-400' },
+                                                    { label: 'Veto',   color: 'text-rose-400'    },
+                                                    { label: 'Trade',  color: 'text-amber-400'   },
+                                                    { label: 'Signal', color: 'text-violet-400'  },
+                                                    { label: 'Regime', color: 'text-blue-400'    },
+                                                ].map(({ label, color }) => (
+                                                    <div key={label} className={`flex items-center gap-1 ${color}`}>
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-current" />
+                                                        <span className="text-[7px] font-black uppercase">{label}</span>
+                                                    </div>
+                                                ))}
                                             </div>
                                         </div>
                                         <div ref={logContainerRef} className="flex-1 overflow-y-auto p-6 font-mono text-[10px] space-y-3 bg-black/20 custom-scrollbar">
@@ -1281,10 +1694,18 @@ const TradingBotContainer = () => {
                                                     );
                                                 }
                                                 const parsedMessage = parseLog(log.message || log);
+                                                // Upgrade ④: categorised icon + colored border
+                                                const { Icon: LogIcon, textColor, wrapClass } = getLogMeta(parsedMessage);
                                                 return (
-                                                    <div key={i} className={`p-3 rounded-xl border leading-relaxed flex flex-col gap-1 ${getLogStyle(parsedMessage)}`}>
-                                                        <span className="text-[9px] opacity-50 font-bold">{formatTime(log.time)}</span>
-                                                        <span className="font-bold tracking-tight">{parsedMessage}</span>
+                                                    <div
+                                                        key={i}
+                                                        className={`p-3 rounded-xl border leading-relaxed flex items-start gap-2 ${wrapClass} ${i === 0 ? 'animate-in slide-in-from-top-1 duration-300' : ''}`}
+                                                    >
+                                                        <LogIcon size={11} className={`${textColor} mt-0.5 flex-shrink-0`} />
+                                                        <div className="flex flex-col gap-0.5 min-w-0">
+                                                            <span className="text-[9px] opacity-50 font-bold">{formatTime(log.time)}</span>
+                                                            <span className={`font-bold tracking-tight text-[10px] ${textColor} break-words`}>{parsedMessage}</span>
+                                                        </div>
                                                     </div>
                                                 );
                                             })}
@@ -1354,32 +1775,27 @@ const TradingBotContainer = () => {
                                     </div>
                                     <div className="flex-1 overflow-x-auto custom-scrollbar">
                                         {activeOpsTab === "live" ? (
-                                            <table className="w-full text-left text-[11px]">
-                                                <thead>
-                                                    <tr className="text-zinc-600 uppercase font-black border-b border-zinc-800 pb-4">
-                                                        <th className="pb-4">Type</th><th className="pb-4">Entry</th><th className="pb-4 text-right">Size</th><th className="pb-4 text-right pr-2">Action</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-zinc-800/50">
-                                                    {socketStatus.positions?.length > 0 ? (
-                                                        socketStatus.positions.map((pos, idx) => (
-                                                            <tr key={idx} className="group hover:bg-white/[0.01] transition-colors">
-                                                                <td className={`py-5 font-black flex items-center gap-2 ${pos.type === 'short' ? 'text-amber-500' : 'text-emerald-400'}`}>
-                                                                    {pos.type === 'short' ? <ArrowDownRight size={14} /> : <ArrowUpRight size={14} />} {pos.type.toUpperCase()}
-                                                                </td>
-                                                                <td className="py-5 font-mono font-black text-zinc-200">${Number(pos.entry).toLocaleString()}</td>
-                                                                <td className="py-5 font-mono text-zinc-500 text-right">{Number(pos.size).toFixed(4)}</td>
-                                                                <td className="py-5 text-right">
-                                                                    <button onClick={() => handleManualExit(pos.symbol)} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 rounded-lg text-rose-500 hover:text-white font-black uppercase text-[9px] transition-all tracking-wider">EXIT</button>
-                                                                </td>
-                                                            </tr>
-                                                        ))
-                                                    ) : (
-                                                        <tr><td colSpan="4" className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">Waiting for Signal...</td></tr>
-                                                    )}
-                                                </tbody>
-                                            </table>
+                                            /* Upgrade ①: rich position cards instead of bare table rows */
+                                            <div className="space-y-3">
+                                                {socketStatus.positions?.length > 0 ? (
+                                                    socketStatus.positions.map((pos) => (
+                                                        <PositionCard
+                                                            key={pos.symbol || pos.id || JSON.stringify(pos.entry)}
+                                                            pos={pos}
+                                                            currentPrice={currentPrice}
+                                                            defaultSymbol={formConfig.symbol}
+                                                            onExit={handleManualExit}
+                                                            isExiting={exitingSymbols.includes(pos.symbol)}
+                                                        />
+                                                    ))
+                                                ) : (
+                                                    <div className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">
+                                                        Waiting for Signal...
+                                                    </div>
+                                                )}
+                                            </div>
                                         ) : (
+                                            /* Upgrade ⑤: trade timeline cards instead of flat audit cards */
                                             <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
                                                 {(() => {
                                                     const activeTrades = socketStatus.tradeHistory?.length > 0
@@ -1391,49 +1807,9 @@ const TradingBotContainer = () => {
                                                                 : [];
                                                     return activeTrades.length > 0 ? (
                                                         <div className="space-y-3">
-                                                            {activeTrades.map((trade, idx) => {
-                                                                const side       = trade.type || trade.side || 'trade';
-                                                                const entryPrice = trade.entry || trade.entryPrice || trade.entry_price || 0;
-                                                                const exitPrice  = trade.exit || trade.exitPrice || trade.exit_price || trade.price || 0;
-                                                                const pnl        = trade.pnl || trade.realized_pnl || trade.realizedPnL || 0;
-                                                                const timeObj    = trade.time
-                                                                    ? new Date(trade.time * (trade.time > 1e10 ? 1 : 1000))
-                                                                    : trade.exitTime ? new Date(trade.exitTime) : new Date();
-                                                                return (
-                                                                    <div key={idx} className="p-4 bg-black/20 rounded-2xl border border-zinc-800/50 flex flex-col gap-2 hover:border-emerald-500/30 transition-all">
-                                                                        <div className="flex justify-between items-center">
-                                                                            {trade.type === "partial_exit" ? (
-                                                                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/20 tracking-wider">⚖ Partial Scale-Out (50%)</span>
-                                                                            ) : (
-                                                                                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${side === 'long' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
-                                                                                    {side === 'long' ? '🚀 Long' : '🏹 Short'} Fully Closed
-                                                                                </span>
-                                                                            )}
-                                                                            <span className="text-[8px] text-zinc-600 font-bold font-mono">{timeObj.toLocaleDateString()} {timeObj.toLocaleTimeString()}</span>
-                                                                        </div>
-                                                                        <div className="grid grid-cols-2 gap-4 mt-1">
-                                                                            <div>
-                                                                                <p className="text-[8px] text-zinc-500 uppercase font-black">
-                                                                                    {trade.type === "partial_exit" ? "Execution Price" : "Entry/Exit"}
-                                                                                </p>
-                                                                                <p className="text-[10px] font-mono font-bold text-zinc-300">
-                                                                                    {trade.type === "partial_exit"
-                                                                                        ? `$${Number(exitPrice).toLocaleString()}`
-                                                                                        : `$${Number(entryPrice).toLocaleString()} → $${Number(exitPrice).toLocaleString()}`}
-                                                                                </p>
-                                                                            </div>
-                                                                            <div className="text-right">
-                                                                                <p className="text-[8px] text-zinc-500 uppercase font-black">
-                                                                                    {trade.type === "partial_exit" ? "Locked Profit" : "Realized PnL"}
-                                                                                </p>
-                                                                                <p className={`text-[11px] font-black font-mono ${pnl >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
-                                                                                    {pnl >= 0 ? '+' : ''}${Number(pnl).toFixed(2)}
-                                                                                </p>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })}
+                                                            {activeTrades.map((trade, idx) => (
+                                                                <TradeTimelineCard key={idx} trade={trade} />
+                                                            ))}
                                                         </div>
                                                     ) : (
                                                         <div className="flex flex-col items-center justify-center py-20 text-center">
