@@ -10,7 +10,7 @@
 //   [P8] minVotesRequired >= 1 after strategy removal
 //   [P9] Initial status fetch with retry + visible error state
 //   [P10] Halt button shows pending state during async stop
-//   [FIX] Restored PreFlightModal component scope definition to resolve React runtime error
+//   [FIX] Secured global module-scope definition for inputClass and labelClass
 
 import React, { useState, useEffect, useRef, useMemo, Component } from "react";
 import axios from "axios";
@@ -40,6 +40,10 @@ const SOCKET_URL = BASE_URL;
 
 // ─── AXIOS INSTANCE ──────────────────────────────────────────────────────────
 const api = axios.create({ baseURL: API_BASE });
+
+// ─── STYLE CONSTANTS ───────────────────────────────────────────────────────────
+const inputClass = "w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-emerald-500 transition-all text-[11px] outline-none font-mono";
+const labelClass = "text-[9px] text-zinc-500 uppercase font-black mb-1 block ml-1 tracking-tighter";
 
 // ─── STRAT_COLORS ────────────────────────────────────────────────────────────
 const STRAT_COLORS = {
@@ -125,6 +129,42 @@ const getLogMeta = (msg) => {
     return { Icon: Activity, textColor: 'text-zinc-500', wrapClass: 'bg-zinc-900 border-zinc-800' };
 };
 
+// ─── [P6] ERROR BOUNDARY ───────────────────────────────────────────────────────
+class ErrorBoundary extends Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+    }
+    componentDidCatch(error, info) {
+        console.error("[ErrorBoundary]", error, info);
+    }
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="flex flex-col items-center justify-center h-full p-8 text-center gap-4">
+                    <div className="p-4 bg-rose-500/10 rounded-2xl border border-rose-500/20">
+                        <AlertTriangle className="text-rose-500" size={24} />
+                    </div>
+                    <div>
+                        <p className="text-zinc-300 text-[11px] font-black uppercase tracking-widest mb-1">Component Error</p>
+                        <p className="text-zinc-600 text-[10px] font-mono">{this.state.error?.message || "Unknown render failure"}</p>
+                    </div>
+                    <button
+                        onClick={() => this.setState({ hasError: false, error: null })}
+                        className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-zinc-300 text-[9px] font-black uppercase tracking-widest transition-all"
+                    >
+                        Retry
+                    </button>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
+
 // ─── SMALL UI COMPONENTS ───────────────────────────────────────────────────────
 const Tooltip = ({ text, children }) => {
     const [visible, setVisible] = useState(false);
@@ -174,7 +214,7 @@ function StrategyParamInputs({ strategy, onChange }) {
             <input
                 type="number" step={s} value={params[k] ?? ""}
                 onChange={(e) => onChange({ ...params, [k]: parseFloat(e.target.value) })}
-                className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1 text-[9px] text-amber-500 outline-none font-mono"
+                className="bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1 text-[9px] text-amber-500 outline-none font-mono"
             />
         </div>
     );
@@ -321,7 +361,6 @@ const ConfirmModal = ({ title, message, danger, onConfirm, onCancel }) => (
     </div>
 );
 
-// ─── [P12] PRE-FLIGHT MODAL INTERFACE RESTORATION ──────────────────────────────
 const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, address }) => {
     const [checks, setChecks] = useState({ wallet: false, keys: false, capital: false, strategy: false });
     useEffect(() => {
@@ -360,7 +399,6 @@ const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, a
     );
 };
 
-// ─── CONFIDENCE RING CARD ─────────────────────────────────────────
 const ConfidenceRingCard = ({ confidence }) => {
     const c = Math.min(100, Math.max(0, confidence || 0));
     const r = 28, circ = 2 * Math.PI * r;
@@ -393,7 +431,6 @@ const ConfidenceRingCard = ({ confidence }) => {
     );
 };
 
-// ─── SIGNAL BARS PANEL ────────────────────────────────────────────
 const SignalBarsPanel = ({ signalsMapHistory, formConfig }) => {
     const latestSignals = useMemo(() => {
         if (!signalsMapHistory?.length) return {};
@@ -448,7 +485,6 @@ const SignalBarsPanel = ({ signalsMapHistory, formConfig }) => {
     );
 };
 
-// ─── POSITION CARD ─────────────────────────────────────────────────
 const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) => {
     const symbol   = pos.symbol || defaultSymbol || '';
     const cp       = currentPrice || 0;
@@ -540,7 +576,6 @@ const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) =
     );
 };
 
-// ─── TRADE TIMELINE CARD ──────────────────────────────────────────
 const TradeTimelineCard = ({ trade }) => {
     const side       = trade.type || trade.side || 'trade';
     const entryPrice = Number(trade.entry || trade.entryPrice || trade.entry_price || 0);
@@ -669,59 +704,6 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
                         ))}
                     </div>
                 </div>
-            </div>
-        </div>
-    );
-};
-
-const ProximityTickerPanel = ({ latestSignals, aiScore, formConfig }) => {
-    const metrics = useMemo(() => {
-        const longLimit = parseFloat(formConfig.mlThresholdLong || 0.55) * 100;
-        const shortLimit = parseFloat(formConfig.mlThresholdShort || 0.55) * 100;
-        
-        const mlTarget = aiScore >= 50 ? longLimit : shortLimit;
-        const mlDelta = Math.abs(aiScore - mlTarget).toFixed(0);
-        const mlStatus = aiScore >= longLimit ? "🟢 READY" : aiScore <= shortLimit ? "🟢 READY" : "🟡 PENDING";
-
-        const bbVal = Math.round(latestSignals['bb_fade'] || latestSignals['bb_wall'] || 0);
-        const bbDelta = Math.abs(100 - bbVal);
-        const bbStatus = bbVal >= 95 ? "🔴 CRITICAL" : bbVal >= 75 ? "🟡 WARNING" : "⚪ IDLE";
-
-        const rsiVal = Math.round(latestSignals['rsi_threshold'] || latestSignals['rsi'] || 0);
-        const rsiDelta = Math.abs(70 - rsiVal);
-        const rsiStatus = rsiVal >= 70 || rsiVal <= 30 ? "🟢 READY" : "⚪ STALKING";
-
-        const stochVal = Math.round(latestSignals['stoch'] || 0);
-        const stochStatus = stochVal >= 80 || stochVal <= 20 ? "🟢 READY" : "⚪ IDLE";
-
-        return [
-            { id: "ml",    name: "Neural Prediction Gate", cur: `${aiScore}%`, tgt: `${mlTarget}%`, delta: `${mlDelta}%`, status: mlStatus },
-            { id: "bb",    name: "Bollinger Boundary Vol", cur: `${bbVal}%`,   tgt: "100%",  delta: `${bbDelta}%`, status: bbStatus },
-            { id: "rsi",   name: "Momentum RSI Gateway",   cur: `${rsiVal}%`,   tgt: "70% / 30%", delta: `${rsiDelta}%`, status: rsiStatus },
-            { id: "stoch", name: "Stochastic Overbought",  cur: `${stochVal}%`,  tgt: "80% / 20%", delta: "—",         status: stochStatus }
-        ];
-    }, [latestSignals, aiScore, formConfig]);
-
-    return (
-        <div className="bg-zinc-950/60 border border-zinc-800 rounded-2xl p-4 flex flex-col gap-2 shadow-inner">
-            <div className="flex items-center gap-1.5 border-b border-zinc-800/60 pb-1.5 mb-1">
-                <Filter size={11} className="text-amber-400" />
-                <span className="text-[8px] font-black uppercase tracking-widest text-zinc-500">Proximity Ticker Monitor</span>
-            </div>
-            <div className="space-y-1.5">
-                {metrics.map(m => {
-                    const statusColor = m.status.includes("READY") || m.status.includes("CRITICAL")
-                        ? "text-emerald-400 font-black animate-pulse" 
-                        : m.status.includes("WARNING") || m.status.includes("PENDING") ? "text-amber-400 font-bold" : "text-zinc-500";
-                    return (
-                        <div key={m.id} className="grid grid-cols-12 gap-2 text-[9px] font-mono border-b border-zinc-900/40 pb-1 last:border-0 last:pb-0">
-                            <span className="col-span-5 text-zinc-400 uppercase tracking-tight truncate">{m.name}</span>
-                            <span className="col-span-2 text-zinc-200 text-right">{m.cur}</span>
-                            <span className="col-span-2 text-zinc-600 text-right">Δ {m.delta}</span>
-                            <span className={`col-span-3 text-right uppercase text-[8px] ${statusColor}`}>{m.status}</span>
-                        </div>
-                    );
-                })}
             </div>
         </div>
     );
@@ -1177,7 +1159,7 @@ const TradingBotContainer = () => {
                                                         <div key={i} className="mb-2 p-3 bg-zinc-950/50 rounded-xl border border-zinc-800 flex flex-col gap-2">
                                                             <div className="flex justify-between items-center border-b border-zinc-800/50 pb-2">
                                                                 <span className="text-zinc-500 font-black uppercase text-[8px] tracking-widest">Targets ({log.rule})</span>
-                                                                <span className="[8px] opacity-40 font-bold">{formatTime(log.time)}</span>
+                                                                <span className="text-[8px] opacity-40 font-bold">{formatTime(log.time)}</span>
                                                             </div>
                                                             <div className="flex flex-col gap-1.5 leading-relaxed">
                                                                 <div className="flex justify-between items-center text-white">
@@ -1264,7 +1246,7 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
 
-                            <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl flex flex-col justify-between">
+                            <div className="bg-zinc-900 border border-zinc-800 p-8 shadow-2xl flex flex-col justify-between">
                                 <div className="flex start justify-between mb-4">
                                     <div className="flex items-center gap-2">
                                         <Zap size={18} className={confidenceStance.color} />
@@ -1314,7 +1296,7 @@ const TradingBotContainer = () => {
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl overflow-hidden flex flex-col min-h-[450px]">
                                     <div className="flex items-center justify-between mb-8">
                                         <div className="flex items-center gap-4">
-                                            <button onClick={() => setActiveOpsTab("live")} className={`flex items-center gap-2 transition-all pointer cursor-pointer ${activeOpsTab === 'live' ? 'text-amber-400' : 'text-zinc-600 hover:text-zinc-400'}`}>
+                                            <button onClick={() => setActiveOpsTab("live")} className={`flex items-center gap-2 transition-all cursor-pointer ${activeOpsTab === 'live' ? 'text-amber-400' : 'text-zinc-600 hover:text-zinc-400'}`}>
                                                 <Box size={18} /><h3 className="text-[11px] font-black uppercase tracking-widest">Live Operations</h3>
                                             </button>
                                             <span className="text-zinc-800 font-bold">/</span>
