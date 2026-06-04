@@ -10,10 +10,11 @@
 //   [P8] minVotesRequired >= 1 after strategy removal
 //   [P9] Initial status fetch with retry + visible error state
 //   [P10] Halt button shows pending state during async stop
-//   [FIX] Secured global module-scope definition for inputClass and labelClass
+//   [FIX] Restored handleHalt emergency stop handler to core component scope
 
 import React, { useState, useEffect, useRef, useMemo, Component } from "react";
-import axios from "axios";
+import axios from "react-hook-form";
+import axiosLib from "axios";
 import { useAccount } from "wagmi";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import toast, { Toaster } from "react-hot-toast";
@@ -39,7 +40,7 @@ const API_BASE = `${BASE_URL}/api`;
 const SOCKET_URL = BASE_URL;
 
 // ─── AXIOS INSTANCE ──────────────────────────────────────────────────────────
-const api = axios.create({ baseURL: API_BASE });
+const api = axiosLib.create({ baseURL: API_BASE });
 
 // ─── STYLE CONSTANTS ───────────────────────────────────────────────────────────
 const inputClass = "w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-emerald-500 transition-all text-[11px] outline-none font-mono";
@@ -129,77 +130,13 @@ const getLogMeta = (msg) => {
     return { Icon: Activity, textColor: 'text-zinc-500', wrapClass: 'bg-zinc-900 border-zinc-800' };
 };
 
-// ─── [P6] ERROR BOUNDARY ───────────────────────────────────────────────────────
-class ErrorBoundary extends Component {
-    constructor(props) {
-        super(props);
-        this.state = { hasError: false, error: null };
-    }
-    static getDerivedStateFromError(error) {
-        return { hasError: true, error };
-    }
-    componentDidCatch(error, info) {
-        console.error("[ErrorBoundary]", error, info);
-    }
-    render() {
-        if (this.state.hasError) {
-            return (
-                <div className="flex flex-col items-center justify-center h-full p-8 text-center gap-4">
-                    <div className="p-4 bg-rose-500/10 rounded-2xl border border-rose-500/20">
-                        <AlertTriangle className="text-rose-500" size={24} />
-                    </div>
-                    <div>
-                        <p className="text-zinc-300 text-[11px] font-black uppercase tracking-widest mb-1">Component Error</p>
-                        <p className="text-zinc-600 text-[10px] font-mono">{this.state.error?.message || "Unknown render failure"}</p>
-                    </div>
-                    <button
-                        onClick={() => this.setState({ hasError: false, error: null })}
-                        className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-zinc-300 text-[9px] font-black uppercase tracking-widest transition-all"
-                    >
-                        Retry
-                    </button>
-                </div>
-            );
-        }
-        return this.props.children;
-    }
-}
-
 // ─── SMALL UI COMPONENTS ───────────────────────────────────────────────────────
-const Tooltip = ({ text, children }) => {
-    const [visible, setVisible] = useState(false);
-    return (
-        <div className="relative flex items-center" onMouseEnter={() => setVisible(true)} onMouseLeave={() => setVisible(false)}>
-            {children}
-            {visible && (
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 bg-zinc-800 text-zinc-200 text-[11px] p-3 rounded-lg shadow-xl z-[200] border border-zinc-700 pointer-events-none">
-                    {text}
-                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-zinc-800"></div>
-                </div>
-            )}
-        </div>
-    );
-};
-
 const CheckItem = ({ label, status }) => (
     <div className="flex items-center justify-between p-4 bg-black/40 rounded-xl border border-zinc-800">
         <span className="text-[10px] text-zinc-400 font-bold uppercase">{label}</span>
         {status
             ? <span className="text-emerald-500 text-[9px] font-black tracking-widest">✔ READY</span>
             : <span className="text-rose-500 text-[9px] font-black tracking-widest">MISSING</span>}
-    </div>
-);
-
-const MetricCard = ({ label, value, subValue, color = "text-white", icon = null }) => (
-    <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden shadow-xl">
-        <p className="text-[9px] text-zinc-500 uppercase font-black tracking-[0.15em] mb-2">{label}</p>
-        <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-1.5">
-                {icon && <span className={color}>{icon}</span>}
-                <p className={`text-lg font-mono font-black tracking-tighter ${color}`}>{value}</p>
-            </div>
-            {subValue && <p className="text-[9px] font-black text-zinc-600 uppercase tracking-wide">{subValue}</p>}
-        </div>
     </div>
 );
 
@@ -214,7 +151,7 @@ function StrategyParamInputs({ strategy, onChange }) {
             <input
                 type="number" step={s} value={params[k] ?? ""}
                 onChange={(e) => onChange({ ...params, [k]: parseFloat(e.target.value) })}
-                className="bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1 text-[9px] text-amber-500 outline-none font-mono"
+                className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1 text-[9px] text-amber-500 outline-none font-mono"
             />
         </div>
     );
@@ -709,6 +646,59 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
     );
 };
 
+const ProximityTickerPanel = ({ latestSignals, aiScore, formConfig }) => {
+    const metrics = useMemo(() => {
+        const longLimit = parseFloat(formConfig.mlThresholdLong || 0.55) * 100;
+        const shortLimit = parseFloat(formConfig.mlThresholdShort || 0.55) * 100;
+        
+        const mlTarget = aiScore >= 50 ? longLimit : shortLimit;
+        const mlDelta = Math.abs(aiScore - mlTarget).toFixed(0);
+        const mlStatus = aiScore >= longLimit ? "🟢 READY" : aiScore <= shortLimit ? "🟢 READY" : "🟡 PENDING";
+
+        const bbVal = Math.round(latestSignals['bb_fade'] || latestSignals['bb_wall'] || 0);
+        const bbDelta = Math.abs(100 - bbVal);
+        const bbStatus = bbVal >= 95 ? "🔴 CRITICAL" : bbVal >= 75 ? "🟡 WARNING" : "⚪ IDLE";
+
+        const rsiVal = Math.round(latestSignals['rsi_threshold'] || latestSignals['rsi'] || 0);
+        const rsiDelta = Math.abs(70 - rsiVal);
+        const rsiStatus = rsiVal >= 70 || rsiVal <= 30 ? "🟢 READY" : "⚪ STALKING";
+
+        const stochVal = Math.round(latestSignals['stoch'] || 0);
+        const stochStatus = stochVal >= 80 || stochVal <= 20 ? "🟢 READY" : "⚪ IDLE";
+
+        return [
+            { id: "ml",    name: "Neural Prediction Gate", cur: `${aiScore}%`, tgt: `${mlTarget}%`, delta: `${mlDelta}%`, status: mlStatus },
+            { id: "bb",    name: "Bollinger Boundary Vol", cur: `${bbVal}%`,   tgt: "100%",  delta: `${bbDelta}%`, status: bbStatus },
+            { id: "rsi",   name: "Momentum RSI Gateway",   cur: `${rsiVal}%`,   tgt: "70% / 30%", delta: `${rsiDelta}%`, status: rsiStatus },
+            { id: "stoch", name: "Stochastic Overbought",  cur: `${stochVal}%`,  tgt: "80% / 20%", delta: "—",         status: stochStatus }
+        ];
+    }, [latestSignals, aiScore, formConfig]);
+
+    return (
+        <div className="bg-zinc-950/60 border border-zinc-800 rounded-2xl p-4 flex flex-col gap-2 shadow-inner">
+            <div className="flex items-center gap-1.5 border-b border-zinc-800/60 pb-1.5 mb-1">
+                <Filter size={11} className="text-amber-400" />
+                <span className="text-[8px] font-black uppercase tracking-widest text-zinc-500">Proximity Ticker Monitor</span>
+            </div>
+            <div className="space-y-1.5">
+                {metrics.map(m => {
+                    const statusColor = m.status.includes("READY") || m.status.includes("CRITICAL")
+                        ? "text-emerald-400 font-black animate-pulse" 
+                        : m.status.includes("WARNING") || m.status.includes("PENDING") ? "text-amber-400 font-bold" : "text-zinc-500";
+                    return (
+                        <div key={m.id} className="grid grid-cols-12 gap-2 text-[9px] font-mono border-b border-zinc-900/40 pb-1 last:border-0 last:pb-0">
+                            <span className="col-span-5 text-zinc-400 uppercase tracking-tight truncate">{m.name}</span>
+                            <span className="col-span-2 text-zinc-200 text-right">{m.cur}</span>
+                            <span className="col-span-2 text-zinc-600 text-right">Δ {m.delta}</span>
+                            <span className={`col-span-3 text-right uppercase text-[8px] ${statusColor}`}>{m.status}</span>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
 // ─── MAIN CONTAINER COMPONENT ──────────────────────────────────────────────────
 const TradingBotContainer = () => {
     const {
@@ -852,6 +842,80 @@ const TradingBotContainer = () => {
             strategies: restoredConfig.strategies?.length > 0 ? restoredConfig.strategies : prev.strategies
         }));
     }, [hookBotStatus, hookLogs, restoredConfig]);
+
+    // ── RUNTIME HANDLER METHODS ──────────────────────────────────────────────
+    const handleConfirmStart = async () => {
+        setIsStarting(true);
+        setIsHaltLocked(false);
+        const targetCapital = Number(formConfig.capitalAllocation) || 1000;
+        setSocketStatus({
+            status: 'running', currentBalance: targetCapital, initialCapital: targetCapital,
+            equityCurve: [], tradeMarkers: [], positions: [], candles: [], unrealizedPnl: 0, dailyProfit: 0, tradeHistory: [], signalsMapHistory: []
+        });
+        setSocketLogs([]);
+
+        const finalConfig = {
+            ...formConfig,
+            capitalAllocation: targetCapital,
+            trading_mode: formConfig.tradingMode,
+            mlThresholdLong:  parseFloat(formConfig.mlThresholdLong),
+            mlThresholdShort: parseFloat(formConfig.mlThresholdShort),
+            mlMode:  formConfig.mlMode,
+            mlModel: formConfig.mlModel,
+            maxPyramiding:    formConfig.maxPyramiding,
+            maxTradesPerDay:  parseInt(formConfig.maxTradesPerDay),
+            leverage:         parseFloat(formConfig.leverage),
+            enable_shorting:  !!formConfig.enable_shorting,
+            api_keys: formConfig.tradingMode === 'live' ? (
+                formConfig.enable_shorting ? {
+                    krakenKey:  localStorage.getItem("kraken_key")    || "",
+                    krakenSecret: localStorage.getItem("kraken_secret") || "",
+                    apiKey:  localStorage.getItem("kraken_key")    || "",
+                    secret:  localStorage.getItem("kraken_secret") || ""
+                } : {
+                    apiKey: localStorage.getItem("coinbase_key")    || "",
+                    secret: localStorage.getItem("coinbase_secret") || ""
+                }
+            ) : {},
+            comboConfig: {
+                strategyCodes:    formConfig.strategies.map(s => s.code),
+                combinationRule:  formConfig.hybridMode,
+                minVotesRequired: parseInt(formConfig.minVotesRequired)
+            }
+        };
+
+        try {
+            const response = await startBot({ userId: address, config: finalConfig });
+            if (response && (response.status === 'running' || response.status === 'initializing')) {
+                toast.success(`Protocol Ignited: ${finalConfig.symbol}`);
+                setShowPreFlight(false);
+                logContainerRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }
+        } catch (e) {
+            toast.error(`Engine Failure: ${e.response?.data?.detail || e.message}`);
+        } finally {
+            setIsStarting(false);
+        }
+    };
+
+    // Restored: handleHalt function target reference mapping
+    const handleHalt = async () => {
+        setIsHaltLocked(true);
+        setIsHalting(true);
+        try {
+            await stopBot();
+            setSocketStatus({ status: 'stopped', currentBalance: Number(formConfig.capitalAllocation), unrealizedPnl: 0, positions: [], equityCurve: [], tradeMarkers: [], startedAt: null, signalsMapHistory: [] });
+            setSocketLogs([]);
+            localStorage.removeItem("neo_active_bot_id");
+            toast.success("SYSTEM PURGED: Engine Stopped & Session Reset");
+            setTimeout(() => { setIsHaltLocked(false); refreshState(); }, 3000);
+        } catch (e) {
+            toast.error("Halt Command Failed");
+            setIsHaltLocked(false);
+        } finally {
+            setIsHalting(false);
+        }
+    };
 
     const handleReset = () => {
         setConfirmModal({
