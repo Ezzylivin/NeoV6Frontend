@@ -10,6 +10,7 @@
 //   [P8] minVotesRequired >= 1 after strategy removal
 //   [P9] Initial status fetch with retry + visible error state
 //   [P10] Halt button shows pending state during async stop
+//   [FIX] High-Contrast Two-Tier Color Legend inside Neural Flow
 
 import React, { useState, useEffect, useRef, useMemo, Component } from "react";
 import axios from "axios";
@@ -69,7 +70,7 @@ const STRAT_POOL = [
     { name: "SuperTrend Follow",   code: "supertrend"     },
     { name: "MACD Crossover",      code: "macd_crossover" },
     { name: "ATR Breakout",        code: "atr_breakout"   },
-    { name: "Bollinger Band Fade", code: "bb_fade"        },
+    { name: "Bollinger Band Fade", code: "bb_fade"         },
     { name: "Stochastic Osc",      code: "stoch"          },
     { name: "EMA Cloud",           code: "ema_cloud"      },
     { name: "Price Action Break",  code: "pa_breakout"    },
@@ -109,33 +110,10 @@ const formatTime = (isoString) => {
     return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 };
 
-const getLogStyle = (msg) => {
-    const text = msg.toUpperCase();
-    if (text.includes("VETOED") || text.includes("STALKING SHORT") || text.includes("SHORT GATE"))
-        return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
-    if (text.includes("PASSED") || text.includes("STALKING LONG") || text.includes("LONG GATE"))
-        return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
-    if (text.includes("UPTREND") || text.includes("BULLISH") || text.includes("EXPANSION"))
-        return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
-    if (text.includes("DOWNTREND") || text.includes("BEARISH") || text.includes("CONTRACTION"))
-        return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
-    if (text.includes("MINDSET")) {
-        const pctMatch = text.match(/(\d+)%/);
-        if (pctMatch) {
-            const val = parseInt(pctMatch[1]);
-            if (val >= 80) return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
-            if (val <= 20) return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
-            return 'text-blue-400 bg-blue-500/10 border-blue-500/20';
-        }
-    }
-    return 'text-zinc-500 bg-zinc-900 border-zinc-800';
-};
-
 // [P7] Stable ID generator for strategies
 const makeStrategyId = () => `strat_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
 // ─── LOG CATEGORISATION — drives icon + color in Neural Flow ─────────────────
-// Uses only already-imported Lucide icons (TrendingUp, ArrowUpRight, ShieldAlert, Zap, Globe, Activity)
 const getLogMeta = (msg) => {
     const t = msg.toUpperCase();
     if (t.includes('TRADE') || t.includes('PARTIAL') || t.includes('SCALE-OUT') ||
@@ -146,7 +124,7 @@ const getLogMeta = (msg) => {
         return { Icon: ArrowUpRight, textColor: 'text-emerald-400', wrapClass: 'bg-emerald-500/10 border-emerald-500/20' };
     if (t.includes('VETOED') || t.includes('SHORT GATE') || t.includes('STALKING SHORT') ||
         t.includes('BEARISH') || t.includes('DOWNTREND') || t.includes('CONTRACTION'))
-        return { Icon: ShieldAlert,  textColor: 'text-rose-400',   wrapClass: 'bg-rose-500/10 border-rose-500/20'   };
+        return { Icon: ShieldAlert,  textColor: 'text-rose-400',  wrapClass: 'bg-rose-500/10 border-rose-500/20'   };
     if (t.includes('SIGNAL') || t.includes('RSI') || t.includes('MACD') ||
         t.includes('EMA') || t.includes('ATR') || t.includes('GATE'))
         return { Icon: Zap,          textColor: 'text-violet-400', wrapClass: 'bg-violet-500/10 border-violet-500/20' };
@@ -277,10 +255,6 @@ const ApiKeyModal = ({ exchange, onSave, onCancel }) => {
             toast.error("Both fields are required.");
             return;
         }
-        // NOTE FOR PRODUCTION: These should be sent to a backend endpoint
-        // and stored in an encrypted server-side vault, NOT localStorage.
-        // localStorage is readable by any JS on the page (XSS risk).
-        // Interim: at minimum, they live only for the session.
         if (isKraken) {
             localStorage.setItem("kraken_key", key.trim());
             localStorage.setItem("kraken_secret", secret.trim());
@@ -430,7 +404,7 @@ const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, a
     useEffect(() => {
         setChecks({
             wallet:   !!address,
-            keys:     config.tradingMode === 'paper' || hasApiKeys,
+            keys:      config.tradingMode === 'paper' || hasApiKeys,
             capital:  Number(config.capitalAllocation) >= 100,
             strategy: (config.strategies && config.strategies.length > 0)
         });
@@ -467,9 +441,7 @@ const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, a
     );
 };
 
-// ─── UPGRADE ①: CONFIDENCE RING CARD ─────────────────────────────────────────
-// Replaces the "Council Consensus" MetricCard with an animated SVG ring gauge.
-// Color shifts red → amber → violet → emerald based on reading.
+// ─── CONFIDENCE RING CARD ─────────────────────────────────────────
 const ConfidenceRingCard = ({ confidence }) => {
     const c = Math.min(100, Math.max(0, confidence || 0));
     const r = 28, circ = 2 * Math.PI * r;
@@ -502,9 +474,7 @@ const ConfidenceRingCard = ({ confidence }) => {
     );
 };
 
-// ─── UPGRADE ③: SIGNAL BARS PANEL ────────────────────────────────────────────
-// Shows per-strategy live signal strength as animated bars + ensemble consensus.
-// Reads from signalsMapHistory (same data as NeuralConvergenceChart).
+// ─── SIGNAL BARS PANEL ────────────────────────────────────────────
 const SignalBarsPanel = ({ signalsMapHistory, formConfig }) => {
     const latestSignals = useMemo(() => {
         if (!signalsMapHistory?.length) return {};
@@ -537,14 +507,12 @@ const SignalBarsPanel = ({ signalsMapHistory, formConfig }) => {
                     {Math.round(consensus)}% consensus
                 </span>
             </div>
-            {/* Consensus bar */}
             <div className="mb-3 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
                 <div
                     className="h-full rounded-full transition-all duration-700"
                     style={{ width: `${consensus}%`, background: consColor }}
                 />
             </div>
-            {/* Per-strategy bars */}
             <div className="space-y-2">
                 {activeCodes.map(code => {
                     const val   = latestSignals[code] || 0;
@@ -571,10 +539,7 @@ const SignalBarsPanel = ({ signalsMapHistory, formConfig }) => {
     );
 };
 
-// ─── UPGRADE ①: POSITION CARD ─────────────────────────────────────────────────
-// Replaces bare <tr> rows in Live Operations.
-// Shows live floating PnL, TP/SL progress bars, and price track when backend
-// provides pos.tp / pos.sl. Falls back gracefully if that data is absent.
+// ─── POSITION CARD ─────────────────────────────────────────────────
 const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) => {
     const symbol   = pos.symbol || defaultSymbol || '';
     const cp       = currentPrice || 0;
@@ -602,7 +567,6 @@ const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) =
 
     return (
         <div className="p-4 rounded-2xl border transition-all" style={{ background: pnl >= 0 ? 'rgba(16,185,129,0.03)' : 'rgba(239,68,68,0.03)', borderColor }}>
-            {/* Header */}
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                     <div className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase border flex items-center gap-1 ${
@@ -621,7 +585,6 @@ const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) =
                 </div>
             </div>
 
-            {/* Price track */}
             {hasTpSl && (
                 <div className="mb-3 px-1">
                     <div className="flex justify-between text-[7px] text-zinc-600 font-bold uppercase mb-1.5">
@@ -638,7 +601,6 @@ const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) =
                 </div>
             )}
 
-            {/* TP / SL progress bars */}
             {hasTpSl && (
                 <div className="grid grid-cols-2 gap-2 mb-3">
                     <div className="p-2 bg-emerald-500/5 border border-emerald-500/10 rounded-xl">
@@ -662,7 +624,6 @@ const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) =
                 </div>
             )}
 
-            {/* Footer: entry/size + floating PnL + exit button */}
             <div className="flex items-center justify-between">
                 <div>
                     <div className="text-[7px] text-zinc-600 font-black uppercase mb-0.5">Entry · Size</div>
@@ -688,10 +649,7 @@ const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) =
     );
 };
 
-// ─── UPGRADE ⑤: TRADE TIMELINE CARD ──────────────────────────────────────────
-// Replaces flat audit history cards with a visual price journey (SL→Entry→Exit→TP).
-// Gracefully degrades: shows the SVG track when entry+exit are available,
-// falls back to text-only when price data is missing.
+// ─── TRADE TIMELINE CARD ──────────────────────────────────────────
 const TradeTimelineCard = ({ trade }) => {
     const side       = trade.type || trade.side || 'trade';
     const entryPrice = Number(trade.entry || trade.entryPrice || trade.entry_price || 0);
@@ -709,7 +667,6 @@ const TradeTimelineCard = ({ trade }) => {
 
     const hasPriceTrack = entryPrice > 0 && exitPrice > 0;
 
-    // Build price range for the SVG track
     const pts = [entryPrice, exitPrice, sl, tp, partialP].filter(p => p > 0);
     const lo  = Math.min(...pts) * 0.9997;
     const hi  = Math.max(...pts) * 1.0003;
@@ -724,10 +681,8 @@ const TradeTimelineCard = ({ trade }) => {
             isWin ? 'bg-black/20 border-emerald-500/20 hover:border-emerald-500/40'
                   : 'bg-black/20 border-rose-500/20  hover:border-rose-500/40'
         }`}>
-            {/* Left accent strip */}
             <div className="absolute left-0 top-0 bottom-0 w-0.5" style={{ background: winColor }} />
 
-            {/* Header */}
             <div className="flex items-center justify-between mb-3 pl-2">
                 <div className="flex items-center gap-2">
                     {trade.type === "partial_exit" ? (
@@ -750,7 +705,6 @@ const TradeTimelineCard = ({ trade }) => {
                 </span>
             </div>
 
-            {/* SVG Price Track */}
             {hasPriceTrack && (
                 <div className="pl-2 mb-1">
                     <svg
@@ -759,30 +713,24 @@ const TradeTimelineCard = ({ trade }) => {
                         aria-label={`Price journey: ${side} from $${entryPrice} to $${exitPrice}`}
                         role="img"
                     >
-                        {/* Track line */}
                         <line x1={PAD} y1="22" x2={SVG_W - PAD} y2="22" stroke="#27272a" strokeWidth="1.5" />
 
-                        {/* SL marker */}
                         {sl > 0 && <>
                             <circle cx={x(sl)} cy="22" r="4" fill="#18181b" stroke="#ef4444" strokeWidth="1.5" />
                             <text x={x(sl)} y="36" textAnchor="middle" fill="#ef4444" fontSize="7" fontWeight="700" fontFamily="monospace">SL</text>
                         </>}
 
-                        {/* Entry marker */}
                         <circle cx={x(entryPrice)} cy="22" r="5" fill="#3b82f6" stroke="#09090b" strokeWidth="2" />
                         <text x={x(entryPrice)} y="11" textAnchor="middle" fill="#3b82f6" fontSize="7" fontWeight="700" fontFamily="monospace">ENTRY</text>
 
-                        {/* Partial exit marker */}
                         {partialP > 0 && <>
                             <circle cx={x(partialP)} cy="22" r="4" fill="#f59e0b" stroke="#09090b" strokeWidth="2" />
                             <text x={x(partialP)} y="36" textAnchor="middle" fill="#f59e0b" fontSize="7" fontWeight="700" fontFamily="monospace">½ EXIT</text>
                         </>}
 
-                        {/* Exit marker (square = closed) */}
                         <rect x={x(exitPrice) - 5} y="17" width="10" height="10" fill={winColor} stroke="#09090b" strokeWidth="2" rx="2" />
                         <text x={x(exitPrice)} y="11" textAnchor="middle" fill={winColor} fontSize="7" fontWeight="700" fontFamily="monospace">EXIT</text>
 
-                        {/* TP marker */}
                         {tp > 0 && <>
                             <circle cx={x(tp)} cy="22" r="3.5" fill="#18181b" stroke="rgba(16,185,129,0.35)" strokeWidth="1.5" />
                             <text x={x(tp)} y="36" textAnchor="middle" fill="rgba(16,185,129,0.35)" fontSize="7" fontWeight="700" fontFamily="monospace">TP</text>
@@ -805,7 +753,6 @@ const TradeTimelineCard = ({ trade }) => {
                 </div>
             )}
 
-            {/* Fallback: no price data */}
             {!hasPriceTrack && (
                 <div className="pl-2 grid grid-cols-2 gap-3">
                     <div>
@@ -832,8 +779,6 @@ const TradeTimelineCard = ({ trade }) => {
 
 // ─── NEURAL CONVERGENCE CHART ─────────────────────────────────────────────────
 const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
-    // [P2] STRAT_COLORS now from module scope — no longer redefined here
-
     const activeStratCodes = useMemo(() => {
         if (!signalsMapHistory || signalsMapHistory.length === 0) return [];
         const keys = new Set();
@@ -937,15 +882,14 @@ const TradingBotContainer = () => {
     const [hasApiKeys, setHasApiKeys]           = useState(false);
     const [showPreFlight, setShowPreFlight]     = useState(false);
     const [isStarting, setIsStarting]           = useState(false);
-    const [isHalting, setIsHalting]             = useState(false); // [P10]
+    const [isHalting, setIsHalting]              = useState(false); 
     const [paperBalance, setPaperBalance]       = useState(1000);
     const [modeStep, setModeStep]               = useState('selection');
     const [activeOpsTab, setActiveOpsTab]       = useState("live");
-    const [statusFetchError, setStatusFetchError] = useState(null); // [P9]
+    const [statusFetchError, setStatusFetchError] = useState(null); 
 
-    // [P5] Modal state (replaces prompt / window.confirm)
-    const [apiKeyModal, setApiKeyModal]         = useState(null); // { exchange, onSave }
-    const [confirmModal, setConfirmModal]       = useState(null); // { title, message, danger, onConfirm }
+    const [apiKeyModal, setApiKeyModal]         = useState(null); 
+    const [confirmModal, setConfirmModal]       = useState(null); 
 
     // ── Socket & bot state ────────────────────────────────────────────────────
     const socketRef        = useRef(null);
@@ -958,11 +902,10 @@ const TradingBotContainer = () => {
     const [socketStatus, setSocketStatus]   = useState({
         status: 'stopped', currentBalance: 0, unrealizedPnl: 0, exposure: 0,
         positions: [], equityCurve: [], startedAt: null, dailyProfit: 0,
-        initialCapital: 0, tradeMarkers: []
+        initialCapital: 0, tradeMarkers: [], signalsMapHistory: []
     });
 
     // ── Form config ───────────────────────────────────────────────────────────
-    // [P7] Initial strategy has a stable id
     const [formConfig, setFormConfig] = useState({
         symbol: "BTC-USD",
         timeframe: "1h",
@@ -993,6 +936,20 @@ const TradingBotContainer = () => {
 
     const isBotRunning = socketStatus.status === 'running' && !isHaltLocked;
 
+    // Extract dynamic active codes directly from historical metrics for uniform log tracking legend assignment
+    const currentActiveStrategyCodes = useMemo(() => {
+        if (socketStatus.signalsMapHistory?.length > 0) {
+            const keys = new Set();
+            socketStatus.signalsMapHistory.forEach(item => {
+                Object.keys(item).forEach(key => {
+                    if (key !== 'time' && key !== 'timestamp') keys.add(key);
+                });
+            });
+            return Array.from(keys);
+        }
+        return formConfig.strategies.map(s => s.code) || [];
+    }, [socketStatus.signalsMapHistory, formConfig.strategies]);
+
     // ── Sync hook state ───────────────────────────────────────────────────────
     useEffect(() => {
         if (hookBotStatus) setSocketStatus(prev => ({
@@ -1014,7 +971,6 @@ const TradingBotContainer = () => {
         return formConfig.capitalAllocation;
     }, [isBotRunning, socketStatus.currentBalance, socketStatus.initialCapital, formConfig.capitalAllocation]);
 
-    // [P1] calculatedStats feeds the Neural Performance panel (botData was undefined)
     const calculatedStats = useMemo(() => {
         const trades = socketStatus.tradeHistory?.length > 0
             ? socketStatus.tradeHistory
@@ -1051,12 +1007,9 @@ const TradingBotContainer = () => {
         return [seedPoint, ...history];
     }, [socketStatus.equityCurve, formConfig.capitalAllocation]);
 
-    // ── Effects ───────────────────────────────────────────────────────────────
-
     // API key check
     useEffect(() => {
         if (!isConnected) return;
-        // NOTE: localStorage token has XSS exposure. In production, use httpOnly cookies.
         axios.get(`${API_BASE}/users/keys`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
             .then(res => setHasApiKeys((Array.isArray(res.data) ? res.data : res.data.keys || []).length > 0))
             .catch(() => setHasApiKeys(false));
@@ -1079,7 +1032,6 @@ const TradingBotContainer = () => {
         return () => clearInterval(interval);
     }, [isBotRunning, socketStatus.startedAt]);
 
-    // [P9] Initial status fetch with retry
     useEffect(() => {
         if (!address) return;
         let attempts = 0;
@@ -1099,7 +1051,7 @@ const TradingBotContainer = () => {
                     }
                     attempts++;
                     if (attempts < MAX) {
-                        setTimeout(attempt, 2 ** attempts * 1000); // exponential backoff
+                        setTimeout(attempt, 2 ** attempts * 1000);
                     } else {
                         setStatusFetchError("Failed to sync engine state. The backend may be offline.");
                     }
@@ -1109,15 +1061,13 @@ const TradingBotContainer = () => {
         attempt();
     }, [address]);
 
-    // Stable refs for socket callbacks (avoid stale closures without dependency churn)
     const isHaltLockedRef   = useRef(isHaltLocked);
-    const formConfigRef     = useRef(formConfig);
+    const formConfigRef      = useRef(formConfig);
     const exitingSymbolsRef = useRef(exitingSymbols);
     useEffect(() => { isHaltLockedRef.current   = isHaltLocked;   }, [isHaltLocked]);
     useEffect(() => { formConfigRef.current     = formConfig;     }, [formConfig]);
     useEffect(() => { exitingSymbolsRef.current = exitingSymbols; }, [exitingSymbols]);
 
-    // Socket — single connection, stable dependency [address] only
     useEffect(() => {
         if (!address) return;
         const socket = io(SOCKET_URL, {
@@ -1150,7 +1100,7 @@ const TradingBotContainer = () => {
                 const rawSignals = data.signalsMap || {};
                 const normalizedSignals = {};
                 Object.keys(rawSignals).forEach(key => {
-                    const nk  = key.toLowerCase().trim().replace(/\s+/g, '_');
+                    const nk = key.toLowerCase().trim().replace(/\s+/g, '_');
                     const val = parseFloat(rawSignals[key]);
                     if (!isNaN(val)) normalizedSignals[nk] = val * 100;
                 });
@@ -1195,7 +1145,6 @@ const TradingBotContainer = () => {
         };
     }, [address]);
 
-    // ── Handlers ──────────────────────────────────────────────────────────────
     const handleConfirmStart = async () => {
         setIsStarting(true);
         setIsHaltLocked(false);
@@ -1204,7 +1153,7 @@ const TradingBotContainer = () => {
         setSocketStatus({
             status: 'initializing', currentBalance: targetCapital, initialCapital: targetCapital,
             equityCurve: [], tradeMarkers: [], positions: [], candles: [],
-            unrealizedPnl: 0, dailyProfit: 0, tradeHistory: []
+            unrealizedPnl: 0, dailyProfit: 0, tradeHistory: [], signalsMapHistory: []
         });
         setSocketLogs([]);
 
@@ -1220,8 +1169,6 @@ const TradingBotContainer = () => {
             maxTradesPerDay:  parseInt(formConfig.maxTradesPerDay),
             leverage:         parseFloat(formConfig.leverage),
             enable_shorting:  !!formConfig.enable_shorting,
-            // NOTE: For production, API keys should be fetched server-side,
-            // not sent from the client. This is an interim pattern.
             api_keys: formConfig.tradingMode === 'live' ? (
                 formConfig.enable_shorting ? {
                     krakenKey:  localStorage.getItem("kraken_key")    || "",
@@ -1254,15 +1201,14 @@ const TradingBotContainer = () => {
         }
     };
 
-    // [P10] Halt shows pending state during async stop
     const handleHalt = async () => {
-        setIsHalting(true);
         setIsHaltLocked(true);
+        setIsHalting(true);
         try {
             await stopBot();
             setSocketStatus({
                 status: 'stopped', currentBalance: Number(formConfig.capitalAllocation),
-                unrealizedPnl: 0, positions: [], equityCurve: [], tradeMarkers: [], startedAt: null
+                unrealizedPnl: 0, positions: [], equityCurve: [], tradeMarkers: [], startedAt: null, signalsMapHistory: []
             });
             setSocketLogs([]);
             localStorage.removeItem("neo_active_bot_id");
@@ -1277,7 +1223,6 @@ const TradingBotContainer = () => {
         }
     };
 
-    // [P5] Factory reset uses ConfirmModal instead of window.confirm
     const handleReset = () => {
         setConfirmModal({
             title: "Factory Reset",
@@ -1290,7 +1235,7 @@ const TradingBotContainer = () => {
                 setSocketStatus({
                     status: 'stopped', currentBalance: 0, unrealizedPnl: 0, exposure: 0,
                     positions: [], equityCurve: [], startedAt: null, dailyProfit: 0,
-                    initialCapital: 0, tradeMarkers: []
+                    initialCapital: 0, tradeMarkers: [], signalsMapHistory: []
                 });
             }
         });
@@ -1327,20 +1272,16 @@ const TradingBotContainer = () => {
     const handleClearLogs = () => { setSocketLogs([]);    toast.success("Terminal View Cleared"); };
     const handleSyncLogs  = async () => { await refreshState(); toast.success("Neural Stream Synced"); };
 
-    // ── Routing / enable_shorting helpers ────────────────────────────────────
-    // [P4] enable_shorting is always boolean; we only convert to string for the <select> value
     const handleRoutingChange = (value) => {
         const isMargin = value === 'true';
         if (!isMargin) {
             setFormConfig(p => ({ ...p, enable_shorting: false }));
             return;
         }
-        // Check if Kraken keys already stored
         if (localStorage.getItem("kraken_key")) {
             setFormConfig(p => ({ ...p, enable_shorting: true }));
             return;
         }
-        // [P5] Open ApiKeyModal instead of confirm() + prompt()
         setApiKeyModal({
             exchange: 'kraken',
             onSave: () => {
@@ -1369,18 +1310,14 @@ const TradingBotContainer = () => {
         });
     };
 
-    // ── Derived display values ────────────────────────────────────────────────
-    const startCap  = socketStatus.initialCapital || formConfig.capitalAllocation || 1;
+    const startCap   = socketStatus.initialCapital || formConfig.capitalAllocation || 1;
     const profitPct = ((socketStatus.dailyProfit  || 0) / startCap) * 100;
     const pnlPct    = ((socketStatus.unrealizedPnl || 0) / startCap) * 100;
 
-    // Upgrade ①: live mark price for PositionCard — prefer explicit field,
-    // fall back to last candle close, then zero (card renders "—" gracefully)
     const currentPrice = socketStatus.currentPrice
         || (socketStatus.candles?.length > 0 ? socketStatus.candles[socketStatus.candles.length - 1]?.close : 0)
         || 0;
 
-    // ── Disconnected gate ─────────────────────────────────────────────────────
     if (!isConnected) {
         return (
             <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6">
@@ -1395,13 +1332,11 @@ const TradingBotContainer = () => {
         );
     }
 
-    // ── Render ─────────────────────────────────────────────────────────────────
     return (
         <UIModeProvider>
             <div className="min-h-screen bg-zinc-950 text-white font-sans p-6 overflow-x-hidden transition-all duration-700">
                 <Toaster position="top-right" />
 
-                {/* [P5] Modals rendered at root */}
                 {apiKeyModal && (
                     <ApiKeyModal
                         exchange={apiKeyModal.exchange}
@@ -1419,7 +1354,6 @@ const TradingBotContainer = () => {
                     />
                 )}
 
-                {/* PROTOCOL SELECTION OVERLAY */}
                 {!isModeSelected && !isBotRunning && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md">
                         <div className="max-w-4xl w-full p-6 text-center">
@@ -1473,7 +1407,6 @@ const TradingBotContainer = () => {
                     />
                 )}
 
-                {/* HEADER */}
                 <header className="max-w-[1800px] mx-auto mb-10 flex items-center justify-between transition-all">
                     <div className="flex items-center gap-3">
                         <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg">
@@ -1492,7 +1425,6 @@ const TradingBotContainer = () => {
                         </div>
                     </div>
                     <div className="flex items-center gap-4">
-                        {/* [P9] Status fetch error banner */}
                         {statusFetchError && (
                             <div className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-xl">
                                 <AlertTriangle size={12} className="text-amber-500" />
@@ -1502,7 +1434,6 @@ const TradingBotContainer = () => {
                             </div>
                         )}
                         {isBotRunning ? (
-                            // [P10] Halt button shows pending state
                             <button
                                 onClick={handleHalt}
                                 disabled={isHalting}
@@ -1524,10 +1455,8 @@ const TradingBotContainer = () => {
                     </div>
                 </header>
 
-                {/* ── RUNNING VIEW ─────────────────────────────────────────────────────── */}
                 {isBotRunning ? (
                     <div className="max-w-[1800px] mx-auto space-y-8 animate-in fade-in duration-1000">
-                        {/* METRICS ROW */}
                         <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                             <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
                                 <div className="flex justify-between items-start mb-1">
@@ -1541,12 +1470,10 @@ const TradingBotContainer = () => {
                             <MetricCard label="Floating PnL"    value={`${socketStatus.unrealizedPnl >= 0 ? '+' : ''}${(socketStatus.unrealizedPnl || 0).toFixed(2)}`} subValue={`${pnlPct.toFixed(2)}%`}    color={socketStatus.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'} icon={<Activity size={10} />} />
                             <MetricCard label="Exposure"        value={`${socketStatus.exposure || 0}%`} subValue="Active Positions" color="text-amber-400" />
                             <MetricCard label="Total Equity"    value={`$${Number(activeBalance).toLocaleString()}`} subValue="Liquid + Locked" />
-                            {/* Upgrade ②: animated ring gauge instead of plain MetricCard */}
                             <ConfidenceRingCard confidence={socketStatus.currentConfidence || 0} />
                         </div>
 
                         <div className="grid grid-cols-12 gap-8 items-start">
-                            {/* INTELLIGENCE SIDEBAR */}
                             <div className="col-span-12 lg:col-span-3 h-[840px] flex flex-col gap-4">
                                 <div className="flex-1 min-h-[240px]">
                                     <ErrorBoundary>
@@ -1556,7 +1483,6 @@ const TradingBotContainer = () => {
                                         />
                                     </ErrorBoundary>
                                 </div>
-                                {/* Upgrade ③: signal bars panel */}
                                 <SignalBarsPanel
                                     signalsMapHistory={socketStatus.signalsMapHistory || []}
                                     formConfig={formConfig}
@@ -1564,7 +1490,6 @@ const TradingBotContainer = () => {
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 shadow-2xl">
                                     <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-4">Neural Performance</h4>
                                     <div className="grid grid-cols-2 gap-4">
-                                        {/* [P1] Was botData?.winRate (ReferenceError) — now calculatedStats */}
                                         <div>
                                             <p className="text-[8px] uppercase font-bold text-zinc-600 mb-1">Win Rate</p>
                                             <p className="text-xl font-mono font-black tracking-tighter text-emerald-400">
@@ -1581,9 +1506,7 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
 
-                            {/* CHART & TERMINAL WORKSPACE */}
                             <div className="col-span-12 lg:col-span-9 flex flex-col gap-4">
-                                {/* AI REGIME BANNER */}
                                 <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-3xl p-4 backdrop-blur-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xl">
                                     <div className="flex items-center gap-4">
                                         <div className="relative flex h-3 w-3 items-center justify-center">
@@ -1611,7 +1534,6 @@ const TradingBotContainer = () => {
                                     </div>
                                 </div>
 
-                                {/* CHART + LOG GRID */}
                                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[660px]">
                                     <div className="lg:col-span-3 bg-zinc-900 border border-zinc-800 rounded-[40px] overflow-hidden flex flex-col relative shadow-2xl">
                                         <div className="bg-zinc-800/20 p-6 border-b border-zinc-800/50 flex items-center justify-between">
@@ -1649,20 +1571,37 @@ const TradingBotContainer = () => {
                                                     <button onClick={handleClearLogs} className="text-zinc-600 hover:text-white transition-all"><Eraser size={14} /></button>
                                                 </div>
                                             </div>
-                                            {/* Upgrade ④: category legend */}
-                                            <div className="flex items-center gap-3 flex-wrap">
-                                                {[
-                                                    { label: 'Pass',   color: 'text-emerald-400' },
-                                                    { label: 'Veto',   color: 'text-rose-400'    },
-                                                    { label: 'Trade',  color: 'text-amber-400'   },
-                                                    { label: 'Signal', color: 'text-violet-400'  },
-                                                    { label: 'Regime', color: 'text-blue-400'    },
-                                                ].map(({ label, color }) => (
-                                                    <div key={label} className={`flex items-center gap-1 ${color}`}>
-                                                        <div className="w-1.5 h-1.5 rounded-full bg-current" />
-                                                        <span className="text-[7px] font-black uppercase">{label}</span>
-                                                    </div>
-                                                ))}
+                                            
+                                            {/* Dynamic Two-Tier High-Contrast Color Legends Section */}
+                                            <div className="flex flex-col gap-2 border-t border-zinc-800/80 pt-2.5">
+                                                {/* Tier 1: Action System Status Flag Keys */}
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    {[
+                                                        { label: 'Pass',   bg: '#10b981', text: 'text-emerald-400' },
+                                                        { label: 'Veto',   bg: '#ef4444', text: 'text-rose-400'    },
+                                                        { label: 'Trade',  bg: '#f59e0b', text: 'text-amber-400'   },
+                                                        { label: 'Signal', bg: '#a78bfa', text: 'text-violet-400'  },
+                                                        { label: 'Regime', bg: '#3b82f6', text: 'text-blue-400'    },
+                                                    ].map(({ label, bg, text }) => (
+                                                        <div key={label} className="flex items-center gap-1">
+                                                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: bg }} />
+                                                            <span className={`text-[7px] font-black uppercase tracking-tight ${text}`}>{label}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                {/* Tier 2: Deployed Micro Technical Strategy Indicators Matrix Mappings */}
+                                                <div className="flex items-center gap-2 flex-wrap border-t border-zinc-800/40 pt-1.5">
+                                                    {currentActiveStrategyCodes.map(code => {
+                                                        const color = STRAT_COLORS[code] || '#52525b';
+                                                        const shortName = STRAT_POOL.find(s => s.code === code)?.name || code;
+                                                        return (
+                                                            <div key={`flow-legend-${code}`} className="flex items-center gap-1">
+                                                                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
+                                                                <span className="text-[7px] font-black uppercase font-mono tracking-tighter text-zinc-300">{shortName}</span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
                                             </div>
                                         </div>
                                         <div ref={logContainerRef} className="flex-1 overflow-y-auto p-6 font-mono text-[10px] space-y-3 bg-black/20 custom-scrollbar">
@@ -1681,7 +1620,6 @@ const TradingBotContainer = () => {
                                                                 </div>
                                                                 {log.targets.map(t => (
                                                                     <div key={t.code} className="flex items-center justify-between">
-                                                                        {/* [P2] STRAT_COLORS now accessible from module scope */}
                                                                         <span style={{ color: STRAT_COLORS[t.code] || '#71717a' }} className="font-black uppercase text-[9px]">{t.name}</span>
                                                                         <div className="flex gap-2 font-bold">
                                                                             <span className="text-zinc-400 font-mono">${t.target}</span>
@@ -1694,7 +1632,6 @@ const TradingBotContainer = () => {
                                                     );
                                                 }
                                                 const parsedMessage = parseLog(log.message || log);
-                                                // Upgrade ④: categorised icon + colored border
                                                 const { Icon: LogIcon, textColor, wrapClass } = getLogMeta(parsedMessage);
                                                 return (
                                                     <div
@@ -1715,9 +1652,7 @@ const TradingBotContainer = () => {
                             </div>
                         </div>
 
-                        {/* BOTTOM ROW */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-10 duration-1000">
-                            {/* SESSION EQUITY */}
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
                                 <div className="flex items-center gap-2 mb-8">
                                     <BarChart size={18} className="text-emerald-500" />
@@ -1736,7 +1671,6 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
 
-                            {/* CONFIDENCE CHART */}
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
                                 <div className="flex items-center gap-2 mb-8">
                                     <Zap size={18} className="text-violet-500" />
@@ -1747,7 +1681,7 @@ const TradingBotContainer = () => {
                                         <AreaChart data={socketStatus.equityCurve}>
                                             <defs><linearGradient id="colorConf" x1="0" y1="0" x2="0" y2="1"><stop offset="5%"  stopColor="#a78bfa" stopOpacity={0.3} /><stop offset="95%" stopColor="#a78bfa" stopOpacity={0} /></linearGradient></defs>
                                             <RechartsTooltip contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px' }} itemStyle={{ color: '#a78bfa' }} />
-                                            <Area type="step" dataKey="confidence" stroke="#a78bfa" fill="url(#colorConf)" strokeWidth={2} isAnimationActive={false} />
+                                            <Area type="monotone" dataKey="confidence" stroke="#a78bfa" fill="url(#colorConf)" strokeWidth={2} isAnimationActive={false} />
                                             <XAxis dataKey="time" hide />
                                             <YAxis hide domain={[0, 100]} />
                                         </AreaChart>
@@ -1755,7 +1689,6 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
 
-                            {/* OPERATIONS / AUDIT */}
                             <ErrorBoundary>
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl overflow-hidden flex flex-col min-h-[450px]">
                                     <div className="flex items-center justify-between mb-8">
@@ -1775,7 +1708,6 @@ const TradingBotContainer = () => {
                                     </div>
                                     <div className="flex-1 overflow-x-auto custom-scrollbar">
                                         {activeOpsTab === "live" ? (
-                                            /* Upgrade ①: rich position cards instead of bare table rows */
                                             <div className="space-y-3">
                                                 {socketStatus.positions?.length > 0 ? (
                                                     socketStatus.positions.map((pos) => (
@@ -1795,7 +1727,6 @@ const TradingBotContainer = () => {
                                                 )}
                                             </div>
                                         ) : (
-                                            /* Upgrade ⑤: trade timeline cards instead of flat audit cards */
                                             <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
                                                 {(() => {
                                                     const activeTrades = socketStatus.tradeHistory?.length > 0
@@ -1830,13 +1761,10 @@ const TradingBotContainer = () => {
                     </div>
 
                 ) : (
-                    /* ── STANDBY / CONFIG VIEW ───────────────────────────────────────────── */
                     <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8 items-start animate-in fade-in duration-700">
-                        {/* CONFIG SIDEBAR */}
                         <div className="col-span-12 lg:col-span-3 h-[850px] relative">
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-8 shadow-2xl h-full overflow-y-auto custom-scrollbar">
 
-                                {/* 1. TREASURY & ROUTING */}
                                 <div className="space-y-5">
                                     <div className="flex items-center gap-2 text-emerald-400 mb-2">
                                         <Wallet size={16} />
@@ -1873,11 +1801,10 @@ const TradingBotContainer = () => {
                                             <ArrowDownRight size={14} />
                                             <span className="text-[10px] font-black uppercase tracking-widest">Routing</span>
                                         </div>
-                                        {/* [P4] Value coerced to string for the select; state stays boolean */}
                                         <select
                                             value={formConfig.enable_shorting ? "true" : "false"}
                                             onChange={(e) => handleRoutingChange(e.target.value)}
-                                            className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase outline-none text-zinc-300"
+                                            className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase tracking-widest outline-none text-zinc-300"
                                         >
                                             <option value="false">Spot (Coinbase)</option>
                                             <option value="true">Margin (Kraken)</option>
@@ -1900,7 +1827,6 @@ const TradingBotContainer = () => {
                                     )}
                                 </div>
 
-                                {/* 2. NEURAL COMPUTE */}
                                 <div className="space-y-5 border-t border-zinc-800/50 pt-8">
                                     <div className="flex items-center justify-between mb-2">
                                         <div className="flex items-center gap-2 text-violet-400">
@@ -1910,7 +1836,7 @@ const TradingBotContainer = () => {
                                         <select
                                             value={formConfig.mlMode}
                                             onChange={(e) => setFormConfig({ ...formConfig, mlMode: e.target.value })}
-                                            className="bg-zinc-950 text-[9px] text-violet-400 rounded px-2 py-1 border border-violet-500/30 font-black uppercase outline-none cursor-pointer"
+                                            className="bg-zinc-950 text-[9px] text-violet-400 rounded px-2 py-1 border border-violet-500/30 font-black uppercase tracking-widest outline-none cursor-pointer"
                                         >
                                             <option value="off">Bypass</option>
                                             <option value="on">Active</option>
@@ -1938,7 +1864,6 @@ const TradingBotContainer = () => {
                                     )}
                                 </div>
 
-                                {/* 3. REGIME GATEKEEPERS */}
                                 <div className="space-y-5 border-t border-zinc-800/50 pt-8">
                                     <div className="flex items-center gap-2 text-emerald-400 mb-2">
                                         <Sliders size={16} />
@@ -1969,7 +1894,6 @@ const TradingBotContainer = () => {
                                     </div>
                                 </div>
 
-                                {/* 4. RISK PROTOCOL */}
                                 <div className="space-y-5 border-t border-zinc-800/50 pt-8">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-rose-500">
@@ -2019,7 +1943,6 @@ const TradingBotContainer = () => {
                                     </div>
                                 </div>
 
-                                {/* 5. TECHNICAL ENSEMBLE */}
                                 <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                     <div className="flex justify-between items-center">
                                         <h4 className="text-[10px] text-zinc-400 font-black uppercase tracking-widest">Technical Ensemble</h4>
@@ -2029,7 +1952,7 @@ const TradingBotContainer = () => {
                                                 const newMode = e.target.value;
                                                 setFormConfig({ ...formConfig, hybridMode: newMode, minVotesRequired: newMode === "AND" ? formConfig.strategies.length : formConfig.minVotesRequired });
                                             }}
-                                            className="bg-black border border-zinc-800 text-[9px] rounded px-2 py-1 text-zinc-300 font-bold uppercase outline-none"
+                                            className="bg-black border border-zinc-800 text-[9px] rounded px-2 py-1 text-zinc-300 font-bold uppercase outline-none tracking-widest"
                                         >
                                             <option value="AND">Strict (AND)</option>
                                             <option value="OR">Loose (OR)</option>
@@ -2037,7 +1960,6 @@ const TradingBotContainer = () => {
                                     </div>
                                     <div className="space-y-3">
                                         {formConfig.strategies.map((s) => (
-                                            // [P7] Stable id as key — not array index
                                             <div key={s.id} className="p-4 bg-zinc-950/80 rounded-2xl border border-zinc-800 shadow-inner">
                                                 <div className="flex justify-between mb-3">
                                                     <select
@@ -2064,7 +1986,6 @@ const TradingBotContainer = () => {
                                                                 return {
                                                                     ...prev,
                                                                     strategies: filtered,
-                                                                    // [P8] minVotesRequired clamped to [1, filtered.length]
                                                                     minVotesRequired: Math.max(1, Math.min(prev.minVotesRequired, filtered.length || 1))
                                                                 };
                                                             });
@@ -2090,7 +2011,7 @@ const TradingBotContainer = () => {
                                             onClick={() => setFormConfig(p => ({
                                                 ...p,
                                                 strategies: [...p.strategies, {
-                                                    id: makeStrategyId(), // [P7]
+                                                    id: makeStrategyId(), 
                                                     code: "rsi_threshold",
                                                     params: DEFAULT_STRATEGY_PARAMS.rsi_threshold
                                                 }]
@@ -2111,7 +2032,6 @@ const TradingBotContainer = () => {
                             </div>
                         </div>
 
-                        {/* STANDBY RIGHT PANEL */}
                         <div className="col-span-12 lg:col-span-9 space-y-8">
                             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                                 <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
