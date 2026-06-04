@@ -1,5 +1,15 @@
 // File: src/pages/TradingBot.jsx
-
+// Production rewrite — fixes applied:
+//   [P1] botData ReferenceError → calculatedStats
+//   [P2] STRAT_COLORS hoisted to module scope
+//   [P3] axios instance moved outside component
+//   [P4] enable_shorting boolean/string select mismatch
+//   [P5] prompt() / window.confirm() replaced with modals
+//   [P6] ErrorBoundary wrapping chart and ops panels
+//   [P7] Strategy keys use stable id, not array index
+//   [P8] minVotesRequired >= 1 after strategy removal
+//   [P9] Initial status fetch with retry + visible error state
+//   [P10] Halt button shows pending state during async stop
 
 import React, { useState, useEffect, useRef, useMemo, Component } from "react";
 import axios from "axios";
@@ -853,8 +863,8 @@ const ProximityTickerPanel = ({ latestSignals, aiScore, formConfig }) => {
     return (
         <div className="bg-zinc-950/60 border border-zinc-800 rounded-2xl p-4 flex flex-col gap-2 shadow-inner">
             <div className="flex items-center gap-1.5 border-b border-zinc-800/60 pb-1.5 mb-1">
-                <Filter size={11} className="text-amber-400" />
-                <span className="text-[8px] font-black uppercase tracking-widest text-zinc-500">Proximity Ticker Monitor</span>
+                <Filter size={12} className="text-amber-400" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Proximity Ticker Monitor</span>
             </div>
             <div className="space-y-1.5">
                 {metrics.map(m => {
@@ -864,11 +874,11 @@ const ProximityTickerPanel = ({ latestSignals, aiScore, formConfig }) => {
                             ? "text-amber-400 font-bold"
                             : "text-zinc-500";
                     return (
-                        <div key={m.id} className="grid grid-cols-12 gap-2 text-[9px] font-mono border-b border-zinc-900/40 pb-1 last:border-0 last:pb-0">
+                        <div key={m.id} className="grid grid-cols-12 gap-2 text-[10px] font-mono border-b border-zinc-900/40 pb-1 last:border-0 last:pb-0">
                             <span className="col-span-5 text-zinc-400 uppercase tracking-tight truncate">{m.name}</span>
                             <span className="col-span-2 text-zinc-200 text-right">{m.cur}</span>
                             <span className="col-span-2 text-zinc-600 text-right">Δ {m.delta}</span>
-                            <span className={`col-span-3 text-right uppercase text-[8px] ${statusColor}`}>{m.status}</span>
+                            <span className={`col-span-3 text-right uppercase text-[9px] ${statusColor}`}>{m.status}</span>
                         </div>
                     );
                 })}
@@ -1694,33 +1704,33 @@ const TradingBotContainer = () => {
                                                 <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${socketStatus.aiRegimeDesc?.includes('Trend') || socketStatus.aiRegimeDesc?.includes('Volatility') ? 'bg-emerald-500' : 'bg-violet-500'}`}></span>
                                             </div>
                                             <div>
-                                                <span className="text-[8px] font-black uppercase text-zinc-500 tracking-widest block">Forecasted Market Regime</span>
-                                                <h2 className="text-xs font-mono font-black text-zinc-100 tracking-wide mt-0.5">
+                                                <span className="text-xs font-black uppercase text-zinc-500 tracking-widest block">Forecasted Market Regime</span>
+                                                <h2 className="text-sm font-mono font-black text-zinc-100 tracking-wide mt-0.5">
                                                     {socketStatus.aiRegimeTitle || "Analyzing Market Structures..."}
-                                                    <span className="text-[10px] font-normal text-zinc-500 ml-2">({socketStatus.aiRegimeDesc || "Calibrating Sensors"})</span>
+                                                    <span className="text-xs font-normal text-zinc-400 ml-2">({socketStatus.aiRegimeDesc || "Calibrating Sensors"})</span>
                                                 </h2>
                                             </div>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1 border-t border-zinc-800/40">
                                             {gatewayCheckpoints.map(check => (
-                                                <div key={check.id} className="flex items-start gap-2 p-2 bg-black/30 border border-zinc-900 rounded-xl">
+                                                <div key={check.id} className="flex items-start gap-2 p-2.5 bg-black/30 border border-zinc-900 rounded-xl">
                                                     {check.passed
-                                                        ? <CheckCircle2 size={13} className="text-emerald-400 mt-0.5 shrink-0" />
-                                                        : <AlertCircle  size={13} className="text-zinc-600   mt-0.5 shrink-0" />}
+                                                        ? <CheckCircle2 size={14} className="text-emerald-400 mt-0.5 shrink-0" />
+                                                        : <AlertCircle  size={14} className="text-zinc-600   mt-0.5 shrink-0" />}
                                                     <div className="min-w-0">
-                                                        <p className={`text-[8px] font-black uppercase tracking-tight ${check.passed ? 'text-zinc-200' : 'text-zinc-500'}`}>{check.label}</p>
-                                                        <p className="text-[7px] text-zinc-600 font-medium font-mono truncate">{check.desc}</p>
+                                                        <p className={`text-[11px] font-black uppercase tracking-tight ${check.passed ? 'text-zinc-200' : 'text-zinc-500'}`}>{check.label}</p>
+                                                        <p className="text-[10px] text-zinc-500 font-medium font-mono truncate mt-0.5">{check.desc}</p>
                                                     </div>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
-                                    <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl px-4 py-2 min-w-[280px] md:max-w-md shrink-0">
-                                        <div className="flex items-center gap-1.5 mb-0.5">
-                                            <span className="text-[7px] font-black uppercase text-violet-400 tracking-wider">AI Strategy Configuration</span>
-                                            <span className="text-[6px] font-mono bg-violet-500/10 border border-violet-500/20 text-violet-300 px-1 rounded uppercase">Active</span>
+                                    <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl px-4 py-3 min-w-[280px] md:max-w-md shrink-0">
+                                        <div className="flex items-center gap-1.5 mb-1">
+                                            <span className="text-[10px] font-black uppercase text-violet-400 tracking-wider">AI Strategy Configuration</span>
+                                            <span className="text-[9px] font-mono bg-violet-500/10 border border-violet-500/20 text-violet-300 px-1.5 rounded uppercase">Active</span>
                                         </div>
-                                        <p className="text-[10px] font-mono font-medium text-zinc-300 tracking-tight leading-relaxed">
+                                        <p className="text-[12px] font-mono font-medium text-zinc-300 tracking-tight leading-relaxed">
                                             {socketStatus.aiDeployedGear || "Scanning setup to allocate optimal indicator array..."}
                                         </p>
                                     </div>
@@ -1757,7 +1767,7 @@ const TradingBotContainer = () => {
                                             <div className="flex justify-between items-center text-violet-400">
                                                 <div className="flex items-center gap-2">
                                                     <Cpu size={16} className="animate-pulse" />
-                                                    <h3 className="text-[10px] font-black uppercase tracking-widest">Neural Flow</h3>
+                                                    <h3 className="text-xs font-black uppercase tracking-widest">Neural Flow</h3>
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <button onClick={handleSyncLogs}  className="text-zinc-600 hover:text-emerald-400 transition-all"><RefreshCw size={14} /></button>
@@ -1775,7 +1785,7 @@ const TradingBotContainer = () => {
                                                 ].map(({ label, color }) => (
                                                     <div key={label} className={`flex items-center gap-1 ${color}`}>
                                                         <div className="w-1.5 h-1.5 rounded-full bg-current" />
-                                                        <span className="text-[7px] font-black uppercase">{label}</span>
+                                                        <span className="text-[9px] font-black uppercase">{label}</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -1784,7 +1794,7 @@ const TradingBotContainer = () => {
                                                 {currentActiveStrategyCodes.map(code => (
                                                     <div key={`flow-${code}`} className="flex items-center gap-1">
                                                         <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STRAT_COLORS[code] || '#52525b' }} />
-                                                        <span className="text-[7px] font-black uppercase font-mono tracking-tighter text-zinc-300">
+                                                        <span className="text-[9px] font-black uppercase font-mono tracking-tighter text-zinc-300">
                                                             {STRAT_POOL.find(s => s.code === code)?.name?.split(' ')[0] || code}
                                                         </span>
                                                     </div>
@@ -1797,24 +1807,23 @@ const TradingBotContainer = () => {
                                                 formConfig={formConfig}
                                             />
                                         </div>
-                                        <div ref={logContainerRef} className="flex-1 overflow-y-auto p-6 font-mono text-[10px] space-y-3 bg-black/20 custom-scrollbar">
+                                        <div ref={logContainerRef} className="flex-1 overflow-y-auto p-5 font-mono text-[11px] space-y-2.5 bg-black/20 custom-scrollbar">
                                             {socketLogs.map((log, i) => {
                                                 if (log.type === "RICH_LOG" || log.targets) {
                                                     return (
                                                         <div key={i} className="mb-2 p-3 bg-zinc-950/50 rounded-xl border border-zinc-800 flex flex-col gap-2">
                                                             <div className="flex justify-between items-center border-b border-zinc-800/50 pb-2">
-                                                                <span className="text-zinc-500 font-black uppercase text-[8px] tracking-widest">Targets ({log.rule})</span>
-                                                                <span className="text-[8px] opacity-40 font-bold">{formatTime(log.time)}</span>
+                                                                <span className="text-zinc-500 font-black uppercase text-[10px] tracking-widest">Targets ({log.rule})</span>
+                                                                <span className="text-[10px] opacity-40 font-bold">{formatTime(log.time)}</span>
                                                             </div>
                                                             <div className="flex flex-col gap-1.5 leading-relaxed">
                                                                 <div className="flex justify-between items-center text-white">
-                                                                    <span className="text-zinc-500 uppercase font-black text-[8px]">Market Cur</span>
+                                                                    <span className="text-zinc-500 uppercase font-black text-[10px]">Market Cur</span>
                                                                     <span className="font-bold">${log.cur}</span>
                                                                 </div>
                                                                 {log.targets.map(t => (
                                                                     <div key={t.code} className="flex items-center justify-between">
-                                                                        {/* [P2] STRAT_COLORS now accessible from module scope */}
-                                                                        <span style={{ color: STRAT_COLORS[t.code] || '#71717a' }} className="font-black uppercase text-[9px]">{t.name}</span>
+                                                                        <span style={{ color: STRAT_COLORS[t.code] || '#71717a' }} className="font-black uppercase text-[10px]">{t.name}</span>
                                                                         <div className="flex gap-2 font-bold">
                                                                             <span className="text-zinc-400 font-mono">${t.target}</span>
                                                                             <span className={t.trend === 'UP' ? 'text-emerald-500' : 'text-rose-500'}>({t.diff > 0 ? '+' : ''}${t.diff})</span>
@@ -1833,10 +1842,10 @@ const TradingBotContainer = () => {
                                                         key={i}
                                                         className={`p-3 rounded-xl border leading-relaxed flex items-start gap-2 ${wrapClass} ${i === 0 ? 'animate-in slide-in-from-top-1 duration-300' : ''}`}
                                                     >
-                                                        <LogIcon size={11} className={`${textColor} mt-0.5 flex-shrink-0`} />
+                                                        <LogIcon size={12} className={`${textColor} mt-0.5 flex-shrink-0`} />
                                                         <div className="flex flex-col gap-0.5 min-w-0">
-                                                            <span className="text-[9px] opacity-50 font-bold">{formatTime(log.time)}</span>
-                                                            <span className={`font-bold tracking-tight text-[10px] ${textColor} break-words`}>{parsedMessage}</span>
+                                                            <span className="text-[10px] opacity-50 font-bold">{formatTime(log.time)}</span>
+                                                            <span className={`font-bold tracking-tight text-[11px] ${textColor} break-words`}>{parsedMessage}</span>
                                                         </div>
                                                     </div>
                                                 );
