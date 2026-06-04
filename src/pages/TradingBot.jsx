@@ -10,7 +10,7 @@
 //   [P8] minVotesRequired >= 1 after strategy removal
 //   [P9] Initial status fetch with retry + visible error state
 //   [P10] Halt button shows pending state during async stop
-//   [FIX] Restored missing handleReset scope reference handler
+//   [FIX] Elevated profitPct and pnlPct to top-level useMemo to prevent lifecycle ReferenceErrors
 
 import React, { useState, useEffect, useRef, useMemo, Component } from "react";
 import axios from "axios";
@@ -109,8 +109,6 @@ const formatTime = (isoString) => {
     return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 };
 
-const makeStrategyId = () => `strat_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-
 const getLogMeta = (msg) => {
     const t = msg.toUpperCase();
     if (t.includes('TRADE') || t.includes('PARTIAL') || t.includes('SCALE-OUT') ||
@@ -130,7 +128,7 @@ const getLogMeta = (msg) => {
     return { Icon: Activity, textColor: 'text-zinc-500', wrapClass: 'bg-zinc-900 border-zinc-800' };
 };
 
-// ─── [P6] ERROR BOUNDARY ───────────────────────────────────────────────────────
+// ─── ERROR BOUNDARY ───────────────────────────────────────────────────────
 class ErrorBoundary extends Component {
     constructor(props) {
         super(props);
@@ -235,7 +233,6 @@ function StrategyParamInputs({ strategy, onChange }) {
     );
 }
 
-// ─── API KEY MODAL — replaces prompt() ────────────────────────────────────
 const ApiKeyModal = ({ exchange, onSave, onCancel }) => {
     const isKraken = exchange === 'kraken';
     const [key, setKey]       = useState("");
@@ -668,7 +665,7 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
                             {activeStratCodes.map(key => (
                                 <linearGradient key={`grad-${key}`} id={`color-${key}`} x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="5%"  stopColor={STRAT_COLORS[key] || '#52525b'} stopOpacity={0.3} />
-                                    <stop offset="95%" strokeColor={STRAT_COLORS[key] || '#52525b'} stopOpacity={0} />
+                                    <stop offset="95%" stopColor={STRAT_COLORS[key] || '#52525b'} stopOpacity={0} />
                                 </linearGradient>
                             ))}
                         </defs>
@@ -776,6 +773,7 @@ const TradingBotContainer = () => {
 
     const isBotRunning = socketStatus.status === 'running' && !isHaltLocked;
 
+    // ── [P11] COMPUTED VALUES UNIFICATION BLOCK ──────────────────────────────
     const currentActiveStrategyCodes = useMemo(() => {
         if (socketStatus.signalsMapHistory?.length > 0) {
             const keys = new Set();
@@ -794,6 +792,15 @@ const TradingBotContainer = () => {
         const percentage = (change / (starting || 1)) * 100;
         return { change, percentage, isProfit: change >= 0 };
     }, [socketStatus.currentBalance, socketStatus.initialCapital, formConfig.capitalAllocation]);
+
+    const profitMetrics = useMemo(() => {
+        const seed = socketStatus.initialCapital || formConfig.capitalAllocation || 1;
+        const dPct = ((socketStatus.dailyProfit || 0) / seed) * 100;
+        const uPct = ((socketStatus.unrealizedPnl || 0) / seed) * 100;
+        return { startCap: seed, profitPct: dPct, pnlPct: uPct };
+    }, [socketStatus.initialCapital, socketStatus.dailyProfit, socketStatus.unrealizedPnl, formConfig.capitalAllocation]);
+
+    const { startCap, profitPct, pnlPct } = profitMetrics;
 
     const equityEnvelopeDomain = useMemo(() => {
         if (!socketStatus.equityCurve || socketStatus.equityCurve.length < 2) {
@@ -815,6 +822,7 @@ const TradingBotContainer = () => {
         return { label: "NEUTRAL CHOP", color: "text-violet-400", hex: "#a78bfa" };
     }, [socketStatus.currentConfidence]);
 
+    // ── Sync hook state ───────────────────────────────────────────────────────
     useEffect(() => {
         if (hookBotStatus) setSocketStatus(prev => ({
             ...prev, ...hookBotStatus,
@@ -1046,9 +1054,6 @@ const TradingBotContainer = () => {
         }
     };
 
-    // ============================================================
-    // 🛡️ RE-SECURED FACTORY INITIALIZATION SYSTEM CORE
-    // ============================================================
     const handleReset = () => {
         setConfirmModal({
             title: "Factory Reset",
@@ -1126,6 +1131,8 @@ const TradingBotContainer = () => {
             }
         });
     };
+
+    const currentPrice = socketStatus.currentPrice || (socketStatus.candles?.length > 0 ? socketStatus.candles[socketStatus.candles.length - 1]?.close : 0) || 0;
 
     return (
         <UIModeProvider>
@@ -1371,7 +1378,6 @@ const TradingBotContainer = () => {
                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-10 duration-1000">
-                            {/* UPDATED PERFORMANCE TRACKS */}
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl flex flex-col justify-between">
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex items-center gap-2">
@@ -1420,7 +1426,6 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
 
-                            {/* MODERNIZED ADAPTIVE CONFIDENCE TRACKER BLOCK */}
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl flex flex-col justify-between">
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex items-center gap-2">
@@ -1608,7 +1613,7 @@ const TradingBotContainer = () => {
                                         <select
                                             value={formConfig.mlMode}
                                             onChange={(e) => setFormConfig({ ...formConfig, mlMode: e.target.value })}
-                                            className="bg-zinc-950 text-[9px] text-violet-400 rounded px-2 py-1 border border-violet-500/30 font-black uppercase outline-none cursor-pointer"
+                                            className="bg-zinc-950 text-[9px] text-violet-400 rounded px-2 py-1 border border-violet-500/30 font-black uppercase tracking-widest outline-none cursor-pointer"
                                         >
                                             <option value="off">Bypass</option>
                                             <option value="on">Active</option>
