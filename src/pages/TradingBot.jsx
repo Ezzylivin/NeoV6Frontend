@@ -10,7 +10,7 @@
 //   [P8] minVotesRequired >= 1 after strategy removal
 //   [P9] Initial status fetch with retry + visible error state
 //   [P10] Halt button shows pending state during async stop
-//   [FIX] Resolved profitPct and pnlPct ReferenceErrors in metric layout
+//   [UPGRADE] High-Fidelity Multi-Regime Stance Adaptive Logic Confidence Matrix
 
 import React, { useState, useEffect, useRef, useMemo, Component } from "react";
 import axios from "axios";
@@ -29,7 +29,7 @@ import {
     HelpCircle, ShieldAlert,
     ChevronDown, ChevronUp, Search, ExternalLink, Sliders, Eye, EyeOff, Key, X
 } from "lucide-react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import "./TradingBot.css";
 import "../styles/Themes.css";
 
@@ -39,14 +39,14 @@ const BASE_URL = RAW_URL.replace(/\/$/, "").replace(/\/api$/, "");
 const API_BASE = `${BASE_URL}/api`;
 const SOCKET_URL = BASE_URL;
 
-// ─── [P3] AXIOS INSTANCE — outside component, created once ────────────────────
+// ─── AXIOS INSTANCE ──────────────────────────────────────────────────────────
 const api = axios.create({ baseURL: API_BASE });
 
 // ─── STYLE CONSTANTS ───────────────────────────────────────────────────────────
 const inputClass = "w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-emerald-500 transition-all text-[11px] outline-none font-mono";
 const labelClass = "text-[9px] text-zinc-500 uppercase font-black mb-1 block ml-1 tracking-tighter";
 
-// ─── [P2] STRAT_COLORS — hoisted to module scope ─────────────────────────────
+// ─── STRAT_COLORS ────────────────────────────────────────────────────────────
 const STRAT_COLORS = {
     rsi_threshold: "#3b82f6",
     sma_crossover: "#ef4444",
@@ -109,8 +109,6 @@ const formatTime = (isoString) => {
     return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 };
 
-const makeStrategyId = () => `strat_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-
 const getLogMeta = (msg) => {
     const t = msg.toUpperCase();
     if (t.includes('TRADE') || t.includes('PARTIAL') || t.includes('SCALE-OUT') ||
@@ -130,7 +128,7 @@ const getLogMeta = (msg) => {
     return { Icon: Activity, textColor: 'text-zinc-500', wrapClass: 'bg-zinc-900 border-zinc-800' };
 };
 
-// ─── [P6] ERROR BOUNDARY ───────────────────────────────────────────────────────
+// ─── ERROR BOUNDARY ───────────────────────────────────────────────────────
 class ErrorBoundary extends Component {
     constructor(props) {
         super(props);
@@ -540,7 +538,9 @@ const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) =
                             <span className="text-[7px] text-emerald-500 font-black uppercase">Take Profit</span>
                             <span className="font-mono text-[7px] text-emerald-500 font-black">{Math.round(tpPct)}%</span>
                         </div>
-                        <div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${tpPct}%` }} />
+                        <div className="h-1 bg-emerald-500/10 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${tpPct}%` }} />
+                        </div>
                     </div>
                     <div className="p-2 bg-rose-500/5 border border-rose-500/10 rounded-xl">
                         <div className="flex justify-between mb-1">
@@ -681,7 +681,7 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
                             {activeStratCodes.map(key => (
                                 <linearGradient key={`grad-${key}`} id={`color-${key}`} x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="5%"  stopColor={STRAT_COLORS[key] || '#52525b'} stopOpacity={0.3} />
-                                    <stop offset="95%" strokeColor={STRAT_COLORS[key] || '#52525b'} stopOpacity={0} />
+                                    <stop offset="95%" stopColor={STRAT_COLORS[key] || '#52525b'} stopOpacity={0} />
                                 </linearGradient>
                             ))}
                         </defs>
@@ -818,6 +818,16 @@ const TradingBotContainer = () => {
         const paddingDelta = (maxLevel - minLevel) * 0.15 || (formConfig.capitalAllocation * 0.02);
         return [Math.floor(minLevel - paddingDelta), Math.ceil(maxLevel + paddingDelta)];
     }, [socketStatus.equityCurve, formConfig.capitalAllocation]);
+
+    // ── UPGRADE: CALCULATE DYNAMIC AI STRATEGY STANCE VECTORS ────────────────
+    const confidenceStance = useMemo(() => {
+        const score = socketStatus.currentConfidence ?? 50;
+        if (score > 85) return { label: "STRONG BUY", color: "text-emerald-400", hex: "#10b981" };
+        if (score > 70) return { label: "BUY INTENT", color: "text-emerald-400", hex: "#10b981" };
+        if (score < 20) return { label: "STRONG VETO", color: "text-rose-500", hex: "#ef4444" };
+        if (score < 35) return { label: "VETO GUARD", color: "text-rose-400", hex: "#f43f5e" };
+        return { label: "NEUTRAL CHOP", color: "text-violet-400", hex: "#a78bfa" };
+    }, [socketStatus.currentConfidence]);
 
     useEffect(() => {
         if (hookBotStatus) setSocketStatus(prev => ({
@@ -1391,10 +1401,9 @@ const TradingBotContainer = () => {
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-10 duration-1000">
-                            {/* NEW HIGH-PERFORMANCE INTUITION GRAPH FOR SESSION EQUITY */}
+                            {/* UPGRADED SESSION EQUITY CARD */}
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl flex flex-col justify-between">
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex items-center gap-2">
@@ -1406,9 +1415,7 @@ const TradingBotContainer = () => {
                                     </div>
                                     <div className="text-right">
                                         <span className={`font-mono text-xs font-black px-2 py-0.5 rounded border ${
-                                            sessionDelta.isProfit 
-                                                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" 
-                                                : "bg-rose-500/10 border-rose-500/20 text-rose-400"
+                                            sessionDelta.isProfit ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-rose-500/10 border-rose-500/20 text-rose-400"
                                         }`}>
                                             {sessionDelta.isProfit ? "▲" : "▼"} {sessionDelta.percentage >= 0 ? '+' : ''}{sessionDelta.percentage.toFixed(2)}%
                                         </span>
@@ -1437,14 +1444,7 @@ const TradingBotContainer = () => {
                                                 itemStyle={{ color: sessionDelta.isProfit ? '#10b981' : '#ef4444' }} 
                                                 formatter={(value) => [`$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 'EQUITY']}
                                             />
-                                            <Area 
-                                                type="monotone" 
-                                                dataKey="balance" 
-                                                stroke={sessionDelta.isProfit ? "#10b981" : "#ef4444"} 
-                                                fill={sessionDelta.isProfit ? "url(#colorEquityProfit)" : "url(#colorEquityDrawdown)"} 
-                                                strokeWidth={2.5} 
-                                                isAnimationActive={false} 
-                                            />
+                                            <Area type="monotone" dataKey="balance" stroke={sessionDelta.isProfit ? "#10b981" : "#ef4444"} fill={sessionDelta.isProfit ? "url(#colorEquityProfit)" : "url(#colorEquityDrawdown)"} strokeWidth={2.5} isAnimationActive={false} />
                                             <XAxis dataKey="time" hide />
                                             <YAxis hide domain={equityEnvelopeDomain} />
                                         </AreaChart>
@@ -1452,17 +1452,47 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
 
-                            <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl">
-                                <div className="flex items-center gap-2 mb-8">
-                                    <Zap size={18} className="text-violet-500" />
-                                    <h3 className="text-[11px] font-black uppercase tracking-widest">Logic Confidence</h3>
+                            {/* UPGRADED ADAPTIVE LOGIC CONFIDENCE PERFORMANCE CARD */}
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl flex flex-col justify-between">
+                                <div className="flex items-start justify-between mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <Zap size={18} className={confidenceStance.color} />
+                                        <div>
+                                            <h3 className="text-[11px] font-black uppercase tracking-widest text-zinc-400">Logic Confidence</h3>
+                                            <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-wider mt-0.5">Ensemble Neural Bias Index</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="font-mono text-xs font-black px-2 py-0.5 rounded border bg-zinc-950/40" style={{ borderColor: `${confidenceStance.hex}22`, color: confidenceStance.hex }}>
+                                            {confidenceStance.label}
+                                        </span>
+                                        <span className={`block font-mono text-sm font-black mt-1 ${confidenceStance.color}`}>
+                                            {socketStatus.currentConfidence ?? 50}%
+                                        </span>
+                                    </div>
                                 </div>
-                                <div className="h-48 w-full">
+                                <div className="h-44 w-full mt-2">
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <AreaChart data={socketStatus.equityCurve}>
-                                            <defs><linearGradient id="colorConf" x1="0" y1="0" x2="0" y2="1"><stop offset="5%"  stopColor="#a78bfa" stopOpacity={0.3} /><stop offset="95%" stopColor="#a78bfa" stopOpacity={0} /></linearGradient></defs>
-                                            <RechartsTooltip contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px' }} itemStyle={{ color: '#a78bfa' }} />
-                                            <Area type="monotone" dataKey="confidence" stroke="#a78bfa" fill="url(#colorConf)" strokeWidth={2} isAnimationActive={false} />
+                                        <AreaChart data={socketStatus.equityCurve} margin={{ top: 5, right: 5, left: -5, bottom: 0 }}>
+                                            <defs>
+                                                <linearGradient id="colorConfGradient" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor={confidenceStance.hex} stopOpacity={0.25} />
+                                                    <stop offset="95%" stopColor={confidenceStance.hex} stopOpacity={0} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" opacity={0.15} vertical={false} />
+                                            
+                                            {/* Dynamic Veto Horizon Guide Projections */}
+                                            <ReferenceLine y={parseFloat(formConfig.mlThresholdLong) * 100} stroke="#10b981" strokeDasharray="3 3" opacity={0.25} />
+                                            <ReferenceLine y={parseFloat(formConfig.mlThresholdShort) * 100} stroke="#ef4444" strokeDasharray="3 3" opacity={0.25} />
+                                            
+                                            <RechartsTooltip 
+                                                cursor={{ stroke: '#27272a', strokeWidth: 1, strokeDasharray: '4 4' }}
+                                                contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px', fontFamily: 'monospace' }} 
+                                                itemStyle={{ color: confidenceStance.hex }}
+                                                formatter={(value) => [`${Number(value).toFixed(0)}%`, 'NEURAL BIAS']}
+                                            />
+                                            <Area type="monotone" dataKey="confidence" stroke={confidenceStance.hex} fill="url(#colorConfGradient)" strokeWidth={2.5} isAnimationActive={false} />
                                             <XAxis dataKey="time" hide />
                                             <YAxis hide domain={[0, 100]} />
                                         </AreaChart>
@@ -1640,32 +1670,26 @@ const TradingBotContainer = () => {
                                 </div>
 
                                 <div className="space-y-5 border-t border-zinc-800/50 pt-8">
-                                    <div className="flex items-center gap-2 text-emerald-400 mb-2">
-                                        <Sliders size={16} />
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Regime Gatekeepers</h4>
+                                    <div className="flex flex-col gap-1">
+                                        <div className="flex justify-between items-center">
+                                            <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Minimum ADX Trend</label>
+                                            <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minAdx}</span>
+                                        </div>
+                                        <input type="range" min="10" max="50" step="1" value={formConfig.minAdx} onChange={(e) => setFormConfig({ ...formConfig, minAdx: parseInt(e.target.value) })} className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer" />
                                     </div>
-                                    <div className="space-y-4 bg-zinc-950/40 p-4 border border-zinc-900 rounded-2xl">
-                                        <div className="flex flex-col gap-1">
-                                            <div className="flex justify-between items-center">
-                                                <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Minimum ADX Trend</label>
-                                                <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minAdx}</span>
-                                            </div>
-                                            <input type="range" min="10" max="50" step="1" value={formConfig.minAdx} onChange={(e) => setFormConfig({ ...formConfig, minAdx: parseInt(e.target.value) })} className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer" />
+                                    <div className="flex flex-col gap-1">
+                                        <div className="flex justify-between items-center">
+                                            <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Min Vol Confirmation</label>
+                                            <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minVolRatio}x</span>
                                         </div>
-                                        <div className="flex flex-col gap-1">
-                                            <div className="flex justify-between items-center">
-                                                <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Min Vol Confirmation</label>
-                                                <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minVolRatio}x</span>
-                                            </div>
-                                            <input type="range" min="0.5" max="2.5" step="0.1" value={formConfig.minVolRatio} onChange={(e) => setFormConfig({ ...formConfig, minVolRatio: parseFloat(e.target.value) })} className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer" />
+                                        <input type="range" min="0.5" max="2.5" step="0.1" value={formConfig.minVolRatio} onChange={(e) => setFormConfig({ ...formConfig, minVolRatio: parseFloat(e.target.value) })} className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer" />
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                        <div className="flex justify-between items-center">
+                                            <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Min Ensemble Weight</label>
+                                            <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minWeightedSignal}</span>
                                         </div>
-                                        <div className="flex flex-col gap-1">
-                                            <div className="flex justify-between items-center">
-                                                <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Min Ensemble Weight</label>
-                                                <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minWeightedSignal}</span>
-                                            </div>
-                                            <input type="range" min="0.1" max="1.5" step="0.05" value={formConfig.minWeightedSignal} onChange={(e) => setFormConfig({ ...formConfig, minWeightedSignal: parseFloat(e.target.value) })} className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer" />
-                                        </div>
+                                        <input type="range" min="0.1" max="1.5" step="0.05" value={formConfig.minWeightedSignal} onChange={(e) => setFormConfig({ ...formConfig, minWeightedSignal: parseFloat(e.target.value) })} className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer" />
                                     </div>
                                 </div>
 
