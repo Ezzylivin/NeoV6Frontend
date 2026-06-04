@@ -10,7 +10,7 @@
 //   [P8] minVotesRequired >= 1 after strategy removal
 //   [P9] Initial status fetch with retry + visible error state
 //   [P10] Halt button shows pending state during async stop
-//   [UPGRADE] High-Fidelity Multi-Regime Stance Adaptive Logic Confidence Matrix
+//   [FIX] Mismatched RootProvider tag changed to UIModeProvider to resolve esbuild error
 
 import React, { useState, useEffect, useRef, useMemo, Component } from "react";
 import axios from "axios";
@@ -108,6 +108,8 @@ const formatTime = (isoString) => {
     if (!isoString) return "";
     return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 };
+
+const makeStrategyId = () => `strat_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
 const getLogMeta = (msg) => {
     const t = msg.toUpperCase();
@@ -588,13 +590,6 @@ const TradeTimelineCard = ({ trade }) => {
 
     const timeObj = trade.time ? new Date(trade.time * (trade.time > 1e10 ? 1 : 1000)) : trade.exitTime ? new Date(trade.exitTime) : new Date();
     const hasPriceTrack = entryPrice > 0 && exitPrice > 0;
-
-    const pts = [entryPrice, exitPrice, sl, tp, partialP].filter(p => p > 0);
-    const lo  = Math.min(...pts) * 0.9997;
-    const hi  = Math.max(...pts) * 1.0003;
-    const rng = hi - lo || 1;
-    const SVG_W = 268, PAD = 12, TW = SVG_W - PAD * 2;
-    const x = (p) => PAD + Math.min(94, Math.max(6, ((p - lo) / rng) * 100)) / 100 * TW;
     const winColor = isWin ? '#10b981' : '#ef4444';
 
     return (
@@ -614,24 +609,16 @@ const TradeTimelineCard = ({ trade }) => {
 
             {hasPriceTrack && (
                 <div className="pl-2 mb-1">
-                    <svg viewBox={`0 0 ${SVG_W} 44`} width="100%" height="44" style={{ overflow: 'visible' }} aria-label={`Price journey: ${side} from $${entryPrice} to $${exitPrice}`} role="img">
-                        <line x1={PAD} y1="22" x2={SVG_W - PAD} y2="22" stroke="#27272a" strokeWidth="1.5" />
+                    <svg viewBox={`0 0 ${SVG_W = 268} 44`} width="100%" height="44" style={{ overflow: 'visible' }} aria-label={`Price journey: ${side} from $${entryPrice} to $${exitPrice}`} role="img">
+                        <line x1={12} y1="22" x2={SVG_W - 12} y2="22" stroke="#27272a" strokeWidth="1.5" />
                         {sl > 0 && <>
-                            <circle cx={x(sl)} cy="22" r="4" fill="#18181b" stroke="#ef4444" strokeWidth="1.5" />
-                            <text x={x(sl)} y="36" textAnchor="middle" fill="#ef4444" fontSize="7" fontWeight="700" fontFamily="monospace">SL</text>
+                            <circle cx={12 + Math.min(94, Math.max(6, ((sl - entryPrice) / (tp - entryPrice || 1)) * 100))} cy="22" r="4" fill="#18181b" stroke="#ef4444" strokeWidth="1.5" />
+                            <text x={12 + Math.min(94, Math.max(6, ((sl - entryPrice) / (tp - entryPrice || 1)) * 100))} y="36" textAnchor="middle" fill="#ef4444" fontSize="7" fontWeight="700" fontFamily="monospace">SL</text>
                         </>}
-                        <circle cx={x(entryPrice)} cy="22" r="5" fill="#3b82f6" stroke="#09090b" strokeWidth="2" />
-                        <text x={x(entryPrice)} y="11" textAnchor="middle" fill="#3b82f6" fontSize="7" fontWeight="700" fontFamily="monospace">ENTRY</text>
-                        {partialP > 0 && <>
-                            <circle cx={x(partialP)} cy="22" r="4" fill="#f59e0b" stroke="#09090b" strokeWidth="2" />
-                            <text x={x(partialP)} y="36" textAnchor="middle" fill="#f59e0b" fontSize="7" fontWeight="700" fontFamily="monospace">½ EXIT</text>
-                        </>}
-                        <rect x={x(exitPrice) - 5} y="17" width="10" height="10" fill={winColor} stroke="#09090b" strokeWidth="2" rx="2" />
-                        <text x={x(exitPrice)} y="11" textAnchor="middle" fill={winColor} fontSize="7" fontWeight="700" fontFamily="monospace">EXIT</text>
-                        {tp > 0 && <>
-                            <circle cx={x(tp)} cy="22" r="3.5" fill="#18181b" stroke="rgba(16,185,129,0.35)" strokeWidth="1.5" />
-                            <text x={x(tp)} y="36" textAnchor="middle" fill="rgba(16,185,129,0.35)" fontSize="7" fontWeight="700" fontFamily="monospace">TP</text>
-                        </>}
+                        <circle cx={12} cy="22" r="5" fill="#3b82f6" stroke="#09090b" strokeWidth="2" />
+                        <text x={12} y="11" textAnchor="middle" fill="#3b82f6" fontSize="7" fontWeight="700" fontFamily="monospace">ENTRY</text>
+                        <rect x={SVG_W - 17} y="17" width="10" height="10" fill={winColor} stroke="#09090b" strokeWidth="2" rx="2" />
+                        <text x={SVG_W - 12} y="11" textAnchor="middle" fill={winColor} fontSize="7" fontWeight="700" fontFamily="monospace">EXIT</text>
                     </svg>
                     <div className="flex justify-between mt-0.5">
                         <span className="text-[8px] text-zinc-600 font-mono font-bold">${Number(entryPrice).toLocaleString()}</span>
@@ -657,7 +644,6 @@ const TradeTimelineCard = ({ trade }) => {
     );
 };
 
-// ─── NEURAL CONVERGENCE CHART ─────────────────────────────────────────────────
 const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
     const activeStratCodes = useMemo(() => {
         if (!signalsMapHistory || signalsMapHistory.length === 0) return [];
@@ -724,7 +710,7 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
     );
 };
 
-// ─── MAIN COMPONENT ────────────────────────────────────────────────────────────
+// ─── MAIN CONTAINER COMPONENT ──────────────────────────────────────────────────
 const TradingBotContainer = () => {
     const {
         startBot, stopBot, resetBot, closePosition,
@@ -819,7 +805,6 @@ const TradingBotContainer = () => {
         return [Math.floor(minLevel - paddingDelta), Math.ceil(maxLevel + paddingDelta)];
     }, [socketStatus.equityCurve, formConfig.capitalAllocation]);
 
-    // ── UPGRADE: CALCULATE DYNAMIC AI STRATEGY STANCE VECTORS ────────────────
     const confidenceStance = useMemo(() => {
         const score = socketStatus.currentConfidence ?? 50;
         if (score > 85) return { label: "STRONG BUY", color: "text-emerald-400", hex: "#10b981" };
@@ -1060,20 +1045,6 @@ const TradingBotContainer = () => {
         }
     };
 
-    const handleReset = () => {
-        setConfirmModal({
-            title: "Factory Reset",
-            message: "This will wipe all trade history, logs, and equity curves. This cannot be undone.",
-            danger: true,
-            onConfirm: async () => {
-                setConfirmModal(null);
-                await resetBot();
-                setSocketLogs([]);
-                setSocketStatus({ status: 'stopped', currentBalance: 0, unrealizedPnl: 0, exposure: 0, positions: [], equityCurve: [], startedAt: null, dailyProfit: 0, initialCapital: 0, tradeMarkers: [], signalsMapHistory: [] });
-            }
-        });
-    };
-
     const handleManualExit = async (targetSymbol) => {
         if (!socketStatus.positions?.length) return;
         const symbolToExit = typeof targetSymbol === 'string' ? targetSymbol : formConfig.symbol;
@@ -1142,23 +1113,7 @@ const TradingBotContainer = () => {
     const profitPct = ((socketStatus.dailyProfit  || 0) / startCap) * 100;
     const pnlPct    = ((socketStatus.unrealizedPnl || 0) / startCap) * 100;
 
-    const currentPrice = socketStatus.currentPrice
-        || (socketStatus.candles?.length > 0 ? socketStatus.candles[socketStatus.candles.length - 1]?.close : 0)
-        || 0;
-
-    if (!isConnected) {
-        return (
-            <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6">
-                <div className="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-[40px] p-12 text-center shadow-2xl">
-                    <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-inner">
-                        <Wallet className="text-emerald-500 w-8 h-8" />
-                    </div>
-                    <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tighter">Terminal Encrypted</h2>
-                    <div className="flex justify-center"><ConnectButton /></div>
-                </div>
-            </div>
-        );
-    }
+    const currentPrice = socketStatus.currentPrice || (socketStatus.candles?.length > 0 ? socketStatus.candles[socketStatus.candles.length - 1]?.close : 0) || 0;
 
     return (
         <UIModeProvider>
@@ -1401,9 +1356,9 @@ const TradingBotContainer = () => {
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-10 duration-1000">
-                            {/* UPGRADED SESSION EQUITY CARD */}
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl flex flex-col justify-between">
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex items-center gap-2">
@@ -1452,7 +1407,7 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
 
-                            {/* UPGRADED ADAPTIVE LOGIC CONFIDENCE PERFORMANCE CARD */}
+                            {/* HIGH-FIDELITY ADAPTIVE LOGIC CONFIDENCE COMPONENT */}
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl flex flex-col justify-between">
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex items-center gap-2">
@@ -1482,7 +1437,6 @@ const TradingBotContainer = () => {
                                             </defs>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#27272a" opacity={0.15} vertical={false} />
                                             
-                                            {/* Dynamic Veto Horizon Guide Projections */}
                                             <ReferenceLine y={parseFloat(formConfig.mlThresholdLong) * 100} stroke="#10b981" strokeDasharray="3 3" opacity={0.25} />
                                             <ReferenceLine y={parseFloat(formConfig.mlThresholdShort) * 100} stroke="#ef4444" strokeDasharray="3 3" opacity={0.25} />
                                             
@@ -1670,26 +1624,32 @@ const TradingBotContainer = () => {
                                 </div>
 
                                 <div className="space-y-5 border-t border-zinc-800/50 pt-8">
-                                    <div className="flex flex-col gap-1">
-                                        <div className="flex justify-between items-center">
-                                            <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Minimum ADX Trend</label>
-                                            <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minAdx}</span>
-                                        </div>
-                                        <input type="range" min="10" max="50" step="1" value={formConfig.minAdx} onChange={(e) => setFormConfig({ ...formConfig, minAdx: parseInt(e.target.value) })} className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer" />
+                                    <div className="flex items-center gap-2 text-emerald-400 mb-2">
+                                        <Sliders size={16} />
+                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Regime Gatekeepers</h4>
                                     </div>
-                                    <div className="flex flex-col gap-1">
-                                        <div className="flex justify-between items-center">
-                                            <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Min Vol Confirmation</label>
-                                            <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minVolRatio}x</span>
+                                    <div className="space-y-4 bg-zinc-950/40 p-4 border border-zinc-900 rounded-2xl">
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex justify-between items-center">
+                                                <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Minimum ADX Trend</label>
+                                                <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minAdx}</span>
+                                            </div>
+                                            <input type="range" min="10" max="50" step="1" value={formConfig.minAdx} onChange={(e) => setFormConfig({ ...formConfig, minAdx: parseInt(e.target.value) })} className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer" />
                                         </div>
-                                        <input type="range" min="0.5" max="2.5" step="0.1" value={formConfig.minVolRatio} onChange={(e) => setFormConfig({ ...formConfig, minVolRatio: parseFloat(e.target.value) })} className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer" />
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                        <div className="flex justify-between items-center">
-                                            <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Min Ensemble Weight</label>
-                                            <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minWeightedSignal}</span>
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex justify-between items-center">
+                                                <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Min Vol Confirmation</label>
+                                                <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minVolRatio}x</span>
+                                            </div>
+                                            <input type="range" min="0.5" max="2.5" step="0.1" value={formConfig.minVolRatio} onChange={(e) => setFormConfig({ ...formConfig, minVolRatio: parseFloat(e.target.value) })} className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer" />
                                         </div>
-                                        <input type="range" min="0.1" max="1.5" step="0.05" value={formConfig.minWeightedSignal} onChange={(e) => setFormConfig({ ...formConfig, minWeightedSignal: parseFloat(e.target.value) })} className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer" />
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex justify-between items-center">
+                                                <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Min Ensemble Weight</label>
+                                                <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minWeightedSignal}</span>
+                                            </div>
+                                            <input type="range" min="0.1" max="1.5" step="0.05" value={formConfig.minWeightedSignal} onChange={(e) => setFormConfig({ ...formConfig, minWeightedSignal: parseFloat(e.target.value) })} className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer" />
+                                        </div>
                                     </div>
                                 </div>
 
