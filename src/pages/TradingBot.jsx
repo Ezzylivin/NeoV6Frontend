@@ -52,7 +52,7 @@ const STRAT_COLORS = {
     rsi_threshold: "#3b82f6",
     sma_crossover: "#ef4444",
     supertrend:    "#10b981",
-    macd_crossover:#f59e0b,
+    macd_crossover:"#f59e0b",
     atr_breakout:  "#8b5cf6",
     bb_fade:       "#ec4899",
     stoch:         "#06b6d4",
