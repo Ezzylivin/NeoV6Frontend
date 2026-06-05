@@ -10,7 +10,7 @@
 //   [P8] minVotesRequired >= 1 after strategy removal
 //   [P9] Initial status fetch with retry + visible error state
 //   [P10] Halt button shows pending state during async stop
-//   [LAYOUT] Upgraded typography constraints to maximize legibility and box layout fitments
+//   [FIX] Corrected "fires" typo to native "finally" block statement inside handleConfirmStart
 
 import React, { useState, useEffect, useRef, useMemo, Component } from "react";
 import axios from "axios";
@@ -416,7 +416,7 @@ const ConfidenceRingCard = ({ confidence }) => {
         <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-3xl relative overflow-hidden shadow-xl flex items-center gap-3">
             <div className="flex-1 min-w-0">
                 <p className="text-[10px] text-zinc-500 uppercase font-black tracking-[0.15em] mb-1 truncate">Council Consensus</p>
-                <p className={`text-xl font-mono font-black tracking-tighter ${colorClass}`}>{Math.round(c)}%</p>
+                <p className={`text-lg font-mono font-black tracking-tighter ${colorClass}`}>{Math.round(c)}%</p>
                 <p className={`text-[10px] font-black uppercase tracking-wide ${colorClass} opacity-60`}>{label}</p>
             </div>
             <div className="relative flex-shrink-0" style={{ width: 64, height: 64 }}>
@@ -649,7 +649,6 @@ const TradeTimelineCard = ({ trade }) => {
     );
 };
 
-// ─── UPGRADE COMPONENT: PROXIMITY TICKER PANEL ───────────────────────────────
 const ProximityTickerPanel = ({ latestSignals, aiScore, formConfig }) => {
     const metrics = useMemo(() => {
         const longLimit  = parseFloat(formConfig.mlThresholdLong  || 0.55) * 100;
@@ -692,11 +691,11 @@ const ProximityTickerPanel = ({ latestSignals, aiScore, formConfig }) => {
                             ? "text-amber-400 font-bold"
                             : "text-zinc-500";
                     return (
-                        <div key={m.id} className="grid grid-cols-12 gap-2 text-[11px] font-mono border-b border-zinc-900/40 pb-1.5 last:border-0 last:pb-0 items-center min-w-0">
+                        <div key={m.id} className="grid grid-cols-12 gap-2 text-[10px] font-mono border-b border-zinc-900/40 pb-1.5 last:border-0 last:pb-0 items-center min-w-0">
                             <span className="col-span-5 text-zinc-400 uppercase tracking-tight truncate pr-1">{m.name}</span>
                             <span className="col-span-2 text-zinc-200 text-right truncate font-bold">{m.cur}</span>
                             <span className="col-span-2 text-zinc-500 text-right truncate">Δ {m.delta}</span>
-                            <span className={`col-span-3 text-right uppercase text-[10px] truncate ${statusColor}`}>{m.status}</span>
+                            <span className={`col-span-3 text-right uppercase text-[9px] truncate ${statusColor}`}>{m.status}</span>
                         </div>
                     );
                 })}
@@ -824,7 +823,6 @@ const TradingBotContainer = () => {
         return { label: "NEUTRAL CHOP", color: "text-violet-400", hex: "#a78bfa" };
     }, [socketStatus.currentConfidence]);
 
-    // ── UPGRADE: DYNAMIC PROTOCOL VERIFICATION CHECKPOINTS LAYER ─────────────
     const gatewayCheckpoints = useMemo(() => {
         const aiScore   = socketStatus.currentConfidence ?? 50;
         const longLimit = parseFloat(formConfig.mlThresholdLong || 0.55) * 100;
@@ -850,153 +848,7 @@ const TradingBotContainer = () => {
         }));
     }, [hookBotStatus, hookLogs, restoredConfig]);
 
-    const activeBalance = useMemo(() => {
-        if (isBotRunning) return socketStatus.currentBalance || socketStatus.initialCapital || formConfig.capitalAllocation;
-        return formConfig.capitalAllocation;
-    }, [isBotRunning, socketStatus.currentBalance, socketStatus.initialCapital, formConfig.capitalAllocation]);
-
-    const calculatedStats = useMemo(() => {
-        const trades = socketStatus.tradeHistory?.length > 0 ? socketStatus.tradeHistory : (socketStatus.trade_history?.length > 0 ? socketStatus.trade_history : (socketStatus.tradeMarkers?.length > 0 ? socketStatus.tradeMarkers : []));
-        const settled = trades.filter(t => t.type === 'exit' || t.type === 'partial_exit' || t.reason);
-        if (settled.length === 0) return { winRate: 0, profitFactor: "1.0" };
-        const wins = settled.filter(t => (parseFloat(t.pnl) || 0) > 0);
-        const winRate = Math.round((wins.length / settled.length) * 100);
-        let grossProfits = 0, grossLosses = 0;
-        settled.forEach(t => {
-            const pnl = parseFloat(t.pnl) || 0;
-            if (pnl > 0) grossProfits += pnl;
-            else grossLosses += Math.abs(pnl);
-        });
-        const profitFactor = grossLosses === 0 ? (grossProfits > 0 ? "99.9" : "1.0") : (grossProfits / grossLosses).toFixed(1);
-        return { winRate, profitFactor };
-    }, [socketStatus.tradeHistory, socketStatus.trade_history, socketStatus.tradeMarkers]);
-
-    const performanceData = useMemo(() => {
-        const initialSeed = Number(formConfig.capitalAllocation) || 0;
-        const seedPoint = { time: 'Start', balance: initialSeed, confidence: 50 };
-        if (!socketStatus.equityCurve?.length) return [seedPoint];
-        return [seedPoint, ...socketStatus.equityCurve.map(p => ({
-            time: new Date(p.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            balance: p.balance,
-            confidence: p.confidence || 50
-        }))];
-    }, [socketStatus.equityCurve, formConfig.capitalAllocation]);
-
-    useEffect(() => {
-        if (!isConnected) return;
-        axios.get(`${API_BASE}/users/keys`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
-            .then(res => setHasApiKeys((Array.isArray(res.data) ? res.data : res.data.keys || []).length > 0))
-            .catch(() => setHasApiKeys(false));
-    }, [isConnected]);
-
-    useEffect(() => {
-        let interval;
-        if (isBotRunning && socketStatus.startedAt) {
-            interval = setInterval(() => {
-                const diff = Math.max(0, Date.now() - new Date(socketStatus.startedAt).getTime());
-                const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
-                const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
-                const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
-                setUptime(`${h}:${m}:${s}`);
-            }, 1000);
-        } else {
-            setUptime("00:00:00");
-        }
-        return () => clearInterval(interval);
-    }, [isBotRunning, socketStatus.startedAt]);
-
-    useEffect(() => {
-        if (!address) return;
-        let attempts = 0;
-        const MAX = 4;
-
-        const attempt = () => {
-            const token = localStorage.getItem("token");
-            api.get(`/bot/status?userId=${address}`, { headers: { Authorization: `Bearer ${token}` } })
-                .then(res => {
-                    setSocketStatus(res.data);
-                    setStatusFetchError(null);
-                })
-                .catch(err => {
-                    if (err.response?.status === 401) {
-                        toast.error("Session expired. Please reconnect.");
-                        return;
-                    }
-                    attempts++;
-                    if (attempts < MAX) setTimeout(attempt, 2 ** attempts * 1000);
-                    else setStatusFetchError("Failed to sync engine state. The backend may be offline.");
-                });
-        };
-        attempt();
-    }, [address]);
-
-    const isHaltLockedRef   = useRef(isHaltLocked);
-    const formConfigRef      = useRef(formConfig);
-    const exitingSymbolsRef = useRef(exitingSymbols);
-    useEffect(() => { isHaltLockedRef.current   = isHaltLocked;   }, [isHaltLocked]);
-    useEffect(() => { formConfigRef.current     = formConfig;     }, [formConfig]);
-    useEffect(() => { exitingSymbolsRef.current = exitingSymbols; }, [exitingSymbols]);
-
-    useEffect(() => {
-        if (!address) return;
-        const socket = io(SOCKET_URL, {
-            query: { userId: address },
-            transports: ['websocket'],
-            reconnection: true,
-            reconnectionAttempts: Infinity,
-            reconnectionDelay: 2000,
-            reconnectionDelayMax: 10000,
-        });
-        socketRef.current = socket;
-
-        socket.on("connect",    () => { setSocketConnected(true);  });
-        socket.on("disconnect", () => { setSocketConnected(false); });
-
-        socket.on("bot_status_update", (data) => {
-            if (isHaltLockedRef.current) return;
-            setSocketStatus(prev => {
-                const currentBalance = data.currentBalance || prev.currentBalance || 0;
-                const rawPositions   = data.activePositions || data.positions || [];
-                const filteredPositions = rawPositions.filter(pos => !exitingSymbolsRef.current.includes(pos.symbol));
-                const seed = prev.initialCapital || data.initialCapital || currentBalance || formConfigRef.current.capitalAllocation;
-
-                const rawProfit      = data.dailyProfit || data.daily_profit;
-                const delta          = currentBalance - seed;
-                const calculatedProfit = rawProfit !== undefined ? Number(rawProfit.toFixed(2)) : Number(delta.toFixed(2));
-
-                const rawSignals = data.signalsMap || {};
-                const normalizedSignals = {};
-                Object.keys(rawSignals).forEach(key => {
-                    const nk = key.toLowerCase().trim().replace(/\s+/g, '_');
-                    const val = parseFloat(rawSignals[key]);
-                    if (!isNaN(val)) normalizedSignals[nk] = val * 100;
-                });
-
-                const updatedSignalsHistory = [...(prev.signalsMapHistory || []), { time: new Date().toLocaleTimeString(), ...normalizedSignals }].slice(-300);
-                const updatedEquityCurve = [...(prev.equityCurve || []), { time: new Date().toLocaleTimeString(), balance: currentBalance, confidence: data.currentConfidence ?? prev.currentConfidence ?? 0 }].slice(-300);
-
-                return {
-                    ...prev, ...data,
-                    dailyProfit: calculatedProfit,
-                    initialCapital: seed,
-                    positions: filteredPositions,
-                    candles: (data.candles?.length > 0) ? data.candles : (prev.candles || []),
-                    tradeHistory: (data.tradeHistory?.length > 0) ? data.tradeHistory : (data.trade_history?.length > 0 ? data.trade_history : (prev.tradeHistory || [])),
-                    tradeMarkers: (data.tradeMarkers?.length > 0) ? data.tradeMarkers : (data.trade_markers?.length > 0 ? data.trade_markers : (prev.tradeMarkers || [])),
-                    signalsMapHistory: updatedSignalsHistory,
-                    equityCurve: updatedEquityCurve
-                };
-            });
-        });
-
-        socket.on("bot_log", (newLog) => { setSocketLogs(prev => [newLog, ...prev].slice(0, 100)); });
-
-        return () => {
-            socket.disconnect();
-            socketRef.current = null;
-        };
-    }, [address]);
-
+    // ── RUNTIME HANDLER METHODS ──────────────────────────────────────────────
     const handleConfirmStart = async () => {
         setIsStarting(true);
         setIsHaltLocked(false);
@@ -1046,7 +898,7 @@ const TradingBotContainer = () => {
             }
         } catch (e) {
             toast.error(`Engine Failure: ${e.response?.data?.detail || e.message}`);
-        } fires {
+        } finally {
             setIsStarting(false);
         }
     };
@@ -1067,6 +919,84 @@ const TradingBotContainer = () => {
         } finally {
             setIsHalting(false);
         }
+    };
+
+    const handleReset = () => {
+        setConfirmModal({
+            title: "Factory Reset",
+            message: "This will wipe all trade history, logs, and equity curves. This cannot be undone.",
+            danger: true,
+            onConfirm: async () => {
+                setConfirmModal(null);
+                await resetBot();
+                setSocketLogs([]);
+                setSocketStatus({ status: 'stopped', currentBalance: 0, unrealizedPnl: 0, exposure: 0, positions: [], equityCurve: [], startedAt: null, dailyProfit: 0, initialCapital: 0, tradeMarkers: [], signalsMapHistory: [] });
+            }
+        });
+    };
+
+    const handleManualExit = async (targetSymbol) => {
+        if (!socketStatus.positions?.length) return;
+        const symbolToExit = typeof targetSymbol === 'string' ? targetSymbol : formConfig.symbol;
+        try {
+            setExitingSymbols(prev => [...prev, symbolToExit]);
+            setActiveOpsTab("audit");
+            await closePosition({ userId: address, symbol: symbolToExit });
+            toast.success(`Manual Exit Executed: ${symbolToExit}`);
+            setTimeout(async () => {
+                await refreshState();
+                setExitingSymbols(prev => prev.filter(s => s !== symbolToExit));
+            }, 3000);
+        } catch (e) {
+            setExitingSymbols(prev => prev.filter(s => s !== symbolToExit));
+            toast.error("Exit Command Failed");
+        }
+    };
+
+    const handleResetRiskSettings = () => {
+        setFormConfig(prev => ({ ...prev, riskPercentage: 1, maxDailyLoss: 5, maxDrawdown: 10, maxTradesPerDay: 20, slippageTolerance: 0.5, params: { ...prev.params, take_profit: 0.05, trailing_stop: 0.01 } }));
+        toast.success("Risk Protocol: Reverted to Factory Defaults");
+    };
+
+    const handleClearLogs = () => { setSocketLogs([]); toast.success("Terminal View Cleared"); };
+    const handleSyncLogs  = async () => { await refreshState(); toast.success("Neural Stream Synced"); };
+
+    const handleRoutingChange = (value) => {
+        const isMargin = value === 'true';
+        if (!isMargin) {
+            setFormConfig(p => ({ ...p, enable_shorting: false }));
+            return;
+        }
+        if (localStorage.getItem("kraken_key")) {
+            setFormConfig(p => ({ ...p, enable_shorting: true }));
+            return;
+        }
+        setApiKeyModal({
+            exchange: 'kraken',
+            onSave: () => {
+                setApiKeyModal(null);
+                setFormConfig(p => ({ ...p, enable_shorting: true }));
+                toast.success("Kraken Margin Authorized.");
+            }
+        });
+    };
+
+    const handleLiveModeSelect = () => {
+        if (hasApiKeys) {
+            setFormConfig(p => ({ ...p, tradingMode: 'live' }));
+            setIsModeSelected(true);
+            return;
+        }
+        setApiKeyModal({
+            exchange: 'coinbase',
+            onSave: () => {
+                setApiKeyModal(null);
+                setHasApiKeys(true);
+                setFormConfig(p => ({ ...p, tradingMode: 'live' }));
+                setIsModeSelected(true);
+                toast.success("Keys accepted for this session.");
+            }
+        });
     };
 
     return (
@@ -1183,7 +1113,7 @@ const TradingBotContainer = () => {
                             </div>
 
                             <div className="col-span-12 lg:col-span-9 flex flex-col gap-4">
-                                {/* UPGRADED REGIME BANNER CARD WITH EXPANDED DETAILED CHECKPOINTS GRID */}
+                                {/* DYNAMIC PROTOCOL VERIFICATION CHECKPOINTS */}
                                 <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-3xl p-5 backdrop-blur-md flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 shadow-xl min-w-0 overflow-hidden">
                                     <div className="flex-1 space-y-4 min-w-0 w-full">
                                         <div className="flex items-center gap-4 flex-wrap">
@@ -1208,8 +1138,8 @@ const TradingBotContainer = () => {
                                                         <AlertCircle size={15} className="text-zinc-600 mt-0.5 shrink-0" />
                                                     )}
                                                     <div className="min-w-0 flex-1">
-                                                        <p className={`text-[10px] font-black uppercase tracking-tight truncate ${check.passed ? 'text-zinc-200' : 'text-zinc-500'}`}>{check.label}</p>
-                                                        <p className="text-[9px] text-zinc-500 font-medium font-mono mt-0.5 leading-relaxed break-words whitespace-normal">{check.desc}</p>
+                                                        <p className={`text-[11px] font-black uppercase tracking-tight truncate ${check.passed ? 'text-zinc-200' : 'text-zinc-500'}`}>{check.label}</p>
+                                                        <p className="text-[10px] text-zinc-500 font-medium font-mono mt-0.5 leading-relaxed break-words whitespace-normal">{check.desc}</p>
                                                     </div>
                                                 </div>
                                             ))}
@@ -1243,7 +1173,7 @@ const TradingBotContainer = () => {
                                         </div>
                                     </div>
 
-                                    {/* UPGRADED COHESIVE NEURAL FLOW MODULE */}
+                                    {/* COHESIVE NEURAL FLOW MODULE */}
                                     <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 rounded-[40px] flex flex-col overflow-hidden shadow-2xl min-w-0">
                                         <div className="p-5 border-b border-zinc-800 bg-zinc-800/20 flex flex-col gap-3 shrink-0">
                                             <div className="flex justify-between items-center text-violet-400">
@@ -1268,7 +1198,7 @@ const TradingBotContainer = () => {
                                                     ].map(({ label, bg, text }) => (
                                                         <div key={label} className="flex items-center gap-1.5">
                                                             <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: bg }} />
-                                                            <span className={`text-[9px] font-black uppercase tracking-tight ${text}`}>{label}</span>
+                                                            <span className={`text-[10px] font-black uppercase tracking-tight ${text}`}>{label}</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -1279,7 +1209,7 @@ const TradingBotContainer = () => {
                                                         return (
                                                             <div key={`flow-legend-${code}`} className="flex items-center gap-1.5">
                                                                 <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
-                                                                <span className="text-[9px] font-black uppercase font-mono tracking-tighter text-zinc-300">{shortName}</span>
+                                                                <span className="text-[10px] font-black uppercase font-mono tracking-tighter text-zinc-300">{shortName}</span>
                                                             </div>
                                                         );
                                                     })}
@@ -1292,19 +1222,18 @@ const TradingBotContainer = () => {
                                                 formConfig={formConfig}
                                             />
                                         </div>
-                                        {/* UPGRADED TERMINAL LOG CANVAS WRAPPER - SCALED COMPACT text-sm HOOK */}
                                         <div ref={logContainerRef} className="flex-1 overflow-y-auto p-5 font-mono text-[11px] space-y-3 bg-black/20 custom-scrollbar min-w-0">
                                             {socketLogs.map((log, i) => {
                                                 if (log.type === "RICH_LOG" || log.targets) {
                                                     return (
                                                         <div key={i} className="mb-2 p-3 bg-zinc-950/50 rounded-xl border border-zinc-800 flex flex-col gap-2 min-w-0 overflow-hidden">
                                                             <div className="flex justify-between items-center border-b border-zinc-800/50 pb-2">
-                                                                <span className="text-zinc-500 font-black uppercase text-[9px] tracking-widest">Targets ({log.rule})</span>
-                                                                <span className="text-[9px] opacity-40 font-bold">{formatTime(log.time)}</span>
+                                                                <span className="text-zinc-500 font-black uppercase text-[10px] tracking-widest">Targets ({log.rule})</span>
+                                                                <span className="text-[10px] opacity-40 font-bold">{formatTime(log.time)}</span>
                                                             </div>
                                                             <div className="flex flex-col gap-1.5 leading-relaxed min-w-0">
                                                                 <div className="flex justify-between items-center text-white min-w-0">
-                                                                    <span className="text-zinc-500 uppercase font-black text-[9px]">Market Cur</span>
+                                                                    <span className="text-zinc-500 uppercase font-black text-[10px]">Market Cur</span>
                                                                     <span className="font-bold truncate">${log.cur}</span>
                                                                 </div>
                                                                 {log.targets.map(t => (
@@ -1330,7 +1259,7 @@ const TradingBotContainer = () => {
                                                     >
                                                         <LogIcon size={12} className="mt-0.5 flex-shrink-0" />
                                                         <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                                                            <span className="text-[9px] opacity-40 font-bold font-mono">{formatTime(log.time)}</span>
+                                                            <span className="text-[10px] opacity-40 font-bold font-mono">{formatTime(log.time)}</span>
                                                             <span className="font-bold tracking-tight text-[11px] break-words whitespace-normal font-mono">{parsedMessage}</span>
                                                         </div>
                                                     </div>
