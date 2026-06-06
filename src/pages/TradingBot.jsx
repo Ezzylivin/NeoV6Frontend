@@ -1498,20 +1498,20 @@ const TradingBotContainer = () => {
         const bbVal    = latestSignals['bb_fade']       || latestSignals['bb_wall'] || 50;
         const stochVal = latestSignals['stoch']         || 50;
         if (rsiVal >= 65 || bbVal >= 80 || stochVal >= 75)
-            return { side: "SHORT (FADE CEILING)", label: "OVERBOUGHT EXHAUSTION",   color: "text-rose-400",   bg: "bg-rose-500/10 border-rose-500/20"    };
+            return { side: "SHORT · FADE",  label: "Overbought Exhaustion",  color: "text-rose-400",    bg: "bg-rose-500/10 border-rose-500/20"    };
         if (rsiVal <= 35 || bbVal <= 20 || stochVal <= 25)
-            return { side: "LONG (BUY FLOOR)",     label: "OVERSOLD DISLOCATION",    color: "text-emerald-400",bg: "bg-emerald-500/10 border-emerald-500/20" };
-        return     { side: "NONE (CHOP RANGE)",    label: "SIDEWAYS FLAT COMPRESSION",color: "text-violet-400", bg: "bg-violet-500/10 border-violet-500/20"  };
+            return { side: "LONG · BUY",    label: "Oversold Dislocation",   color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" };
+        return     { side: "NONE · CHOP",   label: "Sideways Compression",   color: "text-violet-400",  bg: "bg-violet-500/10 border-violet-500/20"  };
     }, [latestSignals]);
 
     const botExecutionBias = useMemo(() => {
         if (!formConfig.enable_shorting)
-            return { capability: "LONG-ONLY (SPOT COINBASE)",         color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" };
+            return { capability: "LONG ONLY",    detail: "Spot · Coinbase",         color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" };
         const aiScore    = socketStatus.currentConfidence ?? 50;
         const longLimit  = parseFloat(formConfig.mlThresholdLong || 0.55) * 100;
         if (aiScore >= longLimit)
-            return { capability: "BI-DIRECTIONAL (LONG PREFERENCE)",  color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" };
-        return     { capability: "BI-DIRECTIONAL (SHORT PREFERENCE)", color: "text-rose-400",    bg: "bg-rose-500/10 border-rose-500/20"       };
+            return { capability: "BI-DIR · LONG", detail: "Margin · Kraken (Long bias)",  color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" };
+        return     { capability: "BI-DIR · SHORT", detail: "Margin · Kraken (Short bias)", color: "text-rose-400",    bg: "bg-rose-500/10 border-rose-500/20"       };
     }, [formConfig.enable_shorting, socketStatus.currentConfidence, formConfig.mlThresholdLong]);
 
     // ── Bot's current directional assessment of the market ───────────────────
@@ -1520,11 +1520,12 @@ const TradingBotContainer = () => {
         const longLimit  = parseFloat(formConfig.mlThresholdLong  || 0.55) * 100;
         const shortLimit = parseFloat(formConfig.mlThresholdShort || 0.55) * 100;
         if (aiScore >= longLimit)
-            return { label: "LONG RANGE",  sublabel: `AI Score ${aiScore}% ≥ ${longLimit}% target`,  color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", arrow: "▲" };
+            return { label: "▲ LONG",    sublabel: `${aiScore}% ≥ ${longLimit}% target`,  color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" };
         if (aiScore <= shortLimit)
-            return { label: "SHORT RANGE", sublabel: `AI Score ${aiScore}% ≤ ${shortLimit}% floor`,  color: "text-rose-400",    bg: "bg-rose-500/10 border-rose-500/20",       arrow: "▼" };
-        return         { label: "RANGING",    sublabel: `AI Score ${aiScore}% between thresholds`,   color: "text-violet-400",  bg: "bg-violet-500/10 border-violet-500/20",   arrow: "◆" };
+            return { label: "▼ SHORT",   sublabel: `${aiScore}% ≤ ${shortLimit}% floor`,  color: "text-rose-400",    bg: "bg-rose-500/10 border-rose-500/20"       };
+        return         { label: "◆ RANGING", sublabel: `${aiScore}% — neutral band`,       color: "text-violet-400",  bg: "bg-violet-500/10 border-violet-500/20"   };
     }, [socketStatus.currentConfidence, formConfig.mlThresholdLong, formConfig.mlThresholdShort]);
+
 
 
     if (!isConnected) {
@@ -1731,56 +1732,50 @@ const TradingBotContainer = () => {
                             <div className="col-span-12 lg:col-span-9 flex flex-col gap-4">
                                 {/* DYNAMIC PROTOCOL VERIFICATION CHECKPOINTS & ALIGNMENT PANEL */}
                                 <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-3xl p-5 backdrop-blur-md flex flex-col gap-5 shadow-xl min-w-0 overflow-hidden">
-                                    {/* Top row: regime title + Market Vector vs Bot Stance */}
-                                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-4 border-b border-zinc-800/60">
-                                        <div className="flex items-center gap-4 min-w-0 flex-1">
-                                            <div className="relative flex h-3.5 w-3.5 items-center justify-center shrink-0">
-                                                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${socketStatus.aiRegimeDesc?.includes('Trend') || socketStatus.aiRegimeDesc?.includes('Volatility') ? 'bg-emerald-400' : 'bg-violet-400'}`}></span>
-                                                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${socketStatus.aiRegimeDesc?.includes('Trend') || socketStatus.aiRegimeDesc?.includes('Volatility') ? 'bg-emerald-500' : 'bg-violet-500'}`}></span>
-                                            </div>
-                                            <div className="min-w-0">
-                                                <span className="text-xs font-black uppercase text-zinc-500 tracking-widest block mb-0.5">Forecasted Market Regime</span>
-                                                <h2 className="text-sm font-mono font-black text-zinc-100 tracking-wide leading-snug">
-                                                    {socketStatus.aiRegimeTitle || "Analyzing Market Structures..."}
-                                                    <span className="text-xs font-normal text-zinc-400 ml-2">({socketStatus.aiRegimeDesc || "Calibrating Sensors"})</span>
-                                                </h2>
-                                            </div>
+                                    {/* Row 1: regime title */}
+                                    <div className="flex items-center gap-4 pb-3 border-b border-zinc-800/60">
+                                        <div className="relative flex h-3.5 w-3.5 items-center justify-center shrink-0">
+                                            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${socketStatus.aiRegimeDesc?.includes('Trend') || socketStatus.aiRegimeDesc?.includes('Volatility') ? 'bg-emerald-400' : 'bg-violet-400'}`}></span>
+                                            <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${socketStatus.aiRegimeDesc?.includes('Trend') || socketStatus.aiRegimeDesc?.includes('Volatility') ? 'bg-emerald-500' : 'bg-violet-500'}`}></span>
                                         </div>
-
-                                        {/* Market Vector · Bot Assessment · User Setup */}
-                                        <div className="grid grid-cols-3 gap-3 bg-black/40 border border-zinc-800 p-3 rounded-2xl w-full lg:w-auto lg:min-w-[520px] shrink-0">
-                                            {/* Col 1 — Market Vector (what indicators say) */}
-                                            <div className="min-w-0">
-                                                <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Market Vector</span>
-                                                <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug ${marketDirectionVector.bg} ${marketDirectionVector.color}`}>
-                                                    {marketDirectionVector.side}
-                                                </div>
-                                                <p className="text-[9px] text-zinc-600 font-bold mt-1 leading-tight">{marketDirectionVector.label}</p>
-                                            </div>
-                                            {/* Col 2 — Bot Assessment (what the AI score says) */}
-                                            <div className="min-w-0">
-                                                <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Bot Assessment</span>
-                                                <div className={`px-2 py-1.5 rounded-lg text-[11px] font-mono font-black border leading-snug flex items-center gap-1.5 ${botDirectionalAssessment.bg} ${botDirectionalAssessment.color}`}>
-                                                    <span>{botDirectionalAssessment.arrow}</span>
-                                                    <span>{botDirectionalAssessment.label}</span>
-                                                </div>
-                                                <p className="text-[9px] text-zinc-600 font-bold mt-1 leading-tight font-mono">{botDirectionalAssessment.sublabel}</p>
-                                            </div>
-                                            {/* Col 3 — User's routing selection */}
-                                            <div className="min-w-0">
-                                                <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Your Setup</span>
-                                                <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug ${botExecutionBias.bg} ${botExecutionBias.color}`}>
-                                                    {botExecutionBias.capability}
-                                                </div>
-                                                <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-lg px-2 py-1 mt-1">
-                                                    <span className="text-[8px] font-black uppercase text-violet-400 tracking-wider">AI Config</span>
-                                                    <p className="text-[9px] font-mono text-zinc-400 leading-snug mt-0.5">{socketStatus.aiDeployedGear || "Scanning indicators..."}</p>
-                                                </div>
-                                            </div>
+                                        <div className="min-w-0">
+                                            <span className="text-xs font-black uppercase text-zinc-500 tracking-widest block mb-0.5">Forecasted Market Regime</span>
+                                            <h2 className="text-sm font-mono font-black text-zinc-100 tracking-wide leading-snug">
+                                                {socketStatus.aiRegimeTitle || "Analyzing Market Structures..."}
+                                                <span className="text-xs font-normal text-zinc-400 ml-2">({socketStatus.aiRegimeDesc || "Calibrating Sensors"})</span>
+                                            </h2>
                                         </div>
                                     </div>
 
-                                    {/* Gateway checkpoint grid — 4 columns */}
+                                    {/* Row 2: 3-column comparison — always full width */}
+                                    <div className="grid grid-cols-3 gap-3 w-full">
+                                        {/* Col 1 — Market Vector */}
+                                        <div className="bg-black/40 border border-zinc-800 rounded-xl p-3 min-w-0">
+                                            <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-2">Market Vector</span>
+                                            <div className={`px-2 py-2 rounded-lg font-mono font-black border leading-tight break-words text-sm ${marketDirectionVector.bg} ${marketDirectionVector.color}`}>
+                                                {marketDirectionVector.side}
+                                            </div>
+                                            <p className="text-[10px] text-zinc-500 font-bold mt-1.5 leading-snug">{marketDirectionVector.label}</p>
+                                        </div>
+                                        {/* Col 2 — Bot Assessment */}
+                                        <div className="bg-black/40 border border-zinc-800 rounded-xl p-3 min-w-0">
+                                            <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-2">Bot Assessment</span>
+                                            <div className={`px-2 py-2 rounded-lg font-mono font-black border leading-tight text-sm ${botDirectionalAssessment.bg} ${botDirectionalAssessment.color}`}>
+                                                {botDirectionalAssessment.label}
+                                            </div>
+                                            <p className="text-[10px] text-zinc-500 font-bold mt-1.5 leading-snug font-mono">{botDirectionalAssessment.sublabel}</p>
+                                        </div>
+                                        {/* Col 3 — User's routing */}
+                                        <div className="bg-black/40 border border-zinc-800 rounded-xl p-3 min-w-0">
+                                            <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-2">Your Setup</span>
+                                            <div className={`px-2 py-2 rounded-lg font-mono font-black border leading-tight break-words text-sm ${botExecutionBias.bg} ${botExecutionBias.color}`}>
+                                                {botExecutionBias.capability}
+                                            </div>
+                                            <p className="text-[10px] text-zinc-500 font-bold mt-1.5 leading-snug">{botExecutionBias.detail}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Row 3: gateway checkpoints — 4 columns */}
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3 w-full">
                                         {gatewayCheckpoints.map(check => (
                                             <div key={check.id} className="flex items-start gap-2.5 p-3 bg-black/40 border border-zinc-800 rounded-xl min-w-0">
