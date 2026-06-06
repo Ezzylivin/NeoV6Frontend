@@ -1514,6 +1514,18 @@ const TradingBotContainer = () => {
         return     { capability: "BI-DIRECTIONAL (SHORT PREFERENCE)", color: "text-rose-400",    bg: "bg-rose-500/10 border-rose-500/20"       };
     }, [formConfig.enable_shorting, socketStatus.currentConfidence, formConfig.mlThresholdLong]);
 
+    // ── Bot's current directional assessment of the market ───────────────────
+    const botDirectionalAssessment = useMemo(() => {
+        const aiScore    = socketStatus.currentConfidence ?? 50;
+        const longLimit  = parseFloat(formConfig.mlThresholdLong  || 0.55) * 100;
+        const shortLimit = parseFloat(formConfig.mlThresholdShort || 0.55) * 100;
+        if (aiScore >= longLimit)
+            return { label: "LONG RANGE",  sublabel: `AI Score ${aiScore}% ≥ ${longLimit}% target`,  color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", arrow: "▲" };
+        if (aiScore <= shortLimit)
+            return { label: "SHORT RANGE", sublabel: `AI Score ${aiScore}% ≤ ${shortLimit}% floor`,  color: "text-rose-400",    bg: "bg-rose-500/10 border-rose-500/20",       arrow: "▼" };
+        return         { label: "RANGING",    sublabel: `AI Score ${aiScore}% between thresholds`,   color: "text-violet-400",  bg: "bg-violet-500/10 border-violet-500/20",   arrow: "◆" };
+    }, [socketStatus.currentConfidence, formConfig.mlThresholdLong, formConfig.mlThresholdShort]);
+
 
     if (!isConnected) {
         return (
@@ -1735,8 +1747,9 @@ const TradingBotContainer = () => {
                                             </div>
                                         </div>
 
-                                        {/* Market Vector vs Bot Stance comparison */}
-                                        <div className="grid grid-cols-2 gap-3 bg-black/40 border border-zinc-800 p-3 rounded-2xl w-full lg:w-auto lg:min-w-[360px] shrink-0">
+                                        {/* Market Vector · Bot Assessment · User Setup */}
+                                        <div className="grid grid-cols-3 gap-3 bg-black/40 border border-zinc-800 p-3 rounded-2xl w-full lg:w-auto lg:min-w-[520px] shrink-0">
+                                            {/* Col 1 — Market Vector (what indicators say) */}
                                             <div className="min-w-0">
                                                 <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Market Vector</span>
                                                 <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug ${marketDirectionVector.bg} ${marketDirectionVector.color}`}>
@@ -1744,8 +1757,18 @@ const TradingBotContainer = () => {
                                                 </div>
                                                 <p className="text-[9px] text-zinc-600 font-bold mt-1 leading-tight">{marketDirectionVector.label}</p>
                                             </div>
+                                            {/* Col 2 — Bot Assessment (what the AI score says) */}
                                             <div className="min-w-0">
-                                                <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Bot Intent Stance</span>
+                                                <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Bot Assessment</span>
+                                                <div className={`px-2 py-1.5 rounded-lg text-[11px] font-mono font-black border leading-snug flex items-center gap-1.5 ${botDirectionalAssessment.bg} ${botDirectionalAssessment.color}`}>
+                                                    <span>{botDirectionalAssessment.arrow}</span>
+                                                    <span>{botDirectionalAssessment.label}</span>
+                                                </div>
+                                                <p className="text-[9px] text-zinc-600 font-bold mt-1 leading-tight font-mono">{botDirectionalAssessment.sublabel}</p>
+                                            </div>
+                                            {/* Col 3 — User's routing selection */}
+                                            <div className="min-w-0">
+                                                <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Your Setup</span>
                                                 <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug ${botExecutionBias.bg} ${botExecutionBias.color}`}>
                                                     {botExecutionBias.capability}
                                                 </div>
