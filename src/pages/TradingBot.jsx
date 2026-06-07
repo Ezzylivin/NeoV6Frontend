@@ -1842,20 +1842,21 @@ const TradingBotContainer = () => {
                                                     <button onClick={handleClearLogs} className="text-zinc-600 hover:text-white transition-all"><Eraser size={14} /></button>
                                                 </div>
                                             </div>
-                                            {/* Upgrade ④: category legend */}
+                                            {/* Category legend — explicit colors so dots + labels always render correctly */}
                                             <div className="flex items-center gap-3 flex-wrap">
                                                 {[
-                                                    { label: 'Pass',   color: 'text-emerald-400' },
-                                                    { label: 'Veto',   color: 'text-rose-400'    },
-                                                    { label: 'Trade',  color: 'text-amber-400'   },
-                                                    { label: 'Signal', color: 'text-violet-400'  },
-                                                    { label: 'Regime', color: 'text-blue-400'    },
-                                                ].map(({ label, color }) => (
-                                                    <div key={label} className={`flex items-center gap-1 ${color}`}>
-                                                        <div className="w-1.5 h-1.5 rounded-full bg-current" />
-                                                        <span className="text-[9px] font-black uppercase">{label}</span>
+                                                    { label: 'Pass',   hex: '#10b981', text: 'text-emerald-400' },
+                                                    { label: 'Veto',   hex: '#ef4444', text: 'text-rose-400'    },
+                                                    { label: 'Trade',  hex: '#f59e0b', text: 'text-amber-400'   },
+                                                    { label: 'Signal', hex: '#a78bfa', text: 'text-violet-400'  },
+                                                    { label: 'Regime', hex: '#3b82f6', text: 'text-blue-400'    },
+                                                ].map(({ label, hex, text }) => (
+                                                    <div key={label} className="flex items-center gap-1 shrink-0">
+                                                        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: hex }} />
+                                                        <span className={`text-[9px] font-black uppercase ${text}`}>{label}</span>
                                                     </div>
                                                 ))}
+                                            </div>
                                             </div>
                                             {/* Active strategy color legend */}
                                             <div className="flex items-center gap-2 flex-wrap border-t border-zinc-800/40 pt-1.5">
