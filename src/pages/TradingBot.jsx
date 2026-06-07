@@ -1926,7 +1926,7 @@ const TradingBotContainer = () => {
                             </div>
                         </div>
 
-                        {/* BOTTOM ROW */}
+                        
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-10 duration-1000">
                             {/* SESSION EQUITY */}
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl flex flex-col justify-between">
