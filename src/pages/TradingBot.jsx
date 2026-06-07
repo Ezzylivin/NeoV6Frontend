@@ -111,23 +111,36 @@ const formatTime = (isoString) => {
 
 const getLogStyle = (msg) => {
     const text = msg.toUpperCase();
-    if (text.includes("VETOED") || text.includes("STALKING SHORT") || text.includes("SHORT GATE"))
+    // Veto / short side
+    if (text.includes("VETOED") || text.includes("STALKING SHORT") || text.includes("SHORT GATE") ||
+        text.includes("DOWNTREND") || text.includes("BEARISH") || text.includes("CONTRACTION"))
         return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
-    if (text.includes("PASSED") || text.includes("STALKING LONG") || text.includes("LONG GATE"))
+    // Pass / long side
+    if (text.includes("PASSED") || text.includes("STALKING LONG") || text.includes("LONG GATE") ||
+        text.includes("UPTREND") || text.includes("BULLISH") || text.includes("EXPANSION"))
         return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
-    if (text.includes("UPTREND") || text.includes("BULLISH") || text.includes("EXPANSION"))
-        return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
-    if (text.includes("DOWNTREND") || text.includes("BEARISH") || text.includes("CONTRACTION"))
-        return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+    // Trade execution
+    if (text.includes("TRADE") || text.includes("PARTIAL") || text.includes("ENTERING") ||
+        text.includes("OPENED") || text.includes("TRIMMED") || text.includes("SCALE-OUT"))
+        return 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+    // Signal / stalking (catch STALKING without LONG/SHORT, plus LEG / TARGET)
+    if (text.includes("STALKING") || text.includes(" LEG ") || text.includes("TARGET") ||
+        text.includes("SIGNAL") || text.includes("RSI") || text.includes("MACD") ||
+        text.includes("EMA") || text.includes("ATR") || text.includes("GATE"))
+        return 'text-violet-400 bg-violet-500/10 border-violet-500/20';
+    // Regime / market state
     if (text.includes("MINDSET")) {
         const pctMatch = text.match(/(\d+)%/);
         if (pctMatch) {
             const val = parseInt(pctMatch[1]);
             if (val >= 80) return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
             if (val <= 20) return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
-            return 'text-blue-400 bg-blue-500/10 border-blue-500/20';
         }
+        return 'text-blue-400 bg-blue-500/10 border-blue-500/20';
     }
+    if (text.includes("REGIME") || text.includes("NEUTRAL") || text.includes("CHOP") ||
+        text.includes("ADX") || text.includes("VOLATIL"))
+        return 'text-blue-400 bg-blue-500/10 border-blue-500/20';
     return 'text-zinc-500 bg-zinc-900 border-zinc-800';
 };
 
@@ -138,19 +151,26 @@ const makeStrategyId = () => `strat_${Date.now()}_${Math.random().toString(36).s
 // Uses only already-imported Lucide icons (TrendingUp, ArrowUpRight, ShieldAlert, Zap, Globe, Activity)
 const getLogMeta = (msg) => {
     const t = msg.toUpperCase();
+    // Trade (amber)
     if (t.includes('TRADE') || t.includes('PARTIAL') || t.includes('SCALE-OUT') ||
         t.includes('OPENED') || t.includes('ENTERING') || t.includes('TRIMMED'))
         return { Icon: TrendingUp,  textColor: 'text-amber-400',  wrapClass: 'bg-amber-500/10 border-amber-500/20'  };
+    // Pass / long (emerald)
     if (t.includes('PASSED') || t.includes('LONG GATE') || t.includes('STALKING LONG') ||
         t.includes('BULLISH') || t.includes('UPTREND') || t.includes('EXPANSION'))
         return { Icon: ArrowUpRight, textColor: 'text-emerald-400', wrapClass: 'bg-emerald-500/10 border-emerald-500/20' };
+    // Veto / short (rose)
     if (t.includes('VETOED') || t.includes('SHORT GATE') || t.includes('STALKING SHORT') ||
         t.includes('BEARISH') || t.includes('DOWNTREND') || t.includes('CONTRACTION'))
         return { Icon: ShieldAlert,  textColor: 'text-rose-400',   wrapClass: 'bg-rose-500/10 border-rose-500/20'   };
-    if (t.includes('SIGNAL') || t.includes('RSI') || t.includes('MACD') ||
+    // Signal / stalking (violet) — catch STALKING without qualifier, LEG, TARGET
+    if (t.includes('STALKING') || t.includes(' LEG ') || t.includes('TARGET') ||
+        t.includes('SIGNAL') || t.includes('RSI') || t.includes('MACD') ||
         t.includes('EMA') || t.includes('ATR') || t.includes('GATE'))
         return { Icon: Zap,          textColor: 'text-violet-400', wrapClass: 'bg-violet-500/10 border-violet-500/20' };
-    if (t.includes('REGIME') || t.includes('MINDSET') || t.includes('ADX') || t.includes('VOLATIL'))
+    // Regime / market state (blue)
+    if (t.includes('REGIME') || t.includes('MINDSET') || t.includes('NEUTRAL') ||
+        t.includes('CHOP') || t.includes('ADX') || t.includes('VOLATIL'))
         return { Icon: Globe,        textColor: 'text-blue-400',   wrapClass: 'bg-blue-500/10 border-blue-500/20'   };
     return { Icon: Activity, textColor: 'text-zinc-500', wrapClass: 'bg-zinc-900 border-zinc-800' };
 };
@@ -1878,10 +1898,21 @@ const TradingBotContainer = () => {
                                         <div ref={logContainerRef} className="flex-1 overflow-y-auto p-5 font-mono text-[11px] space-y-2.5 bg-black/20 custom-scrollbar">
                                             {socketLogs.map((log, i) => {
                                                 if (log.type === "RICH_LOG" || log.targets) {
+                                                    // Derive border color from target trend consensus
+                                                    const trends = log.targets?.map(t => t.trend) || [];
+                                                    const upCount = trends.filter(t => t === 'UP').length;
+                                                    const richBorder = upCount > trends.length / 2
+                                                        ? 'border-emerald-500/30 bg-emerald-500/5'
+                                                        : upCount < trends.length / 2
+                                                            ? 'border-rose-500/30 bg-rose-500/5'
+                                                            : 'border-violet-500/30 bg-violet-500/5';
+                                                    const richHeaderColor = upCount > trends.length / 2
+                                                        ? 'text-emerald-400' : upCount < trends.length / 2
+                                                            ? 'text-rose-400' : 'text-violet-400';
                                                     return (
-                                                        <div key={i} className="mb-2 p-3 bg-zinc-950/50 rounded-xl border border-zinc-800 flex flex-col gap-2">
+                                                        <div key={i} className={`mb-2 p-3 rounded-xl border flex flex-col gap-2 min-w-0 overflow-hidden ${richBorder}`}>
                                                             <div className="flex justify-between items-center border-b border-zinc-800/50 pb-2">
-                                                                <span className="text-zinc-500 font-black uppercase text-[10px] tracking-widest">Targets ({log.rule})</span>
+                                                                <span className={`font-black uppercase text-[10px] tracking-widest ${richHeaderColor}`}>Targets ({log.rule})</span>
                                                                 <span className="text-[10px] opacity-40 font-bold">{formatTime(log.time)}</span>
                                                             </div>
                                                             <div className="flex flex-col gap-1.5 leading-relaxed">
