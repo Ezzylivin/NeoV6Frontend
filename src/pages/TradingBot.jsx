@@ -205,6 +205,290 @@ const MetricCard = ({ label, value, subValue, color = "text-white", icon = null 
     </div>
 );
 
+// ─── CONFIDENCE RING CARD ─────────────────────────────────────────────────────
+const ConfidenceRingCard = ({ confidence }) => {
+    const score = confidence ?? 50;
+    const color = score > 70 ? '#10b981' : score > 40 ? '#a78bfa' : '#ef4444';
+    const label = score > 85 ? 'STRONG BUY' : score > 70 ? 'BUY' : score < 20 ? 'STRONG VETO' : score < 35 ? 'VETO' : 'NEUTRAL';
+    const circumference = 2 * Math.PI * 20;
+    const offset = circumference - (score / 100) * circumference;
+    return (
+        <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl flex flex-col items-center justify-center">
+            <p className="text-[10px] text-zinc-500 uppercase font-black tracking-[0.15em] mb-2">AI Confidence</p>
+            <div className="relative w-14 h-14">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 48 48">
+                    <circle cx="24" cy="24" r="20" fill="none" stroke="#27272a" strokeWidth="4" />
+                    <circle cx="24" cy="24" r="20" fill="none" stroke={color} strokeWidth="4"
+                        strokeDasharray={circumference} strokeDashoffset={offset}
+                        strokeLinecap="round" style={{ transition: 'stroke-dashoffset 0.7s ease' }} />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="font-mono font-black text-sm" style={{ color }}>{score}%</span>
+                </div>
+            </div>
+            <p className="text-[8px] font-black uppercase tracking-widest mt-2" style={{ color }}>{label}</p>
+        </div>
+    );
+};
+
+// ─── POSITION CARD ────────────────────────────────────────────────────────────
+const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) => {
+    const symbol = pos.symbol || defaultSymbol;
+    const price = currentPrice || 0;
+    const pnl = pos.type === 'long'
+        ? (price - pos.entry) * pos.size
+        : (pos.entry - price) * pos.size;
+    const costBasis = (pos.entry || 0) * (pos.size || 0);
+    const pnlPct = costBasis > 0 ? ((pnl / costBasis) * 100).toFixed(2) : '0.00';
+    const isProfit = pnl >= 0;
+    const tslDist = pos.tsl && price ? ((Math.abs(price - pos.tsl) / price) * 100).toFixed(2) : '—';
+    return (
+        <div className={`p-4 bg-zinc-950/80 rounded-2xl border ${isProfit ? 'border-emerald-500/20' : 'border-rose-500/20'} shadow-inner`}>
+            <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full animate-pulse ${pos.type === 'long' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-zinc-300">{symbol}</span>
+                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${pos.type === 'long' ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-rose-400 bg-rose-500/10 border-rose-500/20'}`}>
+                        {pos.type}
+                    </span>
+                </div>
+                <button
+                    onClick={() => onExit(symbol)}
+                    disabled={isExiting}
+                    className="px-3 py-1 bg-zinc-800 hover:bg-rose-500/20 border border-zinc-700 hover:border-rose-500/40 text-zinc-400 hover:text-rose-400 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-40"
+                >
+                    {isExiting ? 'Exiting...' : 'Close'}
+                </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-[10px] font-mono">
+                <div>
+                    <p className="text-zinc-600 uppercase font-black text-[8px] mb-0.5">Entry</p>
+                    <p className="text-zinc-300 font-black">${Number(pos.entry || 0).toFixed(2)}</p>
+                </div>
+                <div>
+                    <p className="text-zinc-600 uppercase font-black text-[8px] mb-0.5">Unrealized PnL</p>
+                    <p className={`font-black ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {isProfit ? '+' : ''}${pnl.toFixed(2)} ({pnlPct}%)
+                    </p>
+                </div>
+                <div>
+                    <p className="text-zinc-600 uppercase font-black text-[8px] mb-0.5">TSL Distance</p>
+                    <p className="text-amber-400 font-black">{tslDist}%</p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ─── TRADE TIMELINE CARD ──────────────────────────────────────────────────────
+const TradeTimelineCard = ({ trade }) => {
+    const isProfit = (trade.pnl ?? 0) >= 0;
+    const time = trade.time
+        ? (typeof trade.time === 'number' ? new Date(trade.time).toLocaleTimeString() : formatTime(trade.time))
+        : '—';
+    return (
+        <div className={`p-3 rounded-xl border ${isProfit ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-rose-500/20 bg-rose-500/5'}`}>
+            <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2">
+                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${isProfit ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'}`}>
+                        {trade.side || trade.type || 'TRADE'}
+                    </span>
+                    <span className="text-zinc-500 text-[9px] font-bold uppercase">{trade.reason || 'exit'}</span>
+                </div>
+                <span className={`font-mono text-[11px] font-black ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {isProfit ? '+' : ''}${Number(trade.pnl ?? 0).toFixed(2)}
+                </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-[9px] font-mono text-zinc-500">
+                <span>Entry: ${Number(trade.entry || 0).toFixed(2)}</span>
+                <span>Exit: ${Number(trade.price || 0).toFixed(2)}</span>
+                <span className="text-right">{time}</span>
+            </div>
+        </div>
+    );
+};
+
+// ─── STRATEGY PARAM INPUTS ────────────────────────────────────────────────────
+const StrategyParamInputs = ({ strategy, onChange }) => {
+    const params = strategy.params || {};
+    const floatKeys = new Set(['st_factor', 'bb_std', 'buffer', 'threshold', 'multiplier', 'atr_tp_mult', 'atr_sl_mult']);
+    return (
+        <div className="grid grid-cols-2 gap-2">
+            {Object.entries(params).map(([key, val]) => (
+                <div key={key}>
+                    <label className="text-[8px] font-black uppercase text-zinc-600 tracking-widest block mb-0.5">
+                        {key.replace(/_/g, ' ')}
+                    </label>
+                    <input
+                        type="number"
+                        value={val}
+                        step={floatKeys.has(key) ? 0.1 : 1}
+                        onChange={(e) => {
+                            const parsed = floatKeys.has(key) ? parseFloat(e.target.value) : parseInt(e.target.value);
+                            onChange({ ...params, [key]: isNaN(parsed) ? val : parsed });
+                        }}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-300 outline-none font-mono text-[10px] focus:border-amber-500/50 transition-colors"
+                    />
+                </div>
+            ))}
+        </div>
+    );
+};
+
+// ─── PRE-FLIGHT MODAL ─────────────────────────────────────────────────────────
+const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, address }) => {
+    const isLive = config.tradingMode === 'live';
+    const checks = [
+        { label: 'Wallet Connected',    status: !!address },
+        { label: 'Capital Allocated',   status: !!config.capitalAllocation && config.capitalAllocation > 0 },
+        { label: 'Strategy Selected',   status: (config.strategies?.length ?? 0) > 0 },
+        { label: 'Symbol Configured',   status: !!config.symbol },
+        { label: 'API Keys Present',    status: !isLive || hasApiKeys },
+    ];
+    const allPass = checks.every(c => c.status);
+    return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md">
+            <div className="max-w-md w-full mx-4 bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 shadow-2xl">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+                        <Shield size={18} className="text-emerald-400" />
+                    </div>
+                    <div>
+                        <h3 className="text-[13px] font-black uppercase tracking-widest text-white">Pre-Flight Check</h3>
+                        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-0.5">
+                            {isLive ? '⚠️ LIVE CAPITAL MODE' : 'Paper Simulation Mode'}
+                        </p>
+                    </div>
+                </div>
+                <div className="space-y-2 mb-6">
+                    {checks.map(c => <CheckItem key={c.label} label={c.label} status={c.status} />)}
+                </div>
+                <div className="p-3 bg-zinc-950/80 border border-zinc-800 rounded-xl mb-6 space-y-1.5 text-[10px] font-mono text-zinc-400">
+                    <div className="flex justify-between"><span className="text-zinc-600 uppercase font-black">Symbol</span><span>{config.symbol}</span></div>
+                    <div className="flex justify-between"><span className="text-zinc-600 uppercase font-black">Capital</span><span className="text-emerald-400">${config.capitalAllocation}</span></div>
+                    <div className="flex justify-between"><span className="text-zinc-600 uppercase font-black">Strategies</span><span>{config.strategies?.length || 0}</span></div>
+                    <div className="flex justify-between"><span className="text-zinc-600 uppercase font-black">ML Mode</span><span className="text-violet-400">{(config.mlMode || 'off').toUpperCase()}</span></div>
+                    <div className="flex justify-between"><span className="text-zinc-600 uppercase font-black">Routing</span><span>{config.enable_shorting ? 'Margin (Kraken)' : 'Spot (Coinbase)'}</span></div>
+                </div>
+                <div className="flex gap-3">
+                    <button onClick={onCancel} className="flex-1 py-3 border border-zinc-700 rounded-xl text-zinc-400 font-black uppercase text-[10px] hover:bg-zinc-800 transition-all">
+                        Cancel
+                    </button>
+                    <button
+                        onClick={onConfirm}
+                        disabled={isStarting || !allPass}
+                        className="flex-1 py-3 bg-emerald-500 text-black rounded-xl font-black uppercase text-[10px] hover:bg-emerald-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                        {isStarting ? <><RefreshCw size={12} className="animate-spin" /> Igniting...</> : 'Ignite Engine'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ─── API KEY MODAL ────────────────────────────────────────────────────────────
+const ApiKeyModal = ({ exchange, onSave, onCancel }) => {
+    const isKraken = exchange === 'kraken';
+    const [key, setKey] = useState('');
+    const [secret, setSecret] = useState('');
+    const [showKey, setShowKey] = useState(false);
+    const [showSecret, setShowSecret] = useState(false);
+
+    const handleSave = () => {
+        if (!key || !secret) { toast.error("Both fields are required."); return; }
+        if (isKraken) {
+            localStorage.setItem("kraken_key", key);
+            localStorage.setItem("kraken_secret", secret);
+        } else {
+            localStorage.setItem("coinbase_key", key);
+            localStorage.setItem("coinbase_secret", secret);
+        }
+        onSave();
+    };
+
+    return (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/90 backdrop-blur-md">
+            <div className="max-w-sm w-full mx-4 bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 shadow-2xl">
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20">
+                            <Key size={16} className="text-amber-400" />
+                        </div>
+                        <div>
+                            <h3 className="text-[12px] font-black uppercase tracking-widest text-white">
+                                {isKraken ? 'Kraken' : 'Coinbase'} API Keys
+                            </h3>
+                            <p className="text-[9px] text-zinc-500 font-bold uppercase mt-0.5">Stored locally only</p>
+                        </div>
+                    </div>
+                    <button onClick={onCancel} className="text-zinc-600 hover:text-white transition-all"><X size={16} /></button>
+                </div>
+                <div className="space-y-4 mb-6">
+                    <div>
+                        <label className={labelClass}>API Key</label>
+                        <div className="relative">
+                            <input
+                                type={showKey ? 'text' : 'password'}
+                                value={key}
+                                onChange={e => setKey(e.target.value)}
+                                placeholder="Enter API key..."
+                                className={`${inputClass} pr-10`}
+                            />
+                            <button onClick={() => setShowKey(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors">
+                                {showKey ? <EyeOff size={13} /> : <Eye size={13} />}
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label className={labelClass}>API Secret</label>
+                        <div className="relative">
+                            <input
+                                type={showSecret ? 'text' : 'password'}
+                                value={secret}
+                                onChange={e => setSecret(e.target.value)}
+                                placeholder="Enter API secret..."
+                                className={`${inputClass} pr-10`}
+                            />
+                            <button onClick={() => setShowSecret(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors">
+                                {showSecret ? <EyeOff size={13} /> : <Eye size={13} />}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex gap-3">
+                    <button onClick={onCancel} className="flex-1 py-3 border border-zinc-700 rounded-xl text-zinc-400 font-black uppercase text-[10px] hover:bg-zinc-800 transition-all">Cancel</button>
+                    <button onClick={handleSave} className="flex-1 py-3 bg-amber-500 text-black rounded-xl font-black uppercase text-[10px] hover:bg-amber-400 transition-all">Save Keys</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ─── CONFIRM MODAL ────────────────────────────────────────────────────────────
+const ConfirmModal = ({ title, message, danger, onConfirm, onCancel }) => (
+    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/90 backdrop-blur-md">
+        <div className="max-w-sm w-full mx-4 bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+                <div className={`p-2 rounded-xl border ${danger ? 'bg-rose-500/10 border-rose-500/20' : 'bg-amber-500/10 border-amber-500/20'}`}>
+                    <AlertTriangle size={16} className={danger ? 'text-rose-400' : 'text-amber-400'} />
+                </div>
+                <h3 className="text-[12px] font-black uppercase tracking-widest text-white">{title}</h3>
+            </div>
+            <p className="text-[11px] text-zinc-400 font-medium mb-6 leading-relaxed">{message}</p>
+            <div className="flex gap-3">
+                <button onClick={onCancel} className="flex-1 py-3 border border-zinc-700 rounded-xl text-zinc-400 font-black uppercase text-[10px] hover:bg-zinc-800 transition-all">Cancel</button>
+                <button
+                    onClick={onConfirm}
+                    className={`flex-1 py-3 rounded-xl font-black uppercase text-[10px] transition-all ${danger ? 'bg-rose-500 hover:bg-rose-400 text-white' : 'bg-amber-500 hover:bg-amber-400 text-black'}`}
+                >
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+);
+
 const ProximityTickerPanel = ({ latestSignals, aiScore, formConfig }) => {
     const metrics = useMemo(() => {
         const longLimit  = parseFloat(formConfig.mlThresholdLong  || 0.55) * 100;
