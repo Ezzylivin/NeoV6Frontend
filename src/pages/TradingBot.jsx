@@ -968,8 +968,7 @@ const TradingBotContainer = () => {
                                         <div className="grid grid-cols-3 gap-3 bg-black/40 border border-zinc-800 p-3 rounded-2xl w-full lg:w-auto lg:min-w-[540px] shrink-0">
                                             <div className="min-w-0">
                                                 <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Market Vector</span>
-                                                {/* ✅ FIX 4 (usage site): was marketDirectionVector.bg (undefined property) — .color already
-                                                     contains the full bg-*/border-* class string, so only .color is needed */}
+                                                {/* ✅ FIX 4: removed marketDirectionVector.bg — .color already contains bg + border classes */}
                                                 <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${marketDirectionVector.color}`}>
                                                     {marketDirectionVector.side}
                                                 </div>
