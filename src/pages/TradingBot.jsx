@@ -480,6 +480,24 @@ const TradingBotContainer = () => {
 
     const { startCap, profitPct, pnlPct } = profitMetrics;
 
+    // ✅ FIX 1: Define activeBalance — was referenced in the running MetricCard but never declared.
+    //           Uses current socket balance, falling back to configured capital allocation.
+    const activeBalance = socketStatus.currentBalance ?? formConfig.capitalAllocation;
+
+    // ✅ FIX 2: Compute calculatedStats from trade history — was referenced for win rate and profit
+    //           factor in the Neural Performance panel but no useMemo existed anywhere for it.
+    const calculatedStats = useMemo(() => {
+        const allTrades = socketStatus.tradeHistory || socketStatus.trade_history || socketStatus.tradeMarkers || [];
+        const exits = allTrades.filter(t => t.pnl !== undefined);
+        if (!exits.length) return { winRate: "0.0", profitFactor: 0 };
+        const wins = exits.filter(t => t.pnl > 0);
+        const winRate = ((wins.length / exits.length) * 100).toFixed(1);
+        const grossProfit = wins.reduce((sum, t) => sum + t.pnl, 0);
+        const grossLoss = Math.abs(exits.filter(t => t.pnl <= 0).reduce((sum, t) => sum + t.pnl, 0));
+        const profitFactor = grossLoss === 0 ? (grossProfit > 0 ? 99 : 0) : grossProfit / grossLoss;
+        return { winRate, profitFactor };
+    }, [socketStatus]);
+
     const equityEnvelopeDomain = useMemo(() => {
         if (!socketStatus.equityCurve || socketStatus.equityCurve.length < 2) {
             const base = formConfig.capitalAllocation;
@@ -731,6 +749,23 @@ const TradingBotContainer = () => {
         }
     };
 
+    // ✅ FIX 3: Define handleReset — was called in the header's Factory Reset button
+    //           but was never declared anywhere. Delegates to resetBot from useBot hook.
+    const handleReset = async () => {
+        try {
+            await resetBot();
+            setSocketStatus({
+                status: 'stopped', currentBalance: Number(formConfig.capitalAllocation),
+                unrealizedPnl: 0, positions: [], equityCurve: [], tradeMarkers: [],
+                startedAt: null, signalsMapHistory: [], dailyProfit: 0, tradeHistory: []
+            });
+            setSocketLogs([]);
+            toast.success("Factory Reset Complete");
+        } catch (e) {
+            toast.error("Reset Failed");
+        }
+    };
+
     const handleManualExit = async (targetSymbol) => {
         if (!socketStatus.positions?.length) return;
         const symbolToExit = typeof targetSymbol === 'string' ? targetSymbol : formConfig.symbol;
@@ -863,6 +898,7 @@ const TradingBotContainer = () => {
                                 {isHalting ? <><RefreshCw size={12} className="animate-spin" /> Halting...</> : <><Power size={12} /> Emergency Halt</>}
                             </button>
                         ) : (
+                            // ✅ FIX 3 (usage site): was onClick={handleReset} referencing undefined — now calls the handler declared above
                             <button onClick={handleReset} className="px-6 py-3 bg-zinc-800/50 border border-zinc-700 text-zinc-400 rounded-xl font-black text-[10px] uppercase hover:bg-white hover:text-black transition-all flex items-center gap-2"><RotateCcw size={12} /> Factory Reset</button>
                         )}
                         <ConnectButton />
@@ -883,6 +919,7 @@ const TradingBotContainer = () => {
                             <MetricCard label="Daily Profit"    value={`${socketStatus.dailyProfit >= 0 ? '+' : ''}${(socketStatus.dailyProfit || 0).toFixed(2)}`}  subValue={`${profitPct.toFixed(2)}%`}  color={socketStatus.dailyProfit >= 0 ? "text-emerald-400" : "text-rose-500"}   icon={<DollarSign size={10} />} />
                             <MetricCard label="Floating PnL"    value={`${socketStatus.unrealizedPnl >= 0 ? '+' : ''}${(socketStatus.unrealizedPnl || 0).toFixed(2)}`} subValue={`${pnlPct.toFixed(2)}%`}    color={socketStatus.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'} icon={<Activity size={10} />} />
                             <MetricCard label="Exposure"        value={`${socketStatus.exposure || 0}%`} subValue="Active Positions" color="text-amber-400" />
+                            {/* ✅ FIX 1 (usage site): was `activeBalance` (undefined) — now resolved from the const above */}
                             <MetricCard label="Total Equity"    value={`$${Number(activeBalance).toLocaleString()}`} subValue="Liquid + Locked" />
                             <ConfidenceRingCard confidence={socketStatus.currentConfidence || 0} />
                         </div>
@@ -900,6 +937,7 @@ const TradingBotContainer = () => {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <p className="text-[9px] uppercase font-bold text-zinc-600 mb-1">Win Rate</p>
+                                            {/* ✅ FIX 2 (usage site): was calculatedStats.winRate (undefined) — now computed by useMemo above */}
                                             <p className="text-xl font-mono font-black tracking-tighter text-emerald-400">{calculatedStats.winRate}%</p>
                                         </div>
                                         <div>
@@ -930,13 +968,16 @@ const TradingBotContainer = () => {
                                         <div className="grid grid-cols-3 gap-3 bg-black/40 border border-zinc-800 p-3 rounded-2xl w-full lg:w-auto lg:min-w-[540px] shrink-0">
                                             <div className="min-w-0">
                                                 <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Market Vector</span>
-                                                <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${marketDirectionVector.bg} ${marketDirectionVector.color}`}>
+                                                {/* ✅ FIX 4 (usage site): was marketDirectionVector.bg (undefined property) — .color already
+                                                     contains the full bg-*/border-* class string, so only .color is needed */}
+                                                <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${marketDirectionVector.color}`}>
                                                     {marketDirectionVector.side}
                                                 </div>
                                             </div>
                                             <div className="min-w-0">
                                                 <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Account Bounds</span>
-                                                <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${botExecutionBias.bg} ${botExecutionBias.color}`}>
+                                                {/* ✅ FIX 5 (usage site): was botExecutionBias.bg (undefined property) — same fix as above */}
+                                                <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${botExecutionBias.color}`}>
                                                     {botExecutionBias.capability}
                                                 </div>
                                             </div>
@@ -1415,6 +1456,31 @@ const TradingBotContainer = () => {
                                                 <label className="text-[8px] font-black uppercase text-zinc-600 tracking-widest">Stop Loss Multiplier</label>
                                                 <input type="number" step="0.5" value={formConfig.params.atr_sl_mult || 1.5} onChange={(e) => setFormConfig({ ...formConfig, params: { ...formConfig.params, atr_sl_mult: parseFloat(e.target.value) } })} className="mt-1 w-full bg-black border border-zinc-800 rounded px-2 py-1 text-zinc-300 outline-none font-mono text-[10px]" />
                                             </div>
+                                        </div>
+                                    </div>
+
+                                    {/* ✅ FIX 6: enablePartialExit toggle — declared in file header as integrated ([TOGGLE])
+                                         but was completely absent from the JSX. formConfig.enablePartialExit existed in
+                                         state and was sent to the backend, but had no UI control, so users could never
+                                         enable partial exits from the frontend. */}
+                                    <div className="p-4 bg-zinc-950/50 border border-zinc-800 rounded-2xl">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <Zap size={12} className="text-amber-400" />
+                                                <div>
+                                                    <h4 className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Partial Exit Protocol</h4>
+                                                    <p className="text-[8px] text-zinc-600 font-bold mt-0.5">Lock 50% at 1.5× ATR, trail remainder</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setFormConfig(p => ({ ...p, enablePartialExit: !p.enablePartialExit }))}
+                                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${formConfig.enablePartialExit ? 'bg-amber-500' : 'bg-zinc-700'}`}
+                                            >
+                                                <span
+                                                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${formConfig.enablePartialExit ? 'translate-x-4' : 'translate-x-1'}`}
+                                                />
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
