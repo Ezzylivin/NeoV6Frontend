@@ -839,11 +839,45 @@ const TradingBotContainer = () => {
         const bbVal     = Math.round(latestSignals['bb_fade'] || latestSignals['bb_wall'] || 0);
 
         return [
-            { id: "v_safe",  label: "Volatility Shield Ceiling",  desc: "ATR safe compression zone verified",                    passed: true },
+            { id: "v_safe",  label: "Volatility Shield Ceiling",      desc: "ATR safe compression zone verified",                                                          passed: true },
             { id: "t_align", label: "Institutional 200 EMA Baseline", desc: bbVal >= 90 ? "Price extreme wall contact checked" : "Breakout structural alignment scanning", passed: bbVal >= 90 },
-            { id: "ai_gate", label: "Unified Ensemble Predictor",      desc: `Current AI Bias score is ${aiScore}% (Target: ${longLimit.toFixed(1)}%)`, passed: aiScore >= longLimit }
+            { id: "ai_gate", label: "Unified Ensemble Predictor",      desc: `Current AI Bias score is ${aiScore}% (Target: ${longLimit.toFixed(1)}%)`,                   passed: aiScore >= longLimit }
         ];
     }, [socketStatus.currentConfidence, formConfig, latestSignals]);
+
+    // Derives a human-readable regime from live signals when the backend has not yet
+    // emitted aiRegimeTitle / aiRegimeDesc (those fields are never written in the
+    // current heartbeat loop, so without this the banner always says "Calibrating").
+    const computedRegime = useMemo(() => {
+        const score = socketStatus.currentConfidence ?? 50;
+        const rsi   = latestSignals['rsi_threshold'] || latestSignals['rsi']  || 50;
+        const bb    = latestSignals['bb_fade']       || latestSignals['bb_wall'] || 50;
+        const stoch = latestSignals['stoch'] || 50;
+
+        if (score > 75) {
+            if (rsi < 38 || bb < 25) return { title: "Oversold Momentum Reversal",    desc: "Bullish Breakout", dot: "emerald" };
+            return                         { title: "Trending Breakout Momentum",      desc: "Bullish Trend",    dot: "emerald" };
+        }
+        if (score < 25) {
+            if (rsi > 62 || bb > 75) return { title: "Overbought Exhaustion Pattern", desc: "Bearish Reversal", dot: "rose" };
+            return                          { title: "Bearish Continuation Setup",     desc: "Downtrend",        dot: "rose" };
+        }
+        if (score > 60) {
+            if (stoch < 30)          return { title: "Stochastic Recovery Zone",       desc: "Mild Bullish",     dot: "emerald" };
+            return                          { title: "Moderate Upside Pressure",        desc: "Bullish Lean",     dot: "emerald" };
+        }
+        if (score < 40) {
+            if (stoch > 70)          return { title: "Stochastic Exhaustion Zone",     desc: "Mild Bearish",     dot: "rose" };
+            return                          { title: "Moderate Downside Pressure",      desc: "Bearish Lean",     dot: "rose" };
+        }
+        if (rsi > 60 || bb > 70)     return { title: "Upper Band Resistance Zone",     desc: "Overbought Range", dot: "violet" };
+        if (rsi < 40 || bb < 30)     return { title: "Lower Band Support Zone",        desc: "Oversold Range",   dot: "violet" };
+        return                               { title: "Mean-Reverting Consolidation",  desc: "Sideways Range",   dot: "violet" };
+    }, [socketStatus.currentConfidence, latestSignals]);
+
+    const regimeTitle = socketStatus.aiRegimeTitle || computedRegime.title;
+    const regimeDesc  = socketStatus.aiRegimeDesc  || computedRegime.desc;
+    const regimeDot   = computedRegime.dot;
 
     useEffect(() => {
         if (!isConnected) return;
@@ -1233,57 +1267,65 @@ const TradingBotContainer = () => {
                             </div>
 
                             <div className="col-span-12 lg:col-span-9 flex flex-col gap-4">
-                                <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-3xl p-5 backdrop-blur-md flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 shadow-xl min-w-0 overflow-hidden">
-                                    <div className="flex-1 space-y-4 min-w-0 w-full">
-                                        <div className="flex items-center gap-4 flex-wrap">
-                                            <div className="relative flex h-3.5 w-3.5 items-center justify-center shrink-0">
-                                                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${socketStatus.aiRegimeDesc?.includes('Trend') || socketStatus.aiRegimeDesc?.includes('Volatility') ? 'bg-emerald-400' : 'bg-violet-400'}`}></span>
-                                                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${socketStatus.aiRegimeDesc?.includes('Trend') || socketStatus.aiRegimeDesc?.includes('Volatility') ? 'bg-emerald-500' : 'bg-violet-500'}`}></span>
-                                            </div>
-                                            <div className="min-w-0">
-                                                <span className="text-xs font-black uppercase text-zinc-500 tracking-widest block">Forecasted Market Regime</span>
-                                                <h2 className="text-sm font-mono font-black text-zinc-100 tracking-wide mt-1 flex items-center flex-wrap gap-2 leading-tight">
-                                                    <span>{socketStatus.aiRegimeTitle || "Analyzing Market Structures..."}</span>
-                                                    <span className="text-xs font-normal text-zinc-400">({socketStatus.aiRegimeDesc || "Calibrating Sensors"})</span>
-                                                </h2>
+                                {/* ── REGIME BANNER: 3-row vertical stack, no side-by-side collapse ── */}
+                                <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-3xl p-5 backdrop-blur-md shadow-xl space-y-4">
+
+                                    {/* Row 1 — live dot + regime title on a single line */}
+                                    <div className="flex items-center gap-3">
+                                        <div className="relative flex h-3.5 w-3.5 shrink-0">
+                                            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${regimeDot === 'emerald' ? 'bg-emerald-400' : regimeDot === 'rose' ? 'bg-rose-400' : 'bg-violet-400'}`}></span>
+                                            <span className={`relative inline-flex rounded-full h-2.5 w-2.5    ${regimeDot === 'emerald' ? 'bg-emerald-500' : regimeDot === 'rose' ? 'bg-rose-500' : 'bg-violet-500'}`}></span>
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <span className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">Forecasted Market Regime</span>
+                                            <div className="flex items-baseline gap-2 mt-0.5 flex-wrap">
+                                                <span className={`text-sm font-mono font-black tracking-wide ${regimeDot === 'emerald' ? 'text-emerald-300' : regimeDot === 'rose' ? 'text-rose-300' : 'text-zinc-100'}`}>
+                                                    {regimeTitle}
+                                                </span>
+                                                <span className="text-[11px] font-normal text-zinc-500 shrink-0">({regimeDesc})</span>
                                             </div>
                                         </div>
-                                        
-                                        <div className="grid grid-cols-3 gap-3 bg-black/40 border border-zinc-800 p-3 rounded-2xl w-full lg:w-auto lg:min-w-[540px] shrink-0">
-                                            <div className="min-w-0">
-                                                <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Market Vector</span>
-                                                {/* ✅ FIX 4: removed marketDirectionVector.bg — .color already contains bg + border classes */}
-                                                <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${marketDirectionVector.color}`}>
-                                                    {marketDirectionVector.side}
-                                                </div>
+                                        <div className={`shrink-0 px-3 py-1 rounded-xl border text-[9px] font-black uppercase tracking-widest ${
+                                            regimeDot === 'emerald' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                                            regimeDot === 'rose'    ? 'bg-rose-500/10    border-rose-500/20    text-rose-400'    :
+                                                                       'bg-violet-500/10  border-violet-500/20  text-violet-400'
+                                        }`}>
+                                            {regimeDot === 'emerald' ? '▲ BULL' : regimeDot === 'rose' ? '▼ BEAR' : '◆ CHOP'}
+                                        </div>
+                                    </div>
+
+                                    {/* Row 2 — Market Vector / Account Bounds / Alignment Status */}
+                                    <div className="grid grid-cols-3 gap-3 bg-black/40 border border-zinc-800 p-3 rounded-2xl">
+                                        <div className="min-w-0">
+                                            <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Market Vector</span>
+                                            <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${marketDirectionVector.color}`}>
+                                                {marketDirectionVector.side}
                                             </div>
-                                            <div className="min-w-0">
-                                                <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Account Bounds</span>
-                                                {/* ✅ FIX 5 (usage site): was botExecutionBias.bg (undefined property) — same fix as above */}
-                                                <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${botExecutionBias.color}`}>
-                                                    {botExecutionBias.capability}
-                                                </div>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Account Bounds</span>
+                                            <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${botExecutionBias.color}`}>
+                                                {botExecutionBias.capability}
                                             </div>
-                                            <div className="min-w-0">
-                                                <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Alignment Status</span>
-                                                <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${convergenceState.color}`}>
-                                                    {convergenceState.label}
-                                                </div>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Alignment Status</span>
+                                            <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${convergenceState.color}`}>
+                                                {convergenceState.label}
                                             </div>
                                         </div>
                                     </div>
-                                    
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+
+                                    {/* Row 3 — Gateway checkpoints, full-width, no overlap */}
+                                    <div className="grid grid-cols-3 gap-3">
                                         {gatewayCheckpoints.map(check => (
-                                            <div key={check.id} className="flex items-start gap-2.5 p-3 bg-black/40 border border-zinc-800 rounded-xl min-w-0 overflow-hidden">
-                                                {check.passed ? (
-                                                    <CheckCircle2 size={15} className="text-emerald-400 mt-0.5 shrink-0" />
-                                                ) : (
-                                                    <AlertCircle size={15} className="text-zinc-600 mt-0.5 shrink-0" />
-                                                )}
-                                                <div className="min-w-0 flex-1">
-                                                    <p className={`text-[11px] font-black uppercase tracking-tight truncate ${check.passed ? 'text-zinc-200' : 'text-zinc-500'}`}>{check.label}</p>
-                                                    <p className="text-[10px] text-zinc-500 font-medium font-mono mt-0.5 leading-relaxed break-words whitespace-normal">{check.desc}</p>
+                                            <div key={check.id} className="flex items-start gap-2 p-3 bg-black/40 border border-zinc-800 rounded-xl overflow-hidden">
+                                                {check.passed
+                                                    ? <CheckCircle2 size={14} className="text-emerald-400 mt-0.5 shrink-0" />
+                                                    : <AlertCircle  size={14} className="text-zinc-600  mt-0.5 shrink-0" />}
+                                                <div className="min-w-0">
+                                                    <p className={`text-[10px] font-black uppercase tracking-tight truncate ${check.passed ? 'text-zinc-200' : 'text-zinc-500'}`}>{check.label}</p>
+                                                    <p className="text-[9px] text-zinc-500 font-mono mt-0.5 leading-relaxed break-words">{check.desc}</p>
                                                 </div>
                                             </div>
                                         ))}
