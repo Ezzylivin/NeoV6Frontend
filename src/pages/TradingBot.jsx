@@ -845,34 +845,77 @@ const TradingBotContainer = () => {
         ];
     }, [socketStatus.currentConfidence, formConfig, latestSignals]);
 
-    // Derives a human-readable regime from live signals when the backend has not yet
-    // emitted aiRegimeTitle / aiRegimeDesc (those fields are never written in the
-    // current heartbeat loop, so without this the banner always says "Calibrating").
+    // Derives a human-readable regime from live signals. Each state also carries
+    // a plain-English `detail` sentence and a tactical `action` label for the banner.
     const computedRegime = useMemo(() => {
         const score = socketStatus.currentConfidence ?? 50;
-        const rsi   = latestSignals['rsi_threshold'] || latestSignals['rsi']  || 50;
+        const rsi   = latestSignals['rsi_threshold'] || latestSignals['rsi']     || 50;
         const bb    = latestSignals['bb_fade']       || latestSignals['bb_wall'] || 50;
         const stoch = latestSignals['stoch'] || 50;
 
         if (score > 75) {
-            if (rsi < 38 || bb < 25) return { title: "Oversold Momentum Reversal",    desc: "Bullish Breakout", dot: "emerald" };
-            return                         { title: "Trending Breakout Momentum",      desc: "Bullish Trend",    dot: "emerald" };
+            if (rsi < 38 || bb < 25) return {
+                title: "Oversold Momentum Reversal", desc: "Bullish Breakout",
+                detail: "Indicators are in extreme oversold territory while AI confidence is elevated — a high-probability long entry window is open. Watch for volume confirmation before sizing in.",
+                action: "ENTER LONG", actionColor: "text-emerald-400 border-emerald-500/30 bg-emerald-500/10", dot: "emerald"
+            };
+            return {
+                title: "Trending Breakout Momentum", desc: "Bullish Trend",
+                detail: "Strong upward momentum confirmed with AI confidence above threshold. Favor long entries on shallow pullbacks. Avoid chasing extended moves.",
+                action: "BUY PULLBACKS", actionColor: "text-emerald-400 border-emerald-500/30 bg-emerald-500/10", dot: "emerald"
+            };
         }
         if (score < 25) {
-            if (rsi > 62 || bb > 75) return { title: "Overbought Exhaustion Pattern", desc: "Bearish Reversal", dot: "rose" };
-            return                          { title: "Bearish Continuation Setup",     desc: "Downtrend",        dot: "rose" };
+            if (rsi > 62 || bb > 75) return {
+                title: "Overbought Exhaustion Pattern", desc: "Bearish Reversal",
+                detail: "Market is pressing overbought extremes while AI confidence collapses. High-probability fade setup forming — short entries favored on rejection candles.",
+                action: "FADE RALLY", actionColor: "text-rose-400 border-rose-500/30 bg-rose-500/10", dot: "rose"
+            };
+            return {
+                title: "Bearish Continuation Setup", desc: "Downtrend",
+                detail: "Sustained bearish momentum with AI well below entry threshold. Avoid long exposure. Short setups are structurally favored until confidence recovers.",
+                action: "AVOID LONGS", actionColor: "text-rose-400 border-rose-500/30 bg-rose-500/10", dot: "rose"
+            };
         }
         if (score > 60) {
-            if (stoch < 30)          return { title: "Stochastic Recovery Zone",       desc: "Mild Bullish",     dot: "emerald" };
-            return                          { title: "Moderate Upside Pressure",        desc: "Bullish Lean",     dot: "emerald" };
+            if (stoch < 30) return {
+                title: "Stochastic Recovery Zone", desc: "Mild Bullish",
+                detail: "Stochastic is deeply oversold while AI confidence is building. A bounce setup may be forming — watch for stochastic cross above 20 to confirm entry.",
+                action: "WATCH BOUNCE", actionColor: "text-emerald-400 border-emerald-500/30 bg-emerald-500/10", dot: "emerald"
+            };
+            return {
+                title: "Moderate Upside Pressure", desc: "Bullish Lean",
+                detail: "AI is leaning bullish but hasn't crossed the hard entry threshold yet. Hold existing longs and wait for score to breach the configured ML gate before adding.",
+                action: "HOLD / WAIT", actionColor: "text-amber-400 border-amber-500/30 bg-amber-500/10", dot: "emerald"
+            };
         }
         if (score < 40) {
-            if (stoch > 70)          return { title: "Stochastic Exhaustion Zone",     desc: "Mild Bearish",     dot: "rose" };
-            return                          { title: "Moderate Downside Pressure",      desc: "Bearish Lean",     dot: "rose" };
+            if (stoch > 70) return {
+                title: "Stochastic Exhaustion Zone", desc: "Mild Bearish",
+                detail: "Stochastic is overbought while AI confidence is fading. A pullback is likely building — short setups are forming but wait for stochastic to roll below 80.",
+                action: "WATCH FADE", actionColor: "text-rose-400 border-rose-500/30 bg-rose-500/10", dot: "rose"
+            };
+            return {
+                title: "Moderate Downside Pressure", desc: "Bearish Lean",
+                detail: "AI is leaning bearish but confidence hasn't reached short-entry confirmation. Reduce open exposure and let the market provide further directional clarity.",
+                action: "REDUCE RISK", actionColor: "text-amber-400 border-amber-500/30 bg-amber-500/10", dot: "rose"
+            };
         }
-        if (rsi > 60 || bb > 70)     return { title: "Upper Band Resistance Zone",     desc: "Overbought Range", dot: "violet" };
-        if (rsi < 40 || bb < 30)     return { title: "Lower Band Support Zone",        desc: "Oversold Range",   dot: "violet" };
-        return                               { title: "Mean-Reverting Consolidation",  desc: "Sideways Range",   dot: "violet" };
+        if (rsi > 60 || bb > 70) return {
+            title: "Upper Band Resistance Zone", desc: "Overbought Range",
+            detail: "Price is pressing the upper Bollinger band with RSI elevated. Momentum may stall — watch for a rejection candle or a decisive close above for breakout continuation.",
+            action: "WATCH CEILING", actionColor: "text-amber-400 border-amber-500/30 bg-amber-500/10", dot: "violet"
+        };
+        if (rsi < 40 || bb < 30) return {
+            title: "Lower Band Support Zone", desc: "Oversold Range",
+            detail: "Price is testing the lower Bollinger band with RSI depressed. A support bounce is possible — wait for a bullish reversal candle before entering long.",
+            action: "WATCH FLOOR", actionColor: "text-amber-400 border-amber-500/30 bg-amber-500/10", dot: "violet"
+        };
+        return {
+            title: "Mean-Reverting Consolidation", desc: "Sideways Range",
+            detail: "Price is oscillating in a tight range with no directional edge. AI is withholding entries until a boundary breakout with volume confirmation materialises.",
+            action: "STANDBY", actionColor: "text-zinc-400 border-zinc-700 bg-zinc-800/40", dot: "violet"
+        };
     }, [socketStatus.currentConfidence, latestSignals]);
 
     const regimeTitle = socketStatus.aiRegimeTitle || computedRegime.title;
@@ -1267,10 +1310,10 @@ const TradingBotContainer = () => {
                             </div>
 
                             <div className="col-span-12 lg:col-span-9 flex flex-col gap-4">
-                                {/* ── REGIME BANNER: 3-row vertical stack, no side-by-side collapse ── */}
+                                {/* ── REGIME BANNER ── */}
                                 <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-3xl p-5 backdrop-blur-md shadow-xl space-y-4">
 
-                                    {/* Row 1 — live dot + regime title on a single line */}
+                                    {/* Row 1 — live dot + regime title + direction badge */}
                                     <div className="flex items-center gap-3">
                                         <div className="relative flex h-3.5 w-3.5 shrink-0">
                                             <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${regimeDot === 'emerald' ? 'bg-emerald-400' : regimeDot === 'rose' ? 'bg-rose-400' : 'bg-violet-400'}`}></span>
@@ -1294,7 +1337,61 @@ const TradingBotContainer = () => {
                                         </div>
                                     </div>
 
-                                    {/* Row 2 — Market Vector / Account Bounds / Alignment Status */}
+                                    {/* Row 2 — Plain-English description + tactical action label */}
+                                    <div className="flex items-start gap-4 px-0.5">
+                                        <p className="text-[11px] text-zinc-400 leading-relaxed flex-1 font-medium">
+                                            {computedRegime.detail}
+                                        </p>
+                                        <div className={`shrink-0 self-center px-3 py-1.5 rounded-xl border text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${computedRegime.actionColor}`}>
+                                            {computedRegime.action}
+                                        </div>
+                                    </div>
+
+                                    {/* Row 3 — Live market numbers: RSI / BB% / Stoch / AI Confidence */}
+                                    <div className="grid grid-cols-4 gap-3 bg-black/50 border border-zinc-800 p-3 rounded-2xl">
+                                        {[
+                                            {
+                                                label: 'RSI',
+                                                value: Math.round(latestSignals['rsi_threshold'] || latestSignals['rsi'] || 50),
+                                                note: v => v > 70 ? 'OVERBOUGHT' : v < 30 ? 'OVERSOLD' : 'NEUTRAL',
+                                                barColor: v => v > 70 ? '#ef4444' : v < 30 ? '#10b981' : '#a78bfa',
+                                            },
+                                            {
+                                                label: 'BB %',
+                                                value: Math.round(latestSignals['bb_fade'] || latestSignals['bb_wall'] || 50),
+                                                note: v => v > 80 ? 'AT UPPER' : v < 20 ? 'AT LOWER' : 'MID BAND',
+                                                barColor: v => v > 80 ? '#ef4444' : v < 20 ? '#10b981' : '#f59e0b',
+                                            },
+                                            {
+                                                label: 'STOCH',
+                                                value: Math.round(latestSignals['stoch'] || 50),
+                                                note: v => v > 80 ? 'OVERBOUGHT' : v < 20 ? 'OVERSOLD' : 'NEUTRAL',
+                                                barColor: v => v > 80 ? '#ef4444' : v < 20 ? '#10b981' : '#a78bfa',
+                                            },
+                                            {
+                                                label: 'AI CONF',
+                                                value: socketStatus.currentConfidence ?? 50,
+                                                note: v => v > 65 ? 'ABOVE GATE' : v < 35 ? 'BELOW GATE' : 'AT THRESHOLD',
+                                                barColor: v => v > 65 ? '#10b981' : v < 35 ? '#ef4444' : '#f59e0b',
+                                            },
+                                        ].map(({ label, value, note, barColor }) => {
+                                            const col = barColor(value);
+                                            return (
+                                                <div key={label} className="flex flex-col gap-1.5">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-[8px] font-black uppercase text-zinc-600 tracking-widest">{label}</span>
+                                                        <span className="font-mono text-[11px] font-black" style={{ color: col }}>{value}%</span>
+                                                    </div>
+                                                    <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                                                        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${value}%`, backgroundColor: col }} />
+                                                    </div>
+                                                    <span className="text-[7px] font-black uppercase tracking-widest" style={{ color: col }}>{note(value)}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* Row 4 — Market Vector / Account Bounds / Alignment Status */}
                                     <div className="grid grid-cols-3 gap-3 bg-black/40 border border-zinc-800 p-3 rounded-2xl">
                                         <div className="min-w-0">
                                             <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Market Vector</span>
@@ -1316,7 +1413,7 @@ const TradingBotContainer = () => {
                                         </div>
                                     </div>
 
-                                    {/* Row 3 — Gateway checkpoints, full-width, no overlap */}
+                                    {/* Row 5 — Gateway checkpoints */}
                                     <div className="grid grid-cols-3 gap-3">
                                         {gatewayCheckpoints.map(check => (
                                             <div key={check.id} className="flex items-start gap-2 p-3 bg-black/40 border border-zinc-800 rounded-xl overflow-hidden">
