@@ -2,7 +2,7 @@
 // Production rewrite — fixes applied:
 //   [P1] botData ReferenceError → calculatedStats
 //   [P2] STRAT_COLORS hoisted to module scope
-//   [P3] axios instance moved outside component
+//   [P3] axios instance cleanly bound from core "axios" module
 //   [P4] enable_shorting boolean/string select mismatch
 //   [P5] prompt() / window.confirm() replaced with modals
 //   [P6] ErrorBoundary wrapping chart and ops panels
@@ -10,7 +10,8 @@
 //   [P8] minVotesRequired >= 1 after strategy removal
 //   [P9] Initial status fetch with retry + visible error state
 //   [P10] Halt button shows pending state during async stop
-//   [TOGGLE] Integrated enablePartialExit toggle interface inside the Risk Protocol component layout
+//   [FIX] Removed hanging object fragment token inside socket listener to clear the fatal runtime crash
+//   [CHART-FIX] Replaced direct curve mapping with performanceData array to feed consistent coordinate objects into Recharts
 
 import React, { useState, useEffect, useRef, useMemo, Component } from "react";
 import axios from "axios";
@@ -25,8 +26,7 @@ import {
     Plus, Trash2, Shield, Globe, Cpu, Filter, TrendingUp,
     Activity, Scale, Power, RefreshCw, Wallet, Wifi, WifiOff,
     ArrowUpRight, Clock, Box, Timer, DollarSign, Info, BarChart, Settings2, Zap, ArrowDownRight,
-    CandlestickChart, AlertTriangle, RotateCcw, Eraser, Book,
-    HelpCircle, ShieldAlert, CheckCircle2, AlertCircle, Eye, EyeOff, Key, X
+    CandlestickChart, AlertTriangle, RotateCcw, Eraser, Book, HelpCircle, ShieldAlert, CheckCircle2, AlertCircle, Eye, EyeOff, Key, X
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import "./TradingBot.css";
@@ -108,40 +108,34 @@ const formatTime = (isoString) => {
     return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 };
 
+const makeStrategyId = () => `strat_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
 const getLogStyle = (msg) => {
     const text = msg.toUpperCase();
-    if (text.includes("VETOED") || text.includes("STALKING SHORT") || text.includes("SHORT GATE") || text.includes("BLOCKED"))
+    if (text.includes("VETOED") || text.includes("SHORT GATE") || text.includes("BLOCKED"))
         return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
-    if (text.includes("PASSED") || text.includes("STALKING LONG") || text.includes("LONG GATE"))
+    if (text.includes("PASSED") || text.includes("LONG GATE") || text.includes("STALKING LONG"))
         return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
-    if (text.includes("UPTREND") || text.includes("BULLISH") || text.includes("MOMENTUM IGNITION") || text.includes("ENTERED LONG"))
+    if (text.includes("UPTREND") || text.includes("BULLISH") || text.includes("ENTERED LONG"))
         return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
     if (text.includes("DOWNTREND") || text.includes("BEARISH") || text.includes("ENTERED SHORT"))
         return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
     if (text.includes("TRADE") || text.includes("PARTIAL") || text.includes("CLOSED") || text.includes("EXIT"))
         return 'text-amber-400 bg-amber-500/10 border-amber-500/20';
-    if (text.includes("REGIME") || text.includes("NEUTRAL") || text.includes("CHOP") || text.includes("ADX") || text.includes("VOLATIL"))
-        return 'text-blue-400 bg-blue-500/10 border-blue-500/20';
     return 'text-zinc-400 bg-zinc-900 border-zinc-800/80';
 };
 
-const makeStrategyId = () => `strat_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-
 const getLogMeta = (msg) => {
     const t = msg.toUpperCase();
-    if (t.includes('TRADE') || t.includes('PARTIAL') || t.includes('SCALE-OUT') ||
-        t.includes('OPENED') || t.includes('ENTERING') || t.includes('TRIMMED'))
+    if (t.includes('TRADE') || t.includes('PARTIAL') || t.includes('SCALE-OUT') || t.includes('OPENED') || t.includes('ENTERING'))
         return { Icon: TrendingUp,  textColor: 'text-amber-400',  wrapClass: 'bg-amber-500/10 border-amber-500/20'  };
-    if (t.includes('PASSED') || t.includes('LONG GATE') || t.includes('STALKING LONG') ||
-        t.includes('BULLISH') || t.includes('UPTREND') || t.includes('EXPANSION'))
+    if (t.includes('PASSED') || t.includes('LONG GATE') || t.includes('STALKING LONG') || t.includes('BULLISH'))
         return { Icon: ArrowUpRight, textColor: 'text-emerald-400', wrapClass: 'bg-emerald-500/10 border-emerald-500/20' };
-    if (t.includes('VETOED') || t.includes('SHORT GATE') || t.includes('STALKING SHORT') ||
-        t.includes('BEARISH') || t.includes('DOWNTREND') || t.includes('CONTRACTION'))
+    if (t.includes('VETOED') || t.includes('SHORT GATE') || t.includes('STALKING SHORT') || t.includes('BEARISH'))
         return { Icon: ShieldAlert,  textColor: 'text-rose-400',  wrapClass: 'bg-rose-500/10 border-rose-500/20'   };
-    if (t.includes('SIGNAL') || t.includes('RSI') || t.includes('MACD') ||
-        t.includes('EMA') || t.includes('ATR') || t.includes('GATE'))
+    if (t.includes('SIGNAL') || t.includes('RSI') || t.includes('MACD') || t.includes('EMA'))
         return { Icon: Zap,          textColor: 'text-violet-400', wrapClass: 'bg-violet-500/10 border-violet-500/20' };
-    if (t.includes('REGIME') || t.includes('MINDSET') || t.includes('ADX') || t.includes('VOLATIL'))
+    if (t.includes('REGIME') || t.includes('MINDSET') || t.includes('NEUTRAL') || t.includes('CHOP'))
         return { Icon: Globe,        textColor: 'text-blue-400',   wrapClass: 'bg-blue-500/10 border-blue-500/20'   };
     return { Icon: Activity, textColor: 'text-zinc-500', wrapClass: 'bg-zinc-900 border-zinc-800' };
 };
@@ -169,12 +163,7 @@ class ErrorBoundary extends Component {
                         <p className="text-zinc-300 text-[11px] font-black uppercase tracking-widest mb-1">Component Error</p>
                         <p className="text-zinc-600 text-[10px] font-mono">{this.state.error?.message || "Unknown render failure"}</p>
                     </div>
-                    <button
-                        onClick={() => this.setState({ hasError: false, error: null })}
-                        className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-zinc-300 text-[9px] font-black uppercase tracking-widest transition-all"
-                    >
-                        Retry
-                    </button>
+                    <button onClick={() => this.setState({ hasError: false, error: null })} className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-zinc-300 text-[9px] font-black uppercase tracking-widest transition-all">Retry</button>
                 </div>
             );
         }
@@ -182,331 +171,119 @@ class ErrorBoundary extends Component {
     }
 }
 
-// ─── SMALL UI COMPONENTS ───────────────────────────────────────────────────────
-const CheckItem = ({ label, status }) => (
-    <div className="flex items-center justify-between p-4 bg-black/40 rounded-xl border border-zinc-800">
-        <span className="text-[10px] text-zinc-400 font-bold uppercase">{label}</span>
-        {status
-            ? <span className="text-emerald-500 text-[9px] font-black tracking-widest">✔ READY</span>
-            : <span className="text-rose-500 text-[9px] font-black tracking-widest">MISSING</span>}
-    </div>
-);
-
-const MetricCard = ({ label, value, subValue, color = "text-white", icon = null }) => (
-    <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden shadow-xl">
-        <p className="text-[10px] text-zinc-500 uppercase font-black tracking-[0.15em] mb-2">{label}</p>
-        <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-1.5">
-                {icon && <span className={color}>{icon}</span>}
-                <p className={`text-xl font-mono font-black tracking-tighter ${color}`}>{value}</p>
-            </div>
-            {subValue && <p className="text-[10px] font-black text-zinc-600 uppercase tracking-wide">{subValue}</p>}
-        </div>
-    </div>
-);
-
-// ─── CONFIDENCE RING CARD ─────────────────────────────────────────────────────
-const ConfidenceRingCard = ({ confidence }) => {
-    const score = confidence ?? 50;
-    const color = score > 70 ? '#10b981' : score > 40 ? '#a78bfa' : '#ef4444';
-    const label = score > 85 ? 'STRONG BUY' : score > 70 ? 'BUY' : score < 20 ? 'STRONG VETO' : score < 35 ? 'VETO' : 'NEUTRAL';
-    const circumference = 2 * Math.PI * 20;
-    const offset = circumference - (score / 100) * circumference;
-    return (
-        <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl flex flex-col items-center justify-center">
-            <p className="text-[10px] text-zinc-500 uppercase font-black tracking-[0.15em] mb-2">AI Confidence</p>
-            <div className="relative w-14 h-14">
-                <svg className="w-full h-full -rotate-90" viewBox="0 0 48 48">
-                    <circle cx="24" cy="24" r="20" fill="none" stroke="#27272a" strokeWidth="4" />
-                    <circle cx="24" cy="24" r="20" fill="none" stroke={color} strokeWidth="4"
-                        strokeDasharray={circumference} strokeDashoffset={offset}
-                        strokeLinecap="round" style={{ transition: 'stroke-dashoffset 0.7s ease' }} />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="font-mono font-black text-sm" style={{ color }}>{score}%</span>
-                </div>
-            </div>
-            <p className="text-[8px] font-black uppercase tracking-widest mt-2" style={{ color }}>{label}</p>
-        </div>
-    );
-};
-
-// ─── POSITION CARD ────────────────────────────────────────────────────────────
+// ─── DASHBOARD MODULE COMPONENT SHELLS ─────────────────────────────────────────
 const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) => {
-    const symbol = pos.symbol || defaultSymbol;
-    const price = currentPrice || 0;
-    const pnl = pos.type === 'long'
-        ? (price - pos.entry) * pos.size
-        : (pos.entry - price) * pos.size;
-    const costBasis = (pos.entry || 0) * (pos.size || 0);
-    const pnlPct = costBasis > 0 ? ((pnl / costBasis) * 100).toFixed(2) : '0.00';
-    const isProfit = pnl >= 0;
-    const tslDist = pos.tsl && price ? ((Math.abs(price - pos.tsl) / price) * 100).toFixed(2) : '—';
+    const symbol   = pos.symbol || defaultSymbol || '';
+    const cp       = currentPrice || 0;
+    const isLong   = pos.type !== 'short';
+    const priceDiff = cp > 0 ? (isLong ? cp - pos.entry : pos.entry - cp) : 0;
+    const pnl      = priceDiff * Number(pos.size);
+    const pnlColor = pnl >= 0 ? 'text-emerald-400' : 'text-rose-500';
+    const borderColor = pnl >= 0 ? 'rgba(16,185,129,0.18)' : 'rgba(239,68,68,0.18)';
+
+    const hasTpSl = pos.tp > 0 && pos.sl > 0;
+    const tpPct = hasTpSl ? Math.min(100, Math.max(0, isLong ? ((cp - pos.entry) / (pos.tp - pos.entry)) * 100 : ((pos.entry - cp) / (pos.entry - pos.tp)) * 100)) : 0;
+    const slPct = hasTpSl ? Math.min(100, Math.max(0, isLong ? ((pos.entry - cp) / (pos.entry - pos.sl)) * 100 : ((cp - pos.entry) / (pos.sl - pos.entry)) * 100)) : 0;
+    const trackPct = hasTpSl ? (() => {
+        const lo = Math.min(pos.sl, pos.entry, pos.tp);
+        const hi = Math.max(pos.sl, pos.entry, pos.tp);
+        return Math.min(96, Math.max(4, ((cp - lo) / (hi - lo || 1)) * 100));
+    })() : 50;
+
     return (
-        <div className={`p-4 bg-zinc-950/80 rounded-2xl border ${isProfit ? 'border-emerald-500/20' : 'border-rose-500/20'} shadow-inner`}>
+        <div className="p-4 rounded-2xl border transition-all" style={{ background: pnl >= 0 ? 'rgba(16,185,129,0.03)' : 'rgba(239,68,68,0.03)', borderColor }}>
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full animate-pulse ${pos.type === 'long' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-zinc-300">{symbol}</span>
-                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${pos.type === 'long' ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-rose-400 bg-rose-500/10 border-rose-500/20'}`}>
-                        {pos.type}
-                    </span>
+                    <div className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase border flex items-center gap-1 ${isLong ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400'}`}>
+                        {isLong ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+                        {pos.type.toUpperCase()}
+                    </div>
+                    <span className="text-[11px] font-black text-zinc-400 font-mono">{symbol}</span>
                 </div>
-                <button
-                    onClick={() => onExit(symbol)}
-                    disabled={isExiting}
-                    className="px-3 py-1 bg-zinc-800 hover:bg-rose-500/20 border border-zinc-700 hover:border-rose-500/40 text-zinc-400 hover:text-rose-400 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-40"
-                >
-                    {isExiting ? 'Exiting...' : 'Close'}
-                </button>
+                <div className="text-right">
+                    <div className="text-[9px] text-zinc-600 uppercase font-black mb-0.5">Mark Price</div>
+                    <div className="font-mono font-black text-sm text-zinc-200">{cp > 0 ? `$${cp.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}</div>
+                </div>
             </div>
-            <div className="grid grid-cols-3 gap-2 text-[10px] font-mono">
-                <div>
-                    <p className="text-zinc-600 uppercase font-black text-[8px] mb-0.5">Entry</p>
-                    <p className="text-zinc-300 font-black">${Number(pos.entry || 0).toFixed(2)}</p>
+
+            {hasTpSl && (
+                <div className="mb-3 px-1">
+                    <div className="flex justify-between text-[8px] text-zinc-500 font-bold uppercase mb-1.5">
+                        <span>SL ${Number(pos.sl).toLocaleString()}</span>
+                        <span>Entry ${Number(pos.entry).toLocaleString()}</span>
+                        <span>TP ${Number(pos.tp).toLocaleString()}</span>
+                    </div>
+                    <div className="h-1.5 bg-zinc-800 rounded-full relative">
+                        <div className="absolute w-3.5 h-3.5 rounded-full border-2 border-zinc-900 transition-all duration-700 top-1/2 -translate-y-1/2 -translate-x-1/2" style={{ left: `${trackPct}%`, background: pnl >= 0 ? '#10b981' : '#ef4444' }} />
+                    </div>
                 </div>
+            )}
+
+            <div className="flex items-center justify-between">
                 <div>
-                    <p className="text-zinc-600 uppercase font-black text-[8px] mb-0.5">Unrealized PnL</p>
-                    <p className={`font-black ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {isProfit ? '+' : ''}${pnl.toFixed(2)} ({pnlPct}%)
-                    </p>
+                    <div className="text-[8px] text-zinc-600 font-black uppercase mb-0.5">Entry · Size</div>
+                    <div className="font-mono text-sm font-black text-zinc-400">${Number(pos.entry).toLocaleString()} <span className="text-zinc-600">· {Number(pos.size).toFixed(4)}</span></div>
                 </div>
-                <div>
-                    <p className="text-zinc-600 uppercase font-black text-[8px] mb-0.5">TSL Distance</p>
-                    <p className="text-amber-400 font-black">{tslDist}%</p>
+                <div className="text-center">
+                    <div className="text-[8px] text-zinc-600 font-black uppercase mb-0.5">Floating PnL</div>
+                    <div className={`font-mono font-black text-base ${pnlColor}`}>{cp > 0 ? `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}` : '—'}</div>
                 </div>
+                <button onClick={() => onExit(symbol)} disabled={isExiting} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 rounded-lg text-rose-500 hover:text-white font-black uppercase text-[10px] transition-all tracking-wider disabled:opacity-40 disabled:cursor-not-allowed">
+                    {isExiting ? '...' : 'EXIT'}
+                </button>
             </div>
         </div>
     );
 };
 
-// ─── TRADE TIMELINE CARD ──────────────────────────────────────────────────────
 const TradeTimelineCard = ({ trade }) => {
-    const isProfit = (trade.pnl ?? 0) >= 0;
-    const time = trade.time
-        ? (typeof trade.time === 'number' ? new Date(trade.time).toLocaleTimeString() : formatTime(trade.time))
-        : '—';
+    const side       = trade.type || trade.side || 'trade';
+    const entryPrice = Number(trade.entry || trade.entryPrice || trade.entry_price || 0);
+    const exitPrice  = Number(trade.exit  || trade.exitPrice  || trade.exit_price || trade.price || 0);
+    const pnl        = parseFloat(trade.pnl || trade.realized_pnl || trade.realizedPnL || 0);
+    const isWin      = pnl >= 0;
+    const isLong     = side === 'long';
+    const timeObj = trade.time ? new Date(trade.time * (trade.time > 1e10 ? 1 : 1000)) : trade.exitTime ? new Date(trade.exitTime) : new Date();
+    const winColor = isWin ? '#10b981' : '#ef4444';
+
     return (
-        <div className={`p-3 rounded-xl border ${isProfit ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-rose-500/20 bg-rose-500/5'}`}>
-            <div className="flex items-center justify-between mb-1.5">
+        <div className={`p-4 rounded-2xl border relative overflow-hidden transition-all ${isWin ? 'bg-black/20 border-emerald-500/20 hover:border-emerald-500/40' : 'bg-black/20 border-rose-500/20 hover:border-rose-500/40'}`}>
+            <div className="absolute left-0 top-0 bottom-0 w-0.5" style={{ background: winColor }} />
+            <div className="flex justify-between items-center mb-3 pl-2">
                 <div className="flex items-center gap-2">
-                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${isProfit ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'}`}>
-                        {trade.side || trade.type || 'TRADE'}
-                    </span>
-                    <span className="text-zinc-500 text-[9px] font-bold uppercase">{trade.reason || 'exit'}</span>
+                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${isLong ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>{isLong ? '▲ Long' : '▼ Short'}</span>
+                    <span className="text-[9px] text-zinc-500 font-mono font-bold">{timeObj.toLocaleDateString()} {timeObj.toLocaleTimeString()}</span>
                 </div>
-                <span className={`font-mono text-[11px] font-black ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {isProfit ? '+' : ''}${Number(trade.pnl ?? 0).toFixed(2)}
-                </span>
+                <span className="font-mono font-black text-sm" style={{ color: winColor }}>{pnl >= 0 ? '+' : ''}${Math.abs(pnl).toFixed(2)}</span>
             </div>
-            <div className="grid grid-cols-3 gap-2 text-[9px] font-mono text-zinc-500">
-                <span>Entry: ${Number(trade.entry || 0).toFixed(2)}</span>
-                <span>Exit: ${Number(trade.price || 0).toFixed(2)}</span>
-                <span className="text-right">{time}</span>
-            </div>
-        </div>
-    );
-};
-
-// ─── STRATEGY PARAM INPUTS ────────────────────────────────────────────────────
-const StrategyParamInputs = ({ strategy, onChange }) => {
-    const params = strategy.params || {};
-    const floatKeys = new Set(['st_factor', 'bb_std', 'buffer', 'threshold', 'multiplier', 'atr_tp_mult', 'atr_sl_mult']);
-    return (
-        <div className="grid grid-cols-2 gap-2">
-            {Object.entries(params).map(([key, val]) => (
-                <div key={key}>
-                    <label className="text-[8px] font-black uppercase text-zinc-600 tracking-widest block mb-0.5">
-                        {key.replace(/_/g, ' ')}
-                    </label>
-                    <input
-                        type="number"
-                        value={val}
-                        step={floatKeys.has(key) ? 0.1 : 1}
-                        onChange={(e) => {
-                            const parsed = floatKeys.has(key) ? parseFloat(e.target.value) : parseInt(e.target.value);
-                            onChange({ ...params, [key]: isNaN(parsed) ? val : parsed });
-                        }}
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-300 outline-none font-mono text-[10px] focus:border-amber-500/50 transition-colors"
-                    />
+            <div className="pl-2 grid grid-cols-2 gap-3">
+                <div>
+                    <p className="text-[9px] text-zinc-500 uppercase font-black">Entry / Exit</p>
+                    <p className="text-[11px] font-mono font-bold text-zinc-300">${Number(entryPrice).toLocaleString()} → ${Number(exitPrice).toLocaleString()}</p>
                 </div>
-            ))}
-        </div>
-    );
-};
-
-// ─── PRE-FLIGHT MODAL ─────────────────────────────────────────────────────────
-const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, address }) => {
-    const isLive = config.tradingMode === 'live';
-    const checks = [
-        { label: 'Wallet Connected',    status: !!address },
-        { label: 'Capital Allocated',   status: !!config.capitalAllocation && config.capitalAllocation > 0 },
-        { label: 'Strategy Selected',   status: (config.strategies?.length ?? 0) > 0 },
-        { label: 'Symbol Configured',   status: !!config.symbol },
-        { label: 'API Keys Present',    status: !isLive || hasApiKeys },
-    ];
-    const allPass = checks.every(c => c.status);
-    return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md">
-            <div className="max-w-md w-full mx-4 bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 shadow-2xl">
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
-                        <Shield size={18} className="text-emerald-400" />
-                    </div>
-                    <div>
-                        <h3 className="text-[13px] font-black uppercase tracking-widest text-white">Pre-Flight Check</h3>
-                        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-0.5">
-                            {isLive ? '⚠️ LIVE CAPITAL MODE' : 'Paper Simulation Mode'}
-                        </p>
-                    </div>
-                </div>
-                <div className="space-y-2 mb-6">
-                    {checks.map(c => <CheckItem key={c.label} label={c.label} status={c.status} />)}
-                </div>
-                <div className="p-3 bg-zinc-950/80 border border-zinc-800 rounded-xl mb-6 space-y-1.5 text-[10px] font-mono text-zinc-400">
-                    <div className="flex justify-between"><span className="text-zinc-600 uppercase font-black">Symbol</span><span>{config.symbol}</span></div>
-                    <div className="flex justify-between"><span className="text-zinc-600 uppercase font-black">Capital</span><span className="text-emerald-400">${config.capitalAllocation}</span></div>
-                    <div className="flex justify-between"><span className="text-zinc-600 uppercase font-black">Strategies</span><span>{config.strategies?.length || 0}</span></div>
-                    <div className="flex justify-between"><span className="text-zinc-600 uppercase font-black">ML Mode</span><span className="text-violet-400">{(config.mlMode || 'off').toUpperCase()}</span></div>
-                    <div className="flex justify-between"><span className="text-zinc-600 uppercase font-black">Routing</span><span>{config.enable_shorting ? 'Margin (Kraken)' : 'Spot (Coinbase)'}</span></div>
-                </div>
-                <div className="flex gap-3">
-                    <button onClick={onCancel} className="flex-1 py-3 border border-zinc-700 rounded-xl text-zinc-400 font-black uppercase text-[10px] hover:bg-zinc-800 transition-all">
-                        Cancel
-                    </button>
-                    <button
-                        onClick={onConfirm}
-                        disabled={isStarting || !allPass}
-                        className="flex-1 py-3 bg-emerald-500 text-black rounded-xl font-black uppercase text-[10px] hover:bg-emerald-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                        {isStarting ? <><RefreshCw size={12} className="animate-spin" /> Igniting...</> : 'Ignite Engine'}
-                    </button>
+                <div className="text-right">
+                    <p className="text-[9px] text-zinc-500 uppercase font-black">Realized PnL</p>
+                    <p className={`text-[12px] font-black font-mono ${isWin ? 'text-emerald-400' : 'text-rose-500'}`}>{pnl >= 0 ? '+' : ''}${Math.abs(pnl).toFixed(2)}</p>
                 </div>
             </div>
         </div>
     );
 };
-
-// ─── API KEY MODAL ────────────────────────────────────────────────────────────
-const ApiKeyModal = ({ exchange, onSave, onCancel }) => {
-    const isKraken = exchange === 'kraken';
-    const [key, setKey] = useState('');
-    const [secret, setSecret] = useState('');
-    const [showKey, setShowKey] = useState(false);
-    const [showSecret, setShowSecret] = useState(false);
-
-    const handleSave = () => {
-        if (!key || !secret) { toast.error("Both fields are required."); return; }
-        if (isKraken) {
-            localStorage.setItem("kraken_key", key);
-            localStorage.setItem("kraken_secret", secret);
-        } else {
-            localStorage.setItem("coinbase_key", key);
-            localStorage.setItem("coinbase_secret", secret);
-        }
-        onSave();
-    };
-
-    return (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/90 backdrop-blur-md">
-            <div className="max-w-sm w-full mx-4 bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 shadow-2xl">
-                <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20">
-                            <Key size={16} className="text-amber-400" />
-                        </div>
-                        <div>
-                            <h3 className="text-[12px] font-black uppercase tracking-widest text-white">
-                                {isKraken ? 'Kraken' : 'Coinbase'} API Keys
-                            </h3>
-                            <p className="text-[9px] text-zinc-500 font-bold uppercase mt-0.5">Stored locally only</p>
-                        </div>
-                    </div>
-                    <button onClick={onCancel} className="text-zinc-600 hover:text-white transition-all"><X size={16} /></button>
-                </div>
-                <div className="space-y-4 mb-6">
-                    <div>
-                        <label className={labelClass}>API Key</label>
-                        <div className="relative">
-                            <input
-                                type={showKey ? 'text' : 'password'}
-                                value={key}
-                                onChange={e => setKey(e.target.value)}
-                                placeholder="Enter API key..."
-                                className={`${inputClass} pr-10`}
-                            />
-                            <button onClick={() => setShowKey(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors">
-                                {showKey ? <EyeOff size={13} /> : <Eye size={13} />}
-                            </button>
-                        </div>
-                    </div>
-                    <div>
-                        <label className={labelClass}>API Secret</label>
-                        <div className="relative">
-                            <input
-                                type={showSecret ? 'text' : 'password'}
-                                value={secret}
-                                onChange={e => setSecret(e.target.value)}
-                                placeholder="Enter API secret..."
-                                className={`${inputClass} pr-10`}
-                            />
-                            <button onClick={() => setShowSecret(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors">
-                                {showSecret ? <EyeOff size={13} /> : <Eye size={13} />}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <div className="flex gap-3">
-                    <button onClick={onCancel} className="flex-1 py-3 border border-zinc-700 rounded-xl text-zinc-400 font-black uppercase text-[10px] hover:bg-zinc-800 transition-all">Cancel</button>
-                    <button onClick={handleSave} className="flex-1 py-3 bg-amber-500 text-black rounded-xl font-black uppercase text-[10px] hover:bg-amber-400 transition-all">Save Keys</button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// ─── CONFIRM MODAL ────────────────────────────────────────────────────────────
-const ConfirmModal = ({ title, message, danger, onConfirm, onCancel }) => (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/90 backdrop-blur-md">
-        <div className="max-w-sm w-full mx-4 bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 shadow-2xl">
-            <div className="flex items-center gap-3 mb-4">
-                <div className={`p-2 rounded-xl border ${danger ? 'bg-rose-500/10 border-rose-500/20' : 'bg-amber-500/10 border-amber-500/20'}`}>
-                    <AlertTriangle size={16} className={danger ? 'text-rose-400' : 'text-amber-400'} />
-                </div>
-                <h3 className="text-[12px] font-black uppercase tracking-widest text-white">{title}</h3>
-            </div>
-            <p className="text-[11px] text-zinc-400 font-medium mb-6 leading-relaxed">{message}</p>
-            <div className="flex gap-3">
-                <button onClick={onCancel} className="flex-1 py-3 border border-zinc-700 rounded-xl text-zinc-400 font-black uppercase text-[10px] hover:bg-zinc-800 transition-all">Cancel</button>
-                <button
-                    onClick={onConfirm}
-                    className={`flex-1 py-3 rounded-xl font-black uppercase text-[10px] transition-all ${danger ? 'bg-rose-500 hover:bg-rose-400 text-white' : 'bg-amber-500 hover:bg-amber-400 text-black'}`}
-                >
-                    Confirm
-                </button>
-            </div>
-        </div>
-    </div>
-);
 
 const ProximityTickerPanel = ({ latestSignals, aiScore, formConfig }) => {
     const metrics = useMemo(() => {
         const longLimit  = parseFloat(formConfig.mlThresholdLong  || 0.55) * 100;
         const shortLimit = parseFloat(formConfig.mlThresholdShort || 0.55) * 100;
-        
         const mlTarget   = aiScore >= 50 ? longLimit : shortLimit;
         const mlDelta    = Math.abs(aiScore - mlTarget).toFixed(0);
         const mlStatus   = aiScore >= longLimit || aiScore <= shortLimit ? "🟢 READY" : "🟡 PENDING";
-
-        const bbVal    = Math.round(latestSignals['bb_fade'] || latestSignals['bb_wall'] || 0);
-        const bbDelta  = Math.abs(100 - bbVal);
-        const bbStatus = bbVal >= 95 ? "🔴 CRITICAL" : bbVal >= 75 ? "🟡 WARNING" : "⚪ IDLE";
-
-        const rsiVal    = Math.round(latestSignals['rsi_threshold'] || latestSignals['rsi'] || 0);
-        const rsiDelta  = Math.abs(70 - rsiVal);
-        const rsiStatus = rsiVal >= 70 || rsiVal <= 30 ? "🟢 READY" : "⚪ STALKING";
-
-        const stochVal    = Math.round(latestSignals['stoch'] || 0);
+        const bbVal      = Math.round(latestSignals['bb_fade'] || latestSignals['bb_wall'] || 0);
+        const bbDelta    = Math.abs(100 - bbVal);
+        const bbStatus   = bbVal >= 95 ? "🔴 CRITICAL" : bbVal >= 75 ? "🟡 WARNING" : "⚪ IDLE";
+        const rsiVal     = Math.round(latestSignals['rsi_threshold'] || latestSignals['rsi'] || 0);
+        const rsiDelta   = Math.abs(70 - rsiVal);
+        const rsiStatus  = rsiVal >= 70 || rsiVal <= 30 ? "🟢 READY" : "⚪ STALKING";
+        const stochVal   = Math.round(latestSignals['stoch'] || 0);
         const stochStatus = stochVal >= 80 || stochVal <= 20 ? "🟢 READY" : "⚪ IDLE";
 
         return [
@@ -525,11 +302,7 @@ const ProximityTickerPanel = ({ latestSignals, aiScore, formConfig }) => {
             </div>
             <div className="space-y-2 flex-1 overflow-x-hidden min-w-0">
                 {metrics.map(m => {
-                    const statusColor = m.status.includes("READY") || m.status.includes("CRITICAL")
-                        ? "text-emerald-400 font-black animate-pulse"
-                        : m.status.includes("WARNING") || m.status.includes("PENDING")
-                            ? "text-amber-400 font-bold"
-                            : "text-zinc-500";
+                    const statusColor = m.status.includes("READY") || m.status.includes("CRITICAL") ? "text-emerald-400 font-black animate-pulse" : m.status.includes("WARNING") || m.status.includes("PENDING") ? "text-amber-400 font-bold" : "text-zinc-500";
                     return (
                         <div key={m.id} className="grid grid-cols-12 gap-2 text-[10px] font-mono border-b border-zinc-900/40 pb-1.5 last:border-0 last:pb-0 items-center min-w-0">
                             <span className="col-span-5 text-zinc-400 uppercase tracking-tight truncate pr-1">{m.name}</span>
@@ -587,7 +360,7 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
                         {userStratCodes.map(code => (
                             <div key={`user-${code}`} className="flex items-center gap-1 opacity-40">
                                 <div className="w-1 h-1 rounded-full bg-zinc-500"></div>
-                                <span style={{ color: STRAT_COLORS[code] || '#a1a1aa' }} className="text-[8px] font-bold uppercase font-mono tracking-tight">{code.replace('_', ' ')}</span>
+                                <span style={{ color: STRAT_COLORS[code] }} className="text-[8px] font-bold uppercase font-mono tracking-tight">{code.replace('_', ' ')}</span>
                             </div>
                         ))}
                     </div>
@@ -600,7 +373,7 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
                         {activeStratCodes.map(code => (
                             <div key={`active-${code}`} className="flex items-center gap-1">
                                 <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STRAT_COLORS[code] || '#52525b' }}></div>
-                                <span style={{ color: STRAT_COLORS[code] || '#52525b' }} className="text-[8px] font-black uppercase font-mono tracking-tight">{code.replace('_', ' ')}</span>
+                                <span style={{ color: STRAT_COLORS[code] }} className="text-[8px] font-black uppercase font-mono tracking-tight">{code.replace('_', ' ')}</span>
                             </div>
                         ))}
                     </div>
@@ -619,7 +392,7 @@ const SignalBarsPanel = ({ signalsMapHistory, formConfig }) => {
     const activeCodes = useMemo(() => {
         if (!signalsMapHistory?.length) return (formConfig?.strategies?.map(s => s.code) || []).slice(0, 5);
         const keys = new Set();
-        signalsMapHistory.slice(-50).forEach(item => {
+        signalsMapHistory.forEach(item => {
             Object.keys(item).forEach(k => { if (k !== 'time' && k !== 'timestamp') keys.add(k); });
         });
         return Array.from(keys).slice(0, 5);
@@ -647,7 +420,7 @@ const SignalBarsPanel = ({ signalsMapHistory, formConfig }) => {
                     const name  = STRAT_POOL.find(s => s.code === code)?.name?.split(' ')[0] || code;
                     return (
                         <div key={code} className="flex items-center justify-between gap-4 py-0.5">
-                            <span className="text-[10px] font-black uppercase text-zinc-400 w-[80px] truncate shrink-0">{name}</span>
+                            <span style={{ color }} className="text-[10px] font-black uppercase w-[80px] truncate shrink-0">{name}</span>
                             <div className="flex-1 h-2 bg-zinc-950 border border-zinc-800/80 rounded-full overflow-hidden">
                                 <div className="h-full rounded-full transition-all duration-700" style={{ width: `${val}%`, background: color, opacity: 0.85 }} />
                             </div>
@@ -658,19 +431,41 @@ const SignalBarsPanel = ({ signalsMapHistory, formConfig }) => {
                         </div>
                     );
                 })}
-                {activeCodes.length === 0 && <p className="text-[11px] text-zinc-600 italic text-center py-1">Awaiting signal data...</p>}
             </div>
         </div>
     );
 };
 
-// ─── MAIN CONTAINER COMPONENT ──────────────────────────────────────────────────
+const ConfidenceRingCard = ({ confidence }) => {
+    const c = Math.min(100, Math.max(0, confidence || 0));
+    const r = 28, circ = 2 * Math.PI * r;
+    const dash = (c / 100) * circ;
+    const color = c < 35 ? '#ef4444' : c < 52 ? '#f59e0b' : c < 72 ? '#a78bfa' : '#10b981';
+    const colorClass = c < 35 ? 'text-rose-500' : c < 52 ? 'text-amber-400' : c < 72 ? 'text-violet-400' : 'text-emerald-400';
+    const label = c < 35 ? 'BEARISH' : c < 52 ? 'NEUTRAL' : c < 72 ? 'BULLISH' : 'STRONG';
+    return (
+        <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-3xl relative overflow-hidden shadow-xl flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+                <p className="text-[9px] text-zinc-500 uppercase font-black tracking-[0.15em] mb-1 truncate">Council Consensus</p>
+                <p className={`text-lg font-mono font-black tracking-tighter ${colorClass}`}>{Math.round(c)}%</p>
+                <p className={`text-[9px] font-black uppercase tracking-wide ${colorClass} opacity-60`}>{label}</p>
+            </div>
+            <div className="relative flex-shrink-0" style={{ width: 64, height: 64 }}>
+                <svg width="64" height="64" style={{ transform: 'rotate(-90deg)' }}>
+                    <circle cx="32" cy="32" r={r} fill="none" stroke="#27272a" strokeWidth="6" />
+                    <circle cx="32" cy="32" r={r} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round" strokeDasharray={`${dash} ${circ - dash}`} style={{ transition: 'stroke-dasharray 0.8s ease, stroke 0.8s ease' }} />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <Zap size={14} style={{ color }} />
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ─── MAIN CONTAINER APPLICATION ────────────────────────────────────────────────
 const TradingBotContainer = () => {
-    const {
-        startBot, stopBot, resetBot, closePosition,
-        refreshState, restoredConfig,
-        botStatus: hookBotStatus, logs: hookLogs
-    } = useBot();
+    const { startBot, stopBot, resetBot, closePosition, refreshState, restoredConfig, botStatus: hookBotStatus, logs: hookLogs } = useBot();
     const { isConnected, address } = useAccount();
 
     const [isModeSelected, setIsModeSelected]   = useState(false);
@@ -721,16 +516,13 @@ const TradingBotContainer = () => {
         slippageTolerance: 0.5,
         maxPyramiding: 1,
         params: { atr_tp_mult: 3.0, atr_sl_mult: 1.5 },
-        minAdx: 20,
-        minVolRatio: 0.8,
-        minWeightedSignal: 0.3,
         enablePartialExit: false,
         filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 }
     });
 
     const isBotRunning = socketStatus.status === 'running' && !isHaltLocked;
 
-    // ── COMPUTED MATRIX VALUES UNIFICATION ──────────────────────────────────
+    // ── DATA SNAPSHOT CHUNK PREPARERS ──────────────────────────────────────────
     const latestSignals = useMemo(() => {
         if (!socketStatus.signalsMapHistory?.length) return {};
         return socketStatus.signalsMapHistory[socketStatus.signalsMapHistory.length - 1] || {};
@@ -740,7 +532,7 @@ const TradingBotContainer = () => {
         if (socketStatus.signalsMapHistory?.length > 0) {
             const keys = new Set();
             socketStatus.signalsMapHistory.forEach(item => {
-                Object.keys(item).forEach(key => { if (key !== 'time' && key !== 'timestamp') keys.add(key); });
+                Object.keys(item).forEach(k => { if (k !== 'time' && k !== 'timestamp') keys.add(k); });
             });
             return Array.from(keys);
         }
@@ -751,8 +543,7 @@ const TradingBotContainer = () => {
         const current = socketStatus.currentBalance || formConfig.capitalAllocation;
         const starting = socketStatus.initialCapital || formConfig.capitalAllocation;
         const change = current - starting;
-        const percentage = (change / (starting || 1)) * 100;
-        return { change, percentage, isProfit: change >= 0 };
+        return { change, percentage: (change / (starting || 1)) * 100, isProfit: change >= 0 };
     }, [socketStatus.currentBalance, socketStatus.initialCapital, formConfig.capitalAllocation]);
 
     const profitMetrics = useMemo(() => {
@@ -762,36 +553,34 @@ const TradingBotContainer = () => {
         return { startCap: seed, profitPct: dPct, pnlPct: uPct };
     }, [socketStatus.initialCapital, socketStatus.dailyProfit, socketStatus.unrealizedPnl, formConfig.capitalAllocation]);
 
-    const { startCap, profitPct, pnlPct } = profitMetrics;
+    const { profitPct, pnlPct } = profitMetrics;
 
-    // ✅ FIX 1: Define activeBalance — was referenced in the running MetricCard but never declared.
-    //           Uses current socket balance, falling back to configured capital allocation.
-    const activeBalance = socketStatus.currentBalance ?? formConfig.capitalAllocation;
-
-    // ✅ FIX 2: Compute calculatedStats from trade history — was referenced for win rate and profit
-    //           factor in the Neural Performance panel but no useMemo existed anywhere for it.
-    const calculatedStats = useMemo(() => {
-        const allTrades = socketStatus.tradeHistory || socketStatus.trade_history || socketStatus.tradeMarkers || [];
-        const exits = allTrades.filter(t => t.pnl !== undefined);
-        if (!exits.length) return { winRate: "0.0", profitFactor: 0 };
-        const wins = exits.filter(t => t.pnl > 0);
-        const winRate = ((wins.length / exits.length) * 100).toFixed(1);
-        const grossProfit = wins.reduce((sum, t) => sum + t.pnl, 0);
-        const grossLoss = Math.abs(exits.filter(t => t.pnl <= 0).reduce((sum, t) => sum + t.pnl, 0));
-        const profitFactor = grossLoss === 0 ? (grossProfit > 0 ? 99 : 0) : grossProfit / grossLoss;
-        return { winRate, profitFactor };
-    }, [socketStatus]);
+    // Synchronize timeline arrays into a cohesive coordinate envelope array for Recharts
+    const performanceData = useMemo(() => {
+        const initialSeed = Number(socketStatus.initialCapital || formConfig.capitalAllocation) || 0;
+        const seedPoint = { time: 'Start', balance: initialSeed, confidence: 50 };
+        if (!socketStatus.equityCurve?.length) return [seedPoint];
+        
+        return [
+            seedPoint,
+            ...socketStatus.equityCurve.map(p => ({
+                time: p.time.includes('T') ? new Date(p.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : p.time,
+                balance: p.balance,
+                confidence: p.confidence || 50
+            }))
+        ];
+    }, [socketStatus.equityCurve, socketStatus.initialCapital, formConfig.capitalAllocation]);
 
     const equityEnvelopeDomain = useMemo(() => {
-        if (!socketStatus.equityCurve || socketStatus.equityCurve.length < 2) {
+        if (!performanceData || performanceData.length < 2) {
             const base = formConfig.capitalAllocation;
             return [Math.floor(base * 0.95), Math.ceil(base * 1.05)];
         }
-        const levels = socketStatus.equityCurve.map(pt => pt.balance);
+        const levels = performanceData.map(pt => pt.balance);
         const minLevel = Math.min(...levels), maxLevel = Math.max(...levels);
         const paddingDelta = (maxLevel - minLevel) * 0.15 || (formConfig.capitalAllocation * 0.02);
         return [Math.floor(minLevel - paddingDelta), Math.ceil(maxLevel + paddingDelta)];
-    }, [socketStatus.equityCurve, formConfig.capitalAllocation]);
+    }, [performanceData, formConfig.capitalAllocation]);
 
     const confidenceStance = useMemo(() => {
         const score = socketStatus.currentConfidence ?? 50;
@@ -806,84 +595,36 @@ const TradingBotContainer = () => {
         const rsiVal = latestSignals['rsi_threshold'] || latestSignals['rsi'] || 50;
         const bbVal = latestSignals['bb_fade'] || latestSignals['bb_wall'] || 50;
         const stochVal = latestSignals['stoch'] || 50;
-        
-        if (rsiVal >= 68 || bbVal >= 80 || stochVal >= 75) {
-            return { side: "SHORT (FADE CEILING)", label: "OVERBOUGHT EXHAUSTION", color: "text-rose-400 bg-rose-500/10 border-rose-500/20", type: "short" };
-        }
-        if (rsiVal <= 32 || bbVal <= 20 || stochVal <= 25) {
-            return { side: "LONG (BUY FLOOR)", label: "OVERSOLD SUPPORT", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", type: "long" };
-        }
-        return { side: "NONE (CHOP)", label: "SIDEWAYS FLUID CONSOLIDATION", color: "text-violet-400 bg-violet-500/10 border-violet-500/20", type: "none" };
+        if (rsiVal >= 68 || bbVal >= 80 || stochVal >= 75) return { side: "SHORT · FADE", label: "Overbought Exhaustion", color: "text-rose-400", bg: "bg-rose-500/10 border-rose-500/20", type: "short" };
+        if (rsiVal <= 32 || bbVal <= 20 || stochVal <= 25) return { side: "LONG · BUY", label: "Oversold Dislocation", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", type: "long" };
+        return { side: "NONE · CHOP", label: "Sideways Compression", color: "text-violet-400", bg: "bg-violet-500/10 border-violet-500/20", type: "none" };
     }, [latestSignals]);
 
     const botExecutionBias = useMemo(() => {
-        if (!formConfig.enable_shorting) {
-            return { capability: "LONG-ONLY SPOT (COINBASE)", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", type: "spot" };
-        }
-        return { capability: "BI-DIRECTIONAL MARGIN (KRAKEN)", color: "text-purple-400 bg-purple-500/10 border-purple-500/20", type: "margin" };
+        if (!formConfig.enable_shorting) return { capability: "LONG ONLY SPOT", detail: "Spot · Coinbase", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", type: "spot" };
+        return { capability: "BI-DIR MARGIN", detail: "Margin · Kraken", color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20", type: "margin" };
     }, [formConfig.enable_shorting]);
 
     const convergenceState = useMemo(() => {
-        if (marketDirectionVector.type === "none") {
-            return { label: "STALKING ZONE", sub: "Awaiting outer tier boundary entry", color: "text-zinc-500 border-zinc-800" };
-        }
-        if (marketDirectionVector.type === "short" && botExecutionBias.type === "spot") {
-            return { label: "POSTURE LOCKED", sub: "Spot filters rejecting overbought ceiling shorts", color: "text-amber-500 border-amber-500/30 animate-pulse" };
-        }
-        return { label: "CONVERGENCE PERFECT", sub: "Market structure coordinates match execution permissions", color: "text-emerald-400 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]" };
-    }, [marketDirectionVector, botExecutionBias]);
+        if (marketDirectionVector.type === "none") return { label: "STALKING ZONE", sub: "Awaiting outer tier boundary entry", color: "text-zinc-400", bg: "bg-zinc-900 border-zinc-800" };
+        if (marketDirectionVector.type === "short" && botExecutionBias.type === "spot") return { label: "POSTURE LOCKED", sub: "Spot filters rejecting overbought shorts", color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/30 animate-pulse" };
+        return { label: "CONVERGENCE", sub: "Market structure matches permissions", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/30" };
+    }, [marketDirectionVector.type, botExecutionBias.type]);
 
     const gatewayCheckpoints = useMemo(() => {
         const aiScore   = socketStatus.currentConfidence ?? 50;
         const longLimit = parseFloat(formConfig.mlThresholdLong || 0.55) * 100;
         const bbVal     = Math.round(latestSignals['bb_fade'] || latestSignals['bb_wall'] || 0);
-
         return [
-            { id: "v_safe",  label: "Volatility Shield Ceiling",      desc: "ATR safe compression zone verified",                                                          passed: true },
+            { id: "v_safe",  label: "Volatility Shield Ceiling",  desc: "ATR safe compression zone verified",                    passed: true },
             { id: "t_align", label: "Institutional 200 EMA Baseline", desc: bbVal >= 90 ? "Price extreme wall contact checked" : "Breakout structural alignment scanning", passed: bbVal >= 90 },
-            { id: "ai_gate", label: "Unified Ensemble Predictor",      desc: `Current AI Bias score is ${aiScore}% (Target: ${longLimit.toFixed(1)}%)`,                   passed: aiScore >= longLimit }
+            { id: "ai_gate", label: "Unified Ensemble Predictor",      desc: `Current AI Bias score is ${aiScore}% (Target: ${longLimit}%)`, passed: aiScore >= longLimit }
         ];
     }, [socketStatus.currentConfidence, formConfig, latestSignals]);
 
-    // Derives a human-readable regime from live signals when the backend has not yet
-    // emitted aiRegimeTitle / aiRegimeDesc (those fields are never written in the
-    // current heartbeat loop, so without this the banner always says "Calibrating").
-    const computedRegime = useMemo(() => {
-        const score = socketStatus.currentConfidence ?? 50;
-        const rsi   = latestSignals['rsi_threshold'] || latestSignals['rsi']  || 50;
-        const bb    = latestSignals['bb_fade']       || latestSignals['bb_wall'] || 50;
-        const stoch = latestSignals['stoch'] || 50;
-
-        if (score > 75) {
-            if (rsi < 38 || bb < 25) return { title: "Oversold Momentum Reversal",    desc: "Bullish Breakout", dot: "emerald" };
-            return                         { title: "Trending Breakout Momentum",      desc: "Bullish Trend",    dot: "emerald" };
-        }
-        if (score < 25) {
-            if (rsi > 62 || bb > 75) return { title: "Overbought Exhaustion Pattern", desc: "Bearish Reversal", dot: "rose" };
-            return                          { title: "Bearish Continuation Setup",     desc: "Downtrend",        dot: "rose" };
-        }
-        if (score > 60) {
-            if (stoch < 30)          return { title: "Stochastic Recovery Zone",       desc: "Mild Bullish",     dot: "emerald" };
-            return                          { title: "Moderate Upside Pressure",        desc: "Bullish Lean",     dot: "emerald" };
-        }
-        if (score < 40) {
-            if (stoch > 70)          return { title: "Stochastic Exhaustion Zone",     desc: "Mild Bearish",     dot: "rose" };
-            return                          { title: "Moderate Downside Pressure",      desc: "Bearish Lean",     dot: "rose" };
-        }
-        if (rsi > 60 || bb > 70)     return { title: "Upper Band Resistance Zone",     desc: "Overbought Range", dot: "violet" };
-        if (rsi < 40 || bb < 30)     return { title: "Lower Band Support Zone",        desc: "Oversold Range",   dot: "violet" };
-        return                               { title: "Mean-Reverting Consolidation",  desc: "Sideways Range",   dot: "violet" };
-    }, [socketStatus.currentConfidence, latestSignals]);
-
-    const regimeTitle = socketStatus.aiRegimeTitle || computedRegime.title;
-    const regimeDesc  = socketStatus.aiRegimeDesc  || computedRegime.desc;
-    const regimeDot   = computedRegime.dot;
-
     useEffect(() => {
         if (!isConnected) return;
-        axios.get(`${API_BASE}/users/keys`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
-            .then(res => setHasApiKeys((Array.isArray(res.data) ? res.data : res.data.keys || []).length > 0))
-            .catch(() => setHasApiKeys(false));
+        axios.get(`${API_BASE}/users/keys`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }).then(res => setHasApiKeys((Array.isArray(res.data) ? res.data : res.data.keys || []).length > 0)).catch(() => setHasApiKeys(false));
     }, [isConnected]);
 
     useEffect(() => {
@@ -906,61 +647,49 @@ const TradingBotContainer = () => {
         if (!address) return;
         let attempts = 0;
         const MAX = 4;
-
         const attempt = () => {
             const token = localStorage.getItem("token");
-            api.get(`/bot/status?userId=${address}`, { headers: { Authorization: `Bearer ${token}` } })
-                .then(res => {
-                    setSocketStatus(res.data);
-                    setStatusFetchError(null);
-                })
-                .catch(err => {
-                    if (err.response?.status === 401) {
-                        toast.error("Session expired. Please reconnect.");
-                        return;
-                    }
-                    attempts++;
-                    if (attempts < MAX) setTimeout(attempt, 2 ** attempts * 1000);
-                    else setStatusFetchError("Failed to sync engine state. The backend may be offline.");
-                });
+            api.get(`/bot/status?userId=${address}`, { headers: { Authorization: `Bearer ${token}` } }).then(res => {
+                setSocketStatus(res.data);
+                setStatusFetchError(null);
+            }).catch(err => {
+                if (err.response?.status === 401) {
+                    toast.error("Session expired. Please reconnect.");
+                    return;
+                }
+                attempts++;
+                if (attempts < MAX) setTimeout(attempt, 2 ** attempts * 1000);
+                else setStatusFetchError("Failed to sync engine state. The backend may be offline.");
+            });
         };
         attempt();
     }, [address]);
 
-    const isHaltLockedRef   = useRef(isHaltLocked);
-    const formConfigRef      = useRef(formConfig);
+    const isHaltLockedRef = useRef(isHaltLocked);
+    const formConfigRef = useRef(formConfig);
     const exitingSymbolsRef = useRef(exitingSymbols);
-    useEffect(() => { isHaltLockedRef.current   = isHaltLocked;   }, [isHaltLocked]);
-    useEffect(() => { formConfigRef.current     = formConfig;     }, [formConfig]);
+    useEffect(() => { isHaltLockedRef.current = isHaltLocked; }, [isHaltLocked]);
+    useEffect(() => { formConfigRef.current = formConfig; }, [formConfig]);
     useEffect(() => { exitingSymbolsRef.current = exitingSymbols; }, [exitingSymbols]);
 
     useEffect(() => {
         if (!address) return;
-        const socket = io(SOCKET_URL, {
-            query: { userId: address },
-            transports: ['websocket'],
-            reconnection: true,
-            reconnectionAttempts: Infinity,
-            reconnectionDelay: 2000,
-            reconnectionDelayMax: 10000,
-        });
+        const socket = io(SOCKET_URL, { query: { userId: address }, transports: ['websocket'], reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 2000, reconnectionDelayMax: 10000, });
         socketRef.current = socket;
 
-        socket.on("connect",    () => { setSocketConnected(true);  });
+        socket.on("connect",    () => { setSocketConnected(true); });
         socket.on("disconnect", () => { setSocketConnected(false); });
 
         socket.on("bot_status_update", (data) => {
             if (isHaltLockedRef.current) return;
             setSocketStatus(prev => {
                 const currentBalance = data.currentBalance || prev.currentBalance || 0;
-                const rawPositions   = data.activePositions || data.positions || [];
+                const rawPositions = data.activePositions || data.positions || [];
                 const filteredPositions = rawPositions.filter(pos => !exitingSymbolsRef.current.includes(pos.symbol));
                 const seed = prev.initialCapital || data.initialCapital || currentBalance || formConfigRef.current.capitalAllocation;
-
-                const rawProfit      = data.dailyProfit || data.daily_profit;
-                const delta          = currentBalance - seed;
+                const rawProfit = data.dailyProfit || data.daily_profit;
+                const delta = currentBalance - seed;
                 const calculatedProfit = rawProfit !== undefined ? Number(rawProfit.toFixed(2)) : Number(delta.toFixed(2));
-
                 const rawSignals = data.signalsMap || {};
                 const normalizedSignals = {};
                 Object.keys(rawSignals).forEach(key => {
@@ -969,70 +698,38 @@ const TradingBotContainer = () => {
                     if (!isNaN(val)) normalizedSignals[nk] = val * 100;
                 });
 
-                const updatedSignalsHistory = [...(prev.signalsMapHistory || []), { time: new Date().toLocaleTimeString(), ...normalizedSignals }].slice(-300);
-                const updatedEquityCurve = [...(prev.equityCurve || []), { time: new Date().toLocaleTimeString(), balance: currentBalance, confidence: data.currentConfidence ?? prev.currentConfidence ?? 0 }].slice(-300);
+                const updatedSignalsHistory = [...(prev.signalsMapHistory || []), { time: new Date().toISOString(), ...normalizedSignals }].slice(-300);
+                const updatedEquityCurve = [...(prev.equityCurve || []), { time: new Date().toISOString(), balance: currentBalance, confidence: data.currentConfidence ?? prev.currentConfidence ?? 0 }].slice(-300);
 
                 return {
-                    ...prev, ...data,
-                    dailyProfit: calculatedProfit,
-                    initialCapital: seed,
-                    positions: filteredPositions,
+                    ...prev, ...data, dailyProfit: calculatedProfit, initialCapital: seed, positions: filteredPositions,
                     candles: (data.candles?.length > 0) ? data.candles : (prev.candles || []),
                     tradeHistory: (data.tradeHistory?.length > 0) ? data.tradeHistory : (data.trade_history?.length > 0 ? data.trade_history : (prev.tradeHistory || [])),
                     tradeMarkers: (data.tradeMarkers?.length > 0) ? data.tradeMarkers : (data.trade_markers?.length > 0 ? data.trade_markers : (prev.tradeMarkers || [])),
-                    signalsMapHistory: updatedSignalsHistory,
-                    equityCurve: updatedEquityCurve
+                    signalsMapHistory: updatedSignalsHistory, equityCurve: updatedEquityCurve
                 };
             });
         });
 
         socket.on("bot_log", (newLog) => { setSocketLogs(prev => [newLog, ...prev].slice(0, 100)); });
-
-        return () => {
-            socket.disconnect();
-            socketRef.current = null;
-        };
+        return () => { socket.disconnect(); socketRef.current = null; };
     }, [address]);
 
     const handleConfirmStart = async () => {
         setIsStarting(true);
         setIsHaltLocked(false);
         const targetCapital = Number(formConfig.capitalAllocation) || 1000;
-        setSocketStatus({
-            status: 'running', currentBalance: targetCapital, initialCapital: targetCapital,
-            equityCurve: [], tradeMarkers: [], positions: [], candles: [], unrealizedPnl: 0, dailyProfit: 0, tradeHistory: [], signalsMapHistory: []
-        });
+        setSocketStatus({ status: 'running', currentBalance: targetCapital, initialCapital: targetCapital, equityCurve: [], tradeMarkers: [], positions: [], candles: [], unrealizedPnl: 0, dailyProfit: 0, tradeHistory: [], signalsMapHistory: [] });
         setSocketLogs([]);
 
         const finalConfig = {
-            ...formConfig,
-            capitalAllocation: targetCapital,
-            trading_mode: formConfig.tradingMode,
-            mlThresholdLong:  parseFloat(formConfig.mlThresholdLong),
-            mlThresholdShort: parseFloat(formConfig.mlThresholdShort),
-            mlMode:  formConfig.mlMode,
-            mlModel: formConfig.mlModel,
-            maxPyramiding:    formConfig.maxPyramiding,
-            maxTradesPerDay:  parseInt(formConfig.maxTradesPerDay),
-            leverage:         parseFloat(formConfig.leverage),
-            enable_shorting:  !!formConfig.enable_shorting,
-            enablePartialExit: !!formConfig.enablePartialExit,
-            api_keys: formConfig.tradingMode === 'live' ? (
-                formConfig.enable_shorting ? {
-                    krakenKey:  localStorage.getItem("kraken_key")    || "",
-                    krakenSecret: localStorage.getItem("kraken_secret") || "",
-                    apiKey:  localStorage.getItem("kraken_key")    || "",
-                    secret:  localStorage.getItem("kraken_secret") || ""
-                } : {
-                    apiKey: localStorage.getItem("coinbase_key")    || "",
-                    secret: localStorage.getItem("coinbase_secret") || ""
-                }
-            ) : {},
-            comboConfig: {
-                strategyCodes:    formConfig.strategies.map(s => s.code),
-                combinationRule:  formConfig.hybridMode,
-                minVotesRequired: parseInt(formConfig.minVotesRequired)
-            }
+            ...formConfig, capitalAllocation: targetCapital, trading_mode: formConfig.tradingMode,
+            mlThresholdLong: parseFloat(formConfig.mlThresholdLong), mlThresholdShort: parseFloat(formConfig.mlThresholdShort),
+            mlMode: formConfig.mlMode, mlModel: formConfig.mlModel, maxPyramiding: formConfig.maxPyramiding,
+            maxTradesPerDay: parseInt(formConfig.maxTradesPerDay), leverage: parseFloat(formConfig.leverage),
+            enable_shorting: !!formConfig.enable_shorting, enablePartialExit: !!formConfig.enablePartialExit,
+            api_keys: formConfig.tradingMode === 'live' ? ( formConfig.enable_shorting ? { krakenKey: localStorage.getItem("kraken_key") || "", krakenSecret: localStorage.getItem("kraken_secret") || "", apiKey: localStorage.getItem("kraken_key") || "", secret: localStorage.getItem("kraken_secret") || "" } : { apiKey: localStorage.getItem("coinbase_key") || "", secret: localStorage.getItem("coinbase_secret") || "" } ) : {},
+            comboConfig: { strategyCodes: formConfig.strategies.map(s => s.code), combinationRule: formConfig.hybridMode, minVotesRequired: parseInt(formConfig.minVotesRequired) }
         };
 
         try {
@@ -1049,112 +746,24 @@ const TradingBotContainer = () => {
         }
     };
 
-    const handleHalt = async () => {
-        setIsHaltLocked(true);
-        setIsHalting(true);
-        try {
-            await stopBot();
-            setSocketStatus({ status: 'stopped', currentBalance: Number(formConfig.capitalAllocation), unrealizedPnl: 0, positions: [], equityCurve: [], tradeMarkers: [], startedAt: null, signalsMapHistory: [] });
-            setSocketLogs([]);
-            localStorage.removeItem("neo_active_bot_id");
-            toast.success("SYSTEM PURGED: Engine Stopped & Session Reset");
-            setTimeout(() => { setIsHaltLocked(false); refreshState(); }, 3000);
-        } catch (e) {
-            toast.error("Halt Command Failed");
-            setIsHaltLocked(false);
-        } finally {
-            setIsHalting(false);
-        }
-    };
-
-    // ✅ FIX 3: Define handleReset — was called in the header's Factory Reset button
-    //           but was never declared anywhere. Delegates to resetBot from useBot hook.
-    const handleReset = async () => {
-        try {
-            await resetBot();
-            setSocketStatus({
-                status: 'stopped', currentBalance: Number(formConfig.capitalAllocation),
-                unrealizedPnl: 0, positions: [], equityCurve: [], tradeMarkers: [],
-                startedAt: null, signalsMapHistory: [], dailyProfit: 0, tradeHistory: []
-            });
-            setSocketLogs([]);
-            toast.success("Factory Reset Complete");
-        } catch (e) {
-            toast.error("Reset Failed");
-        }
-    };
-
-    const handleManualExit = async (targetSymbol) => {
-        if (!socketStatus.positions?.length) return;
-        const symbolToExit = typeof targetSymbol === 'string' ? targetSymbol : formConfig.symbol;
-        try {
-            setExitingSymbols(prev => [...prev, symbolToExit]);
-            setActiveOpsTab("audit");
-            await closePosition({ userId: address, symbol: symbolToExit });
-            toast.success(`Manual Exit Executed: ${symbolToExit}`);
-            setTimeout(async () => {
-                await refreshState();
-                setExitingSymbols(prev => prev.filter(s => s !== symbolToExit));
-            }, 3000);
-        } catch (e) {
-            setExitingSymbols(prev => prev.filter(s => s !== symbolToExit));
-            toast.error("Exit Command Failed");
-        }
-    };
-
-    const handleResetRiskSettings = () => {
-        setFormConfig(prev => ({ ...prev, riskPercentage: 1, maxDailyLoss: 5, maxDrawdown: 10, maxTradesPerDay: 20, slippageTolerance: 0.5, params: { ...prev.params, take_profit: 0.05, trailing_stop: 0.01 } }));
-        toast.success("Risk Protocol: Reverted to Factory Defaults");
-    };
-
-    const handleClearLogs = () => { setSocketLogs([]); toast.success("Terminal View Cleared"); };
-    const handleSyncLogs  = async () => { await refreshState(); toast.success("Neural Stream Synced"); };
-
-    const handleRoutingChange = (value) => {
-        const isMargin = value === 'true';
-        if (!isMargin) {
-            setFormConfig(p => ({ ...p, enable_shorting: false }));
-            return;
-        }
-        if (localStorage.getItem("kraken_key")) {
-            setFormConfig(p => ({ ...p, enable_shorting: true }));
-            return;
-        }
-        setApiKeyModal({
-            exchange: 'kraken',
-            onSave: () => {
-                setApiKeyModal(null);
-                setFormConfig(p => ({ ...p, enable_shorting: true }));
-                toast.success("Kraken Margin Authorized.");
+    const handleReset = () => {
+        setConfirmModal({
+            title: "Factory Reset",
+            message: "This will wipe all trade history, logs, and equity curves. This cannot be undone.",
+            danger: true,
+            onConfirm: async () => {
+                setConfirmModal(null);
+                await resetBot();
+                setSocketLogs([]);
+                setSocketStatus({ status: 'stopped', currentBalance: 0, unrealizedPnl: 0, exposure: 0, positions: [], equityCurve: [], startedAt: null, dailyProfit: 0, initialCapital: 0, tradeMarkers: [], signalsMapHistory: [] });
             }
         });
     };
-
-    const handleLiveModeSelect = () => {
-        if (hasApiKeys) {
-            setFormConfig(p => ({ ...p, tradingMode: 'live' }));
-            setIsModeSelected(true);
-            return;
-        }
-        setApiKeyModal({
-            exchange: 'coinbase',
-            onSave: () => {
-                setApiKeyModal(null);
-                setHasApiKeys(true);
-                setFormConfig(p => ({ ...p, tradingMode: 'live' }));
-                setIsModeSelected(true);
-                toast.success("Keys accepted for this session.");
-            }
-        });
-    };
-
-    const currentPrice = socketStatus.currentPrice || (socketStatus.candles?.length > 0 ? socketStatus.candles[socketStatus.candles.length - 1]?.close : 0) || 0;
 
     return (
         <UIModeProvider>
             <div className="min-h-screen bg-zinc-950 text-white font-sans p-6 overflow-x-hidden transition-all duration-700">
                 <Toaster position="top-right" />
-
                 {apiKeyModal && <ApiKeyModal exchange={apiKeyModal.exchange} onSave={apiKeyModal.onSave} onCancel={() => setApiKeyModal(null)} />}
                 {confirmModal && <ConfirmModal title={confirmModal.title} message={confirmModal.message} danger={confirmModal.danger} onConfirm={confirmModal.onConfirm} onCancel={() => setConfirmModal(null)} />}
 
@@ -1216,7 +825,6 @@ const TradingBotContainer = () => {
                                 {isHalting ? <><RefreshCw size={12} className="animate-spin" /> Halting...</> : <><Power size={12} /> Emergency Halt</>}
                             </button>
                         ) : (
-                            // ✅ FIX 3 (usage site): was onClick={handleReset} referencing undefined — now calls the handler declared above
                             <button onClick={handleReset} className="px-6 py-3 bg-zinc-800/50 border border-zinc-700 text-zinc-400 rounded-xl font-black text-[10px] uppercase hover:bg-white hover:text-black transition-all flex items-center gap-2"><RotateCcw size={12} /> Factory Reset</button>
                         )}
                         <ConnectButton />
@@ -1234,11 +842,10 @@ const TradingBotContainer = () => {
                                 <p className="text-xl font-mono font-black text-emerald-400">OPERATIONAL</p>
                                 <p className="text-[10px] font-mono text-zinc-500 mt-1 uppercase tracking-tighter font-black">SESSION: {uptime}</p>
                             </div>
-                            <MetricCard label="Daily Profit"    value={`${socketStatus.dailyProfit >= 0 ? '+' : ''}${(socketStatus.dailyProfit || 0).toFixed(2)}`}  subValue={`${profitPct.toFixed(2)}%`}  color={socketStatus.dailyProfit >= 0 ? "text-emerald-400" : "text-rose-500"}   icon={<DollarSign size={10} />} />
-                            <MetricCard label="Floating PnL"    value={`${socketStatus.unrealizedPnl >= 0 ? '+' : ''}${(socketStatus.unrealizedPnl || 0).toFixed(2)}`} subValue={`${pnlPct.toFixed(2)}%`}    color={socketStatus.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'} icon={<Activity size={10} />} />
-                            <MetricCard label="Exposure"        value={`${socketStatus.exposure || 0}%`} subValue="Active Positions" color="text-amber-400" />
-                            {/* ✅ FIX 1 (usage site): was `activeBalance` (undefined) — now resolved from the const above */}
-                            <MetricCard label="Total Equity"    value={`$${Number(activeBalance).toLocaleString()}`} subValue="Liquid + Locked" />
+                            <MetricCard label="Daily Profit" value={`${socketStatus.dailyProfit >= 0 ? '+' : ''}${(socketStatus.dailyProfit || 0).toFixed(2)}`} subValue={`${profitPct.toFixed(2)}%`} color={socketStatus.dailyProfit >= 0 ? "text-emerald-400" : "text-rose-500"} icon={<DollarSign size={10} />} />
+                            <MetricCard label="Floating PnL" value={`${socketStatus.unrealizedPnl >= 0 ? '+' : ''}${(socketStatus.unrealizedPnl || 0).toFixed(2)}`} subValue={`${pnlPct.toFixed(2)}%`} color={socketStatus.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'} icon={<Activity size={10} />} />
+                            <MetricCard label="Exposure" value={`${socketStatus.exposure || 0}%`} subValue="Active Positions" color="text-amber-400" />
+                            <MetricCard label="Total Equity" value={`$${Number(activeBalance).toLocaleString()}`} subValue="Liquid + Locked" />
                             <ConfidenceRingCard confidence={socketStatus.currentConfidence || 0} />
                         </div>
 
@@ -1255,7 +862,6 @@ const TradingBotContainer = () => {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <p className="text-[9px] uppercase font-bold text-zinc-600 mb-1">Win Rate</p>
-                                            {/* ✅ FIX 2 (usage site): was calculatedStats.winRate (undefined) — now computed by useMemo above */}
                                             <p className="text-xl font-mono font-black tracking-tighter text-emerald-400">{calculatedStats.winRate}%</p>
                                         </div>
                                         <div>
@@ -1267,65 +873,55 @@ const TradingBotContainer = () => {
                             </div>
 
                             <div className="col-span-12 lg:col-span-9 flex flex-col gap-4">
-                                {/* ── REGIME BANNER: 3-row vertical stack, no side-by-side collapse ── */}
-                                <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-3xl p-5 backdrop-blur-md shadow-xl space-y-4">
-
-                                    {/* Row 1 — live dot + regime title on a single line */}
-                                    <div className="flex items-center gap-3">
-                                        <div className="relative flex h-3.5 w-3.5 shrink-0">
-                                            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${regimeDot === 'emerald' ? 'bg-emerald-400' : regimeDot === 'rose' ? 'bg-rose-400' : 'bg-violet-400'}`}></span>
-                                            <span className={`relative inline-flex rounded-full h-2.5 w-2.5    ${regimeDot === 'emerald' ? 'bg-emerald-500' : regimeDot === 'rose' ? 'bg-rose-500' : 'bg-violet-500'}`}></span>
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <span className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">Forecasted Market Regime</span>
-                                            <div className="flex items-baseline gap-2 mt-0.5 flex-wrap">
-                                                <span className={`text-sm font-mono font-black tracking-wide ${regimeDot === 'emerald' ? 'text-emerald-300' : regimeDot === 'rose' ? 'text-rose-300' : 'text-zinc-100'}`}>
-                                                    {regimeTitle}
-                                                </span>
-                                                <span className="text-[11px] font-normal text-zinc-500 shrink-0">({regimeDesc})</span>
+                                <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-3xl p-5 backdrop-blur-md flex flex-col gap-5 shadow-xl min-w-0 overflow-hidden">
+                                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 pb-4 border-b border-zinc-800/60">
+                                        <div className="flex items-center gap-4 flex-wrap">
+                                            <div className="relative flex h-3.5 w-3.5 items-center justify-center shrink-0">
+                                                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${socketStatus.aiRegimeDesc?.includes('Trend') || socketStatus.aiRegimeDesc?.includes('Volatility') ? 'bg-emerald-400' : 'bg-violet-400'}`}></span>
+                                                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${socketStatus.aiRegimeDesc?.includes('Trend') || socketStatus.aiRegimeDesc?.includes('Volatility') ? 'bg-emerald-500' : 'bg-violet-500'}`}></span>
+                                            </div>
+                                            <div className="min-w-0">
+                                                <span className="text-xs font-black uppercase text-zinc-500 tracking-widest block mb-0.5">Forecasted Market Regime</span>
+                                                <h2 className="text-sm font-mono font-black text-zinc-100 tracking-wide mt-1 flex items-center flex-wrap gap-2 leading-tight">
+                                                    <span>{socketStatus.aiRegimeTitle || "Analyzing Market Structures..."}</span>
+                                                    <span className="text-xs font-normal text-zinc-400">({socketStatus.aiRegimeDesc || "Calibrating Sensors"})</span>
+                                                </h2>
                                             </div>
                                         </div>
-                                        <div className={`shrink-0 px-3 py-1 rounded-xl border text-[9px] font-black uppercase tracking-widest ${
-                                            regimeDot === 'emerald' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                                            regimeDot === 'rose'    ? 'bg-rose-500/10    border-rose-500/20    text-rose-400'    :
-                                                                       'bg-violet-500/10  border-violet-500/20  text-violet-400'
-                                        }`}>
-                                            {regimeDot === 'emerald' ? '▲ BULL' : regimeDot === 'rose' ? '▼ BEAR' : '◆ CHOP'}
-                                        </div>
-                                    </div>
-
-                                    {/* Row 2 — Market Vector / Account Bounds / Alignment Status */}
-                                    <div className="grid grid-cols-3 gap-3 bg-black/40 border border-zinc-800 p-3 rounded-2xl">
-                                        <div className="min-w-0">
-                                            <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Market Vector</span>
-                                            <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${marketDirectionVector.color}`}>
-                                                {marketDirectionVector.side}
+                                        
+                                        <div className="grid grid-cols-3 gap-3 bg-black/40 border border-zinc-800 p-3 rounded-2xl w-full lg:w-auto lg:min-w-[540px] shrink-0">
+                                            <div className="min-w-0">
+                                                <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Market Vector</span>
+                                                <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${marketDirectionVector.bg} ${marketDirectionVector.color}`}>
+                                                    {marketDirectionVector.side}
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="min-w-0">
-                                            <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Account Bounds</span>
-                                            <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${botExecutionBias.color}`}>
-                                                {botExecutionBias.capability}
+                                            <div className="min-w-0">
+                                                <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Account Bounds</span>
+                                                <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${botExecutionBias.bg} ${botExecutionBias.color}`}>
+                                                    {botExecutionBias.capability}
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="min-w-0">
-                                            <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Alignment Status</span>
-                                            <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${convergenceState.color}`}>
-                                                {convergenceState.label}
+                                            <div className="min-w-0">
+                                                <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Alignment Status</span>
+                                                <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${convergenceState.color}`}>
+                                                    {convergenceState.label}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-
-                                    {/* Row 3 — Gateway checkpoints, full-width, no overlap */}
-                                    <div className="grid grid-cols-3 gap-3">
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
                                         {gatewayCheckpoints.map(check => (
-                                            <div key={check.id} className="flex items-start gap-2 p-3 bg-black/40 border border-zinc-800 rounded-xl overflow-hidden">
-                                                {check.passed
-                                                    ? <CheckCircle2 size={14} className="text-emerald-400 mt-0.5 shrink-0" />
-                                                    : <AlertCircle  size={14} className="text-zinc-600  mt-0.5 shrink-0" />}
-                                                <div className="min-w-0">
-                                                    <p className={`text-[10px] font-black uppercase tracking-tight truncate ${check.passed ? 'text-zinc-200' : 'text-zinc-500'}`}>{check.label}</p>
-                                                    <p className="text-[9px] text-zinc-500 font-mono mt-0.5 leading-relaxed break-words">{check.desc}</p>
+                                            <div key={check.id} className="flex items-start gap-2.5 p-3 bg-black/40 border border-zinc-800 rounded-xl min-w-0 overflow-hidden">
+                                                {check.passed ? (
+                                                    <CheckCircle2 size={15} className="text-emerald-400 mt-0.5 shrink-0" />
+                                                ) : (
+                                                    <AlertCircle size={15} className="text-zinc-600 mt-0.5 shrink-0" />
+                                                )}
+                                                <div className="min-w-0 flex-1">
+                                                    <p className={`text-[11px] font-black uppercase tracking-tight truncate ${check.passed ? 'text-zinc-200' : 'text-zinc-500'}`}>{check.label}</p>
+                                                    <p className="text-[10px] text-zinc-500 font-medium font-mono mt-0.5 leading-relaxed break-words whitespace-normal">{check.desc}</p>
                                                 </div>
                                             </div>
                                         ))}
@@ -1359,7 +955,7 @@ const TradingBotContainer = () => {
                                                     <h3 className="text-sm font-black uppercase tracking-widest">Neural Flow</h3>
                                                 </div>
                                                 <div className="flex items-center gap-2.5">
-                                                    <button onClick={handleSyncLogs}  className="text-zinc-500 hover:text-emerald-400 transition-all"><RefreshCw size={14} /></button>
+                                                    <button onClick={handleSyncLogs} className="text-zinc-500 hover:text-emerald-400 transition-all"><RefreshCw size={14} /></button>
                                                     <button onClick={handleClearLogs} className="text-zinc-500 hover:text-white transition-all"><Eraser size={14} /></button>
                                                 </div>
                                             </div>
@@ -1393,11 +989,7 @@ const TradingBotContainer = () => {
                                                 </div>
                                             </div>
 
-                                            <ProximityTickerPanel 
-                                                latestSignals={latestSignals}
-                                                aiScore={socketStatus.currentConfidence ?? 50}
-                                                formConfig={formConfig}
-                                            />
+                                            <ProximityTickerPanel latestSignals={latestSignals} aiScore={socketStatus.currentConfidence ?? 50} formConfig={formConfig} />
                                         </div>
                                         <div ref={logContainerRef} className="flex-1 overflow-y-auto p-5 font-mono text-[11px] space-y-3 bg-black/20 custom-scrollbar min-w-0">
                                             {socketLogs.map((log, i) => {
@@ -1430,10 +1022,7 @@ const TradingBotContainer = () => {
                                                 const dynamicWrapperClass = getLogStyle(parsedMessage);
                                                 const { Icon: LogIcon } = getLogMeta(parsedMessage);
                                                 return (
-                                                    <div
-                                                        key={i}
-                                                        className={`p-3 rounded-xl border leading-relaxed flex items-start gap-2.5 min-w-0 ${dynamicWrapperClass} ${i === 0 ? 'animate-in slide-in-from-top-1 duration-300' : ''}`}
-                                                    >
+                                                    <div key={i} className={`p-3 rounded-xl border leading-relaxed flex items-start gap-2.5 min-w-0 ${dynamicWrapperClass} ${i === 0 ? 'animate-in slide-in-from-top-1 duration-300' : ''}`}>
                                                         <LogIcon size={12} className="mt-0.5 flex-shrink-0" />
                                                         <div className="flex flex-col gap-0.5 min-w-0 flex-1">
                                                             <span className="text-[10px] opacity-40 font-bold font-mono">{formatTime(log.time)}</span>
@@ -1449,6 +1038,7 @@ const TradingBotContainer = () => {
                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-10 duration-1000">
+                            {/* SESSION EQUITY */}
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl flex flex-col justify-between">
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex items-center gap-2">
@@ -1459,9 +1049,7 @@ const TradingBotContainer = () => {
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <span className={`font-mono text-xs font-black px-2 py-0.5 rounded border ${
-                                            sessionDelta.isProfit ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-rose-500/10 border-rose-500/20 text-rose-400"
-                                        }`}>
+                                        <span className={`font-mono text-xs font-black px-2 py-0.5 rounded border ${sessionDelta.isProfit ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-rose-500/10 border-rose-500/20 text-rose-400"}`}>
                                             {sessionDelta.isProfit ? "▲" : "▼"} {sessionDelta.percentage >= 0 ? '+' : ''}{sessionDelta.percentage.toFixed(2)}%
                                         </span>
                                         <span className={`block font-mono text-[10px] font-bold mt-1 ${sessionDelta.isProfit ? "text-emerald-500/60" : "text-rose-500/60"}`}>
@@ -1471,7 +1059,7 @@ const TradingBotContainer = () => {
                                 </div>
                                 <div className="h-44 w-full mt-2">
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <AreaChart data={socketStatus.equityCurve} margin={{ top: 5, right: 5, left: -5, bottom: 0 }}>
+                                        <AreaChart data={performanceData} margin={{ top: 5, right: 5, left: -5, bottom: 0 }}>
                                             <defs>
                                                 <linearGradient id="colorEquityProfit" x1="0" y1="0" x2="0" y2="1">
                                                     <stop offset="5%"  stopColor="#10b981" stopOpacity={0.25} />
@@ -1483,12 +1071,7 @@ const TradingBotContainer = () => {
                                                 </linearGradient>
                                             </defs>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#27272a" opacity={0.15} vertical={false} />
-                                            <RechartsTooltip 
-                                                cursor={{ stroke: '#27272a', strokeWidth: 1, strokeDasharray: '4 4' }}
-                                                contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px', fontFamily: 'monospace' }} 
-                                                itemStyle={{ color: sessionDelta.isProfit ? '#10b981' : '#ef4444' }} 
-                                                formatter={(value) => [`$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 'EQUITY']}
-                                            />
+                                            <RechartsTooltip cursor={{ stroke: '#27272a', strokeWidth: 1, strokeDasharray: '4 4' }} contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px', fontFamily: 'monospace' }} itemStyle={{ color: sessionDelta.isProfit ? '#10b981' : '#ef4444' }} formatter={(value) => [`$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 'EQUITY']} />
                                             <Area type="monotone" dataKey="balance" stroke={sessionDelta.isProfit ? "#10b981" : "#ef4444"} fill={sessionDelta.isProfit ? "url(#colorEquityProfit)" : "url(#colorEquityDrawdown)"} strokeWidth={2.5} isAnimationActive={false} />
                                             <XAxis dataKey="time" hide />
                                             <YAxis hide domain={equityEnvelopeDomain} />
@@ -1497,7 +1080,8 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
 
-                            <div className="bg-zinc-900 border border-zinc-800 p-8 shadow-2xl flex flex-col justify-between">
+                            {/* LOGIC CONFIDENCE */}
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl flex flex-col justify-between">
                                 <div className="flex start justify-between mb-4">
                                     <div className="flex items-center gap-2">
                                         <Zap size={18} className={confidenceStance.color} />
@@ -1517,7 +1101,7 @@ const TradingBotContainer = () => {
                                 </div>
                                 <div className="h-44 w-full mt-2">
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <AreaChart data={socketStatus.equityCurve} margin={{ top: 5, right: 5, left: -5, bottom: 0 }}>
+                                        <AreaChart data={performanceData} margin={{ top: 5, right: 5, left: -5, bottom: 0 }}>
                                             <defs>
                                                 <linearGradient id="colorConfGradient" x1="0" y1="0" x2="0" y2="1">
                                                     <stop offset="5%" stopColor={confidenceStance.hex} stopOpacity={0.25} />
@@ -1525,16 +1109,9 @@ const TradingBotContainer = () => {
                                                 </linearGradient>
                                             </defs>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#27272a" opacity={0.15} vertical={false} />
-                                            
                                             <ReferenceLine y={parseFloat(formConfig.mlThresholdLong) * 100} stroke="#10b981" strokeDasharray="3 3" opacity={0.25} />
                                             <ReferenceLine y={parseFloat(formConfig.mlThresholdShort) * 100} stroke="#ef4444" strokeDasharray="3 3" opacity={0.25} />
-                                            
-                                            <RechartsTooltip 
-                                                cursor={{ stroke: '#27272a', strokeWidth: 1, strokeDasharray: '4 4' }}
-                                                contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px', fontFamily: 'monospace' }} 
-                                                itemStyle={{ color: confidenceStance.hex }}
-                                                formatter={(value) => [`${Number(value).toFixed(0)}%`, 'NEURAL BIAS']}
-                                            />
+                                            <RechartsTooltip cursor={{ stroke: '#27272a', strokeWidth: 1, strokeDasharray: '4 4' }} contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px', fontFamily: 'monospace' }} itemStyle={{ color: confidenceStance.hex }} formatter={(value) => [`${Number(value).toFixed(0)}%`, 'NEURAL BIAS']} />
                                             <Area type="monotone" dataKey="confidence" stroke={confidenceStance.hex} fill="url(#colorConfGradient)" strokeWidth={2.5} isAnimationActive={false} />
                                             <XAxis dataKey="time" hide />
                                             <YAxis hide domain={[0, 100]} />
@@ -1565,19 +1142,10 @@ const TradingBotContainer = () => {
                                             <div className="space-y-3">
                                                 {socketStatus.positions?.length > 0 ? (
                                                     socketStatus.positions.map((pos) => (
-                                                        <PositionCard
-                                                            key={pos.symbol || pos.id || JSON.stringify(pos.entry)}
-                                                            pos={pos}
-                                                            currentPrice={currentPrice}
-                                                            defaultSymbol={formConfig.symbol}
-                                                            onExit={handleManualExit}
-                                                            isExiting={exitingSymbols.includes(pos.symbol)}
-                                                        />
+                                                        <PositionCard key={pos.symbol || pos.id || JSON.stringify(pos.entry)} pos={pos} currentPrice={currentPrice} defaultSymbol={formConfig.symbol} onExit={handleManualExit} isExiting={exitingSymbols.includes(pos.symbol)} />
                                                     ))
                                                 ) : (
-                                                    <div className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">
-                                                        Waiting for Signal...
-                                                    </div>
+                                                    <div className="py-24 text-center text-zinc-600 italic font-bold uppercase tracking-widest opacity-30">Waiting for Signal...</div>
                                                 )}
                                             </div>
                                         ) : (
@@ -1612,13 +1180,11 @@ const TradingBotContainer = () => {
                     <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8 items-start animate-in fade-in duration-700">
                         <div className="col-span-12 lg:col-span-3 h-[850px] relative">
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-8 shadow-2xl h-full overflow-y-auto custom-scrollbar">
-
                                 <div className="space-y-5">
                                     <div className="flex items-center gap-2 text-emerald-400 mb-2">
                                         <Wallet size={16} />
                                         <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Treasury & Routing</h4>
                                     </div>
-
                                     <div className="grid grid-cols-3 gap-2">
                                         <div className="col-span-2">
                                             <label className={labelClass}>Asset</label>
@@ -1633,44 +1199,27 @@ const TradingBotContainer = () => {
                                             </select>
                                         </div>
                                     </div>
-
                                     <div className="p-4 bg-zinc-950/50 border border-zinc-700 rounded-2xl">
                                         <label className={labelClass}>Deployed Capital (USD)</label>
-                                        <input
-                                            type="number"
-                                            value={formConfig.capitalAllocation}
-                                            onChange={(e) => setFormConfig({ ...formConfig, capitalAllocation: parseFloat(e.target.value) })}
-                                            className="w-full bg-black border border-zinc-700 p-2 rounded-lg font-mono text-emerald-500 focus:outline-none focus:border-emerald-500 text-lg"
-                                        />
+                                        <input type="number" value={formConfig.capitalAllocation} onChange={(e) => setFormConfig({ ...formConfig, capitalAllocation: parseFloat(e.target.value) })} className="w-full bg-black border border-zinc-700 p-2 rounded-lg font-mono text-emerald-500 focus:outline-none focus:border-emerald-500 text-lg" />
                                     </div>
-
                                     <div className="flex justify-between items-center">
                                         <div className="flex items-center gap-2 text-zinc-400">
                                             <ArrowDownRight size={14} />
                                             <span className="text-[10px] font-black uppercase tracking-widest">Routing</span>
                                         </div>
-                                        <select
-                                            value={formConfig.enable_shorting ? "true" : "false"}
-                                            onChange={(e) => handleRoutingChange(e.target.value)}
-                                            className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase tracking-widest outline-none text-zinc-300"
-                                        >
+                                        <select value={formConfig.enable_shorting ? "true" : "false"} onChange={(e) => handleRoutingChange(e.target.value)} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase tracking-widest outline-none text-zinc-300" >
                                             <option value="false">Spot (Coinbase)</option>
                                             <option value="true">Margin (Kraken)</option>
                                         </select>
                                     </div>
-
                                     {formConfig.enable_shorting && (
                                         <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl animate-in fade-in duration-300">
                                             <div className="flex justify-between items-center mb-3">
                                                 <label className="text-[9px] font-black uppercase text-amber-500/80 tracking-widest">Leverage Multiplier</label>
                                                 <span className="text-[11px] font-mono font-black text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">{formConfig.leverage}x</span>
                                             </div>
-                                            <input
-                                                type="range" min="1" max="20" step="1"
-                                                value={formConfig.leverage}
-                                                onChange={(e) => setFormConfig({ ...formConfig, leverage: parseInt(e.target.value) })}
-                                                className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                                            />
+                                            <input type="range" min="1" max="20" step="1" value={formConfig.leverage} onChange={(e) => setFormConfig({ ...formConfig, leverage: parseInt(e.target.value) })} className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500" />
                                         </div>
                                     )}
                                 </div>
@@ -1681,11 +1230,7 @@ const TradingBotContainer = () => {
                                             <Cpu size={16} />
                                             <h4 className="text-[10px] font-black uppercase tracking-widest text-violet-400">Neural Compute</h4>
                                         </div>
-                                        <select
-                                            value={formConfig.mlMode}
-                                            onChange={(e) => setFormConfig({ ...formConfig, mlMode: e.target.value })}
-                                            className="bg-zinc-950 text-[9px] text-violet-400 rounded px-2 py-1 border border-violet-500/30 font-black uppercase outline-none cursor-pointer"
-                                        >
+                                        <select value={formConfig.mlMode} onChange={(e) => setFormConfig({ ...formConfig, mlMode: e.target.value })} className="bg-zinc-950 text-[9px] text-violet-400 rounded px-2 py-1 border border-violet-500/30 font-black uppercase tracking-widest outline-none cursor-pointer" >
                                             <option value="off">Bypass</option>
                                             <option value="on">Active</option>
                                         </select>
@@ -1767,7 +1312,16 @@ const TradingBotContainer = () => {
                                             <input type="number" step="1" value={formConfig.maxTradesPerDay} onChange={(e) => setFormConfig({ ...formConfig, maxTradesPerDay: parseInt(e.target.value) })} className="mt-1 w-full bg-transparent border-b border-zinc-700 text-rose-400 font-mono text-[11px] outline-none pb-1 focus:border-rose-400" />
                                         </div>
                                     </div>
-                                    <div className="p-4 bg-zinc-950/50 border border-zinc-800 rounded-2xl">
+                                    <div className="grid grid-cols-1 gap-3 mt-3">
+                                        <div className="p-3 bg-zinc-950/50 rounded-xl border border-zinc-800">
+                                            <label className="text-[9px] font-black uppercase text-zinc-500 tracking-widest block mb-1">Dynamic Lot Partial Exits</label>
+                                            <select value={formConfig.enablePartialExit ? "true" : "false"} onChange={(e) => setFormConfig({ ...formConfig, enablePartialExit: e.target.value === "true" })} className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-[11px] text-amber-400 outline-none font-mono font-bold" >
+                                                <option value="true">Enabled (Split Lot Size)</option>
+                                                <option value="false">Disabled (Full Run Optimization)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="p-4 bg-zinc-950/50 border border-zinc-800 rounded-2xl mt-3">
                                         <div className="flex items-center gap-2 mb-3">
                                             <Shield size={12} className="text-zinc-400" />
                                             <h4 className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Dynamic ATR Shield</h4>
@@ -1783,44 +1337,12 @@ const TradingBotContainer = () => {
                                             </div>
                                         </div>
                                     </div>
-
-                                    {/* ✅ FIX 6: enablePartialExit toggle — declared in file header as integrated ([TOGGLE])
-                                         but was completely absent from the JSX. formConfig.enablePartialExit existed in
-                                         state and was sent to the backend, but had no UI control, so users could never
-                                         enable partial exits from the frontend. */}
-                                    <div className="p-4 bg-zinc-950/50 border border-zinc-800 rounded-2xl">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <Zap size={12} className="text-amber-400" />
-                                                <div>
-                                                    <h4 className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Partial Exit Protocol</h4>
-                                                    <p className="text-[8px] text-zinc-600 font-bold mt-0.5">Lock 50% at 1.5× ATR, trail remainder</p>
-                                                </div>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setFormConfig(p => ({ ...p, enablePartialExit: !p.enablePartialExit }))}
-                                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${formConfig.enablePartialExit ? 'bg-amber-500' : 'bg-zinc-700'}`}
-                                            >
-                                                <span
-                                                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${formConfig.enablePartialExit ? 'translate-x-4' : 'translate-x-1'}`}
-                                                />
-                                            </button>
-                                        </div>
-                                    </div>
                                 </div>
 
                                 <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                     <div className="flex justify-between items-center">
                                         <h4 className="text-[10px] text-zinc-400 font-black uppercase tracking-widest">Technical Ensemble</h4>
-                                        <select
-                                            value={formConfig.hybridMode}
-                                            onChange={(e) => {
-                                                const newMode = e.target.value;
-                                                setFormConfig({ ...formConfig, hybridMode: newMode, minVotesRequired: newMode === "AND" ? formConfig.strategies.length : formConfig.minVotesRequired });
-                                            }}
-                                            className="bg-black border border-zinc-800 text-[9px] rounded px-2 py-1 text-zinc-300 font-bold uppercase tracking-widest"
-                                        >
+                                        <select value={formConfig.hybridMode} onChange={(e) => { const newMode = e.target.value; setFormConfig({ ...formConfig, hybridMode: newMode, minVotesRequired: newMode === "AND" ? formConfig.strategies.length : formConfig.minVotesRequired }); }} className="bg-black border border-zinc-800 text-[9px] rounded px-2 py-1 text-zinc-300 font-bold uppercase outline-none" >
                                             <option value="AND">Strict (AND)</option>
                                             <option value="OR">Loose (OR)</option>
                                         </select>
@@ -1829,55 +1351,21 @@ const TradingBotContainer = () => {
                                         {formConfig.strategies.map((s) => (
                                             <div key={s.id} className="p-4 bg-zinc-950/80 rounded-2xl border border-zinc-800 shadow-inner">
                                                 <div className="flex justify-between mb-3">
-                                                    <select
-                                                        value={s.code}
-                                                        onChange={(e) => {
-                                                            setFormConfig(prev => ({
-                                                                ...prev,
-                                                                strategies: prev.strategies.map(st => st.id === s.id ? { ...st, code: e.target.value, params: DEFAULT_STRATEGY_PARAMS[e.target.value] } : st)
-                                                            }));
-                                                        }}
-                                                        className="bg-transparent text-[10px] font-black text-amber-500 uppercase outline-none"
-                                                    >
+                                                    <select value={s.code} onChange={(e) => { setFormConfig(prev => ({ ...prev, strategies: prev.strategies.map(st => st.id === s.id ? { ...st, code: e.target.value, params: DEFAULT_STRATEGY_PARAMS[e.target.value] } : st ) })); }} className="bg-transparent text-[10px] font-black text-amber-500 uppercase outline-none" >
                                                         {STRAT_POOL.map(opt => <option key={opt.code} value={opt.code}>{opt.name}</option>)}
                                                     </select>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setFormConfig(prev => {
-                                                                const filtered = prev.strategies.filter(st => st.id !== s.id);
-                                                                return { ...prev, strategies: filtered, minVotesRequired: Math.max(1, Math.min(prev.minVotesRequired, filtered.length || 1)) };
-                                                            });
-                                                        }}
-                                                        className="text-zinc-600 hover:text-rose-500 transition-colors"
-                                                    >
+                                                    <button type="button" onClick={() => { setFormConfig(prev => { const filtered = prev.strategies.filter(st => st.id !== s.id); return { ...prev, strategies: filtered, minVotesRequired: Math.max(1, Math.min(prev.minVotesRequired, filtered.length || 1)) }; }); }} className="text-zinc-600 hover:text-rose-500 transition-colors" >
                                                         <Trash2 size={12} />
                                                     </button>
                                                 </div>
-                                                <StrategyParamInputs
-                                                    strategy={s}
-                                                    onChange={(p) => {
-                                                        setFormConfig(prev => ({
-                                                            ...prev,
-                                                            strategies: prev.strategies.map(st => st.id === s.id ? { ...st, params: p } : st)
-                                                        }));
-                                                    }}
-                                                />
+                                                <StrategyParamInputs strategy={s} onChange={(p) => { setFormConfig(prev => ({ ...prev, strategies: prev.strategies.map(st => st.id === s.id ? { ...st, params: p } : st) })); }} />
                                             </div>
                                         ))}
-                                        <button
-                                            type="button"
-                                            onClick={() => setFormConfig(p => ({
-                                                ...p,
-                                                strategies: [...p.strategies, { id: makeStrategyId(), code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }]
-                                            }))}
-                                            className="w-full py-4 border border-dashed border-zinc-800 rounded-xl text-zinc-600 hover:text-emerald-500 hover:border-emerald-500/50 transition-all flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-widest"
-                                        >
+                                        <button type="button" onClick={() => setFormConfig(p => ({ ...p, strategies: [...p.strategies, { id: makeStrategyId(), code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="w-full py-4 border border-dashed border-zinc-800 rounded-xl text-zinc-600 hover:text-emerald-500 hover:border-emerald-500/50 transition-all flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-widest" >
                                             <Plus size={12} /> Add Signal Module
                                         </button>
                                     </div>
                                 </div>
-
                                 <button onClick={() => setShowPreFlight(true)} className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[12px] tracking-widest hover:bg-emerald-400 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-emerald-500/20 mt-8">Initiate Engine</button>
                             </div>
                         </div>
@@ -1894,7 +1382,7 @@ const TradingBotContainer = () => {
                                 <MetricCard label="Exposure"      value="0%"    color="text-zinc-600" />
                                 <MetricCard label="Total Equity"  value={`$${formConfig.capitalAllocation}`} />
                             </div>
-                            <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] h-[600px] overflow-hidden flex items-center justify-center text-zinc-700 italic border-dashed">Initialize market link...</div>
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] h-[600px] overflow-hidden flex items-center justify-center text-zinc-700 italic border-dashed"> Initialize market link... </div>
                         </div>
                     </div>
                 )}
