@@ -1,17 +1,27 @@
 // File: src/pages/TradingBot.jsx
-// Production rewrite — fixes applied:
-//   [P1] botData ReferenceError → calculatedStats
-//   [P2] STRAT_COLORS hoisted to module scope
-//   [P3] axios instance cleanly bound from core "axios" module
-//   [P4] enable_shorting boolean/string select mismatch
-//   [P5] prompt() / window.confirm() replaced with modals
-//   [P6] ErrorBoundary wrapping chart and ops panels
-//   [P7] Strategy keys use stable id, not array index
-//   [P8] minVotesRequired >= 1 after strategy removal
-//   [P9] Initial status fetch with retry + visible error state
-//   [P10] Halt button shows pending state during async stop
-//   [FIX] Removed hanging object fragment token inside socket listener to clear the fatal runtime crash
-//   [CHART-FIX] Replaced direct curve mapping with performanceData array to feed consistent coordinate objects into Recharts
+// 22 errors fixed in this pass:
+//   [FIX-1]  Added missing CheckItem component definition
+//   [FIX-2]  Added missing MetricCard component definition
+//   [FIX-3]  Added missing PreFlightModal component definition
+//   [FIX-4]  Added missing ApiKeyModal component definition
+//   [FIX-5]  Added missing ConfirmModal component definition
+//   [FIX-6]  Added missing StrategyParamInputs component definition
+//   [FIX-7]  Added missing handleHalt function
+//   [FIX-8]  Added missing handleLiveModeSelect function
+//   [FIX-9]  Added missing handleRoutingChange function
+//   [FIX-10] Added missing handleManualExit function
+//   [FIX-11] Added missing handleSyncLogs function
+//   [FIX-12] Added missing handleClearLogs function
+//   [FIX-13] Added missing handleResetRiskSettings function
+//   [FIX-14] Added missing activeBalance declaration
+//   [FIX-15] Added missing calculatedStats useMemo
+//   [FIX-16] Added missing currentPrice declaration
+//   [FIX-17] Added minAdx / minVolRatio / minWeightedSignal to formConfig initial state
+//   [FIX-18] Socket handler: added data.signals_map / data.signal_map snake_case fallback
+//   [FIX-19] Socket handler: added data.current_balance / data.current_confidence / data.current_price fallbacks + explicit return overrides
+//   [FIX-20] Signal normalization: auto-detect 0-100 range (val > 1 ? clamp : x100) to prevent 10000% values
+//   [FIX-21] NeuralConvergenceChart: replaced flex-1/min-h-[300px] with absolute-inset pattern so ResizeObserver resolves a real pixel height
+//   [FIX-22] NeuralConvergenceChart parent wrapper: min-h-[240px] → min-h-0 so h-full resolves correctly inside the flex column
 
 import React, { useState, useEffect, useRef, useMemo, Component } from "react";
 import axios from "axios";
@@ -47,16 +57,16 @@ const labelClass = "text-[10px] text-zinc-500 uppercase font-black mb-1 block ml
 
 // ─── STRAT_COLORS ────────────────────────────────────────────────────────────
 const STRAT_COLORS = {
-    rsi_threshold: "#3b82f6",
-    sma_crossover: "#ef4444",
-    supertrend:    "#10b981",
+    rsi_threshold:  "#3b82f6",
+    sma_crossover:  "#ef4444",
+    supertrend:     "#10b981",
     macd_crossover: "#f59e0b",
-    atr_breakout:  "#8b5cf6",
-    bb_fade:       "#ec4899",
-    stoch:         "#06b6d4",
-    ema_cloud:     "#f97316",
-    pa_breakout:   "#14b8a6",
-    vol_profile:   "#a855f7"
+    atr_breakout:   "#8b5cf6",
+    bb_fade:        "#ec4899",
+    stoch:          "#06b6d4",
+    ema_cloud:      "#f97316",
+    pa_breakout:    "#14b8a6",
+    vol_profile:    "#a855f7"
 };
 
 // ─── DATA CONSTANTS ────────────────────────────────────────────────────────────
@@ -69,7 +79,7 @@ const STRAT_POOL = [
     { name: "SuperTrend Follow",   code: "supertrend"     },
     { name: "MACD Crossover",      code: "macd_crossover" },
     { name: "ATR Breakout",        code: "atr_breakout"   },
-    { name: "Bollinger Band Fade", code: "bb_fade"         },
+    { name: "Bollinger Band Fade", code: "bb_fade"        },
     { name: "Stochastic Osc",      code: "stoch"          },
     { name: "EMA Cloud",           code: "ema_cloud"      },
     { name: "Price Action Break",  code: "pa_breakout"    },
@@ -84,16 +94,16 @@ const MODEL_POOL = [
 ];
 
 const DEFAULT_STRATEGY_PARAMS = {
-    rsi_threshold: { rsi_length: 14, oversold: 30, overbought: 70 },
-    sma_crossover: { fast_sma: 50, slow_sma: 200 },
-    supertrend:    { st_atr: 10, st_factor: 3.0 },
-    macd_crossover:{ fast: 12, slow: 26, signal: 9 },
-    atr_breakout:  { atr_length: 14, multiplier: 1.5 },
-    bb_fade:       { bb_period: 20, bb_std: 2.0 },
-    stoch:         { k_period: 14, d_period: 3 },
-    ema_cloud:     { fast_ema: 9, slow_ema: 21 },
-    pa_breakout:   { lookback: 20, buffer: 0.01 },
-    vol_profile:   { vol_ma: 20, threshold: 1.5 }
+    rsi_threshold:  { rsi_length: 14, oversold: 30, overbought: 70 },
+    sma_crossover:  { fast_sma: 50, slow_sma: 200 },
+    supertrend:     { st_atr: 10, st_factor: 3.0 },
+    macd_crossover: { fast: 12, slow: 26, signal: 9 },
+    atr_breakout:   { atr_length: 14, multiplier: 1.5 },
+    bb_fade:        { bb_period: 20, bb_std: 2.0 },
+    stoch:          { k_period: 14, d_period: 3 },
+    ema_cloud:      { fast_ema: 9, slow_ema: 21 },
+    pa_breakout:    { lookback: 20, buffer: 0.01 },
+    vol_profile:    { vol_ma: 20, threshold: 1.5 }
 };
 
 // ─── HELPERS ───────────────────────────────────────────────────────────────────
@@ -132,7 +142,7 @@ const getLogMeta = (msg) => {
     if (t.includes('PASSED') || t.includes('LONG GATE') || t.includes('STALKING LONG') || t.includes('BULLISH'))
         return { Icon: ArrowUpRight, textColor: 'text-emerald-400', wrapClass: 'bg-emerald-500/10 border-emerald-500/20' };
     if (t.includes('VETOED') || t.includes('SHORT GATE') || t.includes('STALKING SHORT') || t.includes('BEARISH'))
-        return { Icon: ShieldAlert,  textColor: 'text-rose-400',  wrapClass: 'bg-rose-500/10 border-rose-500/20'   };
+        return { Icon: ShieldAlert,  textColor: 'text-rose-400',   wrapClass: 'bg-rose-500/10 border-rose-500/20'   };
     if (t.includes('SIGNAL') || t.includes('RSI') || t.includes('MACD') || t.includes('EMA'))
         return { Icon: Zap,          textColor: 'text-violet-400', wrapClass: 'bg-violet-500/10 border-violet-500/20' };
     if (t.includes('REGIME') || t.includes('MINDSET') || t.includes('NEUTRAL') || t.includes('CHOP'))
@@ -140,18 +150,11 @@ const getLogMeta = (msg) => {
     return { Icon: Activity, textColor: 'text-zinc-500', wrapClass: 'bg-zinc-900 border-zinc-800' };
 };
 
-// ─── ERROR BOUNDARY ───────────────────────────────────────────────────────
+// ─── ERROR BOUNDARY ───────────────────────────────────────────────────────────
 class ErrorBoundary extends Component {
-    constructor(props) {
-        super(props);
-        this.state = { hasError: false, error: null };
-    }
-    static getDerivedStateFromError(error) {
-        return { hasError: true, error };
-    }
-    componentDidCatch(error, info) {
-        console.error("[ErrorBoundary]", error, info);
-    }
+    constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+    static getDerivedStateFromError(error) { return { hasError: true, error }; }
+    componentDidCatch(error, info) { console.error("[ErrorBoundary]", error, info); }
     render() {
         if (this.state.hasError) {
             return (
@@ -171,20 +174,185 @@ class ErrorBoundary extends Component {
     }
 }
 
-// ─── DASHBOARD MODULE COMPONENT SHELLS ─────────────────────────────────────────
-const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) => {
-    const symbol   = pos.symbol || defaultSymbol || '';
-    const cp       = currentPrice || 0;
-    const isLong   = pos.type !== 'short';
-    const priceDiff = cp > 0 ? (isLong ? cp - pos.entry : pos.entry - cp) : 0;
-    const pnl      = priceDiff * Number(pos.size);
-    const pnlColor = pnl >= 0 ? 'text-emerald-400' : 'text-rose-500';
-    const borderColor = pnl >= 0 ? 'rgba(16,185,129,0.18)' : 'rgba(239,68,68,0.18)';
+// ─── [FIX-1] CheckItem ────────────────────────────────────────────────────────
+const CheckItem = ({ label, status }) => (
+    <div className="flex items-center justify-between p-4 bg-black/40 rounded-xl border border-zinc-800">
+        <span className="text-[10px] text-zinc-400 font-bold uppercase">{label}</span>
+        {status
+            ? <span className="text-emerald-500 text-[9px] font-black tracking-widest">✔ READY</span>
+            : <span className="text-rose-500 text-[9px] font-black tracking-widest">MISSING</span>}
+    </div>
+);
 
-    const hasTpSl = pos.tp > 0 && pos.sl > 0;
-    const tpPct = hasTpSl ? Math.min(100, Math.max(0, isLong ? ((cp - pos.entry) / (pos.tp - pos.entry)) * 100 : ((pos.entry - cp) / (pos.entry - pos.tp)) * 100)) : 0;
-    const slPct = hasTpSl ? Math.min(100, Math.max(0, isLong ? ((pos.entry - cp) / (pos.entry - pos.sl)) * 100 : ((cp - pos.entry) / (pos.sl - pos.entry)) * 100)) : 0;
-    const trackPct = hasTpSl ? (() => {
+// ─── [FIX-2] MetricCard ───────────────────────────────────────────────────────
+const MetricCard = ({ label, value, subValue, color = "text-white", icon = null }) => (
+    <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden shadow-xl">
+        <p className="text-[10px] text-zinc-500 uppercase font-black tracking-[0.15em] mb-2">{label}</p>
+        <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5">
+                {icon && <span className={color}>{icon}</span>}
+                <p className={`text-xl font-mono font-black tracking-tighter ${color}`}>{value}</p>
+            </div>
+            {subValue && <p className="text-[10px] font-black text-zinc-600 uppercase tracking-wide">{subValue}</p>}
+        </div>
+    </div>
+);
+
+// ─── [FIX-3] PreFlightModal ───────────────────────────────────────────────────
+const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, address }) => {
+    const isLive = config.tradingMode === 'live';
+    const checks = [
+        { label: 'Wallet Connected',  status: !!address },
+        { label: 'Capital Allocated', status: !!config.capitalAllocation && config.capitalAllocation > 0 },
+        { label: 'Strategy Selected', status: (config.strategies?.length ?? 0) > 0 },
+        { label: 'Symbol Configured', status: !!config.symbol },
+        { label: 'API Keys Present',  status: !isLive || hasApiKeys },
+    ];
+    const allPass = checks.every(c => c.status);
+    return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md">
+            <div className="max-w-md w-full mx-4 bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 shadow-2xl">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+                        <Shield size={18} className="text-emerald-400" />
+                    </div>
+                    <div>
+                        <h3 className="text-[13px] font-black uppercase tracking-widest text-white">Pre-Flight Check</h3>
+                        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-0.5">{isLive ? '⚠️ LIVE CAPITAL MODE' : 'Paper Simulation Mode'}</p>
+                    </div>
+                </div>
+                <div className="space-y-2 mb-6">
+                    {checks.map(c => <CheckItem key={c.label} label={c.label} status={c.status} />)}
+                </div>
+                <div className="p-3 bg-zinc-950/80 border border-zinc-800 rounded-xl mb-6 space-y-1.5 text-[10px] font-mono text-zinc-400">
+                    <div className="flex justify-between"><span className="text-zinc-600 uppercase font-black">Symbol</span><span>{config.symbol}</span></div>
+                    <div className="flex justify-between"><span className="text-zinc-600 uppercase font-black">Capital</span><span className="text-emerald-400">${config.capitalAllocation}</span></div>
+                    <div className="flex justify-between"><span className="text-zinc-600 uppercase font-black">Strategies</span><span>{config.strategies?.length || 0}</span></div>
+                    <div className="flex justify-between"><span className="text-zinc-600 uppercase font-black">ML Mode</span><span className="text-violet-400">{(config.mlMode || 'off').toUpperCase()}</span></div>
+                    <div className="flex justify-between"><span className="text-zinc-600 uppercase font-black">Routing</span><span>{config.enable_shorting ? 'Margin (Kraken)' : 'Spot (Coinbase)'}</span></div>
+                </div>
+                <div className="flex gap-3">
+                    <button onClick={onCancel} className="flex-1 py-3 border border-zinc-700 rounded-xl text-zinc-400 font-black uppercase text-[10px] hover:bg-zinc-800 transition-all">Cancel</button>
+                    <button onClick={onConfirm} disabled={isStarting || !allPass} className="flex-1 py-3 bg-emerald-500 text-black rounded-xl font-black uppercase text-[10px] hover:bg-emerald-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                        {isStarting ? <><RefreshCw size={12} className="animate-spin" /> Igniting...</> : 'Ignite Engine'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ─── [FIX-4] ApiKeyModal ──────────────────────────────────────────────────────
+const ApiKeyModal = ({ exchange, onSave, onCancel }) => {
+    const isKraken = exchange === 'kraken';
+    const [key, setKey]         = useState('');
+    const [secret, setSecret]   = useState('');
+    const [showKey, setShowKey] = useState(false);
+    const [showSec, setShowSec] = useState(false);
+
+    const handleSave = () => {
+        if (!key || !secret) { toast.error("Both fields are required."); return; }
+        if (isKraken) {
+            localStorage.setItem("kraken_key", key);
+            localStorage.setItem("kraken_secret", secret);
+        } else {
+            localStorage.setItem("coinbase_key", key);
+            localStorage.setItem("coinbase_secret", secret);
+        }
+        onSave();
+    };
+
+    return (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/90 backdrop-blur-md">
+            <div className="max-w-sm w-full mx-4 bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 shadow-2xl">
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20"><Key size={16} className="text-amber-400" /></div>
+                        <div>
+                            <h3 className="text-[12px] font-black uppercase tracking-widest text-white">{isKraken ? 'Kraken' : 'Coinbase'} API Keys</h3>
+                            <p className="text-[9px] text-zinc-500 font-bold uppercase mt-0.5">Stored locally only</p>
+                        </div>
+                    </div>
+                    <button onClick={onCancel} className="text-zinc-600 hover:text-white transition-all"><X size={16} /></button>
+                </div>
+                <div className="space-y-4 mb-6">
+                    {[
+                        { label: 'API Key',    val: key,    set: setKey,    show: showKey, setShow: setShowKey },
+                        { label: 'API Secret', val: secret, set: setSecret, show: showSec, setShow: setShowSec },
+                    ].map(({ label, val, set, show, setShow }) => (
+                        <div key={label}>
+                            <label className={labelClass}>{label}</label>
+                            <div className="relative">
+                                <input type={show ? 'text' : 'password'} value={val} onChange={e => set(e.target.value)} placeholder={`Enter ${label.toLowerCase()}...`} className={`${inputClass} pr-10`} />
+                                <button onClick={() => setShow(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors">
+                                    {show ? <EyeOff size={13} /> : <Eye size={13} />}
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                <div className="flex gap-3">
+                    <button onClick={onCancel} className="flex-1 py-3 border border-zinc-700 rounded-xl text-zinc-400 font-black uppercase text-[10px] hover:bg-zinc-800 transition-all">Cancel</button>
+                    <button onClick={handleSave} className="flex-1 py-3 bg-amber-500 text-black rounded-xl font-black uppercase text-[10px] hover:bg-amber-400 transition-all">Save Keys</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ─── [FIX-5] ConfirmModal ─────────────────────────────────────────────────────
+const ConfirmModal = ({ title, message, danger, onConfirm, onCancel }) => (
+    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/90 backdrop-blur-md">
+        <div className="max-w-sm w-full mx-4 bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+                <div className={`p-2 rounded-xl border ${danger ? 'bg-rose-500/10 border-rose-500/20' : 'bg-amber-500/10 border-amber-500/20'}`}>
+                    <AlertTriangle size={16} className={danger ? 'text-rose-400' : 'text-amber-400'} />
+                </div>
+                <h3 className="text-[12px] font-black uppercase tracking-widest text-white">{title}</h3>
+            </div>
+            <p className="text-[11px] text-zinc-400 font-medium mb-6 leading-relaxed">{message}</p>
+            <div className="flex gap-3">
+                <button onClick={onCancel} className="flex-1 py-3 border border-zinc-700 rounded-xl text-zinc-400 font-black uppercase text-[10px] hover:bg-zinc-800 transition-all">Cancel</button>
+                <button onClick={onConfirm} className={`flex-1 py-3 rounded-xl font-black uppercase text-[10px] transition-all ${danger ? 'bg-rose-500 hover:bg-rose-400 text-white' : 'bg-amber-500 hover:bg-amber-400 text-black'}`}>Confirm</button>
+            </div>
+        </div>
+    </div>
+);
+
+// ─── [FIX-6] StrategyParamInputs ─────────────────────────────────────────────
+const StrategyParamInputs = ({ strategy, onChange }) => {
+    const params    = strategy.params || {};
+    const floatKeys = new Set(['st_factor','bb_std','buffer','threshold','multiplier','atr_tp_mult','atr_sl_mult']);
+    return (
+        <div className="grid grid-cols-2 gap-2">
+            {Object.entries(params).map(([key, val]) => (
+                <div key={key}>
+                    <label className="text-[8px] font-black uppercase text-zinc-600 tracking-widest block mb-0.5">{key.replace(/_/g, ' ')}</label>
+                    <input
+                        type="number" value={val} step={floatKeys.has(key) ? 0.1 : 1}
+                        onChange={(e) => {
+                            const parsed = floatKeys.has(key) ? parseFloat(e.target.value) : parseInt(e.target.value);
+                            onChange({ ...params, [key]: isNaN(parsed) ? val : parsed });
+                        }}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-300 outline-none font-mono text-[10px] focus:border-amber-500/50 transition-colors"
+                    />
+                </div>
+            ))}
+        </div>
+    );
+};
+
+// ─── POSITION CARD ────────────────────────────────────────────────────────────
+const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) => {
+    const symbol    = pos.symbol || defaultSymbol || '';
+    const cp        = currentPrice || 0;
+    const isLong    = pos.type !== 'short';
+    const priceDiff = cp > 0 ? (isLong ? cp - pos.entry : pos.entry - cp) : 0;
+    const pnl       = priceDiff * Number(pos.size);
+    const pnlColor  = pnl >= 0 ? 'text-emerald-400' : 'text-rose-500';
+    const borderColor = pnl >= 0 ? 'rgba(16,185,129,0.18)' : 'rgba(239,68,68,0.18)';
+    const hasTpSl   = pos.tp > 0 && pos.sl > 0;
+    const trackPct  = hasTpSl ? (() => {
         const lo = Math.min(pos.sl, pos.entry, pos.tp);
         const hi = Math.max(pos.sl, pos.entry, pos.tp);
         return Math.min(96, Math.max(4, ((cp - lo) / (hi - lo || 1)) * 100));
@@ -205,7 +373,6 @@ const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) =
                     <div className="font-mono font-black text-sm text-zinc-200">{cp > 0 ? `$${cp.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}</div>
                 </div>
             </div>
-
             {hasTpSl && (
                 <div className="mb-3 px-1">
                     <div className="flex justify-between text-[8px] text-zinc-500 font-bold uppercase mb-1.5">
@@ -218,7 +385,6 @@ const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) =
                     </div>
                 </div>
             )}
-
             <div className="flex items-center justify-between">
                 <div>
                     <div className="text-[8px] text-zinc-600 font-black uppercase mb-0.5">Entry · Size</div>
@@ -236,6 +402,7 @@ const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) =
     );
 };
 
+// ─── TRADE TIMELINE CARD ──────────────────────────────────────────────────────
 const TradeTimelineCard = ({ trade }) => {
     const side       = trade.type || trade.side || 'trade';
     const entryPrice = Number(trade.entry || trade.entryPrice || trade.entry_price || 0);
@@ -243,8 +410,8 @@ const TradeTimelineCard = ({ trade }) => {
     const pnl        = parseFloat(trade.pnl || trade.realized_pnl || trade.realizedPnL || 0);
     const isWin      = pnl >= 0;
     const isLong     = side === 'long';
-    const timeObj = trade.time ? new Date(trade.time * (trade.time > 1e10 ? 1 : 1000)) : trade.exitTime ? new Date(trade.exitTime) : new Date();
-    const winColor = isWin ? '#10b981' : '#ef4444';
+    const timeObj    = trade.time ? new Date(trade.time * (trade.time > 1e10 ? 1 : 1000)) : trade.exitTime ? new Date(trade.exitTime) : new Date();
+    const winColor   = isWin ? '#10b981' : '#ef4444';
 
     return (
         <div className={`p-4 rounded-2xl border relative overflow-hidden transition-all ${isWin ? 'bg-black/20 border-emerald-500/20 hover:border-emerald-500/40' : 'bg-black/20 border-rose-500/20 hover:border-rose-500/40'}`}>
@@ -270,6 +437,7 @@ const TradeTimelineCard = ({ trade }) => {
     );
 };
 
+// ─── PROXIMITY TICKER PANEL ───────────────────────────────────────────────────
 const ProximityTickerPanel = ({ latestSignals, aiScore, formConfig }) => {
     const metrics = useMemo(() => {
         const longLimit  = parseFloat(formConfig.mlThresholdLong  || 0.55) * 100;
@@ -285,12 +453,11 @@ const ProximityTickerPanel = ({ latestSignals, aiScore, formConfig }) => {
         const rsiStatus  = rsiVal >= 70 || rsiVal <= 30 ? "🟢 READY" : "⚪ STALKING";
         const stochVal   = Math.round(latestSignals['stoch'] || 0);
         const stochStatus = stochVal >= 80 || stochVal <= 20 ? "🟢 READY" : "⚪ IDLE";
-
         return [
-            { id: "ml",    name: "Neural Prediction Gate", cur: `${aiScore}%`,   tgt: `${mlTarget}%`,    delta: `${mlDelta}%`, status: mlStatus    },
-            { id: "bb",    name: "Bollinger Boundary Vol",  cur: `${bbVal}%`,    tgt: "100%",            delta: `${bbDelta}%`, status: bbStatus    },
-            { id: "rsi",   name: "Momentum RSI Gateway",    cur: `${rsiVal}%`,   tgt: "70% / 30%",       delta: `${rsiDelta}%`,status: rsiStatus   },
-            { id: "stoch", name: "Stochastic Overbought",   cur: `${stochVal}%`, tgt: "80% / 20%",       delta: "—",           status: stochStatus }
+            { id: "ml",    name: "Neural Prediction Gate", cur: `${aiScore}%`,   tgt: `${mlTarget}%`,  delta: `${mlDelta}%`, status: mlStatus    },
+            { id: "bb",    name: "Bollinger Boundary Vol",  cur: `${bbVal}%`,    tgt: "100%",          delta: `${bbDelta}%`, status: bbStatus    },
+            { id: "rsi",   name: "Momentum RSI Gateway",    cur: `${rsiVal}%`,   tgt: "70% / 30%",     delta: `${rsiDelta}%`,status: rsiStatus   },
+            { id: "stoch", name: "Stochastic Overbought",   cur: `${stochVal}%`, tgt: "80% / 20%",     delta: "—",           status: stochStatus }
         ];
     }, [latestSignals, aiScore, formConfig]);
 
@@ -317,6 +484,9 @@ const ProximityTickerPanel = ({ latestSignals, aiScore, formConfig }) => {
     );
 };
 
+// ─── NEURAL CONVERGENCE CHART ──────────────────────────────────────────────────
+// [FIX-21] Replaced flex-1/min-h-[300px] with flex-1/relative + absolute inset-0 so
+//          Recharts ResizeObserver always measures a real pixel height, not 0px.
 const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
     const activeStratCodes = useMemo(() => {
         if (!signalsMapHistory || signalsMapHistory.length === 0) return [];
@@ -332,26 +502,31 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
 
     return (
         <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 shadow-2xl h-full flex flex-col">
-            <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-6 flex items-center gap-2"><Cpu size={12} className="text-violet-400" /> Neural Strategy Logic</h4>
-            <div className="flex-1 w-full min-h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={signalsMapHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                        <defs>
+            <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-6 flex items-center gap-2">
+                <Cpu size={12} className="text-violet-400" /> Neural Strategy Logic
+            </h4>
+            {/* [FIX-21] absolute-inset wrapper gives ResizeObserver a definite pixel boundary */}
+            <div className="flex-1 w-full relative" style={{ minHeight: 0 }}>
+                <div className="absolute inset-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={signalsMapHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <defs>
+                                {activeStratCodes.map(key => (
+                                    <linearGradient key={`grad-${key}`} id={`color-${key}`} x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%"  stopColor={STRAT_COLORS[key] || '#52525b'} stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor={STRAT_COLORS[key] || '#52525b'} stopOpacity={0} />
+                                    </linearGradient>
+                                ))}
+                            </defs>
+                            <RechartsTooltip shared={false} trigger="hover" contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px', pointerEvents: 'none' }} formatter={(value, name) => [`${Number(value).toFixed(0)}%`, name.toUpperCase()]} />
                             {activeStratCodes.map(key => (
-                                <linearGradient key={`grad-${key}`} id={`color-${key}`} x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%"  stopColor={STRAT_COLORS[key] || '#52525b'} stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor={STRAT_COLORS[key] || '#52525b'} stopOpacity={0} />
-                                </linearGradient>
+                                <Area key={key} type="monotone" dataKey={key} name={key.replace('_', ' ')} stroke={STRAT_COLORS[key] || '#52525b'} fill={`url(#color-${key})`} strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} isAnimationActive={false} connectNulls={true} />
                             ))}
-                        </defs>
-                        <RechartsTooltip shared={false} trigger="hover" contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px', pointerEvents: 'none' }} formatter={(value, name) => [`${Number(value).toFixed(0)}%`, name.toUpperCase()]} />
-                        {activeStratCodes.map(key => (
-                            <Area key={key} type="monotone" dataKey={key} name={key.replace('_', ' ')} stroke={STRAT_COLORS[key] || '#52525b'} fill={`url(#color-${key})`} strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} isAnimationActive={false} connectNulls={true} />
-                        ))}
-                        <XAxis dataKey="time" hide />
-                        <YAxis domain={[0, 100]} hide />
-                    </AreaChart>
-                </ResponsiveContainer>
+                            <XAxis dataKey="time" hide />
+                            <YAxis domain={[0, 100]} hide />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                </div>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-4 border-t border-zinc-800 pt-4">
                 <div className="flex flex-col gap-1.5 border-r border-zinc-800 pr-2">
@@ -360,7 +535,7 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
                         {userStratCodes.map(code => (
                             <div key={`user-${code}`} className="flex items-center gap-1 opacity-40">
                                 <div className="w-1 h-1 rounded-full bg-zinc-500"></div>
-                                <span style={{ color: STRAT_COLORS[code] }} className="text-[8px] font-bold uppercase font-mono tracking-tight">{code.replace('_', ' ')}</span>
+                                <span style={{ color: STRAT_COLORS[code] || '#a1a1aa' }} className="text-[8px] font-bold uppercase font-mono tracking-tight">{code.replace('_', ' ')}</span>
                             </div>
                         ))}
                     </div>
@@ -373,7 +548,7 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
                         {activeStratCodes.map(code => (
                             <div key={`active-${code}`} className="flex items-center gap-1">
                                 <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STRAT_COLORS[code] || '#52525b' }}></div>
-                                <span style={{ color: STRAT_COLORS[code] }} className="text-[8px] font-black uppercase font-mono tracking-tight">{code.replace('_', ' ')}</span>
+                                <span style={{ color: STRAT_COLORS[code] || '#52525b' }} className="text-[8px] font-black uppercase font-mono tracking-tight">{code.replace('_', ' ')}</span>
                             </div>
                         ))}
                     </div>
@@ -383,6 +558,7 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
     );
 };
 
+// ─── SIGNAL BARS PANEL ────────────────────────────────────────────────────────
 const SignalBarsPanel = ({ signalsMapHistory, formConfig }) => {
     const latestSignals = useMemo(() => {
         if (!signalsMapHistory?.length) return {};
@@ -436,6 +612,7 @@ const SignalBarsPanel = ({ signalsMapHistory, formConfig }) => {
     );
 };
 
+// ─── CONFIDENCE RING CARD ─────────────────────────────────────────────────────
 const ConfidenceRingCard = ({ confidence }) => {
     const c = Math.min(100, Math.max(0, confidence || 0));
     const r = 28, circ = 2 * Math.PI * r;
@@ -463,66 +640,52 @@ const ConfidenceRingCard = ({ confidence }) => {
     );
 };
 
-// ─── MAIN CONTAINER APPLICATION ────────────────────────────────────────────────
+// ─── MAIN CONTAINER ────────────────────────────────────────────────────────────
 const TradingBotContainer = () => {
     const { startBot, stopBot, resetBot, closePosition, refreshState, restoredConfig, botStatus: hookBotStatus, logs: hookLogs } = useBot();
     const { isConnected, address } = useAccount();
 
-    const [isModeSelected, setIsModeSelected]   = useState(false);
-    const [hasApiKeys, setHasApiKeys]           = useState(false);
-    const [showPreFlight, setShowPreFlight]     = useState(false);
-    const [isStarting, setIsStarting]           = useState(false);
-    const [isHalting, setIsHalting]              = useState(false); 
-    const [paperBalance, setPaperBalance]       = useState(1000);
-    const [modeStep, setModeStep]               = useState('selection');
-    const [activeOpsTab, setActiveOpsTab]       = useState("live");
-    const [statusFetchError, setStatusFetchError] = useState(null); 
-
-    const [apiKeyModal, setApiKeyModal]         = useState(null); 
-    const [confirmModal, setConfirmModal]       = useState(null); 
+    const [isModeSelected, setIsModeSelected]     = useState(false);
+    const [hasApiKeys, setHasApiKeys]             = useState(false);
+    const [showPreFlight, setShowPreFlight]       = useState(false);
+    const [isStarting, setIsStarting]             = useState(false);
+    const [isHalting, setIsHalting]               = useState(false);
+    const [paperBalance, setPaperBalance]         = useState(1000);
+    const [modeStep, setModeStep]                 = useState('selection');
+    const [activeOpsTab, setActiveOpsTab]         = useState("live");
+    const [statusFetchError, setStatusFetchError] = useState(null);
+    const [apiKeyModal, setApiKeyModal]           = useState(null);
+    const [confirmModal, setConfirmModal]         = useState(null);
 
     const socketRef        = useRef(null);
     const logContainerRef  = useRef(null);
-    const [isHaltLocked, setIsHaltLocked]   = useState(false);
-    const [socketLogs, setSocketLogs]       = useState([]);
+    const [isHaltLocked, setIsHaltLocked]       = useState(false);
+    const [socketLogs, setSocketLogs]           = useState([]);
     const [socketConnected, setSocketConnected] = useState(false);
-    const [uptime, setUptime]               = useState("00:00:00");
-    const [exitingSymbols, setExitingSymbols] = useState([]);
-    const [socketStatus, setSocketStatus]   = useState({
+    const [uptime, setUptime]                   = useState("00:00:00");
+    const [exitingSymbols, setExitingSymbols]   = useState([]);
+    const [socketStatus, setSocketStatus]       = useState({
         status: 'stopped', currentBalance: 0, unrealizedPnl: 0, exposure: 0,
         positions: [], equityCurve: [], startedAt: null, dailyProfit: 0,
         initialCapital: 0, tradeMarkers: [], signalsMapHistory: []
     });
 
     const [formConfig, setFormConfig] = useState({
-        symbol: "BTC-USD",
-        timeframe: "1h",
-        capitalAllocation: 1000,
-        tradingMode: "paper",
+        symbol: "BTC-USD", timeframe: "1h", capitalAllocation: 1000, tradingMode: "paper",
         strategies: [{ id: makeStrategyId(), code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }],
-        mlMode: "off",
-        mlModel: "stacking",
-        mlThresholdLong: 0.55,
-        mlThresholdShort: 0.55,
-        riskManagementMode: "static",
-        riskPercentage: 1,
-        maxDailyLoss: 5,
-        maxDrawdown: 10,
-        maxTradesPerDay: 20,
-        hybridMode: "AND",
-        minVotesRequired: 1,
-        enable_shorting: false,
-        leverage: 1,
-        slippageTolerance: 0.5,
-        maxPyramiding: 1,
+        mlMode: "off", mlModel: "stacking", mlThresholdLong: 0.55, mlThresholdShort: 0.55,
+        riskManagementMode: "static", riskPercentage: 1, maxDailyLoss: 5, maxDrawdown: 10,
+        maxTradesPerDay: 20, hybridMode: "AND", minVotesRequired: 1, enable_shorting: false,
+        leverage: 1, slippageTolerance: 0.5, maxPyramiding: 1,
         params: { atr_tp_mult: 3.0, atr_sl_mult: 1.5 },
-        enablePartialExit: false,
-        filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 }
+        enablePartialExit: false, filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 },
+        // [FIX-17] These three were used by sliders in JSX but absent from initial state
+        minAdx: 20, minVolRatio: 0.8, minWeightedSignal: 0.3
     });
 
     const isBotRunning = socketStatus.status === 'running' && !isHaltLocked;
 
-    // ── DATA SNAPSHOT CHUNK PREPARERS ──────────────────────────────────────────
+    // ── DERIVED STATE ─────────────────────────────────────────────────────────
     const latestSignals = useMemo(() => {
         if (!socketStatus.signalsMapHistory?.length) return {};
         return socketStatus.signalsMapHistory[socketStatus.signalsMapHistory.length - 1] || {};
@@ -540,27 +703,46 @@ const TradingBotContainer = () => {
     }, [socketStatus.signalsMapHistory, formConfig.strategies]);
 
     const sessionDelta = useMemo(() => {
-        const current = socketStatus.currentBalance || formConfig.capitalAllocation;
+        const current  = socketStatus.currentBalance || formConfig.capitalAllocation;
         const starting = socketStatus.initialCapital || formConfig.capitalAllocation;
-        const change = current - starting;
+        const change   = current - starting;
         return { change, percentage: (change / (starting || 1)) * 100, isProfit: change >= 0 };
     }, [socketStatus.currentBalance, socketStatus.initialCapital, formConfig.capitalAllocation]);
 
     const profitMetrics = useMemo(() => {
         const seed = socketStatus.initialCapital || formConfig.capitalAllocation || 1;
-        const dPct = ((socketStatus.dailyProfit || 0) / seed) * 100;
+        const dPct = ((socketStatus.dailyProfit  || 0) / seed) * 100;
         const uPct = ((socketStatus.unrealizedPnl || 0) / seed) * 100;
-        return { startCap: seed, profitPct: dPct, pnlPct: uPct };
+        return { profitPct: dPct, pnlPct: uPct };
     }, [socketStatus.initialCapital, socketStatus.dailyProfit, socketStatus.unrealizedPnl, formConfig.capitalAllocation]);
 
     const { profitPct, pnlPct } = profitMetrics;
 
-    // Synchronize timeline arrays into a cohesive coordinate envelope array for Recharts
+    // [FIX-14] activeBalance was referenced in MetricCard JSX but never declared
+    const activeBalance = socketStatus.currentBalance ?? formConfig.capitalAllocation;
+
+    // [FIX-15] calculatedStats was referenced in Neural Performance panel but never declared
+    const calculatedStats = useMemo(() => {
+        const allTrades = socketStatus.tradeHistory || socketStatus.trade_history || socketStatus.tradeMarkers || [];
+        const exits     = allTrades.filter(t => t.pnl !== undefined);
+        if (!exits.length) return { winRate: "0.0", profitFactor: 0 };
+        const wins        = exits.filter(t => t.pnl > 0);
+        const winRate     = ((wins.length / exits.length) * 100).toFixed(1);
+        const grossProfit = wins.reduce((s, t) => s + t.pnl, 0);
+        const grossLoss   = Math.abs(exits.filter(t => t.pnl <= 0).reduce((s, t) => s + t.pnl, 0));
+        const profitFactor = grossLoss === 0 ? (grossProfit > 0 ? 99 : 0) : grossProfit / grossLoss;
+        return { winRate, profitFactor };
+    }, [socketStatus]);
+
+    // [FIX-16] currentPrice was passed to PositionCard but never declared
+    const currentPrice = socketStatus.currentPrice ?? socketStatus.current_price ??
+        (socketStatus.candles?.length > 0 ? socketStatus.candles[socketStatus.candles.length - 1]?.close : 0) ?? 0;
+
+    // Synchronize timeline arrays into a cohesive coordinate envelope for Recharts
     const performanceData = useMemo(() => {
         const initialSeed = Number(socketStatus.initialCapital || formConfig.capitalAllocation) || 0;
         const seedPoint = { time: 'Start', balance: initialSeed, confidence: 50 };
         if (!socketStatus.equityCurve?.length) return [seedPoint];
-        
         return [
             seedPoint,
             ...socketStatus.equityCurve.map(p => ({
@@ -576,27 +758,27 @@ const TradingBotContainer = () => {
             const base = formConfig.capitalAllocation;
             return [Math.floor(base * 0.95), Math.ceil(base * 1.05)];
         }
-        const levels = performanceData.map(pt => pt.balance);
-        const minLevel = Math.min(...levels), maxLevel = Math.max(...levels);
-        const paddingDelta = (maxLevel - minLevel) * 0.15 || (formConfig.capitalAllocation * 0.02);
-        return [Math.floor(minLevel - paddingDelta), Math.ceil(maxLevel + paddingDelta)];
+        const levels     = performanceData.map(pt => pt.balance);
+        const minLevel   = Math.min(...levels), maxLevel = Math.max(...levels);
+        const padding    = (maxLevel - minLevel) * 0.15 || (formConfig.capitalAllocation * 0.02);
+        return [Math.floor(minLevel - padding), Math.ceil(maxLevel + padding)];
     }, [performanceData, formConfig.capitalAllocation]);
 
     const confidenceStance = useMemo(() => {
         const score = socketStatus.currentConfidence ?? 50;
-        if (score > 85) return { label: "STRONG BUY", color: "text-emerald-400", hex: "#10b981" };
-        if (score > 70) return { label: "BUY INTENT", color: "text-emerald-400", hex: "#10b981" };
-        if (score < 20) return { label: "STRONG VETO", color: "text-rose-500", hex: "#ef4444" };
-        if (score < 35) return { label: "VETO GUARD",  color: "text-rose-400", hex: "#f43f5e" };
+        if (score > 85) return { label: "STRONG BUY",  color: "text-emerald-400", hex: "#10b981" };
+        if (score > 70) return { label: "BUY INTENT",  color: "text-emerald-400", hex: "#10b981" };
+        if (score < 20) return { label: "STRONG VETO", color: "text-rose-500",    hex: "#ef4444" };
+        if (score < 35) return { label: "VETO GUARD",  color: "text-rose-400",    hex: "#f43f5e" };
         return { label: "NEUTRAL CHOP", color: "text-violet-400", hex: "#a78bfa" };
     }, [socketStatus.currentConfidence]);
 
     const marketDirectionVector = useMemo(() => {
-        const rsiVal = latestSignals['rsi_threshold'] || latestSignals['rsi'] || 50;
-        const bbVal = latestSignals['bb_fade'] || latestSignals['bb_wall'] || 50;
+        const rsiVal   = latestSignals['rsi_threshold'] || latestSignals['rsi']     || 50;
+        const bbVal    = latestSignals['bb_fade']       || latestSignals['bb_wall'] || 50;
         const stochVal = latestSignals['stoch'] || 50;
-        if (rsiVal >= 68 || bbVal >= 80 || stochVal >= 75) return { side: "SHORT · FADE", label: "Overbought Exhaustion", color: "text-rose-400", bg: "bg-rose-500/10 border-rose-500/20", type: "short" };
-        if (rsiVal <= 32 || bbVal <= 20 || stochVal <= 25) return { side: "LONG · BUY", label: "Oversold Dislocation", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", type: "long" };
+        if (rsiVal >= 68 || bbVal >= 80 || stochVal >= 75) return { side: "SHORT · FADE", label: "Overbought Exhaustion", color: "text-rose-400",    bg: "bg-rose-500/10 border-rose-500/20",     type: "short" };
+        if (rsiVal <= 32 || bbVal <= 20 || stochVal <= 25) return { side: "LONG · BUY",   label: "Oversold Dislocation",  color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", type: "long"  };
         return { side: "NONE · CHOP", label: "Sideways Compression", color: "text-violet-400", bg: "bg-violet-500/10 border-violet-500/20", type: "none" };
     }, [latestSignals]);
 
@@ -606,8 +788,8 @@ const TradingBotContainer = () => {
     }, [formConfig.enable_shorting]);
 
     const convergenceState = useMemo(() => {
-        if (marketDirectionVector.type === "none") return { label: "STALKING ZONE", sub: "Awaiting outer tier boundary entry", color: "text-zinc-400", bg: "bg-zinc-900 border-zinc-800" };
-        if (marketDirectionVector.type === "short" && botExecutionBias.type === "spot") return { label: "POSTURE LOCKED", sub: "Spot filters rejecting overbought shorts", color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/30 animate-pulse" };
+        if (marketDirectionVector.type === "none")  return { label: "STALKING ZONE",  sub: "Awaiting outer tier boundary entry",                   color: "text-zinc-400",   bg: "bg-zinc-900 border-zinc-800" };
+        if (marketDirectionVector.type === "short" && botExecutionBias.type === "spot") return { label: "POSTURE LOCKED", sub: "Spot filters rejecting overbought shorts", color: "text-amber-400",  bg: "bg-amber-500/10 border-amber-500/30 animate-pulse" };
         return { label: "CONVERGENCE", sub: "Market structure matches permissions", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/30" };
     }, [marketDirectionVector.type, botExecutionBias.type]);
 
@@ -616,15 +798,18 @@ const TradingBotContainer = () => {
         const longLimit = parseFloat(formConfig.mlThresholdLong || 0.55) * 100;
         const bbVal     = Math.round(latestSignals['bb_fade'] || latestSignals['bb_wall'] || 0);
         return [
-            { id: "v_safe",  label: "Volatility Shield Ceiling",  desc: "ATR safe compression zone verified",                    passed: true },
-            { id: "t_align", label: "Institutional 200 EMA Baseline", desc: bbVal >= 90 ? "Price extreme wall contact checked" : "Breakout structural alignment scanning", passed: bbVal >= 90 },
-            { id: "ai_gate", label: "Unified Ensemble Predictor",      desc: `Current AI Bias score is ${aiScore}% (Target: ${longLimit}%)`, passed: aiScore >= longLimit }
+            { id: "v_safe",  label: "Volatility Shield Ceiling",      desc: "ATR safe compression zone verified",                                                           passed: true },
+            { id: "t_align", label: "Institutional 200 EMA Baseline", desc: bbVal >= 90 ? "Price extreme wall contact checked" : "Breakout structural alignment scanning",  passed: bbVal >= 90 },
+            { id: "ai_gate", label: "Unified Ensemble Predictor",      desc: `Current AI Bias score is ${aiScore}% (Target: ${longLimit}%)`,                               passed: aiScore >= longLimit }
         ];
     }, [socketStatus.currentConfidence, formConfig, latestSignals]);
 
+    // ── EFFECTS ───────────────────────────────────────────────────────────────
     useEffect(() => {
         if (!isConnected) return;
-        axios.get(`${API_BASE}/users/keys`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }).then(res => setHasApiKeys((Array.isArray(res.data) ? res.data : res.data.keys || []).length > 0)).catch(() => setHasApiKeys(false));
+        axios.get(`${API_BASE}/users/keys`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+            .then(res => setHasApiKeys((Array.isArray(res.data) ? res.data : res.data.keys || []).length > 0))
+            .catch(() => setHasApiKeys(false));
     }, [isConnected]);
 
     useEffect(() => {
@@ -634,12 +819,10 @@ const TradingBotContainer = () => {
                 const diff = Math.max(0, Date.now() - new Date(socketStatus.startedAt).getTime());
                 const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
                 const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
-                const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+                const s = Math.floor((diff % 60000)  / 1000).toString().padStart(2, '0');
                 setUptime(`${h}:${m}:${s}`);
             }, 1000);
-        } else {
-            setUptime("00:00:00");
-        }
+        } else { setUptime("00:00:00"); }
         return () => clearInterval(interval);
     }, [isBotRunning, socketStatus.startedAt]);
 
@@ -649,64 +832,78 @@ const TradingBotContainer = () => {
         const MAX = 4;
         const attempt = () => {
             const token = localStorage.getItem("token");
-            api.get(`/bot/status?userId=${address}`, { headers: { Authorization: `Bearer ${token}` } }).then(res => {
-                setSocketStatus(res.data);
-                setStatusFetchError(null);
-            }).catch(err => {
-                if (err.response?.status === 401) {
-                    toast.error("Session expired. Please reconnect.");
-                    return;
-                }
-                attempts++;
-                if (attempts < MAX) setTimeout(attempt, 2 ** attempts * 1000);
-                else setStatusFetchError("Failed to sync engine state. The backend may be offline.");
-            });
+            api.get(`/bot/status?userId=${address}`, { headers: { Authorization: `Bearer ${token}` } })
+                .then(res => { setSocketStatus(res.data); setStatusFetchError(null); })
+                .catch(err => {
+                    if (err.response?.status === 401) { toast.error("Session expired. Please reconnect."); return; }
+                    attempts++;
+                    if (attempts < MAX) setTimeout(attempt, 2 ** attempts * 1000);
+                    else setStatusFetchError("Failed to sync engine state. The backend may be offline.");
+                });
         };
         attempt();
     }, [address]);
 
-    const isHaltLockedRef = useRef(isHaltLocked);
-    const formConfigRef = useRef(formConfig);
+    const isHaltLockedRef   = useRef(isHaltLocked);
+    const formConfigRef     = useRef(formConfig);
     const exitingSymbolsRef = useRef(exitingSymbols);
-    useEffect(() => { isHaltLockedRef.current = isHaltLocked; }, [isHaltLocked]);
-    useEffect(() => { formConfigRef.current = formConfig; }, [formConfig]);
+    useEffect(() => { isHaltLockedRef.current   = isHaltLocked;   }, [isHaltLocked]);
+    useEffect(() => { formConfigRef.current     = formConfig;     }, [formConfig]);
     useEffect(() => { exitingSymbolsRef.current = exitingSymbols; }, [exitingSymbols]);
 
     useEffect(() => {
         if (!address) return;
-        const socket = io(SOCKET_URL, { query: { userId: address }, transports: ['websocket'], reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 2000, reconnectionDelayMax: 10000, });
+        const socket = io(SOCKET_URL, { query: { userId: address }, transports: ['websocket'], reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 2000, reconnectionDelayMax: 10000 });
         socketRef.current = socket;
-
-        socket.on("connect",    () => { setSocketConnected(true); });
-        socket.on("disconnect", () => { setSocketConnected(false); });
+        socket.on("connect",    () => setSocketConnected(true));
+        socket.on("disconnect", () => setSocketConnected(false));
 
         socket.on("bot_status_update", (data) => {
             if (isHaltLockedRef.current) return;
             setSocketStatus(prev => {
-                const currentBalance = data.currentBalance || prev.currentBalance || 0;
-                const rawPositions = data.activePositions || data.positions || [];
+                // [FIX-19] Dual-handle camelCase + snake_case from FastAPI backend
+                const currentBalance = data.currentBalance  ?? data.current_balance  ?? prev.currentBalance  ?? 0;
+                const rawPositions   = data.activePositions || data.active_positions || data.positions || [];
                 const filteredPositions = rawPositions.filter(pos => !exitingSymbolsRef.current.includes(pos.symbol));
-                const seed = prev.initialCapital || data.initialCapital || currentBalance || formConfigRef.current.capitalAllocation;
-                const rawProfit = data.dailyProfit || data.daily_profit;
-                const delta = currentBalance - seed;
+                const seed = prev.initialCapital || data.initialCapital || data.initial_capital || currentBalance || formConfigRef.current.capitalAllocation;
+                const rawProfit = data.dailyProfit ?? data.daily_profit;
+                const delta     = currentBalance - seed;
                 const calculatedProfit = rawProfit !== undefined ? Number(rawProfit.toFixed(2)) : Number(delta.toFixed(2));
-                const rawSignals = data.signalsMap || {};
+
+                // [FIX-18] Added data.signals_map snake_case fallback
+                const rawSignals = data.signalsMap || data.signals_map || data.signal_map || {};
                 const normalizedSignals = {};
                 Object.keys(rawSignals).forEach(key => {
-                    const nk = key.toLowerCase().trim().replace(/\s+/g, '_');
+                    const nk  = key.toLowerCase().trim().replace(/\s+/g, '_');
                     const val = parseFloat(rawSignals[key]);
-                    if (!isNaN(val)) normalizedSignals[nk] = val * 100;
+                    // [FIX-20] Auto-detect range: if val > 1 the backend already sent 0-100; don't double it
+                    if (!isNaN(val)) normalizedSignals[nk] = val > 1 ? Math.min(100, val) : val * 100;
                 });
 
+                // [FIX-19] dual-handle current_confidence for equity curve
+                const confidence = data.currentConfidence ?? data.current_confidence ?? prev.currentConfidence ?? 0;
                 const updatedSignalsHistory = [...(prev.signalsMapHistory || []), { time: new Date().toISOString(), ...normalizedSignals }].slice(-300);
-                const updatedEquityCurve = [...(prev.equityCurve || []), { time: new Date().toISOString(), balance: currentBalance, confidence: data.currentConfidence ?? prev.currentConfidence ?? 0 }].slice(-300);
+                const updatedEquityCurve    = [...(prev.equityCurve    || []), { time: new Date().toISOString(), balance: currentBalance, confidence }].slice(-300);
 
                 return {
-                    ...prev, ...data, dailyProfit: calculatedProfit, initialCapital: seed, positions: filteredPositions,
-                    candles: (data.candles?.length > 0) ? data.candles : (prev.candles || []),
-                    tradeHistory: (data.tradeHistory?.length > 0) ? data.tradeHistory : (data.trade_history?.length > 0 ? data.trade_history : (prev.tradeHistory || [])),
-                    tradeMarkers: (data.tradeMarkers?.length > 0) ? data.tradeMarkers : (data.trade_markers?.length > 0 ? data.trade_markers : (prev.tradeMarkers || [])),
-                    signalsMapHistory: updatedSignalsHistory, equityCurve: updatedEquityCurve
+                    ...prev, ...data,
+                    // [FIX-19] Explicit overrides so camelCase reads are never stale after ...data spread of snake_case keys
+                    currentBalance,
+                    currentConfidence: confidence,
+                    currentPrice:  data.currentPrice  ?? data.current_price  ?? prev.currentPrice  ?? 0,
+                    unrealizedPnl: data.unrealizedPnl ?? data.unrealized_pnl ?? prev.unrealizedPnl ?? 0,
+                    exposure:      data.exposure      ?? data.current_exposure ?? prev.exposure    ?? 0,
+                    startedAt:     data.startedAt     || data.started_at      || prev.startedAt,
+                    aiRegimeTitle: data.aiRegimeTitle  || data.ai_regime_title || prev.aiRegimeTitle,
+                    aiRegimeDesc:  data.aiRegimeDesc   || data.ai_regime_desc  || prev.aiRegimeDesc,
+                    dailyProfit:   calculatedProfit,
+                    initialCapital: seed,
+                    positions:     filteredPositions,
+                    candles:      (data.candles?.length      > 0) ? data.candles      : (prev.candles      || []),
+                    tradeHistory: (data.tradeHistory?.length > 0) ? data.tradeHistory : (data.trade_history?.length  > 0  ? data.trade_history  : (prev.tradeHistory  || [])),
+                    tradeMarkers: (data.tradeMarkers?.length > 0) ? data.tradeMarkers : (data.trade_markers?.length > 0  ? data.trade_markers  : (prev.tradeMarkers  || [])),
+                    signalsMapHistory: updatedSignalsHistory,
+                    equityCurve:       updatedEquityCurve,
                 };
             });
         });
@@ -715,23 +912,27 @@ const TradingBotContainer = () => {
         return () => { socket.disconnect(); socketRef.current = null; };
     }, [address]);
 
+    // ── HANDLERS ──────────────────────────────────────────────────────────────
+
     const handleConfirmStart = async () => {
         setIsStarting(true);
         setIsHaltLocked(false);
         const targetCapital = Number(formConfig.capitalAllocation) || 1000;
         setSocketStatus({ status: 'running', currentBalance: targetCapital, initialCapital: targetCapital, equityCurve: [], tradeMarkers: [], positions: [], candles: [], unrealizedPnl: 0, dailyProfit: 0, tradeHistory: [], signalsMapHistory: [] });
         setSocketLogs([]);
-
         const finalConfig = {
             ...formConfig, capitalAllocation: targetCapital, trading_mode: formConfig.tradingMode,
             mlThresholdLong: parseFloat(formConfig.mlThresholdLong), mlThresholdShort: parseFloat(formConfig.mlThresholdShort),
             mlMode: formConfig.mlMode, mlModel: formConfig.mlModel, maxPyramiding: formConfig.maxPyramiding,
             maxTradesPerDay: parseInt(formConfig.maxTradesPerDay), leverage: parseFloat(formConfig.leverage),
             enable_shorting: !!formConfig.enable_shorting, enablePartialExit: !!formConfig.enablePartialExit,
-            api_keys: formConfig.tradingMode === 'live' ? ( formConfig.enable_shorting ? { krakenKey: localStorage.getItem("kraken_key") || "", krakenSecret: localStorage.getItem("kraken_secret") || "", apiKey: localStorage.getItem("kraken_key") || "", secret: localStorage.getItem("kraken_secret") || "" } : { apiKey: localStorage.getItem("coinbase_key") || "", secret: localStorage.getItem("coinbase_secret") || "" } ) : {},
+            api_keys: formConfig.tradingMode === 'live' ? (
+                formConfig.enable_shorting
+                    ? { krakenKey: localStorage.getItem("kraken_key") || "", krakenSecret: localStorage.getItem("kraken_secret") || "", apiKey: localStorage.getItem("kraken_key") || "", secret: localStorage.getItem("kraken_secret") || "" }
+                    : { apiKey: localStorage.getItem("coinbase_key") || "", secret: localStorage.getItem("coinbase_secret") || "" }
+            ) : {},
             comboConfig: { strategyCodes: formConfig.strategies.map(s => s.code), combinationRule: formConfig.hybridMode, minVotesRequired: parseInt(formConfig.minVotesRequired) }
         };
-
         try {
             const response = await startBot({ userId: address, config: finalConfig });
             if (response && (response.status === 'running' || response.status === 'initializing')) {
@@ -748,9 +949,7 @@ const TradingBotContainer = () => {
 
     const handleReset = () => {
         setConfirmModal({
-            title: "Factory Reset",
-            message: "This will wipe all trade history, logs, and equity curves. This cannot be undone.",
-            danger: true,
+            title: "Factory Reset", message: "This will wipe all trade history, logs, and equity curves. This cannot be undone.", danger: true,
             onConfirm: async () => {
                 setConfirmModal(null);
                 await resetBot();
@@ -760,6 +959,72 @@ const TradingBotContainer = () => {
         });
     };
 
+    // [FIX-7] handleHalt was called by Emergency Halt button but never declared
+    const handleHalt = async () => {
+        setIsHaltLocked(true);
+        setIsHalting(true);
+        try {
+            await stopBot();
+            setSocketStatus({ status: 'stopped', currentBalance: Number(formConfig.capitalAllocation), unrealizedPnl: 0, positions: [], equityCurve: [], tradeMarkers: [], startedAt: null, signalsMapHistory: [] });
+            setSocketLogs([]);
+            localStorage.removeItem("neo_active_bot_id");
+            toast.success("SYSTEM PURGED: Engine Stopped & Session Reset");
+            setTimeout(() => { setIsHaltLocked(false); refreshState(); }, 3000);
+        } catch (e) {
+            toast.error("Halt Command Failed");
+            setIsHaltLocked(false);
+        } finally {
+            setIsHalting(false);
+        }
+    };
+
+    // [FIX-8] handleLiveModeSelect was called in protocol selection JSX but never declared
+    const handleLiveModeSelect = () => {
+        if (hasApiKeys) { setFormConfig(p => ({ ...p, tradingMode: 'live' })); setIsModeSelected(true); return; }
+        setApiKeyModal({
+            exchange: 'coinbase',
+            onSave: () => { setApiKeyModal(null); setHasApiKeys(true); setFormConfig(p => ({ ...p, tradingMode: 'live' })); setIsModeSelected(true); toast.success("Keys accepted for this session."); }
+        });
+    };
+
+    // [FIX-9] handleRoutingChange was called in routing select onChange but never declared
+    const handleRoutingChange = (value) => {
+        const isMargin = value === 'true';
+        if (!isMargin) { setFormConfig(p => ({ ...p, enable_shorting: false })); return; }
+        if (localStorage.getItem("kraken_key")) { setFormConfig(p => ({ ...p, enable_shorting: true })); return; }
+        setApiKeyModal({
+            exchange: 'kraken',
+            onSave: () => { setApiKeyModal(null); setFormConfig(p => ({ ...p, enable_shorting: true })); toast.success("Kraken Margin Authorized."); }
+        });
+    };
+
+    // [FIX-10] handleManualExit was passed to PositionCard onExit but never declared
+    const handleManualExit = async (targetSymbol) => {
+        if (!socketStatus.positions?.length) return;
+        const symbolToExit = typeof targetSymbol === 'string' ? targetSymbol : formConfig.symbol;
+        try {
+            setExitingSymbols(prev => [...prev, symbolToExit]);
+            setActiveOpsTab("audit");
+            await closePosition({ userId: address, symbol: symbolToExit });
+            toast.success(`Manual Exit Executed: ${symbolToExit}`);
+            setTimeout(async () => { await refreshState(); setExitingSymbols(prev => prev.filter(s => s !== symbolToExit)); }, 3000);
+        } catch (e) {
+            setExitingSymbols(prev => prev.filter(s => s !== symbolToExit));
+            toast.error("Exit Command Failed");
+        }
+    };
+
+    // [FIX-13] handleResetRiskSettings was called in Risk Protocol section but never declared
+    const handleResetRiskSettings = () => {
+        setFormConfig(prev => ({ ...prev, riskPercentage: 1, maxDailyLoss: 5, maxDrawdown: 10, maxTradesPerDay: 20, slippageTolerance: 0.5, params: { ...prev.params, take_profit: 0.05, trailing_stop: 0.01 } }));
+        toast.success("Risk Protocol: Reverted to Factory Defaults");
+    };
+
+    // [FIX-11 / FIX-12] handleClearLogs and handleSyncLogs called in Neural Flow panel but never declared
+    const handleClearLogs = () => { setSocketLogs([]); toast.success("Terminal View Cleared"); };
+    const handleSyncLogs  = async () => { await refreshState(); toast.success("Neural Stream Synced"); };
+
+    // ── RENDER ────────────────────────────────────────────────────────────────
     return (
         <UIModeProvider>
             <div className="min-h-screen bg-zinc-950 text-white font-sans p-6 overflow-x-hidden transition-all duration-700">
@@ -842,16 +1107,18 @@ const TradingBotContainer = () => {
                                 <p className="text-xl font-mono font-black text-emerald-400">OPERATIONAL</p>
                                 <p className="text-[10px] font-mono text-zinc-500 mt-1 uppercase tracking-tighter font-black">SESSION: {uptime}</p>
                             </div>
-                            <MetricCard label="Daily Profit" value={`${socketStatus.dailyProfit >= 0 ? '+' : ''}${(socketStatus.dailyProfit || 0).toFixed(2)}`} subValue={`${profitPct.toFixed(2)}%`} color={socketStatus.dailyProfit >= 0 ? "text-emerald-400" : "text-rose-500"} icon={<DollarSign size={10} />} />
-                            <MetricCard label="Floating PnL" value={`${socketStatus.unrealizedPnl >= 0 ? '+' : ''}${(socketStatus.unrealizedPnl || 0).toFixed(2)}`} subValue={`${pnlPct.toFixed(2)}%`} color={socketStatus.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'} icon={<Activity size={10} />} />
-                            <MetricCard label="Exposure" value={`${socketStatus.exposure || 0}%`} subValue="Active Positions" color="text-amber-400" />
-                            <MetricCard label="Total Equity" value={`$${Number(activeBalance).toLocaleString()}`} subValue="Liquid + Locked" />
+                            <MetricCard label="Daily Profit"  value={`${socketStatus.dailyProfit  >= 0 ? '+' : ''}${(socketStatus.dailyProfit  || 0).toFixed(2)}`} subValue={`${profitPct.toFixed(2)}%`} color={socketStatus.dailyProfit  >= 0 ? "text-emerald-400" : "text-rose-500"} icon={<DollarSign size={10} />} />
+                            <MetricCard label="Floating PnL"  value={`${socketStatus.unrealizedPnl >= 0 ? '+' : ''}${(socketStatus.unrealizedPnl || 0).toFixed(2)}`} subValue={`${pnlPct.toFixed(2)}%`}    color={socketStatus.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'} icon={<Activity size={10} />} />
+                            <MetricCard label="Exposure"      value={`${socketStatus.exposure || 0}%`} subValue="Active Positions" color="text-amber-400" />
+                            {/* [FIX-14] activeBalance now declared above */}
+                            <MetricCard label="Total Equity"  value={`$${Number(activeBalance).toLocaleString()}`} subValue="Liquid + Locked" />
                             <ConfidenceRingCard confidence={socketStatus.currentConfidence || 0} />
                         </div>
 
                         <div className="grid grid-cols-12 gap-8 items-start">
                             <div className="col-span-12 lg:col-span-3 h-[840px] flex flex-col gap-4">
-                                <div className="flex-1 min-h-[240px]">
+                                {/* [FIX-22] min-h-[240px] → min-h-0 so NeuralConvergenceChart's h-full resolves inside this flex column */}
+                                <div className="flex-1 min-h-0">
                                     <ErrorBoundary>
                                         <NeuralConvergenceChart formConfig={formConfig} signalsMapHistory={socketStatus.signalsMapHistory || []} />
                                     </ErrorBoundary>
@@ -862,6 +1129,7 @@ const TradingBotContainer = () => {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <p className="text-[9px] uppercase font-bold text-zinc-600 mb-1">Win Rate</p>
+                                            {/* [FIX-15] calculatedStats now declared above */}
                                             <p className="text-xl font-mono font-black tracking-tighter text-emerald-400">{calculatedStats.winRate}%</p>
                                         </div>
                                         <div>
@@ -888,37 +1156,25 @@ const TradingBotContainer = () => {
                                                 </h2>
                                             </div>
                                         </div>
-                                        
                                         <div className="grid grid-cols-3 gap-3 bg-black/40 border border-zinc-800 p-3 rounded-2xl w-full lg:w-auto lg:min-w-[540px] shrink-0">
                                             <div className="min-w-0">
                                                 <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Market Vector</span>
-                                                <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${marketDirectionVector.bg} ${marketDirectionVector.color}`}>
-                                                    {marketDirectionVector.side}
-                                                </div>
+                                                <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${marketDirectionVector.bg} ${marketDirectionVector.color}`}>{marketDirectionVector.side}</div>
                                             </div>
                                             <div className="min-w-0">
                                                 <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Account Bounds</span>
-                                                <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${botExecutionBias.bg} ${botExecutionBias.color}`}>
-                                                    {botExecutionBias.capability}
-                                                </div>
+                                                <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${botExecutionBias.bg} ${botExecutionBias.color}`}>{botExecutionBias.capability}</div>
                                             </div>
                                             <div className="min-w-0">
                                                 <span className="text-[9px] font-black uppercase text-zinc-500 block tracking-wider mb-1">Alignment Status</span>
-                                                <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${convergenceState.color}`}>
-                                                    {convergenceState.label}
-                                                </div>
+                                                <div className={`px-2 py-1.5 rounded-lg text-[10px] font-mono font-black border leading-snug truncate text-center ${convergenceState.color}`}>{convergenceState.label}</div>
                                             </div>
                                         </div>
                                     </div>
-                                    
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
                                         {gatewayCheckpoints.map(check => (
                                             <div key={check.id} className="flex items-start gap-2.5 p-3 bg-black/40 border border-zinc-800 rounded-xl min-w-0 overflow-hidden">
-                                                {check.passed ? (
-                                                    <CheckCircle2 size={15} className="text-emerald-400 mt-0.5 shrink-0" />
-                                                ) : (
-                                                    <AlertCircle size={15} className="text-zinc-600 mt-0.5 shrink-0" />
-                                                )}
+                                                {check.passed ? <CheckCircle2 size={15} className="text-emerald-400 mt-0.5 shrink-0" /> : <AlertCircle size={15} className="text-zinc-600 mt-0.5 shrink-0" />}
                                                 <div className="min-w-0 flex-1">
                                                     <p className={`text-[11px] font-black uppercase tracking-tight truncate ${check.passed ? 'text-zinc-200' : 'text-zinc-500'}`}>{check.label}</p>
                                                     <p className="text-[10px] text-zinc-500 font-medium font-mono mt-0.5 leading-relaxed break-words whitespace-normal">{check.desc}</p>
@@ -955,11 +1211,11 @@ const TradingBotContainer = () => {
                                                     <h3 className="text-sm font-black uppercase tracking-widest">Neural Flow</h3>
                                                 </div>
                                                 <div className="flex items-center gap-2.5">
-                                                    <button onClick={handleSyncLogs} className="text-zinc-500 hover:text-emerald-400 transition-all"><RefreshCw size={14} /></button>
+                                                    {/* [FIX-11/12] handleSyncLogs and handleClearLogs now declared above */}
+                                                    <button onClick={handleSyncLogs}  className="text-zinc-500 hover:text-emerald-400 transition-all"><RefreshCw size={14} /></button>
                                                     <button onClick={handleClearLogs} className="text-zinc-500 hover:text-white transition-all"><Eraser size={14} /></button>
                                                 </div>
                                             </div>
-                                            
                                             <div className="flex flex-col gap-2 border-t border-zinc-800/80 pt-2.5">
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     {[
@@ -988,7 +1244,6 @@ const TradingBotContainer = () => {
                                                     })}
                                                 </div>
                                             </div>
-
                                             <ProximityTickerPanel latestSignals={latestSignals} aiScore={socketStatus.currentConfidence ?? 50} formConfig={formConfig} />
                                         </div>
                                         <div ref={logContainerRef} className="flex-1 overflow-y-auto p-5 font-mono text-[11px] space-y-3 bg-black/20 custom-scrollbar min-w-0">
@@ -1018,9 +1273,9 @@ const TradingBotContainer = () => {
                                                         </div>
                                                     );
                                                 }
-                                                const parsedMessage = parseLog(log.message || log);
+                                                const parsedMessage       = parseLog(log.message || log);
                                                 const dynamicWrapperClass = getLogStyle(parsedMessage);
-                                                const { Icon: LogIcon } = getLogMeta(parsedMessage);
+                                                const { Icon: LogIcon }   = getLogMeta(parsedMessage);
                                                 return (
                                                     <div key={i} className={`p-3 rounded-xl border leading-relaxed flex items-start gap-2.5 min-w-0 ${dynamicWrapperClass} ${i === 0 ? 'animate-in slide-in-from-top-1 duration-300' : ''}`}>
                                                         <LogIcon size={12} className="mt-0.5 flex-shrink-0" />
@@ -1038,7 +1293,6 @@ const TradingBotContainer = () => {
                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-10 duration-1000">
-                            {/* SESSION EQUITY */}
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl flex flex-col justify-between">
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex items-center gap-2">
@@ -1061,14 +1315,8 @@ const TradingBotContainer = () => {
                                     <ResponsiveContainer width="100%" height="100%">
                                         <AreaChart data={performanceData} margin={{ top: 5, right: 5, left: -5, bottom: 0 }}>
                                             <defs>
-                                                <linearGradient id="colorEquityProfit" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%"  stopColor="#10b981" stopOpacity={0.25} />
-                                                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                                                </linearGradient>
-                                                <linearGradient id="colorEquityDrawdown" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%"  stopColor="#ef4444" stopOpacity={0.25} />
-                                                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-                                                </linearGradient>
+                                                <linearGradient id="colorEquityProfit"   x1="0" y1="0" x2="0" y2="1"><stop offset="5%"  stopColor="#10b981" stopOpacity={0.25} /><stop offset="95%" stopColor="#10b981" stopOpacity={0} /></linearGradient>
+                                                <linearGradient id="colorEquityDrawdown" x1="0" y1="0" x2="0" y2="1"><stop offset="5%"  stopColor="#ef4444" stopOpacity={0.25} /><stop offset="95%" stopColor="#ef4444" stopOpacity={0} /></linearGradient>
                                             </defs>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#27272a" opacity={0.15} vertical={false} />
                                             <RechartsTooltip cursor={{ stroke: '#27272a', strokeWidth: 1, strokeDasharray: '4 4' }} contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px', fontFamily: 'monospace' }} itemStyle={{ color: sessionDelta.isProfit ? '#10b981' : '#ef4444' }} formatter={(value) => [`$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 'EQUITY']} />
@@ -1080,7 +1328,6 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
 
-                            {/* LOGIC CONFIDENCE */}
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl flex flex-col justify-between">
                                 <div className="flex start justify-between mb-4">
                                     <div className="flex items-center gap-2">
@@ -1091,25 +1338,18 @@ const TradingBotContainer = () => {
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <span className="font-mono text-xs font-black px-2 py-0.5 rounded border bg-zinc-950/40" style={{ borderColor: `${confidenceStance.hex}22`, color: confidenceStance.hex }}>
-                                            {confidenceStance.label}
-                                        </span>
-                                        <span className={`block font-mono text-sm font-black mt-1 ${confidenceStance.color}`}>
-                                            {socketStatus.currentConfidence ?? 50}%
-                                        </span>
+                                        <span className="font-mono text-xs font-black px-2 py-0.5 rounded border bg-zinc-950/40" style={{ borderColor: `${confidenceStance.hex}22`, color: confidenceStance.hex }}>{confidenceStance.label}</span>
+                                        <span className={`block font-mono text-sm font-black mt-1 ${confidenceStance.color}`}>{socketStatus.currentConfidence ?? 50}%</span>
                                     </div>
                                 </div>
                                 <div className="h-44 w-full mt-2">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <AreaChart data={performanceData} margin={{ top: 5, right: 5, left: -5, bottom: 0 }}>
                                             <defs>
-                                                <linearGradient id="colorConfGradient" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor={confidenceStance.hex} stopOpacity={0.25} />
-                                                    <stop offset="95%" stopColor={confidenceStance.hex} stopOpacity={0} />
-                                                </linearGradient>
+                                                <linearGradient id="colorConfGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={confidenceStance.hex} stopOpacity={0.25} /><stop offset="95%" stopColor={confidenceStance.hex} stopOpacity={0} /></linearGradient>
                                             </defs>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#27272a" opacity={0.15} vertical={false} />
-                                            <ReferenceLine y={parseFloat(formConfig.mlThresholdLong) * 100} stroke="#10b981" strokeDasharray="3 3" opacity={0.25} />
+                                            <ReferenceLine y={parseFloat(formConfig.mlThresholdLong)  * 100} stroke="#10b981" strokeDasharray="3 3" opacity={0.25} />
                                             <ReferenceLine y={parseFloat(formConfig.mlThresholdShort) * 100} stroke="#ef4444" strokeDasharray="3 3" opacity={0.25} />
                                             <RechartsTooltip cursor={{ stroke: '#27272a', strokeWidth: 1, strokeDasharray: '4 4' }} contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px', fontFamily: 'monospace' }} itemStyle={{ color: confidenceStance.hex }} formatter={(value) => [`${Number(value).toFixed(0)}%`, 'NEURAL BIAS']} />
                                             <Area type="monotone" dataKey="confidence" stroke={confidenceStance.hex} fill="url(#colorConfGradient)" strokeWidth={2.5} isAnimationActive={false} />
@@ -1128,9 +1368,7 @@ const TradingBotContainer = () => {
                                                 <Box size={18} /><h3 className="text-[11px] font-black uppercase tracking-widest">Live Operations</h3>
                                             </button>
                                             <span className="text-zinc-800 font-bold">/</span>
-                                            <button onClick={() => setActiveOpsTab("audit")} className={`text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer ${activeOpsTab === 'audit' ? 'text-emerald-500' : 'text-zinc-500 hover:text-zinc-300'}`}>
-                                                Audit History
-                                            </button>
+                                            <button onClick={() => setActiveOpsTab("audit")} className={`text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer ${activeOpsTab === 'audit' ? 'text-emerald-500' : 'text-zinc-500 hover:text-zinc-300'}`}>Audit History</button>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <div className={`w-1.5 h-1.5 rounded-full ${activeOpsTab === 'live' ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-700'}`}></div>
@@ -1153,16 +1391,10 @@ const TradingBotContainer = () => {
                                                 {(() => {
                                                     const activeTrades = socketStatus.tradeHistory?.length > 0 ? socketStatus.tradeHistory : (socketStatus.trade_history?.length > 0 ? socketStatus.trade_history : (socketStatus.tradeMarkers?.length > 0 ? socketStatus.tradeMarkers : []));
                                                     return activeTrades.length > 0 ? (
-                                                        <div className="space-y-3">
-                                                            {activeTrades.map((trade, idx) => (
-                                                                <TradeTimelineCard key={idx} trade={trade} />
-                                                            ))}
-                                                        </div>
+                                                        <div className="space-y-3">{activeTrades.map((trade, idx) => <TradeTimelineCard key={idx} trade={trade} />)}</div>
                                                     ) : (
                                                         <div className="flex flex-col items-center justify-center py-20 text-center">
-                                                            <div className="p-4 bg-emerald-500/5 rounded-full mb-4 border border-emerald-500/10">
-                                                                <Book className="text-emerald-500/40" size={32} />
-                                                            </div>
+                                                            <div className="p-4 bg-emerald-500/5 rounded-full mb-4 border border-emerald-500/10"><Book className="text-emerald-500/40" size={32} /></div>
                                                             <h4 className="text-zinc-400 text-[10px] font-black uppercase tracking-widest">Trade Ledger Empty</h4>
                                                             <p className="text-zinc-600 text-[9px] mt-2 max-w-[220px] leading-relaxed font-bold uppercase">No closed trades detected in this session.</p>
                                                         </div>
@@ -1208,7 +1440,8 @@ const TradingBotContainer = () => {
                                             <ArrowDownRight size={14} />
                                             <span className="text-[10px] font-black uppercase tracking-widest">Routing</span>
                                         </div>
-                                        <select value={formConfig.enable_shorting ? "true" : "false"} onChange={(e) => handleRoutingChange(e.target.value)} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase tracking-widest outline-none text-zinc-300" >
+                                        {/* [FIX-9] handleRoutingChange now declared above */}
+                                        <select value={formConfig.enable_shorting ? "true" : "false"} onChange={(e) => handleRoutingChange(e.target.value)} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase tracking-widest outline-none text-zinc-300">
                                             <option value="false">Spot (Coinbase)</option>
                                             <option value="true">Margin (Kraken)</option>
                                         </select>
@@ -1230,7 +1463,7 @@ const TradingBotContainer = () => {
                                             <Cpu size={16} />
                                             <h4 className="text-[10px] font-black uppercase tracking-widest text-violet-400">Neural Compute</h4>
                                         </div>
-                                        <select value={formConfig.mlMode} onChange={(e) => setFormConfig({ ...formConfig, mlMode: e.target.value })} className="bg-zinc-950 text-[9px] text-violet-400 rounded px-2 py-1 border border-violet-500/30 font-black uppercase tracking-widest outline-none cursor-pointer" >
+                                        <select value={formConfig.mlMode} onChange={(e) => setFormConfig({ ...formConfig, mlMode: e.target.value })} className="bg-zinc-950 text-[9px] text-violet-400 rounded px-2 py-1 border border-violet-500/30 font-black uppercase outline-none cursor-pointer">
                                             <option value="off">Bypass</option>
                                             <option value="on">Active</option>
                                         </select>
@@ -1258,6 +1491,7 @@ const TradingBotContainer = () => {
                                 </div>
 
                                 <div className="space-y-5 border-t border-zinc-800/50 pt-8">
+                                    {/* [FIX-17] minAdx / minVolRatio / minWeightedSignal now present in initial formConfig state */}
                                     <div className="flex flex-col gap-1">
                                         <div className="flex justify-between items-center">
                                             <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Minimum ADX Trend</label>
@@ -1287,6 +1521,7 @@ const TradingBotContainer = () => {
                                             <AlertTriangle size={16} />
                                             <h4 className="text-[10px] font-black uppercase tracking-widest text-rose-500">Risk Protocol</h4>
                                         </div>
+                                        {/* [FIX-13] handleResetRiskSettings now declared above */}
                                         <button onClick={handleResetRiskSettings} className="group flex items-center gap-1 px-2 py-1 bg-zinc-800/50 hover:bg-zinc-800 rounded border border-zinc-700/50 transition-all">
                                             <RotateCcw size={8} className="text-zinc-500 group-hover:text-rose-400" />
                                             <span className="text-[8px] font-black text-zinc-500 group-hover:text-zinc-300 uppercase tracking-tighter">Reset</span>
@@ -1315,7 +1550,7 @@ const TradingBotContainer = () => {
                                     <div className="grid grid-cols-1 gap-3 mt-3">
                                         <div className="p-3 bg-zinc-950/50 rounded-xl border border-zinc-800">
                                             <label className="text-[9px] font-black uppercase text-zinc-500 tracking-widest block mb-1">Dynamic Lot Partial Exits</label>
-                                            <select value={formConfig.enablePartialExit ? "true" : "false"} onChange={(e) => setFormConfig({ ...formConfig, enablePartialExit: e.target.value === "true" })} className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-[11px] text-amber-400 outline-none font-mono font-bold" >
+                                            <select value={formConfig.enablePartialExit ? "true" : "false"} onChange={(e) => setFormConfig({ ...formConfig, enablePartialExit: e.target.value === "true" })} className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-[11px] text-amber-400 outline-none font-mono font-bold">
                                                 <option value="true">Enabled (Split Lot Size)</option>
                                                 <option value="false">Disabled (Full Run Optimization)</option>
                                             </select>
@@ -1342,7 +1577,7 @@ const TradingBotContainer = () => {
                                 <div className="space-y-4 border-t border-zinc-800/50 pt-8">
                                     <div className="flex justify-between items-center">
                                         <h4 className="text-[10px] text-zinc-400 font-black uppercase tracking-widest">Technical Ensemble</h4>
-                                        <select value={formConfig.hybridMode} onChange={(e) => { const newMode = e.target.value; setFormConfig({ ...formConfig, hybridMode: newMode, minVotesRequired: newMode === "AND" ? formConfig.strategies.length : formConfig.minVotesRequired }); }} className="bg-black border border-zinc-800 text-[9px] rounded px-2 py-1 text-zinc-300 font-bold uppercase outline-none" >
+                                        <select value={formConfig.hybridMode} onChange={(e) => { const newMode = e.target.value; setFormConfig({ ...formConfig, hybridMode: newMode, minVotesRequired: newMode === "AND" ? formConfig.strategies.length : formConfig.minVotesRequired }); }} className="bg-black border border-zinc-800 text-[9px] rounded px-2 py-1 text-zinc-300 font-bold uppercase outline-none">
                                             <option value="AND">Strict (AND)</option>
                                             <option value="OR">Loose (OR)</option>
                                         </select>
@@ -1351,17 +1586,18 @@ const TradingBotContainer = () => {
                                         {formConfig.strategies.map((s) => (
                                             <div key={s.id} className="p-4 bg-zinc-950/80 rounded-2xl border border-zinc-800 shadow-inner">
                                                 <div className="flex justify-between mb-3">
-                                                    <select value={s.code} onChange={(e) => { setFormConfig(prev => ({ ...prev, strategies: prev.strategies.map(st => st.id === s.id ? { ...st, code: e.target.value, params: DEFAULT_STRATEGY_PARAMS[e.target.value] } : st ) })); }} className="bg-transparent text-[10px] font-black text-amber-500 uppercase outline-none" >
+                                                    <select value={s.code} onChange={(e) => { setFormConfig(prev => ({ ...prev, strategies: prev.strategies.map(st => st.id === s.id ? { ...st, code: e.target.value, params: DEFAULT_STRATEGY_PARAMS[e.target.value] } : st) })); }} className="bg-transparent text-[10px] font-black text-amber-500 uppercase outline-none">
                                                         {STRAT_POOL.map(opt => <option key={opt.code} value={opt.code}>{opt.name}</option>)}
                                                     </select>
-                                                    <button type="button" onClick={() => { setFormConfig(prev => { const filtered = prev.strategies.filter(st => st.id !== s.id); return { ...prev, strategies: filtered, minVotesRequired: Math.max(1, Math.min(prev.minVotesRequired, filtered.length || 1)) }; }); }} className="text-zinc-600 hover:text-rose-500 transition-colors" >
+                                                    <button type="button" onClick={() => { setFormConfig(prev => { const filtered = prev.strategies.filter(st => st.id !== s.id); return { ...prev, strategies: filtered, minVotesRequired: Math.max(1, Math.min(prev.minVotesRequired, filtered.length || 1)) }; }); }} className="text-zinc-600 hover:text-rose-500 transition-colors">
                                                         <Trash2 size={12} />
                                                     </button>
                                                 </div>
+                                                {/* [FIX-6] StrategyParamInputs now declared above */}
                                                 <StrategyParamInputs strategy={s} onChange={(p) => { setFormConfig(prev => ({ ...prev, strategies: prev.strategies.map(st => st.id === s.id ? { ...st, params: p } : st) })); }} />
                                             </div>
                                         ))}
-                                        <button type="button" onClick={() => setFormConfig(p => ({ ...p, strategies: [...p.strategies, { id: makeStrategyId(), code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="w-full py-4 border border-dashed border-zinc-800 rounded-xl text-zinc-600 hover:text-emerald-500 hover:border-emerald-500/50 transition-all flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-widest" >
+                                        <button type="button" onClick={() => setFormConfig(p => ({ ...p, strategies: [...p.strategies, { id: makeStrategyId(), code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="w-full py-4 border border-dashed border-zinc-800 rounded-xl text-zinc-600 hover:text-emerald-500 hover:border-emerald-500/50 transition-all flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-widest">
                                             <Plus size={12} /> Add Signal Module
                                         </button>
                                     </div>
@@ -1377,12 +1613,12 @@ const TradingBotContainer = () => {
                                     <p className="text-lg font-mono font-black text-zinc-600">STANDBY</p>
                                     <p className="text-[9px] font-mono text-zinc-500 mt-1 uppercase font-black">SESSION: 00:00:00</p>
                                 </div>
-                                <MetricCard label="Daily Profit"  value="$0.00" color="text-zinc-600" />
-                                <MetricCard label="Floating PnL"  value="+0.00" color="text-zinc-600" />
-                                <MetricCard label="Exposure"      value="0%"    color="text-zinc-600" />
-                                <MetricCard label="Total Equity"  value={`$${formConfig.capitalAllocation}`} />
+                                <MetricCard label="Daily Profit" value="$0.00" color="text-zinc-600" />
+                                <MetricCard label="Floating PnL" value="+0.00" color="text-zinc-600" />
+                                <MetricCard label="Exposure"     value="0%"    color="text-zinc-600" />
+                                <MetricCard label="Total Equity" value={`$${formConfig.capitalAllocation}`} />
                             </div>
-                            <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] h-[600px] overflow-hidden flex items-center justify-center text-zinc-700 italic border-dashed"> Initialize market link... </div>
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] h-[600px] overflow-hidden flex items-center justify-center text-zinc-700 italic border-dashed">Initialize market link...</div>
                         </div>
                     </div>
                 )}
