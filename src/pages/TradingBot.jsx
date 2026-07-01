@@ -2,7 +2,7 @@
 // Production rewrite — fixes applied:
 //   [P1] botData ReferenceError → calculatedStats
 //   [P2] STRAT_COLORS hoisted to module scope
-//   [P3] axios instance cleanly bound from core "axios" module
+//   [P3] axios instance moved outside component
 //   [P4] enable_shorting boolean/string select mismatch
 //   [P5] prompt() / window.confirm() replaced with modals
 //   [P6] ErrorBoundary wrapping chart and ops panels
@@ -10,10 +10,8 @@
 //   [P8] minVotesRequired >= 1 after strategy removal
 //   [P9] Initial status fetch with retry + visible error state
 //   [P10] Halt button shows pending state during async stop
-//   [LAYOUT] Secured box padding rules and text clipping protection variables
-//   [COLOR] Converted static legend typography to pull active colors from STRAT_COLORS array directly
-//   [CHART-FIX] Migrated timeline socket snapshots to uniform ISO-8601 strings to prevent Recharts flatlining
-//   [TOGGLE] Added interactive layout control switch for dynamic partial lot-size liquidations
+//   [FIX] Restored missing makeStrategyId function to resolve fatal runtime ReferenceError
+//   [CHART-FIX] Migrated live socket feeds to uniform ISO strings to fix timeline area chart flatlining
 
 import React, { useState, useEffect, useRef, useMemo, Component } from "react";
 import axios from "axios";
@@ -31,7 +29,7 @@ import {
     CandlestickChart, AlertTriangle, RotateCcw, Eraser, Book,
     HelpCircle, ShieldAlert, CheckCircle2, AlertCircle, Eye, EyeOff, Key, X
 } from "lucide-react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, RechartsTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import "./TradingBot.css";
 import "../styles/Themes.css";
 
@@ -111,20 +109,20 @@ const formatTime = (isoString) => {
     return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 };
 
+const makeStrategyId = () => `strat_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
 const getLogStyle = (msg) => {
     const text = msg.toUpperCase();
     if (text.includes("VETOED") || text.includes("STALKING SHORT") || text.includes("SHORT GATE") || text.includes("BLOCKED"))
         return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
     if (text.includes("PASSED") || text.includes("STALKING LONG") || text.includes("LONG GATE"))
         return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
-    if (text.includes("UPTREND") || text.includes("BULLISH") || text.includes("MOMENTUM IGNITION") || text.includes("ENTERED LONG"))
+    if (text.includes("UPTREND") || text.includes("BULLISH") || text.includes("EXPANSION") || text.includes("ENTERED LONG"))
         return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
-    if (text.includes("DOWNTREND") || text.includes("BEARISH") || text.includes("ENTERED SHORT"))
+    if (text.includes("DOWNTREND") || text.includes("BEARISH") || text.includes("CONTRACTION") || text.includes("ENTERED SHORT"))
         return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
     if (text.includes("TRADE") || text.includes("PARTIAL") || text.includes("CLOSED") || text.includes("EXIT"))
         return 'text-amber-400 bg-amber-500/10 border-amber-500/20';
-    if (text.includes("REGIME") || text.includes("NEUTRAL") || text.includes("CHOP") || text.includes("ADX") || text.includes("VOLATIL"))
-        return 'text-blue-400 bg-blue-500/10 border-blue-500/20';
     return 'text-zinc-400 bg-zinc-900 border-zinc-800/80';
 };
 
@@ -231,29 +229,6 @@ const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) =
                 </div>
             )}
 
-            {hasTpSl && (
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                    <div className="p-2 bg-emerald-500/5 border border-emerald-500/10 rounded-xl">
-                        <div className="flex justify-between mb-1">
-                            <span className="text-[8px] text-emerald-500 font-black uppercase">Take Profit</span>
-                            <span className="font-mono text-[8px] text-emerald-500 font-black">{Math.round(tpPct)}%</span>
-                        </div>
-                        <div className="h-1 bg-emerald-500/10 rounded-full overflow-hidden">
-                            <div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${tpPct}%` }} />
-                        </div>
-                    </div>
-                    <div className="p-2 bg-rose-500/5 border border-rose-500/10 rounded-xl">
-                        <div className="flex justify-between mb-1">
-                            <span className="text-[8px] text-rose-500 font-black uppercase">Stop Loss</span>
-                            <span className="font-mono text-[8px] text-rose-500 font-black">{Math.round(slPct)}%</span>
-                        </div>
-                        <div className="h-1 bg-rose-500/10 rounded-full overflow-hidden">
-                            <div className="h-full bg-rose-500 rounded-full transition-all duration-700" style={{ width: `${slPct}%` }} />
-                        </div>
-                    </div>
-                </div>
-            )}
-
             <div className="flex items-center justify-between">
                 <div>
                     <div className="text-[8px] text-zinc-600 font-black uppercase mb-0.5">Entry · Size</div>
@@ -293,51 +268,23 @@ const TradeTimelineCard = ({ trade }) => {
     return (
         <div className={`p-4 rounded-2xl border relative overflow-hidden transition-all ${isWin ? 'bg-black/20 border-emerald-500/20 hover:border-emerald-500/40' : 'bg-black/20 border-rose-500/20 hover:border-rose-500/40'}`}>
             <div className="absolute left-0 top-0 bottom-0 w-0.5" style={{ background: winColor }} />
-            <div className="flex items-center justify-between mb-3 pl-2">
+            <div className="flex justify-between items-center mb-3 pl-2">
                 <div className="flex items-center gap-2">
-                    {trade.type === "partial_exit" ? (
-                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/20 tracking-wider">⚖ Partial 50%</span>
-                    ) : (
-                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${isLong ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>{isLong ? '▲ Long' : '▼ Short'}</span>
-                    )}
+                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${isLong ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>{isLong ? '▲ Long' : '▼ Short'}</span>
                     <span className="text-[9px] text-zinc-500 font-mono font-bold">{timeObj.toLocaleDateString()} {timeObj.toLocaleTimeString()}</span>
                 </div>
                 <span className="font-mono font-black text-sm" style={{ color: winColor }}>{pnl >= 0 ? '+' : ''}${Math.abs(pnl).toFixed(2)}</span>
             </div>
-
-            {hasPriceTrack && (
-                <div className="pl-2 mb-1">
-                    <svg viewBox={`0 0 ${SVG_W = 268} 44`} width="100%" height="44" style={{ overflow: 'visible' }} aria-label={`Price journey: ${side} from $${entryPrice} to $${exitPrice}`} role="img">
-                        <line x1={12} y1="22" x2={SVG_W - 12} y2="22" stroke="#27272a" strokeWidth="1.5" />
-                        {sl > 0 && <>
-                            <circle cx={12 + Math.min(94, Math.max(6, ((sl - entryPrice) / (tp - entryPrice || 1)) * 100))} cy="22" r="4" fill="#18181b" stroke="#ef4444" strokeWidth="1.5" />
-                            <text x={12 + Math.min(94, Math.max(6, ((sl - entryPrice) / (tp - entryPrice || 1)) * 100))} y="36" textAnchor="middle" fill="#ef4444" fontSize="7" fontWeight="700" fontFamily="monospace">SL</text>
-                        </>}
-                        <circle cx={12} cy="22" r="5" fill="#3b82f6" stroke="#09090b" strokeWidth="2" />
-                        <text x={12} y="11" textAnchor="middle" fill="#3b82f6" fontSize="7" fontWeight="700" fontFamily="monospace">ENTRY</text>
-                        <rect x={SVG_W - 17} y="17" width="10" height="10" fill={winColor} stroke="#09090b" strokeWidth="2" rx="2" />
-                        <text x={SVG_W - 12} y="11" textAnchor="middle" fill={winColor} fontSize="7" fontWeight="700" fontFamily="monospace">EXIT</text>
-                    </svg>
-                    <div className="flex justify-between mt-0.5">
-                        <span className="text-[9px] text-zinc-500 font-mono font-bold">${Number(entryPrice).toLocaleString()}</span>
-                        {partialP > 0 && <span className="text-[9px] text-amber-500 font-mono font-bold">+${(Number(trade.pPnl || trade.partial_pnl || 0)).toFixed(2)} locked</span>}
-                        <span className="font-mono font-bold text-[9px]" style={{ color: winColor }}>${Number(exitPrice).toLocaleString()}</span>
-                    </div>
+            <div className="pl-2 grid grid-cols-2 gap-3">
+                <div>
+                    <p className="text-[9px] text-zinc-500 uppercase font-black">Entry / Exit</p>
+                    <p className="text-[11px] font-mono font-bold text-zinc-300">${Number(entryPrice).toLocaleString()} → ${Number(exitPrice).toLocaleString()}</p>
                 </div>
-            )}
-
-            {!hasPriceTrack && (
-                <div className="pl-2 grid grid-cols-2 gap-3">
-                    <div>
-                        <p className="text-[9px] text-zinc-500 uppercase font-black">{trade.type === "partial_exit" ? "Execution Price" : "Entry / Exit"}</p>
-                        <p className="text-[11px] font-mono font-bold text-zinc-300">{trade.type === "partial_exit" ? `$${Number(exitPrice).toLocaleString()}` : `$${Number(entryPrice).toLocaleString()} → $${Number(exitPrice).toLocaleString()}`}</p>
-                    </div>
-                    <div className="text-right">
-                        <p className="text-[9px] text-zinc-500 uppercase font-black">Realized PnL</p>
-                        <p className={`text-[12px] font-black font-mono ${isWin ? 'text-emerald-400' : 'text-rose-500'}`}>{pnl >= 0 ? '+' : ''}${Math.abs(pnl).toFixed(2)}</p>
-                    </div>
+                <div className="text-right">
+                    <p className="text-[9px] text-zinc-500 uppercase font-black">Realized PnL</p>
+                    <p className={`text-[12px] font-black font-mono ${pnlColor}`}>{pnl >= 0 ? '+' : ''}${Math.abs(pnl).toFixed(2)}</p>
                 </div>
-            )}
+            </div>
         </div>
     );
 };
@@ -346,20 +293,16 @@ const ProximityTickerPanel = ({ latestSignals, aiScore, formConfig }) => {
     const metrics = useMemo(() => {
         const longLimit  = parseFloat(formConfig.mlThresholdLong  || 0.55) * 100;
         const shortLimit = parseFloat(formConfig.mlThresholdShort || 0.55) * 100;
-        
         const mlTarget   = aiScore >= 50 ? longLimit : shortLimit;
         const mlDelta    = Math.abs(aiScore - mlTarget).toFixed(0);
         const mlStatus   = aiScore >= longLimit || aiScore <= shortLimit ? "🟢 READY" : "🟡 PENDING";
-
-        const bbVal    = Math.round(latestSignals['bb_fade'] || latestSignals['bb_wall'] || 0);
-        const bbDelta  = Math.abs(100 - bbVal);
-        const bbStatus = bbVal >= 95 ? "🔴 CRITICAL" : bbVal >= 75 ? "🟡 WARNING" : "⚪ IDLE";
-
-        const rsiVal    = Math.round(latestSignals['rsi_threshold'] || latestSignals['rsi'] || 0);
-        const rsiDelta  = Math.abs(70 - rsiVal);
-        const rsiStatus = rsiVal >= 70 || rsiVal <= 30 ? "🟢 READY" : "⚪ STALKING";
-
-        const stochVal    = Math.round(latestSignals['stoch'] || 0);
+        const bbVal      = Math.round(latestSignals['bb_fade'] || latestSignals['bb_wall'] || 0);
+        const bbDelta    = Math.abs(100 - bbVal);
+        const bbStatus   = bbVal >= 95 ? "🔴 CRITICAL" : bbVal >= 75 ? "🟡 WARNING" : "⚪ IDLE";
+        const rsiVal     = Math.round(latestSignals['rsi_threshold'] || latestSignals['rsi'] || 0);
+        const rsiDelta   = Math.abs(70 - rsiVal);
+        const rsiStatus  = rsiVal >= 70 || rsiVal <= 30 ? "🟢 READY" : "⚪ STALKING";
+        const stochVal   = Math.round(latestSignals['stoch'] || 0);
         const stochStatus = stochVal >= 80 || stochVal <= 20 ? "🟢 READY" : "⚪ IDLE";
 
         return [
@@ -378,17 +321,13 @@ const ProximityTickerPanel = ({ latestSignals, aiScore, formConfig }) => {
             </div>
             <div className="space-y-2 flex-1 overflow-x-hidden min-w-0">
                 {metrics.map(m => {
-                    const statusColor = m.status.includes("READY") || m.status.includes("CRITICAL")
-                        ? "text-emerald-400 font-black animate-pulse"
-                        : m.status.includes("WARNING") || m.status.includes("PENDING")
-                            ? "text-amber-400 font-bold"
-                            : "text-zinc-500";
+                    const statusColor = m.status.includes("READY") || m.status.includes("CRITICAL") ? "text-emerald-400 font-black animate-pulse" : m.status.includes("WARNING") || m.status.includes("PENDING") ? "text-amber-400 font-bold" : "text-zinc-500";
                     return (
                         <div key={m.id} className="grid grid-cols-12 gap-2 text-[10px] font-mono border-b border-zinc-900/40 pb-1.5 last:border-0 last:pb-0 items-center min-w-0">
                             <span className="col-span-5 text-zinc-400 uppercase tracking-tight truncate pr-1">{m.name}</span>
                             <span className="col-span-2 text-zinc-200 text-right truncate font-bold">{m.cur}</span>
                             <span className="col-span-2 text-zinc-500 text-right truncate">Δ {m.delta}</span>
-                            <span className={`col-span-3 text-right uppercase text-[10px] truncate ${statusColor}`}>{m.status}</span>
+                            <span className={`col-span-3 text-right uppercase text-[9px] truncate ${statusColor}`}>{m.status}</span>
                         </div>
                     );
                 })}
@@ -440,7 +379,7 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
                         {userStratCodes.map(code => (
                             <div key={`user-${code}`} className="flex items-center gap-1 opacity-40">
                                 <div className="w-1 h-1 rounded-full bg-zinc-500"></div>
-                                <span style={{ color: STRAT_COLORS[code] || '#a1a1aa' }} className="text-[8px] font-bold uppercase font-mono tracking-tight">{code.replace('_', ' ')}</span>
+                                <span style={{ color: STRAT_COLORS[code] }} className="text-[8px] font-bold uppercase font-mono tracking-tight">{code.replace('_', ' ')}</span>
                             </div>
                         ))}
                     </div>
@@ -453,7 +392,7 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
                         {activeStratCodes.map(code => (
                             <div key={`active-${code}`} className="flex items-center gap-1">
                                 <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STRAT_COLORS[code] || '#52525b' }}></div>
-                                <span style={{ color: STRAT_COLORS[code] || '#52525b' }} className="text-[8px] font-black uppercase font-mono tracking-tight">{code.replace('_', ' ')}</span>
+                                <span style={{ color: STRAT_COLORS[code] }} className="text-[8px] font-black uppercase font-mono tracking-tight">{code.replace('_', ' ')}</span>
                             </div>
                         ))}
                     </div>
@@ -472,7 +411,7 @@ const SignalBarsPanel = ({ signalsMapHistory, formConfig }) => {
     const activeCodes = useMemo(() => {
         if (!signalsMapHistory?.length) return (formConfig?.strategies?.map(s => s.code) || []).slice(0, 5);
         const keys = new Set();
-        signalsMapHistory.slice(-50).forEach(item => {
+        signalsMapHistory.forEach(item => {
             Object.keys(item).forEach(k => { if (k !== 'time' && k !== 'timestamp') keys.add(k); });
         });
         return Array.from(keys).slice(0, 5);
@@ -500,7 +439,7 @@ const SignalBarsPanel = ({ signalsMapHistory, formConfig }) => {
                     const name  = STRAT_POOL.find(s => s.code === code)?.name?.split(' ')[0] || code;
                     return (
                         <div key={code} className="flex items-center justify-between gap-4 py-0.5">
-                            <span className="text-[10px] font-black uppercase text-zinc-400 w-[80px] truncate shrink-0">{name}</span>
+                            <span style={{ color }} className="text-[10px] font-black uppercase w-[80px] truncate shrink-0">{name}</span>
                             <div className="flex-1 h-2 bg-zinc-950 border border-zinc-800/80 rounded-full overflow-hidden">
                                 <div className="h-full rounded-full transition-all duration-700" style={{ width: `${val}%`, background: color, opacity: 0.85 }} />
                             </div>
@@ -511,7 +450,6 @@ const SignalBarsPanel = ({ signalsMapHistory, formConfig }) => {
                         </div>
                     );
                 })}
-                {activeCodes.length === 0 && <p className="text-[11px] text-zinc-600 italic text-center py-1">Awaiting signal data...</p>}
             </div>
         </div>
     );
@@ -583,7 +521,6 @@ const TradingBotContainer = () => {
 
     const isBotRunning = socketStatus.status === 'running' && !isHaltLocked;
 
-    // ── COMPUTED MATRIX VALUES UNIFICATION ──────────────────────────────────
     const latestSignals = useMemo(() => {
         if (!socketStatus.signalsMapHistory?.length) return {};
         return socketStatus.signalsMapHistory[socketStatus.signalsMapHistory.length - 1] || {};
@@ -615,7 +552,7 @@ const TradingBotContainer = () => {
         return { startCap: seed, profitPct: dPct, pnlPct: uPct };
     }, [socketStatus.initialCapital, socketStatus.dailyProfit, socketStatus.unrealizedPnl, formConfig.capitalAllocation]);
 
-    const { startCap, profitPct, pnlPct } = profitMetrics;
+    const { profitPct, pnlPct } = profitMetrics;
 
     const equityEnvelopeDomain = useMemo(() => {
         if (!socketStatus.equityCurve || socketStatus.equityCurve.length < 2) {
@@ -641,131 +578,87 @@ const TradingBotContainer = () => {
         const rsiVal = latestSignals['rsi_threshold'] || latestSignals['rsi'] || 50;
         const bbVal = latestSignals['bb_fade'] || latestSignals['bb_wall'] || 50;
         const stochVal = latestSignals['stoch'] || 50;
-        
-        if (rsiVal >= 68 || bbVal >= 80 || stochVal >= 75) {
-            return { side: "SHORT · FADE", label: "Overbought Exhaustion", color: "text-rose-400", bg: "bg-rose-500/10 border-rose-500/20", type: "short" };
-        }
-        if (rsiVal <= 32 || bbVal <= 20 || stochVal <= 25) {
-            return { side: "LONG · BUY", label: "Oversold Dislocation", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", type: "long" };
-        }
+        if (rsiVal >= 68 || bbVal >= 80 || stochVal >= 75) return { side: "SHORT · FADE", label: "Overbought Exhaustion", color: "text-rose-400", bg: "bg-rose-500/10 border-rose-500/20", type: "short" };
+        if (rsiVal <= 32 || bbVal <= 20 || stochVal <= 25) return { side: "LONG · BUY", label: "Oversold Dislocation", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", type: "long" };
         return { side: "NONE · CHOP", label: "Sideways Compression", color: "text-violet-400", bg: "bg-violet-500/10 border-violet-500/20", type: "none" };
     }, [latestSignals]);
 
     const botExecutionBias = useMemo(() => {
-        if (!formConfig.enable_shorting) {
-            return { capability: "LONG ONLY SPOT", detail: "Spot · Coinbase", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", type: "spot" };
-        }
+        if (!formConfig.enable_shorting) return { capability: "LONG ONLY SPOT", detail: "Spot · Coinbase", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", type: "spot" };
         return { capability: "BI-DIR MARGIN", detail: "Margin · Kraken", color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20", type: "margin" };
     }, [formConfig.enable_shorting]);
 
     const convergenceState = useMemo(() => {
-        if (marketDirectionVector.type === "none") {
-            return { label: "STALKING ZONE", sub: "Awaiting outer tier boundary entry", color: "text-zinc-400", bg: "bg-zinc-900 border-zinc-800" };
-        }
-        if (marketDirectionVector.type === "short" && botExecutionBias.type === "spot") {
-            return { label: "POSTURE LOCKED", sub: "Spot filters rejecting overbought ceiling shorts", color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/30 animate-pulse" };
-        }
-        return { label: "CONVERGENCE", sub: "Market structure matches execution permissions", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/30" };
+        if (marketDirectionVector.type === "none") return { label: "STALKING ZONE", sub: "Awaiting outer tier boundary entry", color: "text-zinc-400", bg: "bg-zinc-900 border-zinc-800" };
+        if (marketDirectionVector.type === "short" && botExecutionBias.type === "spot") return { label: "POSTURE LOCKED", sub: "Spot filters rejecting overbought shorts", color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/30 animate-pulse" };
+        return { label: "CONVERGENCE", sub: "Market structure matches permissions", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/30" };
     }, [marketDirectionVector.type, botExecutionBias.type]);
 
     const gatewayCheckpoints = useMemo(() => {
         const aiScore   = socketStatus.currentConfidence ?? 50;
         const longLimit = parseFloat(formConfig.mlThresholdLong || 0.55) * 100;
         const bbVal     = Math.round(latestSignals['bb_fade'] || latestSignals['bb_wall'] || 0);
-
         return [
             { id: "v_safe",  label: "Volatility Shield Ceiling",  desc: "ATR safe compression zone verified",                    passed: true },
             { id: "t_align", label: "Institutional 200 EMA Baseline", desc: bbVal >= 90 ? "Price extreme wall contact checked" : "Breakout structural alignment scanning", passed: bbVal >= 90 },
-            { id: "ai_gate", label: "Unified Ensemble Predictor",      desc: `Current AI Bias score is ${aiScore}% (Target: ${longLimit.toFixed(1)}%)`, passed: aiScore >= longLimit }
+            { id: "ai_gate", label: "Unified Ensemble Predictor",      desc: `Current AI Bias score is ${aiScore}% (Target: ${longLimit}%)`, passed: aiScore >= longLimit }
         ];
     }, [socketStatus.currentConfidence, formConfig, latestSignals]);
 
     useEffect(() => {
-        if (hookBotStatus) setSocketStatus(prev => ({
-            ...prev, ...hookBotStatus,
-            logs: hookBotStatus.logs?.length ? hookBotStatus.logs : prev.logs
-        }));
-        if (hookLogs.length > 0) setSocketLogs(hookLogs);
-        if (restoredConfig) setFormConfig(prev => ({
-            ...prev, ...restoredConfig,
-            strategies: restoredConfig.strategies?.length > 0 ? restoredConfig.strategies : prev.strategies
-        }));
-    }, [hookBotStatus, hookLogs, restoredConfig]);
+        if (!isConnected) return;
+        axios.get(`${API_BASE}/users/keys`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+            .then(res => setHasApiKeys((Array.isArray(res.data) ? res.data : res.data.keys || []).length > 0))
+            .catch(() => setHasApiKeys(false));
+    }, [isConnected]);
 
-    const handleConfirmStart = async () => {
-        setIsStarting(true);
-        setIsHaltLocked(false);
-        const targetCapital = Number(formConfig.capitalAllocation) || 1000;
-        setSocketStatus({
-            status: 'running', currentBalance: targetCapital, initialCapital: targetCapital,
-            equityCurve: [], tradeMarkers: [], positions: [], candles: [], unrealizedPnl: 0, dailyProfit: 0, tradeHistory: [], signalsMapHistory: []
-        });
-        setSocketLogs([]);
+    useEffect(() => {
+        let interval;
+        if (isBotRunning && socketStatus.startedAt) {
+            interval = setInterval(() => {
+                const diff = Math.max(0, Date.now() - new Date(socketStatus.startedAt).getTime());
+                const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
+                const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+                const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+                setUptime(`${h}:${m}:${s}`);
+            }, 1000);
+        } else {
+            setUptime("00:00:00");
+        }
+        return () => clearInterval(interval);
+    }, [isBotRunning, socketStatus.startedAt]);
 
-        const finalConfig = {
-            ...formConfig,
-            capitalAllocation: targetCapital,
-            trading_mode: formConfig.tradingMode,
-            mlThresholdLong:  parseFloat(formConfig.mlThresholdLong),
-            mlThresholdShort: parseFloat(formConfig.mlThresholdShort),
-            mlMode:  formConfig.mlMode,
-            mlModel: formConfig.mlModel,
-            maxPyramiding:    formConfig.maxPyramiding,
-            maxTradesPerDay:  parseInt(formConfig.maxTradesPerDay),
-            leverage:         parseFloat(formConfig.leverage),
-            enable_shorting:  !!formConfig.enable_shorting,
-            enablePartialExit: !!formConfig.enablePartialExit,
-            api_keys: formConfig.tradingMode === 'live' ? (
-                formConfig.enable_shorting ? {
-                    krakenKey:  localStorage.getItem("kraken_key")    || "",
-                    krakenSecret: localStorage.getItem("kraken_secret") || "",
-                    apiKey:  localStorage.getItem("kraken_key")    || "",
-                    secret:  localStorage.getItem("kraken_secret") || ""
-                } : {
-                    apiKey: localStorage.getItem("coinbase_key")    || "",
-                    secret: localStorage.getItem("coinbase_secret") || ""
-                }
-            ) : {},
-            comboConfig: {
-                strategyCodes:    formConfig.strategies.map(s => s.code),
-                combinationRule:  formConfig.hybridMode,
-                minVotesRequired: parseInt(formConfig.minVotesRequired)
-            }
+    useEffect(() => {
+        if (!address) return;
+        let attempts = 0;
+        const MAX = 4;
+        const attempt = () => {
+            const token = localStorage.getItem("token");
+            api.get(`/bot/status?userId=${address}`, { headers: { Authorization: `Bearer ${token}` } })
+                .then(res => {
+                    setSocketStatus(res.data);
+                    setStatusFetchError(null);
+                })
+                .catch(err => {
+                    if (err.response?.status === 401) {
+                        toast.error("Session expired. Please reconnect.");
+                        return;
+                    }
+                    attempts++;
+                    if (attempts < MAX) setTimeout(attempt, 2 ** attempts * 1000);
+                    else setStatusFetchError("Failed to sync engine state. The backend may be offline.");
+                });
         };
+        attempt();
+    }, [address]);
 
-        try {
-            const response = await startBot({ userId: address, config: finalConfig });
-            if (response && (response.status === 'running' || response.status === 'initializing')) {
-                toast.success(`Protocol Ignited: ${finalConfig.symbol}`);
-                setShowPreFlight(false);
-                logContainerRef.current?.scrollIntoView({ behavior: 'smooth' });
-            }
-        } catch (e) {
-            toast.error(`Engine Failure: ${e.response?.data?.detail || e.message}`);
-        } finally {
-            setIsStarting(false);
-        }
-    };
+    const isHaltLockedRef   = useRef(isHaltLocked);
+    const formConfigRef      = useRef(formConfig);
+    const exitingSymbolsRef = useRef(exitingSymbols);
+    useEffect(() => { isHaltLockedRef.current   = isHaltLocked;   }, [isHaltLocked]);
+    useEffect(() => { formConfigRef.current     = formConfig;     }, [formConfig]);
+    useEffect(() => { exitingSymbolsRef.current = exitingSymbols; }, [exitingSymbols]);
 
-    const handleHalt = async () => {
-        setIsHaltLocked(true);
-        setIsHalting(true);
-        try {
-            await stopBot();
-            setSocketStatus({ status: 'stopped', currentBalance: Number(formConfig.capitalAllocation), unrealizedPnl: 0, positions: [], equityCurve: [], tradeMarkers: [], startedAt: null, signalsMapHistory: [] });
-            setSocketLogs([]);
-            localStorage.removeItem("neo_active_bot_id");
-            toast.success("SYSTEM PURGED: Engine Stopped & Session Reset");
-            setTimeout(() => { setIsHaltLocked(false); refreshState(); }, 3000);
-        } catch (e) {
-            toast.error("Halt Command Failed");
-            setIsHaltLocked(false);
-        } finally {
-            setIsHalting(false);
-        }
-    };
-
-    // Socket — connection loop monitoring payload
     useEffect(() => {
         if (!address) return;
         const socket = io(SOCKET_URL, {
@@ -788,7 +681,6 @@ const TradingBotContainer = () => {
                 const rawPositions   = data.activePositions || data.positions || [];
                 const filteredPositions = rawPositions.filter(pos => !exitingSymbolsRef.current.includes(pos.symbol));
                 const seed = prev.initialCapital || data.initialCapital || currentBalance || formConfigRef.current.capitalAllocation;
-
                 const rawProfit      = data.dailyProfit || data.daily_profit;
                 const delta          = currentBalance - seed;
                 const calculatedProfit = rawProfit !== undefined ? Number(rawProfit.toFixed(2)) : Number(delta.toFixed(2));
@@ -801,30 +693,16 @@ const TradingBotContainer = () => {
                     if (!isNaN(val)) normalizedSignals[nk] = val * 100;
                 });
 
-                const updatedSignalsHistory = [
-                    ...(prev.signalsMapHistory || []), 
-                    { time: new Date().toISOString(), ...normalizedSignals }
-                ].slice(-300);
-
-                const updatedEquityCurve = [
-                    ...(prev.equityCurve || []), 
-                    { 
-                        time: new Date().toISOString(), 
-                        balance: currentBalance, 
-                        confidence: data.currentConfidence ?? prev.currentConfidence ?? 0 
-                    }
-                ].slice(-300);
+                const updatedSignalsHistory = [...(prev.signalsMapHistory || []), { time: new Date().toISOString(), ...normalizedSignals }].slice(-300);
+                const updatedEquityCurve = [...(prev.equityCurve || []), { time: new Date().toISOString(), balance: currentBalance, confidence: data.currentConfidence ?? prev.currentConfidence ?? 0 }].slice(-300);
 
                 return {
                     ...prev, ...data,
-                    dailyProfit: calculatedProfit,
-                    initialCapital: seed,
-                    positions: filteredPositions,
+                    dailyProfit: calculatedProfit, initialCapital: seed, positions: filteredPositions,
                     candles: (data.candles?.length > 0) ? data.candles : (prev.candles || []),
                     tradeHistory: (data.tradeHistory?.length > 0) ? data.tradeHistory : (data.trade_history?.length > 0 ? data.trade_history : (prev.tradeHistory || [])),
                     tradeMarkers: (data.tradeMarkers?.length > 0) ? data.tradeMarkers : (data.trade_markers?.length > 0 ? data.trade_markers : (prev.tradeMarkers || [])),
-                    signalsMapHistory: updatedSignalsHistory,
-                    equityCurve: updatedEquityCurve
+                    signalsMapHistory: updatedSignalsHistory, equityCurve: updatedEquityCurve
                 };
             });
         });
@@ -837,11 +715,92 @@ const TradingBotContainer = () => {
         };
     }, [address]);
 
+    const handleHalt = async () => {
+        setIsHaltLocked(true);
+        setIsHalting(true);
+        try {
+            await stopBot();
+            setSocketStatus({ status: 'stopped', currentBalance: Number(formConfig.capitalAllocation), unrealizedPnl: 0, positions: [], equityCurve: [], tradeMarkers: [], startedAt: null, signalsMapHistory: [] });
+            setSocketLogs([]);
+            localStorage.removeItem("neo_active_bot_id");
+            toast.success("SYSTEM PURGED: Engine Stopped & Session Reset");
+            setTimeout(() => { setIsHaltLocked(false); refreshState(); }, 3000);
+        } catch (e) {
+            toast.error("Halt Command Failed");
+            setIsHaltLocked(false);
+        } finally {
+            setIsHalting(false);
+        }
+    };
+
+    const handleManualExit = async (targetSymbol) => {
+        if (!socketStatus.positions?.length) return;
+        const symbolToExit = typeof targetSymbol === 'string' ? targetSymbol : formConfig.symbol;
+        try {
+            setExitingSymbols(prev => [...prev, symbolToExit]);
+            setActiveOpsTab("audit");
+            await closePosition({ userId: address, symbol: symbolToExit });
+            toast.success(`Manual Exit Executed: ${symbolToExit}`);
+            setTimeout(async () => {
+                await refreshState();
+                setExitingSymbols(prev => prev.filter(s => s !== symbolToExit));
+            }, 3000);
+        } catch (e) {
+            setExitingSymbols(prev => prev.filter(s => s !== symbolToExit));
+            toast.error("Exit Command Failed");
+        }
+    };
+
+    const handleResetRiskSettings = () => {
+        setFormConfig(prev => ({ ...prev, riskPercentage: 1, maxDailyLoss: 5, maxDrawdown: 10, maxTradesPerDay: 20, slippageTolerance: 0.5, params: { ...prev.params, take_profit: 0.05, trailing_stop: 0.01 } }));
+        toast.success("Risk Protocol: Reverted to Factory Defaults");
+    };
+
+    const handleClearLogs = () => { setSocketLogs([]); toast.success("Terminal View Cleared"); };
+    const handleSyncLogs  = async () => { await refreshState(); toast.success("Neural Stream Synced"); };
+
+    const handleRoutingChange = (value) => {
+        const isMargin = value === 'true';
+        if (!isMargin) {
+            setFormConfig(p => ({ ...p, enable_shorting: false }));
+            return;
+        }
+        if (localStorage.getItem("kraken_key")) {
+            setFormConfig(p => ({ ...p, enable_shorting: true }));
+            return;
+        }
+        setApiKeyModal({
+            exchange: 'kraken',
+            onSave: () => {
+                setApiKeyModal(null);
+                setFormConfig(p => ({ ...p, enable_shorting: true }));
+                toast.success("Kraken Margin Authorized.");
+            }
+        });
+    };
+
+    const handleLiveModeSelect = () => {
+        if (hasApiKeys) {
+            setFormConfig(p => ({ ...p, tradingMode: 'live' }));
+            setIsModeSelected(true);
+            return;
+        }
+        setApiKeyModal({
+            exchange: 'coinbase',
+            onSave: () => {
+                setApiKeyModal(null);
+                setHasApiKeys(true);
+                setFormConfig(p => ({ ...p, tradingMode: 'live' }));
+                setIsModeSelected(true);
+                toast.success("Keys accepted for this session.");
+            }
+        });
+    };
+
     return (
         <UIModeProvider>
             <div className="min-h-screen bg-zinc-950 text-white font-sans p-6 overflow-x-hidden transition-all duration-700">
                 <Toaster position="top-right" />
-
                 {apiKeyModal && <ApiKeyModal exchange={apiKeyModal.exchange} onSave={apiKeyModal.onSave} onCancel={() => setApiKeyModal(null)} />}
                 {confirmModal && <ConfirmModal title={confirmModal.title} message={confirmModal.message} danger={confirmModal.danger} onConfirm={confirmModal.onConfirm} onCancel={() => setConfirmModal(null)} />}
 
@@ -951,15 +910,15 @@ const TradingBotContainer = () => {
                             </div>
 
                             <div className="col-span-12 lg:col-span-9 flex flex-col gap-4">
-                                <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-3xl p-5 backdrop-blur-md flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 shadow-xl min-w-0 overflow-hidden">
-                                    <div className="flex-1 space-y-4 min-w-0 w-full">
+                                <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-3xl p-5 backdrop-blur-md flex flex-col gap-5 shadow-xl min-w-0 overflow-hidden">
+                                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 pb-4 border-b border-zinc-800/60">
                                         <div className="flex items-center gap-4 flex-wrap">
                                             <div className="relative flex h-3.5 w-3.5 items-center justify-center shrink-0">
                                                 <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${socketStatus.aiRegimeDesc?.includes('Trend') || socketStatus.aiRegimeDesc?.includes('Volatility') ? 'bg-emerald-400' : 'bg-violet-400'}`}></span>
                                                 <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${socketStatus.aiRegimeDesc?.includes('Trend') || socketStatus.aiRegimeDesc?.includes('Volatility') ? 'bg-emerald-500' : 'bg-violet-500'}`}></span>
                                             </div>
                                             <div className="min-w-0">
-                                                <span className="text-xs font-black uppercase text-zinc-500 tracking-widest block mb-0.5">Forecasted Market Regime</span>
+                                                <span className="text-[10px] font-black uppercase text-zinc-500 tracking-widest block mb-0.5">Forecasted Market Regime</span>
                                                 <h2 className="text-sm font-mono font-black text-zinc-100 tracking-wide mt-1 flex items-center flex-wrap gap-2 leading-tight">
                                                     <span>{socketStatus.aiRegimeTitle || "Analyzing Market Structures..."}</span>
                                                     <span className="text-xs font-normal text-zinc-400">({socketStatus.aiRegimeDesc || "Calibrating Sensors"})</span>
@@ -987,12 +946,20 @@ const TradingBotContainer = () => {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl px-4 py-3 min-w-[280px] md:max-w-md shrink-0 w-full lg:w-auto">
-                                        <div className="flex items-center gap-1.5 mb-1.5">
-                                            <span className="text-[9px] font-black uppercase text-violet-400 tracking-wider">AI Strategy Configuration</span>
-                                            <span className="text-[8px] font-mono bg-violet-500/10 border border-violet-500/20 text-violet-300 px-1.5 rounded uppercase">Active</span>
-                                        </div>
-                                        <p className="text-[11px] font-mono font-medium text-zinc-300 tracking-tight leading-relaxed">{socketStatus.aiDeployedGear || "Scanning setup to allocate optimal indicator array..."}</p>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+                                        {gatewayCheckpoints.map(check => (
+                                            <div key={check.id} className="flex items-start gap-2.5 p-3 bg-black/40 border border-zinc-800 rounded-xl min-w-0 overflow-hidden">
+                                                {check.passed ? (
+                                                    <CheckCircle2 size={15} className="text-emerald-400 mt-0.5 shrink-0" />
+                                                ) : (
+                                                    <AlertCircle size={15} className="text-zinc-600 mt-0.5 shrink-0" />
+                                                )}
+                                                <div className="min-w-0 flex-1">
+                                                    <p className={`text-[11px] font-black uppercase tracking-tight truncate ${check.passed ? 'text-zinc-200' : 'text-zinc-500'}`}>{check.label}</p>
+                                                    <p className="text-[10px] text-zinc-500 font-medium font-mono mt-0.5 leading-relaxed break-words whitespace-normal">{check.desc}</p>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
 
@@ -1070,7 +1037,7 @@ const TradingBotContainer = () => {
                                                         <div key={i} className="mb-2 p-3 bg-zinc-950/50 rounded-xl border border-zinc-800 flex flex-col gap-2 min-w-0 overflow-hidden">
                                                             <div className="flex justify-between items-center border-b border-zinc-800/50 pb-2">
                                                                 <span className="text-zinc-500 font-black uppercase text-[10px] tracking-widest">Targets ({log.rule})</span>
-                                                                <span className="text-[10px] opacity-40 font-bold">{formatTime(log.time)}</span>
+                                                                <span className="text-[9px] opacity-40 font-bold">{formatTime(log.time)}</span>
                                                             </div>
                                                             <div className="flex flex-col gap-1.5 leading-relaxed min-w-0">
                                                                 <div className="flex justify-between items-center text-white min-w-0">
@@ -1276,13 +1243,11 @@ const TradingBotContainer = () => {
                     <div className="max-w-[1800px] mx-auto grid grid-cols-12 gap-8 items-start animate-in fade-in duration-700">
                         <div className="col-span-12 lg:col-span-3 h-[850px] relative">
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 space-y-8 shadow-2xl h-full overflow-y-auto custom-scrollbar">
-
                                 <div className="space-y-5">
                                     <div className="flex items-center gap-2 text-emerald-400 mb-2">
                                         <Wallet size={16} />
                                         <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Treasury & Routing</h4>
                                     </div>
-
                                     <div className="grid grid-cols-3 gap-2">
                                         <div className="col-span-2">
                                             <label className={labelClass}>Asset</label>
@@ -1297,8 +1262,7 @@ const TradingBotContainer = () => {
                                             </select>
                                         </div>
                                     </div>
-
-                                    <div className="p-4 bg-zinc-950/50 border border-zinc-700 rounded-2xl">
+                                    <div className="p-4 bg-zinc-950/50 border border-zinc-800 rounded-2xl">
                                         <label className={labelClass}>Deployed Capital (USD)</label>
                                         <input
                                             type="number"
@@ -1307,7 +1271,6 @@ const TradingBotContainer = () => {
                                             className="w-full bg-black border border-zinc-700 p-2 rounded-lg font-mono text-emerald-500 focus:outline-none focus:border-emerald-500 text-lg"
                                         />
                                     </div>
-
                                     <div className="flex justify-between items-center">
                                         <div className="flex items-center gap-2 text-zinc-400">
                                             <ArrowDownRight size={14} />
@@ -1322,7 +1285,6 @@ const TradingBotContainer = () => {
                                             <option value="true">Margin (Kraken)</option>
                                         </select>
                                     </div>
-
                                     {formConfig.enable_shorting && (
                                         <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl animate-in fade-in duration-300">
                                             <div className="flex justify-between items-center mb-3">
@@ -1348,7 +1310,7 @@ const TradingBotContainer = () => {
                                         <select
                                             value={formConfig.mlMode}
                                             onChange={(e) => setFormConfig({ ...formConfig, mlMode: e.target.value })}
-                                            className="bg-zinc-950 text-[9px] text-violet-400 rounded px-2 py-1 border border-violet-500/30 font-black uppercase tracking-widest outline-none cursor-pointer"
+                                            className="bg-zinc-950 text-[9px] text-violet-400 rounded px-2 py-1 border border-violet-500/30 font-black uppercase outline-none cursor-pointer"
                                         >
                                             <option value="off">Bypass</option>
                                             <option value="on">Active</option>
@@ -1431,23 +1393,20 @@ const TradingBotContainer = () => {
                                             <input type="number" step="1" value={formConfig.maxTradesPerDay} onChange={(e) => setFormConfig({ ...formConfig, maxTradesPerDay: parseInt(e.target.value) })} className="mt-1 w-full bg-transparent border-b border-zinc-700 text-rose-400 font-mono text-[11px] outline-none pb-1 focus:border-rose-400" />
                                         </div>
                                     </div>
-
-                                    {/* DYNAMIC COMPILER DUAL-LOT SIZE LIQUIDATION SYSTEM COOLDOWN TOGGLE SELECTOR */}
-                                    <div className="grid grid-cols-1 gap-3">
+                                    <div className="grid grid-cols-1 gap-3 mt-3">
                                         <div className="p-3 bg-zinc-950/50 rounded-xl border border-zinc-800">
-                                            <label className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">Partial Exits Execution (50%)</label>
+                                            <label className="text-[9px] font-black uppercase text-zinc-500 tracking-widest block mb-1">Dynamic Lot Partial Exits</label>
                                             <select
                                                 value={formConfig.enablePartialExit ? "true" : "false"}
                                                 onChange={(e) => setFormConfig({ ...formConfig, enablePartialExit: e.target.value === "true" })}
-                                                className="mt-1 w-full bg-transparent border-b border-zinc-700 text-amber-400 font-mono text-[11px] outline-none pb-1 focus:border-amber-400"
+                                                className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-[11px] text-amber-400 outline-none font-mono font-bold"
                                             >
                                                 <option value="true">Enabled (Split Lot Size)</option>
                                                 <option value="false">Disabled (Full Run Optimization)</option>
                                             </select>
                                         </div>
                                     </div>
-
-                                    <div className="p-4 bg-zinc-950/50 border border-zinc-800 rounded-2xl">
+                                    <div className="p-4 bg-zinc-950/50 border border-zinc-800 rounded-2xl mt-3">
                                         <div className="flex items-center gap-2 mb-3">
                                             <Shield size={12} className="text-zinc-400" />
                                             <h4 className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Dynamic ATR Shield</h4>
@@ -1474,7 +1433,7 @@ const TradingBotContainer = () => {
                                                 const newMode = e.target.value;
                                                 setFormConfig({ ...formConfig, hybridMode: newMode, minVotesRequired: newMode === "AND" ? formConfig.strategies.length : formConfig.minVotesRequired });
                                             }}
-                                            className="bg-black border border-zinc-800 text-[9px] rounded px-2 py-1 text-zinc-300 font-bold uppercase tracking-widest"
+                                            className="bg-black border border-zinc-800 text-[9px] rounded px-2 py-1 text-zinc-300 font-bold uppercase outline-none"
                                         >
                                             <option value="AND">Strict (AND)</option>
                                             <option value="OR">Loose (OR)</option>
@@ -1532,7 +1491,6 @@ const TradingBotContainer = () => {
                                         </button>
                                     </div>
                                 </div>
-
                                 <button onClick={() => setShowPreFlight(true)} className="w-full py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[12px] tracking-widest hover:bg-emerald-400 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-emerald-500/20 mt-8">Initiate Engine</button>
                             </div>
                         </div>
