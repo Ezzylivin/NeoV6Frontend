@@ -11,6 +11,13 @@
 //   [P9] Initial status fetch with retry + visible error state
 //   [P10] Halt button shows pending state during async stop
 //   [TOGGLE] Integrated enablePartialExit toggle interface inside the Risk Protocol component layout
+//   [CHART-FIX-1] bot_status_update socket handler: comprehensive snake_case/camelCase dual-handling
+//                 for currentBalance, signals_map, current_confidence, current_price, exposure,
+//                 active_positions, initial_capital, ai_regime_title/desc — mirrors the existing
+//                 tradeHistory/trade_history pattern that was already correct.
+//   [CHART-FIX-2] NeuralConvergenceChart: replaced flex-1/min-h-[300px] wrapper with an
+//                 absolute-inset pattern so Recharts ResizeObserver always measures a real
+//                 pixel height rather than an indeterminate flex residual.
 
 import React, { useState, useEffect, useRef, useMemo, Component } from "react";
 import axios from "axios";
@@ -493,7 +500,7 @@ const ProximityTickerPanel = ({ latestSignals, aiScore, formConfig }) => {
     const metrics = useMemo(() => {
         const longLimit  = parseFloat(formConfig.mlThresholdLong  || 0.55) * 100;
         const shortLimit = parseFloat(formConfig.mlThresholdShort || 0.55) * 100;
-        
+
         const mlTarget   = aiScore >= 50 ? longLimit : shortLimit;
         const mlDelta    = Math.abs(aiScore - mlTarget).toFixed(0);
         const mlStatus   = aiScore >= longLimit || aiScore <= shortLimit ? "🟢 READY" : "🟡 PENDING";
@@ -544,6 +551,15 @@ const ProximityTickerPanel = ({ latestSignals, aiScore, formConfig }) => {
     );
 };
 
+// ─── NEURAL CONVERGENCE CHART ──────────────────────────────────────────────────
+// ✅ CHART-FIX-2: The original used `flex-1 w-full min-h-[300px]` as the direct parent
+//   of <ResponsiveContainer height="100%">. Recharts uses ResizeObserver to derive its
+//   canvas dimensions from the DOM node; a flex-grow child with only a min-height
+//   constraint has no resolvable computed height — ResizeObserver measures 0px and the
+//   chart never paints.
+//   Fix: wrap in `flex-1 relative` (minHeight:0 collapses the implicit minimum so the
+//   flex parent can distribute height correctly) then render an `absolute inset-0` div
+//   that gives the ResizeObserver a real, stable pixel boundary to measure.
 const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
     const activeStratCodes = useMemo(() => {
         if (!signalsMapHistory || signalsMapHistory.length === 0) return [];
@@ -559,27 +575,51 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
 
     return (
         <div className="bg-zinc-900 border border-zinc-800 rounded-[32px] p-6 shadow-2xl h-full flex flex-col">
-            <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-6 flex items-center gap-2"><Cpu size={12} className="text-violet-400" /> Neural Strategy Logic</h4>
-            <div className="flex-1 w-full min-h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={signalsMapHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                        <defs>
+            <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-6 flex items-center gap-2">
+                <Cpu size={12} className="text-violet-400" /> Neural Strategy Logic
+            </h4>
+
+            {/* ✅ CHART-FIX-2: absolute-inset wrapper gives ResizeObserver a real pixel height */}
+            <div className="flex-1 w-full relative" style={{ minHeight: 0 }}>
+                <div className="absolute inset-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={signalsMapHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <defs>
+                                {activeStratCodes.map(key => (
+                                    <linearGradient key={`grad-${key}`} id={`color-${key}`} x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%"  stopColor={STRAT_COLORS[key] || '#52525b'} stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor={STRAT_COLORS[key] || '#52525b'} stopOpacity={0} />
+                                    </linearGradient>
+                                ))}
+                            </defs>
+                            <RechartsTooltip
+                                shared={false}
+                                trigger="hover"
+                                contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px', pointerEvents: 'none' }}
+                                formatter={(value, name) => [`${Number(value).toFixed(0)}%`, name.toUpperCase()]}
+                            />
                             {activeStratCodes.map(key => (
-                                <linearGradient key={`grad-${key}`} id={`color-${key}`} x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%"  stopColor={STRAT_COLORS[key] || '#52525b'} stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor={STRAT_COLORS[key] || '#52525b'} stopOpacity={0} />
-                                </linearGradient>
+                                <Area
+                                    key={key}
+                                    type="monotone"
+                                    dataKey={key}
+                                    name={key.replace('_', ' ')}
+                                    stroke={STRAT_COLORS[key] || '#52525b'}
+                                    fill={`url(#color-${key})`}
+                                    strokeWidth={2}
+                                    dot={false}
+                                    activeDot={{ r: 4, strokeWidth: 0 }}
+                                    isAnimationActive={false}
+                                    connectNulls={true}
+                                />
                             ))}
-                        </defs>
-                        <RechartsTooltip shared={false} trigger="hover" contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px', pointerEvents: 'none' }} formatter={(value, name) => [`${Number(value).toFixed(0)}%`, name.toUpperCase()]} />
-                        {activeStratCodes.map(key => (
-                            <Area key={key} type="monotone" dataKey={key} name={key.replace('_', ' ')} stroke={STRAT_COLORS[key] || '#52525b'} fill={`url(#color-${key})`} strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} isAnimationActive={false} connectNulls={true} />
-                        ))}
-                        <XAxis dataKey="time" hide />
-                        <YAxis domain={[0, 100]} hide />
-                    </AreaChart>
-                </ResponsiveContainer>
+                            <XAxis dataKey="time" hide />
+                            <YAxis domain={[0, 100]} hide />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                </div>
             </div>
+
             <div className="mt-4 grid grid-cols-2 gap-4 border-t border-zinc-800 pt-4">
                 <div className="flex flex-col gap-1.5 border-r border-zinc-800 pr-2">
                     <span className="text-[7px] font-black tracking-widest text-zinc-600 uppercase">👤 User Setup</span>
@@ -677,14 +717,14 @@ const TradingBotContainer = () => {
     const [hasApiKeys, setHasApiKeys]           = useState(false);
     const [showPreFlight, setShowPreFlight]     = useState(false);
     const [isStarting, setIsStarting]           = useState(false);
-    const [isHalting, setIsHalting]              = useState(false); 
+    const [isHalting, setIsHalting]              = useState(false);
     const [paperBalance, setPaperBalance]       = useState(1000);
     const [modeStep, setModeStep]               = useState('selection');
     const [activeOpsTab, setActiveOpsTab]       = useState("live");
-    const [statusFetchError, setStatusFetchError] = useState(null); 
+    const [statusFetchError, setStatusFetchError] = useState(null);
 
-    const [apiKeyModal, setApiKeyModal]         = useState(null); 
-    const [confirmModal, setConfirmModal]       = useState(null); 
+    const [apiKeyModal, setApiKeyModal]         = useState(null);
+    const [confirmModal, setConfirmModal]       = useState(null);
 
     const socketRef        = useRef(null);
     const logContainerRef  = useRef(null);
@@ -764,12 +804,8 @@ const TradingBotContainer = () => {
 
     const { startCap, profitPct, pnlPct } = profitMetrics;
 
-    // ✅ FIX 1: Define activeBalance — was referenced in the running MetricCard but never declared.
-    //           Uses current socket balance, falling back to configured capital allocation.
     const activeBalance = socketStatus.currentBalance ?? formConfig.capitalAllocation;
 
-    // ✅ FIX 2: Compute calculatedStats from trade history — was referenced for win rate and profit
-    //           factor in the Neural Performance panel but no useMemo existed anywhere for it.
     const calculatedStats = useMemo(() => {
         const allTrades = socketStatus.tradeHistory || socketStatus.trade_history || socketStatus.tradeMarkers || [];
         const exits = allTrades.filter(t => t.pnl !== undefined);
@@ -803,10 +839,10 @@ const TradingBotContainer = () => {
     }, [socketStatus.currentConfidence]);
 
     const marketDirectionVector = useMemo(() => {
-        const rsiVal = latestSignals['rsi_threshold'] || latestSignals['rsi'] || 50;
-        const bbVal = latestSignals['bb_fade'] || latestSignals['bb_wall'] || 50;
+        const rsiVal  = latestSignals['rsi_threshold'] || latestSignals['rsi']     || 50;
+        const bbVal   = latestSignals['bb_fade']       || latestSignals['bb_wall'] || 50;
         const stochVal = latestSignals['stoch'] || 50;
-        
+
         if (rsiVal >= 68 || bbVal >= 80 || stochVal >= 75) {
             return { side: "SHORT (FADE CEILING)", label: "OVERBOUGHT EXHAUSTION", color: "text-rose-400 bg-rose-500/10 border-rose-500/20", type: "short" };
         }
@@ -845,8 +881,6 @@ const TradingBotContainer = () => {
         ];
     }, [socketStatus.currentConfidence, formConfig, latestSignals]);
 
-    // Derives a human-readable regime from live signals. Each state also carries
-    // a plain-English `detail` sentence and a tactical `action` label for the banner.
     const computedRegime = useMemo(() => {
         const score = socketStatus.currentConfidence ?? 50;
         const rsi   = latestSignals['rsi_threshold'] || latestSignals['rsi']     || 50;
@@ -995,36 +1029,70 @@ const TradingBotContainer = () => {
         socket.on("bot_status_update", (data) => {
             if (isHaltLockedRef.current) return;
             setSocketStatus(prev => {
-                const currentBalance = data.currentBalance || prev.currentBalance || 0;
-                const rawPositions   = data.activePositions || data.positions || [];
+                // ✅ CHART-FIX-1: Dual-handle camelCase + snake_case for every field that
+                //   feeds a chart or metric card.  The backend (FastAPI) serialises with
+                //   snake_case by default; the frontend was only reading camelCase, so all
+                //   derived values were silently 0 / {} and no chart ever received data.
+                const currentBalance = data.currentBalance  ?? data.current_balance  ?? prev.currentBalance  ?? 0;
+                const rawPositions   = data.activePositions || data.active_positions || data.positions || [];
                 const filteredPositions = rawPositions.filter(pos => !exitingSymbolsRef.current.includes(pos.symbol));
-                const seed = prev.initialCapital || data.initialCapital || currentBalance || formConfigRef.current.capitalAllocation;
+                const seed = prev.initialCapital
+                    || data.initialCapital  || data.initial_capital
+                    || currentBalance
+                    || formConfigRef.current.capitalAllocation;
 
-                const rawProfit      = data.dailyProfit || data.daily_profit;
-                const delta          = currentBalance - seed;
-                const calculatedProfit = rawProfit !== undefined ? Number(rawProfit.toFixed(2)) : Number(delta.toFixed(2));
+                const rawProfit = data.dailyProfit  ?? data.daily_profit;
+                const delta     = currentBalance - seed;
+                const calculatedProfit = rawProfit !== undefined
+                    ? Number(rawProfit.toFixed(2))
+                    : Number(delta.toFixed(2));
 
-                const rawSignals = data.signalsMap || {};
+                // ✅ CHART-FIX-1: signals_map / signalsMap — was always {}, causing
+                //   signalsMapHistory entries to be { time } with no strategy keys,
+                //   so NeuralConvergenceChart / SignalBarsPanel had nothing to render.
+                const rawSignals = data.signalsMap || data.signals_map || {};
                 const normalizedSignals = {};
                 Object.keys(rawSignals).forEach(key => {
-                    const nk = key.toLowerCase().trim().replace(/\s+/g, '_');
+                    const nk  = key.toLowerCase().trim().replace(/\s+/g, '_');
                     const val = parseFloat(rawSignals[key]);
                     if (!isNaN(val)) normalizedSignals[nk] = val * 100;
                 });
 
-                const updatedSignalsHistory = [...(prev.signalsMapHistory || []), { time: new Date().toLocaleTimeString(), ...normalizedSignals }].slice(-300);
-                const updatedEquityCurve = [...(prev.equityCurve || []), { time: new Date().toLocaleTimeString(), balance: currentBalance, confidence: data.currentConfidence ?? prev.currentConfidence ?? 0 }].slice(-300);
+                // ✅ CHART-FIX-1: current_confidence / currentConfidence — was always 0,
+                //   so the confidence equity-curve chart and ConfidenceRingCard showed flat lines.
+                const confidence = data.currentConfidence ?? data.current_confidence ?? prev.currentConfidence ?? 0;
+
+                const updatedSignalsHistory = [
+                    ...(prev.signalsMapHistory || []),
+                    { time: new Date().toLocaleTimeString(), ...normalizedSignals }
+                ].slice(-300);
+
+                const updatedEquityCurve = [
+                    ...(prev.equityCurve || []),
+                    { time: new Date().toLocaleTimeString(), balance: currentBalance, confidence }
+                ].slice(-300);
 
                 return {
-                    ...prev, ...data,
-                    dailyProfit: calculatedProfit,
+                    ...prev,
+                    ...data,
+                    // ✅ CHART-FIX-1: Explicitly override every field that charts depend on so
+                    //   the ...data spread of snake_case keys doesn't leave camelCase reads stale.
+                    currentBalance,
+                    currentConfidence: confidence,
+                    currentPrice:  data.currentPrice  ?? data.current_price  ?? prev.currentPrice  ?? 0,
+                    exposure:      data.exposure      ?? data.current_exposure ?? prev.exposure    ?? 0,
+                    unrealizedPnl: data.unrealizedPnl ?? data.unrealized_pnl  ?? prev.unrealizedPnl ?? 0,
+                    startedAt:     data.startedAt     || data.started_at      || prev.startedAt,
+                    aiRegimeTitle: data.aiRegimeTitle  || data.ai_regime_title || prev.aiRegimeTitle,
+                    aiRegimeDesc:  data.aiRegimeDesc   || data.ai_regime_desc  || prev.aiRegimeDesc,
+                    dailyProfit:   calculatedProfit,
                     initialCapital: seed,
-                    positions: filteredPositions,
-                    candles: (data.candles?.length > 0) ? data.candles : (prev.candles || []),
-                    tradeHistory: (data.tradeHistory?.length > 0) ? data.tradeHistory : (data.trade_history?.length > 0 ? data.trade_history : (prev.tradeHistory || [])),
-                    tradeMarkers: (data.tradeMarkers?.length > 0) ? data.tradeMarkers : (data.trade_markers?.length > 0 ? data.trade_markers : (prev.tradeMarkers || [])),
+                    positions:     filteredPositions,
+                    candles:       (data.candles?.length      > 0) ? data.candles      : (prev.candles      || []),
+                    tradeHistory:  (data.tradeHistory?.length > 0) ? data.tradeHistory : (data.trade_history?.length  > 0 ? data.trade_history  : (prev.tradeHistory  || [])),
+                    tradeMarkers:  (data.tradeMarkers?.length > 0) ? data.tradeMarkers : (data.trade_markers?.length > 0 ? data.trade_markers  : (prev.tradeMarkers  || [])),
                     signalsMapHistory: updatedSignalsHistory,
-                    equityCurve: updatedEquityCurve
+                    equityCurve:       updatedEquityCurve,
                 };
             });
         });
@@ -1062,10 +1130,10 @@ const TradingBotContainer = () => {
             enablePartialExit: !!formConfig.enablePartialExit,
             api_keys: formConfig.tradingMode === 'live' ? (
                 formConfig.enable_shorting ? {
-                    krakenKey:  localStorage.getItem("kraken_key")    || "",
+                    krakenKey:    localStorage.getItem("kraken_key")    || "",
                     krakenSecret: localStorage.getItem("kraken_secret") || "",
-                    apiKey:  localStorage.getItem("kraken_key")    || "",
-                    secret:  localStorage.getItem("kraken_secret") || ""
+                    apiKey:       localStorage.getItem("kraken_key")    || "",
+                    secret:       localStorage.getItem("kraken_secret") || ""
                 } : {
                     apiKey: localStorage.getItem("coinbase_key")    || "",
                     secret: localStorage.getItem("coinbase_secret") || ""
@@ -1110,8 +1178,6 @@ const TradingBotContainer = () => {
         }
     };
 
-    // ✅ FIX 3: Define handleReset — was called in the header's Factory Reset button
-    //           but was never declared anywhere. Delegates to resetBot from useBot hook.
     const handleReset = async () => {
         try {
             await resetBot();
@@ -1259,7 +1325,6 @@ const TradingBotContainer = () => {
                                 {isHalting ? <><RefreshCw size={12} className="animate-spin" /> Halting...</> : <><Power size={12} /> Emergency Halt</>}
                             </button>
                         ) : (
-                            // ✅ FIX 3 (usage site): was onClick={handleReset} referencing undefined — now calls the handler declared above
                             <button onClick={handleReset} className="px-6 py-3 bg-zinc-800/50 border border-zinc-700 text-zinc-400 rounded-xl font-black text-[10px] uppercase hover:bg-white hover:text-black transition-all flex items-center gap-2"><RotateCcw size={12} /> Factory Reset</button>
                         )}
                         <ConnectButton />
@@ -1280,14 +1345,13 @@ const TradingBotContainer = () => {
                             <MetricCard label="Daily Profit"    value={`${socketStatus.dailyProfit >= 0 ? '+' : ''}${(socketStatus.dailyProfit || 0).toFixed(2)}`}  subValue={`${profitPct.toFixed(2)}%`}  color={socketStatus.dailyProfit >= 0 ? "text-emerald-400" : "text-rose-500"}   icon={<DollarSign size={10} />} />
                             <MetricCard label="Floating PnL"    value={`${socketStatus.unrealizedPnl >= 0 ? '+' : ''}${(socketStatus.unrealizedPnl || 0).toFixed(2)}`} subValue={`${pnlPct.toFixed(2)}%`}    color={socketStatus.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'} icon={<Activity size={10} />} />
                             <MetricCard label="Exposure"        value={`${socketStatus.exposure || 0}%`} subValue="Active Positions" color="text-amber-400" />
-                            {/* ✅ FIX 1 (usage site): was `activeBalance` (undefined) — now resolved from the const above */}
                             <MetricCard label="Total Equity"    value={`$${Number(activeBalance).toLocaleString()}`} subValue="Liquid + Locked" />
                             <ConfidenceRingCard confidence={socketStatus.currentConfidence || 0} />
                         </div>
 
                         <div className="grid grid-cols-12 gap-8 items-start">
                             <div className="col-span-12 lg:col-span-3 h-[840px] flex flex-col gap-4">
-                                <div className="flex-1 min-h-[240px]">
+                                <div className="flex-1 min-h-0">
                                     <ErrorBoundary>
                                         <NeuralConvergenceChart formConfig={formConfig} signalsMapHistory={socketStatus.signalsMapHistory || []} />
                                     </ErrorBoundary>
@@ -1298,7 +1362,6 @@ const TradingBotContainer = () => {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <p className="text-[9px] uppercase font-bold text-zinc-600 mb-1">Win Rate</p>
-                                            {/* ✅ FIX 2 (usage site): was calculatedStats.winRate (undefined) — now computed by useMemo above */}
                                             <p className="text-xl font-mono font-black tracking-tighter text-emerald-400">{calculatedStats.winRate}%</p>
                                         </div>
                                         <div>
@@ -1317,7 +1380,7 @@ const TradingBotContainer = () => {
                                     <div className="flex items-center gap-3">
                                         <div className="relative flex h-3.5 w-3.5 shrink-0">
                                             <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${regimeDot === 'emerald' ? 'bg-emerald-400' : regimeDot === 'rose' ? 'bg-rose-400' : 'bg-violet-400'}`}></span>
-                                            <span className={`relative inline-flex rounded-full h-2.5 w-2.5    ${regimeDot === 'emerald' ? 'bg-emerald-500' : regimeDot === 'rose' ? 'bg-rose-500' : 'bg-violet-500'}`}></span>
+                                            <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${regimeDot === 'emerald' ? 'bg-emerald-500' : regimeDot === 'rose' ? 'bg-rose-500' : 'bg-violet-500'}`}></span>
                                         </div>
                                         <div className="min-w-0 flex-1">
                                             <span className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">Forecasted Market Regime</span>
@@ -1460,7 +1523,7 @@ const TradingBotContainer = () => {
                                                     <button onClick={handleClearLogs} className="text-zinc-500 hover:text-white transition-all"><Eraser size={14} /></button>
                                                 </div>
                                             </div>
-                                            
+
                                             <div className="flex flex-col gap-2 border-t border-zinc-800/80 pt-2.5">
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     {[
@@ -1490,7 +1553,7 @@ const TradingBotContainer = () => {
                                                 </div>
                                             </div>
 
-                                            <ProximityTickerPanel 
+                                            <ProximityTickerPanel
                                                 latestSignals={latestSignals}
                                                 aiScore={socketStatus.currentConfidence ?? 50}
                                                 formConfig={formConfig}
@@ -1580,10 +1643,10 @@ const TradingBotContainer = () => {
                                                 </linearGradient>
                                             </defs>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#27272a" opacity={0.15} vertical={false} />
-                                            <RechartsTooltip 
+                                            <RechartsTooltip
                                                 cursor={{ stroke: '#27272a', strokeWidth: 1, strokeDasharray: '4 4' }}
-                                                contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px', fontFamily: 'monospace' }} 
-                                                itemStyle={{ color: sessionDelta.isProfit ? '#10b981' : '#ef4444' }} 
+                                                contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px', fontFamily: 'monospace' }}
+                                                itemStyle={{ color: sessionDelta.isProfit ? '#10b981' : '#ef4444' }}
                                                 formatter={(value) => [`$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 'EQUITY']}
                                             />
                                             <Area type="monotone" dataKey="balance" stroke={sessionDelta.isProfit ? "#10b981" : "#ef4444"} fill={sessionDelta.isProfit ? "url(#colorEquityProfit)" : "url(#colorEquityDrawdown)"} strokeWidth={2.5} isAnimationActive={false} />
@@ -1622,13 +1685,11 @@ const TradingBotContainer = () => {
                                                 </linearGradient>
                                             </defs>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#27272a" opacity={0.15} vertical={false} />
-                                            
-                                            <ReferenceLine y={parseFloat(formConfig.mlThresholdLong) * 100} stroke="#10b981" strokeDasharray="3 3" opacity={0.25} />
+                                            <ReferenceLine y={parseFloat(formConfig.mlThresholdLong) * 100}  stroke="#10b981" strokeDasharray="3 3" opacity={0.25} />
                                             <ReferenceLine y={parseFloat(formConfig.mlThresholdShort) * 100} stroke="#ef4444" strokeDasharray="3 3" opacity={0.25} />
-                                            
-                                            <RechartsTooltip 
+                                            <RechartsTooltip
                                                 cursor={{ stroke: '#27272a', strokeWidth: 1, strokeDasharray: '4 4' }}
-                                                contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px', fontFamily: 'monospace' }} 
+                                                contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px', fontSize: '10px', fontFamily: 'monospace' }}
                                                 itemStyle={{ color: confidenceStance.hex }}
                                                 formatter={(value) => [`${Number(value).toFixed(0)}%`, 'NEURAL BIAS']}
                                             />
@@ -1881,10 +1942,6 @@ const TradingBotContainer = () => {
                                         </div>
                                     </div>
 
-                                    {/* ✅ FIX 6: enablePartialExit toggle — declared in file header as integrated ([TOGGLE])
-                                         but was completely absent from the JSX. formConfig.enablePartialExit existed in
-                                         state and was sent to the backend, but had no UI control, so users could never
-                                         enable partial exits from the frontend. */}
                                     <div className="p-4 bg-zinc-950/50 border border-zinc-800 rounded-2xl">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-2">
