@@ -107,7 +107,7 @@ const MetricCard = ({ title, value, unit = '', icon: Icon, color = 'emerald', is
 // --- REUSABLE CHART COMPONENT ---
 const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
   const [data, setData] = useState([]);
-  const [interval, setInterval] = useState('1M');
+  const [timeframe, setTimeframe] = useState('1M');
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
 
@@ -154,7 +154,7 @@ const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
     if (!data.length) return [];
     const now = Date.now() / 1000;
     let cutoff = 0;
-    switch (interval) {
+    switch (timeframe) {
       case '1D': cutoff = now - 86400; break;
       case '1W': cutoff = now - 604800; break;
       case '1M': cutoff = now - 2592000; break;
@@ -162,7 +162,7 @@ const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
       default: return data;
     }
     return data.filter(d => d.start >= cutoff);
-  }, [data, interval]);
+  }, [data, timeframe]);
 
   return (
     // CHANGED: bg-slate-900/50 -> bg-neutral-900/60 (Matches CSS .chart-container)
@@ -190,8 +190,8 @@ const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
           {CHART_INTERVALS.map((int) => (
             <button 
               key={int} 
-              className={`interval-button-modern ${interval === int ? 'active' : ''}`} 
-              onClick={() => setInterval(int)}
+              className={`interval-button-modern ${timeframe === int ? 'active' : ''}`}
+              onClick={() => setTimeframe(int)}
             >
               {int}
             </button>

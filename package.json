@@ -23,6 +23,7 @@
     "react-icons": "^5.2.1",
     "react-router-dom": "^6.24.1",
     "recharts": "^2.12.7",
+    "socket.io-client": "^4.7.5",
     "use-sound": "^4.0.1",
     "viem": "^2.17.3",
     "wagmi": "^2.12.0"
