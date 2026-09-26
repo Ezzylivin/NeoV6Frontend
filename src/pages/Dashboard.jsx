@@ -10,8 +10,9 @@ import {
   BarChart3, RefreshCw, Clock, Zap, Eye
 } from 'lucide-react';
 import './Dashboard.css';
+import { CRYPTO_API } from '../config/api.js';
 
-const FLASK_API_URL = "https://crypto-lpzi.onrender.com/api";
+const FLASK_API_URL = CRYPTO_API;
 const POLLING_INTERVAL_MS = 60000;
 const CHART_INTERVALS = ['1D', '1W', '1M', '3M'];
 
@@ -107,7 +108,7 @@ const MetricCard = ({ title, value, unit = '', icon: Icon, color = 'emerald', is
 // --- REUSABLE CHART COMPONENT ---
 const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
   const [data, setData] = useState([]);
-  const [interval, setInterval] = useState('1M');
+  const [timeframe, setTimeframe] = useState('1M');
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
 
@@ -147,14 +148,18 @@ const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
     fetchData();
     const id = setInterval(fetchData, POLLING_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [symbol, onPriceUpdate]);
+    // onPriceUpdate is intentionally omitted: it's a callback (it only calls the
+    // parent's setState), and callers pass a fresh inline arrow each render, so
+    // including it recreated the fetch + interval on every parent re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbol]);
 
   // Filtering Logic
   const filteredData = React.useMemo(() => {
     if (!data.length) return [];
     const now = Date.now() / 1000;
     let cutoff = 0;
-    switch (interval) {
+    switch (timeframe) {
       case '1D': cutoff = now - 86400; break;
       case '1W': cutoff = now - 604800; break;
       case '1M': cutoff = now - 2592000; break;
@@ -162,7 +167,7 @@ const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
       default: return data;
     }
     return data.filter(d => d.start >= cutoff);
-  }, [data, interval]);
+  }, [data, timeframe]);
 
   return (
     // CHANGED: bg-slate-900/50 -> bg-neutral-900/60 (Matches CSS .chart-container)
@@ -190,8 +195,8 @@ const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
           {CHART_INTERVALS.map((int) => (
             <button 
               key={int} 
-              className={`interval-button-modern ${interval === int ? 'active' : ''}`} 
-              onClick={() => setInterval(int)}
+              className={`interval-button-modern ${timeframe === int ? 'active' : ''}`}
+              onClick={() => setTimeframe(int)}
             >
               {int}
             </button>

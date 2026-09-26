@@ -11,9 +11,9 @@ import {
     Zap, Scale, Award, TrendingDown, LayoutGrid, Info
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as ChartTooltip, BarChart, Bar, XAxis, YAxis } from 'recharts';
+import { BACKEND_URL } from "../config/api.js";
 
-const VITE_API = import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com";
-const API_BASE = VITE_API.endsWith('/api') ? VITE_API : `${VITE_API}/api`;
+const API_BASE = `${BACKEND_URL}/api`;
 
 const inputClass = "w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-amber-500 transition-all text-xs outline-none";
 const labelClass = "text-[10px] text-zinc-500 uppercase font-bold mb-1 block ml-1";

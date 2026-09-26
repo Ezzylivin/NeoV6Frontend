@@ -32,6 +32,7 @@ import { io } from "socket.io-client";
 import { useBot } from "../hooks/useBot";
 import { UIModeProvider } from "../context/UIModeContext";
 import { LiveTradingChart } from "../components/LiveTradingChart.jsx";
+import { BACKEND_URL } from "../config/api.js";
 import {
     Plus, Trash2, Shield, Globe, Cpu, Filter, TrendingUp,
     Activity, Scale, Power, RefreshCw, Wallet, Wifi, WifiOff,
@@ -43,8 +44,7 @@ import "./TradingBot.css";
 import "../styles/Themes.css";
 
 // ─── URL CONSTANTS ─────────────────────────────────────────────────────────────
-const RAW_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-const BASE_URL = RAW_URL.replace(/\/$/, "").replace(/\/api$/, "");
+const BASE_URL = BACKEND_URL;
 const API_BASE = `${BASE_URL}/api`;
 const SOCKET_URL = BASE_URL;
 
@@ -403,7 +403,9 @@ const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) =
 };
 
 // ─── TRADE TIMELINE CARD ──────────────────────────────────────────────────────
-const TradeTimelineCard = ({ trade }) => {
+// Memoized: closed trades never change, so list items skip re-render on each
+// socket tick and only update when their own `trade` prop changes.
+const TradeTimelineCard = React.memo(({ trade }) => {
     const side       = trade.type || trade.side || 'trade';
     const entryPrice = Number(trade.entry || trade.entryPrice || trade.entry_price || 0);
     const exitPrice  = Number(trade.exit  || trade.exitPrice  || trade.exit_price || trade.price || 0);
@@ -435,7 +437,7 @@ const TradeTimelineCard = ({ trade }) => {
             </div>
         </div>
     );
-};
+});
 
 // ─── PROXIMITY TICKER PANEL ───────────────────────────────────────────────────
 const ProximityTickerPanel = ({ latestSignals, aiScore, formConfig }) => {
@@ -853,7 +855,10 @@ const TradingBotContainer = () => {
 
     useEffect(() => {
         if (!address) return;
-        const socket = io(SOCKET_URL, { query: { userId: address }, transports: ['websocket'], reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 2000, reconnectionDelayMax: 10000 });
+        // Identity comes from the verified JWT (server derives the room from it),
+        // not a client-supplied userId. See backend io.use() handshake auth.
+        const token = localStorage.getItem("token");
+        const socket = io(SOCKET_URL, { auth: { token }, transports: ['websocket'], reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 2000, reconnectionDelayMax: 10000 });
         socketRef.current = socket;
         socket.on("connect",    () => setSocketConnected(true));
         socket.on("disconnect", () => setSocketConnected(false));

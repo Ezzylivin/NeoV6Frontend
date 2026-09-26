@@ -1,8 +1,9 @@
 // File: src/api/apiClient.js
 import axios from "axios";
+import { API_BASE } from "../config/api.js";
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "https://neov6backend.onrender.com/api",
+  baseURL: API_BASE,
   headers: {
     "Content-Type": "application/json",
   },
