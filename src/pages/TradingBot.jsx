@@ -798,10 +798,8 @@ const TradingBotContainer = () => {
     const gatewayCheckpoints = useMemo(() => {
         const aiScore   = socketStatus.currentConfidence ?? 50;
         const longLimit = parseFloat(formConfig.mlThresholdLong || 0.55) * 100;
-        const bbVal     = Math.round(latestSignals['bb_fade'] || latestSignals['bb_wall'] || 0);
         return [
             { id: "v_safe",  label: "Volatility Shield Ceiling",      desc: "ATR safe compression zone verified",                                                           passed: true },
-            { id: "t_align", label: "Institutional 200 EMA Baseline", desc: bbVal >= 90 ? "Price extreme wall contact checked" : "Breakout structural alignment scanning",  passed: bbVal >= 90 },
             { id: "ai_gate", label: "Unified Ensemble Predictor",      desc: `Current AI Bias score is ${aiScore}% (Target: ${longLimit}%)`,                               passed: aiScore >= longLimit }
         ];
     }, [socketStatus.currentConfidence, formConfig, latestSignals]);
