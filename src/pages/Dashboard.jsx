@@ -147,7 +147,11 @@ const CryptoChart = ({ symbol, color, onPriceUpdate }) => {
     fetchData();
     const id = setInterval(fetchData, POLLING_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [symbol, onPriceUpdate]);
+    // onPriceUpdate is intentionally omitted: it's a callback (it only calls the
+    // parent's setState), and callers pass a fresh inline arrow each render, so
+    // including it recreated the fetch + interval on every parent re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbol]);
 
   // Filtering Logic
   const filteredData = React.useMemo(() => {

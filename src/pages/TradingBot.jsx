@@ -403,7 +403,9 @@ const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) =
 };
 
 // ─── TRADE TIMELINE CARD ──────────────────────────────────────────────────────
-const TradeTimelineCard = ({ trade }) => {
+// Memoized: closed trades never change, so list items skip re-render on each
+// socket tick and only update when their own `trade` prop changes.
+const TradeTimelineCard = React.memo(({ trade }) => {
     const side       = trade.type || trade.side || 'trade';
     const entryPrice = Number(trade.entry || trade.entryPrice || trade.entry_price || 0);
     const exitPrice  = Number(trade.exit  || trade.exitPrice  || trade.exit_price || trade.price || 0);
@@ -435,7 +437,7 @@ const TradeTimelineCard = ({ trade }) => {
             </div>
         </div>
     );
-};
+});
 
 // ─── PROXIMITY TICKER PANEL ───────────────────────────────────────────────────
 const ProximityTickerPanel = ({ latestSignals, aiScore, formConfig }) => {
