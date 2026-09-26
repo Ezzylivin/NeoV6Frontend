@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { useAccount } from 'wagmi';
+import { BACKEND_URL } from '../config/api.js';
 
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-const BASE_URL = API_URL.endsWith('/api') ? API_URL : `${API_URL}/api`;
+const BASE_URL = `${BACKEND_URL}/api`;
 
 // ============================================================
 // 🔧 FIX #1: Socket removed from this hook entirely

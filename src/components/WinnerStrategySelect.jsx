@@ -1,9 +1,9 @@
 // File: src/components/WinnerStrategySelect.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { BACKEND_URL } from '../config/api.js';
 
-// ✅ CORRECT BASE URL
-const API_BASE_URL = "https://neov6backend.onrender.com";
+const API_BASE_URL = BACKEND_URL;
 
 const WinnerStrategySelect = ({ onStrategySelect, className = "" }) => {
   const [winners, setWinners] = useState([]);

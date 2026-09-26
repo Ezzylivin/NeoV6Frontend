@@ -10,8 +10,9 @@ import {
   BarChart3, RefreshCw, Clock, Zap, Eye
 } from 'lucide-react';
 import './Dashboard.css';
+import { CRYPTO_API } from '../config/api.js';
 
-const FLASK_API_URL = "https://crypto-lpzi.onrender.com/api";
+const FLASK_API_URL = CRYPTO_API;
 const POLLING_INTERVAL_MS = 60000;
 const CHART_INTERVALS = ['1D', '1W', '1M', '3M'];
 

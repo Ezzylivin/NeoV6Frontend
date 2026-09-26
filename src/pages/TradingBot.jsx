@@ -32,6 +32,7 @@ import { io } from "socket.io-client";
 import { useBot } from "../hooks/useBot";
 import { UIModeProvider } from "../context/UIModeContext";
 import { LiveTradingChart } from "../components/LiveTradingChart.jsx";
+import { BACKEND_URL } from "../config/api.js";
 import {
     Plus, Trash2, Shield, Globe, Cpu, Filter, TrendingUp,
     Activity, Scale, Power, RefreshCw, Wallet, Wifi, WifiOff,
@@ -43,8 +44,7 @@ import "./TradingBot.css";
 import "../styles/Themes.css";
 
 // ─── URL CONSTANTS ─────────────────────────────────────────────────────────────
-const RAW_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-const BASE_URL = RAW_URL.replace(/\/$/, "").replace(/\/api$/, "");
+const BASE_URL = BACKEND_URL;
 const API_BASE = `${BASE_URL}/api`;
 const SOCKET_URL = BASE_URL;
 

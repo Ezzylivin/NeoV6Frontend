@@ -1,4 +1,5 @@
 import api from "./apiClient";
+import { CRYPTO_API } from "../config/api.js";
 
 // 🚀 Dashboard Data Service
 // Centralizes all data fetching for the Dashboard page
@@ -32,7 +33,7 @@ export const dashboardApi = {
   // We keep this separate because it points to a different URL than your main backend
   getMacroData: async () => {
     try {
-      const response = await fetch('https://crypto-lpzi.onrender.com/api/data');
+      const response = await fetch(`${CRYPTO_API}/data`);
       if (!response.ok) throw new Error('Macro API failure');
       
       const text = await response.text();

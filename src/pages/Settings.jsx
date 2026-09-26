@@ -5,6 +5,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAuth } from '../context/AuthContext';
 import WalletBalance from '../components/WalletBalance';
 import axios from 'axios';
+import { API_BASE } from '../config/api.js';
 
 // 🚀 CONFIG: Centralized Exchange Data 
 // Currently synced with Python Neo-Engine v25 (Coinbase Spot & Kraken Margin)
@@ -40,7 +41,7 @@ export default function Settings() {
   const fetchKeys = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('https://neov6backend.onrender.com/api/users/keys', {
+      const res = await axios.get(`${API_BASE}/users/keys`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const keyList = Array.isArray(res.data) ? res.data : (res.data.keys || []);
@@ -69,7 +70,7 @@ export default function Settings() {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      await axios.post('https://neov6backend.onrender.com/api/users/keys', 
+      await axios.post(`${API_BASE}/users/keys`, 
         { ...keys },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -89,7 +90,7 @@ export default function Settings() {
     if (!window.confirm(`Are you sure you want to disconnect ${exchangeName}?`)) return;
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`https://neov6backend.onrender.com/api/users/keys/${exchangeName}`, {
+      await axios.delete(`${API_BASE}/users/keys/${exchangeName}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       fetchKeys();
