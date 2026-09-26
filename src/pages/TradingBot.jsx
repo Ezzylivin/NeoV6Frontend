@@ -853,7 +853,10 @@ const TradingBotContainer = () => {
 
     useEffect(() => {
         if (!address) return;
-        const socket = io(SOCKET_URL, { query: { userId: address }, transports: ['websocket'], reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 2000, reconnectionDelayMax: 10000 });
+        // Identity comes from the verified JWT (server derives the room from it),
+        // not a client-supplied userId. See backend io.use() handshake auth.
+        const token = localStorage.getItem("token");
+        const socket = io(SOCKET_URL, { auth: { token }, transports: ['websocket'], reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 2000, reconnectionDelayMax: 10000 });
         socketRef.current = socket;
         socket.on("connect",    () => setSocketConnected(true));
         socket.on("disconnect", () => setSocketConnected(false));
