@@ -46,15 +46,10 @@ const Header = () => {
           <Link to="/dashboard/tradingbot" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
             Live Bot
           </Link>
-          {/* 🧠 ADDED: Trade Learning Ledger (served by backend, opens in new tab) */}
-          <a
-            href={LEDGER_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors"
-          >
+          <Link to="/dashboard/ledger" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
             Ledger
-          </a>
+          </Link>
+          
           {/* 🚀 ADDED: Settings Link */}
           <Link to="/dashboard/settings" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
             Settings
