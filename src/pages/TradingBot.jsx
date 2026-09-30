@@ -662,7 +662,7 @@ const TradingBotContainer = () => {
         leverage: 1, slippageTolerance: 0.5, maxPyramiding: 1,
         params: { atr_tp_mult: 3.0, atr_sl_mult: 1.5 },
         enablePartialExit: false, filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 },
-        minAdx: 20, minVolRatio: 0.8, minWeightedSignal: 0.3
+        minAdx: 20, minVolRatio: 0.2, minWeightedSignal: 0.3
     });
 
     const isBotRunning = socketStatus.status === 'running' && !isHaltLocked;
@@ -1473,7 +1473,7 @@ const TradingBotContainer = () => {
                                             <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Min Vol Confirmation</label>
                                             <span className="font-mono text-[10px] font-bold text-emerald-400">{formConfig.minVolRatio}x</span>
                                         </div>
-                                        <input type="range" min="0.5" max="2.5" step="0.1" value={formConfig.minVolRatio} onChange={(e) => setFormConfig({ ...formConfig, minVolRatio: parseFloat(e.target.value) })} className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer" />
+                                        <input type="range" min="0.2" max="2.5" step="0.05" value={formConfig.minVolRatio} onChange={(e) => setFormConfig({ ...formConfig, minVolRatio: parseFloat(e.target.value) })} className="w-full accent-emerald-500 bg-zinc-800 h-1 rounded-lg cursor-pointer" />
                                     </div>
                                     <div className="flex flex-col gap-1">
                                         <div className="flex justify-between items-center">
