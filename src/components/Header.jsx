@@ -53,6 +53,10 @@ const Header = () => {
           <Link to="/dashboard/ledger" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
             Ledger
           </Link>
+          {/* 🚢 Fleet orchestration (in-app page) */}
+          <Link to="/dashboard/fleet" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
+            Fleet
+          </Link>
 
           {/* 🚀 ADDED: Settings Link */}
           <Link to="/dashboard/settings" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
