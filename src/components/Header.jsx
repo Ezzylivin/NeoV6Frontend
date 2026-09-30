@@ -5,11 +5,6 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useDisconnect } from 'wagmi';
 import WalletBalance from './WalletBalance';
 
-// Ledger dashboard is served by the FastAPI backend (external to this SPA),
-// so it's a normal anchor, not a react-router <Link>. Point VITE_API_URL at
-// your backend base in Vercel env vars; the fallback is the raw server:port.
-const LEDGER_URL = `${import.meta.env.VITE_API_URL ?? 'http://74.208.28.77:8000'}/ledger`;
-
 const Header = () => {
   const navigate = useNavigate();
   const { disconnect } = useDisconnect();
@@ -46,15 +41,10 @@ const Header = () => {
           <Link to="/dashboard/tradingbot" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
             Live Bot
           </Link>
-          {/* 🧠 ADDED: Trade Learning Ledger (served by backend, opens in new tab) */}
-          <a
-            href={LEDGER_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors"
-          >
+          {/* 🧠 ADDED: Trade Learning Ledger (in-app page) */}
+          <Link to="/dashboard/ledger" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
             Ledger
-          </a>
+          </Link>
           {/* 🚀 ADDED: Settings Link */}
           <Link to="/dashboard/settings" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
             Settings
