@@ -13,9 +13,12 @@ const WalletBalance = () => {
   if (isLoading) return <span className="animate-pulse text-neutral-500">Loading...</span>;
   if (isError) return <span className="text-red-400">Error</span>;
 
+  // FE#17: guard the brief window where data is still undefined but not loading —
+  // parseFloat(undefined).toFixed() renders "NaN".
+  const amount = Number.parseFloat(data?.formatted);
   return (
     <span className="font-mono text-emerald-400">
-      {parseFloat(data?.formatted).toFixed(4)} {data?.symbol}
+      {Number.isFinite(amount) ? amount.toFixed(4) : "--"} {data?.symbol || ""}
     </span>
   );
 };

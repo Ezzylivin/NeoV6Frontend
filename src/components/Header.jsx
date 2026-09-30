@@ -14,8 +14,11 @@ const Header = () => {
   const navigate = useNavigate();
   const { disconnect } = useDisconnect();
 
-  // Retrieve user info from local storage
-  const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+  // FE#7: AuthContext persists the user under the 'user' key (not 'userInfo'),
+  // so the old read was always empty. Parse safely and fall back across fields.
+  let userInfo = {};
+  try { userInfo = JSON.parse(localStorage.getItem('user') || '{}') || {}; } catch { userInfo = {}; }
+  const displayName = userInfo.username || userInfo.name || userInfo.email;
 
   const handleLogout = async () => {
     disconnect();
@@ -46,14 +49,11 @@ const Header = () => {
           <Link to="/dashboard/tradingbot" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
             Live Bot
           </Link>
-          {/* 🧠 ADDED: Trade Learning Ledger (in-app page) */}
+          {/* 🧠 Trade Learning Ledger (in-app page) */}
           <Link to="/dashboard/ledger" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
             Ledger
           </Link>
-          <Link to="/dashboard/ledger" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
-            Ledger
-          </Link>
-          
+
           {/* 🚀 ADDED: Settings Link */}
           <Link to="/dashboard/settings" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
             Settings
@@ -64,9 +64,9 @@ const Header = () => {
         <div className="flex items-center gap-4">
 
           {/* User Info & Wallet Balance Stack */}
-          {userInfo.username && (
+          {displayName && (
              <div className="flex flex-col items-end mr-2">
-                <span className="text-xs text-neutral-400">Welcome, {userInfo.username}</span>
+                <span className="text-xs text-neutral-400">Welcome, {displayName}</span>
                 <div className="text-xs text-neutral-500 font-mono flex items-center gap-1">
                    Wallet: <WalletBalance />
                 </div>

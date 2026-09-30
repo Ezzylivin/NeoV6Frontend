@@ -6,7 +6,7 @@
 // - Restored the 'handleError' function for clear error messages.
 // - Corrected the import path for 'apiClient.js'.
 
-import api from "./apiClient.js"; // Your main configured Axios client for your Node.js backend
+import api from "../api/apiClient.js"; // main configured Axios client (baseURL already ends in /api)
 
 /**
  * Normalizes the API response for backtest options.
@@ -60,7 +60,8 @@ export async function fetchOptions() {
  */
 export async function fetchModels() {
     try {
-        const response = await api.get("/api/ml/available-models"); // Calls Node.js backend
+        // FE#8: baseURL already ends in /api — don't prefix another /api.
+        const response = await api.get("/ml/available-models"); // Calls Node.js backend
         return response.data || [];
     } catch (error) {
         handleError(error, "fetchModels");

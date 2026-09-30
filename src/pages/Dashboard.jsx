@@ -59,7 +59,9 @@ const MetricCard = ({ title, value, unit = '', icon: Icon, color = 'emerald', is
   let isPositive = false;
   
   if (value !== null && value !== undefined && !isNaN(value)) {
-    if (title.includes('Price') || title.includes('-USD')) {
+    if (title.includes('Price') || title.includes('-USD') || /\([A-Z]{2,6}\)/.test(title)) {
+      // FE#16: also format asset cards like "Bitcoin (BTC)" / "Ethereum (ETH)" as
+      // currency, not just those whose title contains "Price" or "-USD".
       displayValue = value.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
       isPositive = value > 0;
     } else {

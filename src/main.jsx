@@ -17,6 +17,11 @@ const queryClient = new QueryClient();
 // 🚀 SECURITY PRACTICE: Pull your Alchemy Key from a .env file
 // If you want to quick-test it, you can replace this with your raw string key temporarily: "YOUR_KEY_HERE"
 const ALCHEMY_KEY = import.meta.env.VITE_ALCHEMY_API_KEY || "YOUR_ALCHEMY_API_KEY_HERE";
+// FE#14: fail loudly in the console if the key is missing, otherwise every wagmi
+// RPC transport silently points at an invalid Alchemy URL (wallet/chain reads break).
+if (!import.meta.env.VITE_ALCHEMY_API_KEY) {
+  console.warn("⚠️ VITE_ALCHEMY_API_KEY is not set — wallet/chain RPC calls will fail. Set it in your Vercel env vars.");
+}
 
 // 2. Configure Chains with Private Gateways
 const config = getDefaultConfig({

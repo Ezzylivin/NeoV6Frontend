@@ -68,6 +68,22 @@ const STRAT_POOL = [
     { name: "Volume Profile",      code: "vol_profile"    }
 ];
 
+// FE#6: strategy families — Trend + Momentum reinforce each other; Mean-reversion
+// fights them, so mixing families cancels the vote to sig=0 and the bot never
+// trades. Mirrors the engine's analyze_strategy_mix() (GET /api/strategies/compatibility).
+const STRATEGY_FAMILY = {
+    supertrend: "trend", sma_crossover: "trend", ema_cloud: "trend", pa_breakout: "trend",
+    macd_crossover: "momentum", atr_breakout: "momentum", vol_profile: "momentum",
+    rsi_threshold: "mean_reversion", bb_fade: "mean_reversion", stoch: "mean_reversion",
+};
+
+const analyzeStrategyMix = (codes = []) => {
+    const fams = {};
+    codes.forEach(c => { const f = STRATEGY_FAMILY[c] || "other"; (fams[f] = fams[f] || []).push(c); });
+    const conflict = !!((fams.trend || fams.momentum) && fams.mean_reversion);
+    return { conflict, fams };
+};
+
 const MODEL_POOL = [
     { id: "xgboost",      name: "XGBoost (Gradient Boost)"  },
     { id: "randomforest", name: "Random Forest (Ensemble)"  },
@@ -232,16 +248,18 @@ const ApiKeyModal = ({ exchange, onSave, onCancel }) => {
     const [showKey, setShowKey] = useState(false);
     const [showSec, setShowSec] = useState(false);
 
-    const handleSave = () => {
+    // FE#1: send keys to the backend to be ENCRYPTED server-side (AES-256-GCM),
+    // never persisted in localStorage where any XSS/extension could read the
+    // plaintext secret that can move real funds.
+    const handleSave = async () => {
         if (!key || !secret) { toast.error("Both fields are required."); return; }
-        if (isKraken) {
-            localStorage.setItem("kraken_key", key);
-            localStorage.setItem("kraken_secret", secret);
-        } else {
-            localStorage.setItem("coinbase_key", key);
-            localStorage.setItem("coinbase_secret", secret);
+        try {
+            await api.post('/users/keys', { exchange, apiKey: key, apiSecret: secret });
+            toast.success("API keys encrypted & saved.");
+            onSave();
+        } catch (err) {
+            toast.error(err.response?.data?.message || "Failed to save keys.");
         }
-        onSave();
     };
 
     return (
@@ -252,7 +270,7 @@ const ApiKeyModal = ({ exchange, onSave, onCancel }) => {
                         <div className="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20"><Key size={16} className="text-amber-400" /></div>
                         <div>
                             <h3 className="text-[12px] font-black uppercase tracking-widest text-white">{isKraken ? 'Kraken' : 'Coinbase'} API Keys</h3>
-                            <p className="text-[9px] text-zinc-500 font-bold uppercase mt-0.5">Stored locally only</p>
+                            <p className="text-[9px] text-zinc-500 font-bold uppercase mt-0.5">Encrypted &amp; stored on the server</p>
                         </div>
                     </div>
                     <button onClick={onCancel} className="text-zinc-600 hover:text-white transition-all"><X size={16} /></button>
@@ -806,13 +824,22 @@ const TradingBotContainer = () => {
         return () => clearInterval(interval);
     }, [isBotRunning, socketStatus.startedAt]);
 
+    // FE#2: identity is the AUTHENTICATED user (JWT), not the wallet. Gate the
+    // socket + status polling on the token so a logged-in user with no wallet
+    // connected still gets live data, and use the user id the backend/socket
+    // room actually key on (the backend ignores the client-supplied id anyway).
+    const authToken = localStorage.getItem("token");
+    const activeId = (() => {
+        try { return JSON.parse(localStorage.getItem("user") || "null")?._id || address; }
+        catch { return address; }
+    })();
+
     useEffect(() => {
-        if (!address) return;
+        if (!authToken) return;
         let attempts = 0;
         const MAX = 4;
         const attempt = () => {
-            const token = localStorage.getItem("token");
-            api.get(`/bot/status?userId=${address}`, { headers: { Authorization: `Bearer ${token}` } })
+            api.get(`/bot/status?userId=${activeId}`)
                 .then(res => { setSocketStatus(res.data); setStatusFetchError(null); })
                 .catch(err => {
                     if (err.response?.status === 401) { toast.error("Session expired. Please reconnect."); return; }
@@ -822,7 +849,7 @@ const TradingBotContainer = () => {
                 });
         };
         attempt();
-    }, [address]);
+    }, [authToken, activeId]);
 
     const isHaltLockedRef   = useRef(isHaltLocked);
     const formConfigRef     = useRef(formConfig);
@@ -832,9 +859,8 @@ const TradingBotContainer = () => {
     useEffect(() => { exitingSymbolsRef.current = exitingSymbols; }, [exitingSymbols]);
 
     useEffect(() => {
-        if (!address) return;
-        const token = localStorage.getItem("token");
-        const socket = io(SOCKET_URL, { auth: { token }, transports: ['websocket'], reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 2000, reconnectionDelayMax: 10000 });
+        if (!authToken) return;
+        const socket = io(SOCKET_URL, { auth: { token: authToken }, transports: ['websocket'], reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 2000, reconnectionDelayMax: 10000 });
         socketRef.current = socket;
         socket.on("connect",    () => setSocketConnected(true));
         socket.on("disconnect", () => setSocketConnected(false));
@@ -886,7 +912,7 @@ const TradingBotContainer = () => {
 
         socket.on("bot_log", (newLog) => { setSocketLogs(prev => [newLog, ...prev].slice(0, 100)); });
         return () => { socket.disconnect(); socketRef.current = null; };
-    }, [address]);
+    }, [authToken]);
 
     // ── HANDLERS ──────────────────────────────────────────────────────────────
 
@@ -902,21 +928,27 @@ const TradingBotContainer = () => {
             mlMode: formConfig.mlMode, mlModel: formConfig.mlModel, maxPyramiding: formConfig.maxPyramiding,
             maxTradesPerDay: parseInt(formConfig.maxTradesPerDay), leverage: parseFloat(formConfig.leverage),
             enable_shorting: !!formConfig.enable_shorting, enablePartialExit: !!formConfig.enablePartialExit,
-            api_keys: formConfig.tradingMode === 'live' ? (
-                formConfig.enable_shorting
-                    ? { krakenKey: localStorage.getItem("kraken_key") || "", krakenSecret: localStorage.getItem("kraken_secret") || "", apiKey: localStorage.getItem("kraken_key") || "", secret: localStorage.getItem("kraken_secret") || "" }
-                    : { apiKey: localStorage.getItem("coinbase_key") || "", secret: localStorage.getItem("coinbase_secret") || "" }
-            ) : {},
+            // FE#1: never ship raw exchange secrets from the browser. Keys are
+            // stored encrypted server-side (Settings / the API-key modal); the
+            // backend is responsible for injecting them into the engine payload
+            // when trading live.
+            api_keys: {},
             comboConfig: { strategyCodes: formConfig.strategies.map(s => s.code), combinationRule: formConfig.hybridMode, minVotesRequired: parseInt(formConfig.minVotesRequired) }
         };
         try {
-            const response = await startBot({ userId: address, config: finalConfig });
+            const response = await startBot({ userId: activeId, config: finalConfig });
             if (response && (response.status === 'running' || response.status === 'initializing')) {
                 toast.success(`Protocol Ignited: ${finalConfig.symbol}`);
                 setShowPreFlight(false);
                 logContainerRef.current?.scrollIntoView({ behavior: 'smooth' });
+            } else {
+                // FE#10: backend didn't confirm the start — revert the optimistic
+                // "running" UI so we don't show a live engine that never started.
+                setSocketStatus(prev => ({ ...prev, status: 'stopped' }));
+                toast.error("Engine did not confirm start.");
             }
         } catch (e) {
+            setSocketStatus(prev => ({ ...prev, status: 'stopped' }));
             toast.error(`Engine Failure: ${e.response?.data?.detail || e.message}`);
         } finally {
             setIsStarting(false);
@@ -964,7 +996,8 @@ const TradingBotContainer = () => {
     const handleRoutingChange = (value) => {
         const isMargin = value === 'true';
         if (!isMargin) { setFormConfig(p => ({ ...p, enable_shorting: false })); return; }
-        if (localStorage.getItem("kraken_key")) { setFormConfig(p => ({ ...p, enable_shorting: true })); return; }
+        // FE#1: keys live encrypted server-side now (not in localStorage), so margin
+        // selection always opens the key modal; saving there is idempotent.
         setApiKeyModal({
             exchange: 'kraken',
             onSave: () => { setApiKeyModal(null); setFormConfig(p => ({ ...p, enable_shorting: true })); toast.success("Kraken Margin Authorized."); }
@@ -977,7 +1010,7 @@ const TradingBotContainer = () => {
         try {
             setExitingSymbols(prev => [...prev, symbolToExit]);
             setActiveOpsTab("audit");
-            await closePosition({ userId: address, symbol: symbolToExit });
+            await closePosition({ userId: activeId, symbol: symbolToExit });
             toast.success(`Manual Exit Executed: ${symbolToExit}`);
             setTimeout(async () => { await refreshState(); setExitingSymbols(prev => prev.filter(s => s !== symbolToExit)); }, 3000);
         } catch (e) {
@@ -1550,6 +1583,14 @@ const TradingBotContainer = () => {
                                             <option value="OR">Loose (OR)</option>
                                         </select>
                                     </div>
+                                    {(() => {
+                                        const mix = analyzeStrategyMix(formConfig.strategies.map(s => s.code));
+                                        return mix.conflict ? (
+                                            <div className="p-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-[9px] font-bold uppercase tracking-wide text-amber-300 leading-relaxed">
+                                                ⚠ Conflicting mix: mean-reversion ({(mix.fams.mean_reversion || []).join(", ")}) fights your trend/momentum signals — their votes cancel and the bot won't enter. Run mean-reversion alone, or use a trend set (e.g. supertrend, ema_cloud, sma_crossover).
+                                            </div>
+                                        ) : null;
+                                    })()}
                                     <div className="space-y-3">
                                         {formConfig.strategies.map((s) => (
                                             <div key={s.id} className="p-4 bg-zinc-950/80 rounded-2xl border border-zinc-800 shadow-inner">
@@ -1564,7 +1605,13 @@ const TradingBotContainer = () => {
                                                 <StrategyParamInputs strategy={s} onChange={(p) => { setFormConfig(prev => ({ ...prev, strategies: prev.strategies.map(st => st.id === s.id ? { ...st, params: p } : st) })); }} />
                                             </div>
                                         ))}
-                                        <button type="button" onClick={() => setFormConfig(p => ({ ...p, strategies: [...p.strategies, { id: makeStrategyId(), code: "rsi_threshold", params: DEFAULT_STRATEGY_PARAMS.rsi_threshold }] }))} className="w-full py-4 border border-dashed border-zinc-800 rounded-xl text-zinc-600 hover:text-emerald-500 hover:border-emerald-500/50 transition-all flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-widest">
+                                        <button type="button" onClick={() => setFormConfig(p => {
+                                            // FE#6: add the first strategy not already selected — no silent duplicates.
+                                            const used = new Set(p.strategies.map(s => s.code));
+                                            const next = STRAT_POOL.find(opt => !used.has(opt.code));
+                                            if (!next) { toast.error("All strategies are already added."); return p; }
+                                            return { ...p, strategies: [...p.strategies, { id: makeStrategyId(), code: next.code, params: DEFAULT_STRATEGY_PARAMS[next.code] }] };
+                                        })} className="w-full py-4 border border-dashed border-zinc-800 rounded-xl text-zinc-600 hover:text-emerald-500 hover:border-emerald-500/50 transition-all flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-widest">
                                             <Plus size={12} /> Add Signal Module
                                         </button>
                                     </div>
