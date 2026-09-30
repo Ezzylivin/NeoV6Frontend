@@ -19,6 +19,7 @@ const Backtests = lazy(() => import("./pages/Backtests.jsx"));
 const HelpCenter = lazy(() => import("./pages/HelpCenter"));
 const TradingBot = lazy(() => import("./pages/TradingBot.jsx"));
 const Settings = lazy(() => import("./pages/Settings.jsx"));
+const LedgerDashboard = lazy(() => import("./pages/LedgerDashboard.jsx"));
 const NotFound = lazy(() => import("./pages/NotFound.jsx"));
 
 const RouteFallback = () => (
@@ -56,6 +57,7 @@ function App() {
               <Route path="help" element={<HelpCenter />} />
               <Route path="tradingbot" element={<TradingBot />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="ledger" element={<LedgerDashboard />} />
             </Route>
 
             {/* Catch-all for unknown routes */}

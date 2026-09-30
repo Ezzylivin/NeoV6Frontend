@@ -46,6 +46,10 @@ const Header = () => {
           <Link to="/dashboard/tradingbot" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
             Live Bot
           </Link>
+          {/* 🧠 ADDED: Trade Learning Ledger (in-app page) */}
+          <Link to="/dashboard/ledger" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
+            Ledger
+          </Link>
           <Link to="/dashboard/ledger" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
             Ledger
           </Link>
