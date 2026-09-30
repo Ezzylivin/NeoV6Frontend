@@ -1,27 +1,9 @@
 // File: src/pages/TradingBot.jsx
-// 22 errors fixed in this pass:
-//   [FIX-1]  Added missing CheckItem component definition
-//   [FIX-2]  Added missing MetricCard component definition
-//   [FIX-3]  Added missing PreFlightModal component definition
-//   [FIX-4]  Added missing ApiKeyModal component definition
-//   [FIX-5]  Added missing ConfirmModal component definition
-//   [FIX-6]  Added missing StrategyParamInputs component definition
-//   [FIX-7]  Added missing handleHalt function
-//   [FIX-8]  Added missing handleLiveModeSelect function
-//   [FIX-9]  Added missing handleRoutingChange function
-//   [FIX-10] Added missing handleManualExit function
-//   [FIX-11] Added missing handleSyncLogs function
-//   [FIX-12] Added missing handleClearLogs function
-//   [FIX-13] Added missing handleResetRiskSettings function
-//   [FIX-14] Added missing activeBalance declaration
-//   [FIX-15] Added missing calculatedStats useMemo
-//   [FIX-16] Added missing currentPrice declaration
-//   [FIX-17] Added minAdx / minVolRatio / minWeightedSignal to formConfig initial state
-//   [FIX-18] Socket handler: added data.signals_map / data.signal_map snake_case fallback
-//   [FIX-19] Socket handler: added data.current_balance / data.current_confidence / data.current_price fallbacks + explicit return overrides
-//   [FIX-20] Signal normalization: auto-detect 0-100 range (val > 1 ? clamp : x100) to prevent 10000% values
-//   [FIX-21] NeuralConvergenceChart: replaced flex-1/min-h-[300px] with absolute-inset pattern so ResizeObserver resolves a real pixel height
-//   [FIX-22] NeuralConvergenceChart parent wrapper: min-h-[240px] → min-h-0 so h-full resolves correctly inside the flex column
+// ML-OFF UI GATING (this pass):
+//   [ML-1] gatewayCheckpoints: "Unified Ensemble Predictor" only shows when mlMode === 'on'
+//   [ML-2] ProximityTickerPanel: "Neural Prediction Gate" row only shows when mlMode === 'on'
+//   [ML-3] "Logic Confidence" panel only renders when mlMode === 'on'
+// (backend already skips the predictor + neutralizes AI scoring when ML is off)
 
 import React, { useState, useEffect, useRef, useMemo, Component } from "react";
 import axios from "axios";
@@ -174,7 +156,7 @@ class ErrorBoundary extends Component {
     }
 }
 
-// ─── [FIX-1] CheckItem ────────────────────────────────────────────────────────
+// ─── CheckItem ────────────────────────────────────────────────────────────────
 const CheckItem = ({ label, status }) => (
     <div className="flex items-center justify-between p-4 bg-black/40 rounded-xl border border-zinc-800">
         <span className="text-[10px] text-zinc-400 font-bold uppercase">{label}</span>
@@ -184,7 +166,7 @@ const CheckItem = ({ label, status }) => (
     </div>
 );
 
-// ─── [FIX-2] MetricCard ───────────────────────────────────────────────────────
+// ─── MetricCard ───────────────────────────────────────────────────────────────
 const MetricCard = ({ label, value, subValue, color = "text-white", icon = null }) => (
     <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden shadow-xl">
         <p className="text-[10px] text-zinc-500 uppercase font-black tracking-[0.15em] mb-2">{label}</p>
@@ -198,7 +180,7 @@ const MetricCard = ({ label, value, subValue, color = "text-white", icon = null 
     </div>
 );
 
-// ─── [FIX-3] PreFlightModal ───────────────────────────────────────────────────
+// ─── PreFlightModal ───────────────────────────────────────────────────────────
 const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, address }) => {
     const isLive = config.tradingMode === 'live';
     const checks = [
@@ -242,7 +224,7 @@ const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, a
     );
 };
 
-// ─── [FIX-4] ApiKeyModal ──────────────────────────────────────────────────────
+// ─── ApiKeyModal ──────────────────────────────────────────────────────────────
 const ApiKeyModal = ({ exchange, onSave, onCancel }) => {
     const isKraken = exchange === 'kraken';
     const [key, setKey]         = useState('');
@@ -300,7 +282,7 @@ const ApiKeyModal = ({ exchange, onSave, onCancel }) => {
     );
 };
 
-// ─── [FIX-5] ConfirmModal ─────────────────────────────────────────────────────
+// ─── ConfirmModal ─────────────────────────────────────────────────────────────
 const ConfirmModal = ({ title, message, danger, onConfirm, onCancel }) => (
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/90 backdrop-blur-md">
         <div className="max-w-sm w-full mx-4 bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 shadow-2xl">
@@ -319,7 +301,7 @@ const ConfirmModal = ({ title, message, danger, onConfirm, onCancel }) => (
     </div>
 );
 
-// ─── [FIX-6] StrategyParamInputs ─────────────────────────────────────────────
+// ─── StrategyParamInputs ─────────────────────────────────────────────────────
 const StrategyParamInputs = ({ strategy, onChange }) => {
     const params    = strategy.params || {};
     const floatKeys = new Set(['st_factor','bb_std','buffer','threshold','multiplier','atr_tp_mult','atr_sl_mult']);
@@ -403,8 +385,6 @@ const PositionCard = ({ pos, currentPrice, defaultSymbol, onExit, isExiting }) =
 };
 
 // ─── TRADE TIMELINE CARD ──────────────────────────────────────────────────────
-// Memoized: closed trades never change, so list items skip re-render on each
-// socket tick and only update when their own `trade` prop changes.
 const TradeTimelineCard = React.memo(({ trade }) => {
     const side       = trade.type || trade.side || 'trade';
     const entryPrice = Number(trade.entry || trade.entryPrice || trade.entry_price || 0);
@@ -455,12 +435,16 @@ const ProximityTickerPanel = ({ latestSignals, aiScore, formConfig }) => {
         const rsiStatus  = rsiVal >= 70 || rsiVal <= 30 ? "🟢 READY" : "⚪ STALKING";
         const stochVal   = Math.round(latestSignals['stoch'] || 0);
         const stochStatus = stochVal >= 80 || stochVal <= 20 ? "🟢 READY" : "⚪ IDLE";
-        return [
-            { id: "ml",    name: "Neural Prediction Gate", cur: `${aiScore}%`,   tgt: `${mlTarget}%`,  delta: `${mlDelta}%`, status: mlStatus    },
-            { id: "bb",    name: "Bollinger Boundary Vol",  cur: `${bbVal}%`,    tgt: "100%",          delta: `${bbDelta}%`, status: bbStatus    },
-            { id: "rsi",   name: "Momentum RSI Gateway",    cur: `${rsiVal}%`,   tgt: "70% / 30%",     delta: `${rsiDelta}%`,status: rsiStatus   },
-            { id: "stoch", name: "Stochastic Overbought",   cur: `${stochVal}%`, tgt: "80% / 20%",     delta: "—",           status: stochStatus }
+        const rows = [
+            { id: "bb",    name: "Bollinger Boundary Vol",  cur: `${bbVal}%`,    tgt: "100%",      delta: `${bbDelta}%`, status: bbStatus    },
+            { id: "rsi",   name: "Momentum RSI Gateway",    cur: `${rsiVal}%`,   tgt: "70% / 30%", delta: `${rsiDelta}%`,status: rsiStatus   },
+            { id: "stoch", name: "Stochastic Overbought",   cur: `${stochVal}%`, tgt: "80% / 20%", delta: "—",           status: stochStatus }
         ];
+        // [ML-2] Neural Prediction Gate row only when ML is active.
+        if (formConfig.mlMode === 'on') {
+            rows.unshift({ id: "ml", name: "Neural Prediction Gate", cur: `${aiScore}%`, tgt: `${mlTarget}%`, delta: `${mlDelta}%`, status: mlStatus });
+        }
+        return rows;
     }, [latestSignals, aiScore, formConfig]);
 
     return (
@@ -487,8 +471,6 @@ const ProximityTickerPanel = ({ latestSignals, aiScore, formConfig }) => {
 };
 
 // ─── NEURAL CONVERGENCE CHART ──────────────────────────────────────────────────
-// [FIX-21] Replaced flex-1/min-h-[300px] with flex-1/relative + absolute inset-0 so
-//          Recharts ResizeObserver always measures a real pixel height, not 0px.
 const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
     const activeStratCodes = useMemo(() => {
         if (!signalsMapHistory || signalsMapHistory.length === 0) return [];
@@ -507,7 +489,6 @@ const NeuralConvergenceChart = ({ signalsMapHistory, formConfig }) => {
             <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-6 flex items-center gap-2">
                 <Cpu size={12} className="text-violet-400" /> Neural Strategy Logic
             </h4>
-            {/* [FIX-21] absolute-inset wrapper gives ResizeObserver a definite pixel boundary */}
             <div className="flex-1 w-full relative" style={{ minHeight: 0 }}>
                 <div className="absolute inset-0">
                     <ResponsiveContainer width="100%" height="100%">
@@ -681,7 +662,6 @@ const TradingBotContainer = () => {
         leverage: 1, slippageTolerance: 0.5, maxPyramiding: 1,
         params: { atr_tp_mult: 3.0, atr_sl_mult: 1.5 },
         enablePartialExit: false, filters: { trend_filter: "none", vol_min: 0, atr_filter: 0 },
-        // [FIX-17] These three were used by sliders in JSX but absent from initial state
         minAdx: 20, minVolRatio: 0.8, minWeightedSignal: 0.3
     });
 
@@ -720,10 +700,8 @@ const TradingBotContainer = () => {
 
     const { profitPct, pnlPct } = profitMetrics;
 
-    // [FIX-14] activeBalance was referenced in MetricCard JSX but never declared
     const activeBalance = socketStatus.currentBalance ?? formConfig.capitalAllocation;
 
-    // [FIX-15] calculatedStats was referenced in Neural Performance panel but never declared
     const calculatedStats = useMemo(() => {
         const allTrades = socketStatus.tradeHistory || socketStatus.trade_history || socketStatus.tradeMarkers || [];
         const exits     = allTrades.filter(t => t.pnl !== undefined);
@@ -736,11 +714,9 @@ const TradingBotContainer = () => {
         return { winRate, profitFactor };
     }, [socketStatus]);
 
-    // [FIX-16] currentPrice was passed to PositionCard but never declared
     const currentPrice = socketStatus.currentPrice ?? socketStatus.current_price ??
         (socketStatus.candles?.length > 0 ? socketStatus.candles[socketStatus.candles.length - 1]?.close : 0) ?? 0;
 
-    // Synchronize timeline arrays into a cohesive coordinate envelope for Recharts
     const performanceData = useMemo(() => {
         const initialSeed = Number(socketStatus.initialCapital || formConfig.capitalAllocation) || 0;
         const seedPoint = { time: 'Start', balance: initialSeed, confidence: 50 };
@@ -798,10 +774,14 @@ const TradingBotContainer = () => {
     const gatewayCheckpoints = useMemo(() => {
         const aiScore   = socketStatus.currentConfidence ?? 50;
         const longLimit = parseFloat(formConfig.mlThresholdLong || 0.55) * 100;
-        return [
-            { id: "v_safe",  label: "Volatility Shield Ceiling",      desc: "ATR safe compression zone verified",                                                           passed: true },
-            { id: "ai_gate", label: "Unified Ensemble Predictor",      desc: `Current AI Bias score is ${aiScore}% (Target: ${longLimit}%)`,                               passed: aiScore >= longLimit }
+        const checks = [
+            { id: "v_safe", label: "Volatility Shield Ceiling", desc: "ATR safe compression zone verified", passed: true }
         ];
+        // [ML-1] Only surface the AI gate when ML is actually active.
+        if (formConfig.mlMode === 'on') {
+            checks.push({ id: "ai_gate", label: "Unified Ensemble Predictor", desc: `Current AI Bias score is ${aiScore}% (Target: ${longLimit}%)`, passed: aiScore >= longLimit });
+        }
+        return checks;
     }, [socketStatus.currentConfidence, formConfig, latestSignals]);
 
     // ── EFFECTS ───────────────────────────────────────────────────────────────
@@ -853,8 +833,6 @@ const TradingBotContainer = () => {
 
     useEffect(() => {
         if (!address) return;
-        // Identity comes from the verified JWT (server derives the room from it),
-        // not a client-supplied userId. See backend io.use() handshake auth.
         const token = localStorage.getItem("token");
         const socket = io(SOCKET_URL, { auth: { token }, transports: ['websocket'], reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 2000, reconnectionDelayMax: 10000 });
         socketRef.current = socket;
@@ -864,7 +842,6 @@ const TradingBotContainer = () => {
         socket.on("bot_status_update", (data) => {
             if (isHaltLockedRef.current) return;
             setSocketStatus(prev => {
-                // [FIX-19] Dual-handle camelCase + snake_case from FastAPI backend
                 const currentBalance = data.currentBalance  ?? data.current_balance  ?? prev.currentBalance  ?? 0;
                 const rawPositions   = data.activePositions || data.active_positions || data.positions || [];
                 const filteredPositions = rawPositions.filter(pos => !exitingSymbolsRef.current.includes(pos.symbol));
@@ -873,24 +850,20 @@ const TradingBotContainer = () => {
                 const delta     = currentBalance - seed;
                 const calculatedProfit = rawProfit !== undefined ? Number(rawProfit.toFixed(2)) : Number(delta.toFixed(2));
 
-                // [FIX-18] Added data.signals_map snake_case fallback
                 const rawSignals = data.signalsMap || data.signals_map || data.signal_map || {};
                 const normalizedSignals = {};
                 Object.keys(rawSignals).forEach(key => {
                     const nk  = key.toLowerCase().trim().replace(/\s+/g, '_');
                     const val = parseFloat(rawSignals[key]);
-                    // [FIX-20] Auto-detect range: if val > 1 the backend already sent 0-100; don't double it
                     if (!isNaN(val)) normalizedSignals[nk] = val > 1 ? Math.min(100, val) : val * 100;
                 });
 
-                // [FIX-19] dual-handle current_confidence for equity curve
                 const confidence = data.currentConfidence ?? data.current_confidence ?? prev.currentConfidence ?? 0;
                 const updatedSignalsHistory = [...(prev.signalsMapHistory || []), { time: new Date().toISOString(), ...normalizedSignals }].slice(-300);
                 const updatedEquityCurve    = [...(prev.equityCurve    || []), { time: new Date().toISOString(), balance: currentBalance, confidence }].slice(-300);
 
                 return {
                     ...prev, ...data,
-                    // [FIX-19] Explicit overrides so camelCase reads are never stale after ...data spread of snake_case keys
                     currentBalance,
                     currentConfidence: confidence,
                     currentPrice:  data.currentPrice  ?? data.current_price  ?? prev.currentPrice  ?? 0,
@@ -962,7 +935,6 @@ const TradingBotContainer = () => {
         });
     };
 
-    // [FIX-7] handleHalt was called by Emergency Halt button but never declared
     const handleHalt = async () => {
         setIsHaltLocked(true);
         setIsHalting(true);
@@ -981,7 +953,6 @@ const TradingBotContainer = () => {
         }
     };
 
-    // [FIX-8] handleLiveModeSelect was called in protocol selection JSX but never declared
     const handleLiveModeSelect = () => {
         if (hasApiKeys) { setFormConfig(p => ({ ...p, tradingMode: 'live' })); setIsModeSelected(true); return; }
         setApiKeyModal({
@@ -990,7 +961,6 @@ const TradingBotContainer = () => {
         });
     };
 
-    // [FIX-9] handleRoutingChange was called in routing select onChange but never declared
     const handleRoutingChange = (value) => {
         const isMargin = value === 'true';
         if (!isMargin) { setFormConfig(p => ({ ...p, enable_shorting: false })); return; }
@@ -1001,7 +971,6 @@ const TradingBotContainer = () => {
         });
     };
 
-    // [FIX-10] handleManualExit was passed to PositionCard onExit but never declared
     const handleManualExit = async (targetSymbol) => {
         if (!socketStatus.positions?.length) return;
         const symbolToExit = typeof targetSymbol === 'string' ? targetSymbol : formConfig.symbol;
@@ -1017,13 +986,11 @@ const TradingBotContainer = () => {
         }
     };
 
-    // [FIX-13] handleResetRiskSettings was called in Risk Protocol section but never declared
     const handleResetRiskSettings = () => {
         setFormConfig(prev => ({ ...prev, riskPercentage: 1, maxDailyLoss: 5, maxDrawdown: 10, maxTradesPerDay: 20, slippageTolerance: 0.5, params: { ...prev.params, take_profit: 0.05, trailing_stop: 0.01 } }));
         toast.success("Risk Protocol: Reverted to Factory Defaults");
     };
 
-    // [FIX-11 / FIX-12] handleClearLogs and handleSyncLogs called in Neural Flow panel but never declared
     const handleClearLogs = () => { setSocketLogs([]); toast.success("Terminal View Cleared"); };
     const handleSyncLogs  = async () => { await refreshState(); toast.success("Neural Stream Synced"); };
 
@@ -1113,14 +1080,14 @@ const TradingBotContainer = () => {
                             <MetricCard label="Daily Profit"  value={`${socketStatus.dailyProfit  >= 0 ? '+' : ''}${(socketStatus.dailyProfit  || 0).toFixed(2)}`} subValue={`${profitPct.toFixed(2)}%`} color={socketStatus.dailyProfit  >= 0 ? "text-emerald-400" : "text-rose-500"} icon={<DollarSign size={10} />} />
                             <MetricCard label="Floating PnL"  value={`${socketStatus.unrealizedPnl >= 0 ? '+' : ''}${(socketStatus.unrealizedPnl || 0).toFixed(2)}`} subValue={`${pnlPct.toFixed(2)}%`}    color={socketStatus.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'} icon={<Activity size={10} />} />
                             <MetricCard label="Exposure"      value={`${socketStatus.exposure || 0}%`} subValue="Active Positions" color="text-amber-400" />
-                            {/* [FIX-14] activeBalance now declared above */}
                             <MetricCard label="Total Equity"  value={`$${Number(activeBalance).toLocaleString()}`} subValue="Liquid + Locked" />
-                            <ConfidenceRingCard confidence={socketStatus.currentConfidence || 0} />
+                            {formConfig.mlMode === 'on'
+                                ? <ConfidenceRingCard confidence={socketStatus.currentConfidence || 0} />
+                                : <MetricCard label="Signal Consensus" value={`${Math.round(activeBalance && Object.keys(latestSignals).length ? (Object.entries(latestSignals).filter(([k]) => k !== 'time').reduce((s, [, v]) => s + (Number(v) || 0), 0) / Math.max(1, Object.keys(latestSignals).filter(k => k !== 'time').length)) : 0)}%`} subValue="Technical (ML Off)" color="text-amber-400" />}
                         </div>
 
                         <div className="grid grid-cols-12 gap-8 items-start">
                             <div className="col-span-12 lg:col-span-3 h-[840px] flex flex-col gap-4">
-                                {/* [FIX-22] min-h-[240px] → min-h-0 so NeuralConvergenceChart's h-full resolves inside this flex column */}
                                 <div className="flex-1 min-h-0">
                                     <ErrorBoundary>
                                         <NeuralConvergenceChart formConfig={formConfig} signalsMapHistory={socketStatus.signalsMapHistory || []} />
@@ -1132,7 +1099,6 @@ const TradingBotContainer = () => {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <p className="text-[9px] uppercase font-bold text-zinc-600 mb-1">Win Rate</p>
-                                            {/* [FIX-15] calculatedStats now declared above */}
                                             <p className="text-xl font-mono font-black tracking-tighter text-emerald-400">{calculatedStats.winRate}%</p>
                                         </div>
                                         <div>
@@ -1214,7 +1180,6 @@ const TradingBotContainer = () => {
                                                     <h3 className="text-sm font-black uppercase tracking-widest">Neural Flow</h3>
                                                 </div>
                                                 <div className="flex items-center gap-2.5">
-                                                    {/* [FIX-11/12] handleSyncLogs and handleClearLogs now declared above */}
                                                     <button onClick={handleSyncLogs}  className="text-zinc-500 hover:text-emerald-400 transition-all"><RefreshCw size={14} /></button>
                                                     <button onClick={handleClearLogs} className="text-zinc-500 hover:text-white transition-all"><Eraser size={14} /></button>
                                                 </div>
@@ -1331,6 +1296,8 @@ const TradingBotContainer = () => {
                                 </div>
                             </div>
 
+                            {/* [ML-3] Logic Confidence panel only when ML is active */}
+                            {formConfig.mlMode === 'on' && (
                             <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl flex flex-col justify-between">
                                 <div className="flex start justify-between mb-4">
                                     <div className="flex items-center gap-2">
@@ -1362,6 +1329,7 @@ const TradingBotContainer = () => {
                                     </ResponsiveContainer>
                                 </div>
                             </div>
+                            )}
 
                             <ErrorBoundary>
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-[40px] p-8 shadow-2xl overflow-hidden flex flex-col min-h-[450px]">
@@ -1443,7 +1411,6 @@ const TradingBotContainer = () => {
                                             <ArrowDownRight size={14} />
                                             <span className="text-[10px] font-black uppercase tracking-widest">Routing</span>
                                         </div>
-                                        {/* [FIX-9] handleRoutingChange now declared above */}
                                         <select value={formConfig.enable_shorting ? "true" : "false"} onChange={(e) => handleRoutingChange(e.target.value)} className="bg-zinc-800 text-[9px] rounded-lg px-2 py-1 border border-zinc-700 font-black uppercase tracking-widest outline-none text-zinc-300">
                                             <option value="false">Spot (Coinbase)</option>
                                             <option value="true">Margin (Kraken)</option>
@@ -1494,7 +1461,6 @@ const TradingBotContainer = () => {
                                 </div>
 
                                 <div className="space-y-5 border-t border-zinc-800/50 pt-8">
-                                    {/* [FIX-17] minAdx / minVolRatio / minWeightedSignal now present in initial formConfig state */}
                                     <div className="flex flex-col gap-1">
                                         <div className="flex justify-between items-center">
                                             <label className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Minimum ADX Trend</label>
@@ -1524,7 +1490,6 @@ const TradingBotContainer = () => {
                                             <AlertTriangle size={16} />
                                             <h4 className="text-[10px] font-black uppercase tracking-widest text-rose-500">Risk Protocol</h4>
                                         </div>
-                                        {/* [FIX-13] handleResetRiskSettings now declared above */}
                                         <button onClick={handleResetRiskSettings} className="group flex items-center gap-1 px-2 py-1 bg-zinc-800/50 hover:bg-zinc-800 rounded border border-zinc-700/50 transition-all">
                                             <RotateCcw size={8} className="text-zinc-500 group-hover:text-rose-400" />
                                             <span className="text-[8px] font-black text-zinc-500 group-hover:text-zinc-300 uppercase tracking-tighter">Reset</span>
@@ -1596,7 +1561,6 @@ const TradingBotContainer = () => {
                                                         <Trash2 size={12} />
                                                     </button>
                                                 </div>
-                                                {/* [FIX-6] StrategyParamInputs now declared above */}
                                                 <StrategyParamInputs strategy={s} onChange={(p) => { setFormConfig(prev => ({ ...prev, strategies: prev.strategies.map(st => st.id === s.id ? { ...st, params: p } : st) })); }} />
                                             </div>
                                         ))}
