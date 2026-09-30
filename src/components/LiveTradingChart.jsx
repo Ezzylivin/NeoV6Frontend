@@ -3,6 +3,17 @@
 import React, { useEffect, useRef } from 'react';
 import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
 
+// FE#11: the backend may send candle time as a number (unix seconds or ms) or as
+// an ISO string. lightweight-charts requires ascending numeric SECONDS, and the
+// marker snapping does arithmetic on these values — a string yields NaN. Coerce
+// everything to unix seconds, returning null for anything unparseable.
+const toUnixSeconds = (t) => {
+    if (t == null) return null;
+    if (typeof t === 'number') return Number.isFinite(t) ? Math.floor(t > 1e11 ? t / 1000 : t) : null;
+    const ms = new Date(t).getTime();
+    return Number.isNaN(ms) ? null : Math.floor(ms / 1000);
+};
+
 export const LiveTradingChart = ({
     symbol,
     timeframe,
@@ -64,13 +75,15 @@ export const LiveTradingChart = ({
     useEffect(() => {
         if (!seriesRef.current || !candleData.length) return;
 
-        const formatted = candleData.map(c => ({
-            time: c.time,
-            open: c.open,
-            high: c.high,
-            low: c.low,
-            close: c.close
-        }));
+        // FE#11: coerce to numeric seconds, drop unparseable rows, sort ascending
+        // and de-dupe so update()/setData() never throw on string/out-of-order time.
+        const formatted = candleData
+            .map(c => ({ time: toUnixSeconds(c.time), open: c.open, high: c.high, low: c.low, close: c.close }))
+            .filter(c => c.time != null && Number.isFinite(c.open))
+            .sort((a, b) => a.time - b.time)
+            .filter((c, i, arr) => i === 0 || c.time !== arr[i - 1].time);
+
+        if (!formatted.length) return;
 
         if (lastCandleCountRef.current === 0 || Math.abs(formatted.length - lastCandleCountRef.current) > 5) {
             // Initial load or major data change — full setData
@@ -95,11 +108,11 @@ export const LiveTradingChart = ({
         });
         entryLinesRef.current = [];
 
-        // Build markers from active positions
-        const availableTimes = candleData.map(c => c.time);
+        // Build markers from active positions (FE#11: normalized numeric times).
+        const availableTimes = candleData.map(c => toUnixSeconds(c.time)).filter(t => t != null);
         const legMarkers = activePositions.map((pos, idx) => {
-            if (!pos.time || isNaN(parseFloat(pos.entry))) return null;
-            const entryTime = new Date(pos.time).getTime() / 1000;
+            const entryTime = toUnixSeconds(pos.time);
+            if (entryTime == null || isNaN(parseFloat(pos.entry)) || !availableTimes.length) return null;
             const snappedTime = availableTimes.reduce((prev, curr) =>
                 Math.abs(curr - entryTime) < Math.abs(prev - entryTime) ? curr : prev
             );

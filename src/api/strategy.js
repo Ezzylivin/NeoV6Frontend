@@ -85,7 +85,7 @@ export const updateCombo = async (id, comboData) => {
 // Delete a combo strategy by ID
 export const removeCombo = async (id) => {
   try {
-    const { data } = await api.delete(`/Combos/combo/${id}`);
+    const { data } = await api.delete(`/combos/combo/${id}`); // FE#9: lowercase to match the route + sibling calls
     return data;
   } catch (err) {
     console.error(`Failed to delete combo strategy ${id}:`, err);

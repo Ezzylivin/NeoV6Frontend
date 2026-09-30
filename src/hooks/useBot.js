@@ -9,13 +9,10 @@ import { BACKEND_URL } from '../config/api.js';
 const BASE_URL = `${BACKEND_URL}/api`;
 
 // ============================================================
-// 🔧 FIX #1: Socket removed from this hook entirely
+// 🔧 Socket removed from this hook entirely
 // ============================================================
-// OLD: Both useBot AND TradingBot.jsx created their own io() connection
-//      to the same server for the same user. Two sockets, two sets of
-//      listeners, duplicate state updates, race conditions.
-// NEW: useBot is HTTP-only. TradingBot.jsx owns the single socket.
-//      This hook handles: start, stop, reset, close, and REST-based refresh.
+// useBot is HTTP-only. TradingBot.jsx owns the single socket.
+// This hook handles: start, stop, reset, close, and REST-based refresh.
 
 export const useBot = () => {
     const [botStatus, setBotStatus] = useState(null);
@@ -25,24 +22,32 @@ export const useBot = () => {
 
     const { address, isConnected } = useAccount();
 
+    // FE#2: identity is the AUTHENTICATED user (JWT _id) — that's what the backend
+    // controllers (req.user.id) and the socket room key on. The wallet address is
+    // only a fallback for wallet-first flows; it must never gate whether the bot
+    // or socket works, or live events emit to a room the client never joined.
     const resolveActiveId = useCallback(() => {
-        const savedId = localStorage.getItem("neo_active_bot_id");
-        if (savedId) return savedId;
+        try {
+            const user = JSON.parse(localStorage.getItem("user") || "null");
+            if (user?._id) return user._id;
+        } catch { /* malformed user json in storage */ }
         if (isConnected && address) return address;
-        const user = JSON.parse(localStorage.getItem("user"));
-        return user?._id;
+        return localStorage.getItem("neo_active_bot_id") || null;
     }, [address, isConnected]);
 
     const activeUserId = resolveActiveId();
 
+    // FE#15: never send "Bearer null" — omit the header when there is no token.
+    const authHeaders = () => {
+        const t = localStorage.getItem("token");
+        return t ? { Authorization: `Bearer ${t}` } : {};
+    };
+
     const refreshState = useCallback(async () => {
         if (!activeUserId) return;
         try {
-            const token = localStorage.getItem("token");
-            const headers = { Authorization: `Bearer ${token}` };
-
             const statusRes = await axios.get(`${BASE_URL}/bot/status`, {
-                params: { userId: activeUserId }, headers
+                params: { userId: activeUserId }, headers: authHeaders()
             });
 
             if (statusRes.data) {
@@ -67,16 +72,15 @@ export const useBot = () => {
         setLoading(true);
         setLogs([]);
         try {
-            const token = localStorage.getItem("token");
             const userId = activeUserId || address;
-            localStorage.setItem("neo_active_bot_id", userId);
+            if (userId) localStorage.setItem("neo_active_bot_id", userId);
 
             const payload = configData.config
                 ? configData
                 : { userId, config: { ...configData, userId } };
 
             const response = await axios.post(`${BASE_URL}/bot/start`, payload, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: authHeaders()
             });
             toast.success("Start Command Sent");
             return response.data;
@@ -92,10 +96,9 @@ export const useBot = () => {
     const stopBot = async () => {
         setLoading(true);
         try {
-            const token = localStorage.getItem("token");
             const response = await axios.post(`${BASE_URL}/bot/stop`,
                 { userId: resolveActiveId() },
-                { headers: { Authorization: `Bearer ${token}` } }
+                { headers: authHeaders() }
             );
             localStorage.removeItem("neo_active_bot_id");
             toast.success("Stop Command Sent");
@@ -109,10 +112,9 @@ export const useBot = () => {
 
     const resetBot = async () => {
         try {
-            const token = localStorage.getItem("token");
             await axios.post(`${BASE_URL}/bot/reset`,
                 { userId: resolveActiveId() },
-                { headers: { Authorization: `Bearer ${token}` } }
+                { headers: authHeaders() }
             );
             setBotStatus(null);
             setLogs([]);
@@ -123,26 +125,19 @@ export const useBot = () => {
         }
     };
 
-    // ============================================================
-    // 🔧 FIX #2: Endpoint matches backend (underscore, not kebab)
-    // ============================================================
-    // OLD: /bot/close-position (kebab-case) → 404 every time
-    // NEW: /bot/close_position (underscore) → matches main4.py
+    // The Node route is /api/bot/close-position (kebab) — see botRoutes.js. The
+    // Node service then forwards to the engine's /api/bot/close_position.
     const closePosition = async ({ userId, symbol }) => {
         try {
-            const token = localStorage.getItem("token");
-            
-            // 🚀 FIX 1: Added /api to the URL path
-            // 🚀 FIX 2: Send both userId (for Node) and user_id (for Python)
             const response = await axios.post(`${BASE_URL}/bot/close-position`,
-                { 
-                    userId: userId, 
-                    user_id: userId, 
-                    symbol: symbol 
+                {
+                    userId: userId,
+                    user_id: userId,
+                    symbol: symbol
                 },
-                { headers: { Authorization: `Bearer ${token}` } }
+                { headers: authHeaders() }
             );
-            
+
             toast.success("Manual Exit Protocol Executed");
             return response.data;
         } catch (error) {
