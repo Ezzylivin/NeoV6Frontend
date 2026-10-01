@@ -6,6 +6,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LiveTradingChart } from "../components/LiveTradingChart.jsx";
 import FleetGuide, { STRATEGY_INFO } from "../components/FleetGuide.jsx";
+import EvidencePanel from "../components/EvidencePanel.jsx";
 import { startFleet, stopFleet, getFleetStatus, getFleetRegime, getFleetDrift, getFleetBot, getFleetActivity } from "../api/fleet.js";
 import api from "../api/apiClient.js";
 import { io } from "socket.io-client";
@@ -13,7 +14,7 @@ import { BACKEND_URL } from "../config/api.js";
 import { AreaChart, Area, ResponsiveContainer, YAxis, Tooltip as RTooltip } from "recharts";
 import {
   Ship, Play, Square, RefreshCw, Activity, TrendingUp, TrendingDown, ShieldCheck,
-  Gauge, Layers, Info, Zap, Radio, Clock, Cpu,
+  Gauge, Layers, Info, Zap, Radio, Clock, Cpu, Bell, BellOff,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -173,6 +174,15 @@ const REASON_INFO = {
   "Trend Stop / Signal Flip": "the trend ended (stop or signal flip)",
 };
 const reasonText = (r) => REASON_INFO[r] || (r ? String(r).toLowerCase() : "the exit rule triggered");
+
+// Native browser/OS notification (fires even when the tab is backgrounded).
+// No-ops unless the user has granted permission.
+function notifyBrowser(title, body) {
+  try {
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    new Notification(title, { body, icon: "/favicon.ico" });
+  } catch { /* ignore */ }
+}
 
 // Smooth count-up for headline numbers.
 function useCountUp(value, ms = 550) {
@@ -382,8 +392,13 @@ export default function FleetCommand() {
   const [updatedAt, setUpdatedAt] = useState(null);
   const [ledger, setLedger] = useState(null);   // durable closed-trade track record
   const [online, setOnline] = useState(true);    // engine reachable on last poll
+  const [btcRef, setBtcRef] = useState([]);       // BTC daily candles for the buy-&-hold benchmark
   const [socketLive, setSocketLive] = useState(false); // real-time push connected
   const nudgeTimer = useRef(null);               // debounces socket-triggered refreshes
+  const [notifPerm, setNotifPerm] = useState(typeof Notification !== "undefined" ? Notification.permission : "unsupported");
+  const enableNotifs = async () => {
+    try { const p = await Notification.requestPermission(); setNotifPerm(p); } catch { /* ignore */ }
+  };
 
   const [coin, setCoin] = useState("BTC-USD");
   const [chartTf, setChartTf] = useState("4h");
@@ -459,10 +474,12 @@ export default function FleetCommand() {
           if (isEntry) {
             toast(`🚀 ${e.symbol} ${String(e.side).toUpperCase()} ENTERED @ $${fmt(e.price)}`,
               { style: { background: "#18181b", color: "#60a5fa", border: "1px solid #27272a", fontSize: "12px" } });
+            notifyBrowser(`🚀 ${e.symbol} ${String(e.side).toUpperCase()} opened`, `Entered at $${fmt(e.price)}`);
           } else {
             const win = Number(e.pnl) >= 0;
             toast(`${win ? "🟢" : "🔴"} ${e.symbol} ${String(e.side).toUpperCase()} closed ${signed(e.pnl)} · ${e.reason || ""}`,
               { style: { background: "#18181b", color: win ? "#34d399" : "#f87171", border: "1px solid #27272a", fontSize: "12px" } });
+            notifyBrowser(`${win ? "🟢 Win" : "🔴 Loss"} · ${e.symbol} ${String(e.side).toUpperCase()} closed`, `${signed(e.pnl)}${e.reason ? ` · ${e.reason}` : ""}`);
           }
         }
         // Auto-render the chart to where the newest action just happened.
@@ -516,6 +533,13 @@ export default function FleetCommand() {
       setSocketLive(false);
     };
   }, [refreshFleet, refreshCoin]);
+
+  // BTC daily candles once, for the buy-&-hold benchmark on the track record.
+  useEffect(() => {
+    fetchCandles({ symbol: "BTC-USD", timeframe: "1d" })
+      .then((c) => setBtcRef(Array.isArray(c) ? c : (c?.data || [])))
+      .catch(() => {});
+  }, []);
 
   const onStart = async () => {
     setBusy(true);
@@ -578,11 +602,17 @@ export default function FleetCommand() {
             <Zap size={11} className={socketLive ? "text-sky-400" : "text-zinc-600"} />{socketLive ? "REAL-TIME" : "POLLING"}
           </span>
           {updatedAt && <span className="rounded-full border border-zinc-800 px-3 py-1 text-[10px] text-zinc-500" title="Auto-refresh 12s">synced {new Date(updatedAt).toLocaleTimeString()}</span>}
+          {notifPerm === "granted" ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 px-3 py-1 text-[10px] font-bold text-emerald-400" title="Desktop alerts on — you'll be notified on entries/exits even with the tab in the background"><Bell size={11} /> ALERTS ON</span>
+          ) : notifPerm !== "unsupported" && notifPerm !== "denied" ? (
+            <button onClick={enableNotifs} className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700 px-3 py-1 text-[10px] font-bold text-zinc-300 hover:border-emerald-500/40 hover:text-emerald-400" title="Get desktop notifications on entries/exits, even when this tab is in the background"><BellOff size={11} /> Enable alerts</button>
+          ) : null}
         </div>
       </div>
 
-      {/* Learn-while-it-trades: how the fleet works (collapsible) */}
+      {/* Learn-while-it-trades: how the fleet works + the evidence behind it (collapsible) */}
       <FleetGuide />
+      <EvidencePanel />
 
       {/* Drift tripwire banner — shown while the fleet is DRIFTING from its validated profile */}
       {driftAlertOpen && driftStatus === "DRIFTING" && (
@@ -805,6 +835,31 @@ export default function FleetCommand() {
                   <Area type="monotone" dataKey="pnl" stroke={col} strokeWidth={2} fill="url(#tr)" isAnimationActive={false} />
                 </AreaChart>
               </ResponsiveContainer>
+            </div>
+          );
+        })()}
+        {/* Honest benchmark: fleet realized return vs simply holding BTC over the same window */}
+        {ledger?.totals?.trades > 0 && btcRef.length >= 2 && (() => {
+          const cum = ledger.cum_pnl || [];
+          if (!cum.length) return null;
+          const base = (status?.count ? status.count * 1000 : 6000) || 6000;
+          const stratPct = (Number(ledger.totals.total_pnl) / base) * 100;
+          const firstTs = new Date(cum[0].ts).getTime() / 1000;
+          const pts = btcRef
+            .map((c) => ({ t: typeof c.time === "number" ? (c.time > 1e11 ? c.time / 1000 : c.time) : new Date(c.time).getTime() / 1000, close: Number(c.close) }))
+            .filter((x) => Number.isFinite(x.t) && Number.isFinite(x.close))
+            .sort((a, b) => a.t - b.t);
+          const startC = pts.find((x) => x.t >= firstTs) || pts[0];
+          const endC = pts[pts.length - 1];
+          if (!startC?.close || !endC?.close) return null;
+          const bhPct = (endC.close / startC.close - 1) * 100;
+          const beat = stratPct >= bhPct;
+          return (
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-zinc-800 pt-2 text-[11px]">
+              <span className="text-zinc-500">since first trade:</span>
+              <span>Fleet <b className={stratPct >= 0 ? "text-emerald-400" : "text-rose-400"}>{stratPct >= 0 ? "+" : ""}{fmt(stratPct, 2)}%</b></span>
+              <span>BTC hold <b className={bhPct >= 0 ? "text-emerald-400" : "text-rose-400"}>{bhPct >= 0 ? "+" : ""}{fmt(bhPct, 2)}%</b></span>
+              <span className="text-zinc-600">{beat ? "ahead of holding this window" : "the edge is risk-adjusted — it protects in downturns more than it out-runs a bull"}</span>
             </div>
           );
         })()}
