@@ -333,6 +333,8 @@ export default function FleetCommand() {
   const [equityHist, setEquityHist] = useState([]);
   const [busy, setBusy] = useState(false);
   const [updatedAt, setUpdatedAt] = useState(null);
+  const [ledger, setLedger] = useState(null);   // durable closed-trade track record
+  const [online, setOnline] = useState(true);    // engine reachable on last poll
 
   const [coin, setCoin] = useState("BTC-USD");
   const [chartTf, setChartTf] = useState("4h");
@@ -356,10 +358,13 @@ export default function FleetCommand() {
 
   const refreshFleet = useCallback(async () => {
     try {
-      const [st, rg, dr, act] = await Promise.all([
+      const [st, rg, dr, act, led] = await Promise.all([
         getFleetStatus(), getFleetRegime(), getFleetDrift(), getFleetActivity(20).catch(() => ({ events: [] })),
+        api.get("/ledger/stats", { params: { recent: 100 } }).then((r) => r.data).catch(() => null),
       ]);
       setStatus(st); setRegime(rg); setDrift(dr); setUpdatedAt(Date.now());
+      setOnline(true);
+      if (led) setLedger(led);
       // Drift tripwire: alert the moment live results flip to DRIFTING (the real
       // "markets are changing" signal — it watches live behavior, not a backtest).
       const ds = dr?.status;
@@ -398,7 +403,7 @@ export default function FleetCommand() {
         // Auto-render the chart to where the newest action just happened.
         if (latestNew?.symbol) setCoin(latestNew.symbol);
       }
-    } catch (e) { /* transient */ }
+    } catch (e) { setOnline(false); /* engine unreachable this poll */ }
   }, []);
 
   const refreshCoin = useCallback(async () => {
@@ -473,6 +478,9 @@ export default function FleetCommand() {
           <span className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest ${rg.cls}`} title={rg.hint}>{rg.label}</span>
           <span className={`inline-flex items-center gap-1.5 rounded-full border border-zinc-800 px-3 py-1 text-[10px] font-bold ${running ? "text-emerald-400" : "text-zinc-500"}`}>
             <span className={`h-1.5 w-1.5 rounded-full ${running ? "bg-emerald-400 animate-pulse" : "bg-zinc-600"}`} />{running ? "LIVE" : "IDLE"}
+          </span>
+          <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-bold ${online ? "border-emerald-500/30 text-emerald-400" : "border-rose-500/40 text-rose-400"}`} title={online ? "Engine reachable" : "Engine not responding — retrying every 12s"}>
+            <span className={`h-1.5 w-1.5 rounded-full ${online ? "bg-emerald-400" : "bg-rose-400 animate-pulse"}`} />{online ? "ENGINE OK" : "ENGINE DOWN"}
           </span>
           {updatedAt && <span className="rounded-full border border-zinc-800 px-3 py-1 text-[10px] text-zinc-500" title="Auto-refresh 12s">synced {new Date(updatedAt).toLocaleTimeString()}</span>}
         </div>
@@ -630,6 +638,51 @@ export default function FleetCommand() {
             </ResponsiveContainer>
           )}
         </div>
+      </div>
+
+      {/* Durable track record — realized P&L from the persisted trade ledger (survives restarts) */}
+      <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <ShieldCheck size={14} className="text-emerald-400" />
+          <h2 className="text-[12px] font-black uppercase tracking-widest text-zinc-300">Track record</h2>
+          <span className="text-[10px] text-zinc-600">closed trades · survives restarts</span>
+          {ledger?.totals?.trades > 0 && (
+            <div className="ml-auto flex items-center gap-3 text-[11px]">
+              <span className="text-zinc-500">{ledger.totals.trades} trades</span>
+              <span className="text-zinc-500">win <b className="text-zinc-200">{fmt(ledger.totals.win_rate, 0)}%</b></span>
+              <span className={ledger.totals.total_pnl >= 0 ? "text-emerald-400" : "text-rose-400"}>net <b>{signed(ledger.totals.total_pnl)}</b></span>
+            </div>
+          )}
+        </div>
+        {(() => {
+          const cum = (ledger?.cum_pnl || []).map((p) => ({ t: p.ts, pnl: Number(p.cum_pnl) }));
+          if (!ledger) return <div className="flex h-24 items-center justify-center text-[11px] text-zinc-600">Loading track record…</div>;
+          if (cum.length < 1) return (
+            <div className="flex h-24 items-center justify-center px-4 text-center text-[11px] text-zinc-600">
+              No closed trades yet — your realized P&amp;L curve builds here as the fleet closes positions, and it persists across restarts and refreshes.
+            </div>
+          );
+          const last = cum[cum.length - 1].pnl;
+          const col = last >= 0 ? "#34d399" : "#f87171";
+          return (
+            <div className="h-28 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={cum} margin={{ top: 6, right: 6, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="tr" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={col} stopOpacity={0.35} />
+                      <stop offset="100%" stopColor={col} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <YAxis domain={["auto", "auto"]} hide />
+                  <RTooltip contentStyle={{ background: "#09090b", border: "1px solid #27272a", borderRadius: 10, fontSize: 11 }}
+                    labelFormatter={(l) => new Date(l).toLocaleString()} formatter={(v) => [signed(v), "realized P&L"]} />
+                  <Area type="monotone" dataKey="pnl" stroke={col} strokeWidth={2} fill="url(#tr)" isAnimationActive={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Coin tabs + chart */}
