@@ -98,6 +98,34 @@ function fleetFriendly(status, regime) {
 
 const TONE_DOT = { open: "bg-sky-400", clear: "bg-emerald-400", hold: "bg-amber-400", idle: "bg-zinc-600" };
 
+// Readiness meter helpers — "how close to trading" = share of entry gates green.
+const readinessColor = (p) => (p >= 100 ? "bg-sky-400" : p >= 80 ? "bg-emerald-400" : p >= 50 ? "bg-amber-400" : "bg-zinc-500");
+const blockerText = (blocker) => {
+  if (!blocker) return "all checks clear — firing";
+  if (blocker === "In trade") return "in a trade";
+  return FRIENDLY_GATE[blocker] || `waiting on ${blocker}`;
+};
+// Readiness for one leg: prefer the engine's number, fall back to the gate ratio
+// (so it still works before the engine that emits `readiness` is live).
+function legReadiness(leg) {
+  if (!leg) return null;
+  if ((leg.positions || []).length > 0) return 100;
+  const t = leg.thinking;
+  if (!t) return null;
+  if (typeof t.readiness === "number") return t.readiness;
+  if (t.all_pass) return 100;
+  const g = t.gates || [];
+  return g.length ? Math.round((100 * g.filter((x) => x.ok).length) / g.length) : null;
+}
+function ReadinessBar({ pct }) {
+  const p = Math.max(0, Math.min(100, Number(pct) || 0));
+  return (
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
+      <div className={`h-full ${readinessColor(p)} transition-all duration-500`} style={{ width: `${p}%` }} />
+    </div>
+  );
+}
+
 // Smooth count-up for headline numbers.
 function useCountUp(value, ms = 550) {
   const [display, setDisplay] = useState(Number(value) || 0);
@@ -143,6 +171,7 @@ function LegCard({ leg, side, price }) {
     ? { text: "text-emerald-400", border: "border-emerald-500/20", bg: "bg-emerald-500/5", bar: "bg-emerald-400" }
     : { text: "text-rose-400", border: "border-rose-500/20", bg: "bg-rose-500/5", bar: "bg-rose-400" };
   const codes = Object.keys(leg?.signalsMap || {});
+  const readiness = legReadiness(leg);
 
   // live position detail
   let detail = null;
@@ -176,6 +205,16 @@ function LegCard({ leg, side, price }) {
           {running ? "RUNNING" : "IDLE"}
         </span>
       </div>
+      {/* Readiness meter — how close this bot is to firing an entry */}
+      {running && readiness != null && (
+        <div className="mb-2">
+          <div className="mb-0.5 flex items-center justify-between text-[9px] uppercase tracking-wide text-zinc-500">
+            <span>{pos ? "In trade" : "Readiness to trade"}</span>
+            <span className={`font-mono font-bold ${readiness >= 100 ? "text-sky-400" : readiness >= 80 ? "text-emerald-400" : "text-amber-400"}`}>{readiness}%</span>
+          </div>
+          <ReadinessBar pct={readiness} />
+        </div>
+      )}
       <div className="grid grid-cols-3 gap-2 text-[11px]">
         <div className="rounded-lg bg-zinc-950/60 p-2">
           <div className="text-zinc-500">Equity</div>
@@ -509,6 +548,50 @@ export default function FleetCommand() {
             <p className="mt-1 text-[12px] leading-relaxed text-zinc-400">
               {ff.n} bot{ff.n === 1 ? "" : "s"} live · {ff.act} These bots only act on high-quality setups, so the best stretches are patient ones — open the <b className="text-zinc-300">Neural flow</b> below to see exactly what each side is waiting on.
             </p>
+          </div>
+        );
+      })()}
+
+      {/* Closest to trading — the fleet ranked by entry readiness */}
+      {status?.bots?.length > 0 && (() => {
+        const ranked = [...status.bots]
+          .filter((b) => (b.status || "running") === "running")
+          .map((b) => ({ ...b, _r: typeof b.readiness === "number" ? b.readiness : null }))
+          .sort((a, b) => (b._r ?? -1) - (a._r ?? -1));
+        const haveR = ranked.some((b) => b._r != null);
+        return (
+          <div className="mb-4 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
+            <div className="mb-2 flex items-center gap-2">
+              <Gauge size={14} className="text-emerald-400" />
+              <h2 className="text-[12px] font-black uppercase tracking-widest text-zinc-300">Closest to trading</h2>
+              <span className="ml-auto text-[10px] text-zinc-600">ranked by entry readiness</span>
+            </div>
+            {!haveR ? (
+              <p className="text-[11px] text-zinc-500">Readiness populates once the engine refreshes its decision snapshot (just after the next engine update).</p>
+            ) : (
+              <div className="space-y-2">
+                {ranked.map((b, i) => {
+                  const isLong = (b.direction || "").toUpperCase() === "LONG";
+                  const dcls = isLong ? "text-emerald-400" : "text-rose-400";
+                  const pct = b._r ?? 0;
+                  const pcls = pct >= 100 ? "text-sky-400" : pct >= 80 ? "text-emerald-400" : "text-amber-400";
+                  return (
+                    <div key={b.id} onClick={() => b.symbol && setCoin(b.symbol)}
+                         className="flex cursor-pointer items-center gap-3 rounded-lg bg-zinc-950/50 px-2.5 py-2 transition hover:bg-zinc-800/40">
+                      <span className="w-4 shrink-0 text-center text-[11px] font-black text-zinc-600">{i + 1}</span>
+                      <div className="flex w-24 shrink-0 items-center gap-1.5">
+                        <span className="text-[12px] font-bold text-zinc-200">{(b.symbol || "").replace("-USD", "")}</span>
+                        <span className={`text-[9px] font-black uppercase ${dcls}`}>{isLong ? "long" : "short"}</span>
+                      </div>
+                      <div className="flex-1"><ReadinessBar pct={pct} /></div>
+                      <span className={`w-10 shrink-0 text-right font-mono text-[11px] font-bold ${pcls}`}>{pct}%</span>
+                      <span className="hidden w-48 shrink-0 truncate text-[10px] text-zinc-500 sm:block" title={blockerText(b.blocker)}>{blockerText(b.blocker)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <p className="mt-2 text-[10px] text-zinc-600">100% = all entry checks clear (firing). Bars fill as each bot's gates turn green — tap a row to chart that coin.</p>
           </div>
         );
       })()}
