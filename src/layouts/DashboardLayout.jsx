@@ -5,6 +5,7 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Header from '../components/Header.jsx';
+import VerifyBanner from '../components/VerifyBanner.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 
 export default function DashboardLayout() {
@@ -18,6 +19,8 @@ export default function DashboardLayout() {
       <Toaster position="top-right" />
       {/* Top header */}
       <Header />
+      {/* Unverified-email nudge (auto-hides once verified) */}
+      <VerifyBanner />
 
       {/* User info below header, aligned left */}
       {isAuthenticated && (
