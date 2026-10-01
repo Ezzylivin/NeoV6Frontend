@@ -2,10 +2,11 @@
 // Native in-app page for the Trade Learning Ledger.
 // Fetches the same FastAPI your app already uses (VITE_API_URL) — no new backend.
 import React, { useEffect, useState, useCallback } from 'react';
+import api from '../api/apiClient.js';
 
-// Uses the same HTTPS Node backend base your app already calls for /api/bot etc.
-// (The Node backend proxies /api/ledger/* to the Python engine.)
-const API_BASE = import.meta.env.VITE_API_URL ?? 'https://neov6backend.onrender.com';
+// Uses the shared apiClient so the base URL (/api handled once) and the JWT are
+// applied exactly like every other authenticated call — no hand-rolled base URL
+// (which double-added /api -> 404) and no manual token (which read the wrong key).
 
 const fmt = (n, d = 2) =>
   n == null || isNaN(n) ? '—' : Number(n).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -69,21 +70,12 @@ export default function LedgerDashboard() {
 
   const load = useCallback(async () => {
     try {
-      // Send the JWT the SAME way the rest of the app does — apiClient reads the
-      // raw 'token' key from localStorage. (The old code read a non-existent
-      // 'userInfo' object, so no header was sent and every request 401'd.)
-      let token = null;
-      try { token = localStorage.getItem('token'); } catch { /* ignore */ }
-      const res = await fetch(`${API_BASE}/api/ledger/stats?recent=30`, {
-        cache: 'no-store',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setData(await res.json());
+      const res = await api.get('/ledger/stats', { params: { recent: 30 } });
+      setData(res.data);
       setErr(null);
       setUpdated(new Date());
     } catch (e) {
-      setErr(String(e));
+      setErr(e?.response?.status ? `HTTP ${e.response.status}` : String(e.message || e));
     }
   }, []);
 
