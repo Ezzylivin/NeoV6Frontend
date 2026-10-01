@@ -66,6 +66,17 @@ export const LiveTradingChart = ({
         };
     }, []);
 
+    // Reset the candle buffer when the symbol/timeframe changes so a TAB SWITCH
+    // forces a full setData() with the new coin's data. Without this, a coin with
+    // a similar candle count takes the streaming update() path and the chart keeps
+    // showing the PREVIOUS coin (only its last candle gets poked).
+    useEffect(() => {
+        lastCandleCountRef.current = 0;
+        if (seriesRef.current) {
+            try { seriesRef.current.setData([]); } catch (e) {}
+        }
+    }, [symbol, timeframe]);
+
     // ============================================================
     // 🔧 FIX T4-13: Use update() for streaming, setData() for init
     // ============================================================
@@ -86,9 +97,11 @@ export const LiveTradingChart = ({
         if (!formatted.length) return;
 
         if (lastCandleCountRef.current === 0 || Math.abs(formatted.length - lastCandleCountRef.current) > 5) {
-            // Initial load or major data change — full setData
+            // Initial load, coin/timeframe switch, or major data change — full setData
+            // and refit the view (new coin's price/time range differs).
             seriesRef.current.setData(formatted);
             lastCandleCountRef.current = formatted.length;
+            try { chartRef.current?.timeScale().fitContent(); } catch (e) {}
         } else {
             // Streaming update — only update the last candle
             const lastCandle = formatted[formatted.length - 1];
