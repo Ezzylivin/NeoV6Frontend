@@ -189,7 +189,7 @@ export const LiveTradingChart = ({
                 entryLinesRef.current.push(seriesRef.current.createPriceLine({
                     price: tslPrice, color: '#ef4444',
                     lineWidth: 2, lineStyle: LineStyle.Solid,
-                    axisLabelVisible: true, title: `L${idx + 1} TSL`,
+                    axisLabelVisible: true, title: `L${idx + 1} STOP`,
                 }));
             }
         });

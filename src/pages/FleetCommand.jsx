@@ -632,7 +632,11 @@ export default function FleetCommand() {
   const rg = REGIME[regime?.state || "neutral"] || REGIME.neutral;
   const rd = regime?.detail || {};
   const driftStatus = drift?.status || "INSUFFICIENT_DATA";
-  const activePositions = [...(legs.long?.positions || []), ...(legs.short?.positions || [])];
+  // Fleet bots all use the trend_ride exit — NO take-profit cap (they ride to a
+  // signal flip, protected only by the fixed ATR stop). Strip any leftover `tp`
+  // so the chart never draws a take-profit line the bot will never act on.
+  const stripTp = (p) => ({ ...p, tp: undefined });
+  const activePositions = [...(legs.long?.positions || []).map(stripTp), ...(legs.short?.positions || []).map(stripTp)];
   const tradeMarkers = toChartMarkers([...(legs.long?.tradeHistory || []), ...(legs.short?.tradeHistory || [])]);
   const net = drift?.net_pnl ?? 0;
   const animEquity = useCountUp(status?.total_balance ?? 0);
