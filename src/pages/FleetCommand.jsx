@@ -127,6 +127,51 @@ function ReadinessBar({ pct }) {
   );
 }
 
+// Tiny inline SVG sparkline for the readiness trend (no chart lib overhead per row).
+function Sparkline({ data, color = "#34d399", w = 68, h = 16 }) {
+  const ys = (data || []).map(Number).filter((v) => Number.isFinite(v));
+  if (ys.length < 2) return <svg width={w} height={h} aria-hidden />;
+  const min = Math.min(...ys), max = Math.max(...ys), rng = max - min || 1;
+  const pts = ys.map((v, i) => `${(i / (ys.length - 1)) * w},${h - ((v - min) / rng) * (h - 3) - 1.5}`).join(" ");
+  return (
+    <svg width={w} height={h} className="overflow-visible">
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// Transform the engine's raw trade_history (entry/exit/partial_exit, time in ms)
+// into lightweight-charts markers for the on-chart trade history.
+const _toSec = (t) => (typeof t === "number" ? Math.floor(t > 1e11 ? t / 1000 : t) : Math.floor(new Date(t).getTime() / 1000));
+function toChartMarkers(history) {
+  const out = [];
+  for (const h of history || []) {
+    const t = h.time ?? h.timestamp ?? h.ts;
+    if (t == null) continue;
+    const sec = _toSec(t);
+    if (!Number.isFinite(sec)) continue;
+    const isLong = String(h.side || "").toLowerCase() === "long";
+    if (h.type === "entry") {
+      out.push({ time: sec, position: isLong ? "belowBar" : "aboveBar", color: "#60a5fa", shape: isLong ? "arrowUp" : "arrowDown", text: isLong ? "LONG in" : "SHORT in" });
+    } else if (h.type === "exit" || h.type === "partial_exit") {
+      const pnl = Number(h.pnl) || 0, win = pnl >= 0, part = h.type === "partial_exit";
+      out.push({ time: sec, position: isLong ? "aboveBar" : "belowBar", color: win ? "#34d399" : "#f87171", shape: "circle", text: `${part ? "½ " : ""}${win ? "+" : ""}$${Math.abs(pnl).toFixed(0)}` });
+    }
+  }
+  return out;
+}
+
+// Friendly, teachable explanation of why a trade closed — pairs with the learn theme.
+const REASON_INFO = {
+  "Take Profit":    "hit its profit target",
+  "Trailing Stop":  "trailed out — the stop followed price up and locked in the move",
+  "Trend Stop":     "the trend-stop triggered (price fell back through the ATR stop)",
+  "Signal Flip":    "the trend flipped against it, so it exited to protect the gain",
+  "Circuit Breaker":"loss-protection closed it (daily drawdown limit)",
+  "Trend Stop / Signal Flip": "the trend ended (stop or signal flip)",
+};
+const reasonText = (r) => REASON_INFO[r] || (r ? String(r).toLowerCase() : "the exit rule triggered");
+
 // Smooth count-up for headline numbers.
 function useCountUp(value, ms = 550) {
   const [display, setDisplay] = useState(Number(value) || 0);
@@ -345,6 +390,9 @@ export default function FleetCommand() {
   const seenTrades = useRef(null); // Set of trade ids already toasted
   const prevDrift = useRef(null);  // last drift status, to catch the flip into DRIFTING
   const [driftAlertOpen, setDriftAlertOpen] = useState(false);
+  const readinessHist = useRef({}); // { botId: [readiness,…] } for the trend sparkline
+  const lastCloseTs = useRef(null); // newest ledger close seen, to pop the post-mortem
+  const [postmortem, setPostmortem] = useState(null); // latest closed-trade recap
 
   const coinPrice = candles.length ? candles[candles.length - 1]?.close : null;
 
@@ -365,6 +413,19 @@ export default function FleetCommand() {
       setStatus(st); setRegime(rg); setDrift(dr); setUpdatedAt(Date.now());
       setOnline(true);
       if (led) setLedger(led);
+      // Accumulate each bot's readiness for the trend sparkline (client-side ring buffer).
+      for (const b of st?.bots || []) {
+        if (typeof b.readiness !== "number") continue;
+        const arr = readinessHist.current[b.id] || [];
+        arr.push(b.readiness);
+        readinessHist.current[b.id] = arr.slice(-40);
+      }
+      // Pop a post-mortem when a NEW trade closes (seed silently on first load).
+      const newest = led?.cum_pnl?.length ? led.recent?.[0] : null;
+      if (newest?.ts) {
+        if (lastCloseTs.current === null) lastCloseTs.current = newest.ts;
+        else if (newest.ts !== lastCloseTs.current) { lastCloseTs.current = newest.ts; setPostmortem(newest); }
+      }
       // Drift tripwire: alert the moment live results flip to DRIFTING (the real
       // "markets are changing" signal — it watches live behavior, not a backtest).
       const ds = dr?.status;
@@ -457,7 +518,7 @@ export default function FleetCommand() {
   const rd = regime?.detail || {};
   const driftStatus = drift?.status || "INSUFFICIENT_DATA";
   const activePositions = [...(legs.long?.positions || []), ...(legs.short?.positions || [])];
-  const tradeMarkers = [...(legs.long?.tradeMarkers || []), ...(legs.short?.tradeMarkers || [])];
+  const tradeMarkers = toChartMarkers([...(legs.long?.tradeHistory || []), ...(legs.short?.tradeHistory || [])]);
   const net = drift?.net_pnl ?? 0;
   const animEquity = useCountUp(status?.total_balance ?? 0);
   const unreal = status?.total_unrealized ?? 0;
@@ -503,6 +564,35 @@ export default function FleetCommand() {
           <button onClick={() => setDriftAlertOpen(false)} className="shrink-0 text-[11px] text-rose-300/70 hover:text-rose-200">dismiss</button>
         </div>
       )}
+
+      {/* Trade post-mortem — friendly recap when a position closes (learn from each trade) */}
+      {postmortem && (() => {
+        const p = postmortem;
+        const win = Number(p.pnl) >= 0;
+        const isLong = String(p.direction || "").toLowerCase() === "long";
+        const entry = Number(p.entry_price), exit = Number(p.exit_price);
+        const movePct = entry ? ((isLong ? (exit - entry) : (entry - exit)) / entry) * 100 : null;
+        return (
+          <div className={`mb-4 flex items-start gap-3 rounded-2xl border p-4 ${win ? "border-emerald-500/30 bg-emerald-500/5" : "border-rose-500/30 bg-rose-500/5"}`}>
+            <div className={`rounded-lg p-1.5 ${win ? "bg-emerald-500/15" : "bg-rose-500/15"}`}>
+              {win ? <TrendingUp size={16} className="text-emerald-400" /> : <TrendingDown size={16} className="text-rose-400" />}
+            </div>
+            <div className="flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[12px] font-black uppercase tracking-widest text-zinc-200">{(p.symbol || "").replace("-USD", "")} {isLong ? "long" : "short"} closed</span>
+                <span className={`font-mono text-[13px] font-black ${win ? "text-emerald-400" : "text-rose-400"}`}>{win ? "+" : ""}${fmt(p.pnl)}</span>
+                {movePct != null && <span className={`text-[11px] ${win ? "text-emerald-400/80" : "text-rose-400/80"}`}>({movePct >= 0 ? "+" : ""}{fmt(movePct, 2)}%)</span>}
+              </div>
+              <p className="mt-1 text-[12px] leading-relaxed text-zinc-300">
+                It <b className="text-zinc-200">{reasonText(p.reason)}</b> — entered at <b className="text-zinc-200">${fmt(entry)}</b>, exited at <b className="text-zinc-200">${fmt(exit)}</b>.
+                {win ? " A winner booked — this is the trend-ride letting a move run." : " A small loss cut by the stop — exactly how the strategy caps downside while winners run bigger."}
+              </p>
+              <p className="mt-0.5 text-[10px] text-zinc-600">{p.ts ? new Date(p.ts).toLocaleString() : ""}</p>
+            </div>
+            <button onClick={() => setPostmortem(null)} className="shrink-0 text-[11px] text-zinc-500 hover:text-zinc-300">dismiss</button>
+          </div>
+        );
+      })()}
 
       {/* Controls */}
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
@@ -600,6 +690,7 @@ export default function FleetCommand() {
                         <span className={`text-[9px] font-black uppercase ${dcls}`}>{isLong ? "long" : "short"}</span>
                       </div>
                       <div className="flex-1"><ReadinessBar pct={pct} /></div>
+                      <span className="hidden shrink-0 sm:block" title="Readiness trend"><Sparkline data={readinessHist.current[b.id]} color={pct >= 100 ? "#38bdf8" : pct >= 80 ? "#34d399" : "#fbbf24"} /></span>
                       <span className={`w-10 shrink-0 text-right font-mono text-[11px] font-bold ${pcls}`}>{pct}%</span>
                       <span className="hidden w-48 shrink-0 truncate text-[10px] text-zinc-500 sm:block" title={blockerText(b.blocker)}>{blockerText(b.blocker)}</span>
                     </div>
