@@ -14,7 +14,7 @@ import { BACKEND_URL } from "../config/api.js";
 import { AreaChart, Area, ResponsiveContainer, YAxis, Tooltip as RTooltip } from "recharts";
 import {
   Ship, Play, Square, RefreshCw, Activity, TrendingUp, TrendingDown, ShieldCheck,
-  Gauge, Layers, Info, Zap, Radio, Clock, Cpu, Bell, BellOff,
+  Gauge, Layers, Info, Zap, Radio, Clock, Cpu, Bell, BellOff, Volume2, VolumeX,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -181,6 +181,25 @@ function notifyBrowser(title, body) {
   try {
     if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
     new Notification(title, { body, icon: "/favicon.ico" });
+  } catch { /* ignore */ }
+}
+
+// Short WebAudio chime for trade events (no asset needed). win=high, loss=low, entry=mid.
+let _audioCtx = null;
+function playTone(kind) {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    _audioCtx = _audioCtx || new AC();
+    const ctx = _audioCtx;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = "sine";
+    o.frequency.value = kind === "win" ? 660 : kind === "loss" ? 300 : 480;
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.08, ctx.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(); o.stop(ctx.currentTime + 0.26);
   } catch { /* ignore */ }
 }
 
@@ -382,6 +401,7 @@ export default function FleetCommand() {
   const [capital, setCapital] = useState(1000);
   const [maxDd, setMaxDd] = useState(20);
   const [conviction, setConviction] = useState(false);
+  const [longOnly, setLongOnly] = useState(true); // SPOT (long-only) by default — recommended/safe
 
   const [status, setStatus] = useState(null);
   const [regime, setRegime] = useState(null);
@@ -399,6 +419,11 @@ export default function FleetCommand() {
   const enableNotifs = async () => {
     try { const p = await Notification.requestPermission(); setNotifPerm(p); } catch { /* ignore */ }
   };
+  const [soundOn, setSoundOn] = useState(() => { try { return localStorage.getItem("fleetSound") === "1"; } catch { return false; } });
+  const toggleSound = () => setSoundOn((s) => { const n = !s; try { localStorage.setItem("fleetSound", n ? "1" : "0"); } catch { /* ignore */ } return n; });
+  const soundOnRef = useRef(soundOn);
+  useEffect(() => { soundOnRef.current = soundOn; }, [soundOn]);
+  const equityHistByBot = useRef({}); // { botId: [balance,…] } for per-bot equity sparklines
 
   const [coin, setCoin] = useState("BTC-USD");
   const [chartTf, setChartTf] = useState("4h");
@@ -434,10 +459,16 @@ export default function FleetCommand() {
       if (led) setLedger(led);
       // Accumulate each bot's readiness for the trend sparkline (client-side ring buffer).
       for (const b of st?.bots || []) {
-        if (typeof b.readiness !== "number") continue;
-        const arr = readinessHist.current[b.id] || [];
-        arr.push(b.readiness);
-        readinessHist.current[b.id] = arr.slice(-40);
+        if (typeof b.readiness === "number") {
+          const arr = readinessHist.current[b.id] || [];
+          arr.push(b.readiness);
+          readinessHist.current[b.id] = arr.slice(-40);
+        }
+        if (b.balance != null) {
+          const eq = equityHistByBot.current[b.id] || [];
+          eq.push(Number(b.balance));
+          equityHistByBot.current[b.id] = eq.slice(-40);
+        }
       }
       // Pop a post-mortem when a NEW trade closes (seed silently on first load).
       const newest = led?.cum_pnl?.length ? led.recent?.[0] : null;
@@ -475,8 +506,10 @@ export default function FleetCommand() {
             toast(`🚀 ${e.symbol} ${String(e.side).toUpperCase()} ENTERED @ $${fmt(e.price)}`,
               { style: { background: "#18181b", color: "#60a5fa", border: "1px solid #27272a", fontSize: "12px" } });
             notifyBrowser(`🚀 ${e.symbol} ${String(e.side).toUpperCase()} opened`, `Entered at $${fmt(e.price)}`);
+            if (soundOnRef.current) playTone("entry");
           } else {
             const win = Number(e.pnl) >= 0;
+            if (soundOnRef.current) playTone(win ? "win" : "loss");
             toast(`${win ? "🟢" : "🔴"} ${e.symbol} ${String(e.side).toUpperCase()} closed ${signed(e.pnl)} · ${e.reason || ""}`,
               { style: { background: "#18181b", color: win ? "#34d399" : "#f87171", border: "1px solid #27272a", fontSize: "12px" } });
             notifyBrowser(`${win ? "🟢 Win" : "🔴 Loss"} · ${e.symbol} ${String(e.side).toUpperCase()} closed`, `${signed(e.pnl)}${e.reason ? ` · ${e.reason}` : ""}`);
@@ -549,9 +582,10 @@ export default function FleetCommand() {
         capitalEach: Number(capital) || 1000,
         fleetMaxDrawdownPct: Number(maxDd) || 20,
         sizeByConviction: !!conviction,
+        longOnly: !!longOnly,
       };
       const r = await startFleet(body);
-      toast.success(`Fleet ignited — ${r.count} bots running`);
+      toast.success(`Fleet ignited — ${r.count} bots running (${longOnly ? "spot · long only" : "long + short"})`);
       await refreshFleet();
     } catch (e) { toast.error(e?.response?.data?.error || "Failed to start fleet"); }
     finally { setBusy(false); }
@@ -607,6 +641,9 @@ export default function FleetCommand() {
           ) : notifPerm !== "unsupported" && notifPerm !== "denied" ? (
             <button onClick={enableNotifs} className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700 px-3 py-1 text-[10px] font-bold text-zinc-300 hover:border-emerald-500/40 hover:text-emerald-400" title="Get desktop notifications on entries/exits, even when this tab is in the background"><BellOff size={11} /> Enable alerts</button>
           ) : null}
+          <button onClick={toggleSound} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-bold ${soundOn ? "border-sky-500/30 text-sky-400" : "border-zinc-800 text-zinc-500 hover:text-zinc-300"}`} title={soundOn ? "Sound cues on — a chime on each entry/exit" : "Sound cues off"}>
+            {soundOn ? <Volume2 size={11} /> : <VolumeX size={11} />}{soundOn ? "SOUND" : "MUTED"}
+          </button>
         </div>
       </div>
 
@@ -673,6 +710,15 @@ export default function FleetCommand() {
             <span className="text-[10px] uppercase tracking-widest text-zinc-500">Fleet max DD %</span>
             <input type="number" className="w-28 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm" value={maxDd} onChange={(e) => setMaxDd(e.target.value)} />
           </label>
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-widest text-zinc-500">Mode</span>
+            <div className="flex rounded-xl border border-zinc-800 bg-zinc-950 p-1">
+              <button onClick={() => setLongOnly(true)} title="Spot: long positions only — no margin/shorting. The validated edge is the long side; this is the safe, universally-available default."
+                className={`rounded-lg px-3 py-1.5 text-[11px] font-bold transition ${longOnly ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-300"}`}>Spot · long only</button>
+              <button onClick={() => setLongOnly(false)} title="Long + Short: adds the 1d regime-gated SHORT bots as a downside hedge. Requires margin — advanced; carries funding + liquidation risk."
+                className={`rounded-lg px-3 py-1.5 text-[11px] font-bold transition ${!longOnly ? "bg-rose-500/20 text-rose-400" : "text-zinc-500 hover:text-zinc-300"}`}>Long + Short</button>
+            </div>
+          </div>
           <label className="flex cursor-pointer items-center gap-2 pb-2 text-sm text-zinc-300" title="Bet more on high-quality setups, less on weak ones">
             <input type="checkbox" className="accent-emerald-500" checked={conviction} onChange={(e) => setConviction(e.target.checked)} />
             <Gauge size={14} className="text-zinc-500" /> Conviction sizing
@@ -943,11 +989,12 @@ export default function FleetCommand() {
                   <th className="py-2 pr-4 text-left">Symbol</th><th className="py-2 pr-4 text-left">Side</th>
                   <th className="py-2 pr-4 text-left">TF</th><th className="py-2 pr-4 text-left">Equity</th>
                   <th className="py-2 pr-4 text-left">Unreal.</th><th className="py-2 pr-4 text-left">Open</th>
+                  <th className="py-2 pr-4 text-left">Trend</th>
                 </tr>
               </thead>
               <tbody>
                 {!status?.bots?.length ? (
-                  <tr><td colSpan={6} className="py-4 text-zinc-500">No fleet running. Set symbols and Ignite.</td></tr>
+                  <tr><td colSpan={7} className="py-4 text-zinc-500">No fleet running. Set symbols and Ignite.</td></tr>
                 ) : status.bots.map((b) => {
                   const dir = (b.direction || "").toUpperCase();
                   const dcls = dir === "LONG" ? "text-emerald-400" : dir === "SHORT" ? "text-rose-400" : "text-zinc-400";
@@ -959,6 +1006,11 @@ export default function FleetCommand() {
                       <td className="py-2 pr-4">${fmt(b.balance)}</td>
                       <td className={`py-2 pr-4 font-mono ${(b.unrealized ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{signed(b.unrealized ?? 0)}</td>
                       <td className="py-2 pr-4">{b.open_positions ?? 0}</td>
+                      <td className="py-2 pr-4">{(() => {
+                        const eq = equityHistByBot.current[b.id] || [];
+                        const up = eq.length > 1 && eq[eq.length - 1] >= eq[0];
+                        return <Sparkline data={eq} color={eq.length < 2 ? "#52525b" : up ? "#34d399" : "#f87171"} />;
+                      })()}</td>
                     </tr>
                   );
                 })}
