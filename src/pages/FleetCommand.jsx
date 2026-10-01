@@ -7,6 +7,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { LiveTradingChart } from "../components/LiveTradingChart.jsx";
 import FleetGuide, { STRATEGY_INFO } from "../components/FleetGuide.jsx";
 import EvidencePanel from "../components/EvidencePanel.jsx";
+import RealityCheck from "../components/RealityCheck.jsx";
+import ReadinessScorecard from "../components/ReadinessScorecard.jsx";
 import { startFleet, stopFleet, getFleetStatus, getFleetRegime, getFleetDrift, getFleetBot, getFleetActivity } from "../api/fleet.js";
 import api from "../api/apiClient.js";
 import { io } from "socket.io-client";
@@ -674,6 +676,8 @@ export default function FleetCommand() {
       {/* Learn-while-it-trades: how the fleet works + the evidence behind it (collapsible) */}
       <FleetGuide />
       <EvidencePanel />
+      <RealityCheck />
+      <ReadinessScorecard drift={drift} ledger={ledger} />
 
       {/* Drift tripwire banner — shown while the fleet is DRIFTING from its validated profile */}
       {driftAlertOpen && driftStatus === "DRIFTING" && (
