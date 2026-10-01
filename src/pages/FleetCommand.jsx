@@ -35,6 +35,69 @@ const DRIFT = {
   INSUFFICIENT_DATA: "bg-zinc-500/15 text-zinc-400",
 };
 
+// Plain-English translation of each entry gate, so a non-technical user can read
+// *why* a bot is holding without knowing what ADX or MACD mean. Keyed by the
+// gate's `k` as the engine emits it.
+const FRIENDLY_GATE = {
+  "Volatility": "the market's too quiet right now to make a move worth the fees",
+  "Votes": "the indicators don't agree strongly enough yet",
+  "Trend align": "price and the trend aren't pointing the same way",
+  "ADX trend": "the trend isn't strong enough to ride yet",
+  "Volume": "trading volume is light — not enough conviction behind the move",
+  "AI gate": "the model isn't confident enough in this setup",
+  "Direction": "this bot trades one direction only, and the market's leaning the other way",
+  "Macro tilt": "the market-wide mood (set by Bitcoin) is against this side for now",
+  "Cooldown": "it just closed a trade and is taking a short breather",
+  "Risk breaker": "loss-protection paused new entries to protect your capital",
+};
+
+// Build a friendly one-liner for a single leg from its decision snapshot.
+// Returns { tone, text } where tone drives the dot color.
+function legFriendly(leg, side) {
+  const label = side === "long" ? "Long" : "Short";
+  if (!leg || leg.status !== "running") return { tone: "idle", text: `${label} bot is idle — not currently running.` };
+  const pos = (leg.positions || [])[0];
+  if (pos) return { tone: "open", text: `In a ${side} trade from $${fmt(pos.entry)} — riding it until the trend flips or the stop is hit.` };
+  const t = leg.thinking;
+  if (!t) return { tone: "idle", text: `${label} bot is warming up — no decision yet.` };
+  if (t.all_pass) return { tone: "clear", text: `All checks passed — opening a ${side} trade now.` };
+  const gates = t.gates || [];
+  const passed = gates.filter((g) => g.ok).length;
+  const total = gates.length;
+  const blockers = gates.filter((g) => !g.ok);
+  const first = blockers[0];
+  const why = first ? (FRIENDLY_GATE[first.k] || `waiting on ${first.k}`) : "waiting for a cleaner setup";
+  const aligned = (side === "long" && t.sig === 1) || (side === "short" && t.sig === -1);
+  const lead = aligned
+    ? `A ${side} signal is in, but ${why} — so it's holding to avoid a choppy entry.`
+    : `Standing aside — ${why}.`;
+  const tail = total
+    ? (blockers.length === 1 ? ` Everything else (${passed} of ${total} checks) is green.` : ` ${passed} of ${total} checks are green.`)
+    : "";
+  return { tone: "hold", text: lead + tail };
+}
+
+// Fleet-wide friendly summary from the aggregate status + macro regime.
+function fleetFriendly(status, regime) {
+  if (!status) return null;
+  const n = status.count || 0;
+  const open = status.open_positions || 0;
+  const st = regime?.state || "neutral";
+  const mood =
+    st === "risk_on"
+      ? "The market is risk-on — Bitcoin is trending up, so the long bots are favored and the short bots are parked on the sidelines."
+      : st === "risk_off"
+      ? "The market is risk-off — Bitcoin is trending down, so the short bots are favored and the long bots are parked."
+      : "The market is neutral — no strong lean, so each bot trades purely on its own coin's trend.";
+  const act =
+    open > 0
+      ? `${open} position${open > 1 ? "s" : ""} open right now.`
+      : "No positions open yet — the fleet is waiting for a high-quality setup, which is normal in quiet stretches.";
+  return { mood, act, n, open };
+}
+
+const TONE_DOT = { open: "bg-sky-400", clear: "bg-emerald-400", hold: "bg-amber-400", idle: "bg-zinc-600" };
+
 // Smooth count-up for headline numbers.
 function useCountUp(value, ms = 550) {
   const [display, setDisplay] = useState(Number(value) || 0);
@@ -183,6 +246,7 @@ function GateFlow({ leg, side }) {
   }
   const firstBlock = (t.gates || []).find((g) => !g.ok);
   const sigCls = t.sig === 1 ? "bg-emerald-500/15 text-emerald-400" : t.sig === -1 ? "bg-rose-500/15 text-rose-400" : "bg-zinc-500/15 text-zinc-400";
+  const friendly = legFriendly(leg, side);
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
       <div className="mb-2 flex items-center justify-between">
@@ -192,6 +256,12 @@ function GateFlow({ leg, side }) {
           <span className="text-[10px] text-zinc-500">conf {t.score}%</span>
         </div>
       </div>
+      {/* Friendly, plain-English explanation — leads so non-technical users get it first. */}
+      <div className="mb-2 flex items-start gap-2 rounded-lg bg-zinc-900/70 px-2.5 py-2 text-[11px] leading-snug text-zinc-300">
+        <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${TONE_DOT[friendly.tone] || "bg-zinc-600"}`} />
+        <span>{friendly.text}</span>
+      </div>
+      {/* Technical gate chips underneath for users who want the detail. */}
       <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">
         {(t.gates || []).map((g) => (
           <div key={g.k} className={`flex items-center gap-1 rounded-md px-2 py-1 text-[9px] font-semibold ${g.ok ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400 ring-1 ring-rose-500/30"}`}>
@@ -199,11 +269,9 @@ function GateFlow({ leg, side }) {
           </div>
         ))}
       </div>
-      <div className="mt-2 text-[11px]">
-        {t.all_pass
-          ? <span className="text-emerald-400">✅ All checkpoints clear — dispatching entry.</span>
-          : <span className="text-zinc-400">Holding{firstBlock ? <> · blocked by <b className="text-rose-400">{firstBlock.k}</b></> : ""}. <span className="text-zinc-600">{t.note || t.waiting || ""}</span></span>}
-      </div>
+      {!t.all_pass && firstBlock && (
+        <div className="mt-1.5 text-[10px] text-zinc-600">Technical: blocked by <b className="text-rose-400/80">{firstBlock.k}</b>.</div>
+      )}
     </div>
   );
 }
@@ -398,6 +466,25 @@ export default function FleetCommand() {
           <Stat icon={ShieldCheck} label="Drift"><span className={`rounded-full px-2.5 py-1 text-xs ${DRIFT[driftStatus] || DRIFT.INSUFFICIENT_DATA}`}>{driftStatus.replace("_", " ")}</span></Stat>
         </>)}
       </div>
+
+      {/* What's happening — plain-English fleet narrator, refreshes every poll */}
+      {(() => {
+        const ff = fleetFriendly(status, regime);
+        if (!ff) return null;
+        return (
+          <div className="mb-4 rounded-2xl border border-sky-500/20 bg-sky-500/5 p-4">
+            <div className="mb-1.5 flex items-center gap-2">
+              <Info size={14} className="text-sky-400" />
+              <h2 className="text-[12px] font-black uppercase tracking-widest text-sky-300">What's happening</h2>
+              {updatedAt && <span className="ml-auto text-[10px] text-zinc-500">as of {new Date(updatedAt).toLocaleTimeString()}</span>}
+            </div>
+            <p className="text-[13px] leading-relaxed text-zinc-200">{ff.mood}</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-zinc-400">
+              {ff.n} bot{ff.n === 1 ? "" : "s"} live · {ff.act} These bots only act on high-quality setups, so the best stretches are patient ones — open the <b className="text-zinc-300">Neural flow</b> below to see exactly what each side is waiting on.
+            </p>
+          </div>
+        );
+      })()}
 
       {/* Equity curve */}
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
