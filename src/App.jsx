@@ -20,6 +20,7 @@ const HelpCenter = lazy(() => import("./pages/HelpCenter"));
 const FleetCommand = lazy(() => import("./pages/FleetCommand.jsx"));
 const Settings = lazy(() => import("./pages/Settings.jsx"));
 const LedgerDashboard = lazy(() => import("./pages/LedgerDashboard.jsx"));
+const VerifyEmail = lazy(() => import("./pages/VerifyEmail.jsx"));
 const NotFound = lazy(() => import("./pages/NotFound.jsx"));
 
 const RouteFallback = () => (
@@ -60,6 +61,9 @@ function App() {
               <Route path="ledger" element={<LedgerDashboard />} />
               <Route path="fleet" element={<FleetCommand />} />
             </Route>
+
+            {/* 📧 Public email-verification landing (clicked from the email link) */}
+            <Route path="/verify-email" element={<VerifyEmail />} />
 
             {/* Catch-all for unknown routes */}
             <Route path="*" element={<NotFound />} />
