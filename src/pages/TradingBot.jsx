@@ -996,8 +996,16 @@ const TradingBotContainer = () => {
     const handleRoutingChange = (value) => {
         const isMargin = value === 'true';
         if (!isMargin) { setFormConfig(p => ({ ...p, enable_shorting: false })); return; }
-        // FE#1: keys live encrypted server-side now (not in localStorage), so margin
-        // selection always opens the key modal; saving there is idempotent.
+        // PAPER mode: margin / shorting is fully SIMULATED by the engine (no real
+        // orders are routed), so it must NOT prompt for live Kraken API keys.
+        // Just enable shorting. Real credentials are only needed for live capital.
+        if (formConfig.tradingMode !== 'live') {
+            setFormConfig(p => ({ ...p, enable_shorting: true }));
+            toast.success("Margin enabled (paper — simulated, no API keys needed).");
+            return;
+        }
+        // LIVE mode: real margin routes through Kraken, which requires API keys.
+        // FE#1: keys live encrypted server-side (not in localStorage); saving is idempotent.
         setApiKeyModal({
             exchange: 'kraken',
             onSave: () => { setApiKeyModal(null); setFormConfig(p => ({ ...p, enable_shorting: true })); toast.success("Kraken Margin Authorized."); }
