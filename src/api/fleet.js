@@ -40,3 +40,9 @@ export const getFleetBot = async (symbol, side) => {
   const res = await api.get("/fleet/bot", { params: { symbol, side } });
   return res.data;
 };
+
+// GET /api/fleet/activity — recent closed trades across the whole fleet (feed).
+export const getFleetActivity = async (limit = 20) => {
+  const res = await api.get("/fleet/activity", { params: { limit } });
+  return res.data;
+};

@@ -79,6 +79,29 @@ export default function LedgerDashboard() {
     }
   }, []);
 
+  const clearLedger = useCallback(async () => {
+    if (!window.confirm("Clear your entire trade ledger? This permanently deletes all learning data and cannot be undone.")) return;
+    try {
+      await api.post('/ledger/clear');
+      setData(null);
+      await load();
+    } catch (e) {
+      setErr(e?.response?.status ? `HTTP ${e.response.status}` : String(e.message || e));
+    }
+  }, [load]);
+
+  const saveLedger = useCallback(() => {
+    const rows = data?.recent || [];
+    if (!rows.length) { return; }
+    const cols = ['ts', 'symbol', 'direction', 'mode', 'entry_price', 'exit_price', 'pnl', 'label', 'reason', 'entry_conf', 'composite'];
+    const esc = (v) => (v == null ? '' : /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
+    const csv = [cols.join(',')].concat(rows.map((r) => cols.map((c) => esc(r[c])).join(','))).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = `neo-ledger-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  }, [data]);
+
   useEffect(() => {
     load();
     const id = setInterval(load, 15000);
@@ -95,9 +118,21 @@ export default function LedgerDashboard() {
           <h1 className="text-xl font-bold text-emerald-400">🧠 Trade Learning Ledger</h1>
           <p className="text-sm text-neutral-500">Every closed trade the bot has made — the data it learns from.</p>
         </div>
-        <button onClick={load} className="rounded-lg border border-white/10 bg-[#1b1b1b] px-4 py-2 text-sm text-neutral-300 hover:border-emerald-400/50">
-          ↻ Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={saveLedger} disabled={!data?.recent?.length}
+            className="rounded-lg border border-white/10 bg-[#1b1b1b] px-4 py-2 text-sm text-neutral-300 hover:border-emerald-400/50 disabled:opacity-40"
+            title="Export the loaded trades as CSV">
+            ⤓ Save
+          </button>
+          <button onClick={clearLedger} disabled={!data?.totals?.trades}
+            className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-300 hover:border-red-400/60 disabled:opacity-40"
+            title="Permanently delete all your ledger trades">
+            🗑 Clear
+          </button>
+          <button onClick={load} className="rounded-lg border border-white/10 bg-[#1b1b1b] px-4 py-2 text-sm text-neutral-300 hover:border-emerald-400/50">
+            ↻ Refresh
+          </button>
+        </div>
       </div>
 
       {err && <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">Could not load ledger: {err}</div>}
