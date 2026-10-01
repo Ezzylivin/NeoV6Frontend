@@ -156,7 +156,12 @@ export const LiveTradingChart = ({
             };
         }).filter(Boolean);
 
-        seriesRef.current.setMarkers([...legMarkers, ...tradeMarkers]);
+        // lightweight-charts requires markers in ascending time order — sort the
+        // combined set (active-position markers + closed-trade history) or it throws.
+        const allMarkers = [...legMarkers, ...tradeMarkers]
+            .filter((m) => m && m.time != null)
+            .sort((a, b) => a.time - b.time);
+        seriesRef.current.setMarkers(allMarkers);
 
         // Draw horizontal price lines for each position
         activePositions.forEach((pos, idx) => {
