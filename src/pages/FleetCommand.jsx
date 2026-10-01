@@ -11,7 +11,7 @@ import { startFleet, stopFleet, getFleetStatus, getFleetRegime, getFleetDrift, g
 import api from "../api/apiClient.js";
 import { io } from "socket.io-client";
 import { BACKEND_URL } from "../config/api.js";
-import { AreaChart, Area, ResponsiveContainer, YAxis, Tooltip as RTooltip } from "recharts";
+import { AreaChart, Area, LineChart, Line, Legend, ResponsiveContainer, YAxis, Tooltip as RTooltip } from "recharts";
 import {
   Ship, Play, Square, RefreshCw, Activity, TrendingUp, TrendingDown, ShieldCheck,
   Gauge, Layers, Info, Zap, Radio, Clock, Cpu, Bell, BellOff, Volume2, VolumeX,
@@ -574,6 +574,30 @@ export default function FleetCommand() {
       .catch(() => {});
   }, []);
 
+  // Quick-start presets — one click sets risk cap, mode and sizing (doesn't auto-start).
+  const applyPreset = (p) => {
+    if (p === "cons") { setMaxDd(10); setLongOnly(true); setConviction(false); }
+    else if (p === "bal") { setMaxDd(20); setLongOnly(true); setConviction(true); }
+    else if (p === "agg") { setMaxDd(30); setLongOnly(false); setConviction(true); }
+  };
+
+  // Export the closed-trade ledger to CSV (owns-your-data).
+  const downloadTradesCsv = () => {
+    const rows = ledger?.recent || [];
+    if (!rows.length) return;
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const head = ["time", "symbol", "direction", "entry_price", "exit_price", "pnl", "reason"];
+    const body = rows.map((r) => [r.ts, r.symbol, r.direction, r.entry_price, r.exit_price, r.pnl, r.reason].map(esc).join(","));
+    const csv = [head.join(","), ...body].join("\n");
+    try {
+      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+      const a = document.createElement("a");
+      a.href = url; a.download = `neov6-trades-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch { /* ignore */ }
+  };
+
   const onStart = async () => {
     setBusy(true);
     try {
@@ -697,6 +721,12 @@ export default function FleetCommand() {
 
       {/* Controls */}
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <span className="text-[10px] uppercase tracking-widest text-zinc-500">Quick preset</span>
+          <button onClick={() => applyPreset("cons")} className="rounded-lg border border-zinc-800 px-2.5 py-1 text-[10px] font-bold text-zinc-300 transition hover:border-emerald-500/40 hover:text-emerald-400" title="Max drawdown 10% · Spot (long only) · no conviction sizing">Conservative</button>
+          <button onClick={() => applyPreset("bal")} className="rounded-lg border border-zinc-800 px-2.5 py-1 text-[10px] font-bold text-zinc-300 transition hover:border-emerald-500/40 hover:text-emerald-400" title="Max drawdown 20% · Spot (long only) · conviction sizing on">Balanced</button>
+          <button onClick={() => applyPreset("agg")} className="rounded-lg border border-zinc-800 px-2.5 py-1 text-[10px] font-bold text-zinc-300 transition hover:border-rose-500/40 hover:text-rose-400" title="Max drawdown 30% · Long + Short (margin) · conviction sizing on">Aggressive</button>
+        </div>
         <div className="flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-1">
             <span className="text-[10px] uppercase tracking-widest text-zinc-500">Symbols</span>
@@ -852,34 +882,43 @@ export default function FleetCommand() {
               <span className="text-zinc-500">{ledger.totals.trades} trades</span>
               <span className="text-zinc-500">win <b className="text-zinc-200">{fmt(ledger.totals.win_rate, 0)}%</b></span>
               <span className={ledger.totals.total_pnl >= 0 ? "text-emerald-400" : "text-rose-400"}>net <b>{signed(ledger.totals.total_pnl)}</b></span>
+              <button onClick={downloadTradesCsv} className="rounded-md border border-zinc-700 px-2 py-0.5 text-[10px] font-bold text-zinc-300 hover:border-zinc-500" title="Download your closed trades as CSV">CSV</button>
             </div>
           )}
         </div>
         {(() => {
-          const cum = (ledger?.cum_pnl || []).map((p) => ({ t: p.ts, pnl: Number(p.cum_pnl) }));
-          if (!ledger) return <div className="flex h-24 items-center justify-center text-[11px] text-zinc-600">Loading track record…</div>;
-          if (cum.length < 1) return (
-            <div className="flex h-24 items-center justify-center px-4 text-center text-[11px] text-zinc-600">
-              No closed trades yet — your realized P&amp;L curve builds here as the fleet closes positions, and it persists across restarts and refreshes.
+          const cumRaw = ledger?.cum_pnl || [];
+          if (!ledger) return <div className="flex h-28 items-center justify-center text-[11px] text-zinc-600">Loading track record…</div>;
+          if (cumRaw.length < 1) return (
+            <div className="flex h-28 items-center justify-center px-4 text-center text-[11px] text-zinc-600">
+              No closed trades yet — your realized return (vs buy-&amp;-hold) builds here as the fleet closes positions, and it persists across restarts and refreshes.
             </div>
           );
-          const last = cum[cum.length - 1].pnl;
-          const col = last >= 0 ? "#34d399" : "#f87171";
+          const base = (status?.count ? status.count * 1000 : 6000) || 6000;
+          const toSec = (t) => (typeof t === "number" ? (t > 1e11 ? t / 1000 : t) : new Date(t).getTime() / 1000);
+          const btc = btcRef
+            .map((c) => ({ t: toSec(c.time), close: Number(c.close) }))
+            .filter((x) => Number.isFinite(x.t) && Number.isFinite(x.close))
+            .sort((a, b) => a.t - b.t);
+          const firstSec = toSec(cumRaw[0].ts);
+          const bc0 = btc.length ? (btc.find((x) => x.t >= firstSec) || btc[0]).close : null;
+          const btcAt = (sec) => { for (let i = btc.length - 1; i >= 0; i--) if (btc[i].t <= sec) return btc[i].close; return btc[0]?.close; };
+          const data = cumRaw.map((p) => {
+            const bc = btcAt(toSec(p.ts));
+            return { t: p.ts, fleet: (Number(p.cum_pnl) / base) * 100, bh: bc && bc0 ? (bc / bc0 - 1) * 100 : null };
+          });
           return (
-            <div className="h-28 w-full">
+            <div className="h-36 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={cum} margin={{ top: 6, right: 6, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="tr" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={col} stopOpacity={0.35} />
-                      <stop offset="100%" stopColor={col} stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
+                <LineChart data={data} margin={{ top: 6, right: 6, left: 0, bottom: 0 }}>
                   <YAxis domain={["auto", "auto"]} hide />
                   <RTooltip contentStyle={{ background: "#09090b", border: "1px solid #27272a", borderRadius: 10, fontSize: 11 }}
-                    labelFormatter={(l) => new Date(l).toLocaleString()} formatter={(v) => [signed(v), "realized P&L"]} />
-                  <Area type="monotone" dataKey="pnl" stroke={col} strokeWidth={2} fill="url(#tr)" isAnimationActive={false} />
-                </AreaChart>
+                    labelFormatter={(l) => new Date(l).toLocaleString()}
+                    formatter={(v, n) => [v == null ? "–" : `${Number(v) >= 0 ? "+" : ""}${fmt(v, 2)}%`, n]} />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                  <Line type="monotone" dataKey="fleet" name="Fleet" stroke="#34d399" strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <Line type="monotone" dataKey="bh" name="BTC hold" stroke="#fbbf24" strokeWidth={2} strokeDasharray="4 3" dot={false} connectNulls isAnimationActive={false} />
+                </LineChart>
               </ResponsiveContainer>
             </div>
           );
