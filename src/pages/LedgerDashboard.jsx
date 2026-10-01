@@ -69,10 +69,11 @@ export default function LedgerDashboard() {
 
   const load = useCallback(async () => {
     try {
-      // Send the JWT the same way your other authenticated calls do.
-      // Adjust the token field if your app stores it elsewhere.
+      // Send the JWT the SAME way the rest of the app does — apiClient reads the
+      // raw 'token' key from localStorage. (The old code read a non-existent
+      // 'userInfo' object, so no header was sent and every request 401'd.)
       let token = null;
-      try { token = JSON.parse(localStorage.getItem('userInfo') || '{}').token; } catch { /* ignore */ }
+      try { token = localStorage.getItem('token'); } catch { /* ignore */ }
       const res = await fetch(`${API_BASE}/api/ledger/stats?recent=30`, {
         cache: 'no-store',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
