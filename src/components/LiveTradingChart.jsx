@@ -34,11 +34,15 @@ export const LiveTradingChart = ({
         if (!chartContainerRef.current) return;
         if (chartRef.current) chartRef.current.remove();
 
+        // Responsive height — a 450px chart swamps a phone screen, so go shorter
+        // on narrow viewports.
+        const chartHeight = () => (chartContainerRef.current && chartContainerRef.current.clientWidth < 640 ? 300 : 450);
+
         const chart = createChart(chartContainerRef.current, {
             layout: { background: { type: ColorType.Solid, color: '#09090b' }, textColor: '#d4d4d8' },
             grid: { vertLines: { color: '#1e1e22' }, horzLines: { color: '#1e1e22' } },
             width: chartContainerRef.current.clientWidth,
-            height: 450,
+            height: chartHeight(),
             timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#3f3f46' },
             crosshair: { mode: CrosshairMode.Normal },
         });
@@ -52,7 +56,7 @@ export const LiveTradingChart = ({
 
         const handleResize = () => {
             if (chartRef.current && chartContainerRef.current) {
-                chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+                chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth, height: chartHeight() });
             }
         };
         window.addEventListener('resize', handleResize);
