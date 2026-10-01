@@ -10,7 +10,7 @@ import api from "../api/apiClient.js";
 import { AreaChart, Area, ResponsiveContainer, YAxis, Tooltip as RTooltip } from "recharts";
 import {
   Ship, Play, Square, RefreshCw, Activity, TrendingUp, TrendingDown, ShieldCheck,
-  Gauge, Layers, Info, Zap, Radio, Clock,
+  Gauge, Layers, Info, Zap, Radio, Clock, Cpu,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -164,6 +164,46 @@ function LegCard({ leg, side, price }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// Live "neural flow" for one leg: the signal + the entry-gate checklist showing
+// exactly which condition is holding (or that it's clear to enter).
+function GateFlow({ leg, side }) {
+  const t = leg?.thinking;
+  const isLong = side === "long";
+  const c = isLong ? "text-emerald-400" : "text-rose-400";
+  if (!t) {
+    return (
+      <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-3 text-[11px] text-zinc-500">
+        <span className={`font-black uppercase tracking-widest ${c}`}>{side}</span> — warming up… no decision snapshot yet (bot idle or just started).
+      </div>
+    );
+  }
+  const firstBlock = (t.gates || []).find((g) => !g.ok);
+  const sigCls = t.sig === 1 ? "bg-emerald-500/15 text-emerald-400" : t.sig === -1 ? "bg-rose-500/15 text-rose-400" : "bg-zinc-500/15 text-zinc-400";
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <span className={`text-[11px] font-black uppercase tracking-widest ${c}`}>{side}</span>
+        <div className="flex items-center gap-2">
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${sigCls}`}>{t.signal}</span>
+          <span className="text-[10px] text-zinc-500">conf {t.score}%</span>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">
+        {(t.gates || []).map((g) => (
+          <div key={g.k} className={`flex items-center gap-1 rounded-md px-2 py-1 text-[9px] font-semibold ${g.ok ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400 ring-1 ring-rose-500/30"}`}>
+            <span>{g.ok ? "✓" : "✕"}</span><span className="truncate">{g.k}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 text-[11px]">
+        {t.all_pass
+          ? <span className="text-emerald-400">✅ All checkpoints clear — dispatching entry.</span>
+          : <span className="text-zinc-400">Holding{firstBlock ? <> · blocked by <b className="text-rose-400">{firstBlock.k}</b></> : ""}. <span className="text-zinc-600">{t.note || t.waiting || ""}</span></span>}
+      </div>
     </div>
   );
 }
@@ -400,6 +440,19 @@ export default function FleetCommand() {
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
           <LegCard leg={legs.long} side="long" price={coinPrice} />
           <LegCard leg={legs.short} side="short" price={coinPrice} />
+        </div>
+      </div>
+
+      {/* Neural flow — live decision gate checklist per side */}
+      <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
+        <div className="mb-2 flex items-center gap-2">
+          <Cpu size={14} className="text-violet-400" />
+          <h2 className="text-[12px] font-black uppercase tracking-widest text-zinc-300">Neural flow · {coin.replace("-USD", "")}</h2>
+          <span className="ml-auto text-[10px] text-zinc-600">why each side is / isn't trading</span>
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <GateFlow leg={legs.long} side="long" />
+          <GateFlow leg={legs.short} side="short" />
         </div>
       </div>
 
