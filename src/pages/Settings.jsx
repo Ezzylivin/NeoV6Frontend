@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import WalletBalance from '../components/WalletBalance';
 import axios from 'axios';
 import { API_BASE } from '../config/api.js';
+import { updateEmail as updateEmailApi } from '../api/account.js';
 
 // 🚀 CONFIG: Centralized Exchange Data 
 // Currently synced with Python Neo-Engine v25 (Coinbase Spot & Kraken Margin)
@@ -31,6 +32,45 @@ export default function Settings() {
   const [keys, setKeys] = useState({ apiKey: '', apiSecret: '', exchange: AVAILABLE_EXCHANGES[0].id });
   const [loading, setLoading] = useState(false);
   const [savedKeys, setSavedKeys] = useState([]);
+
+  // ✉️ Change-email state
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailMsg, setEmailMsg] = useState('');
+  // Local mirror of the email so the card updates immediately after a change,
+  // without needing a full re-login (the auth context user is read-only here).
+  const [emailShown, setEmailShown] = useState(user?.email || '');
+  const [verifiedShown, setVerifiedShown] = useState(!!user?.isVerified);
+
+  useEffect(() => {
+    setEmailShown(user?.email || '');
+    setVerifiedShown(!!user?.isVerified);
+  }, [user?.email, user?.isVerified]);
+
+  const handleSaveEmail = async () => {
+    const next = newEmail.trim();
+    if (!next) return;
+    setEmailBusy(true);
+    setEmailMsg('');
+    try {
+      const r = await updateEmailApi(next);
+      setEmailShown(r.email || next);
+      setVerifiedShown(false);
+      // Keep the cached user in sync so the verify banner + other pages agree.
+      try {
+        const u = JSON.parse(localStorage.getItem('user') || 'null');
+        if (u) { u.email = r.email || next; u.isVerified = false; localStorage.setItem('user', JSON.stringify(u)); }
+      } catch { /* ignore */ }
+      setEmailMsg(r.message || (r.sent ? 'Verification email sent to the new address.' : 'Email updated.'));
+      setEditingEmail(false);
+      setNewEmail('');
+    } catch (e) {
+      setEmailMsg(e?.response?.data?.message || e.message || 'Could not update email.');
+    } finally {
+      setEmailBusy(false);
+    }
+  };
 
   // 🚀 NEW: Dropdown State (for the Searchable Filter)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -131,7 +171,50 @@ export default function Settings() {
               </div>
               <div>
                 <label className="text-xs font-bold text-neutral-500 uppercase tracking-wider">Email</label>
-                <div className="text-lg text-white font-medium">{user?.email || 'No Email Linked'}</div>
+                {!editingEmail ? (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-lg text-white font-medium">{emailShown || 'No Email Linked'}</span>
+                    {emailShown && (
+                      verifiedShown
+                        ? <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">✓ Verified</span>
+                        : <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">Unverified</span>
+                    )}
+                    <button
+                      onClick={() => { setEditingEmail(true); setNewEmail(emailShown || ''); setEmailMsg(''); }}
+                      className="text-xs text-emerald-400 hover:underline ml-1"
+                    >
+                      Change
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-1 space-y-2">
+                    <input
+                      type="email"
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      placeholder="new@email.com"
+                      className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-white focus:border-emerald-500 outline-none"
+                      autoFocus
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleSaveEmail}
+                        disabled={emailBusy || !newEmail.trim()}
+                        className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm px-4 py-1.5 rounded-lg font-bold"
+                      >
+                        {emailBusy ? 'Saving…' : 'Save & verify'}
+                      </button>
+                      <button
+                        onClick={() => { setEditingEmail(false); setNewEmail(''); setEmailMsg(''); }}
+                        className="text-sm text-neutral-400 hover:text-white px-3 py-1.5"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <p className="text-xs text-neutral-500">A verification link will be sent to the new address. Trade alerts only go to verified emails.</p>
+                  </div>
+                )}
+                {emailMsg && <p className="text-xs text-emerald-300/90 mt-2">{emailMsg}</p>}
               </div>
             </div>
           </div>
