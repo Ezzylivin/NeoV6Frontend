@@ -16,12 +16,19 @@ const queryClient = new QueryClient();
 
 // 🚀 SECURITY PRACTICE: Pull your Alchemy Key from a .env file
 // If you want to quick-test it, you can replace this with your raw string key temporarily: "YOUR_KEY_HERE"
-const ALCHEMY_KEY = import.meta.env.VITE_ALCHEMY_API_KEY || "YOUR_ALCHEMY_API_KEY_HERE";
-// FE#14: fail loudly in the console if the key is missing, otherwise every wagmi
-// RPC transport silently points at an invalid Alchemy URL (wallet/chain reads break).
-if (!import.meta.env.VITE_ALCHEMY_API_KEY) {
-  console.warn("⚠️ VITE_ALCHEMY_API_KEY is not set — wallet/chain RPC calls will fail. Set it in your Vercel env vars.");
+const ALCHEMY_KEY = import.meta.env.VITE_ALCHEMY_API_KEY;
+// FE#14: when the Alchemy key is missing, DON'T point the transports at a broken
+// '.../v2/YOUR_ALCHEMY_API_KEY_HERE' URL — that floods the console with CORS/RPC
+// failures and wedges the wallet connector (which blocks the Live Bot page).
+// Fall back to each chain's default PUBLIC RPC instead (http() with no url).
+if (!ALCHEMY_KEY) {
+  console.warn("⚠️ VITE_ALCHEMY_API_KEY not set — using public RPC endpoints. Set it in Vercel for higher-rate private RPC.");
 }
+// Alchemy transport when keyed, else the chain's default public RPC.
+const rpc = (subdomain) =>
+  ALCHEMY_KEY
+    ? http(`https://${subdomain}.g.alchemy.com/v2/${ALCHEMY_KEY}`, { batch: true, pollingInterval: 30000 })
+    : http();
 
 // 2. Configure Chains with Private Gateways
 const config = getDefaultConfig({
@@ -32,10 +39,10 @@ const config = getDefaultConfig({
   
   // 🚀 ARCHITECTURAL UPGRADE: Router completely bypasses public nodes
   transports: {
-    [mainnet.id]: http(`https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`, { batch: true, pollingInterval: 30000 }),
-    [arbitrum.id]: http(`https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`, { batch: true, pollingInterval: 30000 }),
-    [base.id]: http(`https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`, { batch: true, pollingInterval: 30000 }),
-    [polygon.id]: http(`https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`, { batch: true, pollingInterval: 30000 }),
+    [mainnet.id]:  rpc('eth-mainnet'),
+    [arbitrum.id]: rpc('arb-mainnet'),
+    [base.id]:     rpc('base-mainnet'),
+    [polygon.id]:  rpc('polygon-mainnet'),
   },
 });
 

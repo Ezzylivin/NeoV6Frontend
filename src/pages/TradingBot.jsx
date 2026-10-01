@@ -200,7 +200,9 @@ const MetricCard = ({ label, value, subValue, color = "text-white", icon = null 
 const PreFlightModal = ({ config, onConfirm, onCancel, isStarting, hasApiKeys, address }) => {
     const isLive = config.tradingMode === 'live';
     const checks = [
-        { label: 'Wallet Connected',  status: !!address },
+        // Wallet is NOT used for CEX trading (that's API keys) and never for paper.
+        // Only ask for it in live mode; paper runs on the JWT login alone.
+        { label: 'Wallet Connected',  status: !isLive || !!address },
         { label: 'Capital Allocated', status: !!config.capitalAllocation && config.capitalAllocation > 0 },
         { label: 'Strategy Selected', status: (config.strategies?.length ?? 0) > 0 },
         { label: 'Symbol Configured', status: !!config.symbol },
@@ -804,11 +806,13 @@ const TradingBotContainer = () => {
 
     // ── EFFECTS ───────────────────────────────────────────────────────────────
     useEffect(() => {
-        if (!isConnected) return;
+        // Identity is the JWT login, not the wallet — check keys whenever logged in
+        // (paper trading needs no wallet; the Fleet page already works this way).
+        if (!localStorage.getItem("token")) return;
         axios.get(`${API_BASE}/users/keys`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
             .then(res => setHasApiKeys((Array.isArray(res.data) ? res.data : res.data.keys || []).length > 0))
             .catch(() => setHasApiKeys(false));
-    }, [isConnected]);
+    }, []);
 
     useEffect(() => {
         let interval;
