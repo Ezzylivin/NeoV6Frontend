@@ -69,14 +69,20 @@ function LegCard({ leg, side }) {
           {running ? "RUNNING" : "IDLE"}
         </span>
       </div>
-      <div className="grid grid-cols-2 gap-2 text-[11px]">
+      <div className="grid grid-cols-3 gap-2 text-[11px]">
         <div className="rounded-lg bg-zinc-950/60 p-2">
-          <div className="text-zinc-500">Balance</div>
+          <div className="text-zinc-500">Equity</div>
           <div className="font-mono text-zinc-100">${fmt(leg?.balance)}</div>
         </div>
         <div className="rounded-lg bg-zinc-950/60 p-2">
-          <div className="text-zinc-500">Closed trades</div>
-          <div className="font-mono text-zinc-100">{leg?.trades ?? 0}</div>
+          <div className="text-zinc-500">Unreal.</div>
+          <div className={`font-mono ${(leg?.unrealizedPnl ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+            {(leg?.unrealizedPnl ?? 0) >= 0 ? "+" : "-"}${fmt(Math.abs(leg?.unrealizedPnl ?? 0))}
+          </div>
+        </div>
+        <div className="rounded-lg bg-zinc-950/60 p-2">
+          <div className="text-zinc-500">Win · {leg?.trades ?? 0}t</div>
+          <div className="font-mono text-zinc-100">{fmt(leg?.winRate ?? 0, 0)}%</div>
         </div>
       </div>
       {pos ? (
@@ -116,6 +122,7 @@ export default function FleetCommand() {
   const [regime, setRegime] = useState(null);
   const [drift, setDrift] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState(null);
 
   const [coin, setCoin] = useState("BTC-USD");
   const [chartTf, setChartTf] = useState("4h");
@@ -137,7 +144,7 @@ export default function FleetCommand() {
   const refreshFleet = useCallback(async () => {
     try {
       const [st, rg, dr] = await Promise.all([getFleetStatus(), getFleetRegime(), getFleetDrift()]);
-      setStatus(st); setRegime(rg); setDrift(dr);
+      setStatus(st); setRegime(rg); setDrift(dr); setUpdatedAt(Date.now());
     } catch (e) { /* transient */ }
   }, []);
 
@@ -220,6 +227,11 @@ export default function FleetCommand() {
             <span className={`h-1.5 w-1.5 rounded-full ${running ? "bg-emerald-400 animate-pulse" : "bg-zinc-600"}`} />
             {running ? "LIVE" : "IDLE"}
           </span>
+          {updatedAt && (
+            <span className="rounded-full border border-zinc-800 px-3 py-1 text-[10px] text-zinc-500" title="Auto-refreshes every 12s">
+              synced {new Date(updatedAt).toLocaleTimeString()}
+            </span>
+          )}
         </div>
       </div>
 
@@ -266,7 +278,8 @@ export default function FleetCommand() {
       {/* Stats */}
       <div className="my-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Stat icon={Layers} label="Bots" value={status?.count ?? "–"} sub={running ? "running" : "idle"} />
-        <Stat icon={Activity} label="Combined balance" value={`$${fmt(status?.total_balance)}`} />
+        <Stat icon={Activity} label="Combined equity" value={`$${fmt(status?.total_balance)}`}
+          sub={status?.total_unrealized != null ? `unreal ${status.total_unrealized >= 0 ? "+" : "-"}$${fmt(Math.abs(status.total_unrealized))}` : null} />
         <Stat icon={Zap} label="Open positions" value={status?.open_positions ?? "–"} />
         <Stat label="Net P&L (closed)" value={`${net >= 0 ? "+" : "-"}$${fmt(Math.abs(net))}`} tone={net >= 0 ? "text-emerald-400" : "text-rose-400"} />
         <Stat icon={ShieldCheck} label="Drift" value={<span className={`rounded-full px-2.5 py-1 text-xs ${DRIFT[driftStatus] || DRIFT.INSUFFICIENT_DATA}`}>{driftStatus.replace("_", " ")}</span>} />
