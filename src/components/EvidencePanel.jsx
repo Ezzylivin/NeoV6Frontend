@@ -3,7 +3,7 @@
 // see WHY these strategies were chosen: the configs that generalized across
 // coins (not per-coin overfit), with expectancy, profit factor and drawdown.
 // Data: GET /api/fleet/evidence (proxies the engine's /api/exitlab/results).
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import api from "../api/apiClient.js";
 import { FlaskConical, ChevronDown } from "lucide-react";
 
@@ -13,15 +13,21 @@ export default function EvidencePanel() {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState(null);
   const [err, setErr] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!open || loaded) return;
-    setLoaded(true);
+  const load = useCallback(() => {
+    setLoading(true); setErr(false);
     api.get("/fleet/evidence")
       .then((r) => setData(r.data))
-      .catch(() => setErr(true));
-  }, [open, loaded]);
+      .catch(() => setErr(true))
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Fetch when opened and not yet loaded; stops on error (a Retry button re-arms
+  // it) so a transient failure — e.g. the backend route mid-deploy — can recover.
+  useEffect(() => {
+    if (open && !data && !err && !loading) load();
+  }, [open, data, err, loading, load]);
 
   const winners = (data?.winners || []).slice(0, 10);
 
@@ -42,7 +48,10 @@ export default function EvidencePanel() {
       {open && (
         <div className="p-4 pt-0">
           {err ? (
-            <p className="text-[11px] text-zinc-500">Couldn't load the validation report right now.</p>
+            <p className="text-[11px] text-zinc-500">
+              Couldn't load the validation report right now.{" "}
+              <button onClick={load} className="font-semibold text-sky-400 hover:underline">Retry</button>
+            </p>
           ) : !data ? (
             <p className="text-[11px] text-zinc-500">Loading the validation report…</p>
           ) : (
