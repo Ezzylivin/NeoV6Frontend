@@ -251,18 +251,28 @@ export default function FleetCommand() {
       }
       const events = act?.events || [];
       setActivity(events);
-      // Toast only genuinely-new closed trades (seed silently on first load).
+      // Alert on genuinely-new activity (seed silently on first load). Entries AND
+      // exits both toast, and the chart auto-switches to the coin of the latest action.
       if (seenTrades.current === null) {
         seenTrades.current = new Set(events.map((e) => e.id));
       } else {
+        let latestNew = null;
         for (const e of events) {
-          if (!seenTrades.current.has(e.id)) {
-            seenTrades.current.add(e.id);
+          if (seenTrades.current.has(e.id)) continue;
+          seenTrades.current.add(e.id);
+          if (!latestNew) latestNew = e; // events are newest-first
+          const isEntry = (e.action || e.type) === "entry";
+          if (isEntry) {
+            toast(`🚀 ${e.symbol} ${String(e.side).toUpperCase()} ENTERED @ $${fmt(e.price)}`,
+              { style: { background: "#18181b", color: "#60a5fa", border: "1px solid #27272a", fontSize: "12px" } });
+          } else {
             const win = Number(e.pnl) >= 0;
-            toast(`${win ? "🟢" : "🔴"} ${e.symbol} ${String(e.type || e.side).toUpperCase()} closed ${signed(e.pnl)}  ·  ${e.reason || ""}`,
+            toast(`${win ? "🟢" : "🔴"} ${e.symbol} ${String(e.side).toUpperCase()} closed ${signed(e.pnl)} · ${e.reason || ""}`,
               { style: { background: "#18181b", color: win ? "#34d399" : "#f87171", border: "1px solid #27272a", fontSize: "12px" } });
           }
         }
+        // Auto-render the chart to where the newest action just happened.
+        if (latestNew?.symbol) setCoin(latestNew.symbol);
       }
     } catch (e) { /* transient */ }
   }, []);
@@ -465,16 +475,20 @@ export default function FleetCommand() {
             {!activity.length ? (
               <div className="py-8 text-center text-[11px] text-zinc-600">No closed trades yet. Entries and exits stream here as they happen.</div>
             ) : activity.map((e) => {
+              const isEntry = (e.action || e.type) === "entry";
               const win = Number(e.pnl) >= 0;
+              const dot = isEntry ? "bg-sky-400" : win ? "bg-emerald-400" : "bg-rose-400";
               return (
                 <div key={e.id} className="flex items-center justify-between rounded-lg bg-zinc-950/50 px-2.5 py-2 text-[11px]">
-                  <div className="flex items-center gap-2">
-                    <span className={`h-1.5 w-1.5 rounded-full ${win ? "bg-emerald-400" : "bg-rose-400"}`} />
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
                     <span className="font-semibold text-zinc-200">{e.symbol}</span>
-                    <span className="text-zinc-500">{String(e.type || e.side).toUpperCase()}</span>
-                    <span className="text-zinc-600">{e.reason}</span>
+                    <span className="text-zinc-500">{String(e.side).toUpperCase()}</span>
+                    <span className="truncate text-zinc-600">{isEntry ? "ENTER" : e.reason}</span>
                   </div>
-                  <span className={`font-mono ${win ? "text-emerald-400" : "text-rose-400"}`}>{signed(e.pnl)}</span>
+                  {isEntry
+                    ? <span className="font-mono text-sky-400">@ ${fmt(e.price)}</span>
+                    : <span className={`font-mono ${win ? "text-emerald-400" : "text-rose-400"}`}>{signed(e.pnl)}</span>}
                 </div>
               );
             })}
