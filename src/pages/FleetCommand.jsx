@@ -8,6 +8,8 @@ import { LiveTradingChart } from "../components/LiveTradingChart.jsx";
 import FleetGuide, { STRATEGY_INFO } from "../components/FleetGuide.jsx";
 import { startFleet, stopFleet, getFleetStatus, getFleetRegime, getFleetDrift, getFleetBot, getFleetActivity } from "../api/fleet.js";
 import api from "../api/apiClient.js";
+import { io } from "socket.io-client";
+import { BACKEND_URL } from "../config/api.js";
 import { AreaChart, Area, ResponsiveContainer, YAxis, Tooltip as RTooltip } from "recharts";
 import {
   Ship, Play, Square, RefreshCw, Activity, TrendingUp, TrendingDown, ShieldCheck,
@@ -380,6 +382,8 @@ export default function FleetCommand() {
   const [updatedAt, setUpdatedAt] = useState(null);
   const [ledger, setLedger] = useState(null);   // durable closed-trade track record
   const [online, setOnline] = useState(true);    // engine reachable on last poll
+  const [socketLive, setSocketLive] = useState(false); // real-time push connected
+  const nudgeTimer = useRef(null);               // debounces socket-triggered refreshes
 
   const [coin, setCoin] = useState("BTC-USD");
   const [chartTf, setChartTf] = useState("4h");
@@ -486,6 +490,33 @@ export default function FleetCommand() {
     return () => clearInterval(poll.current);
   }, [refreshFleet, refreshCoin]);
 
+  // Real-time: subscribe to the backend's live push (engine → Node → socket) and
+  // NUDGE a refresh on any bot event, so meters/toasts/post-mortems react within
+  // ~1s instead of waiting up to 12s. Polling stays as the fallback source of
+  // truth, so a dropped socket never stalls the page. A burst of 6 bot updates is
+  // debounced into a single refresh.
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    let socket;
+    try {
+      socket = io(BACKEND_URL, { auth: { token }, transports: ["websocket"], reconnection: true, reconnectionDelay: 2000, reconnectionDelayMax: 10000 });
+    } catch { return; }
+    const nudge = () => {
+      if (nudgeTimer.current) return;
+      nudgeTimer.current = setTimeout(() => { nudgeTimer.current = null; refreshFleet(); refreshCoin(); }, 800);
+    };
+    socket.on("connect", () => setSocketLive(true));
+    socket.on("disconnect", () => setSocketLive(false));
+    socket.on("bot_status_update", nudge);
+    socket.on("trade_alert", nudge);
+    return () => {
+      try { socket.off(); socket.disconnect(); } catch { /* ignore */ }
+      if (nudgeTimer.current) { clearTimeout(nudgeTimer.current); nudgeTimer.current = null; }
+      setSocketLive(false);
+    };
+  }, [refreshFleet, refreshCoin]);
+
   const onStart = async () => {
     setBusy(true);
     try {
@@ -542,6 +573,9 @@ export default function FleetCommand() {
           </span>
           <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-bold ${online ? "border-emerald-500/30 text-emerald-400" : "border-rose-500/40 text-rose-400"}`} title={online ? "Engine reachable" : "Engine not responding — retrying every 12s"}>
             <span className={`h-1.5 w-1.5 rounded-full ${online ? "bg-emerald-400" : "bg-rose-400 animate-pulse"}`} />{online ? "ENGINE OK" : "ENGINE DOWN"}
+          </span>
+          <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-bold ${socketLive ? "border-sky-500/30 text-sky-400" : "border-zinc-800 text-zinc-500"}`} title={socketLive ? "Real-time push connected — updates arrive instantly" : "Falling back to 12s polling"}>
+            <Zap size={11} className={socketLive ? "text-sky-400" : "text-zinc-600"} />{socketLive ? "REAL-TIME" : "POLLING"}
           </span>
           {updatedAt && <span className="rounded-full border border-zinc-800 px-3 py-1 text-[10px] text-zinc-500" title="Auto-refresh 12s">synced {new Date(updatedAt).toLocaleTimeString()}</span>}
         </div>
