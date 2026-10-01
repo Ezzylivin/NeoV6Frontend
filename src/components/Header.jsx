@@ -46,16 +46,13 @@ const Header = () => {
           <Link to="/dashboard/backtests" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
             Backtests
           </Link>
+          {/* 🚢 Unified Fleet command center (replaces the single Live Bot) */}
           <Link to="/dashboard/tradingbot" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
-            Live Bot
+            Fleet
           </Link>
           {/* 🧠 Trade Learning Ledger (in-app page) */}
           <Link to="/dashboard/ledger" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
             Ledger
-          </Link>
-          {/* 🚢 Fleet orchestration (in-app page) */}
-          <Link to="/dashboard/fleet" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
-            Fleet
           </Link>
 
           {/* 🚀 ADDED: Settings Link */}

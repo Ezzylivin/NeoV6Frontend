@@ -17,10 +17,9 @@ import AuthPage from "./pages/AuthPage.jsx";
 const Dashboard = lazy(() => import("./pages/Dashboard.jsx"));
 const Backtests = lazy(() => import("./pages/Backtests.jsx"));
 const HelpCenter = lazy(() => import("./pages/HelpCenter"));
-const TradingBot = lazy(() => import("./pages/TradingBot.jsx"));
+const FleetCommand = lazy(() => import("./pages/FleetCommand.jsx"));
 const Settings = lazy(() => import("./pages/Settings.jsx"));
 const LedgerDashboard = lazy(() => import("./pages/LedgerDashboard.jsx"));
-const FleetPanel = lazy(() => import("./pages/FleetPanel.jsx"));
 const NotFound = lazy(() => import("./pages/NotFound.jsx"));
 
 const RouteFallback = () => (
@@ -56,10 +55,10 @@ function App() {
               <Route index element={<Dashboard />} />
               <Route path="backtests" element={<Backtests />} />
               <Route path="help" element={<HelpCenter />} />
-              <Route path="tradingbot" element={<TradingBot />} />
+              <Route path="tradingbot" element={<FleetCommand />} />
               <Route path="settings" element={<Settings />} />
               <Route path="ledger" element={<LedgerDashboard />} />
-              <Route path="fleet" element={<FleetPanel />} />
+              <Route path="fleet" element={<FleetCommand />} />
             </Route>
 
             {/* Catch-all for unknown routes */}
