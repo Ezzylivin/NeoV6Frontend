@@ -50,7 +50,11 @@ const root = ReactDOM.createRoot(document.getElementById('root'));
 
 root.render(
   <React.StrictMode>
-    <WagmiProvider config={config}>
+    {/* reconnectOnMount=false: don't auto-reconnect the stored wallet on every
+        page load — that popped the "continue in Base Account" prompt and wedged
+        pages that don't use a wallet (the whole app is paper + JWT now). Users
+        can still connect manually via the wallet button for any wallet feature. */}
+    <WagmiProvider config={config} reconnectOnMount={false}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider 
           theme={darkTheme({
