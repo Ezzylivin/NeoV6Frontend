@@ -177,6 +177,17 @@ const REASON_INFO = {
 };
 const reasonText = (r) => REASON_INFO[r] || (r ? String(r).toLowerCase() : "the exit rule triggered");
 
+// Short relative timestamp for the trade feed, e.g. "just now", "4m ago", "2h ago".
+function timeAgo(ms) {
+  const t = Number(ms);
+  if (!Number.isFinite(t)) return "";
+  const s = Math.max(0, (Date.now() - (t > 1e11 ? t : t * 1000)) / 1000);
+  if (s < 45) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)}m ago`;
+  if (s < 86400) return `${Math.round(s / 3600)}h ago`;
+  return `${Math.round(s / 86400)}d ago`;
+}
+
 // Native browser/OS notification (fires even when the tab is backgrounded).
 // No-ops unless the user has granted permission.
 function notifyBrowser(title, body) {
@@ -857,6 +868,7 @@ export default function FleetCommand() {
           <h2 className="text-[12px] font-black uppercase tracking-widest text-zinc-300">Fleet equity</h2>
           <span className="text-[10px] text-zinc-500">live · this session</span>
         </div>
+        <p className="mb-1 text-[10px] leading-relaxed text-zinc-500">Combined live value of all bots (cash + open positions), sampled every 12s. This one resets on reload — the durable record is the Track Record below.</p>
         <div className="h-28 w-full">
           {equityHist.length < 2 ? (
             <div className="flex h-full items-center justify-center text-[11px] text-zinc-600">Building the curve… equity points accrue every 12s.</div>
@@ -894,6 +906,7 @@ export default function FleetCommand() {
             </div>
           )}
         </div>
+        <p className="mb-1 text-[10px] leading-relaxed text-zinc-500">Realized profit from <b className="text-zinc-400">closed</b> trades only (open positions aren't counted yet), compared to simply holding BTC over the same window. Persists across restarts and refreshes.</p>
         {(() => {
           const cumRaw = ledger?.cum_pnl || [];
           if (!ledger) return <div className="flex h-28 items-center justify-center text-[11px] text-zinc-600">Loading track record…</div>;
@@ -978,6 +991,9 @@ export default function FleetCommand() {
           </div>
         </div>
         <LiveTradingChart symbol={coin} timeframe={chartTf} activePositions={activePositions} tradeMarkers={tradeMarkers} candleData={candles} />
+        <p className="mt-2 text-[10px] leading-relaxed text-zinc-500">
+          Live {chartTf} price candles for {coin.replace("-USD", "")}, overlaid with this bot's <b className="text-zinc-400">entry</b> and protective <b className="text-zinc-400">stop</b> lines plus arrows marking each opened/closed trade. Switch coin or timeframe with the tabs above.
+        </p>
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
           <LegCard leg={legs.long} side="long" price={coinPrice} />
           <LegCard leg={legs.short} side="short" price={coinPrice} />
@@ -1001,7 +1017,8 @@ export default function FleetCommand() {
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-5">
         {/* Live trade feed */}
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4 lg:col-span-2">
-          <div className="mb-2 flex items-center gap-2"><Radio size={14} className="text-emerald-400" /><h2 className="text-[12px] font-black uppercase tracking-widest text-zinc-300">Live trade feed</h2></div>
+          <div className="mb-1 flex items-center gap-2"><Radio size={14} className="text-emerald-400" /><h2 className="text-[12px] font-black uppercase tracking-widest text-zinc-300">Live trade feed</h2></div>
+          <p className="mb-2 text-[10px] leading-relaxed text-zinc-500">Every entry and exit across the fleet, newest first — which coin/side opened or closed, why it closed, and the P&amp;L.</p>
           <div className="max-h-72 space-y-1.5 overflow-y-auto">
             {!activity.length ? (
               <div className="py-8 text-center text-[11px] text-zinc-600">No closed trades yet. Entries and exits stream here as they happen.</div>
@@ -1009,17 +1026,34 @@ export default function FleetCommand() {
               const isEntry = (e.action || e.type) === "entry";
               const win = Number(e.pnl) >= 0;
               const dot = isEntry ? "bg-sky-400" : win ? "bg-emerald-400" : "bg-rose-400";
+              const isLong = String(e.side).toLowerCase() === "long";
+              const entryPx = Number(e.entry), exitPx = Number(e.price);
+              const movePct = (!isEntry && Number.isFinite(entryPx) && entryPx > 0 && Number.isFinite(exitPx))
+                ? ((isLong ? exitPx - entryPx : entryPx - exitPx) / entryPx) * 100 : null;
               return (
-                <div key={e.id} className="flex items-center justify-between rounded-lg bg-zinc-950/50 px-2.5 py-2 text-[11px]">
-                  <div className="flex min-w-0 items-center gap-2">
+                <div key={e.id} className="rounded-lg bg-zinc-950/50 px-2.5 py-2 text-[11px]">
+                  <div className="flex items-center gap-2">
                     <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
-                    <span className="font-semibold text-zinc-200">{e.symbol}</span>
-                    <span className="text-zinc-500">{String(e.side).toUpperCase()}</span>
-                    <span className="truncate text-zinc-600">{isEntry ? "ENTER" : e.reason}</span>
+                    <span className="font-semibold text-zinc-200">{(e.symbol || "").replace("-USD", "")}</span>
+                    <span className={`text-[9px] font-black uppercase ${isLong ? "text-emerald-400" : "text-rose-400"}`}>{String(e.side)}</span>
+                    <span className={`rounded px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide ${isEntry ? "bg-sky-500/15 text-sky-400" : win ? "bg-emerald-500/15 text-emerald-400" : "bg-rose-500/15 text-rose-400"}`}>{isEntry ? "Opened" : "Closed"}</span>
+                    <span className="ml-auto shrink-0 text-[9px] text-zinc-600">{timeAgo(e.time)}</span>
                   </div>
-                  {isEntry
-                    ? <span className="font-mono text-sky-400">@ ${fmt(e.price)}</span>
-                    : <span className={`font-mono ${win ? "text-emerald-400" : "text-rose-400"}`}>{signed(e.pnl)}</span>}
+                  <div className="mt-1 flex items-center justify-between gap-2 text-[10px]">
+                    {isEntry ? (
+                      <span className="text-zinc-500">Entered at <b className="font-mono text-sky-400">${fmt(e.price)}</b></span>
+                    ) : (
+                      <span className="min-w-0 truncate text-zinc-500">
+                        {Number.isFinite(entryPx) && entryPx > 0 ? <>${fmt(entryPx)} → </> : null}
+                        <b className="font-mono text-zinc-300">${fmt(exitPx)}</b> · {reasonText(e.reason)}
+                      </span>
+                    )}
+                    {!isEntry && (
+                      <span className={`shrink-0 font-mono font-bold ${win ? "text-emerald-400" : "text-rose-400"}`}>
+                        {signed(e.pnl)}{movePct != null ? ` (${movePct >= 0 ? "+" : ""}${fmt(movePct, 1)}%)` : ""}
+                      </span>
+                    )}
+                  </div>
                 </div>
               );
             })}
