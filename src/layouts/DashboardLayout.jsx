@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { Outlet } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import Header from '../components/Header.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -12,6 +13,9 @@ export default function DashboardLayout() {
   return (
     // CHANGED: bg-gray-900 -> bg-[#121212] (Carbon Background)
     <div className="min-h-screen bg-[#121212] text-white flex flex-col">
+      {/* App-wide toast host (moved here from the old single-bot page so toasts
+          work across every dashboard page, including the new Fleet). */}
+      <Toaster position="top-right" />
       {/* Top header */}
       <Header />
 

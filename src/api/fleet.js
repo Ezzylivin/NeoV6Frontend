@@ -33,3 +33,10 @@ export const getFleetDrift = async () => {
   const res = await api.get("/fleet/drift");
   return res.data;
 };
+
+// GET /api/fleet/bot?symbol=&side= — per-coin child detail (positions, markers,
+// signals, balance) for the chart overlay on the unified Fleet page.
+export const getFleetBot = async (symbol, side) => {
+  const res = await api.get("/fleet/bot", { params: { symbol, side } });
+  return res.data;
+};
