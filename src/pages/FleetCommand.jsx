@@ -5,6 +5,7 @@
 // position detail, and the drift monitor. Paper mode, JWT identity (no wallet).
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LiveTradingChart } from "../components/LiveTradingChart.jsx";
+import FleetGuide, { STRATEGY_INFO } from "../components/FleetGuide.jsx";
 import { startFleet, stopFleet, getFleetStatus, getFleetRegime, getFleetDrift, getFleetBot, getFleetActivity } from "../api/fleet.js";
 import api from "../api/apiClient.js";
 import { AreaChart, Area, ResponsiveContainer, YAxis, Tooltip as RTooltip } from "recharts";
@@ -262,7 +263,11 @@ function LegCard({ leg, side, price }) {
       {codes.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
           {codes.map((c2) => (
-            <span key={c2} className="rounded-full bg-zinc-800/80 px-2 py-0.5 text-[9px] font-mono text-zinc-400">{c2}</span>
+            <span
+              key={c2}
+              title={STRATEGY_INFO[c2] ? `${STRATEGY_INFO[c2].title}: ${STRATEGY_INFO[c2].text}` : c2}
+              className="cursor-help rounded-full bg-zinc-800/80 px-2 py-0.5 text-[9px] font-mono text-zinc-400 underline decoration-dotted decoration-zinc-600 underline-offset-2"
+            >{c2}</span>
           ))}
         </div>
       )}
@@ -472,6 +477,9 @@ export default function FleetCommand() {
           {updatedAt && <span className="rounded-full border border-zinc-800 px-3 py-1 text-[10px] text-zinc-500" title="Auto-refresh 12s">synced {new Date(updatedAt).toLocaleTimeString()}</span>}
         </div>
       </div>
+
+      {/* Learn-while-it-trades: how the fleet works (collapsible) */}
+      <FleetGuide />
 
       {/* Drift tripwire banner — shown while the fleet is DRIFTING from its validated profile */}
       {driftAlertOpen && driftStatus === "DRIFTING" && (
