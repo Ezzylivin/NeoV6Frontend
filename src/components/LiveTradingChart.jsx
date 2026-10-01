@@ -66,14 +66,22 @@ export const LiveTradingChart = ({
         };
     }, []);
 
-    // Reset the candle buffer when the symbol/timeframe changes so a TAB SWITCH
-    // forces a full setData() with the new coin's data. Without this, a coin with
-    // a similar candle count takes the streaming update() path and the chart keeps
-    // showing the PREVIOUS coin (only its last candle gets poked).
+    // On a TAB SWITCH (symbol/timeframe change): reset the count so the next
+    // candleData takes the full setData() path (a similar-length coin would
+    // otherwise take the streaming update() path and keep showing the PREVIOUS
+    // coin), and immediately clear the previous coin's OVERLAYS — markers and
+    // entry/TP/TSL price lines — so they don't float on the chart during the swap.
+    // We deliberately do NOT wipe candles to empty here: that blanked the chart and
+    // caused a flash + camera jump on every click. Leaving the old frame up means
+    // the new coin swaps in atomically over it (see the candleData effect below).
     useEffect(() => {
         lastCandleCountRef.current = 0;
         if (seriesRef.current) {
-            try { seriesRef.current.setData([]); } catch (e) {}
+            try { seriesRef.current.setMarkers([]); } catch (e) {}
+            entryLinesRef.current.forEach(line => {
+                try { seriesRef.current.removePriceLine(line); } catch (e) {}
+            });
+            entryLinesRef.current = [];
         }
     }, [symbol, timeframe]);
 
@@ -84,7 +92,7 @@ export const LiveTradingChart = ({
     // NEW: setData() only on initial load or major changes,
     //      update() for the latest candle (streaming)
     useEffect(() => {
-        if (!seriesRef.current || !candleData.length) return;
+        if (!seriesRef.current) return;
 
         // FE#11: coerce to numeric seconds, drop unparseable rows, sort ascending
         // and de-dupe so update()/setData() never throw on string/out-of-order time.
@@ -94,7 +102,16 @@ export const LiveTradingChart = ({
             .sort((a, b) => a.time - b.time)
             .filter((c, i, arr) => i === 0 || c.time !== arr[i - 1].time);
 
-        if (!formatted.length) return;
+        if (!formatted.length) {
+            // Candles genuinely went empty (a failed/empty fetch for this coin) —
+            // clear so a stale coin never lingers under the new tab. On a normal
+            // switch candleData is briefly the old coin's non-empty data and this
+            // effect simply doesn't re-run until the new data arrives, so the old
+            // frame stays up (no blank) and then swaps in one setData() below.
+            try { seriesRef.current.setData([]); } catch (e) {}
+            lastCandleCountRef.current = 0;
+            return;
+        }
 
         if (lastCandleCountRef.current === 0 || Math.abs(formatted.length - lastCandleCountRef.current) > 5) {
             // Initial load, coin/timeframe switch, or major data change — full setData
