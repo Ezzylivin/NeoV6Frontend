@@ -297,6 +297,8 @@ export default function FleetCommand() {
 
   const poll = useRef(null);
   const seenTrades = useRef(null); // Set of trade ids already toasted
+  const prevDrift = useRef(null);  // last drift status, to catch the flip into DRIFTING
+  const [driftAlertOpen, setDriftAlertOpen] = useState(false);
 
   const coinPrice = candles.length ? candles[candles.length - 1]?.close : null;
 
@@ -314,6 +316,16 @@ export default function FleetCommand() {
         getFleetStatus(), getFleetRegime(), getFleetDrift(), getFleetActivity(20).catch(() => ({ events: [] })),
       ]);
       setStatus(st); setRegime(rg); setDrift(dr); setUpdatedAt(Date.now());
+      // Drift tripwire: alert the moment live results flip to DRIFTING (the real
+      // "markets are changing" signal — it watches live behavior, not a backtest).
+      const ds = dr?.status;
+      if (prevDrift.current && prevDrift.current !== "DRIFTING" && ds === "DRIFTING") {
+        setDriftAlertOpen(true);
+        toast.error("⚠️ Drift alert — live results are diverging from the validated profile. Review before adding capital.",
+          { duration: 14000, style: { background: "#1c1012", color: "#fca5a5", border: "1px solid #7f1d1d", fontSize: "12px" } });
+      }
+      if (ds && ds !== "DRIFTING") setDriftAlertOpen(false); // cleared → hide the banner
+      prevDrift.current = ds;
       if (st?.total_balance != null) {
         setEquityHist((h) => [...h, { t: Date.now(), eq: st.total_balance }].slice(-120));
       }
@@ -421,6 +433,21 @@ export default function FleetCommand() {
           {updatedAt && <span className="rounded-full border border-zinc-800 px-3 py-1 text-[10px] text-zinc-500" title="Auto-refresh 12s">synced {new Date(updatedAt).toLocaleTimeString()}</span>}
         </div>
       </div>
+
+      {/* Drift tripwire banner — shown while the fleet is DRIFTING from its validated profile */}
+      {driftAlertOpen && driftStatus === "DRIFTING" && (
+        <div className="mb-4 flex items-start gap-3 rounded-2xl border border-rose-500/40 bg-rose-500/10 p-4">
+          <ShieldCheck size={18} className="mt-0.5 shrink-0 text-rose-400" />
+          <div className="flex-1">
+            <div className="text-[13px] font-black uppercase tracking-widest text-rose-300">Drift alert</div>
+            <p className="mt-0.5 text-[12px] leading-relaxed text-rose-100/90">
+              Live paper results are diverging from the validated edge profile{drift?.win_rate != null ? ` (live win ${fmt(drift.win_rate, 0)}%, PF ${fmt(drift.profit_factor, 2)} vs validated ~26-40% / PF 1.2-1.7)` : ""}.
+              This is the real "markets have changed" signal — it watches live behavior, not a backtest. Review the roster before adding capital; loss-prevention still halts entries automatically.
+            </p>
+          </div>
+          <button onClick={() => setDriftAlertOpen(false)} className="shrink-0 text-[11px] text-rose-300/70 hover:text-rose-200">dismiss</button>
+        </div>
+      )}
 
       {/* Controls */}
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
