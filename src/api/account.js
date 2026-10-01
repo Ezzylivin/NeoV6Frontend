@@ -13,3 +13,10 @@ export const resendVerification = async () => {
   const res = await api.post("/users/resend-verification");
   return res.data;
 };
+
+// Change the logged-in user's email. Backend resets verification and emails the
+// NEW address a fresh verification link. Returns { email, isVerified:false, sent }.
+export const updateEmail = async (email) => {
+  const res = await api.put("/users/email", { email });
+  return res.data;
+};
