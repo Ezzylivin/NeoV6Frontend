@@ -44,7 +44,7 @@ const Header = () => {
             Help
           </Link>
           <Link to="/dashboard/backtests" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
-            Backtests
+            Strategy Lab
           </Link>
           {/* 🚢 Unified Fleet command center (replaces the single Live Bot) */}
           <Link to="/dashboard/tradingbot" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
