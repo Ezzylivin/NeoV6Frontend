@@ -10,14 +10,14 @@ import EvidencePanel from "../components/EvidencePanel.jsx";
 import RealityCheck from "../components/RealityCheck.jsx";
 import ReadinessScorecard from "../components/ReadinessScorecard.jsx";
 import RiskPanel from "../components/RiskPanel.jsx";
-import { startFleet, stopFleet, getFleetStatus, getFleetRegime, getFleetDrift, getFleetBot, getFleetActivity } from "../api/fleet.js";
+import { startFleet, stopFleet, setKillSwitch, getFleetStatus, getFleetRegime, getFleetDrift, getFleetBot, getFleetActivity } from "../api/fleet.js";
 import api from "../api/apiClient.js";
 import { io } from "socket.io-client";
 import { BACKEND_URL } from "../config/api.js";
 import { AreaChart, Area, LineChart, Line, Legend, ResponsiveContainer, YAxis, Tooltip as RTooltip } from "recharts";
 import {
   Ship, Play, Square, RefreshCw, Activity, TrendingUp, TrendingDown, ShieldCheck,
-  Gauge, Layers, Info, Zap, Radio, Clock, Cpu, Bell, BellOff, Volume2, VolumeX,
+  Gauge, Layers, Info, Zap, Radio, Clock, Cpu, Bell, BellOff, Volume2, VolumeX, Ban,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -635,6 +635,16 @@ export default function FleetCommand() {
     finally { setBusy(false); }
   };
 
+  const onKill = async (on) => {
+    if (on && !window.confirm("Engage the kill switch? This immediately halts ALL new entries across the engine (open positions stay managed by their stops).")) return;
+    try {
+      await setKillSwitch(on);
+      toast(on ? "🛑 Kill switch ENGAGED — new entries halted" : "✅ Kill switch released — entries resume",
+        { style: { background: "#18181b", color: on ? "#f87171" : "#34d399", border: "1px solid #27272a", fontSize: "12px" } });
+      refreshFleet();
+    } catch (e) { toast.error(e?.response?.data?.error || "Kill switch failed"); }
+  };
+
   const onStop = async () => {
     if (!window.confirm("Stop the entire fleet?")) return;
     setBusy(true);
@@ -812,6 +822,11 @@ export default function FleetCommand() {
               <button onClick={onStop} disabled={busy} className="flex items-center gap-2 rounded-xl bg-rose-500 px-5 py-2.5 text-[11px] font-black uppercase tracking-widest text-black hover:bg-rose-400 disabled:opacity-40"><Square size={13} /> Stop Fleet</button>
             )}
             <button onClick={() => { refreshFleet(); refreshCoin(); }} className="flex items-center gap-2 rounded-xl border border-zinc-700 px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-zinc-300 hover:border-zinc-500"><RefreshCw size={13} /> Sync</button>
+            {status?.kill_switch ? (
+              <button onClick={() => onKill(false)} title="Release the kill switch — bots may open new entries again" className="flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-white hover:bg-rose-500 animate-pulse"><Ban size={13} /> Halted · Release</button>
+            ) : (
+              <button onClick={() => onKill(true)} title="Emergency kill switch — immediately halt all NEW entries across the engine" className="flex items-center gap-2 rounded-xl border border-rose-500/40 px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-rose-400 hover:bg-rose-500/10"><Ban size={13} /> Kill switch</button>
+            )}
           </div>
         </div>
         <div className="mt-3 flex items-start gap-1.5 text-[11px] text-zinc-500">
