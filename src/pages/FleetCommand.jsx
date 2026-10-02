@@ -56,6 +56,7 @@ const FRIENDLY_GATE = {
   "Macro tilt": "the market-wide mood (set by Bitcoin) is against this side for now",
   "Cooldown": "it just closed a trade and is taking a short breather",
   "Risk breaker": "loss-protection paused new entries to protect your capital",
+  "Signal": "all checks are green — just waiting for a clear entry signal (the market's neutral here)",
 };
 
 // Build a friendly one-liner for a single leg from its decision snapshot.
@@ -67,7 +68,9 @@ function legFriendly(leg, side) {
   if (pos) return { tone: "open", text: `In a ${side} trade from $${fmt(pos.entry)} — riding it until the trend flips or the stop is hit.` };
   const t = leg.thinking;
   if (!t) return { tone: "idle", text: `${label} bot is warming up — no decision yet.` };
-  if (t.all_pass) return { tone: "clear", text: `All checks passed — opening a ${side} trade now.` };
+  const aligned = (side === "long" && t.sig === 1) || (side === "short" && t.sig === -1);
+  if (t.all_pass && aligned) return { tone: "clear", text: `All checks passed — opening a ${side} trade now.` };
+  if (t.all_pass) return { tone: "hold", text: `All checks are green, but there's no ${side} signal yet — the market's neutral here, so it's waiting for the setup to appear.` };
   const gates = t.gates || [];
   const passed = gates.filter((g) => g.ok).length;
   const total = gates.length;
