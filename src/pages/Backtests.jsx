@@ -40,6 +40,38 @@ const fmt = (n, d = 2) => (n == null || isNaN(n) ? "–" : Number(n).toLocaleStr
 const pct = (n, d = 2) => (n == null || isNaN(n) ? "–" : `${Number(n) >= 0 ? "+" : ""}${fmt(n, d)}%`);
 const shortDate = (t) => { try { return new Date(t).toLocaleDateString(undefined, { year: "2-digit", month: "short", day: "numeric" }); } catch { return String(t); } };
 
+// Turn the raw metrics into a plain-English verdict a non-expert can read.
+function plainSummary(result) {
+  const m = result.metrics || {};
+  const roi = Number(m.roi), pf = Number(m.profit_factor), expR = Number(m.expectancy_r);
+  const win = Number(m.win_rate), dd = Number(m.max_drawdown), bh = Number(result.buy_hold_pct);
+  const init = Number(result.initial_balance) || 1000, final = Number(m.final_balance);
+  const coin = (result.symbol || "the coin").replace("-USD", "");
+  let years = null;
+  try { years = Math.max(1, Math.round((new Date(result.window.end) - new Date(result.window.start)) / (365.25 * 24 * 3600 * 1000))); } catch { /* ignore */ }
+  const beat = roi >= bh;
+
+  let tone = "good", headline = "This looks promising";
+  if (!(m.total_trades > 0)) { tone = "mixed"; headline = "No trades in this window"; }
+  else if (roi <= 0 || expR <= 0) { tone = "bad"; headline = "No edge in this window"; }
+  else if (pf < 1.2) { tone = "mixed"; headline = "Marginal — a thin edge"; }
+
+  const parts = [];
+  parts.push(`Over ${years ? `about ${years} year${years > 1 ? "s" : ""}` : "this window"}, this would have turned $${fmt(init, 0)} into $${fmt(final, 0)} — a ${pct(roi)} return.`);
+  if (bh < 0 && roi > 0) parts.push(`It made money even though ${coin} itself fell ${fmt(Math.abs(bh), 0)}% over the same time — because it only holds during up-trends and cuts losers quickly.`);
+  else if (beat) parts.push(`That beats just buying and holding ${coin} (${pct(bh)}).`);
+  else parts.push(`That trails just buying and holding ${coin} (${pct(bh)}) in this window.`);
+  if (m.total_trades > 0)
+    parts.push(`It wins only about ${fmt(win, 0)}% of its trades — normal for trend-following — but its winners run ${fmt(pf, 2)}× bigger than its losers, so it ends up ahead. The worst dip along the way was ${fmt(dd, 0)}%.`);
+  return { tone, headline, text: parts.join(" ") };
+}
+
+const TONE = {
+  good: { box: "border-emerald-500/30 bg-emerald-500/10", dot: "bg-emerald-400", head: "text-emerald-300" },
+  mixed: { box: "border-amber-500/30 bg-amber-500/10", dot: "bg-amber-400", head: "text-amber-300" },
+  bad: { box: "border-rose-500/30 bg-rose-500/10", dot: "bg-rose-400", head: "text-rose-300" },
+};
+
 const inputCls = "w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none";
 const labelCls = "mb-1 block text-[10px] font-bold uppercase tracking-widest text-zinc-500";
 
@@ -199,16 +231,32 @@ export default function StrategyLab() {
                 {result.window && <span className="ml-auto text-[10px] text-zinc-600">{shortDate(result.window.start)} → {shortDate(result.window.end)} · {result.window.bars} bars</span>}
               </div>
 
-              {/* metrics */}
+              {/* PLAIN-ENGLISH VERDICT — the headline a non-expert reads first */}
+              {(() => {
+                const s = plainSummary(result);
+                const t = TONE[s.tone] || TONE.mixed;
+                return (
+                  <div className={`rounded-2xl border p-5 ${t.box}`}>
+                    <div className="mb-2 flex items-center gap-2">
+                      <span className={`h-2.5 w-2.5 rounded-full ${t.dot}`} />
+                      <h2 className={`text-sm font-black uppercase tracking-tight ${t.head}`}>{s.headline}</h2>
+                      <span className="ml-auto text-[9px] font-bold uppercase tracking-widest text-zinc-500">In plain English</span>
+                    </div>
+                    <p className="text-[12px] leading-relaxed text-zinc-200">{s.text}</p>
+                  </div>
+                );
+              })()}
+
+              {/* metrics — each with a one-line plain explanation */}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <Metric label="Return" value={pct(m.roi)} good={Number(m.roi) >= 0} icon={TrendingUp} />
-                <Metric label="Final balance" value={`$${fmt(m.final_balance)}`} sub={`from $${fmt(result.initial_balance, 0)}`} />
-                <Metric label="Win rate" value={`${fmt(m.win_rate, 1)}%`} sub={`${m.total_trades} trades`} />
-                <Metric label="Profit factor" value={fmt(m.profit_factor)} good={Number(m.profit_factor) >= 1} />
-                <Metric label="Expectancy / trade" value={`${Number(m.expectancy_r) >= 0 ? "+" : ""}${fmt(m.expectancy_r, 3)}R`} good={Number(m.expectancy_r) >= 0} />
-                <Metric label="Max drawdown" value={`-${fmt(m.max_drawdown, 1)}%`} bad />
-                <Metric label="Trades" value={fmt(m.total_trades, 0)} />
-                <Metric label="vs Buy & hold" value={pct(result.buy_hold_pct)} good={beatBH} sub={beatBH ? "strategy ahead" : "behind hold"} />
+                <Metric label="Return" value={pct(m.roi)} good={Number(m.roi) >= 0} icon={TrendingUp} hint="What your starting cash grew (or shrank) to." />
+                <Metric label="Final balance" value={`$${fmt(m.final_balance)}`} sub={`from $${fmt(result.initial_balance, 0)}`} hint="Ending paper balance." />
+                <Metric label="Win rate" value={`${fmt(m.win_rate, 1)}%`} sub={`${m.total_trades} trades`} hint="How often it profits. Low is normal for trend-following." />
+                <Metric label="Profit factor" value={fmt(m.profit_factor)} good={Number(m.profit_factor) >= 1} hint="Dollars won per $1 lost. Above 1.0 = profitable." />
+                <Metric label="Avg per trade" value={`${Number(m.expectancy_r) >= 0 ? "+" : ""}${fmt(m.expectancy_r, 3)}R`} good={Number(m.expectancy_r) >= 0} hint="Average profit per trade, as a multiple of what it risked." />
+                <Metric label="Worst drop" value={`-${fmt(m.max_drawdown, 1)}%`} bad hint="Biggest peak-to-trough dip — the roughest stretch." />
+                <Metric label="Trades" value={fmt(m.total_trades, 0)} hint="Completed buy→sell round-trips." />
+                <Metric label="vs Buy & hold" value={pct(result.buy_hold_pct)} good={beatBH} sub={beatBH ? "strategy ahead" : "behind hold"} hint="The coin's own return if you'd just bought and held it." />
               </div>
 
               {/* equity curve */}
@@ -296,7 +344,7 @@ export default function StrategyLab() {
   );
 }
 
-function Metric({ label, value, sub, good, bad, icon: Icon }) {
+function Metric({ label, value, sub, hint, good, bad, icon: Icon }) {
   const color = bad ? "text-rose-400" : good === true ? "text-emerald-400" : good === false ? "text-rose-400" : "text-zinc-100";
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
@@ -305,6 +353,7 @@ function Metric({ label, value, sub, good, bad, icon: Icon }) {
       </p>
       <p className={`font-mono text-xl tracking-tight ${color}`}>{value}</p>
       {sub && <p className="mt-0.5 text-[9px] font-bold text-zinc-600">{sub}</p>}
+      {hint && <p className="mt-1 text-[9px] leading-tight text-zinc-500">{hint}</p>}
     </div>
   );
 }
