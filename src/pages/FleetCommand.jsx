@@ -420,7 +420,12 @@ export default function FleetCommand() {
   const [maxDd, setMaxDd] = useState(20);
   const [conviction, setConviction] = useState(false);
   const [longOnly, setLongOnly] = useState(true); // SPOT (long-only) by default — recommended/safe
-  const [riskPct, setRiskPct] = useState(1);      // % of each bot's capital risked per trade
+  // % of each bot's capital risked per trade. Persisted so it survives reloads
+  // (it used to reset to the 1% default on every refresh), and applied to the
+  // bots only at ignite.
+  const [riskPct, setRiskPct] = useState(() => {
+    try { const v = localStorage.getItem("neov6_riskPct"); return v != null && v !== "" ? v : 1; } catch { return 1; }
+  });
 
   const [status, setStatus] = useState(null);
   const [regime, setRegime] = useState(null);
@@ -442,6 +447,8 @@ export default function FleetCommand() {
   const toggleSound = () => setSoundOn((s) => { const n = !s; try { localStorage.setItem("fleetSound", n ? "1" : "0"); } catch { /* ignore */ } return n; });
   const soundOnRef = useRef(soundOn);
   useEffect(() => { soundOnRef.current = soundOn; }, [soundOn]);
+  // Remember the chosen risk % across reloads (was resetting to 1% every refresh).
+  useEffect(() => { try { localStorage.setItem("neov6_riskPct", String(riskPct)); } catch { /* ignore */ } }, [riskPct]);
   const equityHistByBot = useRef({}); // { botId: [balance,…] } for per-bot equity sparklines
 
   const [coin, setCoin] = useState("BTC-USD");
@@ -814,7 +821,13 @@ export default function FleetCommand() {
           </label>
           <label className="flex flex-col gap-1" title="Percent of each bot's capital risked per trade, cut at the ATR stop. 1% is the validated default — lower is safer, higher is more aggressive.">
             <span className="text-[10px] uppercase tracking-widest text-zinc-500">Risk % / trade</span>
-            <input type="number" step="0.5" min="0.1" max="5" className="w-28 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm" value={riskPct} onChange={(e) => setRiskPct(e.target.value)} />
+            <input type="number" step="0.5" min="0.1" max="50" className="w-28 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm" value={riskPct} onChange={(e) => setRiskPct(e.target.value)} />
+            {Number(riskPct) > 10 && (
+              <span className="max-w-[160px] text-[9px] leading-tight text-rose-400">⚠️ {fmt(Number(riskPct), 0)}% risked per trade is extreme — a single stop-out loses that much of a bot's capital.</span>
+            )}
+            {running && (
+              <span className="max-w-[160px] text-[9px] leading-tight text-zinc-500">Applies at ignite — stop &amp; re-ignite to change a running fleet.</span>
+            )}
           </label>
           <div className="flex flex-col gap-1">
             <span className="text-[10px] uppercase tracking-widest text-zinc-500">Mode</span>
