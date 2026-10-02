@@ -119,11 +119,13 @@ const blockerText = (blocker) => {
 // (so it still works before the engine that emits `readiness` is live).
 function legReadiness(leg) {
   if (!leg) return null;
-  if ((leg.positions || []).length > 0) return 100;
+  if ((leg.positions || []).length > 0) return 100; // 100% is reserved for an OPEN position
   const t = leg.thinking;
   if (!t) return null;
-  if (typeof t.readiness === "number") return t.readiness;
-  if (t.all_pass) return 100;
+  // Not in a position: cap at 99 so "ready / firing" never reads 100 before the
+  // trade actually opens (100 ⟺ in a trade, matching the open-positions count).
+  if (typeof t.readiness === "number") return Math.min(99, t.readiness);
+  if (t.all_pass) return 99;
   const g = t.gates || [];
   return g.length ? Math.round((100 * g.filter((x) => x.ok).length) / g.length) : null;
 }
@@ -856,7 +858,7 @@ export default function FleetCommand() {
       {status?.bots?.length > 0 && (() => {
         const ranked = [...status.bots]
           .filter((b) => (b.status || "running") === "running")
-          .map((b) => ({ ...b, _r: typeof b.readiness === "number" ? b.readiness : null }))
+          .map((b) => ({ ...b, _r: typeof b.readiness === "number" ? (b.open_positions > 0 ? 100 : Math.min(99, b.readiness)) : null }))
           .sort((a, b) => (b._r ?? -1) - (a._r ?? -1));
         const haveR = ranked.some((b) => b._r != null);
         return (
