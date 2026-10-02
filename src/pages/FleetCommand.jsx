@@ -450,6 +450,7 @@ export default function FleetCommand() {
   const [legs, setLegs] = useState({ long: null, short: null });
 
   const poll = useRef(null);
+  const selRef = useRef(`${coin}|${chartTf}`); // latest coin+tf the user wants charted — guards against a stale in-flight candle fetch repainting the OLD coin under the NEW tab
   const seenTrades = useRef(null); // Set of trade ids already toasted
   const prevDrift = useRef(null);  // last drift status, to catch the flip into DRIFTING
   const [driftAlertOpen, setDriftAlertOpen] = useState(false);
@@ -542,16 +543,29 @@ export default function FleetCommand() {
 
   const refreshCoin = useCallback(async () => {
     if (!coin) return;
+    // Stamp the selection this call is for. If the user switches coin/timeframe
+    // (or the auto-switch fires) while these requests are in flight, a later
+    // refreshCoin stamps a new value and this one's response is discarded below —
+    // otherwise a slow BTC fetch could land after the ETH switch and paint BTC
+    // candles under the ETH tab (the "chart looks off" bug).
+    const want = `${coin}|${chartTf}`;
+    selRef.current = want;
     try {
       const [cd, lg, sh] = await Promise.all([
         fetchCandles({ symbol: coin, timeframe: chartTf }).catch(() => []),
         getFleetBot(coin, "long").catch(() => null),
         getFleetBot(coin, "short").catch(() => null),
       ]);
+      if (selRef.current !== want) return; // superseded by a newer selection — drop this stale response
       setCandles(Array.isArray(cd) ? cd : (cd?.data || []));
       setLegs({ long: lg, short: sh });
     } catch (e) { /* transient */ }
   }, [coin, chartTf]);
+
+  // Blank the chart state the moment the coin/timeframe changes so the freshly
+  // re-keyed <LiveTradingChart> never shows the previous coin's candles while the
+  // new fetch is in flight. refreshCoin (below) refills it within ~1s.
+  useEffect(() => { setCandles([]); setLegs({ long: null, short: null }); }, [coin, chartTf]);
 
   useEffect(() => {
     refreshFleet(); refreshCoin();
@@ -1041,7 +1055,7 @@ export default function FleetCommand() {
             {coinPrice ? <span className="text-zinc-300">${fmt(coinPrice)}</span> : null}
           </div>
         </div>
-        <LiveTradingChart symbol={coin} timeframe={chartTf} activePositions={activePositions} tradeMarkers={tradeMarkers} candleData={candles} />
+        <LiveTradingChart key={`${coin}|${chartTf}`} symbol={coin} timeframe={chartTf} activePositions={activePositions} tradeMarkers={tradeMarkers} candleData={candles} />
         <p className="mt-2 text-[10px] leading-relaxed text-zinc-500">
           Live {chartTf} price candles for {coin.replace("-USD", "")}, overlaid with this bot's <b className="text-zinc-400">entry</b> and protective <b className="text-zinc-400">stop</b> lines plus arrows marking each opened/closed trade. Switch coin or timeframe with the tabs above.
         </p>
