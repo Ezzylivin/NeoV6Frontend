@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 export default function AuthPage() {
   const navigate = useNavigate();
@@ -78,11 +78,16 @@ export default function AuthPage() {
             required 
             // 🟢 CHANGED: Inputs are Darker Green (emerald-800) with Light Text
             className="w-full rounded-md border-emerald-500 bg-emerald-800 p-3 text-white placeholder-emerald-300 focus:border-white focus:outline-none focus:ring-2 focus:ring-emerald-400" 
-            disabled={loading} 
+            disabled={loading}
           />
-          
-          <button 
-            type="submit" 
+          {!isRegister && (
+            <div className="text-right -mt-1">
+              <Link to="/forgot-password" className="text-xs text-emerald-200 hover:text-white hover:underline">Forgot password?</Link>
+            </div>
+          )}
+
+          <button
+            type="submit"
             disabled={loading} 
             // 🟢 CHANGED: Button is Deep Green (emerald-900) to pop against Money Green bg
             className="w-full rounded-md bg-emerald-900 py-3 font-bold text-white transition hover:bg-emerald-950 disabled:bg-emerald-800/50 shadow-lg"

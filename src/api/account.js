@@ -20,3 +20,15 @@ export const updateEmail = async (email) => {
   const res = await api.put("/users/email", { email });
   return res.data;
 };
+
+// Start a password reset — backend emails a reset link. Always resolves (no leak).
+export const requestPasswordReset = async (email) => {
+  const res = await api.post("/users/forgot-password", { email });
+  return res.data;
+};
+
+// Complete a password reset with the emailed token + a new password.
+export const resetPassword = async (token, password) => {
+  const res = await api.post("/users/reset-password", { token, password });
+  return res.data;
+};

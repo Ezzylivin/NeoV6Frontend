@@ -21,6 +21,8 @@ const FleetCommand = lazy(() => import("./pages/FleetCommand.jsx"));
 const Settings = lazy(() => import("./pages/Settings.jsx"));
 const LedgerDashboard = lazy(() => import("./pages/LedgerDashboard.jsx"));
 const VerifyEmail = lazy(() => import("./pages/VerifyEmail.jsx"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword.jsx"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword.jsx"));
 const NotFound = lazy(() => import("./pages/NotFound.jsx"));
 
 const RouteFallback = () => (
@@ -64,6 +66,9 @@ function App() {
 
             {/* 📧 Public email-verification landing (clicked from the email link) */}
             <Route path="/verify-email" element={<VerifyEmail />} />
+            {/* 🔑 Public password-reset flow */}
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* Catch-all for unknown routes */}
             <Route path="*" element={<NotFound />} />
