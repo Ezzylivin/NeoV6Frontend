@@ -7,7 +7,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   FlaskConical, Play, TrendingUp, Activity, ShieldCheck, Info,
-  ArrowUpRight, ArrowDownRight, Gauge, Crown,
+  ArrowUpRight, ArrowDownRight, Gauge, Crown, Layers,
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer,
@@ -72,6 +72,17 @@ const TONE = {
   bad: { box: "border-rose-500/30 bg-rose-500/10", dot: "bg-rose-400", head: "text-rose-300" },
 };
 
+// Did pyramiding actually help, comparing pyramided (a) vs single-leg (b)?
+function pyrVerdict(a, b) {
+  const dRoi = Number(a.roi) - Number(b.roi);
+  const dExp = Number(a.expectancy_r) - Number(b.expectancy_r);
+  const dDd = Number(a.max_drawdown) - Number(b.max_drawdown);
+  if (dRoi > 1 && dExp >= -0.02) return "✅ Pyramiding improved returns here without hurting trade quality — worth validating across more coins before trusting it.";
+  if (dRoi > 1 && dDd > 3) return "⚠️ Pyramiding boosted returns but with a noticeably deeper worst-drop — more reward, more risk.";
+  if (dRoi < -1 || dExp < -0.03) return "❌ Pyramiding didn't help in this window — the single position was as good or better.";
+  return "≈ Pyramiding made little difference here. Try other coins/timeframes before concluding.";
+}
+
 const inputCls = "w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none";
 const labelCls = "mb-1 block text-[10px] font-bold uppercase tracking-widest text-zinc-500";
 
@@ -80,10 +91,11 @@ export default function StrategyLab() {
   const [cfg, setCfg] = useState({
     symbol: "BTC-USD", timeframe: "4h", direction: "LONG",
     entry: "regime", style: "trend_ride", riskPct: 1, initialBalance: 1000,
-    start: "", end: "",
+    start: "", end: "", maxLegs: 1,
   });
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
+  const [baseline, setBaseline] = useState(null); // single-leg comparison when pyramiding
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -104,11 +116,16 @@ export default function StrategyLab() {
   }));
 
   const run = async () => {
-    setRunning(true); setError(null);
+    setRunning(true); setError(null); setBaseline(null);
     try {
-      const r = await runStrategyLab(cfg);
+      const legs = Number(cfg.maxLegs) || 1;
+      // When pyramiding, also run the single-leg version so the user can see
+      // side-by-side whether adding legs actually helped.
+      const reqs = [runStrategyLab(cfg)];
+      if (legs > 1) reqs.push(runStrategyLab({ ...cfg, maxLegs: 1 }));
+      const [r, base] = await Promise.all(reqs);
       if (r?.error) { setError(r.error); setResult(null); }
-      else { setResult(r); }
+      else { setResult(r); if (base && !base.error) setBaseline(base); }
     } catch (e) {
       setError(e?.response?.data?.error || "Backtest failed — the engine may be busy or unreachable.");
       setResult(null);
@@ -190,6 +207,20 @@ export default function StrategyLab() {
                 <input type="number" min="100" value={cfg.initialBalance} onChange={(e) => set("initialBalance", e.target.value)} className={inputCls} />
               </div>
             </div>
+            <div>
+              <label className={labelCls}>Max positions (pyramiding)</label>
+              <select value={cfg.maxLegs} onChange={(e) => set("maxLegs", Number(e.target.value))} className={inputCls}>
+                <option value={1}>1 — single position (off)</option>
+                <option value={2}>2 — add up to 1 leg in strong trends</option>
+                <option value={3}>3 — add up to 2 legs</option>
+                <option value={4}>4 — add up to 3 legs</option>
+              </select>
+              <p className="mt-1 text-[10px] leading-relaxed text-zinc-600">
+                {Number(cfg.maxLegs) > 1
+                  ? "Adds a position only while the trend keeps confirming — price must advance ≥1 ATR beyond the last entry. It won't stack in chop. We'll also run the single-position version so you can compare."
+                  : "Single position per trade — the fleet's current behavior."}
+              </p>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>From (optional)</label>
@@ -228,8 +259,39 @@ export default function StrategyLab() {
               <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
                 <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-400">{result.symbol} · {result.timeframe} · {result.direction}</span>
                 <span className="text-[10px] text-zinc-600">{entryLabel(result.entry)} · {styleLabel(result.style)}</span>
+                {result.max_legs > 1 && <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-sky-400">Pyramiding ×{result.max_legs}</span>}
                 {result.window && <span className="ml-auto text-[10px] text-zinc-600">{shortDate(result.window.start)} → {shortDate(result.window.end)} · {result.window.bars} bars</span>}
               </div>
+
+              {/* PYRAMIDING vs SINGLE comparison — did adding legs actually help? */}
+              {baseline && result.max_legs > 1 && (() => {
+                const a = result.metrics, b = baseline.metrics;
+                const Row = ({ label, pyr, single, win }) => (
+                  <div className="flex items-center justify-between gap-2 border-t border-zinc-800 py-1.5 text-[11px]">
+                    <span className="text-zinc-500">{label}</span>
+                    <span className="flex items-center gap-2 font-mono">
+                      <span className={win === "pyr" ? "font-black text-emerald-400" : "text-zinc-300"}>{pyr}</span>
+                      <span className="text-zinc-700">vs</span>
+                      <span className={win === "single" ? "font-black text-emerald-400" : "text-zinc-400"}>{single}</span>
+                    </span>
+                  </div>
+                );
+                return (
+                  <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 p-4">
+                    <div className="mb-1 flex items-center gap-2">
+                      <Layers size={14} className="text-sky-400" />
+                      <h2 className="text-[12px] font-black uppercase tracking-widest text-zinc-200">Pyramiding (×{result.max_legs}) vs single position</h2>
+                      <span className="ml-auto text-[9px] font-bold uppercase tracking-widest text-zinc-600">pyramided · single</span>
+                    </div>
+                    <Row label="Return" pyr={pct(a.roi)} single={pct(b.roi)} win={Number(a.roi) >= Number(b.roi) ? "pyr" : "single"} />
+                    <Row label="Profit factor" pyr={fmt(a.profit_factor)} single={fmt(b.profit_factor)} win={Number(a.profit_factor) >= Number(b.profit_factor) ? "pyr" : "single"} />
+                    <Row label="Avg per trade" pyr={`${fmt(a.expectancy_r, 3)}R`} single={`${fmt(b.expectancy_r, 3)}R`} win={Number(a.expectancy_r) >= Number(b.expectancy_r) ? "pyr" : "single"} />
+                    <Row label="Worst drop" pyr={`-${fmt(a.max_drawdown, 1)}%`} single={`-${fmt(b.max_drawdown, 1)}%`} win={Number(a.max_drawdown) <= Number(b.max_drawdown) ? "pyr" : "single"} />
+                    <Row label="Trades" pyr={fmt(a.total_trades, 0)} single={fmt(b.total_trades, 0)} win={null} />
+                    <p className="mt-2 text-[11px] leading-relaxed text-zinc-300">{pyrVerdict(a, b)}</p>
+                  </div>
+                );
+              })()}
 
               {/* PLAIN-ENGLISH VERDICT — the headline a non-expert reads first */}
               {(() => {
