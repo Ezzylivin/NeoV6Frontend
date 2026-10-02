@@ -22,6 +22,13 @@ export const setKillSwitch = async (on) => {
   return res.data;
 };
 
+// POST /api/fleet/risk { riskPct } — change risk % on a RUNNING fleet. Applies to
+// NEW entries only; open positions keep their original size/stop. No re-ignite.
+export const setFleetRisk = async (riskPct) => {
+  const res = await api.post("/fleet/risk", { riskPct: Number(riskPct) });
+  return res.data;
+};
+
 // GET /api/fleet/status — combined balance + per-bot roster
 export const getFleetStatus = async () => {
   const res = await api.get("/fleet/status");

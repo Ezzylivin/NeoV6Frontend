@@ -10,7 +10,7 @@ import EvidencePanel from "../components/EvidencePanel.jsx";
 import RealityCheck from "../components/RealityCheck.jsx";
 import ReadinessScorecard from "../components/ReadinessScorecard.jsx";
 import RiskPanel from "../components/RiskPanel.jsx";
-import { startFleet, stopFleet, setKillSwitch, getFleetStatus, getFleetRegime, getFleetDrift, getFleetBot, getFleetActivity } from "../api/fleet.js";
+import { startFleet, stopFleet, setKillSwitch, setFleetRisk, getFleetStatus, getFleetRegime, getFleetDrift, getFleetBot, getFleetActivity } from "../api/fleet.js";
 import api from "../api/apiClient.js";
 import { io } from "socket.io-client";
 import { BACKEND_URL } from "../config/api.js";
@@ -656,6 +656,19 @@ export default function FleetCommand() {
     finally { setBusy(false); }
   };
 
+  const [applyingRisk, setApplyingRisk] = useState(false);
+  const onApplyRisk = async () => {
+    const rp = Number(riskPct);
+    if (!Number.isFinite(rp)) { toast.error("Enter a valid risk %"); return; }
+    setApplyingRisk(true);
+    try {
+      const r = await setFleetRisk(rp);
+      toast.success(`Risk set to ${fmt(r.risk_pct ?? rp, r.risk_pct % 1 ? 1 : 0)}% on ${r.updated ?? 0} bots — new entries only`);
+      refreshFleet();
+    } catch (e) { toast.error(e?.response?.data?.error || "Couldn't update risk on the running fleet"); }
+    finally { setApplyingRisk(false); }
+  };
+
   const onKill = async (on) => {
     if (on && !window.confirm("Engage the kill switch? This immediately halts ALL new entries across the engine (open positions stay managed by their stops).")) return;
     try {
@@ -826,7 +839,13 @@ export default function FleetCommand() {
               <span className="max-w-[160px] text-[9px] leading-tight text-rose-400">⚠️ {fmt(Number(riskPct), 0)}% risked per trade is extreme — a single stop-out loses that much of a bot's capital.</span>
             )}
             {running && (
-              <span className="max-w-[160px] text-[9px] leading-tight text-zinc-500">Applies at ignite — stop &amp; re-ignite to change a running fleet.</span>
+              <div className="flex max-w-[160px] flex-col gap-1">
+                <button type="button" onClick={onApplyRisk} disabled={applyingRisk}
+                  className="w-fit rounded-lg border border-emerald-500/40 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-emerald-400 transition hover:bg-emerald-500/10 disabled:opacity-40">
+                  {applyingRisk ? "Applying…" : "Apply to running fleet"}
+                </button>
+                <span className="text-[9px] leading-tight text-zinc-600">Affects new entries only — open positions keep their stop.</span>
+              </div>
             )}
           </label>
           <div className="flex flex-col gap-1">
