@@ -77,7 +77,6 @@ function legFriendly(leg, side) {
   const blockers = gates.filter((g) => !g.ok);
   const first = blockers[0];
   const why = first ? (FRIENDLY_GATE[first.k] || `waiting on ${first.k}`) : "waiting for a cleaner setup";
-  const aligned = (side === "long" && t.sig === 1) || (side === "short" && t.sig === -1);
   const lead = aligned
     ? `A ${side} signal is in, but ${why} — so it's holding to avoid a choppy entry.`
     : `Standing aside — ${why}.`;
