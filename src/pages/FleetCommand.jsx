@@ -9,6 +9,7 @@ import FleetGuide, { STRATEGY_INFO } from "../components/FleetGuide.jsx";
 import EvidencePanel from "../components/EvidencePanel.jsx";
 import RealityCheck from "../components/RealityCheck.jsx";
 import ReadinessScorecard from "../components/ReadinessScorecard.jsx";
+import RiskPanel from "../components/RiskPanel.jsx";
 import { startFleet, stopFleet, getFleetStatus, getFleetRegime, getFleetDrift, getFleetBot, getFleetActivity } from "../api/fleet.js";
 import api from "../api/apiClient.js";
 import { io } from "socket.io-client";
@@ -415,6 +416,7 @@ export default function FleetCommand() {
   const [maxDd, setMaxDd] = useState(20);
   const [conviction, setConviction] = useState(false);
   const [longOnly, setLongOnly] = useState(true); // SPOT (long-only) by default — recommended/safe
+  const [riskPct, setRiskPct] = useState(1);      // % of each bot's capital risked per trade
 
   const [status, setStatus] = useState(null);
   const [regime, setRegime] = useState(null);
@@ -589,9 +591,9 @@ export default function FleetCommand() {
 
   // Quick-start presets — one click sets risk cap, mode and sizing (doesn't auto-start).
   const applyPreset = (p) => {
-    if (p === "cons") { setMaxDd(10); setLongOnly(true); setConviction(false); }
-    else if (p === "bal") { setMaxDd(20); setLongOnly(true); setConviction(true); }
-    else if (p === "agg") { setMaxDd(30); setLongOnly(false); setConviction(true); }
+    if (p === "cons") { setMaxDd(10); setRiskPct(0.5); setLongOnly(true); setConviction(false); }
+    else if (p === "bal") { setMaxDd(20); setRiskPct(1); setLongOnly(true); setConviction(true); }
+    else if (p === "agg") { setMaxDd(30); setRiskPct(2); setLongOnly(false); setConviction(true); }
   };
 
   // Export the closed-trade ledger to CSV (owns-your-data).
@@ -620,6 +622,7 @@ export default function FleetCommand() {
         fleetMaxDrawdownPct: Number(maxDd) || 20,
         sizeByConviction: !!conviction,
         longOnly: !!longOnly,
+        riskPct: Number(riskPct) || 1,
       };
       const r = await startFleet(body);
       toast.success(`Fleet ignited — ${r.count} bots running (${longOnly ? "spot · long only" : "long + short"})`);
@@ -781,6 +784,10 @@ export default function FleetCommand() {
             <span className="text-[10px] uppercase tracking-widest text-zinc-500">Fleet max DD %</span>
             <input type="number" className="w-28 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm" value={maxDd} onChange={(e) => setMaxDd(e.target.value)} />
           </label>
+          <label className="flex flex-col gap-1" title="Percent of each bot's capital risked per trade, cut at the ATR stop. 1% is the validated default — lower is safer, higher is more aggressive.">
+            <span className="text-[10px] uppercase tracking-widest text-zinc-500">Risk % / trade</span>
+            <input type="number" step="0.5" min="0.1" max="5" className="w-28 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm" value={riskPct} onChange={(e) => setRiskPct(e.target.value)} />
+          </label>
           <div className="flex flex-col gap-1">
             <span className="text-[10px] uppercase tracking-widest text-zinc-500">Mode</span>
             <div className="flex rounded-xl border border-zinc-800 bg-zinc-950 p-1">
@@ -808,6 +815,9 @@ export default function FleetCommand() {
           <span>Each coin runs a <b className="text-emerald-400/90">long</b> (4h momentum) and a <b className="text-rose-400/90">short</b> (1d regime) bot with trend-ride exits. The market routes each side — longs fire in up-trends, shorts in down-trends — and the macro gate leans the fleet with BTC. Judge it on the drift monitor over weeks, not any single hour.</span>
         </div>
       </div>
+
+      {/* Risk — how much can actually be lost, from the live fleet + your settings */}
+      <div className="mt-4"><RiskPanel status={status} longOnly={longOnly} capital={capital} maxDd={maxDd} riskPct={riskPct} live={false} /></div>
 
       {/* Stats */}
       <div className="my-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
