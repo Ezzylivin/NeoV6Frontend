@@ -465,7 +465,7 @@ export default function FleetCommand() {
     try {
       const [st, rg, dr, act, led] = await Promise.all([
         getFleetStatus(), getFleetRegime(), getFleetDrift(), getFleetActivity(20).catch(() => ({ events: [] })),
-        api.get("/ledger/stats", { params: { recent: 100 } }).then((r) => r.data).catch(() => null),
+        api.get("/ledger/stats", { params: { recent: 500 } }).then((r) => r.data).catch(() => null),
       ]);
       setStatus(st); setRegime(rg); setDrift(dr); setUpdatedAt(Date.now());
       setOnline(true);
@@ -596,7 +596,7 @@ export default function FleetCommand() {
 
   // Export the closed-trade ledger to CSV (owns-your-data).
   const downloadTradesCsv = () => {
-    const rows = ledger?.recent || [];
+    const rows = trackRec?.recent || [];
     if (!rows.length) return;
     const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const head = ["time", "symbol", "direction", "entry_price", "exit_price", "pnl", "reason"];
@@ -648,6 +648,28 @@ export default function FleetCommand() {
   // so the chart never draws a take-profit line the bot will never act on.
   const stripTp = (p) => ({ ...p, tp: undefined });
   const activePositions = [...(legs.long?.positions || []).map(stripTp), ...(legs.short?.positions || []).map(stripTp)];
+
+  // Track record scoped to the FLEET's strategy: exclude the old standard-exit
+  // trades (Take Profit / Trailing Stop) that predate the trend_ride fleet, so the
+  // record reflects ONLY this strategy's closed trades — no phantom pre-fleet P&L.
+  const trackRec = useMemo(() => {
+    if (!ledger) return null;
+    const recent = (ledger.recent || []).filter((t) => !["Take Profit", "Trailing Stop"].includes(t.reason));
+    const asc = [...recent].sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
+    let cum = 0;
+    const cum_pnl = asc.map((t) => { cum += Number(t.pnl) || 0; return { ts: t.ts, cum_pnl: cum }; });
+    const wins = recent.filter((t) => Number(t.pnl) > 0).length;
+    const total_pnl = recent.reduce((s, t) => s + (Number(t.pnl) || 0), 0);
+    return {
+      recent, cum_pnl,
+      totals: {
+        trades: recent.length,
+        win_rate: recent.length ? (wins / recent.length) * 100 : 0,
+        total_pnl,
+        avg_pnl: recent.length ? total_pnl / recent.length : 0,
+      },
+    };
+  }, [ledger]);
   const tradeMarkers = toChartMarkers([...(legs.long?.tradeHistory || []), ...(legs.short?.tradeHistory || [])]);
   const net = drift?.net_pnl ?? 0;
   const animEquity = useCountUp(status?.total_balance ?? 0);
@@ -896,20 +918,20 @@ export default function FleetCommand() {
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <ShieldCheck size={14} className="text-emerald-400" />
           <h2 className="text-[12px] font-black uppercase tracking-widest text-zinc-300">Track record</h2>
-          <span className="text-[10px] text-zinc-600">closed trades · survives restarts</span>
-          {ledger?.totals?.trades > 0 && (
+          <span className="text-[10px] text-zinc-600">this strategy's closed trades · survives restarts</span>
+          {trackRec?.totals?.trades > 0 && (
             <div className="ml-auto flex items-center gap-3 text-[11px]">
-              <span className="text-zinc-500">{ledger.totals.trades} trades</span>
-              <span className="text-zinc-500">win <b className="text-zinc-200">{fmt(ledger.totals.win_rate, 0)}%</b></span>
-              <span className={ledger.totals.total_pnl >= 0 ? "text-emerald-400" : "text-rose-400"}>net <b>{signed(ledger.totals.total_pnl)}</b></span>
-              <button onClick={downloadTradesCsv} className="rounded-md border border-zinc-700 px-2 py-0.5 text-[10px] font-bold text-zinc-300 hover:border-zinc-500" title="Download your closed trades as CSV">CSV</button>
+              <span className="text-zinc-500">{trackRec.totals.trades} trades</span>
+              <span className="text-zinc-500">win <b className="text-zinc-200">{fmt(trackRec.totals.win_rate, 0)}%</b></span>
+              <span className={trackRec.totals.total_pnl >= 0 ? "text-emerald-400" : "text-rose-400"}>net <b>{signed(trackRec.totals.total_pnl)}</b></span>
+              <button onClick={downloadTradesCsv} className="rounded-md border border-zinc-700 px-2 py-0.5 text-[10px] font-bold text-zinc-300 hover:border-zinc-500" title="Download the fleet's closed trades as CSV">CSV</button>
             </div>
           )}
         </div>
         <p className="mb-1 text-[10px] leading-relaxed text-zinc-500">Realized profit from <b className="text-zinc-400">closed</b> trades only (open positions aren't counted yet), compared to simply holding BTC over the same window. Persists across restarts and refreshes.</p>
         {(() => {
-          const cumRaw = ledger?.cum_pnl || [];
-          if (!ledger) return <div className="flex h-28 items-center justify-center text-[11px] text-zinc-600">Loading track record…</div>;
+          const cumRaw = trackRec?.cum_pnl || [];
+          if (!trackRec) return <div className="flex h-28 items-center justify-center text-[11px] text-zinc-600">Loading track record…</div>;
           if (cumRaw.length < 1) return (
             <div className="flex h-28 items-center justify-center px-4 text-center text-[11px] text-zinc-600">
               No closed trades yet — your realized return (vs buy-&amp;-hold) builds here as the fleet closes positions, and it persists across restarts and refreshes.
@@ -945,11 +967,11 @@ export default function FleetCommand() {
           );
         })()}
         {/* Honest benchmark: fleet realized return vs simply holding BTC over the same window */}
-        {ledger?.totals?.trades > 0 && btcRef.length >= 2 && (() => {
-          const cum = ledger.cum_pnl || [];
+        {trackRec?.totals?.trades > 0 && btcRef.length >= 2 && (() => {
+          const cum = trackRec.cum_pnl || [];
           if (!cum.length) return null;
           const base = (status?.count ? status.count * 1000 : 6000) || 6000;
-          const stratPct = (Number(ledger.totals.total_pnl) / base) * 100;
+          const stratPct = (Number(trackRec.totals.total_pnl) / base) * 100;
           const firstTs = new Date(cum[0].ts).getTime() / 1000;
           const pts = btcRef
             .map((c) => ({ t: typeof c.time === "number" ? (c.time > 1e11 ? c.time / 1000 : c.time) : new Date(c.time).getTime() / 1000, close: Number(c.close) }))
