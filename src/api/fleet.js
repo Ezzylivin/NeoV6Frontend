@@ -16,6 +16,12 @@ export const stopFleet = async () => {
   return res.data;
 };
 
+// POST /api/fleet/killswitch { on } — emergency halt of ALL new entries (global).
+export const setKillSwitch = async (on) => {
+  const res = await api.post("/fleet/killswitch", { on: !!on });
+  return res.data;
+};
+
 // GET /api/fleet/status — combined balance + per-bot roster
 export const getFleetStatus = async () => {
   const res = await api.get("/fleet/status");
