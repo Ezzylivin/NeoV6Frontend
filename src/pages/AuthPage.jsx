@@ -107,6 +107,20 @@ export default function AuthPage() {
             {isRegister ? 'Sign in' : 'Sign up'}
           </button>
         </p>
+
+        {/* ⚖️ Legal footer — consent + links (open in a new tab so the form isn't lost) */}
+        <div className="mt-4 border-t border-emerald-500/20 pt-3 text-center text-[11px] leading-relaxed text-emerald-200/80">
+          {isRegister && (
+            <p className="mb-1">By creating an account you agree to our Terms and acknowledge the Risk Disclosure.</p>
+          )}
+          <p className="flex flex-wrap items-center justify-center gap-x-2">
+            <Link to="/legal?doc=terms" target="_blank" className="hover:text-white hover:underline">Terms</Link>
+            <span className="text-emerald-500/40">·</span>
+            <Link to="/legal?doc=privacy" target="_blank" className="hover:text-white hover:underline">Privacy</Link>
+            <span className="text-emerald-500/40">·</span>
+            <Link to="/legal?doc=risk" target="_blank" className="hover:text-white hover:underline">Risk Disclosure</Link>
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -193,6 +193,14 @@ export default function Plans() {
         <Why title="No per-trade tax" body="Flat monthly price. We don't skim a fee off every fill like exchange-run bots do." />
         <Why title="Unlimited free paper" body="The entire engine on paper — any coins, any legs — at no cost, with no expiry." />
       </div>
+
+      {/* Legal footer */}
+      <p className="mt-8 text-center text-xs text-neutral-500">
+        Subscriptions renew automatically; cancel anytime. By subscribing you agree to the{" "}
+        <a href="/legal?doc=terms" target="_blank" rel="noreferrer" className="underline hover:text-neutral-300">Terms</a>,{" "}
+        <a href="/legal?doc=privacy" target="_blank" rel="noreferrer" className="underline hover:text-neutral-300">Privacy Policy</a>, and{" "}
+        <a href="/legal?doc=risk" target="_blank" rel="noreferrer" className="underline hover:text-neutral-300">Risk Disclosure</a>. Trading crypto is high-risk; you can lose money.
+      </p>
     </div>
   );
 }
