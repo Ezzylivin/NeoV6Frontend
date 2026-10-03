@@ -841,7 +841,7 @@ export default function FleetCommand() {
             <span className="text-[10px] uppercase tracking-widest text-zinc-500">Fleet max DD %</span>
             <input type="number" className="w-28 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm" value={maxDd} onChange={(e) => setMaxDd(e.target.value)} />
           </label>
-          <label className="flex flex-col gap-1" title="Percent of each bot's capital risked per trade, cut at the ATR stop. 1% is the validated default — lower is safer, higher is more aggressive.">
+          <label data-tour="risk" className="flex flex-col gap-1" title="Percent of each bot's capital risked per trade, cut at the ATR stop. 1% is the validated default — lower is safer, higher is more aggressive.">
             <span className="text-[10px] uppercase tracking-widest text-zinc-500">Risk % / trade</span>
             <input type="number" step="0.5" min="0.1" max="50" className="w-28 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm" value={riskPct} onChange={(e) => setRiskPct(e.target.value)} />
             {Number(riskPct) > 10 && (
@@ -857,7 +857,7 @@ export default function FleetCommand() {
               </div>
             )}
           </label>
-          <label className="flex flex-col gap-1" title="Hold multiple positions per coin, adding a leg only in a confirmed, profitable up-trend (never in chop). Applied ONLY to coins the Strategy Lab cleared via hard validation — others stay single-leg. Risk per trade is split across legs, so total risk is unchanged.">
+          <label data-tour="pyramiding" className="flex flex-col gap-1" title="Hold multiple positions per coin, adding a leg only in a confirmed, profitable up-trend (never in chop). Applied ONLY to coins the Strategy Lab cleared via hard validation — others stay single-leg. Risk per trade is split across legs, so total risk is unchanged.">
             <span className="text-[10px] uppercase tracking-widest text-zinc-500">Pyramiding</span>
             <select value={maxLegs} onChange={(e) => setMaxLegs(Number(e.target.value))} className="w-40 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm">
               <option value={1}>Off · single leg</option>
@@ -888,7 +888,7 @@ export default function FleetCommand() {
           </label>
           <div className="ml-auto flex gap-2 pb-0.5">
             {!running ? (
-              <button onClick={onStart} disabled={busy} className="flex items-center gap-2 rounded-xl bg-emerald-500 px-5 py-2.5 text-[11px] font-black uppercase tracking-widest text-black hover:bg-emerald-400 disabled:opacity-40"><Play size={13} /> Ignite Fleet</button>
+              <button onClick={onStart} data-tour="ignite" disabled={busy} className="flex items-center gap-2 rounded-xl bg-emerald-500 px-5 py-2.5 text-[11px] font-black uppercase tracking-widest text-black hover:bg-emerald-400 disabled:opacity-40"><Play size={13} /> Ignite Fleet</button>
             ) : (
               <button onClick={onStop} disabled={busy} className="flex items-center gap-2 rounded-xl bg-rose-500 px-5 py-2.5 text-[11px] font-black uppercase tracking-widest text-black hover:bg-rose-400 disabled:opacity-40"><Square size={13} /> Stop Fleet</button>
             )}
@@ -896,7 +896,7 @@ export default function FleetCommand() {
             {status?.kill_switch ? (
               <button onClick={() => onKill(false)} title="Release the kill switch — bots may open new entries again" className="flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-white hover:bg-rose-500 animate-pulse"><Ban size={13} /> Halted · Release</button>
             ) : (
-              <button onClick={() => onKill(true)} title="Emergency kill switch — immediately halt all NEW entries across the engine" className="flex items-center gap-2 rounded-xl border border-rose-500/40 px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-rose-400 hover:bg-rose-500/10"><Ban size={13} /> Kill switch</button>
+              <button onClick={() => onKill(true)} data-tour="killswitch" title="Emergency kill switch — immediately halt all NEW entries across the engine" className="flex items-center gap-2 rounded-xl border border-rose-500/40 px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-rose-400 hover:bg-rose-500/10"><Ban size={13} /> Kill switch</button>
             )}
           </div>
         </div>

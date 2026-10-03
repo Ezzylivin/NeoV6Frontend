@@ -6,6 +6,7 @@ import { Outlet } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Header from '../components/Header.jsx';
 import VerifyBanner from '../components/VerifyBanner.jsx';
+import OnboardingTour from '../components/OnboardingTour.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 
 export default function DashboardLayout() {
@@ -41,6 +42,9 @@ export default function DashboardLayout() {
       <main className="flex-1 p-6 overflow-auto">
         <Outlet />
       </main>
+
+      {/* First-login guided tour (replayable from Help). Renders nothing until it runs. */}
+      <OnboardingTour />
     </div>
   );
 }

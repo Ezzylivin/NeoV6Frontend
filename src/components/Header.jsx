@@ -40,10 +40,10 @@ const Header = () => {
           <Link to="/dashboard" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
             Dashboard
           </Link>
-          <Link to="/dashboard/help" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
+          <Link to="/dashboard/help" data-tour="nav-help" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
             Help
           </Link>
-          <Link to="/dashboard/backtests" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
+          <Link to="/dashboard/backtests" data-tour="nav-lab" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
             Strategy Lab
           </Link>
           {/* 🚢 Unified Fleet command center (replaces the single Live Bot) */}
