@@ -1,7 +1,7 @@
 // File: src/App.jsx
 import React, { Suspense, lazy } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "./context/AuthContext.jsx";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "./context/AuthContext.jsx";
 import { StrategyProvider } from "./context/StrategyContext.jsx";
 import PrivateRoute from "./components/ProtectedRoute.jsx";
 import GuestRoute from "./components/GuestRoute.jsx";
@@ -31,6 +31,16 @@ const RouteFallback = () => (
   <div style={{ padding: "2rem", textAlign: "center", color: "#888" }}>Loading…</div>
 );
 
+// The /dashboard landing page is role-aware: admins get the Admin Control plane
+// as their home (the trading dashboard is stripped for them), everyone else
+// gets the normal trading Dashboard. Admins can still reach other pages via nav.
+const DashboardHome = () => {
+  const { user, initializing } = useAuth();
+  if (initializing) return <RouteFallback />;
+  if (user?.role === "admin") return <Navigate to="/dashboard/admin" replace />;
+  return <Dashboard />;
+};
+
 function App() {
   return (
     <AuthProvider>
@@ -57,7 +67,7 @@ function App() {
                 </PrivateRoute>
               }
             >
-              <Route index element={<Dashboard />} />
+              <Route index element={<DashboardHome />} />
               <Route path="backtests" element={<Backtests />} />
               <Route path="help" element={<HelpCenter />} />
               <Route path="tradingbot" element={<FleetCommand />} />
