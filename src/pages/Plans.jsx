@@ -78,7 +78,7 @@ export default function Plans() {
         <p className="mx-auto mt-3 max-w-2xl text-neutral-400">
           The full engine — every coin, every strategy, the Strategy Lab and self-learning ledger — is
           unlimited on paper at no cost. Upgrade only when you're ready to deploy a <em>validated</em> setup
-          with real money. No per-trade cut. Cancel anytime.
+          with real money. <strong className="text-neutral-300">Live runs fee-free through Coinbase One (or Binance.US 0% maker)</strong> — the zero-fee execution is exactly what makes the validated edge viable. No per-trade cut. Cancel anytime.
         </p>
       </div>
 
