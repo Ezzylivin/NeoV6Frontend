@@ -236,7 +236,7 @@ export default function StrategyLab() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>Risk % / trade</label>
-                <input data-tour="lab-risk" type="number" step="0.5" min="0.1" max="50" value={cfg.riskPct} onChange={(e) => set("riskPct", e.target.value)} className={inputCls} />
+                <input data-tour="lab-risk" type="number" step="0.5" min="0.1" max="20" value={cfg.riskPct} onChange={(e) => { const n = Number(e.target.value); set("riskPct", n > 20 ? 20 : e.target.value); }} className={inputCls} />
               </div>
               <div>
                 <label className={labelCls}>Start capital</label>

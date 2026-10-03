@@ -926,9 +926,9 @@ export default function FleetCommand() {
           </label>
           <label data-tour="risk" className="flex flex-col gap-1" title="Percent of each bot's capital risked per trade, cut at the ATR stop. 1% is the validated default — lower is safer, higher is more aggressive.">
             <span className="text-[10px] uppercase tracking-widest text-zinc-500">Risk % / trade</span>
-            <input type="number" step="0.5" min="0.1" max="50" className="w-28 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm" value={riskPct} onChange={(e) => setRiskPct(e.target.value)} />
-            {Number(riskPct) > 10 && (
-              <span className="max-w-[160px] text-[9px] leading-tight text-rose-400">⚠️ {fmt(Number(riskPct), 0)}% risked per trade is extreme — a single stop-out loses that much of a bot's capital.</span>
+            <input type="number" step="0.5" min="0.1" max="20" className="w-28 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm" value={riskPct} onChange={(e) => { const n = Number(e.target.value); setRiskPct(n > 20 ? 20 : e.target.value); }} />
+            {Number(riskPct) > 5 && (
+              <span className="max-w-[160px] text-[9px] leading-tight text-rose-400">⚠️ {fmt(Number(riskPct), 0)}% per trade is high — a single stop-out loses that much of a bot's capital. Capped at 20%.</span>
             )}
             {running && (
               <div className="flex max-w-[160px] flex-col gap-1">
