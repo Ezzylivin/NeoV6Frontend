@@ -33,8 +33,8 @@ export async function setKillswitch(on) {
 // "Harden the system": re-run the hard validation that gates live pyramiding,
 // at a chosen strictness ("normal" | "strict" | "paranoid"). Runs in the
 // background on the engine; poll getRecalibration() for the verdict.
-export async function recalibrate(level = "strict", maxLegs) {
-  const { data } = await api.post("/admin/recalibrate", { level, maxLegs });
+export async function recalibrate(level = "strict", maxLegs, coinbaseOne = false) {
+  const { data } = await api.post("/admin/recalibrate", { level, maxLegs, coinbaseOne });
   return data; // { status: "started" | "already_running", level }
 }
 

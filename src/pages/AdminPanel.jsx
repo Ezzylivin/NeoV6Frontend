@@ -27,6 +27,7 @@ export default function AdminPanel() {
   const [recal, setRecal] = useState(null);
   const [recalLevel, setRecalLevel] = useState("strict");
   const [recalBusy, setRecalBusy] = useState(false);
+  const [recalCbOne, setRecalCbOne] = useState(false); // model Coinbase One (0% Coinbase fees)
   const [research, setResearch] = useState(null);
   const [researchBusy, setResearchBusy] = useState(false);
   const [selected, setSelected] = useState(() => new Set()); // selected user ids for broadcast
@@ -100,7 +101,7 @@ export default function AdminPanel() {
     if (!window.confirm(msg)) return;
     setRecalBusy(true); setErr("");
     try {
-      await recalibrate(recalLevel);
+      await recalibrate(recalLevel, undefined, recalCbOne);
       await loadRecal();
     } catch (e) {
       setErr(e?.response?.data?.message || "Recalibration failed to start.");
@@ -224,6 +225,10 @@ export default function AdminPanel() {
                 <option key={l} value={l}>{l}</option>
               ))}
             </select>
+            <label className="flex items-center gap-1.5 text-xs text-neutral-300" title="Model a Coinbase One subscription: 0% Coinbase (long) fees up to its volume cap. Kraken shorts unaffected.">
+              <input type="checkbox" checked={recalCbOne} onChange={(e) => setRecalCbOne(e.target.checked)} disabled={recal?.running || recalBusy} />
+              Coinbase One
+            </label>
             <button
               onClick={runRecal}
               disabled={recal?.running || recalBusy}
@@ -245,6 +250,7 @@ export default function AdminPanel() {
               <div className="text-xs text-neutral-400">
                 Last run {new Date(recal.last.ran_at).toLocaleString()} · level{" "}
                 <strong className="text-neutral-200">{recal.last.level}</strong>
+                {recal.last.coinbase_one && <span className="ml-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-bold text-sky-300">Coinbase One · 0% fees</span>}
               </div>
               <div className="flex flex-wrap gap-2">
                 {(recal.last.by_config || recal.last.by_legs || []).map((r, i) => {
