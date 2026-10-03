@@ -972,8 +972,6 @@ export default function FleetCommand() {
             <select value={maxLegs} onChange={(e) => setMaxLegs(Number(e.target.value))} className="w-40 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm">
               <option value={1}>Off · single leg</option>
               <option value={2}>Up to 2 legs</option>
-              <option value={3}>Up to 3 legs</option>
-              <option value={4}>Up to 4 legs</option>
             </select>
             {Number(maxLegs) > 1 && (
               <span className="max-w-[200px] text-[9px] leading-tight text-zinc-500">
