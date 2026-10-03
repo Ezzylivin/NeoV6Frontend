@@ -3,8 +3,8 @@
 // here. Lets you see every account, comp/change tiers & roles on the fly, watch
 // headline numbers, and hit the global emergency kill switch for all fleets.
 import React, { useEffect, useState, useCallback } from "react";
-import { Navigate } from "react-router-dom";
-import { ShieldAlert, Users, DollarSign, Search, Power, Loader2, RefreshCw } from "lucide-react";
+import { Navigate, Link } from "react-router-dom";
+import { ShieldAlert, Users, DollarSign, Search, Power, Loader2, RefreshCw, Settings as SettingsIcon } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { getOverview, listUsers, updateUser, setKillswitch } from "../api/admin";
 
@@ -76,15 +76,24 @@ export default function AdminPanel() {
           <ShieldAlert className="h-6 w-6 text-emerald-400" />
           <h1 className="text-2xl font-bold text-white">Admin Control</h1>
         </div>
-        <button
-          onClick={toggleKill}
-          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition ${
-            kill ? "bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.5)]" : "border border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20"
-          }`}
-          title="Global emergency halt of all new entries"
-        >
-          <Power className="h-4 w-4" /> {kill ? "KILL SWITCH ENGAGED" : "Global kill switch"}
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/dashboard/settings"
+            className="flex items-center gap-2 rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-neutral-200 transition hover:bg-white/5"
+            title="Account settings — email, exchange keys, subscription"
+          >
+            <SettingsIcon className="h-4 w-4" /> Settings
+          </Link>
+          <button
+            onClick={toggleKill}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition ${
+              kill ? "bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.5)]" : "border border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20"
+            }`}
+            title="Global emergency halt of all new entries"
+          >
+            <Power className="h-4 w-4" /> {kill ? "KILL SWITCH ENGAGED" : "Global kill switch"}
+          </button>
+        </div>
       </div>
 
       {/* STATS */}
