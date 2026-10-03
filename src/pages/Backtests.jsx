@@ -179,40 +179,40 @@ export default function StrategyLab() {
           <div className="space-y-3">
             <div>
               <label className={labelCls}>Coin</label>
-              <select value={cfg.symbol} onChange={(e) => set("symbol", e.target.value)} className={inputCls}>
+              <select data-tour="lab-coin" value={cfg.symbol} onChange={(e) => set("symbol", e.target.value)} className={inputCls}>
                 {symbols.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>Timeframe</label>
-                <select value={cfg.timeframe} onChange={(e) => set("timeframe", e.target.value)} className={inputCls}>
+                <select data-tour="lab-timeframe" value={cfg.timeframe} onChange={(e) => set("timeframe", e.target.value)} className={inputCls}>
                   {timeframes.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
                 <label className={labelCls}>Direction</label>
-                <select value={cfg.direction} onChange={(e) => set("direction", e.target.value)} className={inputCls}>
+                <select data-tour="lab-direction" value={cfg.direction} onChange={(e) => set("direction", e.target.value)} className={inputCls}>
                   {["LONG", "SHORT", "BOTH"].map((d) => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
             </div>
             <div>
               <label className={labelCls}>Entry signal</label>
-              <select value={cfg.entry} onChange={(e) => set("entry", e.target.value)} className={inputCls}>
+              <select data-tour="lab-entry" value={cfg.entry} onChange={(e) => set("entry", e.target.value)} className={inputCls}>
                 {entries.map((e) => <option key={e} value={e}>{entryLabel(e)}</option>)}
               </select>
             </div>
             <div>
               <label className={labelCls}>Exit style</label>
-              <select value={cfg.style} onChange={(e) => set("style", e.target.value)} className={inputCls}>
+              <select data-tour="lab-exit" value={cfg.style} onChange={(e) => set("style", e.target.value)} className={inputCls}>
                 {styles.map((s) => <option key={s} value={s}>{styleLabel(s)}</option>)}
               </select>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>Risk % / trade</label>
-                <input type="number" step="0.5" min="0.1" max="50" value={cfg.riskPct} onChange={(e) => set("riskPct", e.target.value)} className={inputCls} />
+                <input data-tour="lab-risk" type="number" step="0.5" min="0.1" max="50" value={cfg.riskPct} onChange={(e) => set("riskPct", e.target.value)} className={inputCls} />
               </div>
               <div>
                 <label className={labelCls}>Start capital</label>
@@ -221,7 +221,7 @@ export default function StrategyLab() {
             </div>
             <div>
               <label className={labelCls}>Max positions (pyramiding)</label>
-              <select value={cfg.maxLegs} onChange={(e) => set("maxLegs", Number(e.target.value))} className={inputCls}>
+              <select data-tour="lab-legs" value={cfg.maxLegs} onChange={(e) => set("maxLegs", Number(e.target.value))} className={inputCls}>
                 <option value={1}>1 — single position (off)</option>
                 <option value={2}>2 — add up to 1 leg in strong trends</option>
                 <option value={3}>3 — add up to 2 legs</option>
@@ -245,7 +245,7 @@ export default function StrategyLab() {
             </div>
             <p className="text-[10px] leading-relaxed text-zinc-600">Leave dates blank to use all available history. {isFleetCfg ? "✓ This is the live fleet's exact config." : "Tip: use a Fleet button above to match the live setup."}</p>
 
-            <button onClick={run} disabled={running} className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-[11px] font-black uppercase tracking-widest text-black transition hover:bg-emerald-400 disabled:opacity-40">
+            <button onClick={run} data-tour="lab-run" disabled={running} className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-[11px] font-black uppercase tracking-widest text-black transition hover:bg-emerald-400 disabled:opacity-40">
               <Play size={13} /> {running ? "Running backtest…" : "Run backtest"}
             </button>
             <button onClick={runPort} disabled={portRunning} title="Run this config across all coins at once and show the blended (diversified) result." className="flex w-full items-center justify-center gap-2 rounded-xl border border-sky-500/40 py-2.5 text-[11px] font-black uppercase tracking-widest text-sky-400 transition hover:bg-sky-500/10 disabled:opacity-40">
@@ -337,7 +337,7 @@ export default function StrategyLab() {
                 const s = plainSummary(result);
                 const t = TONE[s.tone] || TONE.mixed;
                 return (
-                  <div className={`rounded-2xl border p-5 ${t.box}`}>
+                  <div data-tour="lab-result" className={`rounded-2xl border p-5 ${t.box}`}>
                     <div className="mb-2 flex items-center gap-2">
                       <span className={`h-2.5 w-2.5 rounded-full ${t.dot}`} />
                       <h2 className={`text-sm font-black uppercase tracking-tight ${t.head}`}>{s.headline}</h2>
