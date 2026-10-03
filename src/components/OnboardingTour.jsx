@@ -21,8 +21,24 @@ const FLEET = "/dashboard/fleet";
 const LAB = "/dashboard/backtests";
 
 const q = (sel) => document.querySelector(`[data-tour="${sel}"]`);
-const hasVal = (sel) => { const el = q(sel); return !!(el && String(el.value ?? "").trim() !== ""); };
-const inRange = (sel, lo, hi) => { const el = q(sel); const v = Number(el?.value); return Number.isFinite(v) && v >= lo && v <= hi; };
+
+const LAB_COINS = ["BTC-USD", "ETH-USD", "SOL-USD", "DOGE-USD", "XRP-USD"];
+const LAB_RISKS = [1, 1, 1.5, 2];
+
+// Programmatically set a React-controlled <input>/<select> and fire its change so
+// the Lab's own state updates — this lets the tour DICTATE each input (and explain
+// why) instead of asking the user to choose.
+const fill = (sel, value) => {
+  const el = q(sel);
+  if (!el) return;
+  try {
+    const proto = el.tagName === "SELECT" ? window.HTMLSelectElement.prototype : window.HTMLInputElement.prototype;
+    const desc = Object.getOwnPropertyDescriptor(proto, "value");
+    if (desc && desc.set) desc.set.call(el, String(value)); else el.value = String(value);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  } catch { /* ignore */ }
+};
 
 const STEPS = [
   { title: "Welcome to NeoV6", body: "NeoV6 is an automated crypto trading dashboard. A fleet of bots watches the market and opens and closes trades for you, using a strategy validated on years of history. This tour walks you through everything and ends with you running a real backtest. You can replay it anytime from Help." },
@@ -36,17 +52,19 @@ const STEPS = [
   { title: "Readiness meters", body: "Each bot shows how close it is to trading. It only hits 100% when every entry check passes AND a signal is firing. The panel names whatever is holding each bot back.", route: FLEET },
   { title: "Track record & drift monitor", body: "The track record shows your realized return vs holding Bitcoin. The drift monitor flags if live results diverge from the validated profile. Judge the fleet over weeks, never one hour.", route: FLEET },
 
-  // ---- Strategy Lab: interactive, one input at a time, ending in a real run ----
-  { title: "Now let's use the Strategy Lab", body: "This is where you PROVE a setup on historical data before trusting it live. I'll walk you through every input — and you'll actually set each one and run a backtest. Let's go.", route: LAB },
-  { title: "1. Pick a coin", body: "Choose which coin to test. The validated universe is BTC, ETH, SOL, DOGE, XRP. Pick one now — then press Next.", route: LAB, target: "lab-coin", interactive: true, validate: () => hasVal("lab-coin") },
-  { title: "2. Timeframe", body: "The candle size the strategy reads. 4h is the fleet's long timeframe; 1d is the short side. Choose one, then Next.", route: LAB, target: "lab-timeframe", interactive: true, validate: () => hasVal("lab-timeframe") },
-  { title: "3. Direction", body: "LONG profits in up-trends, SHORT in down-trends, BOTH allows either. LONG is the core validated edge. Set it, then Next.", route: LAB, target: "lab-direction", interactive: true, validate: () => hasVal("lab-direction") },
-  { title: "4. Entry signal", body: "How the bot decides to enter. 'Regime' (trend + only when BTC is risk-on) is exactly what the live fleet uses. Choose it, then Next.", route: LAB, target: "lab-entry", interactive: true, validate: () => hasVal("lab-entry") },
-  { title: "5. Exit style", body: "How the bot gets out. 'Trend-ride' — hold to a signal flip behind a FIXED stop — is the validated edge: let winners run, cut losers at a line. Select it, then Next.", route: LAB, target: "lab-exit", interactive: true, validate: () => hasVal("lab-exit") },
-  { title: "6. Risk % per trade", body: "Type a number between 0.1 and 50. 1% is the validated default — the amount of the account risked to the stop on each trade. Enter a valid value to continue.", route: LAB, target: "lab-risk", interactive: true, validate: () => inRange("lab-risk", 0.1, 50) },
-  { title: "7. Pyramiding", body: "Leave it Off (single position) for your first run — that's the validated baseline. (Above 1 only pyramids on validation-cleared coins.) Confirm your choice, then Next.", route: LAB, target: "lab-legs", interactive: true, validate: () => hasVal("lab-legs") },
-  { title: "8. Run your backtest", body: "Everything's set — now click 'Run backtest'. You can't continue until the result loads (it takes a few seconds). Go ahead and click it.", route: LAB, target: "lab-run", interactive: true, validate: () => !!q("lab-result") },
-  { title: "Read the result", body: "That green/amber/red banner is your plain-English verdict, with the metrics and every simulated trade below it. THIS is how a setup earns trust: a config only reaches the live fleet after it survives the tests here. You just ran your first one 🎉", route: LAB, target: "lab-result" },
+  // ---- Strategy Lab: the tour DICTATES each input (and explains why), then the
+  //      user runs the finished backtest. Values are auto-filled; the coin and
+  //      risk are rolled at random from sensible, knowledge-based choices. ----
+  { title: "Now I'll build a backtest for you", body: "The smart inputs aren't obvious, so I'll set each one to a sensible, knowledge-based choice and tell you WHY — instead of leaving you to guess. Watch each field fill in, then you'll run the finished backtest yourself.", route: LAB },
+  { title: "1. Coin", route: LAB, target: "lab-coin", apply: (p) => fill("lab-coin", p.coin), body: (p) => `I set the coin to ${p.coin.replace("-USD", "")}. Any of the five validated coins works — I rolled one at random to prove the edge isn't cherry-picked to a single market.` },
+  { title: "2. Timeframe", target: "lab-timeframe", apply: () => fill("lab-timeframe", "4h"), body: "Set to 4h — the fleet's long timeframe. Slow enough to dodge fee-churn, fast enough to catch real trends. (1d is used for the short side.)" },
+  { title: "3. Direction", target: "lab-direction", apply: () => fill("lab-direction", "LONG"), body: "LONG. The core validated edge is the long side; shorts are an optional margin hedge, so we test the strength first." },
+  { title: "4. Entry signal", target: "lab-entry", apply: () => fill("lab-entry", "regime"), body: "Regime — enter on trend, but only when Bitcoin is risk-on. This is EXACTLY what the live fleet uses, so the backtest mirrors reality instead of some other strategy." },
+  { title: "5. Exit style", target: "lab-exit", apply: () => fill("lab-exit", "trend_ride"), body: "Trend-ride — hold to a signal flip behind a FIXED stop. This is THE validated edge: cut losers at a set line, let winners run (no take-profit cap)." },
+  { title: "6. Risk per trade", target: "lab-risk", apply: (p) => fill("lab-risk", p.risk), body: (p) => `I set risk to ${p.risk}% — a sane 1–2% of the account risked to the stop on each trade. Small enough that an unlucky streak can't sink you, since the stop makes the loss known up front.` },
+  { title: "7. Pyramiding", target: "lab-legs", apply: () => fill("lab-legs", "1"), body: "Left Off — a single position per trade, the validated baseline. Pyramiding is only safe on coins that have already passed these exact tests." },
+  { title: "8. Now run it", target: "lab-run", interactive: true, validate: () => !!q("lab-result"), body: "Every input is now set the way the fleet actually trades. Click Run backtest — you can't continue until the result loads (a few seconds)." },
+  { title: "Read the result", target: "lab-result", body: "Your plain-English verdict, the metrics, and every simulated trade. THIS is how a setup earns trust — and only a config that passes here can ever be used Live. You just ran your first one 🎉" },
 
   { title: "Help Center — always here", body: "The Help Center has a searchable guide and a button to replay this whole tour anytime. If something ever looks off, start there.", target: "nav-help" },
   { title: "You're all set", body: "That's the full app, end to end. Ignite the fleet, watch the readiness meters and trade feed, and prove new ideas in the Strategy Lab. It's paper — explore freely. Good luck!", route: FLEET },
@@ -60,12 +78,19 @@ export default function OnboardingTour() {
   const navigate = useNavigate();
   const location = useLocation();
   const timers = useRef([]);
+  const picks = useRef({ coin: "BTC-USD", risk: 1 });
+  const roll = () => {
+    picks.current = {
+      coin: LAB_COINS[Math.floor(Math.random() * LAB_COINS.length)],
+      risk: LAB_RISKS[Math.floor(Math.random() * LAB_RISKS.length)],
+    };
+  };
 
   useEffect(() => {
     let first = false;
     try { first = !localStorage.getItem(DONE_KEY); } catch { first = false; }
-    if (first) setRun(true);
-    const onStart = () => { setRect(null); setI(0); setRun(true); };
+    if (first) { roll(); setRun(true); }
+    const onStart = () => { roll(); setRect(null); setI(0); setRun(true); };
     window.addEventListener("neov6:start-tour", onStart);
     return () => window.removeEventListener("neov6:start-tour", onStart);
   }, []);
@@ -90,6 +115,7 @@ export default function OnboardingTour() {
       const el = q(step.target);
       if (el) {
         try { el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" }); } catch { /* ignore */ }
+        if (step.apply) { try { step.apply(picks.current); } catch { /* ignore */ } }
         const t = setTimeout(() => { try { setRect(el.getBoundingClientRect()); } catch { setRect(null); } }, 300);
         timers.current.push(t);
       } else if (attempt < 20) {
@@ -166,7 +192,7 @@ export default function OnboardingTour() {
           <span className="ml-auto text-[9px] font-bold uppercase tracking-widest text-zinc-600">Complete all steps</span>
         </div>
         <h3 className="mb-1.5 text-sm font-black text-white">{step.title}</h3>
-        <p className="text-[12px] leading-relaxed text-zinc-300">{step.body}</p>
+        <p className="text-[12px] leading-relaxed text-zinc-300">{typeof step.body === "function" ? step.body(picks.current) : step.body}</p>
         <div className="mt-3 flex flex-wrap gap-1">
           {STEPS.map((_, k) => <span key={k} className={`h-1 w-3.5 rounded-full ${k <= i ? "bg-emerald-500" : "bg-zinc-700"}`} />)}
         </div>
