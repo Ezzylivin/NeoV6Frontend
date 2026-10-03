@@ -4,6 +4,29 @@ import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import './index.css';
 
+// ── Stale-chunk auto-recovery ──────────────────────────────────────────────
+// After a deploy, a long-open tab still references the OLD code-split chunk
+// hashes; those files no longer exist, so a lazy import (e.g. a route page)
+// 404s and the page goes blank. Detect that specific failure and reload ONCE to
+// pick up the fresh index + chunks. A short-lived sessionStorage guard prevents
+// reload loops if a chunk is genuinely missing (broken build).
+const CHUNK_GUARD = "neov6_chunk_reload";
+const looksLikeStaleChunk = (msg = "") =>
+  /dynamically imported module|Importing a module script failed|Failed to fetch dynamically|error loading dynamically imported module|'text\/html'/i.test(String(msg));
+function recoverFromStaleChunk() {
+  try {
+    if (sessionStorage.getItem(CHUNK_GUARD)) return; // already tried this session
+    sessionStorage.setItem(CHUNK_GUARD, String(Date.now()));
+  } catch { /* ignore */ }
+  window.location.reload();
+}
+window.addEventListener("vite:preloadError", (e) => { try { e.preventDefault(); } catch { /* ignore */ } recoverFromStaleChunk(); });
+window.addEventListener("error", (e) => { if (looksLikeStaleChunk(e?.message)) recoverFromStaleChunk(); });
+window.addEventListener("unhandledrejection", (e) => { if (looksLikeStaleChunk(e?.reason?.message || e?.reason)) recoverFromStaleChunk(); });
+// Clear the guard once the app has stayed up a few seconds (a healthy load), so
+// a LATER deploy in the same session can auto-recover too — without looping.
+setTimeout(() => { try { sessionStorage.removeItem(CHUNK_GUARD); } catch { /* ignore */ } }, 8000);
+
 // RainbowKit + Wagmi Imports
 import '@rainbow-me/rainbowkit/styles.css';
 import { getDefaultConfig, RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit';
