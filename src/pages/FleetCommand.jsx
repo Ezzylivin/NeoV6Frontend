@@ -10,7 +10,7 @@ import EvidencePanel from "../components/EvidencePanel.jsx";
 import RealityCheck from "../components/RealityCheck.jsx";
 import ReadinessScorecard from "../components/ReadinessScorecard.jsx";
 import RiskPanel from "../components/RiskPanel.jsx";
-import { startFleet, stopFleet, setKillSwitch, setFleetRisk, getFleetStatus, getFleetRegime, getFleetDrift, getFleetBot, getFleetActivity } from "../api/fleet.js";
+import { startFleet, stopFleet, setKillSwitch, setFleetRisk, getFleetStatus, getFleetRegime, getFleetDrift, getFleetBot, getFleetActivity, getFleetEligibility } from "../api/fleet.js";
 import api from "../api/apiClient.js";
 import { io } from "socket.io-client";
 import { BACKEND_URL } from "../config/api.js";
@@ -426,6 +426,8 @@ export default function FleetCommand() {
   const [riskPct, setRiskPct] = useState(() => {
     try { const v = localStorage.getItem("neov6_riskPct"); return v != null && v !== "" ? v : 1; } catch { return 1; }
   });
+  const [maxLegs, setMaxLegs] = useState(1);        // pyramiding legs (only applied to validation-cleared coins)
+  const [eligibility, setEligibility] = useState(null); // validation registry: which coins are cleared to pyramid
 
   const [status, setStatus] = useState(null);
   const [regime, setRegime] = useState(null);
@@ -614,6 +616,9 @@ export default function FleetCommand() {
       .catch(() => {});
   }, []);
 
+  // Validation registry — which coins the Strategy Lab cleared for live pyramiding.
+  useEffect(() => { getFleetEligibility().then(setEligibility).catch(() => {}); }, []);
+
   // Quick-start presets — one click sets risk cap, mode and sizing (doesn't auto-start).
   const applyPreset = (p) => {
     if (p === "cons") { setMaxDd(10); setRiskPct(0.5); setLongOnly(true); setConviction(false); }
@@ -648,6 +653,7 @@ export default function FleetCommand() {
         sizeByConviction: !!conviction,
         longOnly: !!longOnly,
         riskPct: Number(riskPct) || 1,
+        maxLegs: Number(maxLegs) || 1,
       };
       const r = await startFleet(body);
       toast.success(`Fleet ignited — ${r.count} bots running (${longOnly ? "spot · long only" : "long + short"})`);
@@ -691,6 +697,9 @@ export default function FleetCommand() {
   };
 
   const running = (status?.count || 0) > 0;
+  // Coins the Strategy Lab cleared to pyramid at the chosen leg count (4h regime/trend_ride LONG).
+  const eligKey = `4h:regime:LONG:trend_ride:legs${Number(maxLegs)}`;
+  const clearedCoins = eligibility?.registry?.[eligKey]?.cleared_coins || [];
   const rg = REGIME[regime?.state || "neutral"] || REGIME.neutral;
   const rd = regime?.detail || {};
   const driftStatus = drift?.status || "INSUFFICIENT_DATA";
@@ -846,6 +855,22 @@ export default function FleetCommand() {
                 </button>
                 <span className="text-[9px] leading-tight text-zinc-600">Affects new entries only — open positions keep their stop.</span>
               </div>
+            )}
+          </label>
+          <label className="flex flex-col gap-1" title="Hold multiple positions per coin, adding a leg only in a confirmed, profitable up-trend (never in chop). Applied ONLY to coins the Strategy Lab cleared via hard validation — others stay single-leg. Risk per trade is split across legs, so total risk is unchanged.">
+            <span className="text-[10px] uppercase tracking-widest text-zinc-500">Pyramiding</span>
+            <select value={maxLegs} onChange={(e) => setMaxLegs(Number(e.target.value))} className="w-40 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm">
+              <option value={1}>Off · single leg</option>
+              <option value={2}>Up to 2 legs</option>
+              <option value={3}>Up to 3 legs</option>
+              <option value={4}>Up to 4 legs</option>
+            </select>
+            {Number(maxLegs) > 1 && (
+              <span className="max-w-[200px] text-[9px] leading-tight text-zinc-500">
+                {clearedCoins.length
+                  ? <>Validation-cleared to pyramid: <b className="text-emerald-400">{clearedCoins.map((c) => c.replace("-USD", "")).join(", ")}</b>. All other coins stay single-leg.</>
+                  : <span className="text-amber-400">No coins cleared for ×{maxLegs} yet — every coin stays single-leg until it passes the Strategy Lab's hard validation.</span>}
+              </span>
             )}
           </label>
           <div className="flex flex-col gap-1">
