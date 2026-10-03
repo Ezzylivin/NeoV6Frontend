@@ -10,6 +10,13 @@ import { getOverview, listUsers, updateUser, setKillswitch, recalibrate, getReca
 
 const TIERS = ["free", "trader", "pro", "whale"];
 const ROLES = ["user", "admin", "whale"];
+// Fee-profile labels for the recalibration "what-if" (keys match engine FEE_PROFILES).
+const PROFILE_LABELS = {
+  default: "Default (real fees)",
+  coinbase_one: "Coinbase One (0%)",
+  binance_us: "Binance.US (0% maker)",
+  kraken: "Kraken (~0.16%)",
+};
 
 export default function AdminPanel() {
   const { user } = useAuth();
@@ -27,7 +34,7 @@ export default function AdminPanel() {
   const [recal, setRecal] = useState(null);
   const [recalLevel, setRecalLevel] = useState("strict");
   const [recalBusy, setRecalBusy] = useState(false);
-  const [recalCbOne, setRecalCbOne] = useState(false); // model Coinbase One (0% Coinbase fees)
+  const [recalProfile, setRecalProfile] = useState("default"); // fee profile for what-if validation
   const [research, setResearch] = useState(null);
   const [researchBusy, setResearchBusy] = useState(false);
   const [selected, setSelected] = useState(() => new Set()); // selected user ids for broadcast
@@ -101,7 +108,7 @@ export default function AdminPanel() {
     if (!window.confirm(msg)) return;
     setRecalBusy(true); setErr("");
     try {
-      await recalibrate(recalLevel, undefined, recalCbOne);
+      await recalibrate(recalLevel, undefined, recalProfile);
       await loadRecal();
     } catch (e) {
       setErr(e?.response?.data?.message || "Recalibration failed to start.");
@@ -225,10 +232,17 @@ export default function AdminPanel() {
                 <option key={l} value={l}>{l}</option>
               ))}
             </select>
-            <label className="flex items-center gap-1.5 text-xs text-neutral-300" title="Model a Coinbase One subscription: 0% Coinbase (long) fees up to its volume cap. Kraken shorts unaffected.">
-              <input type="checkbox" checked={recalCbOne} onChange={(e) => setRecalCbOne(e.target.checked)} disabled={recal?.running || recalBusy} />
-              Coinbase One
-            </label>
+            <select
+              value={recalProfile}
+              onChange={(e) => setRecalProfile(e.target.value)}
+              disabled={recal?.running || recalBusy}
+              className="rounded-lg border border-white/10 bg-[#161616] px-3 py-2 text-sm text-white"
+              title="What-if: validate the edge against a specific exchange's fees (longs). Kraken shorts unaffected."
+            >
+              {(recal?.fee_profiles || ["default", "coinbase_one", "binance_us", "kraken"]).map((p) => (
+                <option key={p} value={p}>{PROFILE_LABELS[p] || p}</option>
+              ))}
+            </select>
             <button
               onClick={runRecal}
               disabled={recal?.running || recalBusy}
@@ -250,7 +264,7 @@ export default function AdminPanel() {
               <div className="text-xs text-neutral-400">
                 Last run {new Date(recal.last.ran_at).toLocaleString()} · level{" "}
                 <strong className="text-neutral-200">{recal.last.level}</strong>
-                {recal.last.coinbase_one && <span className="ml-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-bold text-sky-300">Coinbase One · 0% fees</span>}
+                {recal.last.fee_profile && recal.last.fee_profile !== "default" && <span className="ml-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-bold text-sky-300">{PROFILE_LABELS[recal.last.fee_profile] || recal.last.fee_profile}</span>}
               </div>
               <div className="flex flex-wrap gap-2">
                 {(recal.last.by_config || recal.last.by_legs || []).map((r, i) => {
