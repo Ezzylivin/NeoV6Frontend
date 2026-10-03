@@ -11,14 +11,14 @@ import RealityCheck from "../components/RealityCheck.jsx";
 import ReadinessScorecard from "../components/ReadinessScorecard.jsx";
 import RiskPanel from "../components/RiskPanel.jsx";
 import MultiSelect from "../components/MultiSelect.jsx";
-import { startFleet, stopFleet, setKillSwitch, setFleetRisk, getFleetStatus, getFleetRegime, getFleetDrift, getFleetBot, getFleetActivity, getFleetEligibility, getFleetLearning } from "../api/fleet.js";
+import { startFleet, stopFleet, setKillSwitch, setFleetRisk, resetFleetHistory, getFleetStatus, getFleetRegime, getFleetDrift, getFleetBot, getFleetActivity, getFleetEligibility, getFleetLearning } from "../api/fleet.js";
 import api from "../api/apiClient.js";
 import { io } from "socket.io-client";
 import { BACKEND_URL } from "../config/api.js";
 import { AreaChart, Area, LineChart, Line, Legend, ResponsiveContainer, YAxis, Tooltip as RTooltip } from "recharts";
 import {
   Ship, Play, Square, RefreshCw, Activity, TrendingUp, TrendingDown, ShieldCheck,
-  Gauge, Layers, Info, Zap, Radio, Clock, Cpu, Bell, BellOff, Volume2, VolumeX, Ban, Lock,
+  Gauge, Layers, Info, Zap, Radio, Clock, Cpu, Bell, BellOff, Volume2, VolumeX, Ban, Lock, RotateCcw,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -696,6 +696,21 @@ export default function FleetCommand() {
     finally { setApplyingRisk(false); }
   };
 
+  const [resetting, setResetting] = useState(false);
+  const onResetHistory = async () => {
+    if (!window.confirm("Hard reset all chart data?\n\nThis permanently clears your fleet's trade history and Track Record — the live feed, chart markers, drift monitor, equity curve, and the saved ledger.\n\nOpen positions and balances are NOT affected. This cannot be undone.")) return;
+    setResetting(true);
+    try {
+      const r = await resetFleetHistory();
+      toast.success(`Chart data reset — ${r.ledger_removed ?? 0} trades cleared`);
+      setEquityHist([]); setActivity([]); setLedger(null);
+      seenTrades.current = null; lastCloseTs.current = null;
+      refreshFleet();
+      api.get("/ledger/stats", { params: { recent: 500 } }).then((res) => setLedger(res.data)).catch(() => {});
+    } catch (e) { toast.error(e?.response?.data?.error || "Reset failed"); }
+    finally { setResetting(false); }
+  };
+
   const onKill = async (on) => {
     if (on && !window.confirm("Engage the kill switch? This immediately halts ALL new entries across the engine (open positions stay managed by their stops).")) return;
     try {
@@ -943,6 +958,7 @@ export default function FleetCommand() {
               <button onClick={onStop} disabled={busy} className="flex items-center gap-2 rounded-xl bg-rose-500 px-5 py-2.5 text-[11px] font-black uppercase tracking-widest text-black hover:bg-rose-400 disabled:opacity-40"><Square size={13} /> Stop Fleet</button>
             )}
             <button onClick={() => { refreshFleet(); refreshCoin(); }} className="flex items-center gap-2 rounded-xl border border-zinc-700 px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-zinc-300 hover:border-zinc-500"><RefreshCw size={13} /> Sync</button>
+            <button onClick={onResetHistory} disabled={resetting} title="Hard reset all trade-history charts (Track Record, live feed, markers, drift, equity) and the saved ledger. Open positions and balances are not affected." className="flex items-center gap-2 rounded-xl border border-amber-500/40 px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-amber-400 transition hover:bg-amber-500/10 disabled:opacity-40"><RotateCcw size={13} /> {resetting ? "Resetting…" : "Reset data"}</button>
             {status?.kill_switch ? (
               <button onClick={() => onKill(false)} title="Release the kill switch — bots may open new entries again" className="flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-white hover:bg-rose-500 animate-pulse"><Ban size={13} /> Halted · Release</button>
             ) : (

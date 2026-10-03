@@ -16,6 +16,14 @@ export const stopFleet = async () => {
   return res.data;
 };
 
+// POST /api/fleet/reset-history — HARD reset of the caller's trade-history data
+// (live feed, chart markers, drift, equity) + the persisted Track Record ledger.
+// Leaves open positions and balances untouched.
+export const resetFleetHistory = async () => {
+  const res = await api.post("/fleet/reset-history", {});
+  return res.data;
+};
+
 // POST /api/fleet/killswitch { on } — emergency halt of ALL new entries (global).
 export const setKillSwitch = async (on) => {
   const res = await api.post("/fleet/killswitch", { on: !!on });
