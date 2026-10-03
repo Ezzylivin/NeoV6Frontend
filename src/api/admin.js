@@ -29,3 +29,17 @@ export async function setKillswitch(on) {
   const { data } = await api.post("/admin/killswitch", { on });
   return data;
 }
+
+// "Harden the system": re-run the hard validation that gates live pyramiding,
+// at a chosen strictness ("normal" | "strict" | "paranoid"). Runs in the
+// background on the engine; poll getRecalibration() for the verdict.
+export async function recalibrate(level = "strict", maxLegs) {
+  const { data } = await api.post("/admin/recalibrate", { level, maxLegs });
+  return data; // { status: "started" | "already_running", level }
+}
+
+// Last recalibration result + whether one is running now + the auto cadence.
+export async function getRecalibration() {
+  const { data } = await api.get("/admin/recalibration");
+  return data; // { running, last, levels, enabled, auto_hours, auto_level }
+}
