@@ -284,8 +284,8 @@ export default function AdminPanel() {
                 {(recal.last.by_config || recal.last.by_legs || []).map((r, i) => {
                   const robust = r.verdict === "ROBUST";
                   return (
-                    <span key={`${r.entry || "regime"}-${r.legs}-${i}`} className={`rounded-lg border px-3 py-1 text-xs ${robust ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-white/10 bg-white/5 text-neutral-400"}`}>
-                      {r.entry && <span className="font-semibold text-neutral-200">{r.entry} · </span>}x{r.legs}: <strong>{r.verdict || "—"}</strong>
+                    <span key={`${r.timeframe || ""}-${r.entry || "regime"}-${r.legs}-${i}`} className={`rounded-lg border px-3 py-1 text-xs ${robust ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-white/10 bg-white/5 text-neutral-400"}`}>
+                      {r.timeframe && <span className="font-semibold text-sky-300">{r.timeframe} </span>}{r.entry && <span className="font-semibold text-neutral-200">{r.entry} · </span>}x{r.legs}: <strong>{r.verdict || "—"}</strong>
                       {Array.isArray(r.cleared_coins) && r.cleared_coins.length > 0 && (
                         <span className="text-neutral-400"> · {r.cleared_coins.map((c) => c.replace("-USD", "")).join(", ")}</span>
                       )}
