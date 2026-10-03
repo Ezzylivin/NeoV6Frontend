@@ -17,7 +17,7 @@ import { BACKEND_URL } from "../config/api.js";
 import { AreaChart, Area, LineChart, Line, Legend, ResponsiveContainer, YAxis, Tooltip as RTooltip } from "recharts";
 import {
   Ship, Play, Square, RefreshCw, Activity, TrendingUp, TrendingDown, ShieldCheck,
-  Gauge, Layers, Info, Zap, Radio, Clock, Cpu, Bell, BellOff, Volume2, VolumeX, Ban,
+  Gauge, Layers, Info, Zap, Radio, Clock, Cpu, Bell, BellOff, Volume2, VolumeX, Ban, Lock,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -791,6 +791,29 @@ export default function FleetCommand() {
         </div>
       </div>
 
+      {/* Paper / Live mode. Live unlocks only once a paper test has PASSED (the
+          Strategy Lab's hard validation returned ROBUST). It never flips real
+          money itself — it opens the Go-Live readiness gate and hands off to you. */}
+      <div data-tour="mode-toggle" className="mb-5 flex flex-wrap items-center gap-3">
+        <div className="inline-flex rounded-2xl border border-zinc-800 bg-zinc-900 p-1">
+          <button className="rounded-xl bg-sky-500/20 px-6 py-2.5 text-[11px] font-black uppercase tracking-widest text-sky-300"
+            title="Paper mode — simulated balance against live prices. Active.">
+            Paper
+          </button>
+          <button onClick={() => testsPassed && setGoLiveStage("warn")} disabled={!testsPassed}
+            title={testsPassed ? "Go Live — review the real-money warning and next steps" : "Locked — pass a paper test in the Strategy Lab first (a backtest must return ROBUST)"}
+            className={`ml-1 flex items-center gap-1.5 rounded-xl px-6 py-2.5 text-[11px] font-black uppercase tracking-widest transition ${testsPassed ? "border-2 border-rose-500 text-rose-200 animate-pulse hover:bg-rose-500/20" : "cursor-not-allowed text-zinc-600"}`}
+            style={testsPassed ? { boxShadow: "0 0 22px -3px rgba(244,63,94,0.85)" } : undefined}>
+            {!testsPassed && <Lock size={11} />} Live
+          </button>
+        </div>
+        <span className="max-w-md text-[10px] leading-tight text-zinc-500">
+          {testsPassed
+            ? "A paper test passed — Live is unlocked. It reviews the risks and hands off to you; the app never trades real funds on its own."
+            : "Live unlocks after a paper test passes — run a backtest in the Strategy Lab until the verdict reads ROBUST."}
+        </span>
+      </div>
+
       {/* Learn-while-it-trades: how the fleet works + the evidence behind it (collapsible) */}
       <FleetGuide />
       <EvidencePanel />
@@ -928,17 +951,6 @@ export default function FleetCommand() {
       </div>
 
       {/* Risk — how much can actually be lost, from the live fleet + your settings */}
-      {/* GO LIVE — readiness gate. Appears only once the Strategy Lab's hard
-          validation has returned ROBUST. It does NOT move real funds or place
-          real orders: it surfaces the risks and hands off to the user. */}
-      {testsPassed && (
-        <button onClick={() => setGoLiveStage("warn")}
-          className="mt-4 w-full rounded-2xl border-2 border-rose-500 bg-gradient-to-r from-rose-600/30 to-rose-500/20 py-4 text-sm font-black uppercase tracking-[0.3em] text-rose-200 transition hover:from-rose-600/50 hover:to-rose-500/40 animate-pulse"
-          style={{ boxShadow: "0 0 26px -2px rgba(244,63,94,0.8)" }}>
-          🚀 GO LIVE — deploy the fleet with real capital
-        </button>
-      )}
-
       {goLiveStage && (
         <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/80 p-4" onClick={() => setGoLiveStage(null)}>
           <div className="w-full max-w-lg rounded-2xl border-2 border-rose-500/60 bg-zinc-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()} style={{ boxShadow: "0 0 40px -6px rgba(244,63,94,0.6)" }}>
