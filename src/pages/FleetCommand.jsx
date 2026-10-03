@@ -29,7 +29,7 @@ const fetchCandles = ({ symbol, timeframe }) =>
 
 const DEFAULT_SYMBOLS = ["BTC-USD", "ETH-USD", "SOL-USD"];
 // The validated universe the fleet can trade (what the Strategy Lab tests on).
-const FLEET_UNIVERSE = ["BTC-USD", "ETH-USD", "SOL-USD", "DOGE-USD", "XRP-USD"];
+const FLEET_UNIVERSE = ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "DOGE-USD", "ADA-USD", "SUI-USD", "PEPE-USD", "SHIB-USD"];
 const fmt = (n, d = 2) =>
   n === null || n === undefined || isNaN(n) ? "–" : Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
 const signed = (n, d = 2) => (Number(n) >= 0 ? "+" : "-") + "$" + fmt(Math.abs(Number(n) || 0), d);
