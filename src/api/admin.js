@@ -55,3 +55,11 @@ export async function getResearch() {
   const { data } = await api.get("/admin/research");
   return data; // { running, enabled, auto_hours, results }
 }
+
+// Broadcast an email to many users. payload: { subject, body, userIds? , tier?,
+// role?, onlyVerified? }. With userIds -> those users; otherwise the filter
+// (no filter = everyone). Returns { matched, sent, failed }.
+export async function broadcastEmail(payload) {
+  const { data } = await api.post("/admin/broadcast", payload);
+  return data;
+}
