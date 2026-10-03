@@ -14,6 +14,7 @@ import {
   ReferenceLine, CartesianGrid,
 } from "recharts";
 import { getLabOptions, runStrategyLab, runPortfolio } from "../api/strategyLab.js";
+import MultiSelect from "../components/MultiSelect.jsx";
 
 // ── friendly copy ──────────────────────────────────────────────────────────
 const ENTRY_LABEL = {
@@ -89,12 +90,13 @@ const labelCls = "mb-1 block text-[10px] font-bold uppercase tracking-widest tex
 export default function StrategyLab() {
   const [opts, setOpts] = useState(null);
   const [cfg, setCfg] = useState({
-    symbol: "BTC-USD", timeframe: "4h", direction: "LONG",
+    symbols: ["BTC-USD"], timeframe: "4h", direction: "LONG",
     entry: "regime", style: "trend_ride", riskPct: 1, initialBalance: 1000,
     start: "", end: "", maxLegs: 1,
   });
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState(null);         // single-coin full detail
+  const [multiResults, setMultiResults] = useState([]); // multi-coin comparison
   const [baseline, setBaseline] = useState(null); // single-leg comparison when pyramiding
   const [error, setError] = useState(null);
   const [portfolio, setPortfolio] = useState(null); // multi-coin blended-equity result
@@ -102,6 +104,14 @@ export default function StrategyLab() {
 
   useEffect(() => {
     getLabOptions().then(setOpts).catch(() => setOpts(null));
+  }, []);
+
+  // Bridge so the guided tour can pick a coin on the multi-select (it can't set
+  // a custom dropdown via the DOM the way it fills native inputs).
+  useEffect(() => {
+    const onPick = (e) => { const c = e?.detail; if (c) setCfg((x) => ({ ...x, symbols: [c] })); };
+    window.addEventListener("neov6:lab-pick-coin", onPick);
+    return () => window.removeEventListener("neov6:lab-pick-coin", onPick);
   }, []);
 
   const symbols = opts?.symbols || ["BTC-USD", "ETH-USD", "SOL-USD", "DOGE-USD", "XRP-USD"];
@@ -118,26 +128,36 @@ export default function StrategyLab() {
   }));
 
   const run = async () => {
-    setRunning(true); setError(null); setBaseline(null);
+    setRunning(true); setError(null); setBaseline(null); setPortfolio(null);
+    const syms = (cfg.symbols && cfg.symbols.length) ? cfg.symbols : ["BTC-USD"];
     try {
       const legs = Number(cfg.maxLegs) || 1;
-      // When pyramiding, also run the single-leg version so the user can see
-      // side-by-side whether adding legs actually helped.
-      const reqs = [runStrategyLab(cfg)];
-      if (legs > 1) reqs.push(runStrategyLab({ ...cfg, maxLegs: 1 }));
-      const [r, base] = await Promise.all(reqs);
-      if (r?.error) { setError(r.error); setResult(null); }
-      else { setResult(r); if (base && !base.error) setBaseline(base); }
+      if (syms.length === 1) {
+        // Single coin → full detail (+ the single-leg baseline when pyramiding).
+        const one = { ...cfg, symbol: syms[0] };
+        const reqs = [runStrategyLab(one)];
+        if (legs > 1) reqs.push(runStrategyLab({ ...one, maxLegs: 1 }));
+        const [r, base] = await Promise.all(reqs);
+        if (r?.error) { setError(r.error); setResult(null); setMultiResults([]); }
+        else { setResult(r); setMultiResults([]); if (base && !base.error) setBaseline(base); }
+      } else {
+        // Many coins → run each and show a comparison table.
+        const rs = await Promise.all(syms.map((s) =>
+          runStrategyLab({ ...cfg, symbol: s }).catch((e) => ({ error: e?.response?.data?.error || "failed", symbol: s }))));
+        const ok = rs.filter((r) => r && !r.error && r.metrics);
+        if (!ok.length) { setError("No backtests completed — the engine may be busy."); setMultiResults([]); setResult(null); }
+        else { setMultiResults(ok); setResult(null); setBaseline(null); }
+      }
     } catch (e) {
       setError(e?.response?.data?.error || "Backtest failed — the engine may be busy or unreachable.");
-      setResult(null);
+      setResult(null); setMultiResults([]);
     } finally { setRunning(false); }
   };
 
   const runPort = async () => {
     setPortRunning(true); setError(null);
     try {
-      const p = await runPortfolio({ timeframe: cfg.timeframe, entry: cfg.entry, direction: cfg.direction, style: cfg.style });
+      const p = await runPortfolio({ timeframe: cfg.timeframe, entry: cfg.entry, direction: cfg.direction, style: cfg.style, symbols: cfg.symbols });
       if (p?.error) setError(p.error); else setPortfolio(p);
     } catch (e) {
       setError(e?.response?.data?.error || "Portfolio test failed — the engine may be busy.");
@@ -178,10 +198,14 @@ export default function StrategyLab() {
 
           <div className="space-y-3">
             <div>
-              <label className={labelCls}>Coin</label>
-              <select data-tour="lab-coin" value={cfg.symbol} onChange={(e) => set("symbol", e.target.value)} className={inputCls}>
-                {symbols.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <label className={labelCls}>Coins — pick one or many</label>
+              <MultiSelect dataTour="lab-coin" options={symbols} selected={cfg.symbols}
+                onChange={(v) => set("symbols", v.length ? v : cfg.symbols)} placeholder="Select coins…" />
+              <p className="mt-1 text-[10px] leading-relaxed text-zinc-600">
+                {cfg.symbols.length > 1
+                  ? `${cfg.symbols.length} coins — Run shows a per-coin comparison table.`
+                  : "One coin — Run shows the full detail (equity curve + every trade)."}
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -248,8 +272,8 @@ export default function StrategyLab() {
             <button onClick={run} data-tour="lab-run" disabled={running} className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-[11px] font-black uppercase tracking-widest text-black transition hover:bg-emerald-400 disabled:opacity-40">
               <Play size={13} /> {running ? "Running backtest…" : "Run backtest"}
             </button>
-            <button onClick={runPort} disabled={portRunning} title="Run this config across all coins at once and show the blended (diversified) result." className="flex w-full items-center justify-center gap-2 rounded-xl border border-sky-500/40 py-2.5 text-[11px] font-black uppercase tracking-widest text-sky-400 transition hover:bg-sky-500/10 disabled:opacity-40">
-              <Layers size={13} /> {portRunning ? "Blending…" : "Portfolio blend · all coins"}
+            <button onClick={runPort} disabled={portRunning} title="Run this config across the selected coins at once and show the blended (diversified) result." className="flex w-full items-center justify-center gap-2 rounded-xl border border-sky-500/40 py-2.5 text-[11px] font-black uppercase tracking-widest text-sky-400 transition hover:bg-sky-500/10 disabled:opacity-40">
+              <Layers size={13} /> {portRunning ? "Blending…" : `Portfolio blend · ${cfg.symbols.length} coin${cfg.symbols.length > 1 ? "s" : ""}`}
             </button>
           </div>
         </div>
@@ -284,7 +308,49 @@ export default function StrategyLab() {
             </div>
           )}
 
-          {!result && !error && !portfolio && (
+          {multiResults.length > 0 && (
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
+              <div className="mb-2 flex items-center gap-2">
+                <Layers size={14} className="text-emerald-400" />
+                <h2 className="text-[12px] font-black uppercase tracking-widest text-zinc-300">{multiResults.length} coins · {multiResults[0].timeframe} · {multiResults[0].direction}</h2>
+                <span className="ml-auto text-[10px] text-zinc-600">{entryLabel(multiResults[0].entry)} · {styleLabel(multiResults[0].style)}</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-[11px]">
+                  <thead>
+                    <tr className="text-zinc-500">
+                      <th className="py-2 pr-3 font-black uppercase tracking-tighter">Coin</th>
+                      <th className="py-2 pr-3 text-right font-black uppercase tracking-tighter">Return</th>
+                      <th className="py-2 pr-3 text-right font-black uppercase tracking-tighter">PF</th>
+                      <th className="py-2 pr-3 text-right font-black uppercase tracking-tighter">Avg/trade</th>
+                      <th className="py-2 pr-3 text-right font-black uppercase tracking-tighter">Worst drop</th>
+                      <th className="py-2 pr-3 text-right font-black uppercase tracking-tighter">vs Hold</th>
+                      <th className="py-2 text-right font-black uppercase tracking-tighter">Trades</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800">
+                    {multiResults.map((r) => {
+                      const mm = r.metrics || {}; const beat = Number(mm.roi) >= Number(r.buy_hold_pct);
+                      return (
+                        <tr key={r.symbol} className="hover:bg-zinc-800/30">
+                          <td className="py-2 pr-3 font-bold text-zinc-200">{(r.symbol || "").replace("-USD", "")}</td>
+                          <td className={`py-2 pr-3 text-right font-mono font-black ${Number(mm.roi) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{pct(mm.roi)}</td>
+                          <td className="py-2 pr-3 text-right font-mono text-zinc-300">{fmt(mm.profit_factor)}</td>
+                          <td className={`py-2 pr-3 text-right font-mono ${Number(mm.expectancy_r) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{Number(mm.expectancy_r) >= 0 ? "+" : ""}{fmt(mm.expectancy_r, 3)}R</td>
+                          <td className="py-2 pr-3 text-right font-mono text-rose-400">-{fmt(mm.max_drawdown, 1)}%</td>
+                          <td className={`py-2 pr-3 text-right font-mono ${beat ? "text-emerald-400" : "text-zinc-500"}`}>{pct(r.buy_hold_pct)}</td>
+                          <td className="py-2 text-right font-mono text-zinc-400">{fmt(mm.total_trades, 0)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-2 text-[10px] leading-relaxed text-zinc-600">Each coin backtested with the same config. Select a single coin to see its full detail (equity curve + every trade); use Portfolio blend for the combined, diversified view.</p>
+            </div>
+          )}
+
+          {!result && !error && !portfolio && multiResults.length === 0 && (
             <div className="flex h-[360px] flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/20 text-center">
               <FlaskConical size={56} className="mb-4 text-zinc-700" />
               <p className="text-sm font-black uppercase tracking-widest text-zinc-500">Set a config and run</p>
