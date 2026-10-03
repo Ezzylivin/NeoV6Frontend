@@ -15,6 +15,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowRight, ArrowLeft, GraduationCap, Lock } from "lucide-react";
+import api from "../api/apiClient";
 
 const DONE_KEY = "neov6_onboarded_v2";
 const FLEET = "/dashboard/fleet";
@@ -87,12 +88,33 @@ export default function OnboardingTour() {
   };
 
   useEffect(() => {
-    let first = false;
-    try { first = !localStorage.getItem(DONE_KEY); } catch { first = false; }
-    if (first) { roll(); setRun(true); }
+    let alive = true;
     const onStart = () => { roll(); setRect(null); setI(0); setRun(true); };
     window.addEventListener("neov6:start-tour", onStart);
-    return () => window.removeEventListener("neov6:start-tour", onStart);
+
+    // AUTO-show only on the user's FIRST login ever. The server-side onboardedAt
+    // flag is the source of truth (per account, across devices, and it survives
+    // even if the user never finishes the tour). localStorage is a fast path so
+    // already-onboarded users don't re-query /me on every page load.
+    let seen = false;
+    try { seen = !!localStorage.getItem(DONE_KEY); } catch { seen = false; }
+    if (!seen) {
+      api.get("/users/me")
+        .then((r) => {
+          if (!alive) return;
+          if (r?.data?.user?.onboardedAt) {
+            try { localStorage.setItem(DONE_KEY, "1"); } catch { /* ignore */ }
+            return; // already onboarded on another device/session — never again
+          }
+          // First time ever: show once, and mark it immediately (server +
+          // local) so it won't re-appear even if they refresh or never finish.
+          roll(); setRun(true);
+          api.post("/users/onboarded").catch(() => { /* non-fatal */ });
+          try { localStorage.setItem(DONE_KEY, "1"); } catch { /* ignore */ }
+        })
+        .catch(() => { /* can't confirm → don't auto-show, avoid spamming */ });
+    }
+    return () => { alive = false; window.removeEventListener("neov6:start-tour", onStart); };
   }, []);
 
   const finish = useCallback(() => {
