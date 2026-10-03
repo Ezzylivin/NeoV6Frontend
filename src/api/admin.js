@@ -43,3 +43,15 @@ export async function getRecalibration() {
   const { data } = await api.get("/admin/recalibration");
   return data; // { running, last, levels, enabled, auto_hours, auto_level }
 }
+
+// Research: run the cross-coin sweep that hunts for the best-performing configs.
+export async function runResearch() {
+  const { data } = await api.post("/admin/research", {});
+  return data; // { status: "started" | "already_running" }
+}
+
+// Latest research ranking + whether a sweep is running + the auto cadence.
+export async function getResearch() {
+  const { data } = await api.get("/admin/research");
+  return data; // { running, enabled, auto_hours, results }
+}
