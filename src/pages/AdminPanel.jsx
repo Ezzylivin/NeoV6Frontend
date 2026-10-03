@@ -12,10 +12,11 @@ const TIERS = ["free", "trader", "pro", "whale"];
 const ROLES = ["user", "admin", "whale"];
 // Fee-profile labels for the recalibration "what-if" (keys match engine FEE_PROFILES).
 const PROFILE_LABELS = {
-  default: "Default (real fees)",
+  default: "Default (engine — 0%)",
   coinbase_one: "Coinbase One (0%)",
   binance_us: "Binance.US (0% maker)",
   kraken: "Kraken (~0.16%)",
+  coinbase_advanced: "Coinbase Advanced (0.4% — real)",
 };
 
 export default function AdminPanel() {
