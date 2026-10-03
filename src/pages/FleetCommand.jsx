@@ -715,12 +715,13 @@ export default function FleetCommand() {
 
   const [resetting, setResetting] = useState(false);
   const onResetHistory = async () => {
-    if (!window.confirm("Hard reset all chart data?\n\nThis permanently clears your fleet's trade history and Track Record — the live feed, chart markers, drift monitor, equity curve, and the saved ledger.\n\nOpen positions and balances are NOT affected. This cannot be undone.")) return;
+    if (!window.confirm("Reset the ENTIRE trading session?\n\nThis STOPS every bot, discards their paper positions, and permanently clears all trade history + the Track Record (live feed, chart markers, drift, equity curve, and the saved ledger).\n\nYou'll start from a clean slate — re-ignite when you're ready. This cannot be undone.")) return;
     setResetting(true);
     try {
-      const r = await resetFleetHistory();
-      toast.success(`Chart data reset — ${r.ledger_removed ?? 0} trades cleared`);
-      setEquityHist([]); setActivity([]); setLedger(null);
+      const r = await resetFleetHistory();        // clear ledger + in-memory history
+      try { await stopFleet(); } catch { /* may already be stopped */ }
+      toast.success(`Trading session reset — fleet stopped, ${r.ledger_removed ?? 0} trades cleared`);
+      setEquityHist([]); setActivity([]); setLedger(null); setStatus(null); setDrift(null);
       seenTrades.current = null; lastCloseTs.current = null;
       refreshFleet();
       api.get("/ledger/stats", { params: { recent: 500 } }).then((res) => setLedger(res.data)).catch(() => {});
@@ -975,7 +976,7 @@ export default function FleetCommand() {
               <button onClick={onStop} disabled={busy} className="flex items-center gap-2 rounded-xl bg-rose-500 px-5 py-2.5 text-[11px] font-black uppercase tracking-widest text-black hover:bg-rose-400 disabled:opacity-40"><Square size={13} /> Stop Fleet</button>
             )}
             <button onClick={() => { refreshFleet(); refreshCoin(); }} className="flex items-center gap-2 rounded-xl border border-zinc-700 px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-zinc-300 hover:border-zinc-500"><RefreshCw size={13} /> Sync</button>
-            <button onClick={onResetHistory} disabled={resetting} title="Hard reset all trade-history charts (Track Record, live feed, markers, drift, equity) and the saved ledger. Open positions and balances are not affected." className="flex items-center gap-2 rounded-xl border border-amber-500/40 px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-amber-400 transition hover:bg-amber-500/10 disabled:opacity-40"><RotateCcw size={13} /> {resetting ? "Resetting…" : "Reset data"}</button>
+            <button onClick={onResetHistory} disabled={resetting} title="Reset the entire trading session — stop all bots, discard their paper positions, and clear all trade history + the Track Record. Start fresh by re-igniting." className="flex items-center gap-2 rounded-xl border border-amber-500/40 px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-amber-400 transition hover:bg-amber-500/10 disabled:opacity-40"><RotateCcw size={13} /> {resetting ? "Resetting…" : "Reset session"}</button>
             {status?.kill_switch ? (
               <button onClick={() => onKill(false)} title="Release the kill switch — bots may open new entries again" className="flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-white hover:bg-rose-500 animate-pulse"><Ban size={13} /> Halted · Release</button>
             ) : (
