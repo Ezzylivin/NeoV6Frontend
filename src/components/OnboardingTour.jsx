@@ -7,7 +7,7 @@
 // "neov6:start-tour" window event (the Help page button fires it).
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { X, ArrowRight, ArrowLeft, GraduationCap } from "lucide-react";
+import { ArrowRight, ArrowLeft, GraduationCap } from "lucide-react";
 
 const DONE_KEY = "neov6_onboarded_v1";
 const FLEET = "/dashboard/fleet";
@@ -178,7 +178,7 @@ export default function OnboardingTour() {
         <div className="mb-2 flex items-center gap-2">
           <GraduationCap size={16} className="text-emerald-400" />
           <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Guided tour · {i + 1}/{total}</span>
-          <button onClick={finish} className="ml-auto text-zinc-500 transition hover:text-zinc-300" title="End tour"><X size={15} /></button>
+          <span className="ml-auto text-[9px] font-bold uppercase tracking-widest text-zinc-600">Complete all steps</span>
         </div>
         <h3 className="mb-1.5 text-sm font-black text-white">{step.title}</h3>
         <p className="text-[12px] leading-relaxed text-zinc-300">{step.body}</p>
@@ -192,7 +192,6 @@ export default function OnboardingTour() {
               <ArrowLeft size={12} /> Back
             </button>
           )}
-          <button onClick={finish} className="text-[11px] font-bold text-zinc-500 transition hover:text-zinc-300">Skip tour</button>
           <button onClick={next} className="ml-auto flex items-center gap-1 rounded-lg bg-emerald-500 px-4 py-1.5 text-[11px] font-black uppercase tracking-widest text-black transition hover:bg-emerald-400">
             {i < total - 1 ? <>Next <ArrowRight size={12} /></> : "Finish"}
           </button>
