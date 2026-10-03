@@ -4,9 +4,9 @@
 // headline numbers, and hit the global emergency kill switch for all fleets.
 import React, { useEffect, useState, useCallback } from "react";
 import { Navigate, Link } from "react-router-dom";
-import { ShieldAlert, Users, DollarSign, Search, Power, Loader2, RefreshCw, Settings as SettingsIcon, ShieldCheck, Sparkles, Microscope } from "lucide-react";
+import { ShieldAlert, Users, DollarSign, Search, Power, Loader2, RefreshCw, Settings as SettingsIcon, ShieldCheck, Sparkles, Microscope, Mail, Send } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
-import { getOverview, listUsers, updateUser, setKillswitch, recalibrate, getRecalibration, runResearch, getResearch } from "../api/admin";
+import { getOverview, listUsers, updateUser, setKillswitch, recalibrate, getRecalibration, runResearch, getResearch, broadcastEmail } from "../api/admin";
 
 const TIERS = ["free", "trader", "pro", "whale"];
 const ROLES = ["user", "admin", "whale"];
@@ -29,6 +29,10 @@ export default function AdminPanel() {
   const [recalBusy, setRecalBusy] = useState(false);
   const [research, setResearch] = useState(null);
   const [researchBusy, setResearchBusy] = useState(false);
+  const [selected, setSelected] = useState(() => new Set()); // selected user ids for broadcast
+  const [compose, setCompose] = useState({ subject: "", body: "" });
+  const [broadcastBusy, setBroadcastBusy] = useState(false);
+  const [broadcastMsg, setBroadcastMsg] = useState("");
 
   const loadOverview = useCallback(async () => {
     try { setOverview(await getOverview()); } catch (e) { /* non-fatal */ }
@@ -111,6 +115,41 @@ export default function AdminPanel() {
     } catch (e) {
       setErr(e?.response?.data?.message || "Research failed to start.");
     } finally { setResearchBusy(false); }
+  };
+
+  const toggleOne = (id) => setSelected((s) => {
+    const n = new Set(s);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    return n;
+  });
+  const toggleAllPage = () => setSelected((s) => {
+    const n = new Set(s);
+    const allOn = rows.length > 0 && rows.every((r) => n.has(r._id));
+    rows.forEach((r) => (allOn ? n.delete(r._id) : n.add(r._id)));
+    return n;
+  });
+
+  const sendBroadcast = async () => {
+    const subject = compose.subject.trim();
+    const body = compose.body.trim();
+    if (!subject || !body) { setBroadcastMsg("Subject and body are required."); return; }
+    const ids = Array.from(selected);
+    const audience = ids.length
+      ? `${ids.length} selected user${ids.length === 1 ? "" : "s"}`
+      : `ALL users matching the current filter${fTier ? ` · tier ${fTier}` : ""}${fRole ? ` · role ${fRole}` : ""}`;
+    if (!window.confirm(`Send this email to ${audience}?\n\nThis sends real email to real people.`)) return;
+    setBroadcastBusy(true); setBroadcastMsg("");
+    try {
+      const payload = ids.length
+        ? { subject, body, userIds: ids }
+        : { subject, body, tier: fTier || undefined, role: fRole || undefined };
+      const r = await broadcastEmail(payload);
+      setBroadcastMsg(`✅ Sent ${r.sent}/${r.matched}${r.failed ? ` · ${r.failed} failed` : ""}.`);
+      setCompose({ subject: "", body: "" });
+      setSelected(new Set());
+    } catch (e) {
+      setBroadcastMsg(e?.response?.data?.message || "Send failed.");
+    } finally { setBroadcastBusy(false); }
   };
 
   // Hard client-side gate (the API also enforces 403). Admins only. Declared
@@ -337,11 +376,64 @@ export default function AdminPanel() {
 
       {err && <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-300">{err}</div>}
 
+      {/* EMAIL USERS (broadcast) */}
+      <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <Mail className="h-5 w-5 text-emerald-400" />
+          <h2 className="text-lg font-semibold text-white">Email users</h2>
+          <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-neutral-300">
+            {selected.size > 0 ? `${selected.size} selected` : "no selection → current filter"}
+          </span>
+          {selected.size > 0 && (
+            <button onClick={() => setSelected(new Set())} className="text-xs text-neutral-400 hover:text-white">clear</button>
+          )}
+        </div>
+        <div className="space-y-2">
+          <input
+            value={compose.subject}
+            onChange={(e) => setCompose((c) => ({ ...c, subject: e.target.value }))}
+            placeholder="Subject"
+            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-neutral-500 focus:border-emerald-500/50 focus:outline-none"
+          />
+          <textarea
+            value={compose.body}
+            onChange={(e) => setCompose((c) => ({ ...c, body: e.target.value }))}
+            placeholder="Message… (a blank line starts a new paragraph)"
+            rows={5}
+            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-neutral-500 focus:border-emerald-500/50 focus:outline-none"
+          />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-neutral-500">
+              {selected.size > 0
+                ? `Will email ${selected.size} selected user${selected.size === 1 ? "" : "s"}.`
+                : "No rows selected — will email everyone matching the current filter (tier/role above). Tick rows below to target specific users."}
+            </p>
+            <button
+              onClick={sendBroadcast}
+              disabled={broadcastBusy || !compose.subject.trim() || !compose.body.trim()}
+              className="flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-bold text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {broadcastBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              Send email
+            </button>
+          </div>
+          {broadcastMsg && <div className="text-xs text-emerald-300/90">{broadcastMsg}</div>}
+        </div>
+      </div>
+
       {/* USER TABLE */}
       <div className="mt-4 overflow-x-auto rounded-xl border border-white/10">
         <table className="w-full text-left text-sm">
           <thead className="bg-white/5 text-xs uppercase tracking-wide text-neutral-400">
             <tr>
+              <th className="px-4 py-3">
+                <input
+                  type="checkbox"
+                  aria-label="Select all on this page"
+                  checked={rows.length > 0 && rows.every((r) => selected.has(r._id))}
+                  onChange={toggleAllPage}
+                />
+              </th>
               <th className="px-4 py-3">User</th>
               <th className="px-4 py-3">Tier</th>
               <th className="px-4 py-3">Role</th>
@@ -352,11 +444,14 @@ export default function AdminPanel() {
           </thead>
           <tbody className="divide-y divide-white/5">
             {loading ? (
-              <tr><td colSpan={6} className="px-4 py-10 text-center text-neutral-500"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></td></tr>
+              <tr><td colSpan={7} className="px-4 py-10 text-center text-neutral-500"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-10 text-center text-neutral-500">No users match.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-10 text-center text-neutral-500">No users match.</td></tr>
             ) : rows.map((u) => (
-              <tr key={u._id} className="hover:bg-white/[0.02]">
+              <tr key={u._id} className={`hover:bg-white/[0.02] ${selected.has(u._id) ? "bg-emerald-500/[0.06]" : ""}`}>
+                <td className="px-4 py-3">
+                  <input type="checkbox" aria-label="Select user" checked={selected.has(u._id)} onChange={() => toggleOne(u._id)} />
+                </td>
                 <td className="px-4 py-3">
                   <div className="font-medium text-white">{u.username || u.email || (u.walletAddress ? `${u.walletAddress.slice(0,6)}…` : "—")}</div>
                   <div className="text-xs text-neutral-500">{u.email}{u.isVerified ? "" : " · unverified"}</div>
