@@ -6,7 +6,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Navigate, Link } from "react-router-dom";
 import { ShieldAlert, Users, DollarSign, Search, Power, Loader2, RefreshCw, Settings as SettingsIcon, ShieldCheck, Sparkles, Microscope, Mail, Send } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
-import { getOverview, listUsers, updateUser, setKillswitch, recalibrate, getRecalibration, runResearch, getResearch, broadcastEmail } from "../api/admin";
+import { getOverview, listUsers, updateUser, setKillswitch, recalibrate, getRecalibration, runResearch, getResearch, broadcastEmail, executionDryrun } from "../api/admin";
 
 const TIERS = ["free", "trader", "pro", "whale"];
 const ROLES = ["user", "admin", "whale"];
@@ -38,6 +38,9 @@ export default function AdminPanel() {
   const [recalProfile, setRecalProfile] = useState("default"); // fee profile for what-if validation
   const [research, setResearch] = useState(null);
   const [researchBusy, setResearchBusy] = useState(false);
+  const [exec, setExec] = useState({ exchange: "coinbase", symbol: "BTC-USD", side: "buy", usd: 20 });
+  const [execBusy, setExecBusy] = useState(false);
+  const [execResult, setExecResult] = useState(null);
   const [selected, setSelected] = useState(() => new Set()); // selected user ids for broadcast
   const [compose, setCompose] = useState({ subject: "", body: "" });
   const [broadcastBusy, setBroadcastBusy] = useState(false);
@@ -124,6 +127,16 @@ export default function AdminPanel() {
     } catch (e) {
       setErr(e?.response?.data?.message || "Research failed to start.");
     } finally { setResearchBusy(false); }
+  };
+
+  const previewExec = async () => {
+    setExecBusy(true); setExecResult(null); setErr("");
+    try {
+      const r = await executionDryrun({ exchange: exec.exchange, symbol: exec.symbol, side: exec.side, usd: Number(exec.usd) || 20 });
+      setExecResult(r);
+    } catch (e) {
+      setErr(e?.response?.data?.message || "Dry-run failed.");
+    } finally { setExecBusy(false); }
   };
 
   const toggleOne = (id) => setSelected((s) => {
@@ -367,6 +380,42 @@ export default function AdminPanel() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* EXECUTION — limit orders (Stage 1: dry-run) */}
+      <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+        <div className="mb-1 flex items-center gap-2">
+          <Microscope className="h-5 w-5 text-amber-400" />
+          <h2 className="text-lg font-semibold text-white">Execution — limit orders</h2>
+          <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-300">STAGE 1 · DRY-RUN</span>
+        </div>
+        <p className="mb-3 text-xs text-neutral-500">Computes the real post-only (maker) limit order we <em>would</em> place on an exchange and returns it — <strong>nothing is sent.</strong> This verifies order params venue-by-venue before any real execution.</p>
+        <div className="flex flex-wrap items-end gap-2">
+          <select value={exec.exchange} onChange={(e) => setExec((s) => ({ ...s, exchange: e.target.value }))} className="rounded-lg border border-white/10 bg-[#161616] px-3 py-2 text-sm text-white">
+            <option value="coinbase">Coinbase</option>
+            <option value="binanceus">Binance.US</option>
+            <option value="kraken">Kraken</option>
+          </select>
+          <input value={exec.symbol} onChange={(e) => setExec((s) => ({ ...s, symbol: e.target.value }))} className="w-28 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white" placeholder="BTC-USD" />
+          <select value={exec.side} onChange={(e) => setExec((s) => ({ ...s, side: e.target.value }))} className="rounded-lg border border-white/10 bg-[#161616] px-3 py-2 text-sm text-white">
+            <option value="buy">buy</option>
+            <option value="sell">sell</option>
+          </select>
+          <input type="number" value={exec.usd} onChange={(e) => setExec((s) => ({ ...s, usd: e.target.value }))} className="w-24 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white" placeholder="USD" />
+          <button onClick={previewExec} disabled={execBusy}
+            className="flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-bold text-black transition hover:bg-amber-400 disabled:opacity-50">
+            {execBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Preview order (dry-run)
+          </button>
+        </div>
+        {execResult && (
+          <div className="mt-3">
+            <div className="mb-1 text-xs text-emerald-300">
+              {execResult.sent ? "⚠️ SENT (live)" : "Dry-run — not sent"}
+              {Array.isArray(execResult.blocked_by) && execResult.blocked_by.length ? ` · gated by: ${execResult.blocked_by.join(", ")}` : ""}
+            </div>
+            <pre className="overflow-x-auto rounded-lg border border-white/10 bg-black/40 p-3 text-[11px] text-neutral-300">{JSON.stringify(execResult.intended || execResult.order || execResult, null, 2)}</pre>
+          </div>
+        )}
       </div>
 
       {/* FILTERS */}
