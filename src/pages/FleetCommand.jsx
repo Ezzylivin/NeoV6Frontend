@@ -62,6 +62,23 @@ const FRIENDLY_GATE = {
   "Signal": "all checks are green — just waiting for a clear entry signal (the market's neutral here)",
 };
 
+// What each gate actually CHECKS (neutral), shown as a hover tooltip on the
+// Neural Flow chips so users can learn what every ✓/✕ means.
+const GATE_INFO = {
+  "Volatility": "Is the market moving enough to be worth the fees? (ATR within the healthy band.)",
+  "Votes": "Do enough of the strategy signals agree on the same direction?",
+  "Trend align": "Is price on the correct side of the 200-EMA for this trade's direction?",
+  "ADX trend": "Is the trend strong enough to ride? (ADX above the minimum.)",
+  "Volume": "Is there enough trading volume behind the move to trust it?",
+  "AI gate": "Is the model's confidence above the entry threshold?",
+  "Direction": "Does the current signal match this bot's side? (it trades one direction only.)",
+  "Macro tilt": "Does Bitcoin's macro regime (risk-on / risk-off) favor this side right now?",
+  "Cooldown": "Has enough time passed since this bot's last trade?",
+  "Risk breaker": "Loss protection: the daily-loss and drawdown limits are clear (not tripped).",
+  "Signal": "Is a fresh entry signal firing right now?",
+};
+const gateTitle = (g) => `${GATE_INFO[g.k] || g.k} ${g.ok ? "— ✓ passing" : "— ✕ blocking this entry"}`;
+
 // Build a friendly one-liner for a single leg from its decision snapshot.
 // Returns { tone, text } where tone drives the dot color.
 function legFriendly(leg, side) {
@@ -414,7 +431,7 @@ function GateFlow({ leg, side }) {
       {/* Technical gate chips underneath for users who want the detail. */}
       <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">
         {(t.gates || []).map((g) => (
-          <div key={g.k} className={`flex items-center gap-1 rounded-md px-2 py-1 text-[9px] font-semibold ${g.ok ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400 ring-1 ring-rose-500/30"}`}>
+          <div key={g.k} title={gateTitle(g)} className={`flex cursor-help items-center gap-1 rounded-md px-2 py-1 text-[9px] font-semibold ${g.ok ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400 ring-1 ring-rose-500/30"}`}>
             <span>{g.ok ? "✓" : "✕"}</span><span className="truncate">{g.k}</span>
           </div>
         ))}
