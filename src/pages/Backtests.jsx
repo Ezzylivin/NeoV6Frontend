@@ -248,8 +248,6 @@ export default function StrategyLab() {
               <select data-tour="lab-legs" value={cfg.maxLegs} onChange={(e) => set("maxLegs", Number(e.target.value))} className={inputCls}>
                 <option value={1}>1 — single position (off)</option>
                 <option value={2}>2 — add up to 1 leg in strong trends</option>
-                <option value={3}>3 — add up to 2 legs</option>
-                <option value={4}>4 — add up to 3 legs</option>
               </select>
               <p className="mt-1 text-[10px] leading-relaxed text-zinc-600">
                 {Number(cfg.maxLegs) > 1
