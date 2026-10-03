@@ -170,7 +170,7 @@ export default function AdminPanel() {
             <ShieldCheck className="h-5 w-5 text-emerald-400" />
             <div>
               <h2 className="text-lg font-semibold text-white">Validation — harden the system</h2>
-              <p className="text-xs text-neutral-500">Re-runs the hard out-of-sample + cost-stress tests that decide which coins may pyramid live. Everything live rests on this.</p>
+              <p className="text-xs text-neutral-500">Re-runs the hard out-of-sample + cost-stress tests across every entry signal × pyramiding depth, deciding which coins may go live. Everything live rests on this.</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -208,16 +208,16 @@ export default function AdminPanel() {
                 <strong className="text-neutral-200">{recal.last.level}</strong>
               </div>
               <div className="flex flex-wrap gap-2">
-                {(recal.last.by_legs || []).map((r) => {
+                {(recal.last.by_config || recal.last.by_legs || []).map((r, i) => {
                   const robust = r.verdict === "ROBUST";
                   return (
-                    <span key={r.legs} className={`rounded-lg border px-3 py-1 text-xs ${robust ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-white/10 bg-white/5 text-neutral-400"}`}>
-                      x{r.legs}: <strong>{r.verdict || "—"}</strong>
+                    <span key={`${r.entry || "regime"}-${r.legs}-${i}`} className={`rounded-lg border px-3 py-1 text-xs ${robust ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-white/10 bg-white/5 text-neutral-400"}`}>
+                      {r.entry && <span className="font-semibold text-neutral-200">{r.entry} · </span>}x{r.legs}: <strong>{r.verdict || "—"}</strong>
                       {Array.isArray(r.cleared_coins) && r.cleared_coins.length > 0 && (
-                        <span className="text-neutral-400"> · {r.cleared_coins.join(", ")}</span>
+                        <span className="text-neutral-400"> · {r.cleared_coins.map((c) => c.replace("-USD", "")).join(", ")}</span>
                       )}
                       {typeof r.survives_stress === "number" && typeof r.coins_tested === "number" && (
-                        <span className="text-neutral-500"> ({r.survives_stress}/{r.coins_tested} survive stress)</span>
+                        <span className="text-neutral-500"> ({r.survives_stress}/{r.coins_tested} stress)</span>
                       )}
                     </span>
                   );
@@ -228,7 +228,10 @@ export default function AdminPanel() {
             <div className="text-xs text-neutral-500">No recalibration has run yet.</div>
           )}
           {recal?.enabled && (
-            <div className="mt-2 text-[11px] text-neutral-500">Automated: runs every {recal.auto_hours}h at “{recal.auto_level}” strictness.</div>
+            <div className="mt-2 text-[11px] text-neutral-500">
+              Automated: runs every {recal.auto_hours}h at “{recal.auto_level}” strictness
+              {Array.isArray(recal.entries) && recal.entries.length ? ` · entries tested: ${recal.entries.join(", ")}` : ""}.
+            </div>
           )}
         </div>
       </div>
