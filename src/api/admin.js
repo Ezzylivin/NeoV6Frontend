@@ -56,6 +56,13 @@ export async function getResearch() {
   return data; // { running, enabled, auto_hours, results }
 }
 
+// Limit-order execution Stage 1: preview the REAL post-only order we'd place on
+// an exchange, WITHOUT sending. payload: { exchange, symbol, side, usd, price? }.
+export async function executionDryrun(payload) {
+  const { data } = await api.post("/admin/execution/dryrun", payload);
+  return data;
+}
+
 // Broadcast an email to many users. payload: { subject, body, userIds? , tier?,
 // role?, onlyVerified? }. With userIds -> those users; otherwise the filter
 // (no filter = everyone). Returns { matched, sent, failed }.
