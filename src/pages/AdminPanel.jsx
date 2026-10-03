@@ -4,9 +4,9 @@
 // headline numbers, and hit the global emergency kill switch for all fleets.
 import React, { useEffect, useState, useCallback } from "react";
 import { Navigate, Link } from "react-router-dom";
-import { ShieldAlert, Users, DollarSign, Search, Power, Loader2, RefreshCw, Settings as SettingsIcon } from "lucide-react";
+import { ShieldAlert, Users, DollarSign, Search, Power, Loader2, RefreshCw, Settings as SettingsIcon, ShieldCheck, Sparkles } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
-import { getOverview, listUsers, updateUser, setKillswitch } from "../api/admin";
+import { getOverview, listUsers, updateUser, setKillswitch, recalibrate, getRecalibration } from "../api/admin";
 
 const TIERS = ["free", "trader", "pro", "whale"];
 const ROLES = ["user", "admin", "whale"];
@@ -24,6 +24,9 @@ export default function AdminPanel() {
   const [err, setErr] = useState("");
   const [savingId, setSavingId] = useState("");
   const [kill, setKill] = useState(false);
+  const [recal, setRecal] = useState(null);
+  const [recalLevel, setRecalLevel] = useState("strict");
+  const [recalBusy, setRecalBusy] = useState(false);
 
   const loadOverview = useCallback(async () => {
     try { setOverview(await getOverview()); } catch (e) { /* non-fatal */ }
@@ -40,8 +43,19 @@ export default function AdminPanel() {
     } finally { setLoading(false); }
   }, [q, fTier, fRole, page]);
 
+  const loadRecal = useCallback(async () => {
+    try { const d = await getRecalibration(); setRecal(d); return d; } catch { return null; }
+  }, []);
+
   useEffect(() => { loadOverview(); }, [loadOverview]);
   useEffect(() => { loadUsers(); }, [loadUsers]);
+  useEffect(() => { loadRecal(); }, [loadRecal]);
+  // While a recalibration is running, poll its status every 8s until it finishes.
+  useEffect(() => {
+    if (!recal?.running) return undefined;
+    const t = setInterval(loadRecal, 8000);
+    return () => clearInterval(t);
+  }, [recal?.running, loadRecal]);
 
   const patch = async (id, body) => {
     setSavingId(id); setErr("");
@@ -62,6 +76,20 @@ export default function AdminPanel() {
     if (!window.confirm(msg)) return;
     try { await setKillswitch(next); setKill(next); }
     catch (e) { setErr(e?.response?.data?.message || "Kill switch failed."); }
+  };
+
+  const runRecal = async () => {
+    const msg = `Recalibrate the live-pyramiding validation at "${recalLevel}" strictness?\n\n`
+      + "This re-runs the hard out-of-sample + cost-stress tests and rewrites which coins may "
+      + "pyramid live. It can take a few minutes, runs in the background, and never interrupts trading.";
+    if (!window.confirm(msg)) return;
+    setRecalBusy(true); setErr("");
+    try {
+      await recalibrate(recalLevel);
+      await loadRecal();
+    } catch (e) {
+      setErr(e?.response?.data?.message || "Recalibration failed to start.");
+    } finally { setRecalBusy(false); }
   };
 
   // Hard client-side gate (the API also enforces 403). Admins only. Declared
@@ -113,6 +141,76 @@ export default function AdminPanel() {
           ))}
         </div>
       )}
+
+      {/* VALIDATION — harden the system */}
+      <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-emerald-400" />
+            <div>
+              <h2 className="text-lg font-semibold text-white">Validation — harden the system</h2>
+              <p className="text-xs text-neutral-500">Re-runs the hard out-of-sample + cost-stress tests that decide which coins may pyramid live. Everything live rests on this.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={recalLevel}
+              onChange={(e) => setRecalLevel(e.target.value)}
+              disabled={recal?.running || recalBusy}
+              className="rounded-lg border border-white/10 bg-[#161616] px-3 py-2 text-sm text-white"
+              title="normal = sensible bar · strict = harder (recommended before live) · paranoid = brutal"
+            >
+              {(recal?.levels || ["normal", "strict", "paranoid"]).map((l) => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
+            <button
+              onClick={runRecal}
+              disabled={recal?.running || recalBusy}
+              className="flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-bold text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {(recal?.running || recalBusy) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {recal?.running ? "Recalibrating…" : "Recalibrate now"}
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 text-sm">
+          {recal?.running ? (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-300">
+              Recalibration running in the background — this won't interrupt trading. Results refresh automatically.
+            </div>
+          ) : recal?.last ? (
+            <div className="space-y-2">
+              <div className="text-xs text-neutral-400">
+                Last run {new Date(recal.last.ran_at).toLocaleString()} · level{" "}
+                <strong className="text-neutral-200">{recal.last.level}</strong>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(recal.last.by_legs || []).map((r) => {
+                  const robust = r.verdict === "ROBUST";
+                  return (
+                    <span key={r.legs} className={`rounded-lg border px-3 py-1 text-xs ${robust ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-white/10 bg-white/5 text-neutral-400"}`}>
+                      x{r.legs}: <strong>{r.verdict || "—"}</strong>
+                      {Array.isArray(r.cleared_coins) && r.cleared_coins.length > 0 && (
+                        <span className="text-neutral-400"> · {r.cleared_coins.join(", ")}</span>
+                      )}
+                      {typeof r.survives_stress === "number" && typeof r.coins_tested === "number" && (
+                        <span className="text-neutral-500"> ({r.survives_stress}/{r.coins_tested} survive stress)</span>
+                      )}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="text-xs text-neutral-500">No recalibration has run yet.</div>
+          )}
+          {recal?.enabled && (
+            <div className="mt-2 text-[11px] text-neutral-500">Automated: runs every {recal.auto_hours}h at “{recal.auto_level}” strictness.</div>
+          )}
+        </div>
+      </div>
 
       {/* FILTERS */}
       <div className="mt-6 flex flex-wrap items-center gap-3">
