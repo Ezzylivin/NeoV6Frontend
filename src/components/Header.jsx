@@ -19,6 +19,7 @@ const Header = () => {
   let userInfo = {};
   try { userInfo = JSON.parse(localStorage.getItem('user') || '{}') || {}; } catch { userInfo = {}; }
   const displayName = userInfo.username || userInfo.name || userInfo.email;
+  const isAdmin = userInfo.role === "admin";
 
   const handleLogout = async () => {
     disconnect();
@@ -55,10 +56,22 @@ const Header = () => {
             Ledger
           </Link>
 
+          {/* 💳 Plans / upgrade to live trading */}
+          <Link to="/dashboard/plans" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
+            Plans
+          </Link>
+
           {/* 🚀 ADDED: Settings Link */}
           <Link to="/dashboard/settings" className="text-sm font-medium text-neutral-300 hover:text-emerald-400 transition-colors">
             Settings
           </Link>
+
+          {/* 🛡️ Admin control — only rendered for admins (route is self-guarded too) */}
+          {isAdmin && (
+            <Link to="/dashboard/admin" className="text-sm font-semibold text-amber-400 hover:text-amber-300 transition-colors">
+              Admin
+            </Link>
+          )}
         </nav>
 
         {/* 🚀 RIGHT SIDE: WALLET + USER INFO + LOGOUT */}
