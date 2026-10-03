@@ -10,7 +10,7 @@ import EvidencePanel from "../components/EvidencePanel.jsx";
 import RealityCheck from "../components/RealityCheck.jsx";
 import ReadinessScorecard from "../components/ReadinessScorecard.jsx";
 import RiskPanel from "../components/RiskPanel.jsx";
-import { startFleet, stopFleet, setKillSwitch, setFleetRisk, getFleetStatus, getFleetRegime, getFleetDrift, getFleetBot, getFleetActivity, getFleetEligibility } from "../api/fleet.js";
+import { startFleet, stopFleet, setKillSwitch, setFleetRisk, getFleetStatus, getFleetRegime, getFleetDrift, getFleetBot, getFleetActivity, getFleetEligibility, getFleetLearning } from "../api/fleet.js";
 import api from "../api/apiClient.js";
 import { io } from "socket.io-client";
 import { BACKEND_URL } from "../config/api.js";
@@ -324,6 +324,15 @@ function LegCard({ leg, side, price }) {
           <div className="font-mono text-zinc-100">{fmt(leg?.winRate ?? 0, 0)}%</div>
         </div>
       </div>
+      {leg?.lastTradeScore?.composite != null && (
+        <div className="mt-2 flex items-center justify-between rounded-lg bg-zinc-950/60 px-2.5 py-1.5 text-[10px]"
+          title="Trade Quality Score — a 0-100 read of the last entry's setup (market context + bot intelligence + strategy alignment).">
+          <span className="text-zinc-500">Last setup quality</span>
+          <span className={`font-mono font-black ${leg.lastTradeScore.composite >= 70 ? "text-emerald-400" : leg.lastTradeScore.composite >= 50 ? "text-amber-400" : "text-rose-400"}`}>
+            {Math.round(leg.lastTradeScore.composite)}/100{leg.lastTradeScore.verdict ? ` · ${leg.lastTradeScore.verdict}` : ""}
+          </span>
+        </div>
+      )}
       {pos ? (
         <div className={`mt-2 rounded-lg border ${c.border} ${c.bg} p-2.5 text-[11px]`}>
           <div className="flex items-center justify-between">
@@ -428,6 +437,7 @@ export default function FleetCommand() {
   });
   const [maxLegs, setMaxLegs] = useState(1);        // pyramiding legs (only applied to validation-cleared coins)
   const [eligibility, setEligibility] = useState(null); // validation registry: which coins are cleared to pyramid
+  const [learning, setLearning] = useState(null);   // self-learning ledger status (models + per-coin progress)
 
   const [status, setStatus] = useState(null);
   const [regime, setRegime] = useState(null);
@@ -618,6 +628,13 @@ export default function FleetCommand() {
 
   // Validation registry — which coins the Strategy Lab cleared for live pyramiding.
   useEffect(() => { getFleetEligibility().then(setEligibility).catch(() => {}); }, []);
+  // Self-learning ledger status (models trained from the fleet's own trades).
+  useEffect(() => {
+    const load = () => getFleetLearning().then(setLearning).catch(() => {});
+    load();
+    const t = setInterval(load, 120000);
+    return () => clearInterval(t);
+  }, []);
 
   // Quick-start presets — one click sets risk cap, mode and sizing (doesn't auto-start).
   const applyPreset = (p) => {
@@ -908,6 +925,33 @@ export default function FleetCommand() {
 
       {/* Risk — how much can actually be lost, from the live fleet + your settings */}
       <div className="mt-4"><RiskPanel status={status} longOnly={longOnly} capital={capital} maxDd={maxDd} riskPct={riskPct} live={false} /></div>
+
+      {/* Self-learning — the bot trains on its OWN closed trades and skips setups it learns tend to lose */}
+      {learning && (
+        <div className="mt-4 rounded-2xl border border-violet-500/20 bg-violet-500/5 p-4">
+          <div className="mb-1 flex items-center gap-2">
+            <Cpu size={14} className="text-violet-400" />
+            <h2 className="text-[12px] font-black uppercase tracking-widest text-zinc-300">Self-learning</h2>
+            <span className="ml-auto text-[10px] text-zinc-600">
+              {learning.models?.length ? `${learning.models.length} model${learning.models.length > 1 ? "s" : ""} active` : "warming up"}
+            </span>
+          </div>
+          <p className="mb-2 text-[10px] leading-relaxed text-zinc-500">
+            Each bot trains a model on its <b className="text-zinc-400">own</b> closed trades and skips setups it has learned tend to lose. It switches on per coin once that coin has <b className="text-zinc-400">{learning.min_trades ?? 60}</b> closed trades (and keeps refining every {learning.refresh_hours ?? 6}h).
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {(learning.progress || []).map((p) => {
+              const done = p.trades >= p.needed;
+              return (
+                <div key={p.symbol} className={`rounded-lg border px-2.5 py-1.5 text-[10px] ${done ? "border-violet-500/40 bg-violet-500/10" : "border-zinc-800 bg-zinc-950/60"}`}>
+                  <span className="text-zinc-400">{p.symbol.replace("-USD", "")}</span>{" "}
+                  <span className={`font-mono font-bold ${done ? "text-violet-300" : "text-zinc-500"}`}>{p.trades}/{p.needed}{done ? " ✓" : ""}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="my-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">

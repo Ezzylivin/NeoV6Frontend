@@ -13,7 +13,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer,
   ReferenceLine, CartesianGrid,
 } from "recharts";
-import { getLabOptions, runStrategyLab } from "../api/strategyLab.js";
+import { getLabOptions, runStrategyLab, runPortfolio } from "../api/strategyLab.js";
 
 // ── friendly copy ──────────────────────────────────────────────────────────
 const ENTRY_LABEL = {
@@ -97,6 +97,8 @@ export default function StrategyLab() {
   const [result, setResult] = useState(null);
   const [baseline, setBaseline] = useState(null); // single-leg comparison when pyramiding
   const [error, setError] = useState(null);
+  const [portfolio, setPortfolio] = useState(null); // multi-coin blended-equity result
+  const [portRunning, setPortRunning] = useState(false);
 
   useEffect(() => {
     getLabOptions().then(setOpts).catch(() => setOpts(null));
@@ -130,6 +132,16 @@ export default function StrategyLab() {
       setError(e?.response?.data?.error || "Backtest failed — the engine may be busy or unreachable.");
       setResult(null);
     } finally { setRunning(false); }
+  };
+
+  const runPort = async () => {
+    setPortRunning(true); setError(null);
+    try {
+      const p = await runPortfolio({ timeframe: cfg.timeframe, entry: cfg.entry, direction: cfg.direction, style: cfg.style });
+      if (p?.error) setError(p.error); else setPortfolio(p);
+    } catch (e) {
+      setError(e?.response?.data?.error || "Portfolio test failed — the engine may be busy.");
+    } finally { setPortRunning(false); }
   };
 
   const m = result?.metrics || {};
@@ -236,6 +248,9 @@ export default function StrategyLab() {
             <button onClick={run} disabled={running} className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-[11px] font-black uppercase tracking-widest text-black transition hover:bg-emerald-400 disabled:opacity-40">
               <Play size={13} /> {running ? "Running backtest…" : "Run backtest"}
             </button>
+            <button onClick={runPort} disabled={portRunning} title="Run this config across all coins at once and show the blended (diversified) result." className="flex w-full items-center justify-center gap-2 rounded-xl border border-sky-500/40 py-2.5 text-[11px] font-black uppercase tracking-widest text-sky-400 transition hover:bg-sky-500/10 disabled:opacity-40">
+              <Layers size={13} /> {portRunning ? "Blending…" : "Portfolio blend · all coins"}
+            </button>
           </div>
         </div>
 
@@ -245,7 +260,31 @@ export default function StrategyLab() {
             <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-5 text-[12px] text-rose-300">{error}</div>
           )}
 
-          {!result && !error && (
+          {portfolio && (
+            <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 p-4">
+              <div className="mb-2 flex items-center gap-2">
+                <Layers size={14} className="text-sky-400" />
+                <h2 className="text-[12px] font-black uppercase tracking-widest text-zinc-300">Portfolio blend · {portfolio.coins} coins</h2>
+                <span className="ml-auto text-[10px] text-zinc-600">{portfolio.timeframe} · {entryLabel(portfolio.entry)}</span>
+              </div>
+              <div className="mb-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px]">
+                <span className="text-zinc-300">Blended return <b className={Number(portfolio.blended_roi) >= 0 ? "text-emerald-400" : "text-rose-400"}>{pct(portfolio.blended_roi)}</b></span>
+                <span className="text-zinc-500">{portfolio.coins_positive}/{portfolio.coins} coins positive</span>
+                <span className="text-zinc-500">avg {Number(portfolio.mean_expectancy_r) >= 0 ? "+" : ""}{fmt(portfolio.mean_expectancy_r, 3)}R · worst drop {fmt(portfolio.mean_max_dd, 1)}%</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(portfolio.per_coin || []).map((c) => (
+                  <div key={c.symbol} className="rounded-lg border border-zinc-800 bg-zinc-950/60 px-2.5 py-1.5 text-[10px]">
+                    <span className="text-zinc-400">{(c.symbol || "").replace("-USD", "")}</span>{" "}
+                    <span className={`font-mono font-bold ${Number(c.roi) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{pct(c.roi)}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 text-[10px] leading-relaxed text-zinc-600">Equal-weight blend of running this one config across all coins at once — the diversification view. Several uncorrelated streams can smooth the whole even when each alone is bumpy.</p>
+            </div>
+          )}
+
+          {!result && !error && !portfolio && (
             <div className="flex h-[360px] flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/20 text-center">
               <FlaskConical size={56} className="mb-4 text-zinc-700" />
               <p className="text-sm font-black uppercase tracking-widest text-zinc-500">Set a config and run</p>

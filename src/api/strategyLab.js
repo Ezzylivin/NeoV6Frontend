@@ -12,8 +12,16 @@ export const getLabOptions = async () => {
 };
 
 // POST /api/strategylab/run — body: { symbol, timeframe, entry, direction, style,
-//   riskPct, start?, end?, initialBalance? } → { metrics, equity, trades, buy_hold_pct }
+//   riskPct, start?, end?, initialBalance?, maxLegs? } → { metrics, equity, trades, buy_hold_pct }
 export const runStrategyLab = async (body = {}) => {
   const res = await api.post("/strategylab/run", body);
+  return res.data;
+};
+
+// POST /api/strategylab/portfolio — run ONE config across many coins as a combined
+// portfolio (blended equity, the diversification view). body: { timeframe, entry,
+//   direction, style, symbols? } → { blended_roi, per_coin, coins_positive, ... }
+export const runPortfolio = async (body = {}) => {
+  const res = await api.post("/strategylab/portfolio", body);
   return res.data;
 };

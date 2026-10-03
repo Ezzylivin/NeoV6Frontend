@@ -42,6 +42,13 @@ export const getFleetEligibility = async () => {
   return res.data;
 };
 
+// GET /api/fleet/learning — self-learning status: ledger models trained from the
+// fleet's own closed trades + per-coin progress toward the training threshold.
+export const getFleetLearning = async () => {
+  const res = await api.get("/fleet/learning");
+  return res.data;
+};
+
 // GET /api/fleet/regime — current BTC macro regime (risk_on / risk_off / neutral)
 export const getFleetRegime = async () => {
   const res = await api.get("/fleet/regime");
