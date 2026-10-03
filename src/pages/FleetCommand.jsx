@@ -438,6 +438,7 @@ export default function FleetCommand() {
   const [maxLegs, setMaxLegs] = useState(1);        // pyramiding legs (only applied to validation-cleared coins)
   const [eligibility, setEligibility] = useState(null); // validation registry: which coins are cleared to pyramid
   const [learning, setLearning] = useState(null);   // self-learning ledger status (models + per-coin progress)
+  const [goLiveStage, setGoLiveStage] = useState(null); // null | "warn" | "steps" — the Go-Live readiness gate modal
 
   const [status, setStatus] = useState(null);
   const [regime, setRegime] = useState(null);
@@ -717,6 +718,9 @@ export default function FleetCommand() {
   // Coins the Strategy Lab cleared to pyramid at the chosen leg count (4h regime/trend_ride LONG).
   const eligKey = `4h:regime:LONG:trend_ride:legs${Number(maxLegs)}`;
   const clearedCoins = eligibility?.registry?.[eligKey]?.cleared_coins || [];
+  // "All tests passed" = the Strategy Lab's hard validation returned ROBUST for
+  // at least one validated config. Gates the Go-Live readiness button.
+  const testsPassed = !!(eligibility?.registry && Object.values(eligibility.registry).some((r) => r?.verdict === "ROBUST"));
   const rg = REGIME[regime?.state || "neutral"] || REGIME.neutral;
   const rd = regime?.detail || {};
   const driftStatus = drift?.status || "INSUFFICIENT_DATA";
@@ -924,6 +928,51 @@ export default function FleetCommand() {
       </div>
 
       {/* Risk — how much can actually be lost, from the live fleet + your settings */}
+      {/* GO LIVE — readiness gate. Appears only once the Strategy Lab's hard
+          validation has returned ROBUST. It does NOT move real funds or place
+          real orders: it surfaces the risks and hands off to the user. */}
+      {testsPassed && (
+        <button onClick={() => setGoLiveStage("warn")}
+          className="mt-4 w-full rounded-2xl border-2 border-rose-500 bg-gradient-to-r from-rose-600/30 to-rose-500/20 py-4 text-sm font-black uppercase tracking-[0.3em] text-rose-200 transition hover:from-rose-600/50 hover:to-rose-500/40 animate-pulse"
+          style={{ boxShadow: "0 0 26px -2px rgba(244,63,94,0.8)" }}>
+          🚀 GO LIVE — deploy the fleet with real capital
+        </button>
+      )}
+
+      {goLiveStage && (
+        <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/80 p-4" onClick={() => setGoLiveStage(null)}>
+          <div className="w-full max-w-lg rounded-2xl border-2 border-rose-500/60 bg-zinc-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()} style={{ boxShadow: "0 0 40px -6px rgba(244,63,94,0.6)" }}>
+            {goLiveStage === "warn" ? (
+              <>
+                <h2 className="mb-3 text-lg font-black uppercase tracking-wider text-rose-300">⚠️ Go Live — real money</h2>
+                <ul className="space-y-2 text-[12px] leading-relaxed text-zinc-300">
+                  <li>• This leaves PAPER mode for <b className="text-rose-300">REAL funds</b>. Losses are real and can be total.</li>
+                  <li>• Your fleet needs a genuine track record first — judge it over <b>dozens</b> of closed trades, with the drift monitor green and beating buy-&-hold, over <b>weeks</b>. It is still very early.</li>
+                  <li>• NeoV6 will <b className="text-rose-300">not place real orders on its own</b>. Going live requires <b>you</b> to connect your own exchange API keys, and it is done entirely at your own risk.</li>
+                  <li>• Never risk money you can't afford to lose. This is not financial advice.</li>
+                </ul>
+                <div className="mt-5 flex gap-2">
+                  <button onClick={() => setGoLiveStage(null)} className="flex-1 rounded-xl border border-zinc-700 py-2.5 text-[11px] font-bold uppercase tracking-widest text-zinc-300 transition hover:border-zinc-500">Cancel — stay on paper</button>
+                  <button onClick={() => setGoLiveStage("steps")} className="flex-1 rounded-xl bg-rose-600 py-2.5 text-[11px] font-black uppercase tracking-widest text-white transition hover:bg-rose-500">I understand the risks</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="mb-3 text-lg font-black uppercase tracking-wider text-zinc-100">How to go live (safely)</h2>
+                <p className="mb-3 text-[12px] leading-relaxed text-zinc-400">Going live is a deliberate, manual step that you control — the app never connects real funds by itself. When you are truly ready:</p>
+                <ol className="space-y-2 text-[12px] leading-relaxed text-zinc-300">
+                  <li><b className="text-emerald-400">1.</b> Let the paper fleet build a real track record — dozens of closed trades, drift <b>ON_TRACK</b>, beating buy-&-hold over weeks.</li>
+                  <li><b className="text-emerald-400">2.</b> Connect your own exchange API keys in Settings. You enter them yourself — never share keys with anyone, including support.</li>
+                  <li><b className="text-emerald-400">3.</b> Start with the smallest size possible, on the validation-cleared coins only.</li>
+                  <li><b className="text-emerald-400">4.</b> Keep the kill switch and the fleet drawdown cap within reach at all times.</li>
+                </ol>
+                <button onClick={() => setGoLiveStage(null)} className="mt-5 w-full rounded-xl bg-zinc-800 py-2.5 text-[11px] font-bold uppercase tracking-widest text-zinc-200 transition hover:bg-zinc-700">Got it — keep me on paper for now</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="mt-4"><RiskPanel status={status} longOnly={longOnly} capital={capital} maxDd={maxDd} riskPct={riskPct} live={false} /></div>
 
       {/* Self-learning — the bot trains on its OWN closed trades and skips setups it learns tend to lose */}
