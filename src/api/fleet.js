@@ -35,6 +35,13 @@ export const getFleetStatus = async () => {
   return res.data;
 };
 
+// GET /api/fleet/eligibility — which coins are validation-cleared for live
+// pyramiding (survived the Strategy Lab's holdout + cost-stress tests).
+export const getFleetEligibility = async () => {
+  const res = await api.get("/fleet/eligibility");
+  return res.data;
+};
+
 // GET /api/fleet/regime — current BTC macro regime (risk_on / risk_off / neutral)
 export const getFleetRegime = async () => {
   const res = await api.get("/fleet/regime");
