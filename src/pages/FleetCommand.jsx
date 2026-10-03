@@ -10,6 +10,7 @@ import EvidencePanel from "../components/EvidencePanel.jsx";
 import RealityCheck from "../components/RealityCheck.jsx";
 import ReadinessScorecard from "../components/ReadinessScorecard.jsx";
 import RiskPanel from "../components/RiskPanel.jsx";
+import MultiSelect from "../components/MultiSelect.jsx";
 import { startFleet, stopFleet, setKillSwitch, setFleetRisk, getFleetStatus, getFleetRegime, getFleetDrift, getFleetBot, getFleetActivity, getFleetEligibility, getFleetLearning } from "../api/fleet.js";
 import api from "../api/apiClient.js";
 import { io } from "socket.io-client";
@@ -26,7 +27,9 @@ import toast from "react-hot-toast";
 const fetchCandles = ({ symbol, timeframe }) =>
   api.get("/market/candles", { params: { symbol, timeframe, limit: 300 } }).then((r) => r.data);
 
-const DEFAULT_SYMBOLS = "BTC-USD,ETH-USD,SOL-USD";
+const DEFAULT_SYMBOLS = ["BTC-USD", "ETH-USD", "SOL-USD"];
+// The validated universe the fleet can trade (what the Strategy Lab tests on).
+const FLEET_UNIVERSE = ["BTC-USD", "ETH-USD", "SOL-USD", "DOGE-USD", "XRP-USD"];
 const fmt = (n, d = 2) =>
   n === null || n === undefined || isNaN(n) ? "–" : Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
 const signed = (n, d = 2) => (Number(n) >= 0 ? "+" : "-") + "$" + fmt(Math.abs(Number(n) || 0), d);
@@ -483,7 +486,7 @@ export default function FleetCommand() {
   const coins = useMemo(() => {
     const live = Array.from(new Set((status?.bots || []).map((b) => b.symbol).filter(Boolean)));
     if (live.length) return live;
-    return symbols.split(",").map((s) => s.trim()).filter(Boolean);
+    return symbols;
   }, [status, symbols]);
 
   useEffect(() => { if (coins.length && !coins.includes(coin)) setCoin(coins[0]); }, [coins, coin]);
@@ -665,7 +668,7 @@ export default function FleetCommand() {
     setBusy(true);
     try {
       const body = {
-        symbols: symbols.split(",").map((s) => s.trim()).filter(Boolean),
+        symbols: (symbols && symbols.length) ? symbols : DEFAULT_SYMBOLS,
         capitalEach: Number(capital) || 1000,
         fleetMaxDrawdownPct: Number(maxDd) || 20,
         sizeByConviction: !!conviction,
@@ -875,7 +878,10 @@ export default function FleetCommand() {
         <div className="flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-1">
             <span className="text-[10px] uppercase tracking-widest text-zinc-500">Symbols</span>
-            <input className="w-full min-w-[220px] rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm sm:w-60" value={symbols} onChange={(e) => setSymbols(e.target.value)} />
+            <div className="w-full min-w-[220px] sm:w-60">
+              <MultiSelect options={FLEET_UNIVERSE} selected={symbols}
+                onChange={(v) => setSymbols(v.length ? v : DEFAULT_SYMBOLS)} placeholder="Pick coins to trade…" />
+            </div>
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[10px] uppercase tracking-widest text-zinc-500">Capital / bot</span>
