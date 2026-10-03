@@ -7,7 +7,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
     LifeBuoy, Rocket, Cpu, Gauge, ShieldAlert, BadgeCheck, UserCog, Wrench,
-    ChevronDown, Search, Mail, BookOpen,
+    ChevronDown, Search, Mail, BookOpen, GraduationCap,
 } from "lucide-react";
 import { getFleetRegime } from "../api/fleet.js";
 import "./HelpCenter.css";
@@ -256,12 +256,19 @@ const HelpCenter = () => {
                     </div>
                 </div>
 
-                {/* LIVE engine status pill */}
-                <div className="flex items-center gap-3 self-start rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-2 shadow-xl">
-                    <span className="text-[8px] font-black uppercase tracking-widest text-zinc-500">Trading engine</span>
-                    <div className="flex items-center gap-2">
-                        <span className={`h-2 w-2 rounded-full ${engineUI.dot} ${engineUI.pulse ? "animate-pulse" : ""}`} />
-                        <span className={`font-mono text-[10px] font-black ${engineUI.text}`}>{engineUI.label}</span>
+                <div className="flex flex-wrap items-center gap-3 self-start">
+                    {/* Replay the forced first-login walkthrough on demand */}
+                    <button onClick={() => window.dispatchEvent(new Event("neov6:start-tour"))}
+                        className="flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-black shadow-lg transition hover:bg-emerald-400">
+                        <GraduationCap size={14} /> Take the guided tour
+                    </button>
+                    {/* LIVE engine status pill */}
+                    <div className="flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-2 shadow-xl">
+                        <span className="text-[8px] font-black uppercase tracking-widest text-zinc-500">Trading engine</span>
+                        <div className="flex items-center gap-2">
+                            <span className={`h-2 w-2 rounded-full ${engineUI.dot} ${engineUI.pulse ? "animate-pulse" : ""}`} />
+                            <span className={`font-mono text-[10px] font-black ${engineUI.text}`}>{engineUI.label}</span>
+                        </div>
                     </div>
                 </div>
             </div>
