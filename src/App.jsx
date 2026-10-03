@@ -22,6 +22,7 @@ const Settings = lazy(() => import("./pages/Settings.jsx"));
 const LedgerDashboard = lazy(() => import("./pages/LedgerDashboard.jsx"));
 const Plans = lazy(() => import("./pages/Plans.jsx"));
 const AdminPanel = lazy(() => import("./pages/AdminPanel.jsx"));
+const Legal = lazy(() => import("./pages/Legal.jsx"));
 const VerifyEmail = lazy(() => import("./pages/VerifyEmail.jsx"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword.jsx"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword.jsx"));
@@ -85,6 +86,8 @@ function App() {
             {/* 🔑 Public password-reset flow */}
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            {/* ⚖️ Public legal pages (Terms / Privacy / Risk Disclosure) */}
+            <Route path="/legal" element={<Legal />} />
 
             {/* Catch-all for unknown routes */}
             <Route path="*" element={<NotFound />} />
