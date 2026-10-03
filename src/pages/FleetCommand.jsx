@@ -757,6 +757,15 @@ export default function FleetCommand() {
   // "All tests passed" = the Strategy Lab's hard validation returned ROBUST for
   // at least one validated config. Gates the Go-Live readiness button.
   const testsPassed = !!(eligibility?.registry && Object.values(eligibility.registry).some((r) => r?.verdict === "ROBUST"));
+  // Paper is unlimited for everyone; LIVE requires a paid, live-enabled tier.
+  // We read the tier from the cached auth user (role "admin" always allowed).
+  const liveTierAllowed = (() => {
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || "{}") || {};
+      if (u.role === "admin") return true;
+      return ["trader", "pro", "whale"].includes(u.tier);
+    } catch { return false; }
+  })();
   const rg = REGIME[regime?.state || "neutral"] || REGIME.neutral;
   const rd = regime?.detail || {};
   const driftStatus = drift?.status || "INSUFFICIENT_DATA";
@@ -836,17 +845,35 @@ export default function FleetCommand() {
             title="Paper mode — simulated balance against live prices. Active.">
             Paper
           </button>
-          <button onClick={() => testsPassed && setGoLiveStage("warn")} disabled={!testsPassed}
-            title={testsPassed ? "Go Live — review the real-money warning and next steps" : "Locked — pass a paper test in the Strategy Lab first (a backtest must return ROBUST)"}
-            className={`ml-1 flex items-center gap-1.5 rounded-xl px-6 py-2.5 text-[11px] font-black uppercase tracking-widest transition ${testsPassed ? "border-2 border-rose-500 text-rose-200 animate-pulse hover:bg-rose-500/20" : "cursor-not-allowed text-zinc-600"}`}
-            style={testsPassed ? { boxShadow: "0 0 22px -3px rgba(244,63,94,0.85)" } : undefined}>
-            {!testsPassed && <Lock size={11} />} Live
+          <button
+            onClick={() => {
+              if (!testsPassed) return;
+              if (!liveTierAllowed) { window.location.assign("/dashboard/plans"); return; }
+              setGoLiveStage("warn");
+            }}
+            disabled={!testsPassed}
+            title={!testsPassed
+              ? "Locked — pass a paper test in the Strategy Lab first (a backtest must return ROBUST)"
+              : !liveTierAllowed
+                ? "Live trading is a paid plan — upgrade to unlock real-money deployment"
+                : "Go Live — review the real-money warning and next steps"}
+            className={`ml-1 flex items-center gap-1.5 rounded-xl px-6 py-2.5 text-[11px] font-black uppercase tracking-widest transition ${
+              testsPassed
+                ? liveTierAllowed
+                  ? "border-2 border-rose-500 text-rose-200 animate-pulse hover:bg-rose-500/20"
+                  : "border-2 border-amber-500 text-amber-200 hover:bg-amber-500/20"
+                : "cursor-not-allowed text-zinc-600"
+            }`}
+            style={testsPassed && liveTierAllowed ? { boxShadow: "0 0 22px -3px rgba(244,63,94,0.85)" } : undefined}>
+            {!testsPassed && <Lock size={11} />} {testsPassed && !liveTierAllowed ? "Upgrade for Live" : "Live"}
           </button>
         </div>
         <span className="max-w-md text-[10px] leading-tight text-zinc-500">
-          {testsPassed
-            ? "A paper test passed — Live is unlocked. It reviews the risks and hands off to you; the app never trades real funds on its own."
-            : "Live unlocks after a paper test passes — run a backtest in the Strategy Lab until the verdict reads ROBUST."}
+          {!testsPassed
+            ? "Live unlocks after a paper test passes — run a backtest in the Strategy Lab until the verdict reads ROBUST."
+            : !liveTierAllowed
+              ? "A paper test passed. Paper trading is free and unlimited — real-money deployment is a paid plan. Visit Plans to upgrade."
+              : "A paper test passed — Live is unlocked. It reviews the risks and hands off to you; the app never trades real funds on its own."}
         </span>
       </div>
 

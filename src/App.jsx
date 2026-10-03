@@ -20,6 +20,8 @@ const HelpCenter = lazy(() => import("./pages/HelpCenter"));
 const FleetCommand = lazy(() => import("./pages/FleetCommand.jsx"));
 const Settings = lazy(() => import("./pages/Settings.jsx"));
 const LedgerDashboard = lazy(() => import("./pages/LedgerDashboard.jsx"));
+const Plans = lazy(() => import("./pages/Plans.jsx"));
+const AdminPanel = lazy(() => import("./pages/AdminPanel.jsx"));
 const VerifyEmail = lazy(() => import("./pages/VerifyEmail.jsx"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword.jsx"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword.jsx"));
@@ -62,6 +64,10 @@ function App() {
               <Route path="settings" element={<Settings />} />
               <Route path="ledger" element={<LedgerDashboard />} />
               <Route path="fleet" element={<FleetCommand />} />
+              {/* 💳 Subscription storefront (paper is free; paid unlocks live) */}
+              <Route path="plans" element={<Plans />} />
+              {/* 🛡️ Admin control plane — self-guards to admins (redirects others) */}
+              <Route path="admin" element={<AdminPanel />} />
             </Route>
 
             {/* 📧 Public email-verification landing (clicked from the email link) */}
