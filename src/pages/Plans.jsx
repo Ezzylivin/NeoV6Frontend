@@ -20,6 +20,9 @@ function priceFor(plan, interval) {
   return n;
 }
 
+// Whole numbers show plain; half-dollar annual rates show cents ($14.50).
+const money = (n) => (Number.isInteger(n) ? `${n}` : n.toFixed(2));
+
 export default function Plans() {
   const [params, setParams] = useSearchParams();
   const [interval, setInterval] = useState("year"); // default to the cheaper, stickier plan
@@ -89,7 +92,7 @@ export default function Plans() {
           onClick={() => setInterval("year")}
           className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${interval === "year" ? "bg-white/10 text-white" : "text-neutral-400 hover:text-white"}`}
         >
-          Annual <span className="ml-1 rounded bg-emerald-500/20 px-1.5 py-0.5 text-xs text-emerald-300">save ~20%</span>
+          Annual <span className="ml-1 rounded bg-emerald-500/20 px-1.5 py-0.5 text-xs text-emerald-300">6 months free</span>
         </button>
       </div>
 
@@ -127,11 +130,13 @@ export default function Plans() {
               <p className="mt-1 text-xs text-neutral-400">{plan.tagline}</p>
 
               <div className="mt-4 flex items-end gap-1">
-                <span className="text-3xl font-extrabold text-white">${price}</span>
+                <span className="text-3xl font-extrabold text-white">${money(price)}</span>
                 <span className="mb-1 text-sm text-neutral-500">{plan.priceMonthly === 0 ? "forever" : "/mo"}</span>
               </div>
               {plan.priceMonthly > 0 && interval === "year" && (
-                <p className="text-xs text-emerald-300">billed yearly</p>
+                <p className="text-xs text-emerald-300">
+                  ${money(plan.priceAnnual * 12)} billed yearly · 6 months free
+                </p>
               )}
               {plan.trialDays > 0 && <p className="mt-1 text-xs text-neutral-400">{plan.trialDays}-day trial · no card to start</p>}
 
