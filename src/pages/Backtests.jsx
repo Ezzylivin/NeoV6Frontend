@@ -77,9 +77,9 @@ function pyrVerdict(a, b) {
   const dRoi = Number(a.roi) - Number(b.roi);
   const dExp = Number(a.expectancy_r) - Number(b.expectancy_r);
   const dDd = Number(a.max_drawdown) - Number(b.max_drawdown);
-  if (dRoi > 1 && dExp >= -0.02) return "✅ Pyramiding improved returns here without hurting trade quality — worth validating across more coins before trusting it.";
-  if (dRoi > 1 && dDd > 3) return "⚠️ Pyramiding boosted returns but with a noticeably deeper worst-drop — more reward, more risk.";
   if (dRoi < -1 || dExp < -0.03) return "❌ Pyramiding didn't help in this window — the single position was as good or better.";
+  if (dRoi > 1 && dDd > 5) return "⚠️ Pyramiding boosted returns — but the worst drawdown got much deeper. More reward, materially more risk: only worth it if you can stomach the bigger swings (and size risk % down to compensate).";
+  if (dRoi > 1 && dExp >= -0.02) return "✅ Pyramiding improved returns here without materially worse risk — worth validating across more coins before trusting it.";
   return "≈ Pyramiding made little difference here. Try other coins/timeframes before concluding.";
 }
 
